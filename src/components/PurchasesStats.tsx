@@ -30,7 +30,7 @@ export default function PurchasesStats() {
         let totalApprovalDays = 0;
         let validPurchases = 0;
         
-        data.forEach(item => {
+        data.forEach((item: any) => {
           // Суммы
           const amount = parseFloat((item['Cумма предпологаемого контракта ФАКТ'] || '0').replace(/\s/g, '').replace(',', '.'));
           const saving = parseFloat((item['Экономия'] || '0').replace(/\s/g, '').replace(',', '.'));

@@ -31,9 +31,9 @@ const menuItems = [
 ];
 
   const purchaserItems = [
-    { id: 'overview', label: 'Обзор', icon: Home },
-    { id: 'purchases', label: 'Реестр закупок', icon: Package },
-    { id: 'workload', label: 'Нагрузка', icon: BarChart3 },
+    { id: 'overview', label: 'Обзор', icon: Home, disabled: false },
+    { id: 'purchases', label: 'Реестр закупок', icon: Package, disabled: false },
+    { id: 'workload', label: 'Нагрузка', icon: BarChart3, disabled: false },
   ];
 
   const initiatorItems = [
@@ -86,7 +86,7 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
               {purchaserItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
-                const isDisabled = item.disabled;
+                const isDisabled = item.disabled || false;
                 
                 return (
                   <li key={item.id}>

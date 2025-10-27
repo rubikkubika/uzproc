@@ -91,7 +91,7 @@ export default function PurchasesAmountChart() {
               tooltip: {
                 callbacks: {
                   label: (context) => {
-                    return `${context.parsed.y.toFixed(1)} млн сум`;
+                    return `${context.parsed.y?.toFixed(1) || '0'} млн сум`;
                   }
                 }
               },

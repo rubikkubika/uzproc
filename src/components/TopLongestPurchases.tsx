@@ -119,9 +119,10 @@ export default function TopLongestPurchases() {
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Топ-10 закупок с самым длинным сроком выполнения</h3>
+      <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4">Топ-10 закупок с самым длинным сроком выполнения</h3>
       
-      <div className="overflow-x-auto">
+      {/* Десктопная версия */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="border-b border-gray-200">
@@ -130,7 +131,7 @@ export default function TopLongestPurchases() {
               <th className="text-left py-3 px-2 text-xs sm:text-sm font-semibold text-gray-700">ЦФО</th>
               <th className="text-left py-3 px-2 text-xs sm:text-sm font-semibold text-gray-700">Закупщик</th>
               <th className="text-left py-3 px-2 text-xs sm:text-sm font-semibold text-gray-700">Срок (дней)</th>
-                <th className="text-left py-3 px-2 text-xs sm:text-sm font-semibold text-gray-700">Роль</th>
+              <th className="text-left py-3 px-2 text-xs sm:text-sm font-semibold text-gray-700">Роль</th>
             </tr>
           </thead>
           <tbody>
@@ -146,6 +147,34 @@ export default function TopLongestPurchases() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Мобильная версия */}
+      <div className="md:hidden space-y-3">
+        {topPurchases.map((purchase, index) => (
+          <div key={index} className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex-1">
+                <div className="font-semibold text-gray-900 text-sm mb-1">№{purchase.requestNumber}</div>
+                <div className="text-xs text-gray-600 mb-2">{purchase.subject}</div>
+              </div>
+              <div className="text-xs font-semibold text-blue-600 ml-2">
+                {purchase.days} дн.
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs text-gray-700">
+              <div>
+                <span className="text-gray-500">ЦФО:</span> {purchase.cfo}
+              </div>
+              <div>
+                <span className="text-gray-500">Роль:</span> {purchase.role}
+              </div>
+              <div className="col-span-2">
+                <span className="text-gray-500">Закупщик:</span> {purchase.purchaser}
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
