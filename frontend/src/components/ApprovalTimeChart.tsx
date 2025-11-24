@@ -25,7 +25,7 @@ export default function ApprovalTimeChart() {
   const [averageApprovalDays, setAverageApprovalDays] = useState<number>(0);
 
   useEffect(() => {
-    fetch('/api/purchases-data')
+    fetch('/api/purchases-data?all=true&minimal=true')
       .then(res => res.json())
       .then(data => {
         setData(data);

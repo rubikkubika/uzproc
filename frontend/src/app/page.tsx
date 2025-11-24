@@ -24,6 +24,7 @@ export default function Dashboard() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isTelegramModalOpen, setIsTelegramModalOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Прокрутка наверх при смене вкладки
   useEffect(() => {
@@ -260,6 +261,8 @@ export default function Dashboard() {
                 onTabChange={setActiveTab}
                 isMobileMenuOpen={isMobileMenuOpen}
                 setIsMobileMenuOpen={setIsMobileMenuOpen}
+                isCollapsed={isSidebarCollapsed}
+                setIsCollapsed={setIsSidebarCollapsed}
               />
               
               {/* Top panel for mobile */}

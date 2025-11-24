@@ -20,7 +20,7 @@ export default function TopLongestPurchases() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/purchases-data')
+    fetch('/api/purchases-data?all=true&minimal=true')
       .then(res => res.json())
       .then(data => {
         calculateTopPurchases(data);

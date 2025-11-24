@@ -21,7 +21,7 @@ export default function PurchaserWorkload() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/purchases-data')
+    fetch('/api/purchases-data?all=true')
       .then(res => res.json())
       .then(data => {
         calculateWorkload(data);

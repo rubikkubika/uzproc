@@ -29,7 +29,7 @@ export default function PurchasesTimelineChart() {
   const [data, setData] = useState<any>(null);
 
   useEffect(() => {
-    fetch('/api/purchases-data')
+    fetch('/api/purchases-data?all=true&minimal=true')
       .then(res => res.json())
       .then(data => {
         if (!data || data.length === 0) return;
@@ -38,10 +38,18 @@ export default function PurchasesTimelineChart() {
         const monthlyData: Record<string, number> = {};
         
         data.forEach((item: any) => {
-          const dateStr = item['Дата создания'];
+          const dateStr = item['Дата создания ЗП'];
           if (dateStr) {
             try {
-              const [day, month, year] = dateStr.split('/');
+              // Новый формат: DD.MM.YYYY HH:MM или DD.MM.YYYY
+              let day, month, year;
+              if (dateStr.includes('.')) {
+                const [datePart] = dateStr.split(' ');
+                [day, month, year] = datePart.split('.');
+              } else {
+                // Старый формат: DD/MM/YYYY
+                [day, month, year] = dateStr.split('/');
+              }
               const monthKey = `${month}/${year}`;
               monthlyData[monthKey] = (monthlyData[monthKey] || 0) + 1;
             } catch (e) {

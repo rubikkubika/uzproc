@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 
 interface PurchaseData {
   [key: string]: string;
@@ -9,21 +9,63 @@ interface PurchaseData {
 export default function PurchasesStatus() {
   const [data, setData] = useState<PurchaseData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState(''); // Текст в поле поиска
+  const [searchQuery, setSearchQuery] = useState(''); // Активный поисковый запрос
   const [activeTabs, setActiveTabs] = useState<{ [key: number]: 'main' | 'approvals' }>({});
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const itemsPerPage = 50;
 
+  // Загрузка данных с сервера с пагинацией и поиском
   useEffect(() => {
-    fetch('/api/purchases-data')
-      .then(res => res.json())
-      .then(data => {
-        setData(data);
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const searchParam = searchQuery.trim() ? `&search=${encodeURIComponent(searchQuery.trim())}` : '';
+        const url = `/api/purchases-data?page=${currentPage}&limit=${itemsPerPage}${searchParam}`;
+        const res = await fetch(url);
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        const result = await res.json();
+        
+        setData(result.data);
+        setTotalPages(result.pagination.totalPages);
+        setTotalItems(result.pagination.total);
         setLoading(false);
-      })
-      .catch(err => {
+      } catch (err) {
         console.error('Error:', err);
         setLoading(false);
-      });
-  }, []);
+      }
+    };
+    
+    loadData();
+  }, [currentPage, itemsPerPage, searchQuery]);
+
+  // Данные уже отфильтрованы на сервере, используем их напрямую
+  const allPurchases = data;
+
+  // Вычисляем индексы для отображения
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+
+  // Сброс на первую страницу при изменении поиска
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
+  // Обработчик поиска по Enter
+  const handleSearch = () => {
+    setSearchQuery(searchInput);
+  };
+
+  // Обработчик нажатия Enter
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
 
   const setActiveTab = (index: number, tab: 'main' | 'approvals') => {
     setActiveTabs({ ...activeTabs, [index]: tab });
@@ -216,6 +258,12 @@ export default function PurchasesStatus() {
     if (!dateStr) return '-';
     if (dateStr.includes('Пропущено')) return '-';
     try {
+      // Новый формат: DD.MM.YYYY HH:MM или DD.MM.YYYY
+      if (dateStr.includes('.')) {
+        const [datePart] = dateStr.split(' ');
+        return datePart; // Возвращаем только дату без времени
+      }
+      // Старый формат: DD/MM/YYYY
       const [day, month, year] = dateStr.split('/');
       return `${day}.${month}.${year}`;
     } catch {
@@ -233,96 +281,101 @@ export default function PurchasesStatus() {
     );
   }
 
-  if (data.length === 0) {
-    return <div className="bg-white p-6 rounded-lg shadow-lg text-gray-500">Нет данных</div>;
-  }
-
-  // Фильтрация по поисковому запросу
-  const allPurchases = data.filter(item => {
-    if (!searchQuery.trim()) return true;
-    
-    const query = searchQuery.toLowerCase();
-    const searchableFields = [
-      item['№ заявки'] || '',
-      item['Предмет ЗП'] || '',
-      item['ЦФО'] || '',
-      item['Инициатор ЗП'] || '',
-      item['Закупшик'] || '',
-      item['Наименование поставщика (Закупочная процедура)'] || '',
-      item['Состояние заявки на ЗП'] || '',
-      item['Статус закупочной процедуры'] || '',
-      item['Комментарий'] || '',
-      item['Формат ЗП'] || '',
-      item['Заявка на ЗП'] || '',
-      item['Закупочная процедура'] || ''
-    ];
-    
-    return searchableFields.some(field => 
-      field.toLowerCase().includes(query)
-    );
-  });
-
   return (
     <div className="space-y-3 sm:space-y-4 lg:space-y-6">
       <div className="mb-4">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Статус заявок</h2>
-        <p className="text-sm text-gray-600">Всего закупок: {allPurchases.length}</p>
+        <p className="text-sm text-gray-600">Всего закупок: {totalItems}</p>
       </div>
 
       {/* Строка поиска */}
       <div className="bg-white p-4 sm:p-6 rounded-lg shadow-lg">
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <input
+              type="text"
+              placeholder="Поиск по номеру, предмету, ЦФО, инициатору, закупщику, поставщику, статусу... (нажмите Enter)"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+              className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-gray-900 placeholder-gray-500"
+            />
           </div>
-          <input
-            type="text"
-            placeholder="Поиск по номеру, предмету, ЦФО, инициатору, закупщику, поставщику, статусу..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-gray-900 placeholder-gray-500"
-          />
+          <button
+            onClick={handleSearch}
+            className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition"
+          >
+            Найти
+          </button>
         </div>
         {searchQuery && (
-          <div className="mt-2 text-sm text-gray-600">
-            Найдено результатов: {allPurchases.length}
+          <div className="mt-2 flex items-center justify-between">
+            <div className="text-sm text-gray-600">
+              Найдено результатов: {totalItems}
+            </div>
+            {searchQuery && (
+              <button
+                onClick={() => {
+                  setSearchInput('');
+                  setSearchQuery('');
+                }}
+                className="text-sm text-blue-600 hover:text-blue-800 underline"
+              >
+                Очистить поиск
+              </button>
+            )}
           </div>
         )}
       </div>
 
-      {allPurchases.map((item, index) => {
-        const currentTab = activeTabs[index] || 'main';
-        
-        return (
-          <div key={index} className="bg-white rounded-lg shadow-lg">
-          <div className="p-3 sm:p-4">
-            <div className="border-b border-gray-200 pb-2 mb-2">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-900">
-                    Заявка #{item['№ заявки'] || 'N/A'}
-                  </h3>
-                  <p className="text-xs sm:text-sm text-gray-600">{item['Предмет ЗП'] || '-'}</p>
-                </div>
-                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                  item['Состояние заявки на ЗП']?.includes('Согласован') 
-                    ? 'bg-green-100 text-green-800'
-                    : item['Состояние заявки на ЗП']?.includes('Не согласован')
-                    ? 'bg-red-100 text-red-800'
-                    : 'bg-yellow-100 text-yellow-800'
-                }`}>
-                  {item['Состояние заявки на ЗП'] || 'В обработке'}
-                </span>
-              </div>
-            </div>
+      {/* Область результатов */}
+      {loading ? (
+        <div className="bg-white p-6 rounded-lg shadow-lg text-center text-gray-500">
+          Загрузка...
+        </div>
+      ) : allPurchases.length === 0 ? (
+        <div className="bg-white p-6 rounded-lg shadow-lg text-center text-gray-500">
+          {searchQuery ? 'Ничего не найдено' : 'Нет данных'}
+        </div>
+      ) : (
+        <>
+          {allPurchases.map((item, localIndex) => {
+            const globalIndex = startIndex + localIndex;
+            const currentTab = activeTabs[globalIndex] || 'main';
+            
+            return (
+              <div key={globalIndex} className="bg-white rounded-lg shadow-lg">
+                <div className="p-3 sm:p-4">
+                  <div className="border-b border-gray-200 pb-2 mb-2">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h3 className="text-base sm:text-lg font-semibold text-gray-900">
+                          Заявка #{item['№ заявки'] || 'N/A'}
+                        </h3>
+                        <p className="text-xs sm:text-sm text-gray-600">{item['Предмет ЗП'] || '-'}</p>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                        item['Состояние заявки на ЗП']?.includes('Согласован') 
+                          ? 'bg-green-100 text-green-800'
+                          : item['Состояние заявки на ЗП']?.includes('Не согласован')
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-yellow-100 text-yellow-800'
+                      }`}>
+                        {item['Состояние заявки на ЗП'] || 'В обработке'}
+                      </span>
+                    </div>
+                  </div>
 
             {/* Вкладки */}
             <div className="border-b border-gray-200 mb-2">
               <div className="flex space-x-1">
                 <button
-                  onClick={() => setActiveTab(index, 'main')}
+                  onClick={() => setActiveTab(globalIndex, 'main')}
                   className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-t-lg transition-colors ${
                     currentTab === 'main'
                       ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
@@ -332,7 +385,7 @@ export default function PurchasesStatus() {
                   Основная информация
                 </button>
                 <button
-                  onClick={() => setActiveTab(index, 'approvals')}
+                  onClick={() => setActiveTab(globalIndex, 'approvals')}
                   className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-t-lg transition-colors ${
                     currentTab === 'approvals'
                       ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
@@ -365,7 +418,7 @@ export default function PurchasesStatus() {
                       </div>
                       <div className="flex gap-2">
                         <span className="text-gray-600 whitespace-nowrap">Дата создания:</span>
-                        <span className="font-medium text-gray-900">{formatDate(item['Дата создания'])}</span>
+                        <span className="font-medium text-gray-900">{formatDate(item['Дата создания ЗП'])}</span>
                       </div>
                       <div className="flex gap-2">
                         <span className="text-gray-600 whitespace-nowrap">Лимит (план):</span>
@@ -455,6 +508,65 @@ export default function PurchasesStatus() {
         </div>
         );
       })}
+
+          {/* Пагинация */}
+          {totalPages > 1 && (
+            <div className="mt-4 flex items-center justify-between border-t border-gray-200 pt-4 bg-white p-4 rounded-lg shadow-lg">
+              <div className="text-sm text-gray-700">
+                Показано {startIndex + 1} - {endIndex} из {totalItems} заявок
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Назад
+                </button>
+                
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter(page => {
+                      // Показываем первую, последнюю, текущую и соседние страницы
+                      return page === 1 || 
+                             page === totalPages || 
+                             (page >= currentPage - 2 && page <= currentPage + 2);
+                    })
+                    .map((page, index, array) => {
+                      // Добавляем многоточие если есть пропуски
+                      const showEllipsis = index > 0 && array[index - 1] !== page - 1;
+                      return (
+                        <React.Fragment key={page}>
+                          {showEllipsis && (
+                            <span className="px-2 text-gray-500">...</span>
+                          )}
+                          <button
+                            onClick={() => setCurrentPage(page)}
+                            className={`px-3 py-2 text-sm font-medium rounded-lg ${
+                              currentPage === page
+                                ? 'bg-blue-500 text-white'
+                                : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        </React.Fragment>
+                      );
+                    })}
+                </div>
+
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Вперед
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

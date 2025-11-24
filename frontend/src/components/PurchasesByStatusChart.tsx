@@ -16,7 +16,7 @@ export default function PurchasesByStatusChart() {
   const [data, setData] = useState<any>(null);
 
   useEffect(() => {
-    fetch('/api/purchases-data')
+    fetch('/api/purchases-data?all=true&minimal=true')
       .then(res => res.json())
       .then(data => {
         if (!data || data.length === 0) return;
