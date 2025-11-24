@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Settings } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Settings, Image as ImageIcon } from 'lucide-react';
+import html2canvas from 'html2canvas';
 
 interface PurchaseData {
   [key: string]: string;
@@ -186,6 +187,13 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
           }
         });
       }
+
+      // Сортировка по номеру заявки от большего к меньшему
+      filtered.sort((a, b) => {
+        const numA = parseInt((a['№ заявки'] || '0').replace(/\D/g, '')) || 0;
+        const numB = parseInt((b['№ заявки'] || '0').replace(/\D/g, '')) || 0;
+        return numB - numA; // От большего к меньшему
+      });
 
       setFilteredPurchases(filtered);
     }
@@ -405,6 +413,401 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
       return null;
     }
     return null;
+  };
+
+  const copyRowAsImage = async (rowElement: HTMLTableRowElement, index: number) => {
+    try {
+      const originalTable = rowElement.closest('table');
+      if (!originalTable) return;
+      
+      // Создаем временный контейнер для таблицы
+      const tempContainer = document.createElement('div');
+      tempContainer.style.position = 'absolute';
+      tempContainer.style.left = '-9999px';
+      tempContainer.style.top = '-9999px';
+      tempContainer.style.backgroundColor = '#ffffff';
+      tempContainer.style.padding = '16px';
+      tempContainer.style.borderRadius = '8px';
+      tempContainer.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.1)';
+      
+      // Клонируем всю таблицу
+      const clonedTable = originalTable.cloneNode(true) as HTMLTableElement;
+      clonedTable.style.width = originalTable.offsetWidth + 'px';
+      clonedTable.style.borderCollapse = 'collapse';
+      
+      // Удаляем все строки кроме нужной
+      const tbody = clonedTable.querySelector('tbody');
+      if (tbody) {
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        rows.forEach((row, rowIndex) => {
+          if (rowIndex !== index) {
+            row.remove();
+          }
+        });
+      }
+      
+      // Удаляем кнопку копирования из клонированной строки
+      const clonedRow = clonedTable.querySelector('tbody tr');
+      if (clonedRow) {
+        const copyButton = clonedRow.querySelector('[data-copy-button]');
+        if (copyButton) {
+          copyButton.remove();
+        }
+        // Удаляем последнюю ячейку (колонку с кнопкой)
+        const cells = clonedRow.querySelectorAll('td');
+        if (cells.length > 0) {
+          cells[cells.length - 1].remove();
+        }
+      }
+      
+      // Удаляем последний заголовок (колонку с кнопкой)
+      const thead = clonedTable.querySelector('thead');
+      if (thead) {
+        const headerRow = thead.querySelector('tr');
+        if (headerRow) {
+          const headers = headerRow.querySelectorAll('th');
+          if (headers.length > 0) {
+            headers[headers.length - 1].remove();
+          }
+        }
+      }
+      
+      // Функция для применения безопасных inline стилей ко всем элементам
+      const applySafeStyles = (element: HTMLElement) => {
+        const computedStyle = window.getComputedStyle(element);
+        
+        // Применяем безопасные стили через inline
+        try {
+          // Фон
+          const bgColor = computedStyle.backgroundColor;
+          if (bgColor && !bgColor.includes('lab') && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+            element.style.backgroundColor = bgColor;
+          } else if (element.tagName !== 'SPAN') {
+            // Для span оставляем оригинальный фон (для статусов)
+            element.style.backgroundColor = '#ffffff';
+          }
+          
+          // Цвет текста
+          const textColor = computedStyle.color;
+          if (textColor && !textColor.includes('lab')) {
+            element.style.color = textColor;
+          } else if (element.tagName !== 'SPAN') {
+            // Для span оставляем оригинальный цвет (для статусов)
+            element.style.color = '#000000';
+          }
+          
+          // Границы
+          const borderColor = computedStyle.borderColor;
+          if (borderColor && !borderColor.includes('lab')) {
+            element.style.borderColor = borderColor;
+          }
+          
+          // Для span со статусами сохраняем все стили
+          if (element.tagName === 'SPAN' && element.classList.contains('rounded-full')) {
+            // Это статус - сохраняем все стили
+            element.style.backgroundColor = bgColor || element.style.backgroundColor;
+            element.style.color = textColor || element.style.color;
+            element.style.padding = computedStyle.padding;
+            element.style.borderRadius = computedStyle.borderRadius;
+            element.style.fontSize = computedStyle.fontSize;
+            element.style.fontWeight = computedStyle.fontWeight;
+            // Центрируем только для изображения
+            element.style.display = 'inline-flex';
+            element.style.alignItems = 'center';
+            element.style.justifyContent = 'center';
+            element.style.textAlign = 'center';
+            element.style.lineHeight = '1.2';
+            element.style.verticalAlign = 'middle';
+            
+            // Выравниваем родительскую ячейку по центру (но не используем flex для td)
+            const parentTd = element.closest('td');
+            if (parentTd) {
+              (parentTd as HTMLElement).style.verticalAlign = 'middle';
+              (parentTd as HTMLElement).style.textAlign = 'center';
+            }
+          } else if (element.tagName === 'TD') {
+            // Для ячеек таблицы сохраняем стили переноса текста
+            element.style.fontSize = computedStyle.fontSize;
+            element.style.fontWeight = computedStyle.fontWeight;
+            element.style.padding = computedStyle.padding;
+            element.style.margin = computedStyle.margin;
+            element.style.borderWidth = computedStyle.borderWidth;
+            element.style.borderStyle = computedStyle.borderStyle;
+            // Сохраняем стили переноса текста
+            element.style.wordWrap = computedStyle.wordWrap || 'break-word';
+            element.style.whiteSpace = computedStyle.whiteSpace || 'normal';
+            element.style.overflowWrap = computedStyle.overflowWrap || 'break-word';
+            if (computedStyle.maxWidth) {
+              element.style.maxWidth = computedStyle.maxWidth;
+            }
+          } else {
+            // Другие важные стили
+            element.style.fontSize = computedStyle.fontSize;
+            element.style.fontWeight = computedStyle.fontWeight;
+            element.style.padding = computedStyle.padding;
+            element.style.margin = computedStyle.margin;
+            element.style.borderWidth = computedStyle.borderWidth;
+            element.style.borderStyle = computedStyle.borderStyle;
+          }
+        } catch (e) {
+          // Игнорируем ошибки
+        }
+        
+        // Рекурсивно обрабатываем дочерние элементы
+        Array.from(element.children).forEach((child) => {
+          applySafeStyles(child as HTMLElement);
+        });
+      };
+      
+      // Применяем безопасные стили ко всей таблице
+      applySafeStyles(clonedTable);
+      
+      tempContainer.appendChild(clonedTable);
+      document.body.appendChild(tempContainer);
+      
+      let canvas: HTMLCanvasElement;
+      
+      try {
+        // Создаем canvas из элемента с обработкой ошибок
+        canvas = await html2canvas(tempContainer, {
+          backgroundColor: '#ffffff',
+          scale: 2,
+          logging: false,
+          useCORS: true,
+          allowTaint: true,
+          onclone: (clonedDoc) => {
+            // Дополнительная обработка клонированного документа
+            const clonedContainer = clonedDoc.querySelector('[style*="position: absolute"]') as HTMLElement;
+            if (clonedContainer) {
+              // Обрабатываем все элементы
+              const allElements = clonedContainer.querySelectorAll('*');
+              allElements.forEach((el) => {
+                const htmlEl = el as HTMLElement;
+                
+                // Восстанавливаем цвета статусов по тексту
+                if (htmlEl.tagName === 'SPAN' && htmlEl.classList.contains('rounded-full')) {
+                  const statusText = htmlEl.textContent || '';
+                  if (statusText.includes('Согласован')) {
+                    htmlEl.style.backgroundColor = '#dcfce7'; // green-100
+                    htmlEl.style.color = '#166534'; // green-800
+                  } else if (statusText.includes('Не согласован')) {
+                    htmlEl.style.backgroundColor = '#fee2e2'; // red-100
+                    htmlEl.style.color = '#991b1b'; // red-800
+                  } else if (statusText.includes('Удалена')) {
+                    htmlEl.style.backgroundColor = '#f3f4f6'; // gray-100
+                    htmlEl.style.color = '#1f2937'; // gray-800
+                  } else {
+                    htmlEl.style.backgroundColor = '#fef3c7'; // yellow-100
+                    htmlEl.style.color = '#854d0e'; // yellow-800
+                  }
+                  htmlEl.style.padding = '4px 8px';
+                  htmlEl.style.borderRadius = '9999px';
+                  htmlEl.style.fontSize = '12px';
+                  htmlEl.style.fontWeight = '500';
+                  htmlEl.style.display = 'inline-flex';
+                  htmlEl.style.alignItems = 'center';
+                  htmlEl.style.justifyContent = 'center';
+                  htmlEl.style.textAlign = 'center';
+                  htmlEl.style.lineHeight = '1.2';
+                  htmlEl.style.verticalAlign = 'middle';
+                  
+                  // Выравниваем родительскую ячейку по центру (но не используем flex для td)
+                  const parentTd = htmlEl.closest('td');
+                  if (parentTd) {
+                    (parentTd as HTMLElement).style.verticalAlign = 'middle';
+                    (parentTd as HTMLElement).style.textAlign = 'center';
+                  }
+                }
+                
+                // Для ячеек таблицы сохраняем перенос текста
+                if (htmlEl.tagName === 'TD') {
+                  htmlEl.style.wordWrap = 'break-word';
+                  htmlEl.style.whiteSpace = 'normal';
+                  htmlEl.style.overflowWrap = 'break-word';
+                  // Если это ячейка с предметом (обычно вторая колонка), устанавливаем max-width
+                  const table = htmlEl.closest('table');
+                  if (table) {
+                    const row = htmlEl.closest('tr');
+                    if (row) {
+                      const cells = Array.from(row.querySelectorAll('td'));
+                      const cellIndex = cells.indexOf(htmlEl);
+                      const headers = table.querySelectorAll('thead th');
+                      if (headers[cellIndex]) {
+                        const headerText = headers[cellIndex].textContent || '';
+                        if (headerText.includes('Предмет ЗП')) {
+                          htmlEl.style.maxWidth = '300px';
+                        }
+                      }
+                    }
+                  }
+                }
+                
+                // Очищаем все CSS переменные, которые могут содержать lab()
+                Array.from(htmlEl.style).forEach((prop) => {
+                  if (prop.startsWith('--')) {
+                    htmlEl.style.removeProperty(prop);
+                  }
+                });
+              });
+            }
+          }
+        });
+      } catch (error) {
+        // Если произошла ошибка с lab() цветами, создаем упрощенную версию
+        console.warn('Ошибка при создании canvas, используем упрощенную версию:', error);
+        
+        // Создаем упрощенную таблицу без проблемных стилей
+        const simpleTable = document.createElement('table');
+        simpleTable.style.borderCollapse = 'collapse';
+        simpleTable.style.width = '100%';
+        simpleTable.style.backgroundColor = '#ffffff';
+        simpleTable.style.fontFamily = 'Arial, sans-serif';
+        simpleTable.style.fontSize = '12px';
+        
+        // Копируем заголовки
+        const simpleThead = document.createElement('thead');
+        const headerRow = document.createElement('tr');
+        headerRow.style.backgroundColor = '#f3f4f6';
+        headerRow.style.borderBottom = '2px solid #d1d5db';
+        
+        const originalHeaders = clonedTable.querySelectorAll('thead th');
+        originalHeaders.forEach((header) => {
+          const th = document.createElement('th');
+          th.textContent = header.textContent || '';
+          th.style.padding = '8px';
+          th.style.textAlign = 'left';
+          th.style.border = '1px solid #e5e7eb';
+          th.style.color = '#374151';
+          th.style.fontWeight = '600';
+          headerRow.appendChild(th);
+        });
+        simpleThead.appendChild(headerRow);
+        simpleTable.appendChild(simpleThead);
+        
+        // Копируем строку данных с сохранением стилей статусов
+        const simpleTbody = document.createElement('tbody');
+        const dataRow = document.createElement('tr');
+        dataRow.style.borderBottom = '1px solid #e5e7eb';
+        
+        const originalCells = clonedRow?.querySelectorAll('td');
+        originalCells?.forEach((cell, cellIndex) => {
+          const td = document.createElement('td');
+          td.style.padding = '8px';
+          td.style.border = '1px solid #e5e7eb';
+          td.style.color = '#111827';
+          
+          // Определяем, это ячейка с предметом ЗП (обычно вторая колонка)
+          const headerText = originalHeaders[cellIndex]?.textContent || '';
+          const isSubjectCell = headerText.includes('Предмет ЗП');
+          
+          if (isSubjectCell) {
+            // Для ячейки с предметом добавляем перенос по словам
+            td.style.maxWidth = '300px';
+            td.style.wordWrap = 'break-word';
+            td.style.whiteSpace = 'normal';
+            td.style.overflowWrap = 'break-word';
+          }
+          
+          // Проверяем, есть ли в ячейке span со статусом
+          const statusSpan = cell.querySelector('span.rounded-full');
+          if (statusSpan) {
+            // Копируем span со статусом с сохранением цветов
+            const clonedSpan = statusSpan.cloneNode(true) as HTMLElement;
+            const spanStyle = window.getComputedStyle(statusSpan);
+            
+            // Определяем цвет статуса по классам
+            const statusText = statusSpan.textContent || '';
+            if (statusText.includes('Согласован')) {
+              clonedSpan.style.backgroundColor = '#dcfce7'; // green-100
+              clonedSpan.style.color = '#166534'; // green-800
+            } else if (statusText.includes('Не согласован')) {
+              clonedSpan.style.backgroundColor = '#fee2e2'; // red-100
+              clonedSpan.style.color = '#991b1b'; // red-800
+            } else if (statusText.includes('Удалена')) {
+              clonedSpan.style.backgroundColor = '#f3f4f6'; // gray-100
+              clonedSpan.style.color = '#1f2937'; // gray-800
+            } else {
+              clonedSpan.style.backgroundColor = '#fef3c7'; // yellow-100
+              clonedSpan.style.color = '#854d0e'; // yellow-800
+            }
+            
+            clonedSpan.style.padding = '4px 8px';
+            clonedSpan.style.borderRadius = '9999px';
+            clonedSpan.style.fontSize = '12px';
+            clonedSpan.style.fontWeight = '500';
+            clonedSpan.style.display = 'inline-flex';
+            clonedSpan.style.alignItems = 'center';
+            clonedSpan.style.justifyContent = 'center';
+            clonedSpan.style.textAlign = 'center';
+            clonedSpan.style.lineHeight = '1.2';
+            clonedSpan.style.verticalAlign = 'middle';
+            
+            // Выравниваем ячейку по центру (но не используем flex для td)
+            td.style.verticalAlign = 'middle';
+            td.style.textAlign = 'center';
+            
+            td.appendChild(clonedSpan);
+          } else {
+            // Обычная ячейка
+            td.textContent = cell.textContent || '';
+          }
+          
+          dataRow.appendChild(td);
+        });
+        simpleTbody.appendChild(dataRow);
+        simpleTable.appendChild(simpleTbody);
+        
+        // Заменяем содержимое контейнера
+        tempContainer.innerHTML = '';
+        tempContainer.appendChild(simpleTable);
+        
+        // Создаем canvas из упрощенной версии
+        canvas = await html2canvas(tempContainer, {
+          backgroundColor: '#ffffff',
+          scale: 2,
+          logging: false,
+          useCORS: true,
+          allowTaint: true,
+        });
+      }
+      
+      // Удаляем временный контейнер
+      document.body.removeChild(tempContainer);
+      
+      // Конвертируем canvas в blob
+      canvas.toBlob(async (blob) => {
+        if (blob) {
+          try {
+            // Копируем в буфер обмена
+            await navigator.clipboard.write([
+              new ClipboardItem({
+                'image/png': blob
+              })
+            ]);
+            
+            // Показываем визуальную обратную связь
+            const button = rowElement.querySelector(`[data-copy-button="${index}"]`) as HTMLElement;
+            if (button) {
+              const originalHTML = button.innerHTML;
+              button.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
+              button.classList.remove('text-gray-600', 'hover:text-blue-600');
+              button.classList.add('text-green-600');
+              setTimeout(() => {
+                button.innerHTML = originalHTML;
+                button.classList.remove('text-green-600');
+                button.classList.add('text-gray-600', 'hover:text-blue-600');
+              }, 2000);
+            }
+          } catch (err) {
+            console.error('Ошибка при копировании:', err);
+            alert('Не удалось скопировать изображение в буфер обмена. Убедитесь, что у браузера есть разрешение на доступ к буферу обмена.');
+          }
+        }
+      }, 'image/png');
+    } catch (err) {
+      console.error('Ошибка при создании изображения:', err);
+      alert('Не удалось создать изображение строки');
+    }
   };
 
   const handleTogglePurchaser = (purchaser: string) => {
@@ -636,7 +1039,7 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
                       >
                         <span className="text-gray-600 truncate">
                           {purchaseFilters.cfo.size === 0 
-                            ? 'Все' 
+                            ? '' 
                             : purchaseFilters.cfo.size === 1
                             ? Array.from(purchaseFilters.cfo)[0]
                             : `${purchaseFilters.cfo.size} выбрано`}
@@ -726,22 +1129,29 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
                       />
                     </div>
                   </th>
+                  <th className="text-left py-2 px-2 text-xs sm:text-sm font-semibold text-gray-700 w-20">
+                    Действия
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {filteredPurchases.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-gray-500">
+                    <td colSpan={7} className="py-8 text-center text-gray-500">
                       Нет закупок для отображения
                     </td>
                   </tr>
                 ) : (
                   filteredPurchases.map((item, index) => (
-                    <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
+                    <tr 
+                      key={index} 
+                      className="border-b border-gray-100 hover:bg-gray-50"
+                      data-row-index={index}
+                    >
                       <td className="py-3 px-2 text-xs sm:text-sm text-gray-900 font-medium">
                         {item['№ заявки'] || '-'}
                       </td>
-                      <td className="py-3 px-2 text-xs sm:text-sm text-gray-700">
+                      <td className="py-3 px-2 text-xs sm:text-sm text-gray-700 max-w-md break-words whitespace-normal word-wrap break-word overflow-wrap break-word">
                         {item['Предмет ЗП'] || '-'}
                       </td>
                       <td className="py-3 px-2 text-xs sm:text-sm text-gray-700">
@@ -765,6 +1175,21 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
                       </td>
                       <td className="py-3 px-2 text-xs sm:text-sm text-gray-700">
                         {formatDate(item['Дата создания ЗП'] || '')}
+                      </td>
+                      <td className="py-3 px-2 text-xs sm:text-sm">
+                        <button
+                          data-copy-button={index}
+                          onClick={(e) => {
+                            const row = (e.currentTarget.closest('tr') as HTMLTableRowElement);
+                            if (row) {
+                              copyRowAsImage(row, index);
+                            }
+                          }}
+                          className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Скопировать строку как изображение"
+                        >
+                          <ImageIcon className="w-4 h-4" />
+                        </button>
                       </td>
                     </tr>
                   ))
