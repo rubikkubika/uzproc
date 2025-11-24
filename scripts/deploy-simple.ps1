@@ -1,8 +1,13 @@
 # deploy-simple.ps1 - Deployment script
+# Переход в корень проекта (на уровень выше от scripts/)
+$scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+$projectRoot = Split-Path -Parent $scriptPath
+Set-Location $projectRoot
+
 $SERVER = "devops@10.123.48.62"
 $REMOTE_PATH = "/home/devops/uzproc"
 
-Write-Host "Starting deployment..." -ForegroundColor Cyan
+Write-Host "Starting deployment from: $projectRoot" -ForegroundColor Cyan
 
 Write-Host "`nStep 1: Building Docker images..." -ForegroundColor Yellow
 docker compose build
