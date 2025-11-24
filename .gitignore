@@ -6,6 +6,12 @@
 node_modules/
 frontend/node_modules/
 
+# Java / Maven
+backend/target/
+backend/.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
 # Environment files
 .env
 .env.local
@@ -22,6 +28,9 @@ frontend/out/
 .idea/
 *.swp
 *.swo
+*.iws
+*.iml
+*.ipr
 
 # OS
 .DS_Store
@@ -37,3 +46,19 @@ yarn-error.log*
 *.tmp
 *.temp
 
+# Spring Boot / Java
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/

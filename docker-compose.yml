@@ -1,12 +1,59 @@
 services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: uzproc-postgres
+    environment:
+      POSTGRES_DB: uzproc
+      POSTGRES_USER: uzproc_user
+      POSTGRES_PASSWORD: uzproc_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U uzproc_user -d uzproc"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../docker/Dockerfile.backend
+    container_name: uzproc-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=uzproc
+      - DB_USER=uzproc_user
+      - DB_PASSWORD=uzproc_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   frontend:
     build:
       context: ./frontend
-      dockerfile: ../docker/Dockerfile
+      dockerfile: ../docker/Dockerfile.frontend
+    container_name: uzproc-frontend
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=production
+    depends_on:
+      - backend
     restart: unless-stopped
+
+volumes:
+  postgres_data:
 
 

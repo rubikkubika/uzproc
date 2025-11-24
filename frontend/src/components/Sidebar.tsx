@@ -47,6 +47,11 @@ const menuItems = [
     { id: 'initiator-status', label: 'Статус заявок', icon: TrendingUp },
   ];
 
+  const backendItems = [
+    { id: 'backend-users', label: 'Пользователи', icon: Users },
+    { id: 'backend-purchase-requests', label: 'Заявки на закупку', icon: Package },
+  ];
+
 export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setIsMobileMenuOpen, isCollapsed = false, setIsCollapsed }: SidebarProps) {
   const router = useRouter();
 
@@ -175,6 +180,38 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                           ? `text-blue-600 bg-blue-50 ${isCollapsed ? '' : 'border-l-4 border-blue-600'}`
                           : isDisabled
                           ? 'text-gray-400 cursor-not-allowed opacity-50'
+                          : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                      }`}
+                      title={isCollapsed ? item.label : undefined}
+                    >
+                      <Icon className={`w-8 h-8 ${isCollapsed ? '' : 'mr-3'}`} />
+                      {!isCollapsed && item.label}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          {/* Backend */}
+          <div className="mb-6">
+            {!isCollapsed && (
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Backend</h3>
+            )}
+            <ul className="space-y-2">
+              {backendItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                
+                return (
+                  <li key={item.id}>
+                    <button
+                      onClick={() => handleTabChange(item.id)}
+                      className={`w-full flex items-center rounded-lg transition-colors relative ${
+                        isCollapsed ? 'justify-center px-3 py-3' : 'px-4 py-3'
+                      } ${
+                        isActive
+                          ? `text-blue-600 bg-blue-50 ${isCollapsed ? '' : 'border-l-4 border-blue-600'}`
                           : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                       }`}
                       title={isCollapsed ? item.label : undefined}

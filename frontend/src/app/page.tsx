@@ -18,6 +18,8 @@ import PurchasesStatus from '@/components/PurchasesStatus';
 import ApprovalTimeChart from '@/components/ApprovalTimeChart';
 import TopLongestPurchases from '@/components/TopLongestPurchases';
 import PurchaserWorkload from '@/components/PurchaserWorkload';
+import UsersTable from '@/components/UsersTable';
+import PurchaseRequestsTable from '@/components/PurchaseRequestsTable';
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -131,6 +133,21 @@ export default function Dashboard() {
             <div className="bg-white p-6 rounded-lg shadow-lg">
               <p className="text-gray-500">Настройки будут добавлены в следующих версиях</p>
             </div>
+          </div>
+        );
+
+      // Backend разделы
+      case 'backend-users':
+        return (
+          <div className="space-y-6">
+            <UsersTable />
+          </div>
+        );
+
+      case 'backend-purchase-requests':
+        return (
+          <div className="space-y-6">
+            <PurchaseRequestsTable />
           </div>
         );
 
