@@ -14,9 +14,10 @@ public class CorsConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         CorsConfiguration config = new CorsConfiguration();
         
-        // Разрешить запросы с фронтенда
+        // Разрешить запросы с фронтенда (локально и на сервере)
         config.addAllowedOrigin("http://localhost:3000");
         config.addAllowedOrigin("http://127.0.0.1:3000");
+        config.addAllowedOrigin("http://10.123.48.62:3000");
         
         // Разрешить все методы HTTP
         config.addAllowedMethod("*");

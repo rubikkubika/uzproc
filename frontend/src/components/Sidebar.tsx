@@ -81,12 +81,25 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
       )}
 
       {/* Сайдбар */}
-      <aside className={`
+      <aside 
+        suppressHydrationWarning
+        className={`
         fixed lg:static top-0 left-0 z-40 h-screen bg-white border-r border-gray-200
-        transform transition-all duration-300 ease-in-out
+        transform
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         ${isCollapsed ? 'lg:w-20' : 'w-64'}
-      `}>
+      `}
+      data-sidebar-collapsed={isCollapsed ? 'true' : 'false'}
+      style={{
+        // Используем CSS переменную для предотвращения мигания
+        ...(typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
+          ? { 
+              width: 'var(--sidebar-width)',
+              transition: 'width 0.3s ease-in-out'
+            }
+          : {})
+      }}
+      >
         {/* Градиентная полоска */}
         <div className="absolute right-0 top-0 w-0.5 h-full bg-gradient-to-b from-transparent via-purple-600/30 to-transparent"></div>
         {/* Header */}

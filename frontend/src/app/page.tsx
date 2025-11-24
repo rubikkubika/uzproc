@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useLayoutEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 import MonthlyPurchasesChart from '@/components/MonthlyPurchasesChart';
 import CategoryChart from '@/components/CategoryChart';
@@ -21,12 +21,52 @@ import PurchaserWorkload from '@/components/PurchaserWorkload';
 import UsersTable from '@/components/UsersTable';
 import PurchaseRequestsTable from '@/components/PurchaseRequestsTable';
 
+const SIDEBAR_COLLAPSED_KEY = 'sidebarCollapsed';
+
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('overview');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isTelegramModalOpen, setIsTelegramModalOpen] = useState(false);
+  // Начальное состояние всегда false для совместимости с SSR
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Загружаем состояние сайдбара из localStorage синхронно после монтирования
+  useLayoutEffect(() => {
+    try {
+      const saved = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+      const shouldBeCollapsed = saved === 'true';
+      if (shouldBeCollapsed) {
+        setIsSidebarCollapsed(true);
+        document.documentElement.classList.add('sidebar-collapsed');
+        document.documentElement.style.setProperty('--sidebar-width', '5rem');
+      } else {
+        document.documentElement.style.setProperty('--sidebar-width', '16rem');
+      }
+    } catch (err) {
+      // Игнорируем ошибки
+    }
+    setIsMounted(true);
+  }, []);
+
+  // Сохраняем состояние сайдбара в localStorage при изменении
+  const handleSidebarCollapse = (collapsed: boolean) => {
+    setIsSidebarCollapsed(collapsed);
+    try {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
+      // Синхронизируем класс и CSS переменную с состоянием
+      if (collapsed) {
+        document.documentElement.classList.add('sidebar-collapsed');
+        document.documentElement.style.setProperty('--sidebar-width', '5rem');
+      } else {
+        document.documentElement.classList.remove('sidebar-collapsed');
+        document.documentElement.style.setProperty('--sidebar-width', '16rem');
+      }
+    } catch (err) {
+      console.error('Error saving sidebar state:', err);
+    }
+  };
 
   // Прокрутка наверх при смене вкладки
   useEffect(() => {
@@ -83,7 +123,7 @@ export default function Dashboard() {
       case 'purchases':
         return (
           <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-            <PurchasesTable />
+            <PurchasesTable initialSearchQuery={searchQuery} />
               </div>
         );
 
@@ -273,14 +313,16 @@ export default function Dashboard() {
         return (
           <div className="flex h-screen bg-gray-100">
             <div className="w-full max-w-[1920px] mx-auto flex">
-              <Sidebar 
-                activeTab={activeTab} 
-                onTabChange={setActiveTab}
-                isMobileMenuOpen={isMobileMenuOpen}
-                setIsMobileMenuOpen={setIsMobileMenuOpen}
-                isCollapsed={isSidebarCollapsed}
-                setIsCollapsed={setIsSidebarCollapsed}
-              />
+              <div suppressHydrationWarning>
+                <Sidebar 
+                  activeTab={activeTab} 
+                  onTabChange={setActiveTab}
+                  isMobileMenuOpen={isMobileMenuOpen}
+                  setIsMobileMenuOpen={setIsMobileMenuOpen}
+                  isCollapsed={isSidebarCollapsed}
+                  setIsCollapsed={handleSidebarCollapse}
+                />
+              </div>
               
               {/* Top panel for mobile */}
               <div className="lg:hidden fixed top-0 left-0 right-0 z-[60] bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">

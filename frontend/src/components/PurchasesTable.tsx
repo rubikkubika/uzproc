@@ -6,7 +6,11 @@ interface PurchaseData {
   [key: string]: string;
 }
 
-export default function PurchasesTable() {
+interface PurchasesTableProps {
+  initialSearchQuery?: string;
+}
+
+export default function PurchasesTable({ initialSearchQuery = '' }: PurchasesTableProps) {
   const [data, setData] = useState<PurchaseData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchInput, setSearchInput] = useState(''); // Текст в поле поиска
@@ -16,6 +20,15 @@ export default function PurchasesTable() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const itemsPerPage = 50;
+
+  // Установка начального поискового запроса из пропсов
+  useEffect(() => {
+    if (initialSearchQuery && initialSearchQuery !== searchQuery) {
+      setSearchInput(initialSearchQuery);
+      setSearchQuery(initialSearchQuery);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSearchQuery]);
 
   // Загрузка данных с сервера с пагинацией и поиском
   useEffect(() => {

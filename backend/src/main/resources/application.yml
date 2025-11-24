@@ -3,7 +3,7 @@ spring:
     name: uzproc-backend
   
   datasource:
-    url: jdbc:postgresql://${DB_HOST:postgres}:${DB_PORT:5432}/${DB_NAME:uzproc}
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:uzproc}?stringtype=unspecified
     username: ${DB_USER:uzproc_user}
     password: ${DB_PASSWORD:uzproc_password}
     driver-class-name: org.postgresql.Driver
@@ -17,12 +17,15 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-    show-sql: false
+    show-sql: ${SHOW_SQL:true}
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
         use_sql_comments: true
+        connection:
+          characterEncoding: UTF-8
+          useUnicode: true
   
   flyway:
     enabled: true

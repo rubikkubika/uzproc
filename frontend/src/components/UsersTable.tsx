@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { getBackendUrl } from '@/utils/api';
 
 interface User {
   id: number;
@@ -30,7 +31,7 @@ export default function UsersTable() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`http://localhost:8080/api/users?page=${page}&size=${pageSize}`);
+      const response = await fetch(`${getBackendUrl()}/api/users?page=${page}&size=${pageSize}`);
       if (!response.ok) {
         throw new Error('Ошибка загрузки данных');
       }

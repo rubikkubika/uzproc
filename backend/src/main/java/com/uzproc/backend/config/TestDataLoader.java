@@ -14,6 +14,7 @@ import org.springframework.context.annotation.Profile;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,7 +30,6 @@ public class TestDataLoader {
     private static final int TEST_DATA_COUNT = 10;
 
     @Bean
-    @Profile("local")
     public CommandLineRunner loadTestData(
             UserRepository userRepository,
             PurchaseRequestRepository purchaseRequestRepository) {
@@ -77,38 +77,44 @@ public class TestDataLoader {
         Path csvPath = null;
         String projectRoot = System.getProperty("user.dir");
         
-        // 1. Проверяем в resources/data/ (относительно backend/)
-        Path resourcesPath = Paths.get("src/main/resources/data/purchase-plan.csv");
-        if (Files.exists(resourcesPath)) {
-            csvPath = resourcesPath;
+        // 0. Проверяем в Docker контейнере (приоритет для production через volume mount)
+        Path dockerPath = Paths.get("/app/data/purchase-plan.csv");
+        if (Files.exists(dockerPath)) {
+            csvPath = dockerPath;
         } else {
-            // 2. Проверяем относительно корня проекта (если запускаем из backend/)
-            Path frontendPath1 = Paths.get("../frontend/images/Заявка на закупку_план закупок.csv");
-            if (Files.exists(frontendPath1)) {
-                csvPath = frontendPath1;
+            // 1. Проверяем в resources/data/ (относительно backend/)
+            Path resourcesPath = Paths.get("src/main/resources/data/purchase-plan.csv");
+            if (Files.exists(resourcesPath)) {
+                csvPath = resourcesPath;
             } else {
-                // 3. Проверяем относительно корня проекта (если запускаем из корня)
-                Path frontendPath2 = Paths.get("frontend/images/Заявка на закупку_план закупок.csv");
-                if (Files.exists(frontendPath2)) {
-                    csvPath = frontendPath2;
+                // 2. Проверяем относительно корня проекта (если запускаем из backend/)
+                Path frontendPath1 = Paths.get("../frontend/images/Заявка на закупку_план закупок.csv");
+                if (Files.exists(frontendPath1)) {
+                    csvPath = frontendPath1;
                 } else {
-                    // 4. Проверяем абсолютный путь от корня проекта
-                    Path absolutePath = Paths.get(projectRoot, "frontend", "images", "Заявка на закупку_план закупок.csv");
-                    if (Files.exists(absolutePath)) {
-                        csvPath = absolutePath;
+                    // 3. Проверяем относительно корня проекта (если запускаем из корня)
+                    Path frontendPath2 = Paths.get("frontend/images/Заявка на закупку_план закупок.csv");
+                    if (Files.exists(frontendPath2)) {
+                        csvPath = frontendPath2;
                     } else {
-                        // 5. Пытаемся найти файл, поднимаясь на уровень выше (из backend/)
-                        Path parentPath = Paths.get(projectRoot).getParent();
-                        if (parentPath != null) {
-                            Path parentAbsolutePath = Paths.get(parentPath.toString(), "frontend", "images", "Заявка на закупку_план закупок.csv");
-                            if (Files.exists(parentAbsolutePath)) {
-                                csvPath = parentAbsolutePath;
+                        // 4. Проверяем абсолютный путь от корня проекта
+                        Path absolutePath = Paths.get(projectRoot, "frontend", "images", "Заявка на закупку_план закупок.csv");
+                        if (Files.exists(absolutePath)) {
+                            csvPath = absolutePath;
+                        } else {
+                            // 5. Пытаемся найти файл, поднимаясь на уровень выше (из backend/)
+                            Path parentPath = Paths.get(projectRoot).getParent();
+                            if (parentPath != null) {
+                                Path parentAbsolutePath = Paths.get(parentPath.toString(), "frontend", "images", "Заявка на закупку_план закупок.csv");
+                                if (Files.exists(parentAbsolutePath)) {
+                                    csvPath = parentAbsolutePath;
+                                }
                             }
-                        }
-                        
-                        if (csvPath == null) {
-                            logger.warn("CSV file not found in any expected location. Current dir: {}", projectRoot);
-                            return 0;
+                            
+                            if (csvPath == null) {
+                                logger.warn("CSV file not found in any expected location. Current dir: {}", projectRoot);
+                                return 0;
+                            }
                         }
                     }
                 }
@@ -119,7 +125,11 @@ public class TestDataLoader {
         
         List<PurchaseRequest> purchaseRequests = new ArrayList<>();
         
-        try (BufferedReader reader = Files.newBufferedReader(csvPath, StandardCharsets.UTF_8)) {
+        // Пытаемся определить кодировку файла
+        Charset charset = detectCharset(csvPath);
+        logger.info("Detected charset: {}", charset.name());
+        
+        try (BufferedReader reader = Files.newBufferedReader(csvPath, charset)) {
             String line = reader.readLine(); // Пропускаем заголовок
             
             int lineNumber = 1;
@@ -223,6 +233,43 @@ public class TestDataLoader {
         parts.add(current.toString()); // Последняя часть
         
         return parts.toArray(new String[0]);
+    }
+    
+    /**
+     * Определяет кодировку файла, пробуя разные варианты
+     */
+    private Charset detectCharset(Path filePath) {
+        // Список кодировок для проверки (в порядке приоритета)
+        Charset[] charsets = {
+            StandardCharsets.UTF_8,
+            Charset.forName("Windows-1251"),
+            Charset.forName("CP1251"),
+            StandardCharsets.ISO_8859_1
+        };
+        
+        // Пытаемся прочитать первые несколько строк с каждой кодировкой
+        for (Charset charset : charsets) {
+            try (BufferedReader reader = Files.newBufferedReader(filePath, charset)) {
+                // Читаем первые 3 строки для проверки
+                for (int i = 0; i < 3; i++) {
+                    String line = reader.readLine();
+                    if (line == null) break;
+                    
+                    // Проверяем, что строка содержит разумные символы
+                    // Если есть кириллица и она читается правильно, это наша кодировка
+                    if (line.contains("Заявка") || line.contains("закуп") || line.contains("план")) {
+                        logger.debug("Charset {} seems correct (found Cyrillic text)", charset.name());
+                        return charset;
+                    }
+                }
+            } catch (IOException e) {
+                logger.warn("Error testing charset {}: {}", charset.name(), e.getMessage());
+            }
+        }
+        
+        // По умолчанию используем UTF-8
+        logger.warn("Could not detect charset, using UTF-8");
+        return StandardCharsets.UTF_8;
     }
 }
 

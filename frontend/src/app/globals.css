@@ -49,3 +49,15 @@ main {
 main::-webkit-scrollbar {
   display: none; /* WebKit */
 }
+
+/* Предотвращение мигания сайдбара при загрузке */
+/* Используем CSS переменную, установленную скриптом в head */
+:root {
+  --sidebar-width: 16rem;
+}
+
+@media (min-width: 1024px) {
+  aside[data-sidebar-collapsed] {
+    width: var(--sidebar-width) !important;
+  }
+}

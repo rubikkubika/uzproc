@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { getBackendUrl } from '@/utils/api';
 
 interface PurchaseRequest {
   id: number;
@@ -39,7 +40,7 @@ export default function PurchaseRequestsTable() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`http://localhost:8080/api/purchase-requests?page=${page}&size=${size}`);
+      const response = await fetch(`${getBackendUrl()}/api/purchase-requests?page=${page}&size=${size}`);
       if (!response.ok) {
         throw new Error('Ошибка загрузки данных');
       }
