@@ -407,6 +407,13 @@ export async function GET(request: Request) {
       filteredData = searchData(cachedData, search);
     }
 
+    // Сортируем данные по номеру заявки в порядке убывания (более высокие номера сначала)
+    filteredData = filteredData.sort((a, b) => {
+      const numA = parseInt(a['№ заявки'] || '0', 10) || 0;
+      const numB = parseInt(b['№ заявки'] || '0', 10) || 0;
+      return numB - numA; // Убывающий порядок
+    });
+
     // Если запрошены все данные (для статистики/графиков)
     if (getAll) {
       const resultData = filterFields(filteredData);

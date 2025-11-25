@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { Clock, Check } from 'lucide-react';
 
 interface PurchaseData {
   [key: string]: string;
@@ -69,6 +70,175 @@ export default function PurchasesStatus() {
 
   const setActiveTab = (index: number, tab: 'main' | 'approvals') => {
     setActiveTabs({ ...activeTabs, [index]: tab });
+  };
+
+  // Функция для определения статуса этапа
+  const getStageStatus = (item: PurchaseData, stage: string): 'completed' | 'active' | 'pending' => {
+    const state = item['Состояние заявки на ЗП'] || '';
+    const procedureStatus = item['Статус закупочной процедуры'] || '';
+    
+    switch (stage) {
+      case 'request':
+        // Заявка: если согласована - completed, если в процессе - active, иначе pending
+        if (state.includes('Согласован')) {
+          return 'completed';
+        } else if (state && !state.includes('Не согласован')) {
+          return 'active'; // В процессе согласования
+        }
+        return 'pending';
+      case 'specification':
+        // Проверяем, находится ли заявка на этапе "Утверждение заявки на ЗП (НЕ требуется ЗП)"
+        const noZPStagePrefix = 'Утверждение заявки на ЗП (НЕ требуется ЗП)';
+        
+        // Ищем поля с датой назначения и датой выполнения для этого этапа
+        const hasAppointmentDate = Object.keys(item).some(key => 
+          key.includes(noZPStagePrefix) && 
+          key.includes('Дата назначения') && 
+          item[key] && item[key].trim() !== ''
+        );
+        
+        const hasCompletionDate = Object.keys(item).some(key => 
+          key.includes(noZPStagePrefix) && 
+          key.includes('Дата выполнения') && 
+          item[key] && item[key].trim() !== ''
+        );
+        
+        if (hasAppointmentDate) {
+          // Если есть дата назначения
+          if (hasCompletionDate) {
+            // И есть дата выполнения - завершено
+            return 'completed';
+          } else {
+            // Только дата назначения - в процессе
+            return 'active';
+          }
+        }
+        
+        // Если нет даты назначения - еще не дошло до этого этапа, серый
+        return 'pending';
+      case 'procedure':
+        // Закупочная процедура активна, если есть статус процедуры
+        return procedureStatus ? (procedureStatus.includes('Согласован') ? 'completed' : 'active') : 'pending';
+      case 'contract':
+        // Договор активен, если процедура согласована и есть данные о договоре
+        const hasContract = item['Наименование поставщика (Закупочная процедура)'] || 
+                           item['Номер договора'] || 
+                           item['Дата договора'];
+        return procedureStatus.includes('Согласован') && hasContract ? 'completed' : 
+               procedureStatus.includes('Согласован') ? 'active' : 'pending';
+      default:
+        return 'pending';
+    }
+  };
+
+  // Функция для отображения потоковой диаграммы
+  const renderFlowDiagram = (item: PurchaseData) => {
+    const requestStatus = getStageStatus(item, 'request');
+    const specStatus = getStageStatus(item, 'specification');
+    const procedureStatus = getStageStatus(item, 'procedure');
+    const contractStatus = getStageStatus(item, 'contract');
+
+    const getStatusColor = (status: 'completed' | 'active' | 'pending', isRequest = false) => {
+      switch (status) {
+        case 'completed':
+          return 'bg-green-500';
+        case 'active':
+          // Для заявки в процессе - желтый, для остальных - синий
+          return isRequest ? 'bg-yellow-500' : 'bg-blue-500';
+        case 'pending':
+          return 'bg-gray-300';
+      }
+    };
+
+    const getStatusTextColor = (status: 'completed' | 'active' | 'pending', isRequest = false) => {
+      switch (status) {
+        case 'completed':
+          return 'text-green-700';
+        case 'active':
+          // Для заявки в процессе - желтый, для остальных - синий
+          return isRequest ? 'text-yellow-700' : 'text-blue-700';
+        case 'pending':
+          return 'text-gray-500';
+      }
+    };
+
+    const getArrowLineColor = (status: 'completed' | 'active' | 'pending') => {
+      switch (status) {
+        case 'completed':
+          return 'bg-green-500';
+        case 'active':
+          return 'bg-blue-500';
+        case 'pending':
+          return 'bg-gray-300';
+      }
+    };
+
+    const getArrowHeadColor = (status: 'completed' | 'active' | 'pending') => {
+      switch (status) {
+        case 'completed':
+          return 'border-t-green-500';
+        case 'active':
+          return 'border-t-blue-500';
+        case 'pending':
+          return 'border-t-gray-300';
+      }
+    };
+
+    return (
+      <div className="flex items-center gap-2 text-[9px]">
+        {/* Заявка на закупку */}
+        <div className="flex flex-col items-center">
+          <div className={`w-7 h-7 rounded-full ${getStatusColor(requestStatus, true)} flex items-center justify-center relative`}>
+            {requestStatus === 'active' && (
+              <Clock className="w-4 h-4 text-white" />
+            )}
+            {requestStatus === 'completed' && (
+              <Check className="w-4 h-4 text-white" />
+            )}
+          </div>
+          <span className={`mt-0.5 text-center whitespace-nowrap ${getStatusTextColor(requestStatus, true)}`}>Заявка</span>
+        </div>
+
+        {/* Развилка: Спецификация или Процедура (горизонтально) */}
+        <div className="flex items-center gap-2">
+          {/* Спецификация */}
+          <div className="flex flex-col items-center">
+            <div className={`w-7 h-7 rounded-full ${getStatusColor(specStatus, true)} flex items-center justify-center`}>
+              {specStatus === 'active' && (
+                <Clock className="w-4 h-4 text-white" />
+              )}
+              {specStatus === 'completed' && (
+                <Check className="w-4 h-4 text-white" />
+              )}
+            </div>
+            <span className={`mt-0.5 text-center whitespace-nowrap ${getStatusTextColor(specStatus, true)}`}>Спецификация</span>
+          </div>
+          
+          {/* ИЛИ */}
+          <div className="text-gray-400 text-[8px] font-medium">ИЛИ</div>
+          
+          {/* Закупочная процедура */}
+          <div className="flex flex-col items-center">
+            <div className={`w-7 h-7 rounded-full ${getStatusColor(procedureStatus, true)} flex items-center justify-center`}>
+              {procedureStatus === 'active' && (
+                <Clock className="w-4 h-4 text-white" />
+              )}
+              {procedureStatus === 'completed' && (
+                <Check className="w-4 h-4 text-white" />
+              )}
+            </div>
+            <span className={`mt-0.5 text-center whitespace-nowrap ${getStatusTextColor(procedureStatus, true)}`}>Процедура</span>
+          </div>
+        </div>
+
+        {/* Договор - всегда серый */}
+        <div className="flex flex-col items-center">
+          <div className="w-7 h-7 rounded-full bg-gray-300 flex items-center justify-center">
+          </div>
+          <span className="mt-0.5 text-center whitespace-nowrap text-gray-500">Договор</span>
+        </div>
+      </div>
+    );
   };
 
   const renderApprovalTimeline = (item: PurchaseData) => {
@@ -140,10 +310,10 @@ export default function PurchasesStatus() {
       if (!hasData) return null;
       
       return (
-        <div key={role.name} className="bg-white rounded-lg border-2 border-gray-300 p-1.5 mb-0.5">
+        <div key={role.name} className="bg-white rounded-lg border-2 border-gray-300 p-1 mb-0.5">
           {/* Мобильная версия */}
           <div className="md:hidden">
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2 mb-0.5">
               <span className="text-base">{role.icon}</span>
               <span className="font-medium text-gray-900 text-sm">{role.name}</span>
               <div className="ml-auto">
@@ -263,14 +433,14 @@ export default function PurchasesStatus() {
       if (!hasRoles) return null;
       
       return (
-        <div key={stageIndex} className="mb-6">
-          <div className="flex items-center gap-2 lg:gap-3 mb-3 border-b border-gray-200 pb-2">
+        <div key={stageIndex} className="mb-3">
+          <div className="flex items-center gap-2 lg:gap-3 mb-2 border-b border-gray-200 pb-1.5">
             <span className="text-xl lg:text-2xl">{stage.icon}</span>
             <h5 className="text-base lg:text-lg font-semibold text-gray-900">{stage.stageName}</h5>
           </div>
           
           {/* Заголовки колонок - только для десктопа */}
-          <div className="hidden md:grid grid-cols-[auto_100px_100px_60px_100px] lg:grid-cols-[auto_120px_120px_80px_120px] gap-2 lg:gap-3 px-2 mb-1 bg-gray-100 rounded-lg py-1.5">
+          <div className="hidden md:grid grid-cols-[auto_100px_100px_60px_100px] lg:grid-cols-[auto_120px_120px_80px_120px] gap-2 lg:gap-3 px-2 mb-0.5 bg-gray-100 rounded-lg py-1">
             <div className="font-medium text-gray-700 text-xs lg:text-sm min-w-[150px] lg:min-w-0">Роль</div>
             <div className="font-medium text-gray-700 text-xs">Назначено</div>
             <div className="font-medium text-gray-700 text-xs">Выполнено</div>
@@ -286,7 +456,7 @@ export default function PurchasesStatus() {
     };
 
     return (
-      <div className="space-y-4 overflow-x-auto">
+      <div className="space-y-2 overflow-x-auto">
         {approvalStages.map((stage, index) => renderStage(stage, index))}
       </div>
     );
@@ -338,14 +508,14 @@ export default function PurchasesStatus() {
   }
 
   return (
-    <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-      <div className="mb-4">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Статус заявок</h2>
+    <div className="space-y-2 sm:space-y-3 lg:space-y-4">
+      <div className="mb-2">
+        <h2 className="text-2xl font-bold text-gray-900 mb-1">Статус заявок</h2>
         <p className="text-sm text-gray-600">Всего закупок: {totalItems}</p>
       </div>
 
       {/* Строка поиска */}
-      <div className="bg-white p-4 sm:p-6 rounded-lg shadow-lg">
+      <div className="bg-white p-3 sm:p-4 rounded-lg shadow-lg">
         <div className="flex gap-2">
           <div className="relative flex-1">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -406,16 +576,20 @@ export default function PurchasesStatus() {
             
             return (
               <div key={globalIndex} className="bg-white rounded-lg shadow-lg">
-                <div className="p-3 sm:p-4">
-                  <div className="border-b border-gray-200 pb-2 mb-2">
-                    <div className="flex items-start justify-between">
+                <div className="p-2 sm:p-3">
+                  <div className="border-b border-gray-200 pb-1.5 mb-1.5">
+                    <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
                         <h3 className="text-base sm:text-lg font-semibold text-gray-900">
                           Заявка #{item['№ заявки'] || 'N/A'}
                         </h3>
                         <p className="text-xs sm:text-sm text-gray-600">{item['Предмет ЗП'] || '-'}</p>
                       </div>
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                      {/* Потоковая диаграмма */}
+                      <div className="flex-shrink-0">
+                        {renderFlowDiagram(item)}
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0 ${
                         item['Состояние заявки на ЗП']?.includes('Согласован') 
                           ? 'bg-green-100 text-green-800'
                           : item['Состояние заявки на ЗП']?.includes('Не согласован')
@@ -428,11 +602,11 @@ export default function PurchasesStatus() {
                   </div>
 
             {/* Вкладки */}
-            <div className="border-b border-gray-200 mb-2">
+            <div className="border-b border-gray-200 mb-1.5">
               <div className="flex space-x-1">
                 <button
                   onClick={() => setActiveTab(globalIndex, 'main')}
-                  className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-t-lg transition-colors ${
+                  className={`px-2 py-1 text-xs sm:text-sm font-medium rounded-t-lg transition-colors ${
                     currentTab === 'main'
                       ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
@@ -442,7 +616,7 @@ export default function PurchasesStatus() {
                 </button>
                 <button
                   onClick={() => setActiveTab(globalIndex, 'approvals')}
-                  className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-t-lg transition-colors ${
+                  className={`px-2 py-1 text-xs sm:text-sm font-medium rounded-t-lg transition-colors ${
                     currentTab === 'approvals'
                       ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
                       : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
@@ -456,10 +630,10 @@ export default function PurchasesStatus() {
             {/* Контент вкладок */}
             {currentTab === 'main' && (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 text-sm">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-3 text-sm">
                   <div>
-                    <h4 className="font-medium text-gray-900 mb-2">Детали заявки</h4>
-                    <div className="space-y-1.5">
+                    <h4 className="font-medium text-gray-900 mb-1.5">Детали заявки</h4>
+                    <div className="space-y-1">
                       <div className="flex gap-2">
                         <span className="text-gray-600 whitespace-nowrap">Номер заявки:</span>
                         <span className="font-medium text-gray-900">#{item['№ заявки'] || '-'}</span>
@@ -479,27 +653,27 @@ export default function PurchasesStatus() {
                       <div className="flex gap-2">
                         <span className="text-gray-600 whitespace-nowrap">Лимит (план):</span>
                         <span className="font-medium text-gray-900">
-                          сум{formatNumber(item['Лимит ЗП ПЛАН (сум без НДС)'])}
+                          {formatNumber(item['Лимит ЗП ПЛАН (сум без НДС)'])} сум
                         </span>
                       </div>
                       <div className="flex gap-2">
                         <span className="text-gray-600 whitespace-nowrap">Сумма (факт):</span>
                         <span className="font-medium text-gray-900">
-                          сум{formatNumber(item['Cумма предпологаемого контракта ФАКТ'])}
+                          {formatNumber(item['Cумма предпологаемого контракта ФАКТ'])} сум
                         </span>
                       </div>
                       <div className="flex gap-2">
                         <span className="text-gray-600 whitespace-nowrap">Экономия:</span>
                         <span className="font-medium text-green-600">
-                          сум{formatNumber(item['Экономия'])}
+                          {formatNumber(item['Экономия'])} сум
                         </span>
                       </div>
                     </div>
                   </div>
 
                   <div>
-                    <h4 className="font-medium text-gray-900 mb-2">Участники</h4>
-                    <div className="space-y-1.5">
+                    <h4 className="font-medium text-gray-900 mb-1.5">Участники</h4>
+                    <div className="space-y-1">
                       <div className="flex gap-2">
                         <span className="text-gray-600 whitespace-nowrap">Инициатор:</span>
                         <span className="font-medium text-gray-900 truncate" title={item['Инициатор ЗП']}>
@@ -543,9 +717,9 @@ export default function PurchasesStatus() {
                 </div>
 
                 {item['Комментарий'] && (
-                  <div className="mt-2 pt-2 border-t border-gray-200">
-                    <h4 className="font-medium text-gray-900 mb-1">Комментарий</h4>
-                    <p className="text-xs sm:text-sm text-gray-700 bg-gray-50 p-2 rounded-lg">
+                  <div className="mt-1.5 pt-1.5 border-t border-gray-200">
+                    <h4 className="font-medium text-gray-900 mb-0.5">Комментарий</h4>
+                    <p className="text-xs sm:text-sm text-gray-700 bg-gray-50 p-1.5 rounded-lg">
                       {item['Комментарий']}
                     </p>
                   </div>
@@ -554,8 +728,8 @@ export default function PurchasesStatus() {
             )}
 
             {currentTab === 'approvals' && (
-              <div className="space-y-4">
-                <div className="bg-gray-50 p-4 rounded-lg">
+              <div className="space-y-2">
+                <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
                   {renderApprovalTimeline(item)}
                 </div>
               </div>
@@ -567,7 +741,7 @@ export default function PurchasesStatus() {
 
           {/* Пагинация */}
           {totalPages > 1 && (
-            <div className="mt-4 flex items-center justify-between border-t border-gray-200 pt-4 bg-white p-4 rounded-lg shadow-lg">
+            <div className="mt-2 flex items-center justify-between border-t border-gray-200 pt-2 bg-white p-2 sm:p-3 rounded-lg shadow-lg">
               <div className="text-sm text-gray-700">
                 Показано {startIndex + 1} - {endIndex} из {totalItems} заявок
               </div>

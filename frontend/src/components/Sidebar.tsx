@@ -43,6 +43,7 @@ const menuItems = [
     { id: 'overview', label: 'Обзор', icon: Home, disabled: false },
     { id: 'workload', label: 'Нагрузка', icon: BarChart3, disabled: false },
     { id: 'backend-purchase-requests', label: 'Заявки на закупку', icon: Package },
+    { id: 'purchase-plan', label: 'План закупок', icon: Calendar },
   ];
 
   const initiatorItems = [
@@ -137,22 +138,26 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
         <div className="absolute right-0 top-0 w-0.5 h-full bg-gradient-to-b from-transparent via-purple-600/30 to-transparent"></div>
         {/* Header */}
         <div className="border-b border-gray-200">
-          <div className={`flex items-center justify-between ${isCollapsed ? 'px-2 py-1.5' : 'pl-2 pr-1.5 py-1.5'}`}>
-            <div className={`flex items-center ${isCollapsed ? 'justify-center w-full' : ''}`}>
-              <div className="flex items-center justify-center w-6 h-6">
+          <div className={`flex items-center ${isCollapsed ? 'justify-center px-2 py-1.5 relative' : 'justify-between pl-2 pr-1.5 py-1.5'}`}>
+            <div className={`flex items-center ${isCollapsed ? 'justify-center' : ''}`}>
+              <span className={`flex items-center justify-center flex-shrink-0 ${isCollapsed ? 'w-8 h-8' : 'w-8 h-8'}`}>
                 <img 
                   src="/images/logo-small.svg" 
                   alt="Logo" 
-                  className="w-6 h-6"
+                  className={isCollapsed ? 'w-8 h-8' : 'w-8 h-8'}
                 />
-              </div>
-              {!isCollapsed && <h1 className="text-base font-bold text-black ml-2">uzProc</h1>}
+              </span>
+              {!isCollapsed && <h1 className="text-xl font-bold text-black ml-2.5">uzProc</h1>}
             </div>
             {/* Кнопка сворачивания/разворачивания (только для больших экранов) */}
             {setIsCollapsed && (
               <button
                 onClick={() => setIsCollapsed(!isCollapsed)}
-                className="hidden lg:flex items-center justify-center w-6 h-6 rounded-lg hover:bg-gray-100 transition-colors"
+                className={`hidden lg:flex items-center justify-center w-6 h-6 transition-colors ${
+                  isCollapsed 
+                    ? 'absolute right-1' 
+                    : 'rounded-lg hover:bg-gray-100'
+                }`}
                 title={isCollapsed ? 'Развернуть' : 'Свернуть'}
               >
                 {isCollapsed ? (

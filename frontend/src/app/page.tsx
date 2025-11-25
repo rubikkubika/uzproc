@@ -348,7 +348,7 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <main className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-8 pt-16 sm:pt-20 lg:pt-8">
+              <main className="flex-1 overflow-y-auto p-2 sm:p-3 lg:p-4 pt-16 sm:pt-20 lg:pt-4">
                 {renderContent()}
               </main>
             </div>
