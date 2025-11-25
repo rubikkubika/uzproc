@@ -630,7 +630,7 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
                     const row = htmlEl.closest('tr');
                     if (row) {
                       const cells = Array.from(row.querySelectorAll('td'));
-                      const cellIndex = cells.indexOf(htmlEl);
+                      const cellIndex = cells.indexOf(htmlEl as HTMLTableCellElement);
                       const headers = table.querySelectorAll('thead th');
                       if (headers[cellIndex]) {
                         const headerText = headers[cellIndex].textContent || '';
