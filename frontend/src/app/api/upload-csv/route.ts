@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import * as XLSX from 'xlsx';
 
 // Импортируем функции парсинга из purchases-data route
 const parseCSV = (content: string) => {
@@ -77,6 +78,27 @@ const parseCSVToObjects = (content: string) => {
   });
 };
 
+// Функция для конвертации Excel в CSV
+const convertExcelToCSV = (buffer: Buffer): string => {
+  try {
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    
+    // Берем первый лист
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheetName];
+    
+    // Конвертируем в CSV с разделителем ";"
+    const csv = XLSX.utils.sheet_to_csv(worksheet, { 
+      FS: ';',
+      blankrows: false
+    });
+    
+    return csv;
+  } catch (error) {
+    throw new Error(`Ошибка при чтении Excel файла: ${error}`);
+  }
+};
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -89,16 +111,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Проверяем тип файла
-    if (!file.name.endsWith('.csv') && file.type !== 'text/csv') {
+    // Проверяем тип файла (поддерживаем CSV и Excel)
+    const isCSV = file.name.endsWith('.csv') || file.type === 'text/csv' || file.type === 'application/csv';
+    const isExcel = file.name.endsWith('.xlsx') || 
+                    file.name.endsWith('.xls') || 
+                    file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+                    file.type === 'application/vnd.ms-excel';
+
+    if (!isCSV && !isExcel) {
       return NextResponse.json(
-        { error: 'Файл должен быть в формате CSV' },
+        { error: 'Файл должен быть в формате CSV или Excel (.xlsx, .xls)' },
         { status: 400 }
       );
     }
 
     // Читаем содержимое файла
-    const fileContent = await file.text();
+    let fileContent: string;
+    
+    if (isExcel) {
+      // Для Excel файлов конвертируем в CSV
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      fileContent = convertExcelToCSV(buffer);
+    } else {
+      // Для CSV файлов читаем как текст
+      fileContent = await file.text();
+    }
     const filePath = path.join(process.cwd(), 'images', 'для фронта.csv');
     const backupPath = path.join(process.cwd(), 'images', 'для фронта.backup.csv');
 

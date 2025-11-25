@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { Upload, FileCheck, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Upload, FileCheck, AlertCircle, CheckCircle2, Loader2, FileSpreadsheet } from 'lucide-react';
 
 interface UploadResult {
   success: boolean;
@@ -18,27 +18,47 @@ interface UploadResult {
 export default function UploadCSV() {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [converting, setConverting] = useState(false);
   const [result, setResult] = useState<UploadResult | null>(null);
+  const [excelFiles, setExcelFiles] = useState<Array<{filename: string, size: number}>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Загружаем список Excel файлов при монтировании компонента
+  useEffect(() => {
+    fetch('/api/convert-excel')
+      .then(res => res.json())
+      .then(data => {
+        if (data.excelFiles) {
+          setExcelFiles(data.excelFiles);
+        }
+      })
+      .catch(err => console.error('Error loading Excel files:', err));
+  }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
-      // Более гибкая проверка типа файла
-      const isValidCSV = 
+      // Более гибкая проверка типа файла (CSV и Excel)
+      const isCSV = 
         selectedFile.type === 'text/csv' || 
         selectedFile.type === 'application/vnd.ms-excel' ||
         selectedFile.type === 'application/csv' ||
         selectedFile.name.toLowerCase().endsWith('.csv') ||
         selectedFile.name.toLowerCase().endsWith('.txt');
       
-      if (isValidCSV) {
+      const isExcel = 
+        selectedFile.name.toLowerCase().endsWith('.xlsx') ||
+        selectedFile.name.toLowerCase().endsWith('.xls') ||
+        selectedFile.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+        selectedFile.type === 'application/vnd.ms-excel';
+      
+      if (isCSV || isExcel) {
         setFile(selectedFile);
         setResult(null);
       } else {
         setResult({
           success: false,
-          message: `Пожалуйста, выберите CSV файл. Выбранный файл: ${selectedFile.name} (тип: ${selectedFile.type || 'неизвестен'})`
+          message: `Пожалуйста, выберите CSV или Excel файл (.csv, .xlsx, .xls). Выбранный файл: ${selectedFile.name} (тип: ${selectedFile.type || 'неизвестен'})`
         });
         setFile(null);
         if (fileInputRef.current) {
@@ -102,11 +122,58 @@ export default function UploadCSV() {
     }
   };
 
+  const handleConvertExcel = async (filename?: string) => {
+    setConverting(true);
+    setResult(null);
+
+    try {
+      const response = await fetch('/api/convert-excel', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(filename ? { filename } : {}),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setResult({
+          success: true,
+          message: data.message || 'Excel файл успешно конвертирован в CSV'
+        });
+        // Обновляем список Excel файлов
+        const listResponse = await fetch('/api/convert-excel');
+        const listData = await listResponse.json();
+        if (listData.excelFiles) {
+          setExcelFiles(listData.excelFiles);
+        }
+        // Обновляем страницу через 2 секунды для отображения новых данных
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } else {
+        setResult({
+          success: false,
+          message: data.error || 'Ошибка при конвертации Excel файла'
+        });
+      }
+    } catch (error) {
+      console.error('Convert error:', error);
+      setResult({
+        success: false,
+        message: 'Ошибка при конвертации Excel файла. Попробуйте еще раз.'
+      });
+    } finally {
+      setConverting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Загрузка данных</h1>
-        <p className="text-gray-600">Загрузите новую версию CSV файла для обновления данных в системе</p>
+        <p className="text-gray-600">Загрузите новую версию CSV или Excel файла для обновления данных в системе. Excel файлы автоматически конвертируются в CSV.</p>
       </div>
 
       <div className="bg-white p-6 rounded-lg shadow-lg">
@@ -131,7 +198,7 @@ export default function UploadCSV() {
           {/* Выбор файла */}
           <div>
             <label htmlFor="csv-file-input" className="block text-sm font-medium text-gray-700 mb-2">
-              Выберите CSV файл
+              Выберите CSV или Excel файл (.csv, .xlsx, .xls)
             </label>
             <div className="flex items-center space-x-4">
               <label
@@ -147,7 +214,7 @@ export default function UploadCSV() {
                 id="csv-file-input"
                 ref={fileInputRef}
                 type="file"
-                accept=".csv,text/csv,application/vnd.ms-excel,application/csv"
+                accept=".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 onChange={handleFileSelect}
                 className="hidden"
                 disabled={uploading}
@@ -164,10 +231,49 @@ export default function UploadCSV() {
             )}
           </div>
 
+          {/* Автоматическая конвертация Excel файлов */}
+          {excelFiles.length > 0 && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="flex items-start">
+                <FileSpreadsheet className="w-5 h-5 text-yellow-600 mt-0.5 mr-3 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="font-semibold text-yellow-800 mb-2">
+                    Найдены Excel файлы в папке images:
+                  </p>
+                  <div className="space-y-2">
+                    {excelFiles.map((excelFile, index) => (
+                      <div key={index} className="flex items-center justify-between bg-white rounded p-2">
+                        <span className="text-sm text-gray-700">
+                          {excelFile.filename} ({(excelFile.size / 1024).toFixed(2)} KB)
+                        </span>
+                        <button
+                          onClick={() => handleConvertExcel(excelFile.filename)}
+                          disabled={converting}
+                          className="px-4 py-1.5 bg-yellow-600 text-white text-sm rounded
+                            hover:bg-yellow-700 disabled:bg-gray-300 disabled:cursor-not-allowed
+                            transition-colors duration-200"
+                        >
+                          {converting ? (
+                            <>
+                              <Loader2 className="w-4 h-4 inline mr-1 animate-spin" />
+                              Конвертация...
+                            </>
+                          ) : (
+                            'Конвертировать в CSV'
+                          )}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Кнопка загрузки */}
           <button
             onClick={handleUpload}
-            disabled={!file || uploading}
+            disabled={!file || uploading || converting}
             className="w-full flex items-center justify-center px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold
               hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed
               transition-colors duration-200"
