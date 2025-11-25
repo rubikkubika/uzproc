@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   BarChart3, 
   TrendingUp, 
@@ -14,6 +14,8 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Upload
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -40,6 +42,7 @@ const menuItems = [
   const purchaserItems = [
     { id: 'overview', label: 'Обзор', icon: Home, disabled: false },
     { id: 'workload', label: 'Нагрузка', icon: BarChart3, disabled: false },
+    { id: 'backend-purchase-requests', label: 'Заявки на закупку', icon: Package },
   ];
 
   const initiatorItems = [
@@ -47,18 +50,52 @@ const menuItems = [
     { id: 'initiator-status', label: 'Статус заявок', icon: TrendingUp },
   ];
 
-  const backendItems = [
-    { id: 'backend-users', label: 'Пользователи', icon: Users },
-    { id: 'backend-purchase-requests', label: 'Заявки на закупку', icon: Package },
-    { id: 'upload', label: 'Загрузка', icon: Upload },
-  ];
+  const backendItems: Array<{ id: string; label: string; icon: any }> = [];
 
   const oldItems = [
     { id: 'old-purchases', label: 'Реестр закупок', icon: Package },
   ];
 
+const SIDEBAR_SECTIONS_KEY = 'sidebarSectionsCollapsed';
+
 export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setIsMobileMenuOpen, isCollapsed = false, setIsCollapsed }: SidebarProps) {
   const router = useRouter();
+
+  // Состояние сворачивания разделов
+  const [sectionsCollapsed, setSectionsCollapsed] = useState({
+    purchaser: false,
+    initiator: false,
+    old: false,
+  });
+
+  // Загружаем состояние из localStorage при монтировании
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(SIDEBAR_SECTIONS_KEY);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setSectionsCollapsed(parsed);
+        } catch (e) {
+          console.error('Ошибка загрузки состояния разделов:', e);
+        }
+      }
+    }
+  }, []);
+
+  // Сохраняем состояние в localStorage при изменении
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(SIDEBAR_SECTIONS_KEY, JSON.stringify(sectionsCollapsed));
+    }
+  }, [sectionsCollapsed]);
+
+  const toggleSection = (section: keyof typeof sectionsCollapsed) => {
+    setSectionsCollapsed(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
 
   const handleTabChange = (tab: string) => {
     onTabChange(tab);
@@ -92,45 +129,36 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
         fixed lg:static top-0 left-0 z-40 h-screen bg-white border-r border-gray-200
         transform
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-        ${isCollapsed ? 'lg:w-20' : 'w-64'}
+        ${isCollapsed ? 'lg:w-16' : 'w-fit lg:max-w-fit'}
       `}
       data-sidebar-collapsed={isCollapsed ? 'true' : 'false'}
-      style={{
-        // Используем CSS переменную для предотвращения мигания
-        ...(typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
-          ? { 
-              width: 'var(--sidebar-width)',
-              transition: 'width 0.3s ease-in-out'
-            }
-          : {})
-      }}
       >
         {/* Градиентная полоска */}
         <div className="absolute right-0 top-0 w-0.5 h-full bg-gradient-to-b from-transparent via-purple-600/30 to-transparent"></div>
         {/* Header */}
         <div className="border-b border-gray-200">
-          <div className={`flex items-center justify-between ${isCollapsed ? 'px-3 py-3' : 'px-4 py-3'}`}>
+          <div className={`flex items-center justify-between ${isCollapsed ? 'px-2 py-1.5' : 'pl-2 pr-1.5 py-1.5'}`}>
             <div className={`flex items-center ${isCollapsed ? 'justify-center w-full' : ''}`}>
-              <div className="flex items-center justify-center w-8 h-8">
+              <div className="flex items-center justify-center w-6 h-6">
                 <img 
                   src="/images/logo-small.svg" 
                   alt="Logo" 
-                  className="w-8 h-8"
+                  className="w-6 h-6"
                 />
               </div>
-              {!isCollapsed && <h1 className="text-xl font-bold text-black ml-3">uzProc</h1>}
+              {!isCollapsed && <h1 className="text-base font-bold text-black ml-2">uzProc</h1>}
             </div>
             {/* Кнопка сворачивания/разворачивания (только для больших экранов) */}
             {setIsCollapsed && (
               <button
                 onClick={() => setIsCollapsed(!isCollapsed)}
-                className="hidden lg:flex items-center justify-center w-8 h-8 rounded-lg hover:bg-gray-100 transition-colors"
+                className="hidden lg:flex items-center justify-center w-6 h-6 rounded-lg hover:bg-gray-100 transition-colors"
                 title={isCollapsed ? 'Развернуть' : 'Свернуть'}
               >
                 {isCollapsed ? (
-                  <ChevronRight className="w-5 h-5 text-gray-600" />
+                  <ChevronRight className="w-4 h-4 text-gray-600" />
                 ) : (
-                  <ChevronLeft className="w-5 h-5 text-gray-600" />
+                  <ChevronLeft className="w-4 h-4 text-gray-600" />
                 )}
               </button>
             )}
@@ -138,13 +166,24 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 overflow-y-auto">
+        <nav className="flex-1 pl-2 pr-1.5 py-2 overflow-y-auto">
           {/* Для закупщика */}
-          <div className="mb-6">
+          <div className="mb-4">
             {!isCollapsed && (
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Для закупщика</h3>
+              <button
+                onClick={() => toggleSection('purchaser')}
+                className="w-full flex items-center justify-between text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2 hover:text-gray-700 transition-colors"
+              >
+                <span>Для закупщика</span>
+                {sectionsCollapsed.purchaser ? (
+                  <ChevronDown className="w-3 h-3" />
+                ) : (
+                  <ChevronUp className="w-3 h-3" />
+                )}
+              </button>
             )}
-            <ul className="space-y-2">
+            {(!isCollapsed && !sectionsCollapsed.purchaser) || isCollapsed ? (
+              <ul className="space-y-2">
               {purchaserItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
@@ -155,8 +194,8 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                     <button
                       onClick={() => !isDisabled && handleTabChange(item.id)}
                       disabled={isDisabled}
-                      className={`w-full flex items-center rounded-lg transition-colors relative ${
-                        isCollapsed ? 'justify-center px-3 py-3' : 'px-4 py-3'
+                      className={`w-full flex items-center rounded-lg transition-colors relative text-sm ${
+                        isCollapsed ? 'justify-center px-2 py-1.5' : 'px-2 py-1.5'
                       } ${
                         isActive
                           ? `text-blue-600 bg-blue-50 ${isCollapsed ? '' : 'border-l-4 border-blue-600'}`
@@ -166,21 +205,35 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                       }`}
                       title={isCollapsed ? item.label : undefined}
                     >
-                      <Icon className={`w-8 h-8 ${isCollapsed ? '' : 'mr-3'}`} />
-                      {!isCollapsed && item.label}
+                      <span className={`flex items-center justify-center ${isCollapsed ? 'w-6' : 'w-6'} flex-shrink-0`}>
+                        <Icon className="w-6 h-6" />
+                      </span>
+                      {!isCollapsed && <span className="ml-2">{item.label}</span>}
                     </button>
                   </li>
                 );
               })}
-            </ul>
+              </ul>
+            ) : null}
           </div>
 
           {/* Для инициатора */}
-          <div className="mb-6">
+          <div className="mb-4">
             {!isCollapsed && (
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Для инициатора</h3>
+              <button
+                onClick={() => toggleSection('initiator')}
+                className="w-full flex items-center justify-between text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2 hover:text-gray-700 transition-colors"
+              >
+                <span>Для инициатора</span>
+                {sectionsCollapsed.initiator ? (
+                  <ChevronDown className="w-3 h-3" />
+                ) : (
+                  <ChevronUp className="w-3 h-3" />
+                )}
+              </button>
             )}
-            <ul className="space-y-2">
+            {(!isCollapsed && !sectionsCollapsed.initiator) || isCollapsed ? (
+              <ul className="space-y-2">
               {initiatorItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
@@ -191,8 +244,8 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                     <button
                       onClick={() => !isDisabled && handleTabChange(item.id)}
                       disabled={isDisabled}
-                      className={`w-full flex items-center rounded-lg transition-colors relative ${
-                        isCollapsed ? 'justify-center px-3 py-3' : 'px-4 py-3'
+                      className={`w-full flex items-center rounded-lg transition-colors relative text-sm ${
+                        isCollapsed ? 'justify-center px-2 py-1.5' : 'px-2 py-1.5'
                       } ${
                         isActive
                           ? `text-blue-600 bg-blue-50 ${isCollapsed ? '' : 'border-l-4 border-blue-600'}`
@@ -202,58 +255,35 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                       }`}
                       title={isCollapsed ? item.label : undefined}
                     >
-                      <Icon className={`w-8 h-8 ${isCollapsed ? '' : 'mr-3'}`} />
-                      {!isCollapsed && item.label}
+                      <span className={`flex items-center justify-center ${isCollapsed ? 'w-6' : 'w-6'} flex-shrink-0`}>
+                        <Icon className="w-6 h-6" />
+                      </span>
+                      {!isCollapsed && <span className="ml-2">{item.label}</span>}
                     </button>
                   </li>
                 );
               })}
-            </ul>
-          </div>
-
-          {/* Backend */}
-          <div className="mb-6">
-            {!isCollapsed && (
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Backend</h3>
-            )}
-            <ul className="space-y-2">
-              {backendItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeTab === item.id;
-                const isUpload = item.id === 'upload';
-                
-                return (
-                  <li key={item.id}>
-                    <button
-                      onClick={() => handleTabChange(item.id)}
-                      className={`w-full flex items-center rounded-lg transition-colors relative ${
-                        isCollapsed ? 'justify-center px-3 py-3' : 'px-4 py-3'
-                      } ${
-                        isActive
-                          ? isUpload
-                            ? `text-purple-600 bg-purple-50 ${isCollapsed ? '' : 'border-l-4 border-purple-600'}`
-                            : `text-blue-600 bg-blue-50 ${isCollapsed ? '' : 'border-l-4 border-blue-600'}`
-                          : isUpload
-                          ? 'text-purple-600 bg-purple-50/50 hover:bg-purple-100 hover:text-purple-700'
-                          : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-                      }`}
-                      title={isCollapsed ? item.label : undefined}
-                    >
-                      <Icon className={`w-8 h-8 ${isCollapsed ? '' : 'mr-3'}`} />
-                      {!isCollapsed && item.label}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+              </ul>
+            ) : null}
           </div>
 
           {/* Старое */}
-          <div className="mb-6">
+          <div className="mb-4">
             {!isCollapsed && (
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Старое</h3>
+              <button
+                onClick={() => toggleSection('old')}
+                className="w-full flex items-center justify-between text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2 hover:text-gray-700 transition-colors"
+              >
+                <span>Старое</span>
+                {sectionsCollapsed.old ? (
+                  <ChevronDown className="w-3 h-3" />
+                ) : (
+                  <ChevronUp className="w-3 h-3" />
+                )}
+              </button>
             )}
-            <ul className="space-y-2">
+            {(!isCollapsed && !sectionsCollapsed.old) || isCollapsed ? (
+              <ul className="space-y-2">
               {oldItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
@@ -262,8 +292,8 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                   <li key={item.id}>
                     <button
                       onClick={() => handleTabChange(item.id)}
-                      className={`w-full flex items-center rounded-lg transition-colors relative ${
-                        isCollapsed ? 'justify-center px-3 py-3' : 'px-4 py-3'
+                      className={`w-full flex items-center rounded-lg transition-colors relative text-sm ${
+                        isCollapsed ? 'justify-center px-2 py-1.5' : 'px-2 py-1.5'
                       } ${
                         isActive
                           ? `text-blue-600 bg-blue-50 ${isCollapsed ? '' : 'border-l-4 border-blue-600'}`
@@ -271,27 +301,48 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                       }`}
                       title={isCollapsed ? item.label : undefined}
                     >
-                      <Icon className={`w-8 h-8 ${isCollapsed ? '' : 'mr-3'}`} />
-                      {!isCollapsed && item.label}
+                      <span className={`flex items-center justify-center ${isCollapsed ? 'w-6' : 'w-6'} flex-shrink-0`}>
+                        <Icon className="w-6 h-6" />
+                      </span>
+                      {!isCollapsed && <span className="ml-2">{item.label}</span>}
                     </button>
                   </li>
                 );
               })}
-            </ul>
+              </ul>
+            ) : null}
           </div>
         </nav>
 
-        {/* Кнопка выхода */}
-        <div className="p-4 border-t border-gray-200">
+        {/* Кнопка загрузки и выхода */}
+        <div className="pl-2 pr-1.5 py-2 border-t border-gray-200 space-y-2">
+          <button
+            onClick={() => handleTabChange('upload')}
+            className={`w-full flex items-center rounded-lg transition-colors relative text-sm ${
+              isCollapsed ? 'justify-center px-2 py-1.5' : 'px-2 py-1.5'
+            } ${
+              activeTab === 'upload'
+                ? `text-purple-600 bg-purple-50 ${isCollapsed ? '' : 'border-l-4 border-purple-600'}`
+                : 'text-purple-600 bg-purple-50/50 hover:bg-purple-100 hover:text-purple-700'
+            }`}
+            title={isCollapsed ? 'Загрузка' : undefined}
+          >
+            <span className={`flex items-center justify-center ${isCollapsed ? 'w-6' : 'w-6'} flex-shrink-0`}>
+              <Upload className="w-6 h-6" />
+            </span>
+            {!isCollapsed && <span className="ml-2">Загрузка</span>}
+          </button>
           <button
             onClick={handleLogout}
-            className={`w-full flex items-center rounded-lg text-gray-700 hover:bg-red-50 hover:text-red-600 transition-colors ${
-              isCollapsed ? 'justify-center px-3 py-3' : 'px-4 py-3'
+            className={`w-full flex items-center rounded-lg text-gray-700 hover:bg-red-50 hover:text-red-600 transition-colors text-sm ${
+              isCollapsed ? 'justify-center px-2 py-1.5' : 'px-2 py-1.5'
             }`}
             title={isCollapsed ? 'Выйти' : undefined}
           >
-            <LogOut className={`w-8 h-8 ${isCollapsed ? '' : 'mr-3'}`} />
-            {!isCollapsed && 'Выйти'}
+            <span className={`flex items-center justify-center ${isCollapsed ? 'w-6' : 'w-6'} flex-shrink-0`}>
+              <LogOut className="w-6 h-6" />
+            </span>
+            {!isCollapsed && <span className="ml-2">Выйти</span>}
           </button>
         </div>
       </aside>
