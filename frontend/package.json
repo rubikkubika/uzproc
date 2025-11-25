@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "convert-excel": "node scripts/convert-excel-to-csv.js"
   },
   "dependencies": {
     "chart.js": "^4.5.1",

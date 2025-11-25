@@ -122,9 +122,8 @@ export default function PurchasesStatus() {
     ];
 
     const renderRole = (role: { name: string; prefix: string; icon: string }) => {
-      const dateAppointed = item[`${role.prefix}Дата назначения`] || '';
-      const dateCompleted = item[`${role.prefix}Дата выполнения`] || '';
-      const daysInWork = item[`${role.prefix}Дней в работе`] || '';
+      const { dateAppointed, dateCompleted, daysInWork } = findRoleFields(role);
+      
       
       const hasData = dateAppointed || dateCompleted || daysInWork;
       const isCompleted = dateCompleted && dateCompleted !== '' && !dateCompleted.includes('Пропущено');
@@ -203,11 +202,54 @@ export default function PurchasesStatus() {
       );
     };
 
+    // Вспомогательная функция для поиска полей роли
+    const findRoleFields = (role: { name: string; prefix: string }) => {
+      let dateAppointed = '';
+      let dateCompleted = '';
+      let daysInWork = '';
+      
+      // Ищем по точному префиксу
+      const exactKey1 = `${role.prefix}Дата назначения`;
+      const exactKey2 = `${role.prefix}Дата выполнения`;
+      const exactKey3 = `${role.prefix}Дней в работе`;
+      
+      // Проверяем наличие ключей в объекте
+      if (exactKey1 in item) {
+        dateAppointed = String(item[exactKey1] || '').trim();
+      }
+      if (exactKey2 in item) {
+        dateCompleted = String(item[exactKey2] || '').trim();
+      }
+      if (exactKey3 in item) {
+        daysInWork = String(item[exactKey3] || '').trim();
+      }
+      
+      // Если не найдено, ищем все ключи, которые начинаются с префикса
+      if (!dateAppointed || !dateCompleted || !daysInWork) {
+        Object.keys(item).forEach(key => {
+          if (key.startsWith(role.prefix)) {
+            const value = String(item[key] || '').trim();
+            if (value) {
+              if ((key.includes('Дата назначения') || key.endsWith('Дата назначения')) && !dateAppointed) {
+                dateAppointed = value;
+              }
+              if ((key.includes('Дата выполнения') || key.endsWith('Дата выполнения')) && !dateCompleted) {
+                dateCompleted = value;
+              }
+              if ((key.includes('Дней в работе') || key.endsWith('Дней в работе')) && !daysInWork) {
+                daysInWork = value;
+              }
+            }
+          }
+        });
+      }
+      
+      return { dateAppointed, dateCompleted, daysInWork };
+    };
+
     const renderStage = (stage: typeof approvalStages[0], stageIndex: number) => {
       const hasRoles = stage.roles.some(role => {
-        const dateAppointed = item[`${role.prefix}Дата назначения`] || '';
-        const dateCompleted = item[`${role.prefix}Дата выполнения`] || '';
-        const daysInWork = item[`${role.prefix}Дней в работе`] || '';
+        const { dateAppointed, dateCompleted, daysInWork } = findRoleFields(role);
         return dateAppointed || dateCompleted || daysInWork;
       });
       

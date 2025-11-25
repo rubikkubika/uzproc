@@ -72,7 +72,14 @@ const parseCSVToObjects = (content: string) => {
     const obj: Record<string, string> = {};
     headers.forEach((header, index) => {
       const key = header || `column_${index}`;
-      obj[key] = values[index]?.replace(/^"|"$/g, '').trim() || '';
+      let value = values[index]?.replace(/^"|"$/g, '').trim() || '';
+      
+      // Убираем запятые из номера заявки (формат должен быть 1054, а не 1,054)
+      if (key === '№ заявки') {
+        value = value.replace(/,/g, '');
+      }
+      
+      obj[key] = value;
     });
     return obj;
   });
@@ -95,10 +102,98 @@ const convertExcelToCSV = (buffer: Buffer): string => {
     // Получаем диапазон ячеек
     const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
     
-    // Обрабатываем каждую ячейку для сохранения форматирования чисел
+    // Сначала определяем колонку с номером заявки (строка 2 - заголовки)
+    const headerRowIndex = 2;
+    const isRequestNumberColumn = new Map<number, boolean>();
+    
+    for (let C = range.s.c; C <= range.e.c; C++) {
+      const cellAddress = XLSX.utils.encode_cell({ r: headerRowIndex, c: C });
+      const cell = worksheet[cellAddress];
+      const headerValue = cell?.w || cell?.v || '';
+      const headerStr = String(headerValue).trim();
+      isRequestNumberColumn.set(C, headerStr === '№ заявки' || headerStr.includes('№ заявки'));
+    }
+    
+    // Формируем четвертую строку с объединенными заголовками
+    const headerRow0: string[] = [];
+    const headerRow1: string[] = [];
+    const headerRow2: string[] = [];
+    const headerRow3: string[] = [];
+    
+    let currentStage = '';
+    let currentRole = '';
+    
+    for (let C = range.s.c; C <= range.e.c; C++) {
+      const cell0Address = XLSX.utils.encode_cell({ r: 0, c: C });
+      const cell1Address = XLSX.utils.encode_cell({ r: 1, c: C });
+      const cell2Address = XLSX.utils.encode_cell({ r: 2, c: C });
+      
+      const cell0 = worksheet[cell0Address];
+      const cell1 = worksheet[cell1Address];
+      const cell2 = worksheet[cell2Address];
+      
+      const val0 = cell0 ? (cell0.w || String(cell0.v || '')) : '';
+      const val1 = cell1 ? (cell1.w || String(cell1.v || '')) : '';
+      const val2 = cell2 ? (cell2.w || String(cell2.v || '')) : '';
+      
+      headerRow0.push(val0);
+      headerRow1.push(val1);
+      headerRow2.push(val2);
+      
+      // Определяем этап
+      if (val0 && (val0.includes('Согласование') || val0.includes('Утверждение') || 
+          val0.includes('Закупочная комиссия') || val0.includes('Проверка'))) {
+        currentStage = val0;
+        currentRole = '';
+      }
+      
+      // Определяем роль
+      if (val1 && !val1.includes('Согласование') && !val1.includes('Утверждение') && 
+          !val1.includes('Закупочная комиссия') && !val1.includes('Проверка')) {
+        currentRole = val1;
+      }
+      
+      // Формируем объединенный заголовок
+      let combinedHeader = '';
+      if (currentStage) {
+        combinedHeader = currentStage;
+        if (currentRole) {
+          combinedHeader += currentRole;
+        }
+        if (val2) {
+          const isDuplicate = !currentStage && val0 && 
+            (val2 === val0 || val2.includes('№ заявки') || val2.includes('ЦФО'));
+          if (!isDuplicate || currentStage) {
+            combinedHeader += val2;
+          }
+        }
+      } else if (val0) {
+        combinedHeader = val0;
+        if (val2 && val2 !== val0) {
+          const isDuplicate = val2.includes('№ заявки') || val2.includes('ЦФО') ||
+            val2.includes('Предмет ЗП') || val2.includes('Формат ЗП');
+          if (!isDuplicate) {
+            combinedHeader += val2;
+          }
+        }
+      } else {
+        combinedHeader = val2 || `column_${C}`;
+      }
+      
+      headerRow3.push(combinedHeader || `column_${C}`);
+    }
+    
     const rows: string[][] = [];
     
-    for (let R = range.s.r; R <= range.e.r; R++) {
+    // Добавляем строки 0-2 (этапы, роли, поля)
+    rows.push(headerRow0);
+    rows.push(headerRow1);
+    rows.push(headerRow2);
+    // Добавляем строку 3 с объединенными заголовками
+    rows.push(headerRow3);
+    
+    // Обрабатываем данные (начиная со строки 3, которая теперь строка 4)
+    for (let R = 3; R <= range.e.r; R++) {
       const row: string[] = [];
       for (let C = range.s.c; C <= range.e.c; C++) {
         const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
@@ -111,15 +206,21 @@ const convertExcelToCSV = (buffer: Buffer): string => {
         
         // Используем отформатированное значение (cell.w), если оно есть
         if (cell.w) {
-          row.push(cell.w);
+          // Если это колонка с номером заявки, убираем форматирование с запятыми
+          if (isRequestNumberColumn.get(C) && cell.w.includes(',')) {
+            row.push(String(cell.w).replace(/,/g, ''));
+          } else {
+            row.push(cell.w);
+          }
         } else if (cell.t === 'n' && cell.v !== null && cell.v !== undefined) {
           // Если нет отформатированного значения, но есть число
-          // Проверяем формат ячейки
           let formattedValue = String(cell.v);
           
-          // Если число большое (>= 1000), форматируем с запятыми
-          if (cell.v >= 1000) {
-            // Определяем количество знаков после запятой из формата
+          // Не форматируем номер заявки - оставляем как есть
+          const isRequestNumber = isRequestNumberColumn.get(C);
+          
+          // Если число большое (>= 1000) и это НЕ номер заявки, форматируем с запятыми
+          if (cell.v >= 1000 && !isRequestNumber) {
             const numFormat = cell.z || '';
             const hasDecimals = numFormat.includes('.') || numFormat.includes('0.0');
             const decimalPlaces = hasDecimals ? 2 : 0;

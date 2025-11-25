@@ -129,12 +129,97 @@ export async function GET(request: Request) {
         return result;
       };
       
-      // Первая строка - заголовки
-      const headers = parseLine(lines[0]);
+      // Используем новую структуру CSV с четвертой строкой заголовков
+      // Строка 0: этапы согласования
+      // Строка 1: роли
+      // Строка 2: поля (Дата назначения, Дата выполнения, Дней в работе)
+      // Строка 3: объединенные заголовки (этап + роль + поле) - используем эту строку
+      // Строка 4+: данные
       
-      // Пропускаем строки, которые являются частью заголовков (обычно строки 2 и 3)
+      // Проверяем, есть ли четвертая строка с готовыми заголовками (индекс 3 = строка 4)
+      let headers: string[] = [];
+      let dataStartIndex = 3; // По умолчанию данные начинаются с 4-й строки (индекс 3)
+      
+      if (lines.length > 3) {
+        const headerLine4 = parseLine(lines[3] || ''); // Строка 4 (индекс 3)
+        // Проверяем, содержит ли четвертая строка объединенные заголовки
+        // (обычно это строки типа "Согласование Заявки на ЗПРуководитель закупщикаДата назначения")
+        const hasCombinedHeaders = headerLine4.some(h => 
+          h.includes('Согласование') && h.includes('Дата') || 
+          h.includes('Утверждение') && h.includes('Дата') ||
+          h.includes('Закупочная комиссия')
+        );
+        
+        if (hasCombinedHeaders) {
+          // Используем четвертую строку как заголовки
+          headers = headerLine4.map(h => h || `column_${headerLine4.indexOf(h)}`);
+          dataStartIndex = 4; // Данные начинаются с 5-й строки (индекс 4)
+        } else {
+          // Старый формат - формируем заголовки из строк 0-2
+          const headerLine1 = parseLine(lines[0] || '');
+          const headerLine2 = parseLine(lines[1] || '');
+          const headerLine3Old = parseLine(lines[2] || '');
+          
+          const maxLength = Math.max(headerLine1.length, headerLine2.length, headerLine3Old.length);
+          let currentStage = '';
+          let currentRole = '';
+          
+          for (let i = 0; i < maxLength; i++) {
+            const cell1 = headerLine1[i] || '';
+            const cell2 = headerLine2[i] || '';
+            const cell3 = headerLine3Old[i] || '';
+            
+            if (cell1 && cell1.trim() !== '' && 
+                (cell1.includes('Согласование') || cell1.includes('Утверждение') || 
+                 cell1.includes('Закупочная комиссия') || cell1.includes('Проверка'))) {
+              currentStage = cell1;
+              currentRole = '';
+            } else if (currentStage && (!cell1 || cell1.trim() === '')) {
+              // Продолжаем использовать текущий этап
+            }
+            
+            if (cell2 && cell2.trim() !== '') {
+              if (!(cell2.includes('Согласование') || cell2.includes('Утверждение') || 
+                    cell2.includes('Закупочная комиссия') || cell2.includes('Проверка'))) {
+                currentRole = cell2;
+              }
+            } else if (currentRole && (!cell2 || cell2.trim() === '')) {
+              // Продолжаем использовать текущую роль
+            }
+            
+            let header = '';
+            if (currentStage) {
+              header = currentStage;
+            } else if (cell1 && cell1.trim() !== '') {
+              header = cell1;
+            }
+            
+            if (currentRole && currentRole.trim() !== '' && currentStage) {
+              header = header + currentRole;
+            }
+            
+            if (cell3 && cell3.trim() !== '') {
+              const isDuplicateHeader = !currentStage && cell1 && cell1.trim() !== '' && 
+                                         (cell3 === cell1 || 
+                                          cell3.includes('№ заявки') || 
+                                          cell3.includes('ЦФО'));
+              if (!isDuplicateHeader || currentStage) {
+                header = header + cell3;
+              }
+            }
+            
+            if (!header || header.trim() === '') {
+              header = `column_${i}`;
+            }
+            
+            headers.push(header);
+          }
+          dataStartIndex = 3; // Данные начинаются с 4-й строки
+        }
+      }
+      
       // Определяем строки с данными: они должны иметь значение в первой колонке (№ заявки)
-      const dataLines = lines.slice(1).filter(line => {
+      const dataLines = lines.slice(dataStartIndex).filter(line => {
         const values = parseLine(line);
         // Проверяем, что первая колонка содержит номер заявки (не пустая и не является заголовком)
         const firstValue = values[0]?.replace(/^"|"$/g, '').trim() || '';
@@ -158,7 +243,17 @@ export async function GET(request: Request) {
         const obj: Record<string, string> = {};
         headers.forEach((header, index) => {
           const key = header || `column_${index}`;
-          obj[key] = values[index]?.replace(/^"|"$/g, '').trim() || '';
+          // Безопасное получение значения - проверяем, что индекс существует
+          const rawValue = index < values.length ? values[index] : '';
+          let value = rawValue?.replace(/^"|"$/g, '').trim() || '';
+          
+          // Убираем запятые из номера заявки (формат должен быть 1054, а не 1,054)
+          if (key === '№ заявки') {
+            value = value.replace(/,/g, '');
+          }
+          
+          // Всегда присваиваем значение, даже если оно пустое
+          obj[key] = value;
         });
         return obj;
       }).filter(item => {
@@ -167,10 +262,17 @@ export async function GET(request: Request) {
         return requestNumber.trim() !== '';
       });
       
+      
       cachedData = data;
       cacheTimestamp = Date.now();
       fileModTime = currentModTime;
       console.log('CSV parsed and cached:', data.length, 'records');
+      console.log('Total lines in file:', lines.length);
+      console.log('Data lines after filtering:', dataLines.length);
+      console.log('Sample headers (first 10):', headers.slice(0, 10));
+      if (data.length > 0) {
+        console.log('Sample record keys:', Object.keys(data[0]).slice(0, 20));
+      }
     } else {
       console.log('Using cached data:', cachedData.length, 'records');
     }

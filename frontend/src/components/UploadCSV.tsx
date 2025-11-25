@@ -203,8 +203,8 @@ export default function UploadCSV() {
             <div className="flex items-center space-x-4">
               <label
                 htmlFor="csv-file-input"
-                className="flex items-center justify-center px-6 py-3 bg-blue-50 text-blue-700 rounded-lg font-semibold
-                  hover:bg-blue-100 cursor-pointer transition-colors duration-200
+                className="flex items-center justify-center px-6 py-3 bg-green-50 text-green-700 rounded-lg font-semibold
+                  hover:bg-green-100 cursor-pointer transition-colors duration-200
                   disabled:bg-gray-300 disabled:cursor-not-allowed disabled:text-gray-500"
               >
                 <Upload className="w-5 h-5 mr-2" />
@@ -249,8 +249,8 @@ export default function UploadCSV() {
                         <button
                           onClick={() => handleConvertExcel(excelFile.filename)}
                           disabled={converting}
-                          className="px-4 py-1.5 bg-yellow-600 text-white text-sm rounded
-                            hover:bg-yellow-700 disabled:bg-gray-300 disabled:cursor-not-allowed
+                          className="px-4 py-1.5 bg-green-600 text-white text-sm rounded
+                            hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed
                             transition-colors duration-200"
                         >
                           {converting ? (
@@ -274,8 +274,8 @@ export default function UploadCSV() {
           <button
             onClick={handleUpload}
             disabled={!file || uploading || converting}
-            className="w-full flex items-center justify-center px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold
-              hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed
+            className="w-full flex items-center justify-center px-6 py-3 bg-green-600 text-white rounded-lg font-semibold
+              hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed
               transition-colors duration-200"
           >
             {uploading ? (

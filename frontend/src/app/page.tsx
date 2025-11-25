@@ -121,11 +121,11 @@ export default function Dashboard() {
           </div>
         );
       
-      case 'purchases':
+      case 'old-purchases':
         return (
           <div className="space-y-3 sm:space-y-4 lg:space-y-6">
             <PurchasesTable initialSearchQuery={searchQuery} />
-              </div>
+          </div>
         );
 
       case 'workload':

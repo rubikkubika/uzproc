@@ -150,28 +150,11 @@ export default function PurchasesTable({ initialSearchQuery = '' }: PurchasesTab
   return (
     <div className="space-y-4">
       <div className="bg-white p-4 rounded-lg shadow-lg overflow-hidden">
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4">
           <div>
             <h2 className="text-xl font-semibold text-gray-900 mb-2">Реестр закупок</h2>
             <p className="text-sm text-gray-600">Всего записей: {totalItems}</p>
           </div>
-          <button
-            onClick={() => {
-              const table = document.querySelector('table');
-              if (table) {
-                const text = table.innerText;
-                navigator.clipboard.writeText(text).then(() => {
-                  alert('Таблица скопирована в буфер обмена!');
-                }).catch(err => {
-                  console.error('Ошибка при копировании:', err);
-                  alert('Не удалось скопировать');
-                });
-              }
-            }}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
-          >
-            📋 Копировать таблицу
-          </button>
         </div>
         
         {/* Поиск */}
