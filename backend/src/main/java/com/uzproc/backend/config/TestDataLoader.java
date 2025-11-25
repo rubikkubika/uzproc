@@ -137,6 +137,20 @@ public class TestDataLoader {
         logger.info("File exists: {}, size: {} bytes", Files.exists(csvPath), 
                     Files.exists(csvPath) ? Files.size(csvPath) : 0);
         
+        // Логируем первые байты файла для отладки
+        try {
+            byte[] firstBytes = Files.readAllBytes(csvPath);
+            int bytesToLog = Math.min(200, firstBytes.length);
+            StringBuilder hex = new StringBuilder();
+            for (int i = 0; i < bytesToLog; i++) {
+                hex.append(String.format("%02X ", firstBytes[i]));
+                if ((i + 1) % 16 == 0) hex.append("\n");
+            }
+            logger.info("First {} bytes (hex):\n{}", bytesToLog, hex.toString());
+        } catch (IOException e) {
+            logger.warn("Could not read first bytes: {}", e.getMessage());
+        }
+        
         List<PurchaseRequest> purchaseRequests = new ArrayList<>();
         
         // Пытаемся определить кодировку файла
@@ -147,11 +161,20 @@ public class TestDataLoader {
         
         try (BufferedReader reader = Files.newBufferedReader(csvPath, charset)) {
             String headerLine = reader.readLine(); // Читаем заголовок для проверки
-            logger.info("CSV header (first line): [{}]", headerLine);
+            logger.info("CSV header (first line) with charset {}: [{}]", charset.name(), headerLine);
             if (headerLine != null && headerLine.length() > 0) {
                 logger.info("Header length: {}, first 100 chars: [{}]", 
                           headerLine.length(), 
                           headerLine.length() > 100 ? headerLine.substring(0, 100) : headerLine);
+                // Логируем байты заголовка
+                byte[] headerBytes = headerLine.getBytes(charset);
+                StringBuilder headerHex = new StringBuilder();
+                int headerBytesToLog = Math.min(100, headerBytes.length);
+                for (int i = 0; i < headerBytesToLog; i++) {
+                    headerHex.append(String.format("%02X ", headerBytes[i]));
+                    if ((i + 1) % 16 == 0) headerHex.append("\n");
+                }
+                logger.info("Header bytes (first {} bytes, hex):\n{}", headerBytesToLog, headerHex.toString());
             }
             
             int lineNumber = 1;
@@ -345,7 +368,7 @@ public class TestDataLoader {
                     score -= 20; // Много знаков вопроса - плохая кодировка
                 }
                 
-                logger.debug("Charset {} score: {} (sample length: {}, question marks: {})", 
+                logger.info("Charset {} score: {} (sample length: {}, question marks: {})", 
                            charset.name(), score, content.length(), questionMarks);
                 
                 if (score > bestScore) {
