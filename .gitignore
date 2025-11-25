@@ -46,6 +46,13 @@ yarn-error.log*
 *.tmp
 *.temp
 
+# Data files
+frontend/images/*.csv
+frontend/images/*.xlsx
+frontend/images/*.xls
+frontend/images/~$*.xlsx
+frontend/images/~$*.xls
+
 # Spring Boot / Java
 .apt_generated
 .classpath
