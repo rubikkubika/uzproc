@@ -56,7 +56,19 @@ public class TestDataLoader {
                     .filter(pr -> pr.getIsPlanned() != null && pr.getIsPlanned())
                     .count();
             
-            if (plannedCount == 0) {
+            // Проверяем переменную окружения для принудительной перезагрузки
+            boolean forceReload = "true".equalsIgnoreCase(System.getenv("FORCE_RELOAD_CSV"));
+            
+            if (plannedCount == 0 || forceReload) {
+                if (forceReload && plannedCount > 0) {
+                    logger.info("Force reload enabled. Deleting {} existing planned purchase requests...", plannedCount);
+                    purchaseRequestRepository.deleteAll(
+                        purchaseRequestRepository.findAll().stream()
+                            .filter(pr -> pr.getIsPlanned() != null && pr.getIsPlanned())
+                            .toList()
+                    );
+                }
+                
                 logger.info("Loading planned purchase requests from CSV...");
                 try {
                     int loadedCount = loadPlannedPurchaseRequestsFromCsv(purchaseRequestRepository);
@@ -236,6 +248,20 @@ public class TestDataLoader {
         // Сохраняем все записи батчами
         if (!purchaseRequests.isEmpty()) {
             repository.saveAll(purchaseRequests);
+            
+            // Проверяем первую сохраненную запись для отладки
+            if (!purchaseRequests.isEmpty()) {
+                PurchaseRequest first = purchaseRequests.get(0);
+                logger.info("First saved record - Company: [{}], CFO: [{}], Initiator: [{}], Subject: [{}]", 
+                          first.getCompany(), first.getCfo(), first.getPurchaseInitiator(), first.getPurchaseSubject());
+                
+                // Читаем из БД для проверки
+                PurchaseRequest saved = repository.findById(first.getId()).orElse(null);
+                if (saved != null) {
+                    logger.info("Read from DB - Company: [{}], CFO: [{}], Initiator: [{}], Subject: [{}]", 
+                              saved.getCompany(), saved.getCfo(), saved.getPurchaseInitiator(), saved.getPurchaseSubject());
+                }
+            }
         }
         
         return purchaseRequests.size();

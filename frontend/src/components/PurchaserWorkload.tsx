@@ -44,6 +44,9 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
     dateTo: ''
   });
   const [isCfoFilterOpen, setIsCfoFilterOpen] = useState(false);
+  const [selectedPurchase, setSelectedPurchase] = useState<PurchaseData | null>(null);
+  const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false);
+  const [purchaseModalTab, setPurchaseModalTab] = useState<'main' | 'approvals'>('main');
 
   // Загрузка сохраненных выбранных закупщиков из localStorage
   useEffect(() => {
@@ -414,6 +417,233 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
     }
     return null;
   };
+
+  const formatNumberForDisplay = (value: string) => {
+    if (!value || value.trim() === '') return '-';
+    const cleanedValue = value.replace(/\s/g, '').replace(',', '.');
+    const num = parseFloat(cleanedValue);
+    if (isNaN(num)) return value;
+    return new Intl.NumberFormat('ru-RU', { 
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0 
+    }).format(num);
+  };
+
+  const formatDateForDisplay = (dateStr: string) => {
+    if (!dateStr) return '-';
+    if (dateStr.includes('Пропущено')) return '-';
+    try {
+      // Новый формат: DD.MM.YYYY HH:MM или DD.MM.YYYY
+      if (dateStr.includes('.')) {
+        const [datePart] = dateStr.split(' ');
+        return datePart; // Возвращаем только дату без времени
+      }
+      // Старый формат: DD/MM/YYYY
+      const [day, month, year] = dateStr.split('/');
+      return `${day}.${month}.${year}`;
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const renderApprovalTimeline = (item: PurchaseData) => {
+    // Этапы согласования с ролями
+    const approvalStages = [
+      {
+        stageName: 'Согласование заявки',
+        icon: '📝',
+        roles: [
+          { name: 'Руководитель закупщика', prefix: 'Согласование Заявки на ЗПРуководитель закупщика', icon: '👤' },
+          { name: 'Руководитель ЦФО', prefix: 'Согласование Заявки на ЗПРуководитель ЦФО', icon: '👔' },
+          { name: 'Председатель ЦФО', prefix: 'Согласование Заявки на ЗППредседатель ЦФО M - PVZ', icon: '🏛️' },
+          { name: 'Финансист ЦФО', prefix: 'Согласование Заявки на ЗПФинансист ЦФО', icon: '💰' },
+          { name: 'Генеральный директор', prefix: 'Согласование Заявки на ЗПГенеральный директор', icon: '👔' },
+          { name: 'Финансовый директор', prefix: 'Согласование Заявки на ЗПФинансовый директор', icon: '💼' },
+          { name: 'Финансовый директор (Маркет)', prefix: 'Согласование Заявки на ЗПФинансовый директор (Маркет)', icon: '💼' },
+          { name: 'Служба безопасности', prefix: 'Согласование Заявки на ЗПСлужба безопасности', icon: '🔒' },
+          { name: 'Руководитель ЦФО M - IT', prefix: 'Согласование Заявки на ЗПРуководитель ЦФО M - IT', icon: '💻' },
+          { name: 'Руководитель ЦФО M - Maintenance', prefix: 'Согласование Заявки на ЗПРуководитель ЦФО M - Maintenance', icon: '🔧' }
+        ]
+      },
+      {
+        stageName: 'Утверждение',
+        icon: '✍️',
+        roles: [
+          { name: 'Ответственный закупщик', prefix: 'Утверждение заявки на ЗПОтветственный закупщик', icon: '👤' },
+          { name: 'Подготовил документ', prefix: 'Утверждение заявки на ЗППодготовил документ', icon: '📄' },
+          { name: 'НЕ требуется ЗП', prefix: 'Утверждение заявки на ЗП (НЕ требуется ЗП)Ответственный закупщик', icon: '❌' }
+        ]
+      },
+      {
+        stageName: 'Закупочная комиссия',
+        icon: '🏛️',
+        roles: [
+          { name: 'Финансовый директор', prefix: 'Закупочная комиссияФинансовый директор', icon: '💼' },
+          { name: 'Финансовый директор (Маркет)', prefix: 'Закупочная комиссияФинансовый директор (Маркет)', icon: '💼' },
+          { name: 'Генеральный директор', prefix: 'Закупочная комиссияГенеральный директор', icon: '👔' },
+          { name: 'Ответственный закупщик', prefix: 'Проверка результата закупочной комиссииОтветственный закупщик', icon: '✓' }
+        ]
+      },
+      {
+        stageName: 'Согласование результатов',
+        icon: '✅',
+        roles: [
+          { name: 'Служба безопасности', prefix: 'Согласование результатов ЗПСлужба безопасности', icon: '🔒' },
+          { name: 'Руководитель закупщика', prefix: 'Согласование результатов ЗПРуководитель закупщика', icon: '👤' },
+          { name: 'Руководитель ЦФО', prefix: 'Согласование результатов ЗПРуководитель ЦФО', icon: '👔' },
+          { name: 'Финансист ЦФО', prefix: 'Согласование результатов ЗПФинансист ЦФО', icon: '💰' }
+        ]
+      }
+    ];
+
+    const renderRole = (role: { name: string; prefix: string; icon: string }) => {
+      const dateAppointed = item[`${role.prefix}Дата назначения`] || '';
+      const dateCompleted = item[`${role.prefix}Дата выполнения`] || '';
+      const daysInWork = item[`${role.prefix}Дней в работе`] || '';
+      
+      const hasData = dateAppointed || dateCompleted || daysInWork;
+      const isCompleted = dateCompleted && dateCompleted !== '' && !dateCompleted.includes('Пропущено');
+      const isPending = dateAppointed && !dateCompleted && !dateCompleted.includes('Пропущено');
+      const isSkipped = (dateAppointed && dateAppointed.includes('Пропущено')) || (dateCompleted && dateCompleted.includes('Пропущено'));
+      
+      if (!hasData) return null;
+      
+      return (
+        <div key={role.name} className="bg-white rounded-lg border-2 border-gray-300 p-1.5 mb-0.5">
+          {/* Мобильная версия */}
+          <div className="md:hidden">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-base">{role.icon}</span>
+              <span className="font-medium text-gray-900 text-sm">{role.name}</span>
+              <div className="ml-auto">
+                {isCompleted && <span className="px-2 py-0.5 bg-green-100 text-green-800 rounded-full text-xs font-medium">✓</span>}
+                {isPending && <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">⏳</span>}
+                {isSkipped && <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">Пропущено</span>}
+                {!isCompleted && !isPending && !isSkipped && <span className="px-2 py-0.5 bg-gray-100 text-gray-400 rounded-full text-xs font-medium">—</span>}
+              </div>
+            </div>
+            {!isSkipped && (
+              <div className="grid grid-cols-3 gap-2 text-xs text-gray-600">
+                <div>
+                  <div className="text-gray-500 text-[10px] mb-0.5">Назначено</div>
+                  <div className="font-medium text-gray-900">{formatDateForDisplay(dateAppointed) || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500 text-[10px] mb-0.5">Выполнено</div>
+                  <div className="font-medium text-gray-900">{formatDateForDisplay(dateCompleted) || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500 text-[10px] mb-0.5">Дней</div>
+                  <div className="font-medium text-gray-900">{daysInWork || '-'}</div>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* Десктопная версия */}
+          <div className="hidden md:grid grid-cols-[auto_100px_100px_60px_100px] lg:grid-cols-[auto_120px_120px_80px_120px] gap-2 lg:gap-3 items-center text-xs">
+            <div className="flex items-center gap-2 min-w-[150px] lg:min-w-0">
+              <span className="text-base">{role.icon}</span>
+              <span className="font-medium text-gray-900 truncate">{role.name}</span>
+            </div>
+            {isSkipped ? (
+              <>
+                <div className="text-xs text-gray-400">-</div>
+                <div className="text-xs text-gray-400">-</div>
+                <div className="text-xs text-gray-400">-</div>
+                <div className="text-xs">
+                  <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full font-medium">Пропущено</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-xs text-gray-600">
+                  {formatDateForDisplay(dateAppointed) || '-'}
+                </div>
+                <div className="text-xs text-gray-600">
+                  {formatDateForDisplay(dateCompleted) || '-'}
+                </div>
+                <div className="text-xs text-gray-600">
+                  {daysInWork || '-'}
+                </div>
+                <div className="text-xs">
+                  {isCompleted && <span className="px-2 py-0.5 bg-green-100 text-green-800 rounded-full font-medium">✓</span>}
+                  {isPending && <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded-full font-medium">⏳</span>}
+                  {!isCompleted && !isPending && <span className="px-2 py-0.5 bg-gray-100 text-gray-400 rounded-full font-medium">—</span>}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    const renderStage = (stage: typeof approvalStages[0], stageIndex: number) => {
+      const hasRoles = stage.roles.some(role => {
+        const dateAppointed = item[`${role.prefix}Дата назначения`] || '';
+        const dateCompleted = item[`${role.prefix}Дата выполнения`] || '';
+        const daysInWork = item[`${role.prefix}Дней в работе`] || '';
+        return dateAppointed || dateCompleted || daysInWork;
+      });
+      
+      if (!hasRoles) return null;
+      
+      return (
+        <div key={stageIndex} className="mb-6">
+          <div className="flex items-center gap-2 lg:gap-3 mb-3 border-b border-gray-200 pb-2">
+            <span className="text-xl lg:text-2xl">{stage.icon}</span>
+            <h5 className="text-base lg:text-lg font-semibold text-gray-900">{stage.stageName}</h5>
+          </div>
+          
+          {/* Заголовки колонок - только для десктопа */}
+          <div className="hidden md:grid grid-cols-[auto_100px_100px_60px_100px] lg:grid-cols-[auto_120px_120px_80px_120px] gap-2 lg:gap-3 px-2 mb-1 bg-gray-100 rounded-lg py-1.5">
+            <div className="font-medium text-gray-700 text-xs lg:text-sm min-w-[150px] lg:min-w-0">Роль</div>
+            <div className="font-medium text-gray-700 text-xs">Назначено</div>
+            <div className="font-medium text-gray-700 text-xs">Выполнено</div>
+            <div className="font-medium text-gray-700 text-xs">Дней</div>
+            <div className="font-medium text-gray-700 text-xs">Статус</div>
+          </div>
+          
+          <div>
+            {stage.roles.map(role => renderRole(role))}
+          </div>
+        </div>
+      );
+    };
+
+    return (
+      <div className="space-y-4 overflow-x-auto">
+        {approvalStages.map((stage, index) => renderStage(stage, index))}
+      </div>
+    );
+  };
+
+  const handlePurchaseDoubleClick = (item: PurchaseData) => {
+    setSelectedPurchase(item);
+    setPurchaseModalTab('main');
+    setIsPurchaseModalOpen(true);
+  };
+
+  const handleClosePurchaseModal = () => {
+    setIsPurchaseModalOpen(false);
+    setSelectedPurchase(null);
+  };
+
+  // Закрытие модального окна по Escape
+  useEffect(() => {
+    if (!isPurchaseModalOpen) return;
+    
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsPurchaseModalOpen(false);
+        setSelectedPurchase(null);
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [isPurchaseModalOpen]);
 
   const copyRowAsImage = async (rowElement: HTMLTableRowElement, index: number) => {
     try {
@@ -1144,8 +1374,10 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
                   filteredPurchases.map((item, index) => (
                     <tr 
                       key={index} 
-                      className="border-b border-gray-100 hover:bg-gray-50"
+                      className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
                       data-row-index={index}
+                      onDoubleClick={() => handlePurchaseDoubleClick(item)}
+                      title="Двойной клик для просмотра детальной информации"
                     >
                       <td className="py-3 px-2 text-xs sm:text-sm text-gray-900 font-medium">
                         {item['№ заявки'] || '-'}
@@ -1179,6 +1411,7 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
                         <button
                           data-copy-button={index}
                           onClick={(e) => {
+                            e.stopPropagation(); // Предотвращаем всплытие события
                             const row = (e.currentTarget.closest('tr') as HTMLTableRowElement);
                             if (row) {
                               copyRowAsImage(row, index);
@@ -1197,6 +1430,177 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
             </table>
           </div>
         </div>
+
+        {/* Модальное окно с детальной информацией о закупке */}
+        {isPurchaseModalOpen && selectedPurchase && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                handleClosePurchaseModal();
+              }
+            }}
+          >
+            <div 
+              className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col my-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Заголовок модального окна */}
+              <div className="p-4 sm:p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
+                <div className="flex-1">
+                  <h3 className="text-xl sm:text-2xl font-bold text-gray-900">
+                    Заявка #{selectedPurchase['№ заявки'] || 'N/A'}
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-1">{selectedPurchase['Предмет ЗП'] || '-'}</p>
+                </div>
+                <button
+                  onClick={handleClosePurchaseModal}
+                  className="ml-4 text-gray-400 hover:text-gray-600 transition-colors p-2"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Вкладки */}
+              <div className="border-b border-gray-200 px-4 sm:px-6 sticky top-[73px] bg-white z-10">
+                <div className="flex space-x-1">
+                  <button
+                    onClick={() => setPurchaseModalTab('main')}
+                    className={`px-3 py-2 text-xs sm:text-sm font-medium rounded-t-lg transition-colors ${
+                      purchaseModalTab === 'main'
+                        ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                    }`}
+                  >
+                    Основная информация
+                  </button>
+                  <button
+                    onClick={() => setPurchaseModalTab('approvals')}
+                    className={`px-3 py-2 text-xs sm:text-sm font-medium rounded-t-lg transition-colors ${
+                      purchaseModalTab === 'approvals'
+                        ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                    }`}
+                  >
+                    Согласования
+                  </button>
+                </div>
+              </div>
+
+              {/* Контент модального окна */}
+              <div className="p-4 sm:p-6 overflow-y-auto flex-1">
+                {purchaseModalTab === 'main' && (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <h4 className="font-medium text-gray-900 mb-2">Детали заявки</h4>
+                        <div className="space-y-1.5">
+                          <div className="flex gap-2">
+                            <span className="text-gray-600 whitespace-nowrap">Номер заявки:</span>
+                            <span className="font-medium text-gray-900">#{selectedPurchase['№ заявки'] || '-'}</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <span className="text-gray-600 whitespace-nowrap">ЦФО:</span>
+                            <span className="font-medium text-gray-900">{selectedPurchase['ЦФО'] || '-'}</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <span className="text-gray-600 whitespace-nowrap">Формат:</span>
+                            <span className="font-medium text-gray-900">{selectedPurchase['Формат ЗП'] || '-'}</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <span className="text-gray-600 whitespace-nowrap">Дата создания:</span>
+                            <span className="font-medium text-gray-900">{formatDateForDisplay(selectedPurchase['Дата создания ЗП'])}</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <span className="text-gray-600 whitespace-nowrap">Лимит (план):</span>
+                            <span className="font-medium text-gray-900">
+                              сум{formatNumberForDisplay(selectedPurchase['Лимит ЗП ПЛАН (сум без НДС)'])}
+                            </span>
+                          </div>
+                          <div className="flex gap-2">
+                            <span className="text-gray-600 whitespace-nowrap">Сумма (факт):</span>
+                            <span className="font-medium text-gray-900">
+                              сум{formatNumberForDisplay(selectedPurchase['Cумма предпологаемого контракта ФАКТ'])}
+                            </span>
+                          </div>
+                          <div className="flex gap-2">
+                            <span className="text-gray-600 whitespace-nowrap">Экономия:</span>
+                            <span className="font-medium text-green-600">
+                              сум{formatNumberForDisplay(selectedPurchase['Экономия'])}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 className="font-medium text-gray-900 mb-2">Участники</h4>
+                        <div className="space-y-1.5">
+                          <div className="flex gap-2">
+                            <span className="text-gray-600 whitespace-nowrap">Инициатор:</span>
+                            <span className="font-medium text-gray-900 truncate" title={selectedPurchase['Инициатор ЗП']}>
+                              {selectedPurchase['Инициатор ЗП'] || '-'}
+                            </span>
+                          </div>
+                          <div className="flex gap-2">
+                            <span className="text-gray-600 whitespace-nowrap">Закупщик:</span>
+                            <span className="font-medium text-gray-900 truncate" title={selectedPurchase['Закупшик']}>
+                              {selectedPurchase['Закупшик'] || '-'}
+                            </span>
+                          </div>
+                          <div className="flex gap-2">
+                            <span className="text-gray-600 whitespace-nowrap">Поставщик:</span>
+                            <span className="font-medium text-gray-900 truncate" title={selectedPurchase['Наименование поставщика (Закупочная процедура)']}>
+                              {selectedPurchase['Наименование поставщика (Закупочная процедура)'] || '-'}
+                            </span>
+                          </div>
+                          <div className="flex gap-2">
+                            <span className="text-gray-600 whitespace-nowrap">Дата запуска:</span>
+                            <span className="font-medium text-gray-900">{formatDateForDisplay(selectedPurchase['Дата запуска'])}</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <span className="text-gray-600 whitespace-nowrap">Дней в работе:</span>
+                            <span className="font-medium text-gray-900">{selectedPurchase['Дней в работе закупщика'] || '-'}</span>
+                          </div>
+                          <div className="flex gap-2 items-center">
+                            <span className="text-gray-600 whitespace-nowrap">Статус процедуры:</span>
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                              selectedPurchase['Статус закупочной процедуры']?.includes('Согласован') 
+                                ? 'bg-green-100 text-green-800'
+                                : selectedPurchase['Статус закупочной процедуры']?.includes('Не согласован')
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {selectedPurchase['Статус закупочной процедуры'] || '-'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {selectedPurchase['Комментарий'] && (
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <h4 className="font-medium text-gray-900 mb-1">Комментарий</h4>
+                        <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">
+                          {selectedPurchase['Комментарий']}
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {purchaseModalTab === 'approvals' && (
+                  <div className="space-y-4">
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      {renderApprovalTimeline(selectedPurchase)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
