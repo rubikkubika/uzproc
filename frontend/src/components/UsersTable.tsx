@@ -88,7 +88,6 @@ export default function UsersTable() {
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-200">
-        <h2 className="text-xl font-bold text-gray-900">Пользователи</h2>
         <p className="text-sm text-gray-500 mt-1">
           Всего записей: {data.totalElements}
         </p>

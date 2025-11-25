@@ -1687,7 +1687,6 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
         <div className="flex items-center justify-between mb-4">
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-2">
-              <h2 className="text-2xl font-bold text-gray-900">Нагрузка на закупщиков</h2>
               {selectedPurchasers.size > 0 && (
                 <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
                   Показано: {stats.length} из {allStats.length}
@@ -1719,7 +1718,6 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
             <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
               <div className="p-6 border-b border-gray-200">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-bold text-gray-900">Выбор закупщиков для отображения</h3>
                   <button
                     onClick={() => setIsSettingsOpen(false)}
                     className="text-gray-400 hover:text-gray-600 transition-colors"

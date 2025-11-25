@@ -156,13 +156,6 @@ export default function PurchasesTable({ initialSearchQuery = '' }: PurchasesTab
   return (
     <div className="space-y-4">
       <div className="bg-white p-4 rounded-lg shadow-lg overflow-hidden">
-        <div className="mb-4">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Реестр закупок</h2>
-            <p className="text-sm text-gray-600">Всего записей: {totalItems}</p>
-          </div>
-        </div>
-        
         {/* Поиск */}
         <div className="mb-4">
           <div className="flex gap-2">

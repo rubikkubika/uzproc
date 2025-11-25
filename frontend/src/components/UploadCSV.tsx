@@ -171,10 +171,6 @@ export default function UploadCSV() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Загрузка данных</h1>
-        <p className="text-gray-600">Загрузите новую версию CSV или Excel файла для обновления данных в системе. Excel файлы автоматически конвертируются в CSV.</p>
-      </div>
 
       <div className="bg-white p-6 rounded-lg shadow-lg">
         <div className="space-y-6">

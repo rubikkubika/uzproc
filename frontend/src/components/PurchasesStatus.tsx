@@ -509,10 +509,6 @@ export default function PurchasesStatus() {
 
   return (
     <div className="space-y-2 sm:space-y-3 lg:space-y-4">
-      <div className="mb-2">
-        <h2 className="text-2xl font-bold text-gray-900 mb-1">Статус заявок</h2>
-        <p className="text-sm text-gray-600">Всего закупок: {totalItems}</p>
-      </div>
 
       {/* Строка поиска */}
       <div className="bg-white p-3 sm:p-4 rounded-lg shadow-lg">

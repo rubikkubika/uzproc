@@ -231,10 +231,6 @@ export default function Dashboard() {
       case 'purchaser-analytics':
         return (
           <div className="space-y-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Аналитика закупщика</h1>
-              <p className="text-gray-600">Детальная аналитика для закупщика</p>
-            </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <MonthlyPurchasesChart />
               <CategoryChart />
@@ -247,10 +243,6 @@ export default function Dashboard() {
       case 'initiator-overview':
         return (
           <div className="space-y-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Обзор инициатора</h1>
-              <p className="text-gray-600">Рабочее место инициатора закупок</p>
-            </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <MonthlyPurchasesChart />
               <CategoryChart />
@@ -261,10 +253,6 @@ export default function Dashboard() {
       case 'initiator-requests':
         return (
           <div className="space-y-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Мои запросы</h1>
-              <p className="text-gray-600">Управление запросами на закупку</p>
-            </div>
             <div className="bg-white p-6 rounded-lg shadow-lg">
               <p className="text-gray-500">Список запросов будет добавлен в следующих версиях</p>
             </div>
@@ -277,10 +265,6 @@ export default function Dashboard() {
       case 'initiator-history':
         return (
           <div className="space-y-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">История</h1>
-              <p className="text-gray-600">История заявок инициатора</p>
-            </div>
             <div className="bg-white p-6 rounded-lg shadow-lg">
               <p className="text-gray-500">История будет добавлена в следующих версиях</p>
             </div>
@@ -305,10 +289,6 @@ export default function Dashboard() {
       default:
         return (
           <div className="space-y-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Добро пожаловать</h1>
-              <p className="text-gray-600">Выберите раздел в меню для начала работы</p>
-            </div>
           </div>
         );
     }
