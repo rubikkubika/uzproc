@@ -146,19 +146,31 @@ public class TestDataLoader {
         logger.info("System file encoding: {}", System.getProperty("file.encoding"));
         
         try (BufferedReader reader = Files.newBufferedReader(csvPath, charset)) {
-            String line = reader.readLine(); // Пропускаем заголовок
+            String headerLine = reader.readLine(); // Читаем заголовок для проверки
+            logger.info("CSV header (first line): [{}]", headerLine);
+            if (headerLine != null && headerLine.length() > 0) {
+                logger.info("Header length: {}, first 100 chars: [{}]", 
+                          headerLine.length(), 
+                          headerLine.length() > 100 ? headerLine.substring(0, 100) : headerLine);
+            }
             
             int lineNumber = 1;
+            String line;
             while ((line = reader.readLine()) != null) {
                 lineNumber++;
                 if (line.trim().isEmpty()) {
                     continue;
                 }
                 
+                // Логируем каждую строку для отладки
+                logger.info("Line {} - Raw line (first 200 chars): [{}]", 
+                          lineNumber, 
+                          line.length() > 200 ? line.substring(0, 200) : line);
+                
                 try {
                     String[] parts = parseCsvLine(line);
                     if (parts.length < 10) {
-                        logger.warn("Skipping line {}: insufficient columns", lineNumber);
+                        logger.warn("Skipping line {}: insufficient columns (got {})", lineNumber, parts.length);
                         continue;
                     }
                     
@@ -176,20 +188,18 @@ public class TestDataLoader {
                     // Компания
                     String company = parts[1].trim();
                     pr.setCompany(company);
-                    if (lineNumber <= 5) {
-                        logger.info("Line {} - Company: [{}] (length: {}, bytes: {})", 
-                                  lineNumber, company, company.length(), 
-                                  company.getBytes(charset).length);
-                    }
+                    logger.info("Line {} - Company: [{}] (length: {}, bytes: {}, hasCyrillic: {})", 
+                              lineNumber, company, company.length(), 
+                              company.getBytes(charset).length,
+                              company.matches(".*[А-Яа-яЁё].*"));
                     
                     // ЦФО
                     String cfo = parts[2].trim();
                     pr.setCfo(cfo);
-                    if (lineNumber <= 5) {
-                        logger.info("Line {} - CFO: [{}] (length: {}, bytes: {})", 
-                                  lineNumber, cfo, cfo.length(), 
-                                  cfo.getBytes(charset).length);
-                    }
+                    logger.info("Line {} - CFO: [{}] (length: {}, bytes: {}, hasCyrillic: {})", 
+                              lineNumber, cfo, cfo.length(), 
+                              cfo.getBytes(charset).length,
+                              cfo.matches(".*[А-Яа-яЁё].*"));
                     
                     // MCC
                     pr.setMcc(parts[3].trim());
@@ -197,20 +207,18 @@ public class TestDataLoader {
                     // Инициатор закупки
                     String initiator = parts[4].trim();
                     pr.setPurchaseInitiator(initiator);
-                    if (lineNumber <= 5) {
-                        logger.info("Line {} - Initiator: [{}] (length: {}, bytes: {})", 
-                                  lineNumber, initiator, initiator.length(), 
-                                  initiator.getBytes(charset).length);
-                    }
+                    logger.info("Line {} - Initiator: [{}] (length: {}, bytes: {}, hasCyrillic: {})", 
+                              lineNumber, initiator, initiator.length(), 
+                              initiator.getBytes(charset).length,
+                              initiator.matches(".*[А-Яа-яЁё].*"));
                     
                     // Предмет закупки
                     String subject = parts[5].trim();
                     pr.setPurchaseSubject(subject);
-                    if (lineNumber <= 5) {
-                        logger.info("Line {} - Subject: [{}] (length: {}, bytes: {})", 
-                                  lineNumber, subject, subject.length(), 
-                                  subject.getBytes(charset).length);
-                    }
+                    logger.info("Line {} - Subject: [{}] (length: {}, bytes: {}, hasCyrillic: {})", 
+                              lineNumber, subject, subject.length(), 
+                              subject.getBytes(charset).length,
+                              subject.matches(".*[А-Яа-яЁё].*"));
                     
                     // Бюджет (может содержать запятые как разделители тысяч)
                     try {
@@ -294,42 +302,69 @@ public class TestDataLoader {
      */
     private Charset detectCharset(Path filePath) {
         // Список кодировок для проверки (в порядке приоритета)
+        // Windows-1251 в приоритете, так как CSV файлы часто в этой кодировке
         Charset[] charsets = {
-            StandardCharsets.UTF_8,
             Charset.forName("Windows-1251"),
             Charset.forName("CP1251"),
+            StandardCharsets.UTF_8,
             Charset.forName("UTF-8"),
             StandardCharsets.ISO_8859_1
         };
         
+        Charset bestCharset = null;
+        int bestScore = 0;
+        
         // Пытаемся прочитать первые несколько строк с каждой кодировкой
         for (Charset charset : charsets) {
             try (BufferedReader reader = Files.newBufferedReader(filePath, charset)) {
-                // Читаем первые 5 строк для проверки
+                // Читаем первые 10 строк для проверки
                 StringBuilder sample = new StringBuilder();
-                for (int i = 0; i < 5; i++) {
+                for (int i = 0; i < 10; i++) {
                     String line = reader.readLine();
                     if (line == null) break;
                     sample.append(line);
                 }
                 
                 String content = sample.toString();
-                // Проверяем, что строка содержит разумные символы кириллицы
-                // Если есть кириллица и она читается правильно, это наша кодировка
-                if (content.contains("Заявка") || content.contains("закуп") || 
-                    content.contains("план") || content.contains("ЦФО") ||
-                    content.contains("закуп") || content.matches(".*[А-Яа-яЁё].*")) {
-                    logger.info("Detected charset: {} (found Cyrillic text)", charset.name());
-                    return charset;
+                int score = 0;
+                
+                // Проверяем наличие кириллицы
+                if (content.matches(".*[А-Яа-яЁё].*")) {
+                    score += 10;
+                }
+                
+                // Проверяем наличие ключевых слов
+                if (content.contains("Заявка")) score += 5;
+                if (content.contains("закуп")) score += 5;
+                if (content.contains("план")) score += 5;
+                if (content.contains("ЦФО")) score += 5;
+                
+                // Штраф за знаки вопроса (признак неправильной кодировки)
+                long questionMarks = content.chars().filter(ch -> ch == '?').count();
+                if (questionMarks > content.length() * 0.1) {
+                    score -= 20; // Много знаков вопроса - плохая кодировка
+                }
+                
+                logger.debug("Charset {} score: {} (sample length: {}, question marks: {})", 
+                           charset.name(), score, content.length(), questionMarks);
+                
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestCharset = charset;
                 }
             } catch (IOException e) {
                 logger.warn("Error testing charset {}: {}", charset.name(), e.getMessage());
             }
         }
         
-        // По умолчанию используем UTF-8
-        logger.warn("Could not detect charset, using UTF-8");
-        return StandardCharsets.UTF_8;
+        if (bestCharset != null && bestScore > 0) {
+            logger.info("Detected charset: {} (score: {})", bestCharset.name(), bestScore);
+            return bestCharset;
+        }
+        
+        // По умолчанию используем Windows-1251 для русских CSV файлов
+        logger.warn("Could not detect charset reliably, using Windows-1251 (common for Russian CSV files)");
+        return Charset.forName("Windows-1251");
     }
 }
 
