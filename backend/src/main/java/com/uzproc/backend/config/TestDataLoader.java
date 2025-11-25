@@ -122,12 +122,16 @@ public class TestDataLoader {
         }
 
         logger.info("Loading CSV from: {}", csvPath.toAbsolutePath());
+        logger.info("File exists: {}, size: {} bytes", Files.exists(csvPath), 
+                    Files.exists(csvPath) ? Files.size(csvPath) : 0);
         
         List<PurchaseRequest> purchaseRequests = new ArrayList<>();
         
         // Пытаемся определить кодировку файла
         Charset charset = detectCharset(csvPath);
         logger.info("Detected charset: {}", charset.name());
+        logger.info("Default charset: {}", Charset.defaultCharset().name());
+        logger.info("System file encoding: {}", System.getProperty("file.encoding"));
         
         try (BufferedReader reader = Files.newBufferedReader(csvPath, charset)) {
             String line = reader.readLine(); // Пропускаем заголовок
@@ -160,15 +164,19 @@ public class TestDataLoader {
                     // Компания
                     String company = parts[1].trim();
                     pr.setCompany(company);
-                    if (lineNumber <= 3) {
-                        logger.debug("Line {} - Company: {}", lineNumber, company);
+                    if (lineNumber <= 5) {
+                        logger.info("Line {} - Company: [{}] (length: {}, bytes: {})", 
+                                  lineNumber, company, company.length(), 
+                                  company.getBytes(charset).length);
                     }
                     
                     // ЦФО
                     String cfo = parts[2].trim();
                     pr.setCfo(cfo);
-                    if (lineNumber <= 3) {
-                        logger.debug("Line {} - CFO: {}", lineNumber, cfo);
+                    if (lineNumber <= 5) {
+                        logger.info("Line {} - CFO: [{}] (length: {}, bytes: {})", 
+                                  lineNumber, cfo, cfo.length(), 
+                                  cfo.getBytes(charset).length);
                     }
                     
                     // MCC
@@ -177,15 +185,19 @@ public class TestDataLoader {
                     // Инициатор закупки
                     String initiator = parts[4].trim();
                     pr.setPurchaseInitiator(initiator);
-                    if (lineNumber <= 3) {
-                        logger.debug("Line {} - Initiator: {}", lineNumber, initiator);
+                    if (lineNumber <= 5) {
+                        logger.info("Line {} - Initiator: [{}] (length: {}, bytes: {})", 
+                                  lineNumber, initiator, initiator.length(), 
+                                  initiator.getBytes(charset).length);
                     }
                     
                     // Предмет закупки
                     String subject = parts[5].trim();
                     pr.setPurchaseSubject(subject);
-                    if (lineNumber <= 3) {
-                        logger.debug("Line {} - Subject: {}", lineNumber, subject);
+                    if (lineNumber <= 5) {
+                        logger.info("Line {} - Subject: [{}] (length: {}, bytes: {})", 
+                                  lineNumber, subject, subject.length(), 
+                                  subject.getBytes(charset).length);
                     }
                     
                     // Бюджет (может содержать запятые как разделители тысяч)

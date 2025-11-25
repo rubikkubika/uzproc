@@ -14,6 +14,15 @@ RUN mvn clean package -DskipTests
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 
+# Install locale and set UTF-8
+RUN apk add --no-cache locales && \
+    locale-gen en_US.UTF-8 && \
+    locale-gen ru_RU.UTF-8
+
+ENV LC_ALL=en_US.UTF-8
+ENV LANG=en_US.UTF-8
+ENV JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8 -Duser.language=en -Duser.country=US
+
 # Create non-root user
 RUN addgroup -S spring && adduser -S spring -G spring
 USER spring:spring
