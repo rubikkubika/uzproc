@@ -142,7 +142,8 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
         if (!isNaN(min)) {
           filtered = filtered.filter(item => {
             const amountStr = item['Cумма предпологаемого контракта ФАКТ'] || '0';
-            const amount = parseFloat(amountStr.replace(/\s/g, '').replace(',', '.'));
+            // Удаляем все пробелы и запятые (разделители тысяч)
+            const amount = parseFloat(amountStr.replace(/\s/g, '').replace(/,/g, ''));
             return !isNaN(amount) && amount >= min;
           });
         }
@@ -152,7 +153,8 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
         if (!isNaN(max)) {
           filtered = filtered.filter(item => {
             const amountStr = item['Cумма предпологаемого контракта ФАКТ'] || '0';
-            const amount = parseFloat(amountStr.replace(/\s/g, '').replace(',', '.'));
+            // Удаляем все пробелы и запятые (разделители тысяч)
+            const amount = parseFloat(amountStr.replace(/\s/g, '').replace(/,/g, ''));
             return !isNaN(amount) && amount <= max;
           });
         }
@@ -215,7 +217,8 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
     purchases.forEach(item => {
       const purchaser = item['Закупшик'] || 'Не назначен';
       const status = item['Состояние заявки на ЗП'] || '';
-      const amount = parseFloat((item['Cумма предпологаемого контракта ФАКТ'] || '0').replace(/\s/g, '').replace(',', '.'));
+      // Удаляем все пробелы и запятые (разделители тысяч)
+      const amount = parseFloat((item['Cумма предпологаемого контракта ФАКТ'] || '0').replace(/\s/g, '').replace(/,/g, ''));
       const totalDaysStr = item['Дней всего согласования ЗП'] || '';
       const totalDays = parseInt(totalDaysStr) || 0;
 
@@ -280,12 +283,19 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
 
   const formatNumberFromString = (value: string) => {
     if (!value || value.trim() === '') return '-';
-    const cleanedValue = value.replace(/\s/g, '').replace(',', '.');
+    // Удаляем все пробелы и запятые (разделители тысяч)
+    // Оставляем точку как десятичный разделитель
+    let cleanedValue = value.replace(/\s/g, '').replace(/,/g, '');
     const num = parseFloat(cleanedValue);
     if (isNaN(num)) return value;
+    
+    // Определяем, были ли десятичные знаки в исходном значении
+    const hasDecimals = value.includes('.') && value.split('.')[1] && value.split('.')[1].length > 0;
+    const decimalPlaces = hasDecimals ? Math.min(2, value.split('.')[1].length) : 0;
+    
     return new Intl.NumberFormat('ru-RU', { 
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0 
+      minimumFractionDigits: decimalPlaces,
+      maximumFractionDigits: decimalPlaces
     }).format(num);
   };
 
@@ -419,12 +429,19 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
 
   const formatNumberForDisplay = (value: string) => {
     if (!value || value.trim() === '') return '-';
-    const cleanedValue = value.replace(/\s/g, '').replace(',', '.');
+    // Удаляем все пробелы и запятые (разделители тысяч)
+    // Оставляем точку как десятичный разделитель
+    let cleanedValue = value.replace(/\s/g, '').replace(/,/g, '');
     const num = parseFloat(cleanedValue);
     if (isNaN(num)) return value;
+    
+    // Определяем, были ли десятичные знаки в исходном значении
+    const hasDecimals = value.includes('.') && value.split('.')[1] && value.split('.')[1].length > 0;
+    const decimalPlaces = hasDecimals ? Math.min(2, value.split('.')[1].length) : 0;
+    
     return new Intl.NumberFormat('ru-RU', { 
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0 
+      minimumFractionDigits: decimalPlaces,
+      maximumFractionDigits: decimalPlaces
     }).format(num);
   };
 

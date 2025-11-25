@@ -31,9 +31,9 @@ export default function PurchasesStats() {
         let validPurchases = 0;
         
         data.forEach((item: any) => {
-          // Суммы
-          const amount = parseFloat((item['Cумма предпологаемого контракта ФАКТ'] || '0').replace(/\s/g, '').replace(',', '.'));
-          const saving = parseFloat((item['Экономия'] || '0').replace(/\s/g, '').replace(',', '.'));
+          // Суммы - удаляем все пробелы и запятые (разделители тысяч)
+          const amount = parseFloat((item['Cумма предпологаемого контракта ФАКТ'] || '0').replace(/\s/g, '').replace(/,/g, ''));
+          const saving = parseFloat((item['Экономия'] || '0').replace(/\s/g, '').replace(/,/g, ''));
           
           if (!isNaN(amount)) totalAmount += amount;
           if (!isNaN(saving)) totalSavings += saving;

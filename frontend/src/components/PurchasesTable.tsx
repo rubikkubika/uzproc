@@ -121,13 +121,19 @@ export default function PurchasesTable({ initialSearchQuery = '' }: PurchasesTab
 
   const formatNumber = (value: string) => {
     if (!value || value.trim() === '') return '-';
-    // Удаляем все пробелы и заменяем запятую на точку
-    const cleanedValue = value.replace(/\s/g, '').replace(',', '.');
+    // Удаляем все пробелы и запятые (разделители тысяч)
+    // Оставляем точку как десятичный разделитель
+    let cleanedValue = value.replace(/\s/g, '').replace(/,/g, '');
     const num = parseFloat(cleanedValue);
     if (isNaN(num)) return value;
+    
+    // Определяем, были ли десятичные знаки в исходном значении
+    const hasDecimals = value.includes('.') && value.split('.')[1] && value.split('.')[1].length > 0;
+    const decimalPlaces = hasDecimals ? Math.min(2, value.split('.')[1].length) : 0;
+    
     return new Intl.NumberFormat('ru-RU', { 
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0 
+      minimumFractionDigits: decimalPlaces,
+      maximumFractionDigits: decimalPlaces
     }).format(num);
   };
 

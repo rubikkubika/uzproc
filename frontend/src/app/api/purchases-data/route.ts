@@ -152,7 +152,17 @@ export async function GET(request: Request) {
         
         if (hasCombinedHeaders) {
           // Используем четвертую строку как заголовки
-          headers = headerLine4.map(h => h || `column_${headerLine4.indexOf(h)}`);
+          // Убираем дублирование в заголовках (например, "№ заявки№ заявки" -> "№ заявки")
+          headers = headerLine4.map((h, idx) => {
+            if (!h) return `column_${idx}`;
+            // Проверяем, не является ли заголовок дублированным (например, "№ заявки№ заявки")
+            // Если заголовок состоит из двух одинаковых частей, берем только одну
+            const halfLength = Math.floor(h.length / 2);
+            if (halfLength > 0 && h.substring(0, halfLength) === h.substring(halfLength)) {
+              return h.substring(0, halfLength);
+            }
+            return h;
+          });
           dataStartIndex = 4; // Данные начинаются с 5-й строки (индекс 4)
         } else {
           // Старый формат - формируем заголовки из строк 0-2
@@ -163,26 +173,63 @@ export async function GET(request: Request) {
           const maxLength = Math.max(headerLine1.length, headerLine2.length, headerLine3Old.length);
           let currentStage = '';
           let currentRole = '';
+          let previousStageFromRow0 = ''; // Сохраняем этап из строки 0 предыдущей колонки
           
           for (let i = 0; i < maxLength; i++) {
             const cell1 = headerLine1[i] || '';
             const cell2 = headerLine2[i] || '';
             const cell3 = headerLine3Old[i] || '';
             
+            // Определяем этап из строки 0 (cell1)
             if (cell1 && cell1.trim() !== '' && 
                 (cell1.includes('Согласование') || cell1.includes('Утверждение') || 
                  cell1.includes('Закупочная комиссия') || cell1.includes('Проверка'))) {
               currentStage = cell1;
+              previousStageFromRow0 = cell1; // Сохраняем этап из строки 0
               currentRole = '';
-            } else if (currentStage && (!cell1 || cell1.trim() === '')) {
-              // Продолжаем использовать текущий этап
+            }
+            // Если в строке 0 есть значение, которое может быть этапом (даже без ключевых слов)
+            else if (cell1 && cell1.trim() !== '') {
+              currentStage = cell1;
+              previousStageFromRow0 = cell1; // Сохраняем этап из строки 0
+              currentRole = '';
+            }
+            // Если строка 0 пустая, но в строке 1 есть значение, которое было этапом в строке 0 предыдущей колонки
+            // то это продолжение того же этапа
+            else if ((!cell1 || cell1.trim() === '') && cell2 && cell2.trim() !== '' && previousStageFromRow0 && cell2 === previousStageFromRow0) {
+              currentStage = cell2; // Используем значение из строки 1 как этап
+              // previousStageFromRow0 остается тем же, так как это продолжение этапа
+              currentRole = '';
+            }
+            // Если строка 0 пустая и значение в строке 1 не совпадает с предыдущим этапом, сбрасываем previousStageFromRow0
+            else if ((!cell1 || cell1.trim() === '') && cell2 && cell2.trim() !== '' && previousStageFromRow0 && cell2 !== previousStageFromRow0) {
+              // Новый этап не начинается, но и продолжение предыдущего тоже нет
+              previousStageFromRow0 = ''; // Сбрасываем, так как этап изменился
             }
             
+            // Проверяем, может ли значение в строке 1 (cell2) быть этапом
+            let isStageInRow1 = false;
             if (cell2 && cell2.trim() !== '') {
-              if (!(cell2.includes('Согласование') || cell2.includes('Утверждение') || 
-                    cell2.includes('Закупочная комиссия') || cell2.includes('Проверка'))) {
-                currentRole = cell2;
+              // Если значение в строке 1 совпадает с текущим этапом, это этап
+              if (currentStage && cell2 === currentStage) {
+                isStageInRow1 = true;
               }
+              // Если значение в строке 1 содержит ключевые слова этапов, это этап
+              else if (cell2.includes('Согласование') || cell2.includes('Утверждение') || 
+                       cell2.includes('Закупочная комиссия') || cell2.includes('Проверка')) {
+                isStageInRow1 = true;
+                // Если это этап в строке 1, используем его как этап
+                if (!currentStage || cell2 !== currentStage) {
+                  currentStage = cell2;
+                  previousStageFromRow0 = cell2;
+                  currentRole = '';
+                }
+              }
+            }
+            
+            // Определяем роль (только если это не этап)
+            if (cell2 && cell2.trim() !== '' && !isStageInRow1) {
+              currentRole = cell2;
             } else if (currentRole && (!cell2 || cell2.trim() === '')) {
               // Продолжаем использовать текущую роль
             }
@@ -194,7 +241,8 @@ export async function GET(request: Request) {
               header = cell1;
             }
             
-            if (currentRole && currentRole.trim() !== '' && currentStage) {
+            // Добавляем роль только если она есть и не совпадает с этапом
+            if (currentRole && currentRole.trim() !== '' && currentStage && currentRole !== currentStage) {
               header = header + currentRole;
             }
             
@@ -238,17 +286,30 @@ export async function GET(request: Request) {
       });
       
       // Остальные строки - данные
+      // Создаем Map для отслеживания количества вхождений каждого заголовка
+      const headerCounts = new Map<string, number>();
+      const uniqueHeaders = headers.map((header, index) => {
+        const baseHeader = header || `column_${index}`;
+        const count = headerCounts.get(baseHeader) || 0;
+        headerCounts.set(baseHeader, count + 1);
+        
+        // Если заголовок повторяется, добавляем суффикс с номером колонки для сохранения всех данных
+        if (count > 0) {
+          return `${baseHeader}_col${index}`;
+        }
+        return baseHeader;
+      });
+      
       const data = dataLines.map(line => {
         const values = parseLine(line);
         const obj: Record<string, string> = {};
-        headers.forEach((header, index) => {
-          const key = header || `column_${index}`;
+        uniqueHeaders.forEach((key, index) => {
           // Безопасное получение значения - проверяем, что индекс существует
           const rawValue = index < values.length ? values[index] : '';
           let value = rawValue?.replace(/^"|"$/g, '').trim() || '';
           
           // Убираем запятые из номера заявки (формат должен быть 1054, а не 1,054)
-          if (key === '№ заявки') {
+          if (key === '№ заявки' || key.startsWith('№ заявки_col')) {
             value = value.replace(/,/g, '');
           }
           

@@ -248,6 +248,7 @@ const convertExcelToCSV = (buffer: Buffer): string => {
     
     let headerCurrentStage = '';
     let headerCurrentRole = '';
+    let previousStageFromRow0 = ''; // Сохраняем этап из строки 0 предыдущей колонки
     
     for (let C = range.s.c; C <= range.e.c; C++) {
       const cell0Address = XLSX.utils.encode_cell({ r: 0, c: C });
@@ -266,16 +267,57 @@ const convertExcelToCSV = (buffer: Buffer): string => {
       headerRow1.push(val1);
       headerRow2.push(val2);
       
-      // Определяем этап
+      // Определяем этап из строки 0
       if (val0 && (val0.includes('Согласование') || val0.includes('Утверждение') || 
           val0.includes('Закупочная комиссия') || val0.includes('Проверка'))) {
         headerCurrentStage = val0;
+        previousStageFromRow0 = val0; // Сохраняем этап из строки 0
         headerCurrentRole = '';
       }
+      // Если в строке 0 есть значение, которое может быть этапом (даже без ключевых слов)
+      // и оно не пустое, используем его как этап
+      else if (val0 && val0.trim() !== '') {
+        headerCurrentStage = val0;
+        previousStageFromRow0 = val0; // Сохраняем этап из строки 0
+        headerCurrentRole = '';
+      }
+      // Если строка 0 пустая, но в строке 1 есть значение, которое было этапом в строке 0 предыдущей колонки
+      // то это продолжение того же этапа
+      else if ((!val0 || val0.trim() === '') && val1 && val1.trim() !== '' && previousStageFromRow0 && val1 === previousStageFromRow0) {
+        headerCurrentStage = val1; // Используем значение из строки 1 как этап
+        // previousStageFromRow0 остается тем же, так как это продолжение этапа
+        headerCurrentRole = '';
+      }
+      // Если строка 0 пустая и значение в строке 1 не совпадает с предыдущим этапом, сбрасываем previousStageFromRow0
+      else if ((!val0 || val0.trim() === '') && val1 && val1.trim() !== '' && previousStageFromRow0 && val1 !== previousStageFromRow0) {
+        // Новый этап не начинается, но и продолжение предыдущего тоже нет
+        previousStageFromRow0 = ''; // Сбрасываем, так как этап изменился
+      }
       
-      // Определяем роль
-      if (val1 && !val1.includes('Согласование') && !val1.includes('Утверждение') && 
-          !val1.includes('Закупочная комиссия') && !val1.includes('Проверка')) {
+      // Проверяем, может ли значение в строке 1 быть этапом
+      // Если в строке 1 есть значение, которое совпадает с этапом или является названием этапа,
+      // то это этап, а не роль
+      let isStageInRow1 = false;
+      if (val1 && val1.trim() !== '') {
+        // Если значение в строке 1 совпадает с текущим этапом, это этап
+        if (headerCurrentStage && val1 === headerCurrentStage) {
+          isStageInRow1 = true;
+        }
+        // Если значение в строке 1 содержит ключевые слова этапов, это этап
+        else if (val1.includes('Согласование') || val1.includes('Утверждение') || 
+                 val1.includes('Закупочная комиссия') || val1.includes('Проверка')) {
+          isStageInRow1 = true;
+          // Если это этап в строке 1, используем его как этап
+          if (!headerCurrentStage || val1 !== headerCurrentStage) {
+            headerCurrentStage = val1;
+            previousStageFromRow0 = val1;
+            headerCurrentRole = '';
+          }
+        }
+      }
+      
+      // Определяем роль (только если это не этап)
+      if (val1 && val1.trim() !== '' && !isStageInRow1) {
         headerCurrentRole = val1;
       }
       
@@ -283,18 +325,23 @@ const convertExcelToCSV = (buffer: Buffer): string => {
       let combinedHeader = '';
       if (headerCurrentStage) {
         combinedHeader = headerCurrentStage;
-        if (headerCurrentRole) {
+        // Добавляем роль только если она есть и не совпадает с этапом
+        if (headerCurrentRole && headerCurrentRole !== headerCurrentStage) {
           combinedHeader += headerCurrentRole;
         }
         if (val2) {
-          const isDuplicate = !headerCurrentStage && val0 && 
-            (val2 === val0 || val2.includes('№ заявки') || val2.includes('ЦФО'));
-          if (!isDuplicate || headerCurrentStage) {
+          // Проверяем, не дублируется ли val2 с этапом или ролью
+          const isDuplicate = val2 === headerCurrentStage || 
+                             val2 === headerCurrentRole ||
+                             val2.includes('№ заявки') || 
+                             val2.includes('ЦФО');
+          if (!isDuplicate) {
             combinedHeader += val2;
           }
         }
       } else if (val0) {
         combinedHeader = val0;
+        // Добавляем val2 только если оно отличается от val0 и не является дубликатом
         if (val2 && val2 !== val0) {
           const isDuplicate = val2.includes('№ заявки') || val2.includes('ЦФО') ||
             val2.includes('Предмет ЗП') || val2.includes('Формат ЗП');
@@ -302,6 +349,7 @@ const convertExcelToCSV = (buffer: Buffer): string => {
             combinedHeader += val2;
           }
         }
+        // Если val2 совпадает с val0, не добавляем его (избегаем дублирования)
       } else {
         combinedHeader = val2 || `column_${C}`;
       }

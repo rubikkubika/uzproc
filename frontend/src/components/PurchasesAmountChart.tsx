@@ -37,7 +37,8 @@ export default function PurchasesAmountChart() {
         
         data.forEach((item: any) => {
           const cfo = item['ЦФО'] || 'Не указан';
-          const amount = parseFloat((item['Cумма предпологаемого контракта ФАКТ'] || '0').replace(/\s/g, '').replace(',', '.'));
+          // Удаляем все пробелы и запятые (разделители тысяч)
+          const amount = parseFloat((item['Cумма предпологаемого контракта ФАКТ'] || '0').replace(/\s/g, '').replace(/,/g, ''));
           
           if (!isNaN(amount)) {
             cfoGroups[cfo] = (cfoGroups[cfo] || 0) + amount;
