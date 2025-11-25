@@ -20,6 +20,7 @@ import TopLongestPurchases from '@/components/TopLongestPurchases';
 import PurchaserWorkload from '@/components/PurchaserWorkload';
 import UsersTable from '@/components/UsersTable';
 import PurchaseRequestsTable from '@/components/PurchaseRequestsTable';
+import UploadCSV from '@/components/UploadCSV';
 
 const SIDEBAR_COLLAPSED_KEY = 'sidebarCollapsed';
 
@@ -190,6 +191,9 @@ export default function Dashboard() {
             <PurchaseRequestsTable />
           </div>
         );
+
+      case 'upload':
+        return <UploadCSV />;
 
       // Разделы для закупщика
       case 'purchaser-overview':

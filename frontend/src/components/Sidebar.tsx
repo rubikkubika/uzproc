@@ -13,7 +13,8 @@ import {
   X,
   LogOut,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Upload
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -50,6 +51,7 @@ const menuItems = [
   const backendItems = [
     { id: 'backend-users', label: 'Пользователи', icon: Users },
     { id: 'backend-purchase-requests', label: 'Заявки на закупку', icon: Package },
+    { id: 'upload', label: 'Загрузка', icon: Upload },
   ];
 
 export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setIsMobileMenuOpen, isCollapsed = false, setIsCollapsed }: SidebarProps) {

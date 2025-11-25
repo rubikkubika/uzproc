@@ -8,6 +8,13 @@ let cacheTimestamp: number = 0;
 let fileModTime: number = 0;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 минут
 
+// Функция для очистки кэша (может быть вызвана из других routes)
+export function clearCache() {
+  cachedData = null;
+  cacheTimestamp = 0;
+  fileModTime = 0;
+}
+
 export async function GET(request: Request) {
   try {
     // Получаем параметры из query string
