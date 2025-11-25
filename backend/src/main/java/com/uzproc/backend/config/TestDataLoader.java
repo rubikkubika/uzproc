@@ -158,19 +158,35 @@ public class TestDataLoader {
                     }
                     
                     // Компания
-                    pr.setCompany(parts[1].trim());
+                    String company = parts[1].trim();
+                    pr.setCompany(company);
+                    if (lineNumber <= 3) {
+                        logger.debug("Line {} - Company: {}", lineNumber, company);
+                    }
                     
                     // ЦФО
-                    pr.setCfo(parts[2].trim());
+                    String cfo = parts[2].trim();
+                    pr.setCfo(cfo);
+                    if (lineNumber <= 3) {
+                        logger.debug("Line {} - CFO: {}", lineNumber, cfo);
+                    }
                     
                     // MCC
                     pr.setMcc(parts[3].trim());
                     
                     // Инициатор закупки
-                    pr.setPurchaseInitiator(parts[4].trim());
+                    String initiator = parts[4].trim();
+                    pr.setPurchaseInitiator(initiator);
+                    if (lineNumber <= 3) {
+                        logger.debug("Line {} - Initiator: {}", lineNumber, initiator);
+                    }
                     
                     // Предмет закупки
-                    pr.setPurchaseSubject(parts[5].trim());
+                    String subject = parts[5].trim();
+                    pr.setPurchaseSubject(subject);
+                    if (lineNumber <= 3) {
+                        logger.debug("Line {} - Subject: {}", lineNumber, subject);
+                    }
                     
                     // Бюджет (может содержать запятые как разделители тысяч)
                     try {
@@ -244,23 +260,29 @@ public class TestDataLoader {
             StandardCharsets.UTF_8,
             Charset.forName("Windows-1251"),
             Charset.forName("CP1251"),
+            Charset.forName("UTF-8"),
             StandardCharsets.ISO_8859_1
         };
         
         // Пытаемся прочитать первые несколько строк с каждой кодировкой
         for (Charset charset : charsets) {
             try (BufferedReader reader = Files.newBufferedReader(filePath, charset)) {
-                // Читаем первые 3 строки для проверки
-                for (int i = 0; i < 3; i++) {
+                // Читаем первые 5 строк для проверки
+                StringBuilder sample = new StringBuilder();
+                for (int i = 0; i < 5; i++) {
                     String line = reader.readLine();
                     if (line == null) break;
-                    
-                    // Проверяем, что строка содержит разумные символы
-                    // Если есть кириллица и она читается правильно, это наша кодировка
-                    if (line.contains("Заявка") || line.contains("закуп") || line.contains("план")) {
-                        logger.debug("Charset {} seems correct (found Cyrillic text)", charset.name());
-                        return charset;
-                    }
+                    sample.append(line);
+                }
+                
+                String content = sample.toString();
+                // Проверяем, что строка содержит разумные символы кириллицы
+                // Если есть кириллица и она читается правильно, это наша кодировка
+                if (content.contains("Заявка") || content.contains("закуп") || 
+                    content.contains("план") || content.contains("ЦФО") ||
+                    content.contains("закуп") || content.matches(".*[А-Яа-яЁё].*")) {
+                    logger.info("Detected charset: {} (found Cyrillic text)", charset.name());
+                    return charset;
                 }
             } catch (IOException e) {
                 logger.warn("Error testing charset {}: {}", charset.name(), e.getMessage());
