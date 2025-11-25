@@ -81,17 +81,88 @@ const parseCSVToObjects = (content: string) => {
 // Функция для конвертации Excel в CSV
 const convertExcelToCSV = (buffer: Buffer): string => {
   try {
-    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const workbook = XLSX.read(buffer, { 
+      type: 'buffer', 
+      cellDates: false,
+      cellNF: true, // Включаем форматирование чисел
+      cellText: false // Используем отформатированные значения
+    });
     
     // Берем первый лист
     const firstSheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[firstSheetName];
     
+    // Получаем диапазон ячеек
+    const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+    
+    // Обрабатываем каждую ячейку для сохранения форматирования чисел
+    const rows: string[][] = [];
+    
+    for (let R = range.s.r; R <= range.e.r; R++) {
+      const row: string[] = [];
+      for (let C = range.s.c; C <= range.e.c; C++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+        const cell = worksheet[cellAddress];
+        
+        if (!cell) {
+          row.push('');
+          continue;
+        }
+        
+        // Используем отформатированное значение (cell.w), если оно есть
+        if (cell.w) {
+          row.push(cell.w);
+        } else if (cell.t === 'n' && cell.v !== null && cell.v !== undefined) {
+          // Если нет отформатированного значения, но есть число
+          // Проверяем формат ячейки
+          let formattedValue = String(cell.v);
+          
+          // Если число большое (>= 1000), форматируем с запятыми
+          if (cell.v >= 1000) {
+            // Определяем количество знаков после запятой из формата
+            const numFormat = cell.z || '';
+            const hasDecimals = numFormat.includes('.') || numFormat.includes('0.0');
+            const decimalPlaces = hasDecimals ? 2 : 0;
+            
+            formattedValue = new Intl.NumberFormat('ru-RU', {
+              minimumFractionDigits: decimalPlaces,
+              maximumFractionDigits: decimalPlaces
+            }).format(cell.v);
+          }
+          
+          row.push(formattedValue);
+        } else if (cell.t === 'd' && cell.v) {
+          // Обработка дат
+          const date = XLSX.SSF.parse_date_code(cell.v);
+          if (date) {
+            const day = String(date.d).padStart(2, '0');
+            const month = String(date.m).padStart(2, '0');
+            const year = date.y;
+            row.push(`${day}.${month}.${year}`);
+          } else {
+            row.push(String(cell.v));
+          }
+        } else {
+          // Для текста используем исходное значение
+          row.push(String(cell.v || ''));
+        }
+      }
+      rows.push(row);
+    }
+    
     // Конвертируем в CSV с разделителем ";"
-    const csv = XLSX.utils.sheet_to_csv(worksheet, { 
-      FS: ';',
-      blankrows: false
-    });
+    const csv = rows.map(row => 
+      row.map(cell => {
+        const cellStr = String(cell);
+        // Экранируем кавычки
+        const escaped = cellStr.replace(/"/g, '""');
+        // Если содержит разделитель, кавычки или перенос строки, оборачиваем в кавычки
+        if (escaped.includes(';') || escaped.includes('"') || escaped.includes('\n') || escaped.includes('\r')) {
+          return `"${escaped}"`;
+        }
+        return escaped;
+      }).join(';')
+    ).join('\n');
     
     return csv;
   } catch (error) {

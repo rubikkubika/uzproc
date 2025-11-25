@@ -132,8 +132,28 @@ export async function GET(request: Request) {
       // Первая строка - заголовки
       const headers = parseLine(lines[0]);
       
+      // Пропускаем строки, которые являются частью заголовков (обычно строки 2 и 3)
+      // Определяем строки с данными: они должны иметь значение в первой колонке (№ заявки)
+      const dataLines = lines.slice(1).filter(line => {
+        const values = parseLine(line);
+        // Проверяем, что первая колонка содержит номер заявки (не пустая и не является заголовком)
+        const firstValue = values[0]?.replace(/^"|"$/g, '').trim() || '';
+        // Пропускаем строки, где первая колонка пустая или содержит только текст без цифр (заголовки)
+        // Также пропускаем строки, где все колонки пустые или содержат только заголовки
+        if (!firstValue) return false;
+        // Если первая колонка содержит только текст без цифр и точек, это скорее всего заголовок
+        if (firstValue && !/\d/.test(firstValue) && !firstValue.includes('.')) {
+          // Проверяем, не является ли это заголовком (содержит слова типа "Руководитель", "Дата" и т.д.)
+          const headerKeywords = ['Руководитель', 'Дата', 'Дней', 'Ответственный', 'Финансовый', 'Генеральный', 'Директор', 'Председатель', 'Секретарь', 'Служба'];
+          if (headerKeywords.some(keyword => firstValue.includes(keyword))) {
+            return false;
+          }
+        }
+        return true;
+      });
+      
       // Остальные строки - данные
-      const data = lines.slice(1).map(line => {
+      const data = dataLines.map(line => {
         const values = parseLine(line);
         const obj: Record<string, string> = {};
         headers.forEach((header, index) => {
@@ -141,6 +161,10 @@ export async function GET(request: Request) {
           obj[key] = values[index]?.replace(/^"|"$/g, '').trim() || '';
         });
         return obj;
+      }).filter(item => {
+        // Дополнительная фильтрация: пропускаем записи, где номер заявки пустой
+        const requestNumber = item['№ заявки'] || '';
+        return requestNumber.trim() !== '';
       });
       
       cachedData = data;

@@ -907,7 +907,6 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
                 </svg>
                 Назад к статистике
               </button>
-              <h2 className="text-2xl font-bold text-gray-900">Закупки закупщика: {selectedPurchaser}</h2>
               <p className="text-sm text-gray-600 mt-1">Всего закупок: {filteredPurchases.length}</p>
             </div>
           </div>
