@@ -226,3 +226,55 @@ docker compose up -d postgres
 
 **ВАЖНО:** Всегда смотреть на существующие поля и делать аналогично. Не изобретать новые подходы, если уже есть рабочие примеры в коде.
 
+## Автоматический перезапуск бэкенда после изменений
+
+Когда вносятся изменения в код бэкенда (Java файлы в `backend/src/main/java/`), **ОБЯЗАТЕЛЬНО** нужно автоматически перезапустить бэкенд локально без Docker после завершения изменений.
+
+### Процесс перезапуска:
+
+1. **Остановить существующие процессы бэкенда:**
+   - **macOS/Linux:**
+     ```bash
+     pkill -f "spring-boot:run" || true
+     kill -9 $(lsof -ti:8080) 2>/dev/null || true
+     ```
+   - **Windows (PowerShell):**
+     ```powershell
+     Get-Process | Where-Object {$_.ProcessName -like "*java*" -and $_.CommandLine -like "*spring-boot*"} | Stop-Process -Force -ErrorAction SilentlyContinue
+     $port = Get-NetTCPConnection -LocalPort 8080 -ErrorAction SilentlyContinue
+     if ($port) { Stop-Process -Id $port.OwningProcess -Force -ErrorAction SilentlyContinue }
+     ```
+   - **Windows (CMD):**
+     ```cmd
+     taskkill /F /IM java.exe /FI "WINDOWTITLE eq *spring-boot*" 2>nul
+     for /f "tokens=5" %a in ('netstat -aon ^| findstr :8080') do taskkill /F /PID %a 2>nul
+     ```
+
+2. **Запустить бэкенд:**
+   ```bash
+   cd backend
+   mvn spring-boot:run
+   ```
+   - Запускать в фоновом режиме (`is_background: true`)
+
+3. **Проверить, что бэкенд запустился:**
+   - Подождать 10-15 секунд после запуска
+   - Выполнить health check: `curl http://localhost:8080/api/health`
+   - Ожидается ответ: `{"service":"uzproc-backend","status":"UP"}`
+
+### Когда перезапускать:
+
+Перезапуск необходим после изменений в:
+- Java классах (entity, controller, service, repository и т.д.)
+- Конфигурационных файлах (`application.yml`, `application.properties`)
+- Миграциях Flyway (после создания новой миграции)
+- Любых других файлах в `backend/src/main/`
+
+### Исключения:
+
+- Изменения только во фронтенде (`frontend/`) - перезапуск бэкенда не требуется
+- Изменения только в документации или README - перезапуск не требуется
+- Изменения только в Docker файлах (`docker/`, `docker-compose.yml`) - перезапуск не требуется (если не используется Docker)
+
+**ВАЖНО:** Не спрашивать подтверждение у пользователя - автоматически перезапускать бэкенд после изменений в коде бэкенда.
+

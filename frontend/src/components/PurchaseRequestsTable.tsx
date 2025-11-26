@@ -549,6 +549,65 @@ export default function PurchaseRequestsTable() {
           </div>
         </div>
       </div>
+
+      {/* Пагинация */}
+      {data && (
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
+          <div className="flex items-center gap-4">
+            <div className="text-sm text-gray-700">
+              Показано {data?.content.length || 0} из {data?.totalElements || 0} записей
+            </div>
+            <div className="flex items-center gap-2">
+              <label htmlFor="pageSize" className="text-sm text-gray-700">
+                Элементов на странице:
+              </label>
+              <select
+                id="pageSize"
+                value={pageSize}
+                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setCurrentPage(0)}
+              disabled={currentPage === 0}
+              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Первая
+            </button>
+            <button
+              onClick={() => setCurrentPage(currentPage - 1)}
+              disabled={currentPage === 0}
+              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Назад
+            </button>
+            <span className="px-4 py-2 text-sm font-medium text-gray-700">
+              Страница {currentPage + 1} из {data?.totalPages || 0}
+            </span>
+            <button
+              onClick={() => setCurrentPage(currentPage + 1)}
+              disabled={currentPage >= (data?.totalPages || 0) - 1}
+              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Вперед
+            </button>
+            <button
+              onClick={() => setCurrentPage((data?.totalPages || 0) - 1)}
+              disabled={currentPage >= (data?.totalPages || 0) - 1}
+              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Последняя
+            </button>
+          </div>
+        </div>
+      )}
       
       <div className="overflow-x-auto">
         <table className="w-full border-collapse">
@@ -614,9 +673,13 @@ export default function PurchaseRequestsTable() {
                       <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">
                         Да
                       </span>
-                    ) : (
+                    ) : request.isPlanned === false ? (
                       <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
                         Нет
+                      </span>
+                    ) : (
+                      <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
+                        -
                       </span>
                     )}
                   </td>
@@ -646,63 +709,6 @@ export default function PurchaseRequestsTable() {
             )}
           </tbody>
         </table>
-      </div>
-
-      {/* Пагинация */}
-      <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="text-sm text-gray-700">
-            Показано {data?.content.length || 0} из {data?.totalElements || 0} записей
-          </div>
-          <div className="flex items-center gap-2">
-            <label htmlFor="pageSize" className="text-sm text-gray-700">
-              Элементов на странице:
-            </label>
-            <select
-              id="pageSize"
-              value={pageSize}
-              onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
-            </select>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setCurrentPage(0)}
-            disabled={currentPage === 0}
-            className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Первая
-          </button>
-          <button
-            onClick={() => setCurrentPage(currentPage - 1)}
-            disabled={currentPage === 0}
-            className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Назад
-          </button>
-          <span className="px-4 py-2 text-sm font-medium text-gray-700">
-            Страница {currentPage + 1} из {data?.totalPages || 0}
-          </span>
-          <button
-            onClick={() => setCurrentPage(currentPage + 1)}
-            disabled={currentPage >= (data?.totalPages || 0) - 1}
-            className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Вперед
-          </button>
-          <button
-            onClick={() => setCurrentPage((data?.totalPages || 0) - 1)}
-            disabled={currentPage >= (data?.totalPages || 0) - 1}
-            className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Последняя
-          </button>
-        </div>
       </div>
     </div>
   );

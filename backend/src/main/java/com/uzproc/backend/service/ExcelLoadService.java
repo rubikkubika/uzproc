@@ -39,6 +39,7 @@ public class ExcelLoadService {
     private static final String NAME_COLUMN = "Наименование";
     private static final String TITLE_COLUMN = "Заголовок";
     private static final String REQUIRES_PURCHASE_COLUMN = "Требуется Закупка";
+    private static final String PLAN_COLUMN = "План (Заявка на ЗП)";
 
     private final PurchaseRequestRepository purchaseRequestRepository;
     private final DataFormatter dataFormatter = new DataFormatter();
@@ -91,6 +92,7 @@ public class ExcelLoadService {
             if (requiresPurchaseColumnIndex == null) {
                 requiresPurchaseColumnIndex = findColumnIndex(columnIndexMap, "Не требуется ЗП (Заявка на ЗП)");
             }
+            Integer planColumnIndex = findColumnIndex(columnIndexMap, PLAN_COLUMN);
             
             // Если не нашли по имени, пробуем найти по известным позициям (из логов видно, что Column 4 = "Номер заявки на ЗП")
             if (requestNumberColumnIndex == null && headerRow.getCell(4) != null) {
@@ -158,6 +160,11 @@ public class ExcelLoadService {
                     REQUIRES_PURCHASE_COLUMN, "Требуется закупка", "Требуется Закупка", "Не требуется ЗП (Заявка на ЗП)");
                 logger.info("Available columns (all): {}", columnIndexMap.keySet());
             }
+            if (planColumnIndex != null) {
+                logger.info("Found plan column at index {}", planColumnIndex);
+            } else {
+                logger.info("Plan column not found, will skip this field");
+            }
 
             // Загружаем данные
             int loadedCount = 0;
@@ -179,7 +186,9 @@ public class ExcelLoadService {
                     try {
                         String requiresPurchaseColumnName = requiresPurchaseColumnIndex != null && headerRow.getCell(requiresPurchaseColumnIndex) != null ? 
                             getCellValueAsString(headerRow.getCell(requiresPurchaseColumnIndex)) : null;
-                        PurchaseRequest pr = parsePurchaseRequestRow(row, requestNumberColumnIndex, creationDateColumnIndex, innerIdColumnIndex, cfoColumnIndex, nameColumnIndex, titleColumnIndex, requiresPurchaseColumnIndex, requiresPurchaseColumnName);
+                        String planColumnName = planColumnIndex != null && headerRow.getCell(planColumnIndex) != null ? 
+                            getCellValueAsString(headerRow.getCell(planColumnIndex)) : null;
+                        PurchaseRequest pr = parsePurchaseRequestRow(row, requestNumberColumnIndex, creationDateColumnIndex, innerIdColumnIndex, cfoColumnIndex, nameColumnIndex, titleColumnIndex, requiresPurchaseColumnIndex, requiresPurchaseColumnName, planColumnIndex, planColumnName);
                         if (pr != null && pr.getIdPurchaseRequest() != null) {
                             // Проверяем, существует ли заявка с таким номером
                             Optional<PurchaseRequest> existing = purchaseRequestRepository.findByIdPurchaseRequest(pr.getIdPurchaseRequest());
@@ -273,14 +282,23 @@ public class ExcelLoadService {
             }
         }
         
+        // Обновляем план только если оно отличается
+        if (newData.getIsPlanned() != null) {
+            if (existing.getIsPlanned() == null || !existing.getIsPlanned().equals(newData.getIsPlanned())) {
+                existing.setIsPlanned(newData.getIsPlanned());
+                updated = true;
+                logger.debug("Updated isPlanned for request {}: {}", existing.getIdPurchaseRequest(), newData.getIsPlanned());
+            }
+        }
+        
         return updated;
     }
 
     /**
      * Парсит строку Excel в PurchaseRequest для типа "Заявка на ЗП"
-     * Загружает "Номер заявки на ЗП", "Дата создания", "Внутренний номер", "ЦФО", "Наименование", "Заголовок" и "Требуется Закупка"
+     * Загружает "Номер заявки на ЗП", "Дата создания", "Внутренний номер", "ЦФО", "Наименование", "Заголовок", "Требуется Закупка" и "План"
      */
-    private PurchaseRequest parsePurchaseRequestRow(Row row, int requestNumberColumnIndex, int creationDateColumnIndex, Integer innerIdColumnIndex, Integer cfoColumnIndex, Integer nameColumnIndex, Integer titleColumnIndex, Integer requiresPurchaseColumnIndex, String requiresPurchaseColumnName) {
+    private PurchaseRequest parsePurchaseRequestRow(Row row, int requestNumberColumnIndex, int creationDateColumnIndex, Integer innerIdColumnIndex, Integer cfoColumnIndex, Integer nameColumnIndex, Integer titleColumnIndex, Integer requiresPurchaseColumnIndex, String requiresPurchaseColumnName, Integer planColumnIndex, String planColumnName) {
         PurchaseRequest pr = new PurchaseRequest();
         
         try {
@@ -379,6 +397,24 @@ public class ExcelLoadService {
                 }
             }
             
+            // План (опционально, булево поле)
+            if (planColumnIndex != null) {
+                Cell planCell = row.getCell(planColumnIndex);
+                String cellValueStr = getCellValueAsString(planCell);
+                logger.debug("Row {}: plan cell value: '{}'", row.getRowNum() + 1, cellValueStr);
+                Boolean isPlanned = parseBooleanCell(planCell);
+                if (isPlanned != null) {
+                    pr.setIsPlanned(isPlanned);
+                    logger.debug("Row {}: parsed isPlanned as: {} (column: '{}', value: '{}')", 
+                        row.getRowNum() + 1, isPlanned, planColumnName, cellValueStr);
+                } else {
+                    logger.debug("Row {}: isPlanned is null after parsing (column: '{}', value: '{}')", 
+                        row.getRowNum() + 1, planColumnName, cellValueStr);
+                }
+            } else {
+                logger.debug("Row {}: planColumnIndex is null, skipping field", row.getRowNum() + 1);
+            }
+            
             return pr;
         } catch (Exception e) {
             logger.error("Error parsing PurchaseRequest row {}: {}", row.getRowNum() + 1, e.getMessage(), e);
@@ -449,6 +485,13 @@ public class ExcelLoadService {
                     if (strValue.contains("не требуется") || strValue.contains("нетребуется")) {
                         return false;
                     }
+                    // Проверяем значения для поля "План": "Плановая" = true, "Внеплановая" = false
+                    // ВАЖНО: сначала проверяем "внеплановая", так как она содержит "плановая"
+                    if (strValue.equals("внеплановая") || strValue.startsWith("внеплановая")) {
+                        return false;
+                    } else if (strValue.equals("плановая") || strValue.startsWith("плановая")) {
+                        return true;
+                    }
                     if (strValue.equals("да") || strValue.equals("true") || strValue.equals("1") || 
                         strValue.equals("yes") || strValue.equals("y") || strValue.equals("требуется")) {
                         return true;
@@ -475,6 +518,13 @@ public class ExcelLoadService {
                             formulaValue = formulaValue.trim().toLowerCase();
                             if (formulaValue.contains("не требуется") || formulaValue.contains("нетребуется")) {
                                 return false;
+                            }
+                            // Проверяем значения для поля "План": "Плановая" = true, "Внеплановая" = false
+                            // ВАЖНО: сначала проверяем "внеплановая", так как она содержит "плановая"
+                            if (formulaValue.equals("внеплановая") || formulaValue.startsWith("внеплановая")) {
+                                return false;
+                            } else if (formulaValue.equals("плановая") || formulaValue.startsWith("плановая")) {
+                                return true;
                             }
                             if (formulaValue.equals("да") || formulaValue.equals("true") || formulaValue.equals("1") || formulaValue.equals("требуется")) {
                                 return true;
