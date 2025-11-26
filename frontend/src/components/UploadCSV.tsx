@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Upload, FileCheck, AlertCircle, CheckCircle2, Loader2, FileSpreadsheet } from 'lucide-react';
+import { getBackendUrl } from '@/utils/api';
 
 interface UploadResult {
   success: boolean;
@@ -17,11 +18,16 @@ interface UploadResult {
 
 export default function UploadCSV() {
   const [file, setFile] = useState<File | null>(null);
+  const [alldocumentsFile, setAlldocumentsFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [converting, setConverting] = useState(false);
+  const [uploadingAlldocuments, setUploadingAlldocuments] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [result, setResult] = useState<UploadResult | null>(null);
+  const [alldocumentsResult, setAlldocumentsResult] = useState<UploadResult | null>(null);
   const [excelFiles, setExcelFiles] = useState<Array<{filename: string, size: number}>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const alldocumentsFileInputRef = useRef<HTMLInputElement>(null);
 
   // Загружаем список Excel файлов при монтировании компонента
   useEffect(() => {
@@ -166,6 +172,124 @@ export default function UploadCSV() {
       });
     } finally {
       setConverting(false);
+    }
+  };
+
+  const handleAlldocumentsFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      const isExcel = 
+        selectedFile.name.toLowerCase().endsWith('.xlsx') ||
+        selectedFile.name.toLowerCase().endsWith('.xls') ||
+        selectedFile.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+        selectedFile.type === 'application/vnd.ms-excel';
+      
+      if (isExcel) {
+        setAlldocumentsFile(selectedFile);
+        setAlldocumentsResult(null);
+      } else {
+        setAlldocumentsResult({
+          success: false,
+          message: `Пожалуйста, выберите Excel файл (.xlsx, .xls). Выбранный файл: ${selectedFile.name}`
+        });
+        setAlldocumentsFile(null);
+        if (alldocumentsFileInputRef.current) {
+          alldocumentsFileInputRef.current.value = '';
+        }
+      }
+    }
+  };
+
+  const handleUploadAlldocuments = async () => {
+    if (!alldocumentsFile) {
+      setAlldocumentsResult({
+        success: false,
+        message: 'Пожалуйста, выберите файл для загрузки'
+      });
+      return;
+    }
+
+    setUploadingAlldocuments(true);
+    setAlldocumentsResult(null);
+    setUploadProgress(0);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', alldocumentsFile);
+
+      const backendUrl = getBackendUrl();
+      const url = `${backendUrl}/api/purchase-requests/upload-from-excel`;
+      console.log('Uploading to:', url);
+      
+      // Используем XMLHttpRequest для отслеживания прогресса
+      const data = await new Promise<any>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        
+        // Отслеживаем прогресс загрузки
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percentComplete = Math.round((e.loaded / e.total) * 100);
+            setUploadProgress(percentComplete);
+          }
+        });
+        
+        // Обрабатываем успешный ответ
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const responseData = JSON.parse(xhr.responseText);
+              resolve(responseData);
+            } catch (e) {
+              reject(new Error('Invalid JSON response'));
+            }
+          } else {
+            reject(new Error(`HTTP ${xhr.status}: ${xhr.responseText}`));
+          }
+        });
+        
+        // Обрабатываем ошибки
+        xhr.addEventListener('error', () => {
+          reject(new Error('Network error'));
+        });
+        
+        xhr.addEventListener('abort', () => {
+          reject(new Error('Upload aborted'));
+        });
+        
+        xhr.open('POST', url);
+        xhr.send(formData);
+      });
+
+      setAlldocumentsResult({
+        success: true,
+        message: data.message || 'Файл успешно загружен и данные обновлены в БД'
+      });
+      setUploadProgress(100);
+      setAlldocumentsFile(null);
+      if (alldocumentsFileInputRef.current) {
+        alldocumentsFileInputRef.current.value = '';
+      }
+      // Обновляем страницу через 2 секунды для отображения новых данных
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } catch (error) {
+      console.error('Upload error:', error);
+      let errorMessage = 'Ошибка при загрузке файла. Попробуйте еще раз.';
+      
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        errorMessage = 'Не удалось подключиться к серверу. Убедитесь, что бэкенд запущен на ' + getBackendUrl();
+      } else if (error instanceof Error) {
+        errorMessage = `Ошибка: ${error.message}`;
+      }
+      
+      setAlldocumentsResult({
+        success: false,
+        message: errorMessage
+      });
+      setUploadProgress(0);
+    } finally {
+      setUploadingAlldocuments(false);
     }
   };
 
@@ -326,6 +450,122 @@ export default function UploadCSV() {
                       </div>
                     </div>
                   )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Новая секция для загрузки из alldocuments */}
+      <div className="bg-white p-6 rounded-lg shadow-lg">
+        <h2 className="text-xl font-bold text-gray-800 mb-4">
+          Загрузка данных из alldocuments в БД
+        </h2>
+        
+        <div className="space-y-6">
+          {/* Информация о загрузке */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <FileCheck className="w-5 h-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" />
+              <div className="text-sm text-blue-800">
+                <p className="font-semibold mb-1">Загрузка в базу данных:</p>
+                <ul className="list-disc list-inside space-y-1 ml-2">
+                  <li>Загружаются только записи с типом документа "Заявка на ЗП"</li>
+                  <li>Загружаются поля: "Номер заявки на ЗП" и "Дата создания"</li>
+                  <li>Данные сохраняются в таблицу purchase_requests</li>
+                  <li>После загрузки данные будут доступны на странице "Заявки на закупку"</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* Выбор файла */}
+          <div>
+            <label htmlFor="alldocuments-file-input" className="block text-sm font-medium text-gray-700 mb-2">
+              Выберите Excel файл из папки alldocuments (.xlsx, .xls)
+            </label>
+            <div className="flex items-center space-x-4">
+              <label
+                htmlFor="alldocuments-file-input"
+                className="flex items-center justify-center px-6 py-3 bg-blue-50 text-blue-700 rounded-lg font-semibold
+                  hover:bg-blue-100 cursor-pointer transition-colors duration-200
+                  disabled:bg-gray-300 disabled:cursor-not-allowed disabled:text-gray-500"
+              >
+                <Upload className="w-5 h-5 mr-2" />
+                {alldocumentsFile ? 'Файл выбран' : 'Выбрать файл'}
+              </label>
+              <input
+                id="alldocuments-file-input"
+                ref={alldocumentsFileInputRef}
+                type="file"
+                accept=".xlsx,.xls,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                onChange={handleAlldocumentsFileSelect}
+                className="hidden"
+                disabled={uploadingAlldocuments}
+              />
+            </div>
+            {alldocumentsFile && (
+              <div className="mt-2 flex items-center text-sm text-gray-600">
+                <FileCheck className="w-4 h-4 mr-2" />
+                <span>{alldocumentsFile.name}</span>
+                <span className="ml-2 text-gray-400">
+                  ({(alldocumentsFile.size / 1024).toFixed(2)} KB)
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Кнопка загрузки */}
+          <button
+            onClick={handleUploadAlldocuments}
+            disabled={!alldocumentsFile || uploadingAlldocuments}
+            className="w-full flex items-center justify-center px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold
+              hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed
+              transition-colors duration-200"
+          >
+            {uploadingAlldocuments ? (
+              <>
+                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                Загрузка в БД... {uploadProgress > 0 && `${uploadProgress}%`}
+              </>
+            ) : (
+              <>
+                <Upload className="w-5 h-5 mr-2" />
+                Загрузить в базу данных
+              </>
+            )}
+          </button>
+
+          {/* Полоска прогресса загрузки */}
+          {uploadingAlldocuments && uploadProgress > 0 && (
+            <div className="w-full bg-gray-200 rounded-full h-2.5">
+              <div
+                className="bg-blue-600 h-2.5 rounded-full transition-all duration-300 ease-out"
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+          )}
+
+          {/* Результат загрузки */}
+          {alldocumentsResult && (
+            <div className={`rounded-lg p-4 ${
+              alldocumentsResult.success 
+                ? 'bg-green-50 border border-green-200' 
+                : 'bg-red-50 border border-red-200'
+            }`}>
+              <div className="flex items-start">
+                {alldocumentsResult.success ? (
+                  <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5 mr-3 flex-shrink-0" />
+                ) : (
+                  <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 mr-3 flex-shrink-0" />
+                )}
+                <div className="flex-1">
+                  <p className={`font-semibold ${
+                    alldocumentsResult.success ? 'text-green-800' : 'text-red-800'
+                  }`}>
+                    {alldocumentsResult.message}
+                  </p>
                 </div>
               </div>
             </div>

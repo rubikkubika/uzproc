@@ -12,6 +12,9 @@ README.md
 .idea
 *.md
 
+# Logs
+backend/logs
+
 
 
 

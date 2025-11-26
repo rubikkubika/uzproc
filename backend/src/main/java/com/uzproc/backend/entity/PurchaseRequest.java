@@ -16,8 +16,23 @@ public class PurchaseRequest {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "guid", unique = true, nullable = false, updatable = false)
+    @Column(name = "guid", unique = true, nullable = true, updatable = false)
     private UUID guid;
+
+    @Column(name = "id_purchase_request")
+    private Long idPurchaseRequest;
+
+    @Column(name = "purchase_request_creation_date")
+    private LocalDateTime purchaseRequestCreationDate;
+
+    @Column(name = "inner_id", length = 255)
+    private String innerId;
+
+    @Column(name = "name", length = 500)
+    private String name;
+
+    @Column(name = "title", length = 500)
+    private String title;
 
     @Column(name = "purchase_plan_year")
     private Integer purchasePlanYear;
@@ -72,9 +87,6 @@ public class PurchaseRequest {
 
     @PrePersist
     protected void onCreate() {
-        if (guid == null) {
-            guid = UUID.randomUUID();
-        }
         if (isPlanned == null) {
             isPlanned = false;
         }
@@ -198,5 +210,45 @@ public class PurchaseRequest {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Long getIdPurchaseRequest() {
+        return idPurchaseRequest;
+    }
+
+    public void setIdPurchaseRequest(Long idPurchaseRequest) {
+        this.idPurchaseRequest = idPurchaseRequest;
+    }
+
+    public LocalDateTime getPurchaseRequestCreationDate() {
+        return purchaseRequestCreationDate;
+    }
+
+    public void setPurchaseRequestCreationDate(LocalDateTime purchaseRequestCreationDate) {
+        this.purchaseRequestCreationDate = purchaseRequestCreationDate;
+    }
+
+    public String getInnerId() {
+        return innerId;
+    }
+
+    public void setInnerId(String innerId) {
+        this.innerId = innerId;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
     }
 }

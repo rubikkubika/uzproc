@@ -32,11 +32,24 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
     validate-on-migrate: true
+  
+  # Увеличиваем лимиты для multipart загрузки
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 50MB
+      max-request-size: 50MB
+      file-size-threshold: 2KB
 
 server:
   port: 8080
   servlet:
     context-path: /api
+  # Увеличиваем лимиты для загрузки больших файлов
+  max-http-header-size: 64KB
+  tomcat:
+    max-swallow-size: 50MB
+    connection-timeout: 60000
 
 management:
   endpoints:
@@ -54,4 +67,6 @@ logging:
     org.springframework.web: INFO
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
-
+  pattern:
+    file: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

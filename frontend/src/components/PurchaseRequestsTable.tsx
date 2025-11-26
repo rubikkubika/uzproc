@@ -5,13 +5,15 @@ import { getBackendUrl } from '@/utils/api';
 
 interface PurchaseRequest {
   id: number;
+  idPurchaseRequest: number | null;
   guid: string;
   purchasePlanYear: number | null;
   company: string | null;
   cfo: string | null;
   mcc: string | null;
   purchaseInitiator: string | null;
-  purchaseSubject: string | null;
+  name: string | null;
+  purchaseRequestCreationDate: string | null;
   budgetAmount: number | null;
   costType: string | null;
   contractType: string | null;
@@ -35,12 +37,18 @@ export default function PurchaseRequestsTable() {
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState<number | null>(currentYear);
 
-  const fetchData = async (page: number, size: number) => {
+  const fetchData = async (page: number, size: number, year: number | null = null) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${getBackendUrl()}/api/purchase-requests?page=${page}&size=${size}`);
+      let url = `${getBackendUrl()}/api/purchase-requests?page=${page}&size=${size}`;
+      if (year !== null) {
+        url += `&year=${year}`;
+      }
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error('Ошибка загрузки данных');
       }
@@ -54,8 +62,53 @@ export default function PurchaseRequestsTable() {
   };
 
   useEffect(() => {
-    fetchData(currentPage, pageSize);
-  }, [currentPage, pageSize]);
+    fetchData(currentPage, pageSize, selectedYear);
+  }, [currentPage, pageSize, selectedYear]);
+
+  // Получаем список уникальных годов из данных
+  const getAvailableYears = (): number[] => {
+    if (!data || !data.content) return [];
+    const years = new Set<number>();
+    data.content.forEach((request) => {
+      if (request.purchaseRequestCreationDate) {
+        const date = new Date(request.purchaseRequestCreationDate);
+        const year = date.getFullYear();
+        if (!isNaN(year)) {
+          years.add(year);
+        }
+      }
+    });
+    return Array.from(years).sort((a, b) => b - a); // Сортируем по убыванию
+  };
+
+  // Получаем все годы из всех данных (нужно загрузить все данные для этого)
+  const [allYears, setAllYears] = useState<number[]>([]);
+
+  useEffect(() => {
+    // Загружаем все данные для получения списка годов
+    const fetchAllYears = async () => {
+      try {
+        const response = await fetch(`${getBackendUrl()}/api/purchase-requests?page=0&size=10000`);
+        if (response.ok) {
+          const result = await response.json();
+          const years = new Set<number>();
+          result.content.forEach((request: PurchaseRequest) => {
+            if (request.purchaseRequestCreationDate) {
+              const date = new Date(request.purchaseRequestCreationDate);
+              const year = date.getFullYear();
+              if (!isNaN(year)) {
+                years.add(year);
+              }
+            }
+          });
+          setAllYears(Array.from(years).sort((a, b) => b - a));
+        }
+      } catch (err) {
+        console.error('Error fetching years:', err);
+      }
+    };
+    fetchAllYears();
+  }, []);
 
   const handlePageSizeChange = (newSize: number) => {
     setPageSize(newSize);
@@ -102,46 +155,65 @@ export default function PurchaseRequestsTable() {
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-200">
-        <p className="text-sm text-gray-500 mt-1">
-          Всего записей: {data.totalElements}
-        </p>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-700 font-medium">Фильтр по году создания:</span>
+            {allYears.map((year) => (
+              <button
+                key={year}
+                onClick={() => setSelectedYear(year)}
+                className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                  selectedYear === year
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                {year}
+              </button>
+            ))}
+            <button
+              onClick={() => setSelectedYear(null)}
+              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                selectedYear === null
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              Все
+            </button>
+          </div>
+          <p className="text-sm text-gray-500">
+            Всего записей: {data.totalElements}
+          </p>
+        </div>
       </div>
       
       <div className="overflow-x-auto">
-        <table className="w-full table-fixed">
+        <table className="w-full border-collapse">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
-                ID
+              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 whitespace-nowrap" style={{ width: 'auto', minWidth: 'fit-content' }}>
+                Номер
               </th>
-              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
-                Год
-              </th>
-              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
-                Компания
-              </th>
-              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
+              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20 border-r border-gray-300">
                 ЦФО
               </th>
-              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
-                MCC
-              </th>
-              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
+              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24 border-r border-gray-300">
                 Инициатор
               </th>
-              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Предмет закупки
+              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">
+                Наименование
               </th>
-              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">
+              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28 border-r border-gray-300">
                 Бюджет
               </th>
-              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
+              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20 border-r border-gray-300">
                 Затраты
               </th>
-              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
+              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20 border-r border-gray-300">
                 Договор
               </th>
-              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
+              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16 border-r border-gray-300">
                 Срок
               </th>
               <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
@@ -152,40 +224,31 @@ export default function PurchaseRequestsTable() {
           <tbody className="bg-white divide-y divide-gray-200">
             {data.content.map((request) => (
               <tr key={request.id} className="hover:bg-gray-50">
-                <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
-                  {request.id}
+                <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 min-w-fit">
+                  {request.idPurchaseRequest || '-'}
                 </td>
-                <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
-                  {request.purchasePlanYear || '-'}
-                </td>
-                <td className="px-2 py-2 text-xs text-gray-900 truncate" title={request.company || ''}>
-                  {request.company || '-'}
-                </td>
-                <td className="px-2 py-2 text-xs text-gray-900 truncate" title={request.cfo || ''}>
+                <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={request.cfo || ''}>
                   {request.cfo || '-'}
                 </td>
-                <td className="px-2 py-2 text-xs text-gray-900 truncate" title={request.mcc || ''}>
-                  {request.mcc || '-'}
-                </td>
-                <td className="px-2 py-2 text-xs text-gray-900 truncate" title={request.purchaseInitiator || ''}>
+                <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={request.purchaseInitiator || ''}>
                   {request.purchaseInitiator || '-'}
                 </td>
-                <td className="px-2 py-2 text-xs text-gray-900 truncate" title={request.purchaseSubject || ''}>
-                  {request.purchaseSubject || '-'}
+                <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={request.name || ''}>
+                  {request.name || '-'}
                 </td>
-                <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
+                <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200">
                   {request.budgetAmount ? new Intl.NumberFormat('ru-RU', { 
                     notation: 'compact',
                     maximumFractionDigits: 1 
                   }).format(request.budgetAmount) : '-'}
                 </td>
-                <td className="px-2 py-2 text-xs text-gray-900 truncate" title={request.costType || ''}>
+                <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={request.costType || ''}>
                   {request.costType || '-'}
                 </td>
-                <td className="px-2 py-2 text-xs text-gray-900 truncate" title={request.contractType || ''}>
+                <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={request.contractType || ''}>
                   {request.contractType || '-'}
                 </td>
-                <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
+                <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200">
                   {request.contractDurationMonths || '-'}
                 </td>
                 <td className="px-2 py-2 whitespace-nowrap text-xs">
