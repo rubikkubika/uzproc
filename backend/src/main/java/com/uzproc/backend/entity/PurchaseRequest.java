@@ -67,6 +67,9 @@ public class PurchaseRequest {
     @Column(name = "is_planned")
     private Boolean isPlanned;
 
+    @Column(name = "requires_purchase")
+    private Boolean requiresPurchase;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -250,5 +253,13 @@ public class PurchaseRequest {
 
     public void setTitle(String title) {
         this.title = title;
+    }
+
+    public Boolean getRequiresPurchase() {
+        return requiresPurchase;
+    }
+
+    public void setRequiresPurchase(Boolean requiresPurchase) {
+        this.requiresPurchase = requiresPurchase;
     }
 }

@@ -166,3 +166,63 @@ docker compose up -d postgres
 - Общую документацию проекта, инструкции по развертыванию, архитектурные решения и другую проектную документацию размещать в `docs/`
 - При создании новой документации предлагать размещение в `docs/`, если это не специфичный README для модуля
 
+## Добавление новых полей и парсинг Excel
+
+При добавлении новых полей в сущность `PurchaseRequest` и их парсинга из Excel файлов, **ОБЯЗАТЕЛЬНО** нужно:
+
+1. **Изучить существующие поля и их парсинг:**
+   - Посмотреть, как парсятся другие опциональные поля (например, `cfo`, `name`, `title`, `innerId`) в методе `parsePurchaseRequestRow` класса `ExcelLoadService`
+   - Использовать аналогичную логику и структуру кода
+   - Следовать тем же паттернам и стилю кода
+
+2. **Добавить константу для названия колонки:**
+   - Добавить `private static final String NEW_FIELD_COLUMN = "Название колонки в Excel";` в начало класса `ExcelLoadService`
+   - Использовать точное название колонки из Excel файла
+
+3. **Найти колонку в заголовке:**
+   - Использовать `findColumnIndex(columnIndexMap, NEW_FIELD_COLUMN)` для поиска колонки
+   - Если колонка может иметь альтернативные названия, добавить проверки с `findColumnIndex` для каждого варианта
+   - Добавить логирование, если колонка не найдена (как для других полей)
+
+4. **Парсинг значения:**
+   - Для строковых полей: использовать `getCellValueAsString(cell)` и проверку на `null` и пустоту
+   - Для булевых полей: использовать `parseBooleanCell(cell)` и проверку на `null`
+   - Для числовых полей: использовать соответствующие методы парсинга (`parseLongCell`, `parseDateCell` и т.д.)
+   - Следовать той же структуре проверок, что и для других полей
+
+5. **Обновление существующих записей:**
+   - Добавить логику обновления нового поля в метод `updatePurchaseRequestFields`
+   - Использовать тот же паттерн проверки на изменения, что и для других полей
+   - Добавить логирование обновлений
+
+6. **Пример структуры для опционального строкового поля:**
+   ```java
+   // В методе loadPurchaseRequestsFromExcel:
+   Integer newFieldColumnIndex = findColumnIndex(columnIndexMap, NEW_FIELD_COLUMN);
+   
+   // В методе parsePurchaseRequestRow:
+   if (newFieldColumnIndex != null) {
+       Cell newFieldCell = row.getCell(newFieldColumnIndex);
+       String newField = getCellValueAsString(newFieldCell);
+       if (newField != null && !newField.trim().isEmpty()) {
+           pr.setNewField(newField.trim());
+       }
+   }
+   
+   // В методе updatePurchaseRequestFields:
+   if (newData.getNewField() != null && !newData.getNewField().trim().isEmpty()) {
+       if (existing.getNewField() == null || !existing.getNewField().equals(newData.getNewField())) {
+           existing.setNewField(newData.getNewField());
+           updated = true;
+           logger.debug("Updated newField for request {}: {}", existing.getIdPurchaseRequest(), newData.getNewField());
+       }
+   }
+   ```
+
+7. **Для булевых полей с обратной логикой:**
+   - Если колонка называется "Не требуется..." или имеет обратную логику, проверить название колонки
+   - Передать название колонки в метод `parsePurchaseRequestRow` как дополнительный параметр
+   - Инвертировать логику парсинга, если необходимо
+
+**ВАЖНО:** Всегда смотреть на существующие поля и делать аналогично. Не изобретать новые подходы, если уже есть рабочие примеры в коде.
+

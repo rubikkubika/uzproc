@@ -38,6 +38,7 @@ public class ExcelLoadService {
     private static final String CFO_COLUMN = "ЦФО";
     private static final String NAME_COLUMN = "Наименование";
     private static final String TITLE_COLUMN = "Заголовок";
+    private static final String REQUIRES_PURCHASE_COLUMN = "Требуется Закупка";
 
     private final PurchaseRequestRepository purchaseRequestRepository;
     private final DataFormatter dataFormatter = new DataFormatter();
@@ -82,6 +83,14 @@ public class ExcelLoadService {
             Integer cfoColumnIndex = findColumnIndex(columnIndexMap, CFO_COLUMN);
             Integer nameColumnIndex = findColumnIndex(columnIndexMap, NAME_COLUMN);
             Integer titleColumnIndex = findColumnIndex(columnIndexMap, TITLE_COLUMN);
+            Integer requiresPurchaseColumnIndex = findColumnIndex(columnIndexMap, REQUIRES_PURCHASE_COLUMN);
+            // Пробуем альтернативные названия колонки
+            if (requiresPurchaseColumnIndex == null) {
+                requiresPurchaseColumnIndex = findColumnIndex(columnIndexMap, "Требуется закупка");
+            }
+            if (requiresPurchaseColumnIndex == null) {
+                requiresPurchaseColumnIndex = findColumnIndex(columnIndexMap, "Не требуется ЗП (Заявка на ЗП)");
+            }
             
             // Если не нашли по имени, пробуем найти по известным позициям (из логов видно, что Column 4 = "Номер заявки на ЗП")
             if (requestNumberColumnIndex == null && headerRow.getCell(4) != null) {
@@ -138,6 +147,17 @@ public class ExcelLoadService {
             } else {
                 logger.info("Title column not found, will skip this field");
             }
+            if (requiresPurchaseColumnIndex != null) {
+                logger.info("Found requires purchase column at index {}", requiresPurchaseColumnIndex);
+                String columnName = headerRow.getCell(requiresPurchaseColumnIndex) != null ? 
+                    getCellValueAsString(headerRow.getCell(requiresPurchaseColumnIndex)) : "unknown";
+                logger.info("Requires purchase column name in file: '{}'", columnName);
+            } else {
+                logger.warn("Requires purchase column not found, will skip this field");
+                logger.info("Searched for: '{}', '{}', '{}', '{}'", 
+                    REQUIRES_PURCHASE_COLUMN, "Требуется закупка", "Требуется Закупка", "Не требуется ЗП (Заявка на ЗП)");
+                logger.info("Available columns (all): {}", columnIndexMap.keySet());
+            }
 
             // Загружаем данные
             int loadedCount = 0;
@@ -157,7 +177,9 @@ public class ExcelLoadService {
                 // Фильтруем только "Заявка на ЗП"
                 if (PURCHASE_REQUEST_TYPE.equals(documentType)) {
                     try {
-                        PurchaseRequest pr = parsePurchaseRequestRow(row, requestNumberColumnIndex, creationDateColumnIndex, innerIdColumnIndex, cfoColumnIndex, nameColumnIndex, titleColumnIndex);
+                        String requiresPurchaseColumnName = requiresPurchaseColumnIndex != null && headerRow.getCell(requiresPurchaseColumnIndex) != null ? 
+                            getCellValueAsString(headerRow.getCell(requiresPurchaseColumnIndex)) : null;
+                        PurchaseRequest pr = parsePurchaseRequestRow(row, requestNumberColumnIndex, creationDateColumnIndex, innerIdColumnIndex, cfoColumnIndex, nameColumnIndex, titleColumnIndex, requiresPurchaseColumnIndex, requiresPurchaseColumnName);
                         if (pr != null && pr.getIdPurchaseRequest() != null) {
                             // Проверяем, существует ли заявка с таким номером
                             Optional<PurchaseRequest> existing = purchaseRequestRepository.findByIdPurchaseRequest(pr.getIdPurchaseRequest());
@@ -242,14 +264,23 @@ public class ExcelLoadService {
             }
         }
         
+        // Обновляем требуется закупка только если оно отличается
+        if (newData.getRequiresPurchase() != null) {
+            if (existing.getRequiresPurchase() == null || !existing.getRequiresPurchase().equals(newData.getRequiresPurchase())) {
+                existing.setRequiresPurchase(newData.getRequiresPurchase());
+                updated = true;
+                logger.debug("Updated requiresPurchase for request {}: {}", existing.getIdPurchaseRequest(), newData.getRequiresPurchase());
+            }
+        }
+        
         return updated;
     }
 
     /**
      * Парсит строку Excel в PurchaseRequest для типа "Заявка на ЗП"
-     * Загружает "Номер заявки на ЗП", "Дата создания", "Внутренний номер", "ЦФО", "Наименование" и "Заголовок"
+     * Загружает "Номер заявки на ЗП", "Дата создания", "Внутренний номер", "ЦФО", "Наименование", "Заголовок" и "Требуется Закупка"
      */
-    private PurchaseRequest parsePurchaseRequestRow(Row row, int requestNumberColumnIndex, int creationDateColumnIndex, Integer innerIdColumnIndex, Integer cfoColumnIndex, Integer nameColumnIndex, Integer titleColumnIndex) {
+    private PurchaseRequest parsePurchaseRequestRow(Row row, int requestNumberColumnIndex, int creationDateColumnIndex, Integer innerIdColumnIndex, Integer cfoColumnIndex, Integer nameColumnIndex, Integer titleColumnIndex, Integer requiresPurchaseColumnIndex, String requiresPurchaseColumnName) {
         PurchaseRequest pr = new PurchaseRequest();
         
         try {
@@ -312,6 +343,42 @@ public class ExcelLoadService {
                 }
             }
             
+            // Требуется Закупка (опционально, булево поле)
+            // Если колонка называется "Не требуется ЗП (Заявка на ЗП)", то логика обратная:
+            // если в ячейке что-то есть (да/1/true) - значит НЕ требуется, т.е. requiresPurchase = false
+            // если пусто - значит требуется, т.е. requiresPurchase = true
+            if (requiresPurchaseColumnIndex != null) {
+                Cell requiresPurchaseCell = row.getCell(requiresPurchaseColumnIndex);
+                String cellValueStr = getCellValueAsString(requiresPurchaseCell);
+                
+                // Проверяем, какое название у колонки
+                boolean isInvertedLogic = requiresPurchaseColumnName != null && requiresPurchaseColumnName.contains("Не требуется");
+                
+                Boolean requiresPurchase = null;
+                if (cellValueStr != null && !cellValueStr.trim().isEmpty()) {
+                    // Если ячейка не пустая, парсим значение
+                    Boolean parsedValue = parseBooleanCell(requiresPurchaseCell);
+                    if (parsedValue != null) {
+                        if (isInvertedLogic) {
+                            // Если колонка "Не требуется", то true в ячейке = false для requiresPurchase
+                            requiresPurchase = !parsedValue;
+                        } else {
+                            // Обычная логика
+                            requiresPurchase = parsedValue;
+                        }
+                    }
+                } else if (isInvertedLogic) {
+                    // Если колонка "Не требуется" и ячейка пустая, значит требуется
+                    requiresPurchase = true;
+                }
+                
+                if (requiresPurchase != null) {
+                    pr.setRequiresPurchase(requiresPurchase);
+                    logger.debug("Row {}: parsed requiresPurchase as: {} (column: '{}', value: '{}', inverted: {})", 
+                        row.getRowNum() + 1, requiresPurchase, requiresPurchaseColumnName, cellValueStr, isInvertedLogic);
+                }
+            }
+            
             return pr;
         } catch (Exception e) {
             logger.error("Error parsing PurchaseRequest row {}: {}", row.getRowNum() + 1, e.getMessage(), e);
@@ -355,6 +422,80 @@ public class ExcelLoadService {
             }
         } catch (NumberFormatException e) {
             logger.warn("Cannot parse Long from cell: {}", getCellValueAsString(cell));
+            return null;
+        }
+    }
+
+    /**
+     * Парсит ячейку в Boolean
+     */
+    private Boolean parseBooleanCell(Cell cell) {
+        if (cell == null) {
+            return null;
+        }
+        
+        try {
+            switch (cell.getCellType()) {
+                case BOOLEAN:
+                    return cell.getBooleanCellValue();
+                case STRING:
+                    String strValue = getCellValueAsString(cell);
+                    if (strValue == null || strValue.trim().isEmpty()) {
+                        return null;
+                    }
+                    strValue = strValue.trim().toLowerCase();
+                    // Проверяем различные варианты "да"/"нет", "true"/"false", "1"/"0"
+                    // Также проверяем варианты с "не требуется" - это означает false
+                    if (strValue.contains("не требуется") || strValue.contains("нетребуется")) {
+                        return false;
+                    }
+                    if (strValue.equals("да") || strValue.equals("true") || strValue.equals("1") || 
+                        strValue.equals("yes") || strValue.equals("y") || strValue.equals("требуется")) {
+                        return true;
+                    } else if (strValue.equals("нет") || strValue.equals("false") || strValue.equals("0") || 
+                               strValue.equals("no") || strValue.equals("n")) {
+                        return false;
+                    }
+                    logger.debug("Cannot parse boolean from string value: '{}'", strValue);
+                    return null;
+                case NUMERIC:
+                    double numValue = cell.getNumericCellValue();
+                    if (numValue == 1.0) {
+                        return true;
+                    } else if (numValue == 0.0) {
+                        return false;
+                    }
+                    return null;
+                case FORMULA:
+                    if (cell.getCachedFormulaResultType() == CellType.BOOLEAN) {
+                        return cell.getBooleanCellValue();
+                    } else if (cell.getCachedFormulaResultType() == CellType.STRING) {
+                        String formulaValue = getCellValueAsString(cell);
+                        if (formulaValue != null && !formulaValue.trim().isEmpty()) {
+                            formulaValue = formulaValue.trim().toLowerCase();
+                            if (formulaValue.contains("не требуется") || formulaValue.contains("нетребуется")) {
+                                return false;
+                            }
+                            if (formulaValue.equals("да") || formulaValue.equals("true") || formulaValue.equals("1") || formulaValue.equals("требуется")) {
+                                return true;
+                            } else if (formulaValue.equals("нет") || formulaValue.equals("false") || formulaValue.equals("0")) {
+                                return false;
+                            }
+                        }
+                    } else if (cell.getCachedFormulaResultType() == CellType.NUMERIC) {
+                        double formulaNumValue = cell.getNumericCellValue();
+                        if (formulaNumValue == 1.0) {
+                            return true;
+                        } else if (formulaNumValue == 0.0) {
+                            return false;
+                        }
+                    }
+                    return null;
+                default:
+                    return null;
+            }
+        } catch (Exception e) {
+            logger.warn("Cannot parse Boolean from cell: {}", getCellValueAsString(cell));
             return null;
         }
     }

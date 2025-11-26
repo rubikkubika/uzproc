@@ -51,7 +51,8 @@ public class PurchaseRequestController {
             @RequestParam(required = false) String name,
             @RequestParam(required = false) String costType,
             @RequestParam(required = false) String contractType,
-            @RequestParam(required = false) Boolean isPlanned) {
+            @RequestParam(required = false) Boolean isPlanned,
+            @RequestParam(required = false) Boolean requiresPurchase) {
         
         // Создаем Specification для фильтрации
         Specification<PurchaseRequest> spec = (root, query, cb) -> {
@@ -97,6 +98,11 @@ public class PurchaseRequestController {
             // Фильтр по плану
             if (isPlanned != null) {
                 predicates.add(cb.equal(root.get("isPlanned"), isPlanned));
+            }
+            
+            // Фильтр по требуется закупка
+            if (requiresPurchase != null) {
+                predicates.add(cb.equal(root.get("requiresPurchase"), requiresPurchase));
             }
             
             return cb.and(predicates.toArray(new Predicate[0]));

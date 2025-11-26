@@ -20,6 +20,7 @@ interface PurchaseRequest {
   contractType: string | null;
   contractDurationMonths: number | null;
   isPlanned: boolean | null;
+  requiresPurchase: boolean | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -59,6 +60,7 @@ export default function PurchaseRequestsTable() {
     contractType: '',
     contractDurationMonths: '',
     isPlanned: '',
+    requiresPurchase: '',
   });
 
   // Локальное состояние для текстовых фильтров (для сохранения фокуса)
@@ -72,6 +74,7 @@ export default function PurchaseRequestsTable() {
     contractType: '',
     contractDurationMonths: '',
     isPlanned: '',
+    requiresPurchase: '',
   });
 
   // ID активного поля для восстановления фокуса
@@ -122,6 +125,9 @@ export default function PurchaseRequestsTable() {
       }
       if (filters.isPlanned && filters.isPlanned.trim() !== '') {
         params.append('isPlanned', filters.isPlanned);
+      }
+      if (filters.requiresPurchase && filters.requiresPurchase.trim() !== '') {
+        params.append('requiresPurchase', filters.requiresPurchase);
       }
       
       const url = `${getBackendUrl()}/api/purchase-requests?${params.toString()}`;
@@ -527,6 +533,7 @@ export default function PurchaseRequestsTable() {
                     contractType: '',
                     contractDurationMonths: '',
                     isPlanned: '',
+                    requiresPurchase: '',
                   };
                   setFilters(emptyFilters);
                   setLocalFilters(emptyFilters);
@@ -571,6 +578,13 @@ export default function PurchaseRequestsTable() {
                 filterOptions={['true', 'false']}
                 width="w-20"
               />
+              <SortableHeader 
+                field="requiresPurchase" 
+                label="Закупка"
+                filterType="select"
+                filterOptions={['true', 'false']}
+                width="w-24"
+              />
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -595,7 +609,7 @@ export default function PurchaseRequestsTable() {
                       maximumFractionDigits: 1 
                     }).format(request.budgetAmount) : '-'}
                   </td>
-                  <td className="px-2 py-2 whitespace-nowrap text-xs">
+                  <td className="px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200">
                     {request.isPlanned ? (
                       <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">
                         Да
@@ -606,11 +620,26 @@ export default function PurchaseRequestsTable() {
                       </span>
                     )}
                   </td>
+                  <td className="px-2 py-2 whitespace-nowrap text-xs">
+                    {request.requiresPurchase ? (
+                      <span className="px-1.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                        Да
+                      </span>
+                    ) : request.requiresPurchase === false ? (
+                      <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
+                        Нет
+                      </span>
+                    ) : (
+                      <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
+                        -
+                      </span>
+                    )}
+                  </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                   Нет данных
                 </td>
               </tr>
