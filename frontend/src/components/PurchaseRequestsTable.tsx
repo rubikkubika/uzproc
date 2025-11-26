@@ -192,7 +192,7 @@ export default function PurchaseRequestsTable() {
         <table className="w-full border-collapse">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 whitespace-nowrap" style={{ width: 'auto', minWidth: 'fit-content' }}>
+              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 whitespace-nowrap w-16">
                 Номер
               </th>
               <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20 border-r border-gray-300">
@@ -201,7 +201,7 @@ export default function PurchaseRequestsTable() {
               <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24 border-r border-gray-300">
                 Инициатор
               </th>
-              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300">
+              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 w-48">
                 Наименование
               </th>
               <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28 border-r border-gray-300">
@@ -224,7 +224,7 @@ export default function PurchaseRequestsTable() {
           <tbody className="bg-white divide-y divide-gray-200">
             {data.content.map((request) => (
               <tr key={request.id} className="hover:bg-gray-50">
-                <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 min-w-fit">
+                <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 w-16">
                   {request.idPurchaseRequest || '-'}
                 </td>
                 <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={request.cfo || ''}>
@@ -233,7 +233,7 @@ export default function PurchaseRequestsTable() {
                 <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={request.purchaseInitiator || ''}>
                   {request.purchaseInitiator || '-'}
                 </td>
-                <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={request.name || ''}>
+                <td className="px-2 py-2 text-xs text-gray-900 break-words border-r border-gray-200">
                   {request.name || '-'}
                 </td>
                 <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200">
