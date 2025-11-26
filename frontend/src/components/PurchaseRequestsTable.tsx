@@ -44,9 +44,9 @@ export default function PurchaseRequestsTable() {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number | null>(currentYear);
   
-  // Состояние для сортировки
-  const [sortField, setSortField] = useState<SortField>(null);
-  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+  // Состояние для сортировки (по умолчанию сортировка по номеру по убыванию)
+  const [sortField, setSortField] = useState<SortField>('idPurchaseRequest');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   
   // Состояние для фильтров
   const [filters, setFilters] = useState<Record<string, string>>({
@@ -304,8 +304,6 @@ export default function PurchaseRequestsTable() {
   const [uniqueValues, setUniqueValues] = useState<Record<string, string[]>>({
     cfo: [],
     purchaseInitiator: [],
-    costType: [],
-    contractType: [],
   });
 
   useEffect(() => {
@@ -325,15 +323,11 @@ export default function PurchaseRequestsTable() {
           result.content.forEach((item: PurchaseRequest) => {
             if (item.cfo) values.cfo.add(item.cfo);
             if (item.purchaseInitiator) values.purchaseInitiator.add(item.purchaseInitiator);
-            if (item.costType) values.costType.add(item.costType);
-            if (item.contractType) values.contractType.add(item.contractType);
           });
           
           setUniqueValues({
             cfo: Array.from(values.cfo).sort(),
             purchaseInitiator: Array.from(values.purchaseInitiator).sort(),
-            costType: Array.from(values.costType).sort(),
-            contractType: Array.from(values.contractType).sort(),
           });
         }
       } catch (err) {
@@ -571,21 +565,6 @@ export default function PurchaseRequestsTable() {
               <SortableHeader field="name" label="Наименование" width="w-48" />
               <SortableHeader field="budgetAmount" label="Бюджет" width="w-28" />
               <SortableHeader 
-                field="costType" 
-                label="Затраты"
-                filterType="select"
-                filterOptions={getUniqueValues('costType')}
-                width="w-20"
-              />
-              <SortableHeader 
-                field="contractType" 
-                label="Договор"
-                filterType="select"
-                filterOptions={getUniqueValues('contractType')}
-                width="w-20"
-              />
-              <SortableHeader field="contractDurationMonths" label="Срок" width="w-16" />
-              <SortableHeader 
                 field="isPlanned" 
                 label="План"
                 filterType="select"
@@ -616,15 +595,6 @@ export default function PurchaseRequestsTable() {
                       maximumFractionDigits: 1 
                     }).format(request.budgetAmount) : '-'}
                   </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={request.costType || ''}>
-                    {request.costType || '-'}
-                  </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={request.contractType || ''}>
-                    {request.contractType || '-'}
-                  </td>
-                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200">
-                    {request.contractDurationMonths || '-'}
-                  </td>
                   <td className="px-2 py-2 whitespace-nowrap text-xs">
                     {request.isPlanned ? (
                       <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">
@@ -640,7 +610,7 @@ export default function PurchaseRequestsTable() {
               ))
             ) : (
               <tr>
-                <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                   Нет данных
                 </td>
               </tr>
