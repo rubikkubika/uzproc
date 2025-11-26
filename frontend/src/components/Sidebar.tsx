@@ -53,10 +53,6 @@ const menuItems = [
 
   const backendItems: Array<{ id: string; label: string; icon: any }> = [];
 
-  const oldItems = [
-    { id: 'old-purchases', label: 'Реестр закупок', icon: Package },
-  ];
-
 const SIDEBAR_SECTIONS_KEY = 'sidebarSectionsCollapsed';
 
 export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setIsMobileMenuOpen, isCollapsed = false, setIsCollapsed }: SidebarProps) {
@@ -66,7 +62,6 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
   const [sectionsCollapsed, setSectionsCollapsed] = useState({
     purchaser: false,
     initiator: false,
-    old: false,
   });
 
   // Загружаем состояние из localStorage при монтировании
@@ -256,52 +251,6 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                           ? `text-blue-600 bg-blue-50 ${isCollapsed ? '' : 'border-l-4 border-blue-600'}`
                           : isDisabled
                           ? 'text-gray-400 cursor-not-allowed opacity-50'
-                          : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-                      }`}
-                      title={isCollapsed ? item.label : undefined}
-                    >
-                      <span className={`flex items-center justify-center ${isCollapsed ? 'w-6' : 'w-6'} flex-shrink-0`}>
-                        <Icon className="w-6 h-6" />
-                      </span>
-                      {!isCollapsed && <span className="ml-2">{item.label}</span>}
-                    </button>
-                  </li>
-                );
-              })}
-              </ul>
-            ) : null}
-          </div>
-
-          {/* Старое */}
-          <div className="mb-4">
-            {!isCollapsed && (
-              <button
-                onClick={() => toggleSection('old')}
-                className="w-full flex items-center justify-between text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2 hover:text-gray-700 transition-colors"
-              >
-                <span>Старое</span>
-                {sectionsCollapsed.old ? (
-                  <ChevronDown className="w-3 h-3" />
-                ) : (
-                  <ChevronUp className="w-3 h-3" />
-                )}
-              </button>
-            )}
-            {(!isCollapsed && !sectionsCollapsed.old) || isCollapsed ? (
-              <ul className="space-y-2">
-              {oldItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeTab === item.id;
-                
-                return (
-                  <li key={item.id}>
-                    <button
-                      onClick={() => handleTabChange(item.id)}
-                      className={`w-full flex items-center rounded-lg transition-colors relative text-sm ${
-                        isCollapsed ? 'justify-center px-2 py-1.5' : 'px-2 py-1.5'
-                      } ${
-                        isActive
-                          ? `text-blue-600 bg-blue-50 ${isCollapsed ? '' : 'border-l-4 border-blue-600'}`
                           : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                       }`}
                       title={isCollapsed ? item.label : undefined}

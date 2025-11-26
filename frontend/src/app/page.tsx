@@ -8,7 +8,6 @@ import SupplierChart from '@/components/SupplierChart';
 import RevenueChart from '@/components/RevenueChart';
 import BudgetChart from '@/components/BudgetChart';
 import PerformanceChart from '@/components/PerformanceChart';
-import PurchasesTable from '@/components/PurchasesTable';
 import PurchasesStats from '@/components/PurchasesStats';
 import PurchasesByStatusChart from '@/components/PurchasesByStatusChart';
 import PurchasesByFormatChart from '@/components/PurchasesByFormatChart';
@@ -23,6 +22,7 @@ import PurchaseRequestsTable from '@/components/PurchaseRequestsTable';
 import UploadCSV from '@/components/UploadCSV';
 
 const SIDEBAR_COLLAPSED_KEY = 'sidebarCollapsed';
+const ACTIVE_TAB_KEY = 'activeTab';
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -33,7 +33,7 @@ export default function Dashboard() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
-  // Загружаем состояние сайдбара из localStorage синхронно после монтирования
+  // Загружаем состояние сайдбара и активной вкладки из localStorage синхронно после монтирования
   useLayoutEffect(() => {
     try {
       const saved = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
@@ -44,6 +44,12 @@ export default function Dashboard() {
         document.documentElement.style.setProperty('--sidebar-width', '5rem');
       } else {
         document.documentElement.style.setProperty('--sidebar-width', '16rem');
+      }
+      
+      // Загружаем сохраненную активную вкладку
+      const savedTab = localStorage.getItem(ACTIVE_TAB_KEY);
+      if (savedTab) {
+        setActiveTab(savedTab);
       }
     } catch (err) {
       // Игнорируем ошибки
@@ -66,6 +72,16 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.error('Error saving sidebar state:', err);
+    }
+  };
+
+  // Обработчик изменения вкладки с сохранением в localStorage
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    try {
+      localStorage.setItem(ACTIVE_TAB_KEY, tab);
+    } catch (err) {
+      console.error('Error saving active tab:', err);
     }
   };
 
@@ -118,13 +134,6 @@ export default function Dashboard() {
               <ApprovalTimeChart />
               <TopLongestPurchases />
             </div>
-          </div>
-        );
-      
-      case 'old-purchases':
-        return (
-          <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-            <PurchasesTable initialSearchQuery={searchQuery} />
           </div>
         );
 
@@ -300,7 +309,7 @@ export default function Dashboard() {
               <div suppressHydrationWarning>
                 <Sidebar 
                   activeTab={activeTab} 
-                  onTabChange={setActiveTab}
+                  onTabChange={handleTabChange}
                   isMobileMenuOpen={isMobileMenuOpen}
                   setIsMobileMenuOpen={setIsMobileMenuOpen}
                   isCollapsed={isSidebarCollapsed}

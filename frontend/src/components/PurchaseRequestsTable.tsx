@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getBackendUrl } from '@/utils/api';
+import { ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 
 interface PurchaseRequest {
   id: number;
@@ -31,6 +32,9 @@ interface PageResponse {
   number: number;
 }
 
+type SortField = keyof PurchaseRequest | null;
+type SortDirection = 'asc' | 'desc' | null;
+
 export default function PurchaseRequestsTable() {
   const [data, setData] = useState<PageResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,15 +43,88 @@ export default function PurchaseRequestsTable() {
   const [pageSize, setPageSize] = useState(25);
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number | null>(currentYear);
+  
+  // Состояние для сортировки
+  const [sortField, setSortField] = useState<SortField>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+  
+  // Состояние для фильтров
+  const [filters, setFilters] = useState<Record<string, string>>({
+    idPurchaseRequest: '',
+    cfo: '',
+    purchaseInitiator: '',
+    name: '',
+    budgetAmount: '',
+    costType: '',
+    contractType: '',
+    contractDurationMonths: '',
+    isPlanned: '',
+  });
 
-  const fetchData = async (page: number, size: number, year: number | null = null) => {
+  // Локальное состояние для текстовых фильтров (для сохранения фокуса)
+  const [localFilters, setLocalFilters] = useState<Record<string, string>>({
+    idPurchaseRequest: '',
+    cfo: '',
+    purchaseInitiator: '',
+    name: '',
+    budgetAmount: '',
+    costType: '',
+    contractType: '',
+    contractDurationMonths: '',
+    isPlanned: '',
+  });
+
+  // ID активного поля для восстановления фокуса
+  const [focusedField, setFocusedField] = useState<string | null>(null);
+
+  const fetchData = async (
+    page: number, 
+    size: number, 
+    year: number | null = null,
+    sortField: SortField = null,
+    sortDirection: SortDirection = null,
+    filters: Record<string, string> = {}
+  ) => {
     setLoading(true);
     setError(null);
     try {
-      let url = `${getBackendUrl()}/api/purchase-requests?page=${page}&size=${size}`;
+      const params = new URLSearchParams();
+      params.append('page', String(page));
+      params.append('size', String(size));
+      
       if (year !== null) {
-        url += `&year=${year}`;
+        params.append('year', String(year));
       }
+      
+      if (sortField && sortDirection) {
+        params.append('sortBy', sortField);
+        params.append('sortDir', sortDirection);
+      }
+      
+      // Добавляем параметры фильтрации
+      if (filters.idPurchaseRequest && filters.idPurchaseRequest.trim() !== '') {
+        params.append('idPurchaseRequest', filters.idPurchaseRequest);
+      }
+      if (filters.cfo && filters.cfo.trim() !== '') {
+        params.append('cfo', filters.cfo);
+      }
+      if (filters.purchaseInitiator && filters.purchaseInitiator.trim() !== '') {
+        params.append('purchaseInitiator', filters.purchaseInitiator);
+      }
+      if (filters.name && filters.name.trim() !== '') {
+        params.append('name', filters.name);
+      }
+      if (filters.costType && filters.costType.trim() !== '') {
+        params.append('costType', filters.costType);
+      }
+      if (filters.contractType && filters.contractType.trim() !== '') {
+        params.append('contractType', filters.contractType);
+      }
+      if (filters.isPlanned && filters.isPlanned.trim() !== '') {
+        params.append('isPlanned', filters.isPlanned);
+      }
+      
+      const url = `${getBackendUrl()}/api/purchase-requests?${params.toString()}`;
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error('Ошибка загрузки данных');
@@ -61,9 +138,77 @@ export default function PurchaseRequestsTable() {
     }
   };
 
+  // Debounce для текстовых фильтров
   useEffect(() => {
-    fetchData(currentPage, pageSize, selectedYear);
-  }, [currentPage, pageSize, selectedYear]);
+    // Проверяем, изменились ли текстовые фильтры
+    const textFields = ['idPurchaseRequest', 'name', 'budgetAmount', 'contractDurationMonths'];
+    const hasTextChanges = textFields.some(field => localFilters[field] !== filters[field]);
+    
+    if (hasTextChanges) {
+      const timer = setTimeout(() => {
+        setFilters(prev => {
+          // Обновляем только измененные текстовые поля
+          const updated = { ...prev };
+          textFields.forEach(field => {
+            updated[field] = localFilters[field];
+          });
+          return updated;
+        });
+        setCurrentPage(0); // Сбрасываем на первую страницу после применения фильтра
+      }, 500); // Задержка 500мс
+
+      return () => clearTimeout(timer);
+    }
+  }, [localFilters]);
+
+  useEffect(() => {
+    fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters);
+  }, [currentPage, pageSize, selectedYear, sortField, sortDirection, filters]);
+
+  // Восстановление фокуса после обновления localFilters
+  useEffect(() => {
+    if (focusedField) {
+      const input = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
+      if (input) {
+        // Сохраняем позицию курсора
+        const cursorPosition = input.selectionStart || 0;
+        const currentValue = input.value;
+        
+        // Восстанавливаем фокус в следующем тике, чтобы не мешать текущему вводу
+        requestAnimationFrame(() => {
+          const inputAfterRender = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
+          if (inputAfterRender && inputAfterRender.value === currentValue) {
+            inputAfterRender.focus();
+            // Восстанавливаем позицию курсора
+            const newPosition = Math.min(cursorPosition, inputAfterRender.value.length);
+            inputAfterRender.setSelectionRange(newPosition, newPosition);
+          }
+        });
+      }
+    }
+  }, [localFilters, focusedField]);
+
+  // Восстановление фокуса после завершения загрузки данных с сервера
+  useEffect(() => {
+    if (focusedField && !loading && data) {
+      // Небольшая задержка, чтобы дать React время отрендерить обновленные данные
+      const timer = setTimeout(() => {
+        const input = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
+        if (input) {
+          const currentValue = localFilters[focusedField] || '';
+          // Проверяем, что значение в поле соответствует локальному состоянию
+          if (input.value === currentValue) {
+            input.focus();
+            // Устанавливаем курсор в конец текста
+            const length = input.value.length;
+            input.setSelectionRange(length, length);
+          }
+        }
+      }, 50);
+
+      return () => clearTimeout(timer);
+    }
+  }, [data, loading, focusedField, localFilters]);
 
   // Получаем список уникальных годов из данных
   const getAvailableYears = (): number[] => {
@@ -115,6 +260,99 @@ export default function PurchaseRequestsTable() {
     setCurrentPage(0); // Сбрасываем на первую страницу при изменении размера
   };
 
+  // Обработка сортировки
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      if (sortDirection === 'asc') {
+        setSortDirection('desc');
+      } else if (sortDirection === 'desc') {
+        setSortField(null);
+        setSortDirection(null);
+      } else {
+        setSortDirection('asc');
+      }
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  // Обработка фильтров
+  const handleFilterChange = (field: string, value: string, isTextFilter: boolean = false) => {
+    if (isTextFilter) {
+      // Для текстовых фильтров обновляем только локальное состояние
+      setLocalFilters(prev => ({
+        ...prev,
+        [field]: value,
+      }));
+      // Не сбрасываем страницу сразу для текстовых фильтров (сделаем это через debounce)
+    } else {
+      // Для select фильтров обновляем оба состояния сразу
+      setFilters(prev => ({
+        ...prev,
+        [field]: value,
+      }));
+      setLocalFilters(prev => ({
+        ...prev,
+        [field]: value,
+      }));
+      setCurrentPage(0); // Сбрасываем на первую страницу при изменении фильтра
+    }
+  };
+
+  // Получение уникальных значений для фильтров (загружаем все данные для этого)
+  const [uniqueValues, setUniqueValues] = useState<Record<string, string[]>>({
+    cfo: [],
+    purchaseInitiator: [],
+    costType: [],
+    contractType: [],
+  });
+
+  useEffect(() => {
+    // Загружаем все данные для получения уникальных значений
+    const fetchUniqueValues = async () => {
+      try {
+        const response = await fetch(`${getBackendUrl()}/api/purchase-requests?page=0&size=10000`);
+        if (response.ok) {
+          const result = await response.json();
+          const values: Record<string, Set<string>> = {
+            cfo: new Set(),
+            purchaseInitiator: new Set(),
+            costType: new Set(),
+            contractType: new Set(),
+          };
+          
+          result.content.forEach((item: PurchaseRequest) => {
+            if (item.cfo) values.cfo.add(item.cfo);
+            if (item.purchaseInitiator) values.purchaseInitiator.add(item.purchaseInitiator);
+            if (item.costType) values.costType.add(item.costType);
+            if (item.contractType) values.contractType.add(item.contractType);
+          });
+          
+          setUniqueValues({
+            cfo: Array.from(values.cfo).sort(),
+            purchaseInitiator: Array.from(values.purchaseInitiator).sort(),
+            costType: Array.from(values.costType).sort(),
+            contractType: Array.from(values.contractType).sort(),
+          });
+        }
+      } catch (err) {
+        console.error('Error fetching unique values:', err);
+      }
+    };
+    fetchUniqueValues();
+  }, []);
+
+  const getUniqueValues = (field: keyof PurchaseRequest): string[] => {
+    const fieldMap: Record<string, keyof typeof uniqueValues> = {
+      cfo: 'cfo',
+      purchaseInitiator: 'purchaseInitiator',
+      costType: 'costType',
+      contractType: 'contractType',
+    };
+    return uniqueValues[fieldMap[field] || 'cfo'] || [];
+  };
+
   if (loading) {
     return (
       <div className="bg-white p-6 rounded-lg shadow-lg">
@@ -142,15 +380,111 @@ export default function PurchaseRequestsTable() {
     );
   }
 
-  if (!data || data.content.length === 0) {
+  // Компонент для заголовка с сортировкой и фильтром
+  const SortableHeader = ({ 
+    field, 
+    label, 
+    filterType = 'text',
+    filterOptions = [],
+    width
+  }: { 
+    field: SortField; 
+    label: string;
+    filterType?: 'text' | 'select';
+    filterOptions?: string[];
+    width?: string;
+  }) => {
+    const isSorted = sortField === field;
+    const fieldKey = field || '';
+    const filterValue = filterType === 'text' ? (localFilters[fieldKey] || '') : (filters[fieldKey] || '');
+
     return (
-      <div className="bg-white p-6 rounded-lg shadow-lg">
-        <div className="text-center py-8">
-          <p className="text-gray-500">Нет данных</p>
+      <th className={`px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 ${width || ''}`}>
+        <div className="flex flex-col gap-1">
+          <button
+            onClick={() => handleSort(field)}
+            className="flex items-center gap-1 hover:text-gray-700 transition-colors w-full"
+          >
+            <span>{label}</span>
+            {isSorted ? (
+              sortDirection === 'asc' ? (
+                <ArrowUp className="w-3 h-3 flex-shrink-0" />
+              ) : (
+                <ArrowDown className="w-3 h-3 flex-shrink-0" />
+              )
+            ) : (
+              <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+            )}
+          </button>
+          {filterType === 'select' && filterOptions.length > 0 ? (
+            <select
+              value={filterValue}
+              onChange={(e) => handleFilterChange(fieldKey, e.target.value, false)}
+              onClick={(e) => e.stopPropagation()}
+              onFocus={(e) => e.stopPropagation()}
+              className="w-full text-xs border border-gray-300 rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              <option value="">Все</option>
+              {filterOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              key={`filter-${fieldKey}`}
+              type="text"
+              data-filter-field={fieldKey}
+              value={filterValue}
+              onChange={(e) => {
+                const newValue = e.target.value;
+                const cursorPos = e.target.selectionStart || 0;
+                setLocalFilters(prev => ({
+                  ...prev,
+                  [fieldKey]: newValue,
+                }));
+                // Сохраняем позицию курсора после обновления
+                requestAnimationFrame(() => {
+                  const input = e.target as HTMLInputElement;
+                  if (input && document.activeElement === input) {
+                    const newPos = Math.min(cursorPos, newValue.length);
+                    input.setSelectionRange(newPos, newPos);
+                  }
+                });
+              }}
+              onFocus={(e) => {
+                e.stopPropagation();
+                setFocusedField(fieldKey);
+              }}
+              onBlur={(e) => {
+                // Снимаем фокус только если пользователь явно кликнул в другое место
+                setTimeout(() => {
+                  const activeElement = document.activeElement as HTMLElement;
+                  if (activeElement && 
+                      activeElement !== e.target && 
+                      !activeElement.closest('input[data-filter-field]') &&
+                      !activeElement.closest('select')) {
+                    setFocusedField(null);
+                  }
+                }, 200);
+              }}
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                // Предотвращаем потерю фокуса при нажатии некоторых клавиш
+                e.stopPropagation();
+              }}
+              className="w-full text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              placeholder="Фильтр"
+            />
+          )}
         </div>
-      </div>
+      </th>
     );
-  }
+  };
+
+  // Проверяем, есть ли данные для отображения
+  const hasData = data && data.content && data.content.length > 0;
 
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden">
@@ -182,9 +516,36 @@ export default function PurchaseRequestsTable() {
               Все
             </button>
           </div>
-          <p className="text-sm text-gray-500">
-            Всего записей: {data.totalElements}
-          </p>
+          <div className="flex items-center gap-4">
+            <p className="text-sm text-gray-500">
+              Всего записей: {data?.totalElements || 0}
+            </p>
+            {(Object.values(filters).some(f => f.trim() !== '') || sortField) && (
+              <button
+                onClick={() => {
+                  const emptyFilters = {
+                    idPurchaseRequest: '',
+                    cfo: '',
+                    purchaseInitiator: '',
+                    name: '',
+                    budgetAmount: '',
+                    costType: '',
+                    contractType: '',
+                    contractDurationMonths: '',
+                    isPlanned: '',
+                  };
+                  setFilters(emptyFilters);
+                  setLocalFilters(emptyFilters);
+                  setSortField(null);
+                  setSortDirection(null);
+                  setFocusedField(null);
+                }}
+                className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors"
+              >
+                Сбросить фильтры
+              </button>
+            )}
+          </div>
         </div>
       </div>
       
@@ -192,78 +553,98 @@ export default function PurchaseRequestsTable() {
         <table className="w-full border-collapse">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 whitespace-nowrap w-16">
-                Номер
-              </th>
-              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20 border-r border-gray-300">
-                ЦФО
-              </th>
-              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24 border-r border-gray-300">
-                Инициатор
-              </th>
-              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 w-48">
-                Наименование
-              </th>
-              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28 border-r border-gray-300">
-                Бюджет
-              </th>
-              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20 border-r border-gray-300">
-                Затраты
-              </th>
-              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20 border-r border-gray-300">
-                Договор
-              </th>
-              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16 border-r border-gray-300">
-                Срок
-              </th>
-              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
-                План
-              </th>
+              <SortableHeader field="idPurchaseRequest" label="Номер" width="w-16" />
+              <SortableHeader 
+                field="cfo" 
+                label="ЦФО" 
+                filterType="select"
+                filterOptions={getUniqueValues('cfo')}
+                width="w-20"
+              />
+              <SortableHeader 
+                field="purchaseInitiator" 
+                label="Инициатор"
+                filterType="select"
+                filterOptions={getUniqueValues('purchaseInitiator')}
+                width="w-24"
+              />
+              <SortableHeader field="name" label="Наименование" width="w-48" />
+              <SortableHeader field="budgetAmount" label="Бюджет" width="w-28" />
+              <SortableHeader 
+                field="costType" 
+                label="Затраты"
+                filterType="select"
+                filterOptions={getUniqueValues('costType')}
+                width="w-20"
+              />
+              <SortableHeader 
+                field="contractType" 
+                label="Договор"
+                filterType="select"
+                filterOptions={getUniqueValues('contractType')}
+                width="w-20"
+              />
+              <SortableHeader field="contractDurationMonths" label="Срок" width="w-16" />
+              <SortableHeader 
+                field="isPlanned" 
+                label="План"
+                filterType="select"
+                filterOptions={['true', 'false']}
+                width="w-20"
+              />
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {data.content.map((request) => (
-              <tr key={request.id} className="hover:bg-gray-50">
-                <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 w-16">
-                  {request.idPurchaseRequest || '-'}
-                </td>
-                <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={request.cfo || ''}>
-                  {request.cfo || '-'}
-                </td>
-                <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={request.purchaseInitiator || ''}>
-                  {request.purchaseInitiator || '-'}
-                </td>
-                <td className="px-2 py-2 text-xs text-gray-900 break-words border-r border-gray-200">
-                  {request.name || '-'}
-                </td>
-                <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200">
-                  {request.budgetAmount ? new Intl.NumberFormat('ru-RU', { 
-                    notation: 'compact',
-                    maximumFractionDigits: 1 
-                  }).format(request.budgetAmount) : '-'}
-                </td>
-                <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={request.costType || ''}>
-                  {request.costType || '-'}
-                </td>
-                <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={request.contractType || ''}>
-                  {request.contractType || '-'}
-                </td>
-                <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200">
-                  {request.contractDurationMonths || '-'}
-                </td>
-                <td className="px-2 py-2 whitespace-nowrap text-xs">
-                  {request.isPlanned ? (
-                    <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">
-                      Да
-                    </span>
-                  ) : (
-                    <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
-                      Нет
-                    </span>
-                  )}
+            {hasData ? (
+              data?.content.map((request) => (
+                <tr key={request.id} className="hover:bg-gray-50">
+                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 w-16">
+                    {request.idPurchaseRequest || '-'}
+                  </td>
+                  <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={request.cfo || ''}>
+                    {request.cfo || '-'}
+                  </td>
+                  <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={request.purchaseInitiator || ''}>
+                    {request.purchaseInitiator || '-'}
+                  </td>
+                  <td className="px-2 py-2 text-xs text-gray-900 break-words border-r border-gray-200">
+                    {request.name || '-'}
+                  </td>
+                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200">
+                    {request.budgetAmount ? new Intl.NumberFormat('ru-RU', { 
+                      notation: 'compact',
+                      maximumFractionDigits: 1 
+                    }).format(request.budgetAmount) : '-'}
+                  </td>
+                  <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={request.costType || ''}>
+                    {request.costType || '-'}
+                  </td>
+                  <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={request.contractType || ''}>
+                    {request.contractType || '-'}
+                  </td>
+                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200">
+                    {request.contractDurationMonths || '-'}
+                  </td>
+                  <td className="px-2 py-2 whitespace-nowrap text-xs">
+                    {request.isPlanned ? (
+                      <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                        Да
+                      </span>
+                    ) : (
+                      <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
+                        Нет
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
+                  Нет данных
                 </td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </div>
@@ -272,7 +653,7 @@ export default function PurchaseRequestsTable() {
       <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="text-sm text-gray-700">
-            Показано {data.content.length} из {data.totalElements} записей
+            Показано {data?.content.length || 0} из {data?.totalElements || 0} записей
           </div>
           <div className="flex items-center gap-2">
             <label htmlFor="pageSize" className="text-sm text-gray-700">
@@ -306,18 +687,18 @@ export default function PurchaseRequestsTable() {
             Назад
           </button>
           <span className="px-4 py-2 text-sm font-medium text-gray-700">
-            Страница {currentPage + 1} из {data.totalPages}
+            Страница {currentPage + 1} из {data?.totalPages || 0}
           </span>
           <button
             onClick={() => setCurrentPage(currentPage + 1)}
-            disabled={currentPage >= data.totalPages - 1}
+            disabled={currentPage >= (data?.totalPages || 0) - 1}
             className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Вперед
           </button>
           <button
-            onClick={() => setCurrentPage(data.totalPages - 1)}
-            disabled={currentPage >= data.totalPages - 1}
+            onClick={() => setCurrentPage((data?.totalPages || 0) - 1)}
+            disabled={currentPage >= (data?.totalPages || 0) - 1}
             className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Последняя
