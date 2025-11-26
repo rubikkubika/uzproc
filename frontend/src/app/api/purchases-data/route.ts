@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     const limit = getAll ? Infinity : parseInt(searchParams.get('limit') || '50');
 
     // Путь к CSV файлу
-    const filePath = path.join(process.cwd(), 'images', 'для фронта.csv');
+    const filePath = path.join(process.cwd(), 'upload', 'report', 'для фронта.csv');
     
     // Проверка существования файла
     if (!fs.existsSync(filePath)) {

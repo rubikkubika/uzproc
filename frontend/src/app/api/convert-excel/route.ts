@@ -449,12 +449,12 @@ export async function POST(request: NextRequest) {
   try {
     const { filename } = await request.json().catch(() => ({}));
     
-    // Ищем Excel файлы в папке images
-    const imagesDir = path.join(process.cwd(), 'images');
+    // Ищем Excel файлы в папке upload/report
+    const reportDir = path.join(process.cwd(), 'upload', 'report');
     
-    if (!fs.existsSync(imagesDir)) {
+    if (!fs.existsSync(reportDir)) {
       return NextResponse.json(
-        { error: 'Папка images не найдена' },
+        { error: 'Папка upload/report не найдена' },
         { status: 404 }
       );
     }
@@ -463,24 +463,24 @@ export async function POST(request: NextRequest) {
     let excelFile: string | null = null;
     
     if (filename) {
-      const filePath = path.join(imagesDir, filename);
+      const filePath = path.join(reportDir, filename);
       if (fs.existsSync(filePath) && (filename.endsWith('.xlsx') || filename.endsWith('.xls'))) {
         excelFile = filePath;
       }
     } else {
       // Ищем все Excel файлы
-      const files = fs.readdirSync(imagesDir);
+      const files = fs.readdirSync(reportDir);
       const excelFiles = files.filter(f => f.endsWith('.xlsx') || f.endsWith('.xls'));
       
       if (excelFiles.length === 0) {
         return NextResponse.json(
-          { error: 'Excel файлы не найдены в папке images' },
+          { error: 'Excel файлы не найдены в папке upload/report' },
           { status: 404 }
         );
       }
       
       // Берем первый найденный файл
-      excelFile = path.join(imagesDir, excelFiles[0]);
+      excelFile = path.join(reportDir, excelFiles[0]);
     }
 
     if (!excelFile || !fs.existsSync(excelFile)) {
@@ -495,8 +495,8 @@ export async function POST(request: NextRequest) {
     const csvContent = convertExcelToCSV(excelBuffer);
 
     // Сохраняем в CSV файл
-    const csvFilePath = path.join(imagesDir, 'для фронта.csv');
-    const backupPath = path.join(imagesDir, 'для фронта.backup.csv');
+    const csvFilePath = path.join(reportDir, 'для фронта.csv');
+    const backupPath = path.join(reportDir, 'для фронта.backup.csv');
 
     // Создаем резервную копию существующего CSV, если он есть
     if (fs.existsSync(csvFilePath)) {
@@ -536,24 +536,24 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    // Ищем Excel файлы в папке images
-    const imagesDir = path.join(process.cwd(), 'images');
+    // Ищем Excel файлы в папке upload/report
+    const reportDir = path.join(process.cwd(), 'upload', 'report');
     
-    if (!fs.existsSync(imagesDir)) {
+    if (!fs.existsSync(reportDir)) {
       return NextResponse.json(
-        { error: 'Папка images не найдена' },
+        { error: 'Папка upload/report не найдена' },
         { status: 404 }
       );
     }
 
-    const files = fs.readdirSync(imagesDir);
+    const files = fs.readdirSync(reportDir);
     const excelFiles = files.filter(f => f.endsWith('.xlsx') || f.endsWith('.xls'));
 
     return NextResponse.json({
       excelFiles: excelFiles.map(f => ({
         filename: f,
-        path: path.join(imagesDir, f),
-        size: fs.statSync(path.join(imagesDir, f)).size
+        path: path.join(reportDir, f),
+        size: fs.statSync(path.join(reportDir, f)).size
       }))
     });
 

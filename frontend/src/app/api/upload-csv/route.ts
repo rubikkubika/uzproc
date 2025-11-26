@@ -352,8 +352,8 @@ export async function POST(request: NextRequest) {
       // Для CSV файлов читаем как текст
       fileContent = await file.text();
     }
-    const filePath = path.join(process.cwd(), 'images', 'для фронта.csv');
-    const backupPath = path.join(process.cwd(), 'images', 'для фронта.backup.csv');
+    const filePath = path.join(process.cwd(), 'upload', 'report', 'для фронта.csv');
+    const backupPath = path.join(process.cwd(), 'upload', 'report', 'для фронта.backup.csv');
 
     // Проверяем существование текущего файла
     let oldData: any[] = [];
