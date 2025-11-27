@@ -315,3 +315,194 @@ docker compose up -d postgres
 - Бэкенд возвращает `Page` с правильными `totalElements` и `totalPages`
 - Фронтенд использует данные напрямую без дополнительной фильтрации
 
+## Разделение ответственности: Контроллеры и Сервисы
+
+**КРИТИЧЕСКИ ВАЖНО:** Вся бизнес-логика должна находиться в сервисах, контроллеры должны только обрабатывать HTTP-запросы.
+
+### Правила для контроллеров:
+
+1. **Контроллеры должны быть тонкими:**
+   - Принимать HTTP-запросы и параметры
+   - Вызывать методы сервисов
+   - Возвращать HTTP-ответы (ResponseEntity)
+   - Обрабатывать HTTP-специфичные вещи (коды статусов, заголовки)
+
+2. **Контроллеры НЕ должны содержать:**
+   - Бизнес-логику
+   - Построение запросов к базе данных (Specification, Query)
+   - Валидацию данных (кроме базовой проверки на null)
+   - Обработку файлов (кроме получения MultipartFile)
+   - Сложные вычисления или преобразования данных
+   - Прямую работу с репозиториями (только через сервисы)
+
+3. **Что допустимо в контроллерах:**
+   - Маппинг параметров запроса в параметры методов сервисов
+   - Определение HTTP-кодов ответов на основе результатов сервисов
+   - Простая проверка на null перед вызовом сервиса
+   - Логирование HTTP-запросов (но не бизнес-логики)
+
+### Правила для сервисов:
+
+1. **Сервисы содержат всю бизнес-логику:**
+   - Построение запросов к базе данных (Specification, Query)
+   - Фильтрация, сортировка, пагинация
+   - Валидация данных
+   - Обработка файлов
+   - Преобразование данных
+   - Работа с репозиториями
+   - Сложные вычисления
+
+2. **Сервисы должны быть:**
+   - Помечены аннотацией `@Service`
+   - Использовать `@Transactional` для операций с базой данных
+   - Содержать логирование бизнес-логики
+   - Быть независимыми от HTTP-слоя
+
+3. **Структура сервиса:**
+   ```java
+   @Service
+   @Transactional(readOnly = true) // для read-only операций
+   public class EntityService {
+       private final EntityRepository repository;
+       
+       public Page<Entity> findAll(...) {
+           // Вся логика фильтрации, сортировки, пагинации
+       }
+       
+       public Entity findById(Long id) {
+           // Логика поиска
+       }
+   }
+   ```
+
+### Примеры правильной реализации:
+
+**Правильно (контроллер):**
+```java
+@RestController
+@RequestMapping("/entities")
+public class EntityController {
+    private final EntityService entityService;
+    
+    @GetMapping
+    public ResponseEntity<Page<Entity>> getAll(
+            @RequestParam int page,
+            @RequestParam int size) {
+        Page<Entity> entities = entityService.findAll(page, size);
+        return ResponseEntity.ok(entities);
+    }
+}
+```
+
+**Неправильно (логика в контроллере):**
+```java
+@RestController
+@RequestMapping("/entities")
+public class EntityController {
+    private final EntityRepository repository;
+    
+    @GetMapping
+    public ResponseEntity<Page<Entity>> getAll(...) {
+        // ❌ НЕПРАВИЛЬНО: построение Specification в контроллере
+        Specification<Entity> spec = (root, query, cb) -> { ... };
+        Page<Entity> entities = repository.findAll(spec, pageable);
+        return ResponseEntity.ok(entities);
+    }
+}
+```
+
+**Правильно (сервис):**
+```java
+@Service
+@Transactional(readOnly = true)
+public class EntityService {
+    private final EntityRepository repository;
+    
+    public Page<Entity> findAll(int page, int size, ...) {
+        // ✅ ПРАВИЛЬНО: вся логика в сервисе
+        Specification<Entity> spec = buildSpecification(...);
+        Sort sort = buildSort(...);
+        Pageable pageable = PageRequest.of(page, size, sort);
+        return repository.findAll(spec, pageable);
+    }
+}
+```
+
+### Проверка:
+
+При написании кода всегда спрашивать:
+- Есть ли в контроллере бизнес-логика? → Перенести в сервис
+- Работает ли контроллер напрямую с репозиторием? → Использовать сервис
+- Есть ли в контроллере построение запросов к БД? → Перенести в сервис
+- Содержит ли контроллер валидацию данных? → Перенести в сервис
+
+**Цель:** Контроллеры должны быть максимально тонкими, содержать только HTTP-специфичную логику.
+
+## Разделение методов парсинга Excel
+
+**КРИТИЧЕСКИ ВАЖНО:** Для парсинга каждой сущности из Excel файла должен быть создан отдельный метод, даже если общий подход одинаковый.
+
+### Правила:
+
+1. **Каждая сущность = отдельный метод:**
+   - Для парсинга `PurchaseRequest` - метод `loadPurchaseRequestsFromExcel()`
+   - Для парсинга `Purchase` - метод `loadPurchasesFromExcel()`
+   - Для парсинга `User` - метод `loadUsersFromExcel()`
+   - Каждый метод отвечает только за одну сущность
+
+2. **Общий подход, но отдельные методы:**
+   - Все методы могут использовать общие вспомогательные методы (`parseLongCell`, `parseDateCell`, `getCellValueAsString`, `buildColumnIndexMap`, `findColumnIndex` и т.д.)
+   - Каждый метод имеет свою логику фильтрации по "Вид документа" или другим критериям
+   - Каждый метод имеет свой метод парсинга строки (`parsePurchaseRequestRow`, `parsePurchaseRow` и т.д.)
+
+3. **Структура методов:**
+   ```java
+   // Метод загрузки для одной сущности
+   public int loadEntityFromExcel(File excelFile) throws IOException {
+       // 1. Открыть workbook
+       // 2. Прочитать заголовки
+       // 3. Найти нужные колонки
+       // 4. Итерироваться по строкам
+       // 5. Фильтровать по типу документа (если нужно)
+       // 6. Парсить строку в сущность
+       // 7. Сохранить/обновить в БД
+       // 8. Вернуть количество загруженных записей
+   }
+   
+   // Метод парсинга одной строки в сущность
+   private Entity parseEntityRow(Row row, ...) {
+       // Парсинг всех полей сущности
+   }
+   
+   // Метод обновления существующей сущности
+   private boolean updateEntityFields(Entity existing, Entity newData) {
+       // Обновление только измененных полей
+   }
+   ```
+
+4. **Вызов методов:**
+   - В сервисе загрузки (`PurchaseRequestUploadService`) вызывать все методы парсинга последовательно
+   - Каждый метод обрабатывает свой тип данных из одного Excel файла
+   - Результаты всех методов объединяются в общий ответ
+
+5. **Пример правильной структуры:**
+   ```java
+   // ✅ ПРАВИЛЬНО: отдельные методы для каждой сущности
+   public int loadPurchaseRequestsFromExcel(File excelFile) { ... }
+   public int loadPurchasesFromExcel(File excelFile) { ... }
+   public int loadUsersFromExcel(File excelFile) { ... }
+   
+   // ❌ НЕПРАВИЛЬНО: один метод для всех сущностей
+   public int loadAllFromExcel(File excelFile) { 
+       // парсинг заявок, закупок и пользователей в одном методе
+   }
+   ```
+
+6. **Преимущества разделения:**
+   - Легче поддерживать и тестировать
+   - Каждый метод имеет четкую ответственность
+   - Можно вызывать методы независимо
+   - Проще добавлять новые типы сущностей
+
+**ВАЖНО:** Даже если логика парсинга очень похожа для разных сущностей, создавать отдельные методы. Общую логику выносить во вспомогательные методы.
+

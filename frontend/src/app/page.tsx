@@ -225,6 +225,15 @@ function DashboardContent() {
           </div>
         );
 
+      case 'purchases':
+        return (
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded-lg shadow-lg">
+              <p className="text-gray-500">Раздел "Закупки" будет добавлен в следующих версиях</p>
+            </div>
+          </div>
+        );
+
       case 'upload':
         return <UploadCSV />;
 

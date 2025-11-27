@@ -10,14 +10,14 @@ interface PurchaseRequest {
   id: number;
   idPurchaseRequest: number | null;
   guid: string;
-  purchasePlanYear: number | null;
+  purchaseRequestPlanYear: number | null;
   company: string | null;
   cfo: string | null;
   mcc: string | null;
-  purchaseInitiator: string | null;
+  purchaseRequestInitiator: string | null;
   name: string | null;
   title: string | null;
-  purchaseSubject: string | null;
+  purchaseRequestSubject: string | null;
   purchaseRequestCreationDate: string | null;
   budgetAmount: number | null;
   costType: string | null;
@@ -456,7 +456,7 @@ export default function PurchaseRequestDetailPage() {
                       Год плана закупок
                     </label>
                     <p className="text-xs text-gray-900">
-                      {purchaseRequest.purchasePlanYear || '-'}
+                      {purchaseRequest.purchaseRequestPlanYear || '-'}
                     </p>
                   </div>
                   <div>
@@ -488,7 +488,7 @@ export default function PurchaseRequestDetailPage() {
                       Инициатор закупки
                     </label>
                     <p className="text-xs text-gray-900">
-                      {purchaseRequest.purchaseInitiator || '-'}
+                      {purchaseRequest.purchaseRequestInitiator || '-'}
                     </p>
                   </div>
                   <div>
@@ -496,7 +496,7 @@ export default function PurchaseRequestDetailPage() {
                       Предмет закупки
                     </label>
                     <p className="text-xs text-gray-900">
-                      {purchaseRequest.purchaseSubject || '-'}
+                      {purchaseRequest.purchaseRequestSubject || '-'}
                     </p>
                   </div>
                   <div>

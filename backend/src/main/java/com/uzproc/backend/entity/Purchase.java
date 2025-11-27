@@ -9,8 +9,8 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "purchase_requests")
-public class PurchaseRequest {
+@Table(name = "purchases")
+public class Purchase {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -19,11 +19,11 @@ public class PurchaseRequest {
     @Column(name = "guid", unique = true, nullable = true, updatable = false)
     private UUID guid;
 
-    @Column(name = "id_purchase_request")
-    private Long idPurchaseRequest;
+    @Column(name = "purchase_number")
+    private Long purchaseNumber;
 
-    @Column(name = "purchase_request_creation_date")
-    private LocalDateTime purchaseRequestCreationDate;
+    @Column(name = "purchase_creation_date")
+    private LocalDateTime purchaseCreationDate;
 
     @Column(name = "inner_id", length = 255)
     private String innerId;
@@ -34,23 +34,17 @@ public class PurchaseRequest {
     @Column(name = "title", length = 500)
     private String title;
 
-    @Column(name = "purchase_request_plan_year")
-    private Integer purchaseRequestPlanYear;
-
-    @Column(name = "company", length = 255)
-    private String company;
-
     @Column(name = "cfo", length = 255)
     private String cfo;
 
     @Column(name = "mcc", length = 255)
     private String mcc;
 
-    @Column(name = "purchase_request_initiator", length = 255)
-    private String purchaseRequestInitiator;
+    @Column(name = "purchase_initiator", length = 255)
+    private String purchaseInitiator;
 
-    @Column(name = "purchase_request_subject", length = 500)
-    private String purchaseRequestSubject;
+    @Column(name = "purchase_subject", length = 500)
+    private String purchaseSubject;
 
     @Column(name = "budget_amount", precision = 15, scale = 2)
     private BigDecimal budgetAmount;
@@ -64,12 +58,6 @@ public class PurchaseRequest {
     @Column(name = "contract_duration_months")
     private Integer contractDurationMonths;
 
-    @Column(name = "is_planned")
-    private Boolean isPlanned;
-
-    @Column(name = "requires_purchase")
-    private Boolean requiresPurchase;
-
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -78,10 +66,10 @@ public class PurchaseRequest {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    public PurchaseRequest() {
+    public Purchase() {
     }
 
-    public PurchaseRequest(Long id, UUID guid, LocalDateTime createdAt, LocalDateTime updatedAt) {
+    public Purchase(Long id, UUID guid, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.guid = guid;
         this.createdAt = createdAt;
@@ -90,11 +78,12 @@ public class PurchaseRequest {
 
     @PrePersist
     protected void onCreate() {
-        if (isPlanned == null) {
-            isPlanned = false;
+        if (guid == null) {
+            guid = UUID.randomUUID();
         }
     }
 
+    // Getters and Setters
     public Long getId() {
         return id;
     }
@@ -111,20 +100,44 @@ public class PurchaseRequest {
         this.guid = guid;
     }
 
-    public Integer getPurchaseRequestPlanYear() {
-        return purchaseRequestPlanYear;
+    public Long getPurchaseNumber() {
+        return purchaseNumber;
     }
 
-    public void setPurchaseRequestPlanYear(Integer purchaseRequestPlanYear) {
-        this.purchaseRequestPlanYear = purchaseRequestPlanYear;
+    public void setPurchaseNumber(Long purchaseNumber) {
+        this.purchaseNumber = purchaseNumber;
     }
 
-    public String getCompany() {
-        return company;
+    public LocalDateTime getPurchaseCreationDate() {
+        return purchaseCreationDate;
     }
 
-    public void setCompany(String company) {
-        this.company = company;
+    public void setPurchaseCreationDate(LocalDateTime purchaseCreationDate) {
+        this.purchaseCreationDate = purchaseCreationDate;
+    }
+
+    public String getInnerId() {
+        return innerId;
+    }
+
+    public void setInnerId(String innerId) {
+        this.innerId = innerId;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
     }
 
     public String getCfo() {
@@ -143,20 +156,20 @@ public class PurchaseRequest {
         this.mcc = mcc;
     }
 
-    public String getPurchaseRequestInitiator() {
-        return purchaseRequestInitiator;
+    public String getPurchaseInitiator() {
+        return purchaseInitiator;
     }
 
-    public void setPurchaseRequestInitiator(String purchaseRequestInitiator) {
-        this.purchaseRequestInitiator = purchaseRequestInitiator;
+    public void setPurchaseInitiator(String purchaseInitiator) {
+        this.purchaseInitiator = purchaseInitiator;
     }
 
-    public String getPurchaseRequestSubject() {
-        return purchaseRequestSubject;
+    public String getPurchaseSubject() {
+        return purchaseSubject;
     }
 
-    public void setPurchaseRequestSubject(String purchaseRequestSubject) {
-        this.purchaseRequestSubject = purchaseRequestSubject;
+    public void setPurchaseSubject(String purchaseSubject) {
+        this.purchaseSubject = purchaseSubject;
     }
 
     public BigDecimal getBudgetAmount() {
@@ -191,14 +204,6 @@ public class PurchaseRequest {
         this.contractDurationMonths = contractDurationMonths;
     }
 
-    public Boolean getIsPlanned() {
-        return isPlanned;
-    }
-
-    public void setIsPlanned(Boolean isPlanned) {
-        this.isPlanned = isPlanned;
-    }
-
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
@@ -214,52 +219,5 @@ public class PurchaseRequest {
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
     }
-
-    public Long getIdPurchaseRequest() {
-        return idPurchaseRequest;
-    }
-
-    public void setIdPurchaseRequest(Long idPurchaseRequest) {
-        this.idPurchaseRequest = idPurchaseRequest;
-    }
-
-    public LocalDateTime getPurchaseRequestCreationDate() {
-        return purchaseRequestCreationDate;
-    }
-
-    public void setPurchaseRequestCreationDate(LocalDateTime purchaseRequestCreationDate) {
-        this.purchaseRequestCreationDate = purchaseRequestCreationDate;
-    }
-
-    public String getInnerId() {
-        return innerId;
-    }
-
-    public void setInnerId(String innerId) {
-        this.innerId = innerId;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public Boolean getRequiresPurchase() {
-        return requiresPurchase;
-    }
-
-    public void setRequiresPurchase(Boolean requiresPurchase) {
-        this.requiresPurchase = requiresPurchase;
-    }
 }
+

@@ -23,6 +23,18 @@ public class User {
     @Column(name = "email")
     private String email;
 
+    @Column(name = "surname", length = 255)
+    private String surname;
+
+    @Column(name = "name", length = 255)
+    private String name;
+
+    @Column(name = "department", length = 500)
+    private String department;
+
+    @Column(name = "position", length = 500)
+    private String position;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -41,6 +53,16 @@ public class User {
         this.email = email;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
+    }
+
+    public User(String username, String password, String email, String surname, String name, String department, String position) {
+        this.username = username;
+        this.password = password;
+        this.email = email;
+        this.surname = surname;
+        this.name = name;
+        this.department = department;
+        this.position = position;
     }
 
     public Long getId() {
@@ -89,5 +111,37 @@ public class User {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getSurname() {
+        return surname;
+    }
+
+    public void setSurname(String surname) {
+        this.surname = surname;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getDepartment() {
+        return department;
+    }
+
+    public void setDepartment(String department) {
+        this.department = department;
+    }
+
+    public String getPosition() {
+        return position;
+    }
+
+    public void setPosition(String position) {
+        this.position = position;
     }
 }

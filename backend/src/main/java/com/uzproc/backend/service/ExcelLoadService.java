@@ -1,7 +1,11 @@
 package com.uzproc.backend.service;
 
+import com.uzproc.backend.entity.Purchase;
 import com.uzproc.backend.entity.PurchaseRequest;
+import com.uzproc.backend.entity.User;
+import com.uzproc.backend.repository.PurchaseRepository;
 import com.uzproc.backend.repository.PurchaseRequestRepository;
+import com.uzproc.backend.repository.UserRepository;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.usermodel.DataFormatter;
@@ -25,6 +29,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class ExcelLoadService {
@@ -32,7 +37,9 @@ public class ExcelLoadService {
     private static final Logger logger = LoggerFactory.getLogger(ExcelLoadService.class);
     private static final String DOCUMENT_TYPE_COLUMN = "Вид документа";
     private static final String PURCHASE_REQUEST_TYPE = "Заявка на ЗП";
+    private static final String PURCHASE_TYPE = "Закупочная процедура";
     private static final String REQUEST_NUMBER_COLUMN = "Номер заявки на ЗП";
+    private static final String PURCHASE_NUMBER_COLUMN = "Номер закупки";
     private static final String CREATION_DATE_COLUMN = "Дата создания";
     private static final String INNER_ID_COLUMN = "Внутренний номер";
     private static final String CFO_COLUMN = "ЦФО";
@@ -40,12 +47,83 @@ public class ExcelLoadService {
     private static final String TITLE_COLUMN = "Заголовок";
     private static final String REQUIRES_PURCHASE_COLUMN = "Требуется Закупка";
     private static final String PLAN_COLUMN = "План (Заявка на ЗП)";
+    private static final String PREPARED_BY_COLUMN = "Подготовил";
 
     private final PurchaseRequestRepository purchaseRequestRepository;
+    private final PurchaseRepository purchaseRepository;
+    private final UserRepository userRepository;
     private final DataFormatter dataFormatter = new DataFormatter();
 
-    public ExcelLoadService(PurchaseRequestRepository purchaseRequestRepository) {
+    public ExcelLoadService(
+            PurchaseRequestRepository purchaseRequestRepository,
+            PurchaseRepository purchaseRepository,
+            UserRepository userRepository) {
         this.purchaseRequestRepository = purchaseRequestRepository;
+        this.purchaseRepository = purchaseRepository;
+        this.userRepository = userRepository;
+    }
+
+    /**
+     * Загружает данные из Excel файла (заявки, закупки, пользователи)
+     * Принимает MultipartFile, валидирует его и вызывает соответствующие методы парсинга
+     */
+    public Map<String, Object> uploadFromExcel(MultipartFile file) {
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            // Валидация файла
+            validateFile(file);
+            
+            // Сохраняем файл во временную директорию
+            Path tempFile = Files.createTempFile("upload_", file.getOriginalFilename());
+            file.transferTo(tempFile.toFile());
+            
+            try {
+                // Загружаем данные из Excel - вызываем отдельные методы для каждой сущности
+                int purchaseRequestsCount = loadPurchaseRequestsFromExcel(tempFile.toFile());
+                int purchasesCount = loadPurchasesFromExcel(tempFile.toFile());
+                int usersCount = loadUsersFromExcel(tempFile.toFile());
+                
+                int totalCount = purchaseRequestsCount + purchasesCount + usersCount;
+                
+                response.put("success", true);
+                response.put("message", String.format("Успешно загружено: %d заявок, %d закупок, %d пользователей (всего %d записей)", 
+                    purchaseRequestsCount, purchasesCount, usersCount, totalCount));
+                response.put("loadedCount", totalCount);
+                response.put("purchaseRequestsCount", purchaseRequestsCount);
+                response.put("purchasesCount", purchasesCount);
+                response.put("usersCount", usersCount);
+            } finally {
+                // Удаляем временный файл
+                Files.deleteIfExists(tempFile);
+            }
+            
+            return response;
+        } catch (IllegalArgumentException e) {
+            logger.error("Validation error uploading Excel file", e);
+            response.put("success", false);
+            response.put("message", e.getMessage());
+            return response;
+        } catch (Exception e) {
+            logger.error("Error uploading Excel file", e);
+            response.put("success", false);
+            response.put("message", "Ошибка при загрузке файла: " + e.getMessage());
+            return response;
+        }
+    }
+
+    /**
+     * Валидирует загружаемый файл
+     */
+    private void validateFile(MultipartFile file) {
+        if (file.isEmpty()) {
+            throw new IllegalArgumentException("Файл не предоставлен");
+        }
+        
+        String filename = file.getOriginalFilename();
+        if (filename == null || (!filename.endsWith(".xls") && !filename.endsWith(".xlsx"))) {
+            throw new IllegalArgumentException("Файл должен быть в формате Excel (.xls или .xlsx)");
+        }
     }
 
     /**
@@ -93,6 +171,7 @@ public class ExcelLoadService {
                 requiresPurchaseColumnIndex = findColumnIndex(columnIndexMap, "Не требуется ЗП (Заявка на ЗП)");
             }
             Integer planColumnIndex = findColumnIndex(columnIndexMap, PLAN_COLUMN);
+            Integer preparedByColumnIndex = findColumnIndex(columnIndexMap, PREPARED_BY_COLUMN);
             
             // Если не нашли по имени, пробуем найти по известным позициям (из логов видно, что Column 4 = "Номер заявки на ЗП")
             if (requestNumberColumnIndex == null && headerRow.getCell(4) != null) {
@@ -188,7 +267,7 @@ public class ExcelLoadService {
                             getCellValueAsString(headerRow.getCell(requiresPurchaseColumnIndex)) : null;
                         String planColumnName = planColumnIndex != null && headerRow.getCell(planColumnIndex) != null ? 
                             getCellValueAsString(headerRow.getCell(planColumnIndex)) : null;
-                        PurchaseRequest pr = parsePurchaseRequestRow(row, requestNumberColumnIndex, creationDateColumnIndex, innerIdColumnIndex, cfoColumnIndex, nameColumnIndex, titleColumnIndex, requiresPurchaseColumnIndex, requiresPurchaseColumnName, planColumnIndex, planColumnName);
+                        PurchaseRequest pr = parsePurchaseRequestRow(row, requestNumberColumnIndex, creationDateColumnIndex, innerIdColumnIndex, cfoColumnIndex, nameColumnIndex, titleColumnIndex, requiresPurchaseColumnIndex, requiresPurchaseColumnName, planColumnIndex, planColumnName, preparedByColumnIndex);
                         if (pr != null && pr.getIdPurchaseRequest() != null) {
                             // Проверяем, существует ли заявка с таким номером
                             Optional<PurchaseRequest> existing = purchaseRequestRepository.findByIdPurchaseRequest(pr.getIdPurchaseRequest());
@@ -291,14 +370,23 @@ public class ExcelLoadService {
             }
         }
         
+        // Обновляем инициатора только если он отличается
+        if (newData.getPurchaseRequestInitiator() != null && !newData.getPurchaseRequestInitiator().trim().isEmpty()) {
+            if (existing.getPurchaseRequestInitiator() == null || !existing.getPurchaseRequestInitiator().equals(newData.getPurchaseRequestInitiator())) {
+                existing.setPurchaseRequestInitiator(newData.getPurchaseRequestInitiator());
+                updated = true;
+                logger.debug("Updated purchaseRequestInitiator for request {}: {}", existing.getIdPurchaseRequest(), newData.getPurchaseRequestInitiator());
+            }
+        }
+        
         return updated;
     }
 
     /**
      * Парсит строку Excel в PurchaseRequest для типа "Заявка на ЗП"
-     * Загружает "Номер заявки на ЗП", "Дата создания", "Внутренний номер", "ЦФО", "Наименование", "Заголовок", "Требуется Закупка" и "План"
+     * Загружает "Номер заявки на ЗП", "Дата создания", "Внутренний номер", "ЦФО", "Наименование", "Заголовок", "Требуется Закупка", "План" и "Подготовил"
      */
-    private PurchaseRequest parsePurchaseRequestRow(Row row, int requestNumberColumnIndex, int creationDateColumnIndex, Integer innerIdColumnIndex, Integer cfoColumnIndex, Integer nameColumnIndex, Integer titleColumnIndex, Integer requiresPurchaseColumnIndex, String requiresPurchaseColumnName, Integer planColumnIndex, String planColumnName) {
+    private PurchaseRequest parsePurchaseRequestRow(Row row, int requestNumberColumnIndex, int creationDateColumnIndex, Integer innerIdColumnIndex, Integer cfoColumnIndex, Integer nameColumnIndex, Integer titleColumnIndex, Integer requiresPurchaseColumnIndex, String requiresPurchaseColumnName, Integer planColumnIndex, String planColumnName, Integer preparedByColumnIndex) {
         PurchaseRequest pr = new PurchaseRequest();
         
         try {
@@ -413,6 +501,17 @@ public class ExcelLoadService {
                 }
             } else {
                 logger.debug("Row {}: planColumnIndex is null, skipping field", row.getRowNum() + 1);
+            }
+            
+            // Подготовил (опционально) - парсим и создаем/обновляем User, а также устанавливаем в purchaseRequestInitiator
+            if (preparedByColumnIndex != null) {
+                Cell preparedByCell = row.getCell(preparedByColumnIndex);
+                String preparedByValue = getCellValueAsString(preparedByCell);
+                if (preparedByValue != null && !preparedByValue.trim().isEmpty()) {
+                    String trimmedValue = preparedByValue.trim();
+                    // Устанавливаем в purchaseRequestInitiator
+                    pr.setPurchaseRequestInitiator(trimmedValue);
+                }
             }
             
             return pr;
@@ -865,6 +964,114 @@ public class ExcelLoadService {
     }
 
     /**
+     * Парсит строку формата "Kupriianova Anastasiia (Административно-хозяйственный отдел, Офис менеджер)"
+     * и создает/обновляет User
+     * Формат: "Surname Name (Отдел, Должность)"
+     */
+    private void parseAndSaveUser(String preparedByValue) {
+        try {
+            // Парсим строку формата "Kupriianova Anastasiia (Административно-хозяйственный отдел, Офис менеджер)"
+            String surname = null;
+            String name = null;
+            String department = null;
+            String position = null;
+            
+            // Ищем скобки с отделом и должностью
+            int openBracketIndex = preparedByValue.indexOf('(');
+            int closeBracketIndex = preparedByValue.indexOf(')');
+            
+            if (openBracketIndex > 0 && closeBracketIndex > openBracketIndex) {
+                // Есть скобки - извлекаем отдел и должность
+                String namePart = preparedByValue.substring(0, openBracketIndex).trim();
+                String departmentPart = preparedByValue.substring(openBracketIndex + 1, closeBracketIndex).trim();
+                
+                // Парсим имя и фамилию
+                String[] nameParts = namePart.split("\\s+", 2);
+                if (nameParts.length >= 1) {
+                    surname = nameParts[0].trim();
+                }
+                if (nameParts.length >= 2) {
+                    name = nameParts[1].trim();
+                }
+                
+                // Парсим отдел и должность (разделены запятой)
+                String[] deptParts = departmentPart.split(",", 2);
+                if (deptParts.length >= 1) {
+                    department = deptParts[0].trim();
+                }
+                if (deptParts.length >= 2) {
+                    position = deptParts[1].trim();
+                }
+            } else {
+                // Нет скобок - только имя и фамилия
+                String[] nameParts = preparedByValue.split("\\s+", 2);
+                if (nameParts.length >= 1) {
+                    surname = nameParts[0].trim();
+                }
+                if (nameParts.length >= 2) {
+                    name = nameParts[1].trim();
+                }
+            }
+            
+            // Создаем username из surname и name (для уникальности)
+            String username = (surname != null ? surname : "") + 
+                             (name != null ? "_" + name : "");
+            if (username.isEmpty() || username.equals("_")) {
+                username = "user_" + System.currentTimeMillis();
+            }
+            
+            // Ищем существующего пользователя по surname и name
+            User existingUser = null;
+            if (surname != null && name != null) {
+                // Сначала ищем по surname и name (более точный поиск)
+                existingUser = userRepository.findBySurnameAndName(surname, name).orElse(null);
+                // Если не нашли, пробуем по username
+                if (existingUser == null) {
+                    existingUser = userRepository.findByUsername(username).orElse(null);
+                }
+            }
+            
+            if (existingUser != null) {
+                // Обновляем существующего пользователя
+                boolean updated = false;
+                if (surname != null && !surname.equals(existingUser.getSurname())) {
+                    existingUser.setSurname(surname);
+                    updated = true;
+                }
+                if (name != null && !name.equals(existingUser.getName())) {
+                    existingUser.setName(name);
+                    updated = true;
+                }
+                if (department != null && !department.equals(existingUser.getDepartment())) {
+                    existingUser.setDepartment(department);
+                    updated = true;
+                }
+                if (position != null && !position.equals(existingUser.getPosition())) {
+                    existingUser.setPosition(position);
+                    updated = true;
+                }
+                if (updated) {
+                    userRepository.save(existingUser);
+                    logger.debug("Updated user: {} {}", surname, name);
+                }
+            } else {
+                // Создаем нового пользователя
+                User newUser = new User();
+                newUser.setUsername(username);
+                newUser.setPassword(""); // Пароль будет установлен позже или через другой механизм
+                newUser.setSurname(surname);
+                newUser.setName(name);
+                newUser.setDepartment(department);
+                newUser.setPosition(position);
+                userRepository.save(newUser);
+                logger.debug("Created user: {} {}", surname, name);
+            }
+        } catch (Exception e) {
+            logger.warn("Error parsing and saving user from '{}': {}", preparedByValue, e.getMessage());
+        }
+    }
+
+    /**
      * Проверяет, пустая ли строка
      */
     private boolean isRowEmpty(Row row) {
@@ -882,6 +1089,219 @@ public class ExcelLoadService {
             }
         }
         return true;
+    }
+
+    /**
+     * Загружает пользователей из Excel файла
+     * Парсит поле "Подготовил" и создает/обновляет пользователей
+     */
+    public int loadUsersFromExcel(File excelFile) throws IOException {
+        Workbook workbook;
+        try (FileInputStream fis = new FileInputStream(excelFile)) {
+            if (excelFile.getName().endsWith(".xlsx")) {
+                workbook = new XSSFWorkbook(fis);
+            } else {
+                workbook = new HSSFWorkbook(fis);
+            }
+        }
+
+        try {
+            Sheet sheet = workbook.getSheetAt(0);
+            Iterator<Row> rowIterator = sheet.iterator();
+            
+            if (!rowIterator.hasNext()) {
+                logger.warn("Sheet is empty in file {}", excelFile.getName());
+                return 0;
+            }
+
+            // Читаем заголовки
+            Row headerRow = rowIterator.next();
+            Map<String, Integer> columnIndexMap = buildColumnIndexMap(headerRow);
+            
+            Integer preparedByColumnIndex = findColumnIndex(columnIndexMap, PREPARED_BY_COLUMN);
+            
+            if (preparedByColumnIndex == null) {
+                logger.warn("Column '{}' not found in file {}", PREPARED_BY_COLUMN, excelFile.getName());
+                return 0;
+            }
+
+            int loadedCount = 0;
+            
+            while (rowIterator.hasNext()) {
+                Row row = rowIterator.next();
+                
+                if (isRowEmpty(row)) {
+                    continue;
+                }
+
+                try {
+                    Cell preparedByCell = row.getCell(preparedByColumnIndex);
+                    String preparedByValue = getCellValueAsString(preparedByCell);
+                    if (preparedByValue != null && !preparedByValue.trim().isEmpty()) {
+                        parseAndSaveUser(preparedByValue.trim());
+                        loadedCount++;
+                    }
+                } catch (Exception e) {
+                    logger.warn("Error parsing user from row {}: {}", row.getRowNum() + 1, e.getMessage());
+                }
+            }
+
+            logger.info("Loaded {} users from file {}", loadedCount, excelFile.getName());
+            return loadedCount;
+        } finally {
+            workbook.close();
+        }
+    }
+
+    /**
+     * Загружает закупки из Excel файла
+     * Фильтрует по "Вид документа" = "Закупочная процедура"
+     */
+    public int loadPurchasesFromExcel(File excelFile) throws IOException {
+        Workbook workbook;
+        try (FileInputStream fis = new FileInputStream(excelFile)) {
+            if (excelFile.getName().endsWith(".xlsx")) {
+                workbook = new XSSFWorkbook(fis);
+            } else {
+                workbook = new HSSFWorkbook(fis);
+            }
+        }
+
+        try {
+            Sheet sheet = workbook.getSheetAt(0);
+            Iterator<Row> rowIterator = sheet.iterator();
+            
+            if (!rowIterator.hasNext()) {
+                logger.warn("Sheet is empty in file {}", excelFile.getName());
+                return 0;
+            }
+
+            // Читаем заголовки
+            Row headerRow = rowIterator.next();
+            Map<String, Integer> columnIndexMap = buildColumnIndexMap(headerRow);
+            
+            Integer documentTypeColumnIndex = findColumnIndex(columnIndexMap, DOCUMENT_TYPE_COLUMN);
+            Integer purchaseNumberColumnIndex = findColumnIndex(columnIndexMap, PURCHASE_NUMBER_COLUMN);
+            Integer innerIdColumnIndex = findColumnIndex(columnIndexMap, INNER_ID_COLUMN);
+            if (innerIdColumnIndex == null) {
+                logger.warn("Column '{}' not found in file {} for purchases", INNER_ID_COLUMN, excelFile.getName());
+            } else {
+                logger.info("Found column '{}' at index {} for purchases", INNER_ID_COLUMN, innerIdColumnIndex);
+            }
+
+            if (documentTypeColumnIndex == null) {
+                logger.warn("Column '{}' not found in file {}", DOCUMENT_TYPE_COLUMN, excelFile.getName());
+                return 0;
+            }
+
+            if (purchaseNumberColumnIndex == null) {
+                logger.warn("Column '{}' not found in file {}", PURCHASE_NUMBER_COLUMN, excelFile.getName());
+                return 0;
+            }
+
+            int loadedCount = 0;
+            int createdCount = 0;
+            int updatedCount = 0;
+            
+            while (rowIterator.hasNext()) {
+                Row row = rowIterator.next();
+                
+                if (isRowEmpty(row)) {
+                    continue;
+                }
+
+                // Получаем значение из колонки "Вид документа"
+                String documentType = getCellValueAsString(row.getCell(documentTypeColumnIndex));
+                
+                // Фильтруем только "Закупочная процедура"
+                if (PURCHASE_TYPE.equals(documentType)) {
+                    try {
+                        Purchase purchase = parsePurchaseRow(row, purchaseNumberColumnIndex, innerIdColumnIndex);
+                        if (purchase != null && purchase.getPurchaseNumber() != null) {
+                            // Проверяем, существует ли закупка с таким номером
+                            Optional<Purchase> existing = purchaseRepository.findByPurchaseNumber(purchase.getPurchaseNumber());
+                            
+                            if (existing.isPresent()) {
+                                // Обновляем существующую закупку
+                                Purchase existingPurchase = existing.get();
+                                boolean updated = updatePurchaseFields(existingPurchase, purchase);
+                                if (updated) {
+                                    purchaseRepository.save(existingPurchase);
+                                    updatedCount++;
+                                }
+                            } else {
+                                // Создаем новую закупку
+                                purchaseRepository.save(purchase);
+                                createdCount++;
+                            }
+                            loadedCount++;
+                        }
+                    } catch (Exception e) {
+                        logger.warn("Error parsing row {}: {}", row.getRowNum() + 1, e.getMessage());
+                    }
+                }
+            }
+
+            logger.info("Loaded {} purchases: {} created, {} updated", loadedCount, createdCount, updatedCount);
+            return loadedCount;
+        } finally {
+            workbook.close();
+        }
+    }
+
+    /**
+     * Парсит строку Excel в Purchase для типа "Закупочная процедура"
+     */
+    private Purchase parsePurchaseRow(Row row, int purchaseNumberColumnIndex, Integer innerIdColumnIndex) {
+        Purchase purchase = new Purchase();
+        
+        try {
+            // Номер закупки (используется для поиска существующей записи)
+            Cell purchaseNumberCell = row.getCell(purchaseNumberColumnIndex);
+            Long purchaseNumber = parseLongCell(purchaseNumberCell);
+            if (purchaseNumber != null) {
+                purchase.setPurchaseNumber(purchaseNumber);
+            } else {
+                logger.warn("Empty or invalid purchase number in row {}", row.getRowNum() + 1);
+                return null;
+            }
+            
+            // Внутренний номер (единственное поле, которое сохраняем)
+            if (innerIdColumnIndex != null) {
+                Cell innerIdCell = row.getCell(innerIdColumnIndex);
+                String innerId = getCellValueAsString(innerIdCell);
+                if (innerId != null && !innerId.trim().isEmpty()) {
+                    purchase.setInnerId(innerId.trim());
+                    logger.debug("Parsed innerId for purchase row {}: {}", row.getRowNum() + 1, innerId.trim());
+                }
+            } else {
+                logger.debug("Column '{}' not found for purchase row {}", INNER_ID_COLUMN, row.getRowNum() + 1);
+            }
+            
+            return purchase;
+        } catch (Exception e) {
+            logger.error("Error parsing Purchase row {}: {}", row.getRowNum() + 1, e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * Обновляет поля существующей закупки только если они отличаются
+     * Сейчас обновляем только внутренний номер
+     */
+    private boolean updatePurchaseFields(Purchase existing, Purchase newData) {
+        boolean updated = false;
+        
+        // Обновляем только внутренний номер
+        if (newData.getInnerId() != null && !newData.getInnerId().trim().isEmpty()) {
+            if (existing.getInnerId() == null || !existing.getInnerId().equals(newData.getInnerId())) {
+                existing.setInnerId(newData.getInnerId());
+                updated = true;
+                logger.debug("Updated innerId for purchase {}: {}", existing.getId(), newData.getInnerId());
+            }
+        }
+        
+        return updated;
     }
 }
 

@@ -43,6 +43,7 @@ const menuItems = [
     { id: 'overview', label: 'Обзор', icon: Home, disabled: false },
     { id: 'workload', label: 'Нагрузка', icon: BarChart3, disabled: false },
     { id: 'purchase-requests', label: 'Заявки на закупку', icon: Package },
+    { id: 'purchases', label: 'Закупки', icon: Package },
     { id: 'purchase-plan', label: 'План закупок', icon: Calendar },
   ];
 

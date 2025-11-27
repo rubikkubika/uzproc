@@ -68,7 +68,10 @@ public class ExcelFileAutoLoader {
                 for (File excelFile : excelFiles) {
                     try {
                         logger.info("Processing file: {}", excelFile.getName());
-                        int loadedCount = excelLoadService.loadPurchaseRequestsFromExcel(excelFile);
+                        int purchaseRequestsCount = excelLoadService.loadPurchaseRequestsFromExcel(excelFile);
+                        int purchasesCount = excelLoadService.loadPurchasesFromExcel(excelFile);
+                        int usersCount = excelLoadService.loadUsersFromExcel(excelFile);
+                        int loadedCount = purchaseRequestsCount + purchasesCount + usersCount;
                         totalLoaded += loadedCount;
                         logger.info("Loaded {} records from {}", loadedCount, excelFile.getName());
                     } catch (Exception e) {

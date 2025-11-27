@@ -3,17 +3,18 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
-import { ArrowUp, ArrowDown, ArrowUpDown, Clock, Search, X } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpDown, Clock, Search, X, Download, Copy } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 interface PurchaseRequest {
   id: number;
   idPurchaseRequest: number | null;
   guid: string;
-  purchasePlanYear: number | null;
+  purchaseRequestPlanYear: number | null;
   company: string | null;
   cfo: string | null;
   mcc: string | null;
-  purchaseInitiator: string | null;
+  purchaseRequestInitiator: string | null;
   name: string | null;
   purchaseRequestCreationDate: string | null;
   budgetAmount: number | null;
@@ -59,7 +60,7 @@ export default function PurchaseRequestsTable() {
   const [filters, setFilters] = useState<Record<string, string>>({
     idPurchaseRequest: '',
     cfo: '',
-    purchaseInitiator: '',
+    purchaseRequestInitiator: '',
     name: '',
     budgetAmount: '',
     costType: '',
@@ -121,7 +122,7 @@ export default function PurchaseRequestsTable() {
   const [localFilters, setLocalFilters] = useState<Record<string, string>>({
     idPurchaseRequest: '',
     cfo: '',
-    purchaseInitiator: '',
+    purchaseRequestInitiator: '',
     name: '',
     budgetAmount: '',
     costType: '',
@@ -172,8 +173,8 @@ export default function PurchaseRequestsTable() {
           params.append('cfo', cfo);
         });
       }
-      if (filters.purchaseInitiator && filters.purchaseInitiator.trim() !== '') {
-        params.append('purchaseInitiator', filters.purchaseInitiator.trim());
+      if (filters.purchaseRequestInitiator && filters.purchaseRequestInitiator.trim() !== '') {
+        params.append('purchaseRequestInitiator', filters.purchaseRequestInitiator.trim());
       }
       if (filters.name && filters.name.trim() !== '') {
         params.append('name', filters.name.trim());
@@ -358,7 +359,7 @@ export default function PurchaseRequestsTable() {
   // Получение уникальных значений для фильтров (загружаем все данные для этого)
   const [uniqueValues, setUniqueValues] = useState<Record<string, string[]>>({
     cfo: [],
-    purchaseInitiator: [],
+    purchaseRequestInitiator: [],
   });
 
   useEffect(() => {
@@ -386,7 +387,7 @@ export default function PurchaseRequestsTable() {
           const years = new Set<number>();
           const values: Record<string, Set<string>> = {
             cfo: new Set(),
-            purchaseInitiator: new Set(),
+            purchaseRequestInitiator: new Set(),
             costType: new Set(),
             contractType: new Set(),
           };
@@ -402,13 +403,13 @@ export default function PurchaseRequestsTable() {
             }
             // Собираем уникальные значения
             if (request.cfo) values.cfo.add(request.cfo);
-            if (request.purchaseInitiator) values.purchaseInitiator.add(request.purchaseInitiator);
+            if (request.purchaseRequestInitiator) values.purchaseRequestInitiator.add(request.purchaseRequestInitiator);
           });
           
           const yearsArray = Array.from(years).sort((a, b) => b - a);
           const uniqueValuesData = {
             cfo: Array.from(values.cfo).sort(),
-            purchaseInitiator: Array.from(values.purchaseInitiator).sort(),
+            purchaseRequestInitiator: Array.from(values.purchaseRequestInitiator).sort(),
           };
           
           setAllYears(yearsArray);
@@ -478,7 +479,7 @@ export default function PurchaseRequestsTable() {
   const getUniqueValues = (field: keyof PurchaseRequest): string[] => {
     const fieldMap: Record<string, keyof typeof uniqueValues> = {
       cfo: 'cfo',
-      purchaseInitiator: 'purchaseInitiator',
+      purchaseRequestInitiator: 'purchaseRequestInitiator',
       costType: 'costType',
       contractType: 'contractType',
     };
@@ -714,6 +715,209 @@ export default function PurchaseRequestsTable() {
     );
   };
 
+  // Функция для экспорта в Excel
+  const handleExportToExcel = async () => {
+    if (!data || !data.content || data.content.length === 0) {
+      alert('Нет данных для экспорта');
+      return;
+    }
+
+    try {
+      // Подготавливаем данные для экспорта
+      const exportData = data.content.map((request) => ({
+        'Номер заявки': request.idPurchaseRequest || '',
+        'Дата создания': request.purchaseRequestCreationDate 
+          ? new Date(request.purchaseRequestCreationDate).toLocaleDateString('ru-RU')
+          : '',
+        'ЦФО': request.cfo || '',
+        'Наименование': request.name || '',
+        'Инициатор': request.purchaseRequestInitiator || '',
+        'Год плана': request.purchaseRequestPlanYear || '',
+        'Бюджет': request.budgetAmount || '',
+        'Тип затрат': request.costType || '',
+        'Тип договора': request.contractType || '',
+        'Длительность (мес)': request.contractDurationMonths || '',
+        'План': request.isPlanned ? 'Да' : 'Нет',
+        'Требуется закупка': request.requiresPurchase ? 'Да' : 'Нет',
+      }));
+
+      // Создаем рабочую книгу
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+
+      // Устанавливаем ширину колонок
+      const colWidths = [
+        { wch: 15 }, // Номер заявки
+        { wch: 15 }, // Дата создания
+        { wch: 20 }, // ЦФО
+        { wch: 30 }, // Наименование
+        { wch: 25 }, // Инициатор
+        { wch: 12 }, // Год плана
+        { wch: 15 }, // Бюджет
+        { wch: 15 }, // Тип затрат
+        { wch: 15 }, // Тип договора
+        { wch: 18 }, // Длительность
+        { wch: 10 }, // План
+        { wch: 18 }, // Требуется закупка
+      ];
+      ws['!cols'] = colWidths;
+
+      // Добавляем лист в книгу
+      XLSX.utils.book_append_sheet(wb, ws, 'Заявки на закупку');
+
+      // Генерируем имя файла с датой
+      const fileName = `Заявки_на_закупку_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+      // Сохраняем файл
+      XLSX.writeFile(wb, fileName);
+    } catch (error) {
+      console.error('Ошибка при экспорте в Excel:', error);
+      alert('Ошибка при экспорте в Excel');
+    }
+  };
+
+  // Функция для копирования в буфер обмена
+  const handleCopyToClipboard = async () => {
+    if (!data || !data.content || data.content.length === 0) {
+      alert('Нет данных для копирования');
+      return;
+    }
+
+    try {
+      // Создаем заголовки
+      const headers = [
+        'Номер заявки',
+        'Дата создания',
+        'ЦФО',
+        'Наименование',
+        'Инициатор',
+        'Год плана',
+        'Бюджет',
+        'Тип затрат',
+        'Тип договора',
+        'Длительность (мес)',
+        'План',
+        'Требуется закупка',
+      ];
+
+      // Создаем строки данных
+      const rows = data.content.map((request) => [
+        request.idPurchaseRequest || '',
+        request.purchaseRequestCreationDate 
+          ? new Date(request.purchaseRequestCreationDate).toLocaleDateString('ru-RU')
+          : '',
+        request.cfo || '',
+        request.name || '',
+        request.purchaseRequestInitiator || '',
+        request.purchaseRequestPlanYear || '',
+        request.budgetAmount || '',
+        request.costType || '',
+        request.contractType || '',
+        request.contractDurationMonths || '',
+        request.isPlanned ? 'Да' : 'Нет',
+        request.requiresPurchase ? 'Да' : 'Нет',
+      ]);
+
+      // Объединяем заголовки и данные
+      const allRows = [headers, ...rows];
+
+      // Преобразуем в TSV формат (табуляция между колонками)
+      const tsvContent = allRows.map(row => row.join('\t')).join('\n');
+
+      // Копируем в буфер обмена
+      await navigator.clipboard.writeText(tsvContent);
+      alert('Данные скопированы в буфер обмена');
+    } catch (error) {
+      console.error('Ошибка при копировании в буфер обмена:', error);
+      alert('Ошибка при копировании в буфер обмена');
+    }
+  };
+
+  // Функция для сохранения таблицы как картинки
+  const handleSaveAsImage = async () => {
+    // Сохраняем оригинальные функции консоли перед началом
+    const originalConsoleError = console.error;
+    const originalConsoleWarn = console.warn;
+    
+    try {
+      // Находим элемент таблицы - используем более точный селектор
+      const tableContainer = document.querySelector('.bg-white.rounded-lg.shadow-lg.overflow-hidden');
+      const tableElement = tableContainer?.querySelector('table');
+      
+      if (!tableElement) {
+        alert('Таблица не найдена');
+        return;
+      }
+
+      // Временно подавляем ошибки, связанные с lab()
+      console.error = (...args: any[]) => {
+        if (args[0] && typeof args[0] === 'string' && args[0].includes('lab')) {
+          return; // Игнорируем ошибки lab()
+        }
+        originalConsoleError.apply(console, args);
+      };
+      
+      console.warn = (...args: any[]) => {
+        if (args[0] && typeof args[0] === 'string' && args[0].includes('lab')) {
+          return; // Игнорируем предупреждения lab()
+        }
+        originalConsoleWarn.apply(console, args);
+      };
+
+      try {
+        // Создаем canvas из таблицы
+        const canvas = await html2canvas(tableElement as HTMLElement, {
+          backgroundColor: '#ffffff',
+          scale: 2, // Увеличиваем разрешение для лучшего качества
+          logging: false,
+          useCORS: true,
+        });
+
+        // Преобразуем canvas в blob
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            alert('Ошибка при создании изображения');
+            return;
+          }
+
+          // Создаем ссылку для скачивания
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          
+          // Генерируем имя файла с датой
+          const fileName = `Заявки_на_закупку_${new Date().toISOString().split('T')[0]}.png`;
+          link.download = fileName;
+          
+          // Добавляем ссылку в DOM, кликаем и удаляем
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          // Освобождаем память
+          URL.revokeObjectURL(url);
+        }, 'image/png');
+      } finally {
+        // Восстанавливаем оригинальные функции консоли
+        console.error = originalConsoleError;
+        console.warn = originalConsoleWarn;
+      }
+    } catch (error) {
+      // Восстанавливаем оригинальные функции консоли в случае ошибки
+      console.error = originalConsoleError;
+      console.warn = originalConsoleWarn;
+      
+      // Игнорируем ошибки, связанные с lab()
+      if (error instanceof Error && error.message && error.message.includes('lab')) {
+        // Тихо игнорируем ошибку парсинга lab() цвета (html2canvas не поддерживает эту функцию)
+        return;
+      }
+      
+      console.error('Ошибка при сохранении изображения:', error);
+      alert('Ошибка при сохранении изображения');
+    }
+  };
+
   // Проверяем, есть ли данные для отображения
   const hasData = data && data.content && data.content.length > 0;
 
@@ -757,7 +961,7 @@ export default function PurchaseRequestsTable() {
                   const emptyFilters = {
                     idPurchaseRequest: '',
                     cfo: '',
-                    purchaseInitiator: '',
+                    purchaseRequestInitiator: '',
                     name: '',
                     budgetAmount: '',
                     costType: '',
@@ -790,6 +994,22 @@ export default function PurchaseRequestsTable() {
       {data && (
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
           <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleExportToExcel}
+                className="p-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                title="Сохранить в Excel"
+              >
+                <Download className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleCopyToClipboard}
+                className="p-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                title="Копировать в буфер обмена"
+              >
+                <Copy className="w-4 h-4" />
+              </button>
+            </div>
             <div className="text-sm text-gray-700">
               Показано {data?.content.length || 0} из {data?.totalElements || 0} записей
             </div>
@@ -950,10 +1170,10 @@ export default function PurchaseRequestsTable() {
                 </div>
               </th>
               <SortableHeader 
-                field="purchaseInitiator" 
+                field="purchaseRequestInitiator" 
                 label="Инициатор"
                 filterType="select"
-                filterOptions={getUniqueValues('purchaseInitiator')}
+                filterOptions={getUniqueValues('purchaseRequestInitiator')}
                 width="w-24"
               />
               <SortableHeader field="name" label="Наименование" width="w-48" />
@@ -1076,8 +1296,8 @@ export default function PurchaseRequestsTable() {
                   <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={request.cfo || ''}>
                     {request.cfo || '-'}
                   </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={request.purchaseInitiator || ''}>
-                    {request.purchaseInitiator || '-'}
+                    <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={request.purchaseRequestInitiator || ''}>
+                    {request.purchaseRequestInitiator || '-'}
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 break-words border-r border-gray-200">
                     {request.name || '-'}
