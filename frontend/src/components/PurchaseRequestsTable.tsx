@@ -37,6 +37,10 @@ interface PageResponse {
 type SortField = keyof PurchaseRequest | null;
 type SortDirection = 'asc' | 'desc' | null;
 
+// Кэш для метаданных (годы и уникальные значения)
+const CACHE_KEY = 'purchaseRequests_metadata';
+const CACHE_TTL = 5 * 60 * 1000; // 5 минут
+
 export default function PurchaseRequestsTable() {
   const router = useRouter();
   const [data, setData] = useState<PageResponse | null>(null);
@@ -236,16 +240,45 @@ export default function PurchaseRequestsTable() {
 
   // Получаем все годы из всех данных (нужно загрузить все данные для этого)
   const [allYears, setAllYears] = useState<number[]>([]);
+  
+  // Получение уникальных значений для фильтров (загружаем все данные для этого)
+  const [uniqueValues, setUniqueValues] = useState<Record<string, string[]>>({
+    cfo: [],
+    purchaseInitiator: [],
+  });
 
   useEffect(() => {
-    // Загружаем все данные для получения списка годов
-    const fetchAllYears = async () => {
+    // Загружаем все данные для получения списка годов и уникальных значений
+    // Используем кэширование, чтобы не загружать каждый раз при монтировании
+    const fetchMetadata = async () => {
       try {
+        // Проверяем кэш
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (cached) {
+          const { data, timestamp } = JSON.parse(cached);
+          const now = Date.now();
+          if (now - timestamp < CACHE_TTL) {
+            // Используем кэшированные данные
+            setAllYears(data.years);
+            setUniqueValues(data.uniqueValues);
+            return;
+          }
+        }
+
+        // Загружаем данные, если кэш отсутствует или устарел
         const response = await fetch(`${getBackendUrl()}/api/purchase-requests?page=0&size=10000`);
         if (response.ok) {
           const result = await response.json();
           const years = new Set<number>();
+          const values: Record<string, Set<string>> = {
+            cfo: new Set(),
+            purchaseInitiator: new Set(),
+            costType: new Set(),
+            contractType: new Set(),
+          };
+          
           result.content.forEach((request: PurchaseRequest) => {
+            // Собираем годы
             if (request.purchaseRequestCreationDate) {
               const date = new Date(request.purchaseRequestCreationDate);
               const year = date.getFullYear();
@@ -253,14 +286,34 @@ export default function PurchaseRequestsTable() {
                 years.add(year);
               }
             }
+            // Собираем уникальные значения
+            if (request.cfo) values.cfo.add(request.cfo);
+            if (request.purchaseInitiator) values.purchaseInitiator.add(request.purchaseInitiator);
           });
-          setAllYears(Array.from(years).sort((a, b) => b - a));
+          
+          const yearsArray = Array.from(years).sort((a, b) => b - a);
+          const uniqueValuesData = {
+            cfo: Array.from(values.cfo).sort(),
+            purchaseInitiator: Array.from(values.purchaseInitiator).sort(),
+          };
+          
+          setAllYears(yearsArray);
+          setUniqueValues(uniqueValuesData);
+          
+          // Сохраняем в кэш
+          localStorage.setItem(CACHE_KEY, JSON.stringify({
+            data: {
+              years: yearsArray,
+              uniqueValues: uniqueValuesData,
+            },
+            timestamp: Date.now(),
+          }));
         }
       } catch (err) {
-        console.error('Error fetching years:', err);
+        console.error('Error fetching metadata:', err);
       }
     };
-    fetchAllYears();
+    fetchMetadata();
   }, []);
 
   const handlePageSizeChange = (newSize: number) => {
@@ -307,43 +360,6 @@ export default function PurchaseRequestsTable() {
       setCurrentPage(0); // Сбрасываем на первую страницу при изменении фильтра
     }
   };
-
-  // Получение уникальных значений для фильтров (загружаем все данные для этого)
-  const [uniqueValues, setUniqueValues] = useState<Record<string, string[]>>({
-    cfo: [],
-    purchaseInitiator: [],
-  });
-
-  useEffect(() => {
-    // Загружаем все данные для получения уникальных значений
-    const fetchUniqueValues = async () => {
-      try {
-        const response = await fetch(`${getBackendUrl()}/api/purchase-requests?page=0&size=10000`);
-        if (response.ok) {
-          const result = await response.json();
-          const values: Record<string, Set<string>> = {
-            cfo: new Set(),
-            purchaseInitiator: new Set(),
-            costType: new Set(),
-            contractType: new Set(),
-          };
-          
-          result.content.forEach((item: PurchaseRequest) => {
-            if (item.cfo) values.cfo.add(item.cfo);
-            if (item.purchaseInitiator) values.purchaseInitiator.add(item.purchaseInitiator);
-          });
-          
-          setUniqueValues({
-            cfo: Array.from(values.cfo).sort(),
-            purchaseInitiator: Array.from(values.purchaseInitiator).sort(),
-          });
-        }
-      } catch (err) {
-        console.error('Error fetching unique values:', err);
-      }
-    };
-    fetchUniqueValues();
-  }, []);
 
   const getUniqueValues = (field: keyof PurchaseRequest): string[] => {
     const fieldMap: Record<string, keyof typeof uniqueValues> = {

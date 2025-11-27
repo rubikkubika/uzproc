@@ -15,6 +15,8 @@ export default function PurchasesStats() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // ВРЕМЕННО ОТКЛЮЧЕНО
+    return;
     fetch('/api/purchases-data?all=true&minimal=true')
       .then(res => res.json())
       .then(data => {

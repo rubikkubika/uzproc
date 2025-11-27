@@ -16,6 +16,8 @@ export default function PurchasesByFormatChart() {
   const [data, setData] = useState<any>(null);
 
   useEffect(() => {
+    // ВРЕМЕННО ОТКЛЮЧЕНО
+    return;
     fetch('/api/purchases-data?all=true&minimal=true')
       .then(res => res.json())
       .then(data => {

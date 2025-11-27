@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useLayoutEffect } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
 import { ArrowLeft } from 'lucide-react';
@@ -45,6 +45,11 @@ export default function PurchaseRequestDetailPage() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [activeTab, setActiveTab] = useState('backend-purchase-requests');
+  
+  // Защита от дублирующих запросов
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const isFetchingRef = useRef<boolean>(false);
+  const currentIdRef = useRef<string | null>(null);
 
   // Загружаем состояние сайдбара из localStorage
   useLayoutEffect(() => {
@@ -99,11 +104,45 @@ export default function PurchaseRequestDetailPage() {
   useEffect(() => {
     if (!id) return;
 
+    // Проверяем, не идет ли уже запрос для этого же id
+    if (isFetchingRef.current && currentIdRef.current === id) {
+      // Запрос для этого id уже выполняется, не запускаем новый
+      return;
+    }
+
+    // Отменяем предыдущий запрос, если он еще выполняется (для другого id)
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+
+    // Атомарно устанавливаем флаги ДО начала запроса
+    isFetchingRef.current = true;
+    currentIdRef.current = id;
+
+    // Создаем новый AbortController для этого запроса
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     const fetchPurchaseRequest = async () => {
+      // Проверяем, не был ли запрос уже отменен
+      if (abortController.signal.aborted) {
+        return;
+      }
+      
       setLoading(true);
       setError(null);
+      
       try {
-        const response = await fetch(`${getBackendUrl()}/api/purchase-requests/${id}`);
+        const response = await fetch(`${getBackendUrl()}/api/purchase-requests/${id}`, {
+          signal: abortController.signal,
+        });
+        
+        // Проверяем, не был ли запрос отменен
+        if (abortController.signal.aborted) {
+          return;
+        }
+        
         if (!response.ok) {
           if (response.status === 404) {
             throw new Error('Заявка не найдена');
@@ -111,15 +150,45 @@ export default function PurchaseRequestDetailPage() {
           throw new Error('Ошибка загрузки данных');
         }
         const data = await response.json();
-        setPurchaseRequest(data);
+        
+        // Проверяем еще раз перед установкой данных
+        if (!abortController.signal.aborted && currentIdRef.current === id) {
+          setPurchaseRequest(data);
+        }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Произошла ошибка');
+        // Игнорируем ошибку отмены запроса
+        if (err instanceof Error && err.name === 'AbortError') {
+          return;
+        }
+        // Устанавливаем ошибку только если запрос не был отменен и id совпадает
+        if (!abortController.signal.aborted && currentIdRef.current === id) {
+          setError(err instanceof Error ? err.message : 'Произошла ошибка');
+        }
       } finally {
-        setLoading(false);
+        // Сбрасываем флаги только если это был текущий запрос
+        if (abortControllerRef.current === abortController && currentIdRef.current === id) {
+          isFetchingRef.current = false;
+          setLoading(false);
+          abortControllerRef.current = null;
+          // Не сбрасываем currentIdRef здесь, чтобы избежать race condition
+        }
       }
     };
 
     fetchPurchaseRequest();
+
+    // Cleanup функция для отмены запроса при размонтировании или изменении id
+    return () => {
+      if (abortControllerRef.current === abortController) {
+        abortController.abort();
+        abortControllerRef.current = null;
+        isFetchingRef.current = false;
+        // Сбрасываем currentIdRef только если это был текущий запрос
+        if (currentIdRef.current === id) {
+          currentIdRef.current = null;
+        }
+      }
+    };
   }, [id]);
 
   const formatDate = (dateString: string | null): string => {
