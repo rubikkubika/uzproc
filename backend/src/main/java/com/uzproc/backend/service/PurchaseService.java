@@ -40,14 +40,15 @@ public class PurchaseService {
             String purchaseInitiator,
             String name,
             String costType,
-            String contractType) {
+            String contractType,
+            Long purchaseRequestId) {
         
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, innerId: '{}', purchaseNumber: {}, cfo: {}, purchaseInitiator: '{}', name: '{}', costType: '{}', contractType: '{}'",
-                year, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType);
+        logger.info("Filter parameters - year: {}, innerId: '{}', purchaseNumber: {}, cfo: {}, purchaseInitiator: '{}', name: '{}', costType: '{}', contractType: '{}', purchaseRequestId: {}",
+                year, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType, purchaseRequestId);
         
         Specification<Purchase> spec = buildSpecification(
-                year, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType);
+                year, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType, purchaseRequestId);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -74,7 +75,8 @@ public class PurchaseService {
             String purchaseInitiator,
             String name,
             String costType,
-            String contractType) {
+            String contractType,
+            Long purchaseRequestId) {
         
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -155,6 +157,13 @@ public class PurchaseService {
                 predicates.add(cb.equal(root.get("contractType"), contractType));
                 predicateCount++;
                 logger.info("Added contractType filter: '{}'", contractType);
+            }
+            
+            // Фильтр по purchaseRequestId (точное совпадение)
+            if (purchaseRequestId != null) {
+                predicates.add(cb.equal(root.get("purchaseRequestId"), purchaseRequestId));
+                predicateCount++;
+                logger.info("Added purchaseRequestId filter: {}", purchaseRequestId);
             }
             
             logger.info("Total predicates added: {}", predicateCount);

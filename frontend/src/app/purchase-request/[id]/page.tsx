@@ -30,6 +30,13 @@ interface PurchaseRequest {
   updatedAt: string;
 }
 
+interface Purchase {
+  id: number;
+  innerId: string | null;
+  cfo: string | null;
+  purchaseRequestId: number | null;
+}
+
 const SIDEBAR_COLLAPSED_KEY = 'sidebarCollapsed';
 const ACTIVE_TAB_KEY = 'activeTab';
 
@@ -39,6 +46,7 @@ export default function PurchaseRequestDetailPage() {
   const id = params?.id as string;
   
   const [purchaseRequest, setPurchaseRequest] = useState<PurchaseRequest | null>(null);
+  const [purchase, setPurchase] = useState<Purchase | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -154,6 +162,11 @@ export default function PurchaseRequestDetailPage() {
         // Проверяем еще раз перед установкой данных
         if (!abortController.signal.aborted && currentIdRef.current === id) {
           setPurchaseRequest(data);
+          
+          // Загружаем связанную закупку
+          if (data && data.id) {
+            fetchPurchase(data.id);
+          }
         }
       } catch (err) {
         // Игнорируем ошибку отмены запроса
@@ -190,6 +203,24 @@ export default function PurchaseRequestDetailPage() {
       }
     };
   }, [id]);
+
+  // Функция для загрузки связанной закупки
+  const fetchPurchase = async (purchaseRequestId: number) => {
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/purchases?purchaseRequestId=${purchaseRequestId}&page=0&size=1`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.content && data.content.length > 0) {
+          setPurchase(data.content[0]);
+        } else {
+          setPurchase(null);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching purchase:', err);
+      setPurchase(null);
+    }
+  };
 
   const formatDate = (dateString: string | null): string => {
     if (!dateString) return '-';
@@ -597,9 +628,30 @@ export default function PurchaseRequestDetailPage() {
                 <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Закупка</h2>
               </div>
               <div className="p-2">
-                <div className="text-center py-2 text-xs text-gray-500">
-                  <p>Раздел находится в разработке</p>
-                </div>
+                {purchase ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1.5">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-0">
+                        Внутренний ID
+                      </label>
+                      <p className="text-xs text-gray-900">
+                        {purchase.innerId || '-'}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-0">
+                        ЦФО
+                      </label>
+                      <p className="text-xs text-gray-900">
+                        {purchase.cfo || '-'}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-2 text-xs text-gray-500">
+                    <p>Связанная закупка не найдена</p>
+                  </div>
+                )}
               </div>
             </div>
 

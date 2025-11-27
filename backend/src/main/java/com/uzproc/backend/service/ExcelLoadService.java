@@ -48,6 +48,7 @@ public class ExcelLoadService {
     private static final String REQUIRES_PURCHASE_COLUMN = "Требуется Закупка";
     private static final String PLAN_COLUMN = "План (Заявка на ЗП)";
     private static final String PREPARED_BY_COLUMN = "Подготовил";
+    private static final String LINK_COLUMN = "Ссылка";
 
     private final PurchaseRequestRepository purchaseRequestRepository;
     private final PurchaseRepository purchaseRepository;
@@ -179,6 +180,7 @@ public class ExcelLoadService {
             // Колонки для закупок
             Integer purchaseInnerIdColumnIndex = findColumnIndex(columnIndexMap, INNER_ID_COLUMN);
             Integer purchaseCreationDateColumnIndex = findColumnIndex(columnIndexMap, CREATION_DATE_COLUMN);
+            Integer purchaseLinkColumnIndex = findColumnIndex(columnIndexMap, LINK_COLUMN);
             
             // Проверяем обязательные колонки
             if (documentTypeColumnIndex == null) {
@@ -236,7 +238,7 @@ public class ExcelLoadService {
                 } else if (PURCHASE_TYPE.equals(documentType)) {
                     // Обработка закупки
                     if (purchaseInnerIdColumnIndex != null) {
-                        boolean processed = processPurchaseRow(row, purchaseInnerIdColumnIndex, purchaseCreationDateColumnIndex, cfoColumnIndex);
+                        boolean processed = processPurchaseRow(row, purchaseInnerIdColumnIndex, purchaseCreationDateColumnIndex, cfoColumnIndex, purchaseLinkColumnIndex);
                         if (processed) {
                             purchasesCount++;
                         }
@@ -307,9 +309,9 @@ public class ExcelLoadService {
     /**
      * Обрабатывает одну строку закупки
      */
-    private boolean processPurchaseRow(Row row, Integer innerIdColumnIndex, Integer creationDateColumnIndex, Integer cfoColumnIndex) {
+    private boolean processPurchaseRow(Row row, Integer innerIdColumnIndex, Integer creationDateColumnIndex, Integer cfoColumnIndex, Integer linkColumnIndex) {
         try {
-            Purchase purchase = parsePurchaseRow(row, innerIdColumnIndex, creationDateColumnIndex, cfoColumnIndex);
+            Purchase purchase = parsePurchaseRow(row, innerIdColumnIndex, creationDateColumnIndex, cfoColumnIndex, linkColumnIndex);
             if (purchase == null) {
                 return false;
             }
@@ -1405,6 +1407,7 @@ public class ExcelLoadService {
             Integer innerIdColumnIndex = findColumnIndex(columnIndexMap, INNER_ID_COLUMN);
             Integer creationDateColumnIndex = findColumnIndex(columnIndexMap, CREATION_DATE_COLUMN);
             Integer cfoColumnIndex = findColumnIndex(columnIndexMap, CFO_COLUMN);
+            Integer linkColumnIndex = findColumnIndex(columnIndexMap, LINK_COLUMN);
             
             if (innerIdColumnIndex == null) {
                 logger.warn("Column '{}' not found in file {} for purchases", INNER_ID_COLUMN, excelFile.getName());
@@ -1440,7 +1443,7 @@ public class ExcelLoadService {
                     purchaseTypeRowsFound++;
                     logger.debug("Found purchase type row {}: documentType='{}'", row.getRowNum() + 1, documentType);
                     try {
-                        Purchase purchase = parsePurchaseRow(row, innerIdColumnIndex, creationDateColumnIndex, cfoColumnIndex);
+                        Purchase purchase = parsePurchaseRow(row, innerIdColumnIndex, creationDateColumnIndex, cfoColumnIndex, linkColumnIndex);
                         if (purchase == null) {
                             logger.warn("parsePurchaseRow returned null for row {}", row.getRowNum() + 1);
                             parseErrors++;
@@ -1489,7 +1492,7 @@ public class ExcelLoadService {
      * Парсит строку Excel в Purchase для типа "Закупочная процедура"
      * Заполняет innerId из колонки "Внутренний номер" и дату создания из колонки "Дата создания"
      */
-    private Purchase parsePurchaseRow(Row row, Integer innerIdColumnIndex, Integer creationDateColumnIndex, Integer cfoColumnIndex) {
+    private Purchase parsePurchaseRow(Row row, Integer innerIdColumnIndex, Integer creationDateColumnIndex, Integer cfoColumnIndex, Integer linkColumnIndex) {
         Purchase purchase = new Purchase();
         
         try {
@@ -1533,6 +1536,32 @@ public class ExcelLoadService {
                 }
             }
             
+            // Ссылка (опциональное поле) - парсим purchaseRequestId
+            if (linkColumnIndex != null) {
+                Cell linkCell = row.getCell(linkColumnIndex);
+                String link = getCellValueAsString(linkCell);
+                if (link != null && !link.trim().isEmpty()) {
+                    Long purchaseRequestId = parsePurchaseRequestIdFromLink(link.trim());
+                    if (purchaseRequestId != null) {
+                        // Проверяем, существует ли заявка с таким idPurchaseRequest
+                        Optional<PurchaseRequest> purchaseRequest = purchaseRequestRepository.findByIdPurchaseRequest(purchaseRequestId);
+                        if (purchaseRequest.isPresent()) {
+                            purchase.setPurchaseRequestId(purchaseRequest.get().getId());
+                            logger.debug("Parsed purchaseRequestId for purchase row {}: {} (from link: '{}')", 
+                                row.getRowNum() + 1, purchaseRequest.get().getId(), link);
+                        } else {
+                            logger.debug("Purchase request with idPurchaseRequest={} not found for purchase row {} (link: '{}')", 
+                                purchaseRequestId, row.getRowNum() + 1, link);
+                        }
+                    } else {
+                        logger.debug("Could not parse purchaseRequestId from link in purchase row {}: '{}'", 
+                            row.getRowNum() + 1, link);
+                    }
+                }
+            } else {
+                logger.debug("Column '{}' not found for purchase row {}", LINK_COLUMN, row.getRowNum() + 1);
+            }
+            
             return purchase;
         } catch (Exception e) {
             logger.error("Error parsing Purchase row {}: {}", row.getRowNum() + 1, e.getMessage(), e);
@@ -1542,7 +1571,7 @@ public class ExcelLoadService {
 
     /**
      * Обновляет поля существующей закупки только если они отличаются
-     * Обновляем внутренний номер и дату создания
+     * Обновляем внутренний номер, дату создания, ЦФО и purchaseRequestId
      */
     private boolean updatePurchaseFields(Purchase existing, Purchase newData) {
         boolean updated = false;
@@ -1574,7 +1603,47 @@ public class ExcelLoadService {
             }
         }
         
+        // Обновляем purchaseRequestId
+        if (newData.getPurchaseRequestId() != null) {
+            if (existing.getPurchaseRequestId() == null || !existing.getPurchaseRequestId().equals(newData.getPurchaseRequestId())) {
+                existing.setPurchaseRequestId(newData.getPurchaseRequestId());
+                updated = true;
+                logger.debug("Updated purchaseRequestId for purchase {}: {}", existing.getId(), newData.getPurchaseRequestId());
+            }
+        }
+        
         return updated;
+    }
+    
+    /**
+     * Парсит номер заявки на закупку из строки ссылки
+     * Формат: "ЗП по заявке: M - Maintenance N 1412 - Курьерские пакеты на 12 месяцев"
+     * Извлекает число после "N" (1412 в примере)
+     */
+    private Long parsePurchaseRequestIdFromLink(String link) {
+        if (link == null || link.trim().isEmpty()) {
+            return null;
+        }
+        
+        try {
+            // Ищем паттерн "N <число>" в строке
+            // Используем регулярное выражение для поиска "N" или "N " за которым следует число
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("N\\s+(\\d+)");
+            java.util.regex.Matcher matcher = pattern.matcher(link);
+            
+            if (matcher.find()) {
+                String numberStr = matcher.group(1);
+                Long id = Long.parseLong(numberStr);
+                logger.debug("Extracted purchaseRequestId {} from link: '{}'", id, link);
+                return id;
+            } else {
+                logger.debug("Could not find pattern 'N <number>' in link: '{}'", link);
+                return null;
+            }
+        } catch (Exception e) {
+            logger.warn("Error parsing purchaseRequestId from link '{}': {}", link, e.getMessage());
+            return null;
+        }
     }
 }
 

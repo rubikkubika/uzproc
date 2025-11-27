@@ -58,6 +58,9 @@ public class Purchase {
     @Column(name = "contract_duration_months")
     private Integer contractDurationMonths;
 
+    @Column(name = "purchase_request_id")
+    private Long purchaseRequestId;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -202,6 +205,14 @@ public class Purchase {
 
     public void setContractDurationMonths(Integer contractDurationMonths) {
         this.contractDurationMonths = contractDurationMonths;
+    }
+
+    public Long getPurchaseRequestId() {
+        return purchaseRequestId;
+    }
+
+    public void setPurchaseRequestId(Long purchaseRequestId) {
+        this.purchaseRequestId = purchaseRequestId;
     }
 
     public LocalDateTime getCreatedAt() {
