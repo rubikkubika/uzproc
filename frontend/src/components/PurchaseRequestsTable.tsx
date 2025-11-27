@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
-import { ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpDown, Clock, Search, X } from 'lucide-react';
 
 interface PurchaseRequest {
   id: number;
@@ -67,7 +67,55 @@ export default function PurchaseRequestsTable() {
     contractDurationMonths: '',
     isPlanned: '',
     requiresPurchase: '',
+    status: '',
   });
+
+  // Состояние для множественных фильтров (чекбоксы)
+  const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
+  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set());
+  
+  // Состояние для открытия/закрытия выпадающих списков
+  const [isCfoFilterOpen, setIsCfoFilterOpen] = useState(false);
+  const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
+  
+  // Поиск внутри фильтров
+  const [cfoSearchQuery, setCfoSearchQuery] = useState('');
+  const [statusSearchQuery, setStatusSearchQuery] = useState('');
+  
+  // Позиции для выпадающих списков
+  const [cfoFilterPosition, setCfoFilterPosition] = useState<{ top: number; left: number } | null>(null);
+  const [statusFilterPosition, setStatusFilterPosition] = useState<{ top: number; left: number } | null>(null);
+  
+  const cfoFilterButtonRef = useRef<HTMLButtonElement>(null);
+  const statusFilterButtonRef = useRef<HTMLButtonElement>(null);
+  
+  // Функция для расчета позиции выпадающего списка
+  const calculateFilterPosition = useCallback((buttonRef: React.RefObject<HTMLButtonElement>) => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      return {
+        top: rect.bottom + window.scrollY + 4,
+        left: rect.left + window.scrollX,
+      };
+    }
+    return null;
+  }, []);
+  
+  // Обновляем позицию при открытии фильтра ЦФО
+  useEffect(() => {
+    if (isCfoFilterOpen && cfoFilterButtonRef.current) {
+      const position = calculateFilterPosition(cfoFilterButtonRef);
+      setCfoFilterPosition(position);
+    }
+  }, [isCfoFilterOpen, calculateFilterPosition]);
+  
+  // Обновляем позицию при открытии фильтра Статус
+  useEffect(() => {
+    if (isStatusFilterOpen && statusFilterButtonRef.current) {
+      const position = calculateFilterPosition(statusFilterButtonRef);
+      setStatusFilterPosition(position);
+    }
+  }, [isStatusFilterOpen, calculateFilterPosition]);
 
   // Локальное состояние для текстовых фильтров (для сохранения фокуса)
   const [localFilters, setLocalFilters] = useState<Record<string, string>>({
@@ -81,6 +129,7 @@ export default function PurchaseRequestsTable() {
     contractDurationMonths: '',
     isPlanned: '',
     requiresPurchase: '',
+    status: '',
   });
 
   // ID активного поля для восстановления фокуса
@@ -114,9 +163,9 @@ export default function PurchaseRequestsTable() {
       if (filters.idPurchaseRequest && filters.idPurchaseRequest.trim() !== '') {
         params.append('idPurchaseRequest', filters.idPurchaseRequest);
       }
-      if (filters.cfo && filters.cfo.trim() !== '') {
-        params.append('cfo', filters.cfo);
-      }
+      // Фильтр по ЦФО - если выбрано несколько, фильтруем на клиенте
+      // НЕ отправляем параметр на бэкенд, чтобы получить все данные для клиентской фильтрации
+      // Фильтрация по ЦФО будет применена на клиенте после получения данных
       if (filters.purchaseInitiator && filters.purchaseInitiator.trim() !== '') {
         params.append('purchaseInitiator', filters.purchaseInitiator);
       }
@@ -136,13 +185,90 @@ export default function PurchaseRequestsTable() {
         params.append('requiresPurchase', filters.requiresPurchase);
       }
       
-      const url = `${getBackendUrl()}/api/purchase-requests?${params.toString()}`;
-      const response = await fetch(url);
+      // Если есть фильтры ЦФО или Статус, загружаем все данные для корректной фильтрации
+      const hasClientFilters = cfoFilter.size > 0 || statusFilter.size > 0;
+      let fetchUrl = `${getBackendUrl()}/api/purchase-requests?${params.toString()}`;
+      
+      if (hasClientFilters) {
+        // Загружаем все данные для фильтрации на клиенте
+        const allParams = new URLSearchParams();
+        allParams.append('page', '0');
+        allParams.append('size', '10000');
+        if (selectedYear !== null) {
+          allParams.append('year', String(selectedYear));
+        }
+        if (sortField && sortDirection) {
+          allParams.append('sortBy', sortField);
+          allParams.append('sortDir', sortDirection);
+        }
+        // Добавляем другие фильтры (кроме ЦФО, которое фильтруем на клиенте)
+        if (filters.idPurchaseRequest && filters.idPurchaseRequest.trim() !== '') {
+          allParams.append('idPurchaseRequest', filters.idPurchaseRequest);
+        }
+        if (filters.purchaseInitiator && filters.purchaseInitiator.trim() !== '') {
+          allParams.append('purchaseInitiator', filters.purchaseInitiator);
+        }
+        if (filters.name && filters.name.trim() !== '') {
+          allParams.append('name', filters.name);
+        }
+        if (filters.costType && filters.costType.trim() !== '') {
+          allParams.append('costType', filters.costType);
+        }
+        if (filters.contractType && filters.contractType.trim() !== '') {
+          allParams.append('contractType', filters.contractType);
+        }
+        if (filters.isPlanned && filters.isPlanned.trim() !== '') {
+          allParams.append('isPlanned', filters.isPlanned);
+        }
+        if (filters.requiresPurchase && filters.requiresPurchase.trim() !== '') {
+          allParams.append('requiresPurchase', filters.requiresPurchase);
+        }
+        fetchUrl = `${getBackendUrl()}/api/purchase-requests?${allParams.toString()}`;
+      }
+      
+      const response = await fetch(fetchUrl);
       if (!response.ok) {
         throw new Error('Ошибка загрузки данных');
       }
       const result = await response.json();
-      setData(result);
+      
+      // Применяем фильтрацию на клиенте
+      let filteredContent = result.content;
+      
+      // Фильтрация по ЦФО - показываем записи, если ЦФО совпадает с хотя бы одним выбранным
+      if (cfoFilter.size > 0) {
+        filteredContent = filteredContent.filter((request: PurchaseRequest) => {
+          return request.cfo && cfoFilter.has(request.cfo);
+        });
+      }
+      
+      // Фильтрация по статусу - показываем записи, если статус совпадает с хотя бы одним выбранным
+      // Временная логика: все заявки имеют статус "Заявка"
+      if (statusFilter.size > 0) {
+        filteredContent = filteredContent.filter((request: PurchaseRequest) => {
+          // Пока все заявки имеют статус "Заявка"
+          // Позже здесь будет логика определения реального статуса заявки
+          return statusFilter.has('Заявка');
+        });
+      }
+      
+      // Применяем пагинацию к отфильтрованным данным только если есть клиентские фильтры
+      if (hasClientFilters) {
+        const totalFiltered = filteredContent.length;
+        const startIndex = currentPage * size;
+        const endIndex = startIndex + size;
+        const paginatedContent = filteredContent.slice(startIndex, endIndex);
+        
+        setData({
+          ...result,
+          content: paginatedContent,
+          totalElements: totalFiltered,
+          totalPages: Math.ceil(totalFiltered / size),
+        });
+      } else {
+        // Без клиентских фильтров используем данные напрямую из сервера
+        setData(result);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Произошла ошибка');
     } finally {
@@ -175,7 +301,7 @@ export default function PurchaseRequestsTable() {
 
   useEffect(() => {
     fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters);
-  }, [currentPage, pageSize, selectedYear, sortField, sortDirection, filters]);
+  }, [currentPage, pageSize, selectedYear, sortField, sortDirection, filters, cfoFilter, statusFilter]);
 
   // Восстановление фокуса после обновления localFilters
   useEffect(() => {
@@ -371,6 +497,101 @@ export default function PurchaseRequestsTable() {
     return uniqueValues[fieldMap[field] || 'cfo'] || [];
   };
 
+  // Обработчики для фильтров с чекбоксами
+  const handleCfoToggle = (cfo: string) => {
+    const newSet = new Set(cfoFilter);
+    if (newSet.has(cfo)) {
+      newSet.delete(cfo);
+    } else {
+      newSet.add(cfo);
+    }
+    setCfoFilter(newSet);
+    // Обновляем фильтр для запроса
+    if (newSet.size > 0) {
+      setFilters(prev => ({ ...prev, cfo: Array.from(newSet).join(',') }));
+    } else {
+      setFilters(prev => ({ ...prev, cfo: '' }));
+    }
+    setCurrentPage(0);
+  };
+
+  const handleStatusToggle = (status: string) => {
+    const newSet = new Set(statusFilter);
+    if (newSet.has(status)) {
+      newSet.delete(status);
+    } else {
+      newSet.add(status);
+    }
+    setStatusFilter(newSet);
+    setCurrentPage(0);
+  };
+
+  const handleCfoSelectAll = () => {
+    const allCfo = getUniqueValues('cfo');
+    const newSet = new Set(allCfo);
+    setCfoFilter(newSet);
+    setFilters(prev => ({ ...prev, cfo: allCfo.join(',') }));
+    setCurrentPage(0);
+  };
+
+  const handleCfoDeselectAll = () => {
+    setCfoFilter(new Set());
+    setFilters(prev => ({ ...prev, cfo: '' }));
+    setCurrentPage(0);
+  };
+
+  const handleStatusSelectAll = () => {
+    const allStatuses = ['Заявка', 'Закупка', 'Договор', 'Спецификация'];
+    setStatusFilter(new Set(allStatuses));
+    setCurrentPage(0);
+  };
+
+  const handleStatusDeselectAll = () => {
+    setStatusFilter(new Set());
+    setCurrentPage(0);
+  };
+
+  // Закрываем выпадающие списки при клике вне их
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (isCfoFilterOpen && !target.closest('.cfo-filter-container')) {
+        setIsCfoFilterOpen(false);
+      }
+      if (isStatusFilterOpen && !target.closest('.status-filter-container')) {
+        setIsStatusFilterOpen(false);
+      }
+    };
+
+    if (isCfoFilterOpen || isStatusFilterOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isCfoFilterOpen, isStatusFilterOpen]);
+
+  // Фильтруем опции по поисковому запросу
+  const getFilteredCfoOptions = useMemo(() => {
+    const allCfo = uniqueValues.cfo || [];
+    if (!cfoSearchQuery || !cfoSearchQuery.trim()) {
+      return allCfo;
+    }
+    const searchLower = cfoSearchQuery.toLowerCase().trim();
+    return allCfo.filter(cfo => {
+      if (!cfo) return false;
+      return cfo.toLowerCase().includes(searchLower);
+    });
+  }, [cfoSearchQuery, uniqueValues.cfo]);
+
+  const getFilteredStatusOptions = () => {
+    const allStatuses = ['Заявка', 'Закупка', 'Договор', 'Спецификация'];
+    if (!statusSearchQuery.trim()) return allStatuses;
+    return allStatuses.filter(status => 
+      status.toLowerCase().includes(statusSearchQuery.toLowerCase())
+    );
+  };
+
   if (loading) {
     return (
       <div className="bg-white p-6 rounded-lg shadow-lg">
@@ -419,6 +640,7 @@ export default function PurchaseRequestsTable() {
     return (
       <th className={`px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 ${width || ''}`}>
         <div className="flex flex-col gap-1">
+          {field ? (
           <button
             onClick={() => handleSort(field)}
             className="flex items-center gap-1 hover:text-gray-700 transition-colors w-full"
@@ -434,6 +656,9 @@ export default function PurchaseRequestsTable() {
               <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
             )}
           </button>
+          ) : (
+            <span>{label}</span>
+          )}
           {filterType === 'select' && filterOptions.length > 0 ? (
             <select
               value={filterValue}
@@ -552,9 +777,14 @@ export default function PurchaseRequestsTable() {
                     contractDurationMonths: '',
                     isPlanned: '',
                     requiresPurchase: '',
+                    status: '',
                   };
                   setFilters(emptyFilters);
                   setLocalFilters(emptyFilters);
+                  setCfoFilter(new Set());
+                  setStatusFilter(new Set());
+                  setCfoSearchQuery('');
+                  setStatusSearchQuery('');
                   setSortField(null);
                   setSortDirection(null);
                   setFocusedField(null);
@@ -627,18 +857,110 @@ export default function PurchaseRequestsTable() {
         </div>
       )}
       
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto relative">
         <table className="w-full border-collapse">
           <thead className="bg-gray-50">
             <tr>
               <SortableHeader field="idPurchaseRequest" label="Номер" width="w-16" />
-              <SortableHeader 
-                field="cfo" 
-                label="ЦФО" 
-                filterType="select"
-                filterOptions={getUniqueValues('cfo')}
-                width="w-20"
-              />
+              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 w-20">
+                <div className="flex flex-col gap-1">
+                  <button
+                    onClick={() => handleSort('cfo')}
+                    className="flex items-center gap-1 hover:text-gray-700 transition-colors w-full"
+                  >
+                    <span>ЦФО</span>
+                    {sortField === 'cfo' ? (
+                      sortDirection === 'asc' ? (
+                        <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                      ) : (
+                        <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                    )}
+                  </button>
+                  <div className="relative cfo-filter-container">
+                    <button
+                      ref={cfoFilterButtonRef}
+                      type="button"
+                      onClick={() => setIsCfoFilterOpen(!isCfoFilterOpen)}
+                      className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded bg-white text-left focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center gap-1 hover:bg-gray-50"
+                    >
+                      <span className="text-gray-600 truncate flex-1 min-w-0 text-left">
+                        {cfoFilter.size === 0 
+                          ? 'Все' 
+                          : cfoFilter.size === 1
+                          ? (Array.from(cfoFilter)[0] || 'Все')
+                          : `${cfoFilter.size} выбрано`}
+                      </span>
+                      <svg className={`w-3 h-3 transition-transform flex-shrink-0 ${isCfoFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {isCfoFilterOpen && cfoFilterPosition && (
+                      <div 
+                        className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden"
+                        style={{
+                          top: `${cfoFilterPosition.top}px`,
+                          left: `${cfoFilterPosition.left}px`,
+                        }}
+                      >
+                        <div className="p-2 border-b border-gray-200">
+                          <div className="relative">
+                            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
+                            <input
+                              type="text"
+                              value={cfoSearchQuery}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                setCfoSearchQuery(e.target.value);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              onFocus={(e) => e.stopPropagation()}
+                              className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              placeholder="Поиск..."
+                            />
+                          </div>
+                        </div>
+                        <div className="p-2 border-b border-gray-200 flex gap-2">
+                          <button
+                            onClick={() => handleCfoSelectAll()}
+                            className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                          >
+                            Все
+                          </button>
+                          <button
+                            onClick={() => handleCfoDeselectAll()}
+                            className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                          >
+                            Снять
+                          </button>
+                        </div>
+                        <div className="max-h-48 overflow-y-auto">
+                          {getFilteredCfoOptions.length === 0 ? (
+                            <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
+                          ) : (
+                            getFilteredCfoOptions.map((cfo) => (
+                              <label
+                                key={cfo}
+                                className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={cfoFilter.has(cfo)}
+                                  onChange={() => handleCfoToggle(cfo)}
+                                  className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                                />
+                                <span className="ml-2 text-xs text-gray-700 flex-1">{cfo}</span>
+                              </label>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </th>
               <SortableHeader 
                 field="purchaseInitiator" 
                 label="Инициатор"
@@ -662,6 +984,87 @@ export default function PurchaseRequestsTable() {
                 filterOptions={['true', 'false']}
                 width="w-24"
               />
+              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300">
+                <div className="flex flex-col gap-1">
+                  <span className="normal-case">Статус</span>
+                  <div className="relative status-filter-container">
+                    <button
+                      ref={statusFilterButtonRef}
+                      type="button"
+                      onClick={() => setIsStatusFilterOpen(!isStatusFilterOpen)}
+                      className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded bg-white text-left focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center justify-between hover:bg-gray-50"
+                    >
+                      <span className="text-gray-600 truncate">
+                        {statusFilter.size === 0 
+                          ? 'Все' 
+                          : statusFilter.size === 1
+                          ? Array.from(statusFilter)[0]
+                          : `${statusFilter.size} выбрано`}
+                      </span>
+                      <svg className={`w-3 h-3 transition-transform flex-shrink-0 ${isStatusFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {isStatusFilterOpen && statusFilterPosition && (
+                      <div 
+                        className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden"
+                        style={{
+                          top: `${statusFilterPosition.top}px`,
+                          left: `${statusFilterPosition.left}px`,
+                        }}
+                      >
+                        <div className="p-2 border-b border-gray-200">
+                          <div className="relative">
+                            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
+                            <input
+                              type="text"
+                              value={statusSearchQuery}
+                              onChange={(e) => setStatusSearchQuery(e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              placeholder="Поиск..."
+                            />
+                          </div>
+                        </div>
+                        <div className="p-2 border-b border-gray-200 flex gap-2">
+                          <button
+                            onClick={() => handleStatusSelectAll()}
+                            className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                          >
+                            Все
+                          </button>
+                          <button
+                            onClick={() => handleStatusDeselectAll()}
+                            className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                          >
+                            Снять
+                          </button>
+                        </div>
+                        <div className="max-h-48 overflow-y-auto">
+                          {getFilteredStatusOptions().length === 0 ? (
+                            <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
+                          ) : (
+                            getFilteredStatusOptions().map((status) => (
+                              <label
+                                key={status}
+                                className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={statusFilter.has(status)}
+                                  onChange={() => handleStatusToggle(status)}
+                                  className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                                />
+                                <span className="ml-2 text-xs text-gray-700 flex-1">{status}</span>
+                              </label>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -712,7 +1115,7 @@ export default function PurchaseRequestsTable() {
                       </span>
                     )}
                   </td>
-                  <td className="px-2 py-2 whitespace-nowrap text-xs">
+                  <td className="px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200">
                     {request.requiresPurchase ? (
                       <span className="px-1.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
                         Да
@@ -727,11 +1130,37 @@ export default function PurchaseRequestsTable() {
                       </span>
                     )}
                   </td>
+                  <td className="px-2 py-2 text-xs border-r border-gray-200">
+                    <div className="flex items-end gap-2">
+                      {/* Заявка - активна */}
+                      <div className="flex flex-col items-center gap-0.5">
+                        <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center" title="Заявка">
+                          <Clock className="w-2.5 h-2.5 text-white" />
+                        </div>
+                        <span className="text-[10px] text-gray-600 whitespace-nowrap leading-none">Заявка</span>
+                      </div>
+                      {/* Закупка - неактивна */}
+                      <div className="flex flex-col items-center gap-0.5">
+                        <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Закупка"></div>
+                        <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Закупка</span>
+                      </div>
+                      {/* Договор - неактивна */}
+                      <div className="flex flex-col items-center gap-0.5">
+                        <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Договор"></div>
+                        <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Договор</span>
+                      </div>
+                      {/* Спецификация - неактивна */}
+                      <div className="flex flex-col items-center gap-0.5">
+                        <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Спецификация"></div>
+                        <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Спецификация</span>
+                      </div>
+                    </div>
+                  </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
                   Нет данных
                 </td>
               </tr>
