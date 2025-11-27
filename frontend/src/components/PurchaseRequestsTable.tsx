@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
 import { ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 
@@ -37,6 +38,7 @@ type SortField = keyof PurchaseRequest | null;
 type SortDirection = 'asc' | 'desc' | null;
 
 export default function PurchaseRequestsTable() {
+  const router = useRouter();
   const [data, setData] = useState<PageResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -649,7 +651,18 @@ export default function PurchaseRequestsTable() {
           <tbody className="bg-white divide-y divide-gray-200">
             {hasData ? (
               data?.content.map((request) => (
-                <tr key={request.id} className="hover:bg-gray-50">
+                <tr 
+                  key={request.id} 
+                  className="hover:bg-gray-50 cursor-pointer"
+                  onClick={(e) => {
+                    // Не переходим на страницу, если клик был на интерактивном элементе
+                    const target = e.target as HTMLElement;
+                    if (target.closest('input') || target.closest('select') || target.closest('button')) {
+                      return;
+                    }
+                    router.push(`/purchase-request/${request.id}`);
+                  }}
+                >
                   <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 w-16">
                     {request.idPurchaseRequest || '-'}
                   </td>
