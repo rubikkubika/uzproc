@@ -161,42 +161,55 @@ export default function PurchaseRequestsTable() {
       
       // Добавляем параметры фильтрации
       if (filters.idPurchaseRequest && filters.idPurchaseRequest.trim() !== '') {
-        params.append('idPurchaseRequest', filters.idPurchaseRequest);
+        const idValue = parseInt(filters.idPurchaseRequest.trim(), 10);
+        if (!isNaN(idValue)) {
+          params.append('idPurchaseRequest', String(idValue));
+        }
       }
-      // Фильтр по ЦФО - если выбрано несколько, фильтруем на клиенте
-      // НЕ отправляем параметр на бэкенд, чтобы получить все данные для клиентской фильтрации
-      // Фильтрация по ЦФО будет применена на клиенте после получения данных
+      // Фильтр по ЦФО - передаем все выбранные значения на бэкенд
+      if (cfoFilter.size > 0) {
+        cfoFilter.forEach(cfo => {
+          params.append('cfo', cfo);
+        });
+      }
       if (filters.purchaseInitiator && filters.purchaseInitiator.trim() !== '') {
-        params.append('purchaseInitiator', filters.purchaseInitiator);
+        params.append('purchaseInitiator', filters.purchaseInitiator.trim());
       }
       if (filters.name && filters.name.trim() !== '') {
-        params.append('name', filters.name);
+        params.append('name', filters.name.trim());
       }
       if (filters.costType && filters.costType.trim() !== '') {
-        params.append('costType', filters.costType);
+        params.append('costType', filters.costType.trim());
       }
       if (filters.contractType && filters.contractType.trim() !== '') {
-        params.append('contractType', filters.contractType);
+        params.append('contractType', filters.contractType.trim());
       }
       if (filters.isPlanned && filters.isPlanned.trim() !== '') {
-        params.append('isPlanned', filters.isPlanned);
+        const isPlannedValue = filters.isPlanned.trim().toLowerCase();
+        if (isPlannedValue === 'true' || isPlannedValue === 'false') {
+          params.append('isPlanned', isPlannedValue);
+        }
       }
       if (filters.requiresPurchase && filters.requiresPurchase.trim() !== '') {
-        params.append('requiresPurchase', filters.requiresPurchase);
+        const requiresPurchaseValue = filters.requiresPurchase.trim().toLowerCase();
+        if (requiresPurchaseValue === 'true' || requiresPurchaseValue === 'false') {
+          params.append('requiresPurchase', requiresPurchaseValue);
+        }
       }
       
-      // Если есть фильтры ЦФО или Статус, загружаем все данные для корректной фильтрации
-      const hasClientFilters = cfoFilter.size > 0 || statusFilter.size > 0;
+      // Если есть фильтр по статусу, загружаем все данные для корректной фильтрации на клиенте
+      // (статус определяется на основе данных, которых нет в PurchaseRequest)
+      // ВАЖНО: Все остальные фильтры (год, ЦФО, инициатор и т.д.) применяются на бэкенде
+      const hasStatusFilter = statusFilter.size > 0;
       let fetchUrl = `${getBackendUrl()}/api/purchase-requests?${params.toString()}`;
       
-      if (hasClientFilters) {
-        // Загружаем все данные для фильтрации на клиенте
-        // Копируем все параметры из params, но меняем page и size
+      if (hasStatusFilter) {
+        // Загружаем все данные для фильтрации по статусу на клиенте
+        // Копируем все параметры из params (включая все фильтры), но меняем page и size
+        // Это гарантирует, что все фильтры (год, ЦФО и т.д.) применяются на бэкенде
         const allParams = new URLSearchParams(params);
         allParams.set('page', '0');
         allParams.set('size', '10000');
-        // Убираем параметр cfo, если он был добавлен (мы фильтруем на клиенте)
-        allParams.delete('cfo');
         fetchUrl = `${getBackendUrl()}/api/purchase-requests?${allParams.toString()}`;
       }
       
@@ -206,30 +219,29 @@ export default function PurchaseRequestsTable() {
       }
       const result = await response.json();
       
-      // Применяем фильтрацию на клиенте только если есть клиентские фильтры
-      if (hasClientFilters) {
+      // Применяем фильтрацию на клиенте только для статуса
+      // (все остальные фильтры уже применены на бэкенде)
+      if (hasStatusFilter) {
         let filteredContent = result.content;
-        
-        // Фильтрация по ЦФО - показываем записи, если ЦФО совпадает с хотя бы одним выбранным
-        if (cfoFilter.size > 0) {
-          filteredContent = filteredContent.filter((request: PurchaseRequest) => {
-            return request.cfo && cfoFilter.has(request.cfo);
-          });
-        }
         
         // Фильтрация по статусу - показываем записи, если статус совпадает с хотя бы одним выбранным
         // Временная логика: все заявки имеют статус "Заявка"
+        // TODO: Добавить вычисление статуса на бэкенде для полной серверной фильтрации
         if (statusFilter.size > 0) {
+          const beforeFilter = filteredContent.length;
           filteredContent = filteredContent.filter((request: PurchaseRequest) => {
             // Пока все заявки имеют статус "Заявка"
             // Позже здесь будет логика определения реального статуса заявки
             return statusFilter.has('Заявка');
           });
+          console.log(`Status filter: ${beforeFilter} -> ${filteredContent.length} records`);
         }
         
         // Применяем пагинацию к отфильтрованным данным
+        // ВАЖНО: Пагинация применяется ПОСЛЕ фильтрации по статусу
+        // Используем page и size из параметров функции (которые соответствуют currentPage и pageSize из состояния)
         const totalFiltered = filteredContent.length;
-        const startIndex = currentPage * size;
+        const startIndex = page * size;
         const endIndex = startIndex + size;
         const paginatedContent = filteredContent.slice(startIndex, endIndex);
         
@@ -240,7 +252,9 @@ export default function PurchaseRequestsTable() {
           totalPages: Math.ceil(totalFiltered / size),
         });
       } else {
-        // Без клиентских фильтров используем данные напрямую из сервера
+        // Без фильтра по статусу используем данные напрямую из сервера
+        // (все фильтры, включая ЦФО, применяются на бэкенде, пагинация тоже на бэкенде)
+        // totalElements и totalPages уже учитывают все примененные фильтры
         setData(result);
       }
     } catch (err) {

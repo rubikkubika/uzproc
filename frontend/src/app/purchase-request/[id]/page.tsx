@@ -362,7 +362,7 @@ export default function PurchaseRequestDetailPage() {
         <main className="flex-1 overflow-y-auto p-2 sm:p-3 lg:p-4 pt-16 sm:pt-20 lg:pt-4">
           <div className="space-y-2">
             {/* Верхняя панель с кнопкой назад и трекером статусов */}
-            <div className="flex items-start justify-between gap-2">
+            <div className="space-y-2">
               {/* Кнопка назад */}
               <button
                 onClick={() => router.back()}
@@ -373,7 +373,7 @@ export default function PurchaseRequestDetailPage() {
               </button>
 
               {/* Трекер статусов */}
-              <div className="bg-white rounded-lg shadow-lg p-2 border border-gray-200 hidden sm:block">
+              <div className="bg-white rounded-lg shadow-lg p-2 border border-gray-200 hidden sm:block w-fit">
                 <div className="flex items-end gap-2">
                   {/* Заявка - активна */}
                   <div className="flex flex-col items-center gap-0.5">
