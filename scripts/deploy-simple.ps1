@@ -41,6 +41,23 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "Error copying files to server!" -ForegroundColor Red
     exit 1
 }
+
+# Копируем Excel файлы из alldocuments на сервер
+$alldocumentsPath = Join-Path $projectRoot "frontend\upload\alldocuments"
+if (Test-Path $alldocumentsPath) {
+    $excelFiles = @()
+    $excelFiles += Get-ChildItem -Path $alldocumentsPath -Filter "*.xlsx" -File
+    $excelFiles += Get-ChildItem -Path $alldocumentsPath -Filter "*.xls" -File
+    if ($excelFiles.Count -gt 0) {
+        Write-Host "Copying Excel files from alldocuments..." -ForegroundColor Yellow
+        ssh $SERVER "mkdir -p ${REMOTE_PATH}/frontend/upload/alldocuments"
+        foreach ($file in $excelFiles) {
+            scp $file.FullName "${SERVER}:${REMOTE_PATH}/frontend/upload/alldocuments/"
+        }
+        Write-Host "Excel files copied to server" -ForegroundColor Green
+    }
+}
+
 Write-Host "Files copied to server" -ForegroundColor Green
 
 Write-Host "`nStep 4: Updating containers on server..." -ForegroundColor Yellow
