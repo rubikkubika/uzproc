@@ -44,7 +44,7 @@ export default function PurchaseRequestDetailPage() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
-  const [activeTab, setActiveTab] = useState('backend-purchase-requests');
+  const [activeTab, setActiveTab] = useState('purchase-requests');
   
   // Защита от дублирующих запросов
   const abortControllerRef = useRef<AbortController | null>(null);

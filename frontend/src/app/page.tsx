@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useLayoutEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import MonthlyPurchasesChart from '@/components/MonthlyPurchasesChart';
 import CategoryChart from '@/components/CategoryChart';
@@ -25,6 +26,8 @@ const SIDEBAR_COLLAPSED_KEY = 'sidebarCollapsed';
 const ACTIVE_TAB_KEY = 'activeTab';
 
 export default function Dashboard() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState('overview');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -33,7 +36,7 @@ export default function Dashboard() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
-  // Загружаем состояние сайдбара и активной вкладки из localStorage синхронно после монтирования
+  // Загружаем состояние сайдбара из localStorage
   useLayoutEffect(() => {
     try {
       const saved = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
@@ -45,17 +48,36 @@ export default function Dashboard() {
       } else {
         document.documentElement.style.setProperty('--sidebar-width', '16rem');
       }
-      
-      // Загружаем сохраненную активную вкладку
-      const savedTab = localStorage.getItem(ACTIVE_TAB_KEY);
-      if (savedTab) {
-        setActiveTab(savedTab);
-      }
     } catch (err) {
       // Игнорируем ошибки
     }
     setIsMounted(true);
   }, []);
+
+  // Загружаем активную вкладку из URL или localStorage после монтирования
+  useEffect(() => {
+    if (!isMounted) return;
+    
+    try {
+      // Приоритет: сначала URL, потом localStorage
+      const tabFromUrl = searchParams.get('tab');
+      if (tabFromUrl) {
+        setActiveTab(tabFromUrl);
+        // Сохраняем в localStorage для обратной совместимости
+        localStorage.setItem(ACTIVE_TAB_KEY, tabFromUrl);
+      } else {
+        // Загружаем сохраненную активную вкладку из localStorage
+        const savedTab = localStorage.getItem(ACTIVE_TAB_KEY);
+        if (savedTab) {
+          setActiveTab(savedTab);
+          // Обновляем URL для синхронизации
+          router.replace(`/?tab=${savedTab}`, { scroll: false });
+        }
+      }
+    } catch (err) {
+      // Игнорируем ошибки
+    }
+  }, [isMounted, searchParams, router]);
 
   // Сохраняем состояние сайдбара в localStorage при изменении
   const handleSidebarCollapse = (collapsed: boolean) => {
@@ -75,11 +97,13 @@ export default function Dashboard() {
     }
   };
 
-  // Обработчик изменения вкладки с сохранением в localStorage
+  // Обработчик изменения вкладки с сохранением в localStorage и обновлением URL
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
     try {
       localStorage.setItem(ACTIVE_TAB_KEY, tab);
+      // Обновляем URL с query параметром
+      router.push(`/?tab=${tab}`, { scroll: false });
     } catch (err) {
       console.error('Error saving active tab:', err);
     }
@@ -187,14 +211,14 @@ export default function Dashboard() {
         );
 
       // Backend разделы
-      case 'backend-users':
+      case 'users':
         return (
           <div className="space-y-6">
             <UsersTable />
           </div>
         );
 
-      case 'backend-purchase-requests':
+      case 'purchase-requests':
         return (
           <div className="space-y-6">
             <PurchaseRequestsTable />
