@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
 import { ArrowUp, ArrowDown, ArrowUpDown, Clock, Search, X, Download, Copy } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import html2canvas from 'html2canvas';
 
 interface PurchaseRequest {
   id: number;
@@ -891,7 +892,7 @@ export default function PurchaseRequestsTable() {
         });
 
         // Преобразуем canvas в blob
-        canvas.toBlob((blob) => {
+        canvas.toBlob((blob: Blob | null) => {
           if (!blob) {
             alert('Ошибка при создании изображения');
             return;
