@@ -34,6 +34,7 @@ public class PurchaseService {
             Integer year,
             String sortBy,
             String sortDir,
+            String innerId,
             Long purchaseNumber,
             List<String> cfo,
             String purchaseInitiator,
@@ -42,11 +43,11 @@ public class PurchaseService {
             String contractType) {
         
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, purchaseNumber: {}, cfo: {}, purchaseInitiator: '{}', name: '{}', costType: '{}', contractType: '{}'",
-                year, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType);
+        logger.info("Filter parameters - year: {}, innerId: '{}', purchaseNumber: {}, cfo: {}, purchaseInitiator: '{}', name: '{}', costType: '{}', contractType: '{}'",
+                year, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType);
         
         Specification<Purchase> spec = buildSpecification(
-                year, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType);
+                year, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -67,6 +68,7 @@ public class PurchaseService {
 
     private Specification<Purchase> buildSpecification(
             Integer year,
+            String innerId,
             Long purchaseNumber,
             List<String> cfo,
             String purchaseInitiator,
@@ -85,6 +87,13 @@ public class PurchaseService {
                 predicates.add(cb.between(root.get("purchaseCreationDate"), startOfYear, endOfYear));
                 predicateCount++;
                 logger.info("Added year filter: {}", year);
+            }
+            
+            // Фильтр по внутреннему номеру (частичное совпадение, case-insensitive)
+            if (innerId != null && !innerId.trim().isEmpty()) {
+                predicates.add(cb.like(cb.lower(root.get("innerId")), "%" + innerId.toLowerCase() + "%"));
+                predicateCount++;
+                logger.info("Added innerId filter: '{}'", innerId);
             }
             
             // Фильтр по номеру закупки

@@ -11,6 +11,7 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Map;
 
 @Configuration
 public class ExcelFileAutoLoader {
@@ -30,13 +31,24 @@ public class ExcelFileAutoLoader {
                     logger.info("Found alldocuments folder in Docker container: {}", dockerPath);
                 } else {
                     // Ищем папку alldocuments относительно корня проекта
-                    Path projectRoot = Paths.get("").toAbsolutePath();
+                    // Используем системное свойство user.dir, которое указывает на директорию запуска
+                    String userDir = System.getProperty("user.dir");
+                    Path currentDir = Paths.get(userDir).toAbsolutePath();
+                    Path projectRoot = currentDir;
+                    
+                    // Если запускаем из backend/, поднимаемся на уровень выше
+                    if (currentDir.getFileName() != null && currentDir.getFileName().toString().equals("backend")) {
+                        projectRoot = currentDir.getParent();
+                        logger.info("Detected backend directory, using project root: {}", projectRoot);
+                    }
+                    
                     alldocumentsPath = projectRoot.resolve("frontend").resolve("upload").resolve("alldocuments");
                     
                     // Если не нашли, пробуем альтернативные пути
                     if (!Files.exists(alldocumentsPath)) {
                         // Пробуем относительно текущей директории (если запускаем из backend/)
-                        alldocumentsPath = projectRoot.resolve("..").resolve("frontend").resolve("upload").resolve("alldocuments").normalize();
+                        alldocumentsPath = currentDir.resolve("..").resolve("frontend").resolve("upload").resolve("alldocuments").normalize();
+                        logger.info("Trying alternative path: {}", alldocumentsPath);
                     }
                 }
                 
@@ -68,12 +80,15 @@ public class ExcelFileAutoLoader {
                 for (File excelFile : excelFiles) {
                     try {
                         logger.info("Processing file: {}", excelFile.getName());
-                        int purchaseRequestsCount = excelLoadService.loadPurchaseRequestsFromExcel(excelFile);
-                        int purchasesCount = excelLoadService.loadPurchasesFromExcel(excelFile);
-                        int usersCount = excelLoadService.loadUsersFromExcel(excelFile);
+                        // Используем оптимизированный метод, который открывает файл один раз
+                        Map<String, Integer> counts = excelLoadService.loadAllFromExcel(excelFile);
+                        int purchaseRequestsCount = counts.getOrDefault("purchaseRequests", 0);
+                        int purchasesCount = counts.getOrDefault("purchases", 0);
+                        int usersCount = counts.getOrDefault("users", 0);
                         int loadedCount = purchaseRequestsCount + purchasesCount + usersCount;
                         totalLoaded += loadedCount;
-                        logger.info("Loaded {} records from {}", loadedCount, excelFile.getName());
+                        logger.info("Loaded {} records from {} ({} purchase requests, {} purchases, {} users)", 
+                            loadedCount, excelFile.getName(), purchaseRequestsCount, purchasesCount, usersCount);
                     } catch (Exception e) {
                         logger.error("Error processing file {}: {}", excelFile.getName(), e.getMessage(), e);
                     }

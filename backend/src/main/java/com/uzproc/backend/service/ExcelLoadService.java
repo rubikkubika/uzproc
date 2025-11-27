@@ -113,6 +113,227 @@ public class ExcelLoadService {
     }
 
     /**
+     * Оптимизированная загрузка всех данных из Excel файла за один проход
+     * Открывает файл один раз и обрабатывает все типы строк (заявки, закупки, пользователи)
+     */
+    public Map<String, Integer> loadAllFromExcel(File excelFile) throws IOException {
+        Workbook workbook;
+        try (FileInputStream fis = new FileInputStream(excelFile)) {
+            if (excelFile.getName().endsWith(".xlsx")) {
+                workbook = new XSSFWorkbook(fis);
+            } else {
+                workbook = new HSSFWorkbook(fis);
+            }
+        }
+
+        try {
+            Sheet sheet = workbook.getSheetAt(0);
+            Iterator<Row> rowIterator = sheet.iterator();
+            
+            if (!rowIterator.hasNext()) {
+                logger.warn("Sheet is empty in file {}", excelFile.getName());
+                return Map.of("purchaseRequests", 0, "purchases", 0, "users", 0);
+            }
+
+            // Читаем заголовки один раз
+            Row headerRow = rowIterator.next();
+            Map<String, Integer> columnIndexMap = buildColumnIndexMap(headerRow);
+            
+            // Находим все нужные колонки один раз
+            Integer documentTypeColumnIndex = findColumnIndex(columnIndexMap, DOCUMENT_TYPE_COLUMN);
+            
+            // Колонки для заявок
+            Integer requestNumberColumnIndex = findColumnIndex(columnIndexMap, REQUEST_NUMBER_COLUMN);
+            Integer creationDateColumnIndex = findColumnIndex(columnIndexMap, CREATION_DATE_COLUMN);
+            Integer innerIdColumnIndex = findColumnIndex(columnIndexMap, INNER_ID_COLUMN);
+            Integer cfoColumnIndex = findColumnIndex(columnIndexMap, CFO_COLUMN);
+            Integer nameColumnIndex = findColumnIndex(columnIndexMap, NAME_COLUMN);
+            Integer titleColumnIndex = findColumnIndex(columnIndexMap, TITLE_COLUMN);
+            Integer requiresPurchaseColumnIndex = findColumnIndex(columnIndexMap, REQUIRES_PURCHASE_COLUMN);
+            if (requiresPurchaseColumnIndex == null) {
+                requiresPurchaseColumnIndex = findColumnIndex(columnIndexMap, "Требуется закупка");
+            }
+            if (requiresPurchaseColumnIndex == null) {
+                requiresPurchaseColumnIndex = findColumnIndex(columnIndexMap, "Не требуется ЗП (Заявка на ЗП)");
+            }
+            Integer planColumnIndex = findColumnIndex(columnIndexMap, PLAN_COLUMN);
+            Integer preparedByColumnIndex = findColumnIndex(columnIndexMap, PREPARED_BY_COLUMN);
+            
+            // Если не нашли по имени, пробуем найти по известным позициям (из логов видно, что Column 4 = "Номер заявки на ЗП")
+            if (requestNumberColumnIndex == null && headerRow.getCell(4) != null) {
+                String cell4Value = getCellValueAsString(headerRow.getCell(4));
+                logger.info("Checking column 4 (index 4) for request number: '{}'", cell4Value);
+                // Проверяем, содержит ли колонка 4 ключевые слова "номер" и "заявки"
+                if (cell4Value != null && (cell4Value.toLowerCase().contains("номер") || 
+                    cell4Value.toLowerCase().contains("заявки") || 
+                    cell4Value.toLowerCase().contains("зп"))) {
+                    requestNumberColumnIndex = 4;
+                    logger.info("Using column index 4 for request number based on content: '{}'", cell4Value);
+                }
+            }
+            
+            // Логирование найденных колонок для заявок
+            logger.info("Purchase request columns - requestNumber: {}, creationDate: {}, innerId: {}, cfo: {}, name: {}, title: {}", 
+                requestNumberColumnIndex, creationDateColumnIndex, innerIdColumnIndex, cfoColumnIndex, nameColumnIndex, titleColumnIndex);
+            
+            // Колонки для закупок
+            Integer purchaseInnerIdColumnIndex = findColumnIndex(columnIndexMap, INNER_ID_COLUMN);
+            Integer purchaseCreationDateColumnIndex = findColumnIndex(columnIndexMap, CREATION_DATE_COLUMN);
+            
+            // Проверяем обязательные колонки
+            if (documentTypeColumnIndex == null) {
+                logger.warn("Column '{}' not found in file {}", DOCUMENT_TYPE_COLUMN, excelFile.getName());
+                return Map.of("purchaseRequests", 0, "purchases", 0, "users", 0);
+            }
+            
+            // Счетчики
+            int purchaseRequestsCount = 0;
+            int purchasesCount = 0;
+            int usersCount = 0;
+            int purchaseRequestsCreated = 0;
+            int purchaseRequestsUpdated = 0;
+            int purchasesCreated = 0;
+            int purchasesUpdated = 0;
+            int purchaseRequestTypeRowsFound = 0;
+            int purchaseRequestSkippedMissingColumns = 0;
+            int purchaseRequestParseErrors = 0;
+            
+            // Один проход по всем строкам
+            while (rowIterator.hasNext()) {
+                Row row = rowIterator.next();
+                
+                if (isRowEmpty(row)) {
+                    continue;
+                }
+
+                // Получаем тип документа
+                String documentType = getCellValueAsString(row.getCell(documentTypeColumnIndex));
+                
+                // Обрабатываем строку в зависимости от типа
+                if (PURCHASE_REQUEST_TYPE.equals(documentType)) {
+                    purchaseRequestTypeRowsFound++;
+                    logger.debug("Found purchase request type row {}: documentType='{}'", row.getRowNum() + 1, documentType);
+                    // Обработка заявки
+                    if (requestNumberColumnIndex != null && creationDateColumnIndex != null) {
+                        String requiresPurchaseColumnName = requiresPurchaseColumnIndex != null && headerRow.getCell(requiresPurchaseColumnIndex) != null ? 
+                            getCellValueAsString(headerRow.getCell(requiresPurchaseColumnIndex)) : null;
+                        String planColumnName = planColumnIndex != null && headerRow.getCell(planColumnIndex) != null ? 
+                            getCellValueAsString(headerRow.getCell(planColumnIndex)) : null;
+                        boolean processed = processPurchaseRequestRow(row, requestNumberColumnIndex, creationDateColumnIndex, 
+                            innerIdColumnIndex, cfoColumnIndex, nameColumnIndex, titleColumnIndex, 
+                            requiresPurchaseColumnIndex, requiresPurchaseColumnName, planColumnIndex, planColumnName, 
+                            preparedByColumnIndex);
+                        if (processed) {
+                            purchaseRequestsCount++;
+                        } else {
+                            purchaseRequestParseErrors++;
+                        }
+                    } else {
+                        purchaseRequestSkippedMissingColumns++;
+                        logger.warn("Skipping purchase request row {}: missing required columns (requestNumber: {}, creationDate: {})", 
+                            row.getRowNum() + 1, requestNumberColumnIndex, creationDateColumnIndex);
+                    }
+                } else if (PURCHASE_TYPE.equals(documentType)) {
+                    // Обработка закупки
+                    if (purchaseInnerIdColumnIndex != null) {
+                        boolean processed = processPurchaseRow(row, purchaseInnerIdColumnIndex, purchaseCreationDateColumnIndex, cfoColumnIndex);
+                        if (processed) {
+                            purchasesCount++;
+                        }
+                    }
+                }
+                
+                // Обработка пользователя (из колонки "Подготовил" для всех строк)
+                if (preparedByColumnIndex != null) {
+                    try {
+                        Cell preparedByCell = row.getCell(preparedByColumnIndex);
+                        String preparedByValue = getCellValueAsString(preparedByCell);
+                        if (preparedByValue != null && !preparedByValue.trim().isEmpty()) {
+                            parseAndSaveUser(preparedByValue.trim());
+                            usersCount++;
+                        }
+                    } catch (Exception e) {
+                        logger.debug("Error parsing user from row {}: {}", row.getRowNum() + 1, e.getMessage());
+                    }
+                }
+            }
+            
+            logger.info("Purchase request processing summary: found {} rows with type '{}', loaded {}, skipped (missing columns) {}, parse errors {}", 
+                purchaseRequestTypeRowsFound, PURCHASE_REQUEST_TYPE, purchaseRequestsCount, purchaseRequestSkippedMissingColumns, purchaseRequestParseErrors);
+            logger.info("Loaded {} purchase requests, {} purchases, {} users from file {}", 
+                purchaseRequestsCount, purchasesCount, usersCount, excelFile.getName());
+            
+            return Map.of(
+                "purchaseRequests", purchaseRequestsCount,
+                "purchases", purchasesCount,
+                "users", usersCount
+            );
+        } finally {
+            workbook.close();
+        }
+    }
+    
+    /**
+     * Обрабатывает одну строку заявки на закупку
+     */
+    private boolean processPurchaseRequestRow(Row row, int requestNumberColumnIndex, int creationDateColumnIndex,
+            Integer innerIdColumnIndex, Integer cfoColumnIndex, Integer nameColumnIndex, Integer titleColumnIndex,
+            Integer requiresPurchaseColumnIndex, String requiresPurchaseColumnName, Integer planColumnIndex, 
+            String planColumnName, Integer preparedByColumnIndex) {
+        try {
+            PurchaseRequest pr = parsePurchaseRequestRow(row, requestNumberColumnIndex, creationDateColumnIndex, 
+                innerIdColumnIndex, cfoColumnIndex, nameColumnIndex, titleColumnIndex, 
+                requiresPurchaseColumnIndex, requiresPurchaseColumnName, planColumnIndex, planColumnName, 
+                preparedByColumnIndex);
+            if (pr != null && pr.getIdPurchaseRequest() != null) {
+                Optional<PurchaseRequest> existing = purchaseRequestRepository.findByIdPurchaseRequest(pr.getIdPurchaseRequest());
+                if (existing.isPresent()) {
+                    PurchaseRequest existingPr = existing.get();
+                    boolean updated = updatePurchaseRequestFields(existingPr, pr);
+                    if (updated) {
+                        purchaseRequestRepository.save(existingPr);
+                    }
+                } else {
+                    purchaseRequestRepository.save(pr);
+                }
+                return true;
+            }
+        } catch (Exception e) {
+            logger.warn("Error processing purchase request row {}: {}", row.getRowNum() + 1, e.getMessage());
+        }
+        return false;
+    }
+    
+    /**
+     * Обрабатывает одну строку закупки
+     */
+    private boolean processPurchaseRow(Row row, Integer innerIdColumnIndex, Integer creationDateColumnIndex, Integer cfoColumnIndex) {
+        try {
+            Purchase purchase = parsePurchaseRow(row, innerIdColumnIndex, creationDateColumnIndex, cfoColumnIndex);
+            if (purchase == null) {
+                return false;
+            }
+            if (purchase.getInnerId() == null || purchase.getInnerId().trim().isEmpty()) {
+                return false;
+            }
+            Optional<Purchase> existing = purchaseRepository.findByInnerId(purchase.getInnerId().trim());
+            if (existing.isPresent()) {
+                Purchase existingPurchase = existing.get();
+                boolean updated = updatePurchaseFields(existingPurchase, purchase);
+                if (updated) {
+                    purchaseRepository.save(existingPurchase);
+                }
+            } else {
+                purchaseRepository.save(purchase);
+            }
+            return true;
+        } catch (Exception e) {
+            logger.warn("Error processing purchase row {}: {}", row.getRowNum() + 1, e.getMessage());
+        }
+        return false;
+    }
+
+    /**
      * Валидирует загружаемый файл
      */
     private void validateFile(MultipartFile file) {
@@ -1181,10 +1402,13 @@ public class ExcelLoadService {
             Map<String, Integer> columnIndexMap = buildColumnIndexMap(headerRow);
             
             Integer documentTypeColumnIndex = findColumnIndex(columnIndexMap, DOCUMENT_TYPE_COLUMN);
-            Integer purchaseNumberColumnIndex = findColumnIndex(columnIndexMap, PURCHASE_NUMBER_COLUMN);
             Integer innerIdColumnIndex = findColumnIndex(columnIndexMap, INNER_ID_COLUMN);
+            Integer creationDateColumnIndex = findColumnIndex(columnIndexMap, CREATION_DATE_COLUMN);
+            Integer cfoColumnIndex = findColumnIndex(columnIndexMap, CFO_COLUMN);
+            
             if (innerIdColumnIndex == null) {
                 logger.warn("Column '{}' not found in file {} for purchases", INNER_ID_COLUMN, excelFile.getName());
+                return 0;
             } else {
                 logger.info("Found column '{}' at index {} for purchases", INNER_ID_COLUMN, innerIdColumnIndex);
             }
@@ -1194,14 +1418,12 @@ public class ExcelLoadService {
                 return 0;
             }
 
-            if (purchaseNumberColumnIndex == null) {
-                logger.warn("Column '{}' not found in file {}", PURCHASE_NUMBER_COLUMN, excelFile.getName());
-                return 0;
-            }
-
             int loadedCount = 0;
             int createdCount = 0;
             int updatedCount = 0;
+            int purchaseTypeRowsFound = 0;
+            int parseErrors = 0;
+            int emptyInnerId = 0;
             
             while (rowIterator.hasNext()) {
                 Row row = rowIterator.next();
@@ -1215,32 +1437,46 @@ public class ExcelLoadService {
                 
                 // Фильтруем только "Закупочная процедура"
                 if (PURCHASE_TYPE.equals(documentType)) {
+                    purchaseTypeRowsFound++;
+                    logger.debug("Found purchase type row {}: documentType='{}'", row.getRowNum() + 1, documentType);
                     try {
-                        Purchase purchase = parsePurchaseRow(row, purchaseNumberColumnIndex, innerIdColumnIndex);
-                        if (purchase != null && purchase.getPurchaseNumber() != null) {
-                            // Проверяем, существует ли закупка с таким номером
-                            Optional<Purchase> existing = purchaseRepository.findByPurchaseNumber(purchase.getPurchaseNumber());
-                            
-                            if (existing.isPresent()) {
-                                // Обновляем существующую закупку
-                                Purchase existingPurchase = existing.get();
-                                boolean updated = updatePurchaseFields(existingPurchase, purchase);
-                                if (updated) {
-                                    purchaseRepository.save(existingPurchase);
-                                    updatedCount++;
-                                }
-                            } else {
-                                // Создаем новую закупку
-                                purchaseRepository.save(purchase);
-                                createdCount++;
-                            }
-                            loadedCount++;
+                        Purchase purchase = parsePurchaseRow(row, innerIdColumnIndex, creationDateColumnIndex, cfoColumnIndex);
+                        if (purchase == null) {
+                            logger.warn("parsePurchaseRow returned null for row {}", row.getRowNum() + 1);
+                            parseErrors++;
+                            continue;
                         }
+                        if (purchase.getInnerId() == null || purchase.getInnerId().trim().isEmpty()) {
+                            logger.warn("Inner ID is empty for row {}", row.getRowNum() + 1);
+                            emptyInnerId++;
+                            continue;
+                        }
+                        // Проверяем, существует ли закупка с таким innerId
+                        Optional<Purchase> existing = purchaseRepository.findByInnerId(purchase.getInnerId().trim());
+                        
+                        if (existing.isPresent()) {
+                            // Обновляем существующую закупку
+                            Purchase existingPurchase = existing.get();
+                            boolean updated = updatePurchaseFields(existingPurchase, purchase);
+                            if (updated) {
+                                purchaseRepository.save(existingPurchase);
+                                updatedCount++;
+                            }
+                        } else {
+                            // Создаем новую закупку
+                            purchaseRepository.save(purchase);
+                            createdCount++;
+                        }
+                        loadedCount++;
                     } catch (Exception e) {
-                        logger.warn("Error parsing row {}: {}", row.getRowNum() + 1, e.getMessage());
+                        logger.warn("Error parsing row {}: {}", row.getRowNum() + 1, e.getMessage(), e);
+                        parseErrors++;
                     }
                 }
             }
+            
+            logger.info("Purchase processing summary: found {} rows with type '{}', loaded {}, created {}, updated {}, parse errors {}, empty inner IDs {}", 
+                purchaseTypeRowsFound, PURCHASE_TYPE, loadedCount, createdCount, updatedCount, parseErrors, emptyInnerId);
 
             logger.info("Loaded {} purchases: {} created, {} updated", loadedCount, createdCount, updatedCount);
             return loadedCount;
@@ -1251,31 +1487,50 @@ public class ExcelLoadService {
 
     /**
      * Парсит строку Excel в Purchase для типа "Закупочная процедура"
+     * Заполняет innerId из колонки "Внутренний номер" и дату создания из колонки "Дата создания"
      */
-    private Purchase parsePurchaseRow(Row row, int purchaseNumberColumnIndex, Integer innerIdColumnIndex) {
+    private Purchase parsePurchaseRow(Row row, Integer innerIdColumnIndex, Integer creationDateColumnIndex, Integer cfoColumnIndex) {
         Purchase purchase = new Purchase();
         
         try {
-            // Номер закупки (используется для поиска существующей записи)
-            Cell purchaseNumberCell = row.getCell(purchaseNumberColumnIndex);
-            Long purchaseNumber = parseLongCell(purchaseNumberCell);
-            if (purchaseNumber != null) {
-                purchase.setPurchaseNumber(purchaseNumber);
-            } else {
-                logger.warn("Empty or invalid purchase number in row {}", row.getRowNum() + 1);
-                return null;
-            }
-            
-            // Внутренний номер (единственное поле, которое сохраняем)
+            // Внутренний номер (обязательное поле)
             if (innerIdColumnIndex != null) {
                 Cell innerIdCell = row.getCell(innerIdColumnIndex);
                 String innerId = getCellValueAsString(innerIdCell);
                 if (innerId != null && !innerId.trim().isEmpty()) {
                     purchase.setInnerId(innerId.trim());
                     logger.debug("Parsed innerId for purchase row {}: {}", row.getRowNum() + 1, innerId.trim());
+                } else {
+                    logger.warn("Row {}: Empty inner ID", row.getRowNum() + 1);
+                    return null;
                 }
             } else {
-                logger.debug("Column '{}' not found for purchase row {}", INNER_ID_COLUMN, row.getRowNum() + 1);
+                logger.warn("Column '{}' not found for purchase row {}", INNER_ID_COLUMN, row.getRowNum() + 1);
+                return null;
+            }
+            
+            // Дата создания (опциональное поле)
+            if (creationDateColumnIndex != null) {
+                Cell creationDateCell = row.getCell(creationDateColumnIndex);
+                LocalDateTime creationDate = parseDateCell(creationDateCell);
+                if (creationDate != null) {
+                    purchase.setPurchaseCreationDate(creationDate);
+                    logger.debug("Parsed creation date for purchase row {}: {}", row.getRowNum() + 1, creationDate);
+                } else {
+                    String cellValue = creationDateCell != null ? getCellValueAsString(creationDateCell) : "null";
+                    logger.debug("Could not parse creation date in purchase row {}: cell value = '{}'", 
+                        row.getRowNum() + 1, cellValue);
+                }
+            }
+            
+            // ЦФО (опциональное поле)
+            if (cfoColumnIndex != null) {
+                Cell cfoCell = row.getCell(cfoColumnIndex);
+                String cfo = getCellValueAsString(cfoCell);
+                if (cfo != null && !cfo.trim().isEmpty()) {
+                    purchase.setCfo(cfo.trim());
+                    logger.debug("Parsed cfo for purchase row {}: {}", row.getRowNum() + 1, cfo.trim());
+                }
             }
             
             return purchase;
@@ -1287,12 +1542,12 @@ public class ExcelLoadService {
 
     /**
      * Обновляет поля существующей закупки только если они отличаются
-     * Сейчас обновляем только внутренний номер
+     * Обновляем внутренний номер и дату создания
      */
     private boolean updatePurchaseFields(Purchase existing, Purchase newData) {
         boolean updated = false;
         
-        // Обновляем только внутренний номер
+        // Обновляем внутренний номер
         if (newData.getInnerId() != null && !newData.getInnerId().trim().isEmpty()) {
             if (existing.getInnerId() == null || !existing.getInnerId().equals(newData.getInnerId())) {
                 existing.setInnerId(newData.getInnerId());
@@ -1301,7 +1556,26 @@ public class ExcelLoadService {
             }
         }
         
+        // Обновляем дату создания
+        if (newData.getPurchaseCreationDate() != null) {
+            if (existing.getPurchaseCreationDate() == null || !existing.getPurchaseCreationDate().equals(newData.getPurchaseCreationDate())) {
+                existing.setPurchaseCreationDate(newData.getPurchaseCreationDate());
+                updated = true;
+                logger.debug("Updated creation date for purchase {}: {}", existing.getId(), newData.getPurchaseCreationDate());
+            }
+        }
+        
+        // Обновляем ЦФО
+        if (newData.getCfo() != null && !newData.getCfo().trim().isEmpty()) {
+            if (existing.getCfo() == null || !existing.getCfo().equals(newData.getCfo())) {
+                existing.setCfo(newData.getCfo());
+                updated = true;
+                logger.debug("Updated cfo for purchase {}: {}", existing.getId(), newData.getCfo());
+            }
+        }
+        
         return updated;
     }
 }
+
 

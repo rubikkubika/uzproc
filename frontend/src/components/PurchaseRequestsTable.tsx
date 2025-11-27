@@ -51,6 +51,7 @@ export default function PurchaseRequestsTable() {
   const [pageSize, setPageSize] = useState(25);
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number | null>(currentYear);
+  const [totalRecords, setTotalRecords] = useState<number>(0);
   
   // Состояние для сортировки (по умолчанию сортировка по номеру по убыванию)
   const [sortField, setSortField] = useState<SortField>('idPurchaseRequest');
@@ -361,6 +362,22 @@ export default function PurchaseRequestsTable() {
     cfo: [],
     purchaseRequestInitiator: [],
   });
+
+  // Загружаем общее количество записей без фильтров
+  useEffect(() => {
+    const fetchTotalRecords = async () => {
+      try {
+        const response = await fetch(`${getBackendUrl()}/api/purchase-requests?page=0&size=1`);
+        if (response.ok) {
+          const result = await response.json();
+          setTotalRecords(result.totalElements || 0);
+        }
+      } catch (err) {
+        console.error('Error fetching total records:', err);
+      }
+    };
+    fetchTotalRecords();
+  }, []);
 
   useEffect(() => {
     // Загружаем все данные для получения списка годов и уникальных значений
@@ -953,7 +970,7 @@ export default function PurchaseRequestsTable() {
           </div>
           <div className="flex items-center gap-4">
             <p className="text-sm text-gray-500">
-              Всего записей: {data?.totalElements || 0}
+              Всего записей: {totalRecords}
             </p>
             {(Object.values(filters).some(f => f.trim() !== '') || sortField) && (
               <button

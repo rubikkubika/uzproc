@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/purchases")
+@RequestMapping("/purchases")
 public class PurchaseController {
 
     private final PurchaseService purchaseService;
@@ -26,6 +26,7 @@ public class PurchaseController {
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) String sortBy,
             @RequestParam(required = false) String sortDir,
+            @RequestParam(required = false) String innerId,
             @RequestParam(required = false) Long purchaseNumber,
             @RequestParam(required = false) List<String> cfo,
             @RequestParam(required = false) String purchaseInitiator,
@@ -34,7 +35,7 @@ public class PurchaseController {
             @RequestParam(required = false) String contractType) {
         
         Page<Purchase> purchases = purchaseService.findAll(
-                page, size, year, sortBy, sortDir, purchaseNumber, cfo, purchaseInitiator,
+                page, size, year, sortBy, sortDir, innerId, purchaseNumber, cfo, purchaseInitiator,
                 name, costType, contractType);
         
         return ResponseEntity.ok(purchases);

@@ -17,6 +17,8 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long>, JpaSp
     boolean existsByGuid(UUID guid);
     Optional<Purchase> findByPurchaseNumber(Long purchaseNumber);
     boolean existsByPurchaseNumber(Long purchaseNumber);
+    Optional<Purchase> findByInnerId(String innerId);
+    boolean existsByInnerId(String innerId);
     Page<Purchase> findByPurchaseCreationDateBetween(LocalDateTime start, LocalDateTime end, Pageable pageable);
 }
 

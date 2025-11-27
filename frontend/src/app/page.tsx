@@ -20,6 +20,7 @@ import TopLongestPurchases from '@/components/TopLongestPurchases';
 import PurchaserWorkload from '@/components/PurchaserWorkload';
 import UsersTable from '@/components/UsersTable';
 import PurchaseRequestsTable from '@/components/PurchaseRequestsTable';
+import PurchasesTable from '@/components/PurchasesTable';
 import UploadCSV from '@/components/UploadCSV';
 
 const SIDEBAR_COLLAPSED_KEY = 'sidebarCollapsed';
@@ -228,9 +229,7 @@ function DashboardContent() {
       case 'purchases':
         return (
           <div className="space-y-6">
-            <div className="bg-white p-6 rounded-lg shadow-lg">
-              <p className="text-gray-500">Раздел "Закупки" будет добавлен в следующих версиях</p>
-            </div>
+            <PurchasesTable />
           </div>
         );
 
