@@ -90,7 +90,7 @@ export default function PurchaseRequestsTable() {
   const statusFilterButtonRef = useRef<HTMLButtonElement>(null);
   
   // Функция для расчета позиции выпадающего списка
-  const calculateFilterPosition = useCallback((buttonRef: React.RefObject<HTMLButtonElement>) => {
+  const calculateFilterPosition = useCallback((buttonRef: React.RefObject<HTMLButtonElement | null>) => {
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       return {
@@ -191,38 +191,12 @@ export default function PurchaseRequestsTable() {
       
       if (hasClientFilters) {
         // Загружаем все данные для фильтрации на клиенте
-        const allParams = new URLSearchParams();
-        allParams.append('page', '0');
-        allParams.append('size', '10000');
-        if (selectedYear !== null) {
-          allParams.append('year', String(selectedYear));
-        }
-        if (sortField && sortDirection) {
-          allParams.append('sortBy', sortField);
-          allParams.append('sortDir', sortDirection);
-        }
-        // Добавляем другие фильтры (кроме ЦФО, которое фильтруем на клиенте)
-        if (filters.idPurchaseRequest && filters.idPurchaseRequest.trim() !== '') {
-          allParams.append('idPurchaseRequest', filters.idPurchaseRequest);
-        }
-        if (filters.purchaseInitiator && filters.purchaseInitiator.trim() !== '') {
-          allParams.append('purchaseInitiator', filters.purchaseInitiator);
-        }
-        if (filters.name && filters.name.trim() !== '') {
-          allParams.append('name', filters.name);
-        }
-        if (filters.costType && filters.costType.trim() !== '') {
-          allParams.append('costType', filters.costType);
-        }
-        if (filters.contractType && filters.contractType.trim() !== '') {
-          allParams.append('contractType', filters.contractType);
-        }
-        if (filters.isPlanned && filters.isPlanned.trim() !== '') {
-          allParams.append('isPlanned', filters.isPlanned);
-        }
-        if (filters.requiresPurchase && filters.requiresPurchase.trim() !== '') {
-          allParams.append('requiresPurchase', filters.requiresPurchase);
-        }
+        // Копируем все параметры из params, но меняем page и size
+        const allParams = new URLSearchParams(params);
+        allParams.set('page', '0');
+        allParams.set('size', '10000');
+        // Убираем параметр cfo, если он был добавлен (мы фильтруем на клиенте)
+        allParams.delete('cfo');
         fetchUrl = `${getBackendUrl()}/api/purchase-requests?${allParams.toString()}`;
       }
       
@@ -232,28 +206,28 @@ export default function PurchaseRequestsTable() {
       }
       const result = await response.json();
       
-      // Применяем фильтрацию на клиенте
-      let filteredContent = result.content;
-      
-      // Фильтрация по ЦФО - показываем записи, если ЦФО совпадает с хотя бы одним выбранным
-      if (cfoFilter.size > 0) {
-        filteredContent = filteredContent.filter((request: PurchaseRequest) => {
-          return request.cfo && cfoFilter.has(request.cfo);
-        });
-      }
-      
-      // Фильтрация по статусу - показываем записи, если статус совпадает с хотя бы одним выбранным
-      // Временная логика: все заявки имеют статус "Заявка"
-      if (statusFilter.size > 0) {
-        filteredContent = filteredContent.filter((request: PurchaseRequest) => {
-          // Пока все заявки имеют статус "Заявка"
-          // Позже здесь будет логика определения реального статуса заявки
-          return statusFilter.has('Заявка');
-        });
-      }
-      
-      // Применяем пагинацию к отфильтрованным данным только если есть клиентские фильтры
+      // Применяем фильтрацию на клиенте только если есть клиентские фильтры
       if (hasClientFilters) {
+        let filteredContent = result.content;
+        
+        // Фильтрация по ЦФО - показываем записи, если ЦФО совпадает с хотя бы одним выбранным
+        if (cfoFilter.size > 0) {
+          filteredContent = filteredContent.filter((request: PurchaseRequest) => {
+            return request.cfo && cfoFilter.has(request.cfo);
+          });
+        }
+        
+        // Фильтрация по статусу - показываем записи, если статус совпадает с хотя бы одним выбранным
+        // Временная логика: все заявки имеют статус "Заявка"
+        if (statusFilter.size > 0) {
+          filteredContent = filteredContent.filter((request: PurchaseRequest) => {
+            // Пока все заявки имеют статус "Заявка"
+            // Позже здесь будет логика определения реального статуса заявки
+            return statusFilter.has('Заявка');
+          });
+        }
+        
+        // Применяем пагинацию к отфильтрованным данным
         const totalFiltered = filteredContent.length;
         const startIndex = currentPage * size;
         const endIndex = startIndex + size;
