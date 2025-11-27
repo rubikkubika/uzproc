@@ -3,11 +3,11 @@ FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /app
 
 # Copy pom.xml and download dependencies
-COPY pom.xml .
+COPY backend/pom.xml .
 RUN mvn dependency:go-offline -B
 
 # Copy source code and build
-COPY src ./src
+COPY backend/src ./src
 RUN mvn clean package -DskipTests
 
 # Runtime stage
@@ -21,10 +21,17 @@ ENV JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8 -Duser.language=en -Duser.country=US
 
 # Create non-root user
 RUN addgroup -S spring && adduser -S spring -G spring
-USER spring:spring
 
 # Copy jar from build stage
 COPY --from=build /app/target/*.jar app.jar
+
+# Copy Excel files from frontend/upload/alldocuments
+COPY frontend/upload/alldocuments /app/alldocuments
+
+# Change ownership to spring user
+RUN chown -R spring:spring /app
+
+USER spring:spring
 
 EXPOSE 8080
 

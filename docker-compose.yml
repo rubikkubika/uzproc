@@ -22,8 +22,8 @@ services:
 
   backend:
     build:
-      context: ./backend
-      dockerfile: ../docker/Dockerfile.backend
+      context: .
+      dockerfile: ./docker/Dockerfile.backend
     container_name: uzproc-backend
     ports:
       - "8080:8080"
@@ -42,8 +42,7 @@ services:
     volumes:
       # Монтируем CSV файл для загрузки данных
       - ./data/purchase-plan.csv:/app/data/purchase-plan.csv:ro
-      # Монтируем папку alldocuments для автоматической загрузки Excel файлов
-      - ./frontend/upload/alldocuments:/app/alldocuments
+      # Excel файлы теперь внутри образа, volume mount не нужен
     depends_on:
       postgres:
         condition: service_healthy

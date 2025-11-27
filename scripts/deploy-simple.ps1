@@ -42,21 +42,9 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# Копируем Excel файлы из alldocuments на сервер
-$alldocumentsPath = Join-Path $projectRoot "frontend\upload\alldocuments"
-if (Test-Path $alldocumentsPath) {
-    $excelFiles = @()
-    $excelFiles += Get-ChildItem -Path $alldocumentsPath -Filter "*.xlsx" -File
-    $excelFiles += Get-ChildItem -Path $alldocumentsPath -Filter "*.xls" -File
-    if ($excelFiles.Count -gt 0) {
-        Write-Host "Copying Excel files from alldocuments..." -ForegroundColor Yellow
-        ssh $SERVER "mkdir -p ${REMOTE_PATH}/frontend/upload/alldocuments"
-        foreach ($file in $excelFiles) {
-            scp $file.FullName "${SERVER}:${REMOTE_PATH}/frontend/upload/alldocuments/"
-        }
-        Write-Host "Excel files copied to server" -ForegroundColor Green
-    }
-}
+# Excel файлы исключены из деплоя (слишком большие, копируются вручную при необходимости)
+# Если нужно скопировать Excel файлы, используйте команду:
+# scp frontend\upload\alldocuments\*.xlsx devops@10.123.48.62:/home/devops/uzproc/frontend/upload/alldocuments/
 
 Write-Host "Files copied to server" -ForegroundColor Green
 
