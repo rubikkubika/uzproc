@@ -138,6 +138,98 @@ export default function PurchaseRequestsTable() {
   // ID активного поля для восстановления фокуса
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
+  // Состояние для ширин колонок
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const [isResizing, setIsResizing] = useState<string | null>(null);
+  const resizeStartX = useRef<number>(0);
+  const resizeStartWidth = useRef<number>(0);
+  const resizeColumn = useRef<string | null>(null);
+
+  // Загружаем сохраненные ширины колонок из localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('purchaseRequestsTableColumnWidths');
+      if (saved) {
+        const widths = JSON.parse(saved);
+        setColumnWidths(widths);
+      }
+    } catch (err) {
+      console.error('Error loading column widths:', err);
+    }
+  }, []);
+
+  // Сохраняем ширины колонок в localStorage
+  const saveColumnWidths = useCallback((widths: Record<string, number>) => {
+    try {
+      localStorage.setItem('purchaseRequestsTableColumnWidths', JSON.stringify(widths));
+    } catch (err) {
+      console.error('Error saving column widths:', err);
+    }
+  }, []);
+
+  // Обработчик начала изменения размера
+  const handleResizeStart = useCallback((e: React.MouseEvent, columnKey: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsResizing(columnKey);
+    resizeColumn.current = columnKey;
+    resizeStartX.current = e.clientX;
+    const currentWidth = columnWidths[columnKey] || getDefaultColumnWidth(columnKey);
+    resizeStartWidth.current = currentWidth;
+  }, [columnWidths]);
+
+  // Обработчик изменения размера
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!resizeColumn.current) return;
+      const diff = e.clientX - resizeStartX.current;
+      const newWidth = Math.max(50, resizeStartWidth.current + diff); // Минимальная ширина 50px
+      setColumnWidths(prev => {
+        const updated = { ...prev, [resizeColumn.current!]: newWidth };
+        saveColumnWidths(updated);
+        return updated;
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(null);
+      resizeColumn.current = null;
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, saveColumnWidths]);
+
+  // Функция для получения ширины колонки по умолчанию
+  const getDefaultColumnWidth = (columnKey: string): number => {
+    const defaults: Record<string, number> = {
+      idPurchaseRequest: 64, // w-16 = 4rem = 64px
+      cfo: 80, // w-20 = 5rem = 80px
+      purchaseRequestInitiator: 48, // w-12 = 3rem = 48px
+      name: 192, // w-48 = 12rem = 192px
+      budgetAmount: 112, // w-28 = 7rem = 112px
+      isPlanned: 80, // w-20 = 5rem = 80px
+      requiresPurchase: 96, // w-24 = 6rem = 96px
+      purchaseRequestCreationDate: 120,
+      costType: 120,
+      contractType: 120,
+      contractDurationMonths: 120,
+    };
+    return defaults[columnKey] || 120;
+  };
+
+  // Функция для получения текущей ширины колонки
+  const getColumnWidth = (columnKey: string): number => {
+    return columnWidths[columnKey] || getDefaultColumnWidth(columnKey);
+  };
+
   const fetchData = async (
     page: number, 
     size: number, 
@@ -632,20 +724,29 @@ export default function PurchaseRequestsTable() {
     label, 
     filterType = 'text',
     filterOptions = [],
-    width
+    width,
+    columnKey
   }: { 
     field: SortField; 
     label: string;
     filterType?: 'text' | 'select';
     filterOptions?: string[];
     width?: string;
+    columnKey?: string;
   }) => {
     const isSorted = sortField === field;
     const fieldKey = field || '';
     const filterValue = filterType === 'text' ? (localFilters[fieldKey] || '') : (filters[fieldKey] || '');
-
+    const columnWidth = columnKey ? getColumnWidth(columnKey) : undefined;
+    const style: React.CSSProperties = columnWidth 
+      ? { width: `${columnWidth}px`, minWidth: `${columnWidth}px`, maxWidth: `${columnWidth}px` }
+      : (width === 'w-12' ? { maxWidth: '3rem', minWidth: '3rem' } : {});
+    
     return (
-      <th className={`px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 ${width || ''}`}>
+      <th 
+        className={`px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 relative ${width || ''}`} 
+        style={style}
+      >
         <div className="flex flex-col gap-1">
           {field ? (
           <button
@@ -729,6 +830,13 @@ export default function PurchaseRequestsTable() {
             />
           )}
         </div>
+        {columnKey && (
+          <div
+            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+            onMouseDown={(e) => handleResizeStart(e, columnKey)}
+            style={{ zIndex: 10 }}
+          />
+        )}
       </th>
     );
   };
@@ -1087,8 +1195,11 @@ export default function PurchaseRequestsTable() {
         <table className="w-full border-collapse">
           <thead className="bg-gray-50">
             <tr>
-              <SortableHeader field="idPurchaseRequest" label="Номер" width="w-16" />
-              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 w-20">
+              <SortableHeader field="idPurchaseRequest" label="Номер" width="w-16" columnKey="idPurchaseRequest" />
+              <th 
+                className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 relative" 
+                style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px` }}
+              >
                 <div className="flex flex-col gap-1">
                   <button
                     onClick={() => handleSort('cfo')}
@@ -1186,22 +1297,29 @@ export default function PurchaseRequestsTable() {
                     )}
                   </div>
                 </div>
+                <div
+                  className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+                  onMouseDown={(e) => handleResizeStart(e, 'cfo')}
+                  style={{ zIndex: 10 }}
+                />
               </th>
               <SortableHeader 
                 field="purchaseRequestInitiator" 
                 label="Инициатор"
                 filterType="select"
                 filterOptions={getUniqueValues('purchaseRequestInitiator')}
-                width="w-24"
+                width="w-12"
+                columnKey="purchaseRequestInitiator"
               />
-              <SortableHeader field="name" label="Наименование" width="w-48" />
-              <SortableHeader field="budgetAmount" label="Бюджет" width="w-28" />
+              <SortableHeader field="name" label="Наименование" width="w-48" columnKey="name" />
+              <SortableHeader field="budgetAmount" label="Бюджет" width="w-28" columnKey="budgetAmount" />
               <SortableHeader 
                 field="isPlanned" 
                 label="План"
                 filterType="select"
                 filterOptions={['true', 'false']}
                 width="w-20"
+                columnKey="isPlanned"
               />
               <SortableHeader 
                 field="requiresPurchase" 
@@ -1209,6 +1327,7 @@ export default function PurchaseRequestsTable() {
                 filterType="select"
                 filterOptions={['true', 'false']}
                 width="w-24"
+                columnKey="requiresPurchase"
               />
               <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300">
                 <div className="flex flex-col gap-1">
@@ -1302,31 +1421,51 @@ export default function PurchaseRequestsTable() {
                   onClick={(e) => {
                     // Не переходим на страницу, если клик был на интерактивном элементе
                     const target = e.target as HTMLElement;
-                    if (target.closest('input') || target.closest('select') || target.closest('button')) {
+                    if (target.closest('input') || target.closest('select') || target.closest('button') || target.closest('.cursor-col-resize')) {
                       return;
                     }
                     router.push(`/purchase-request/${request.id}`);
                   }}
                 >
-                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 w-16">
+                  <td 
+                    className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+                    style={{ width: `${getColumnWidth('idPurchaseRequest')}px`, minWidth: `${getColumnWidth('idPurchaseRequest')}px`, maxWidth: `${getColumnWidth('idPurchaseRequest')}px` }}
+                  >
                     {request.idPurchaseRequest || '-'}
                   </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={request.cfo || ''}>
+                  <td 
+                    className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" 
+                    style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px` }}
+                    title={request.cfo || ''}
+                  >
                     {request.cfo || '-'}
                   </td>
-                    <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={request.purchaseRequestInitiator || ''}>
+                  <td 
+                    className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" 
+                    style={{ width: `${getColumnWidth('purchaseRequestInitiator')}px`, minWidth: `${getColumnWidth('purchaseRequestInitiator')}px`, maxWidth: `${getColumnWidth('purchaseRequestInitiator')}px` }}
+                    title={request.purchaseRequestInitiator || ''}
+                  >
                     {request.purchaseRequestInitiator || '-'}
                   </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 break-words border-r border-gray-200">
+                  <td 
+                    className="px-2 py-2 text-xs text-gray-900 break-words border-r border-gray-200" 
+                    style={{ width: `${getColumnWidth('name')}px`, minWidth: `${getColumnWidth('name')}px`, maxWidth: `${getColumnWidth('name')}px` }}
+                  >
                     {request.name || '-'}
                   </td>
-                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200">
+                  <td 
+                    className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+                    style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px` }}
+                  >
                     {request.budgetAmount ? new Intl.NumberFormat('ru-RU', { 
                       notation: 'compact',
                       maximumFractionDigits: 1 
                     }).format(request.budgetAmount) : '-'}
                   </td>
-                  <td className="px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200">
+                  <td 
+                    className="px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200" 
+                    style={{ width: `${getColumnWidth('isPlanned')}px`, minWidth: `${getColumnWidth('isPlanned')}px`, maxWidth: `${getColumnWidth('isPlanned')}px` }}
+                  >
                     {request.isPlanned ? (
                       <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">
                         Да
@@ -1341,7 +1480,10 @@ export default function PurchaseRequestsTable() {
                       </span>
                     )}
                   </td>
-                  <td className="px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200">
+                  <td 
+                    className="px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200" 
+                    style={{ width: `${getColumnWidth('requiresPurchase')}px`, minWidth: `${getColumnWidth('requiresPurchase')}px`, maxWidth: `${getColumnWidth('requiresPurchase')}px` }}
+                  >
                     {request.requiresPurchase ? (
                       <span className="px-1.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
                         Да
