@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
-import { ArrowUp, ArrowDown, ArrowUpDown, Clock, Search, X, Download, Copy, Check } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpDown, Search, X, Download, Copy, Clock, Check } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 
@@ -24,6 +24,7 @@ interface PurchaseRequest {
   contractDurationMonths: number | null;
   isPlanned: boolean | null;
   requiresPurchase: boolean | null;
+  status: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -144,9 +145,10 @@ export default function PurchaseRequestsTable() {
   const resizeStartX = useRef<number>(0);
   const resizeStartWidth = useRef<number>(0);
   
+  const resizeColumn = useRef<string | null>(null);
+  
   // Состояние для статусов утверждения заявок (idPurchaseRequest -> isApproved)
   const [approvalStatuses, setApprovalStatuses] = useState<Map<number, boolean>>(new Map());
-  const resizeColumn = useRef<string | null>(null);
 
   // Загружаем сохраненные ширины колонок из localStorage
   useEffect(() => {
@@ -295,66 +297,24 @@ export default function PurchaseRequestsTable() {
         }
       }
       
-      // Если есть фильтр по статусу, загружаем все данные для корректной фильтрации на клиенте
-      // (статус определяется на основе данных, которых нет в PurchaseRequest)
-      // ВАЖНО: Все остальные фильтры (год, ЦФО, инициатор и т.д.) применяются на бэкенде
-      const hasStatusFilter = statusFilter.size > 0;
-      let fetchUrl = `${getBackendUrl()}/api/purchase-requests?${params.toString()}`;
-      
-      if (hasStatusFilter) {
-        // Загружаем все данные для фильтрации по статусу на клиенте
-        // Копируем все параметры из params (включая все фильтры), но меняем page и size
-        // Это гарантирует, что все фильтры (год, ЦФО и т.д.) применяются на бэкенде
-        const allParams = new URLSearchParams(params);
-        allParams.set('page', '0');
-        allParams.set('size', '10000');
-        fetchUrl = `${getBackendUrl()}/api/purchase-requests?${allParams.toString()}`;
+      // Фильтр по статусу - передаем все выбранные значения на бэкенд
+      if (statusFilter.size > 0) {
+        statusFilter.forEach(status => {
+          params.append('status', status);
+        });
       }
       
+      const fetchUrl = `${getBackendUrl()}/api/purchase-requests?${params.toString()}`;
       const response = await fetch(fetchUrl);
       if (!response.ok) {
         throw new Error('Ошибка загрузки данных');
       }
       const result = await response.json();
       
-      // Применяем фильтрацию на клиенте только для статуса
-      // (все остальные фильтры уже применены на бэкенде)
-      if (hasStatusFilter) {
-        let filteredContent = result.content;
-        
-        // Фильтрация по статусу - показываем записи, если статус совпадает с хотя бы одним выбранным
-        // Временная логика: все заявки имеют статус "Заявка"
-        // TODO: Добавить вычисление статуса на бэкенде для полной серверной фильтрации
-        if (statusFilter.size > 0) {
-          const beforeFilter = filteredContent.length;
-          filteredContent = filteredContent.filter((request: PurchaseRequest) => {
-            // Пока все заявки имеют статус "Заявка"
-            // Позже здесь будет логика определения реального статуса заявки
-            return statusFilter.has('Заявка');
-          });
-          console.log(`Status filter: ${beforeFilter} -> ${filteredContent.length} records`);
-        }
-        
-        // Применяем пагинацию к отфильтрованным данным
-        // ВАЖНО: Пагинация применяется ПОСЛЕ фильтрации по статусу
-        // Используем page и size из параметров функции (которые соответствуют currentPage и pageSize из состояния)
-        const totalFiltered = filteredContent.length;
-        const startIndex = page * size;
-        const endIndex = startIndex + size;
-        const paginatedContent = filteredContent.slice(startIndex, endIndex);
-        
-        setData({
-          ...result,
-          content: paginatedContent,
-          totalElements: totalFiltered,
-          totalPages: Math.ceil(totalFiltered / size),
-        });
-      } else {
-        // Без фильтра по статусу используем данные напрямую из сервера
-        // (все фильтры, включая ЦФО, применяются на бэкенде, пагинация тоже на бэкенде)
-        // totalElements и totalPages уже учитывают все примененные фильтры
-        setData(result);
-      }
+      // Все фильтры, включая статус, применяются на бэкенде
+      // Пагинация тоже на бэкенде
+      // totalElements и totalPages уже учитывают все примененные фильтры
+      setData(result);
       
       // Загружаем статусы утверждения для всех заявок на странице
       if (result.content && result.content.length > 0) {
@@ -382,6 +342,7 @@ export default function PurchaseRequestsTable() {
         await Promise.all(promises);
         setApprovalStatuses(statusMap);
       }
+      
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Произошла ошибка');
     } finally {
@@ -670,7 +631,7 @@ export default function PurchaseRequestsTable() {
   };
 
   const handleStatusSelectAll = () => {
-    const allStatuses = ['Заявка', 'Закупка', 'Договор', 'Спецификация'];
+    const allStatuses = ['На согласовании', 'На утверждении', 'Утверждена', 'Согласована', 'Не согласована', 'Не утверждена'];
     setStatusFilter(new Set(allStatuses));
     setCurrentPage(0);
   };
@@ -714,7 +675,7 @@ export default function PurchaseRequestsTable() {
   }, [cfoSearchQuery, uniqueValues.cfo]);
 
   const getFilteredStatusOptions = () => {
-    const allStatuses = ['Заявка', 'Закупка', 'Договор', 'Спецификация'];
+    const allStatuses = ['На согласовании', 'На утверждении', 'Утверждена', 'Согласована', 'Не согласована', 'Не утверждена'];
     if (!statusSearchQuery.trim()) return allStatuses;
     return allStatuses.filter(status => 
       status.toLowerCase().includes(statusSearchQuery.toLowerCase())
@@ -1440,6 +1401,11 @@ export default function PurchaseRequestsTable() {
                   </div>
                 </div>
               </th>
+              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300">
+                <div className="flex flex-col gap-1">
+                  <span className="normal-case">Трэк</span>
+                </div>
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -1529,6 +1495,25 @@ export default function PurchaseRequestsTable() {
                     )}
                   </td>
                   <td className="px-2 py-2 text-xs border-r border-gray-200">
+                    {request.status ? (
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        request.status === 'Утверждена' || request.status === 'Согласована'
+                          ? 'bg-green-100 text-green-800'
+                          : request.status === 'Не согласована' || request.status === 'Не утверждена'
+                          ? 'bg-red-100 text-red-800'
+                          : request.status === 'На согласовании' || request.status === 'На утверждении'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {request.status}
+                      </span>
+                    ) : (
+                      <span className="px-2 py-1 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
+                        -
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-2 py-2 text-xs border-r border-gray-200">
                     <div className="flex items-end gap-2">
                       {/* Заявка - активна */}
                       <div className="flex flex-col items-center gap-0.5">
@@ -1564,7 +1549,7 @@ export default function PurchaseRequestsTable() {
               ))
             ) : (
               <tr>
-                <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
                   Нет данных
                 </td>
               </tr>

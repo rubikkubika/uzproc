@@ -45,6 +45,7 @@ interface Approval {
   assignmentDate: string | null;
   completionDate: string | null;
   daysInWork: number | null;
+  completionResult: string | null;
 }
 
 const SIDEBAR_COLLAPSED_KEY = 'sidebarCollapsed';
@@ -285,6 +286,41 @@ export default function PurchaseRequestDetailPage() {
     }
   };
 
+  // Функция для определения цвета круга на основе результата выполнения
+  const getApprovalStatusColor = (approval: Approval): 'green' | 'yellow' | 'red' => {
+    if (!approval.completionResult) {
+      // Если нет результата, проверяем даты
+      if (approval.completionDate) {
+        return 'green'; // Есть дата завершения - считаем выполненным
+      }
+      if (approval.assignmentDate) {
+        return 'yellow'; // Есть дата назначения, но нет завершения - в процессе
+      }
+      return 'yellow'; // Нет данных - считаем в процессе
+    }
+
+    const result = approval.completionResult.toLowerCase().trim();
+    
+    // Зеленый: Согласовано или Утверждено
+    if (result === 'согласовано' || result === 'утверждено') {
+      return 'green';
+    }
+    
+    // Желтый: В процессе
+    if (result === 'в процессе' || result.includes('процесс')) {
+      return 'yellow';
+    }
+    
+    // Красный: Не согласовано или Не утверждено
+    if (result === 'не согласовано' || result === 'не утверждено' || 
+        result.includes('не согласован') || result.includes('не утвержден')) {
+      return 'red';
+    }
+    
+    // По умолчанию: если есть дата завершения - зеленый, иначе желтый
+    return approval.completionDate ? 'green' : 'yellow';
+  };
+
   // Фильтруем согласования по этапам
   const approvalStageApprovals = approvals.filter(a => 
     a.stage === 'Согласование Заявки на ЗП'
@@ -482,11 +518,13 @@ export default function PurchaseRequestDetailPage() {
                     <span className="text-[10px] text-gray-600 whitespace-nowrap leading-none">Заявка</span>
                   </div>
 
-                  {/* Закупка - неактивна */}
+                  {/* Закупка - показываем только если требуется закупка */}
+                  {purchaseRequest.requiresPurchase !== false && (
                   <div className="flex flex-col items-center gap-0.5">
                     <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Закупка"></div>
                     <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Закупка</span>
                   </div>
+                  )}
 
                   {/* Договор - неактивна */}
                   <div className="flex flex-col items-center gap-0.5">
@@ -733,15 +771,28 @@ export default function PurchaseRequestDetailPage() {
                                   <div className="flex items-center gap-1">
                                     {/* Индикатор статуса */}
                                     <div className="flex-shrink-0">
-                                      {approval.completionDate ? (
-                                        <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center" title="Согласовано">
-                                          <Check className="w-2 h-2 text-white" />
-                                        </div>
-                                      ) : approval.assignmentDate ? (
-                                        <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title="В работе">
-                                          <Clock className="w-2 h-2 text-white" />
-                                        </div>
-                                      ) : null}
+                                      {(() => {
+                                        const statusColor = getApprovalStatusColor(approval);
+                                        if (statusColor === 'green') {
+                                          return (
+                                            <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано'}>
+                                              <Check className="w-2 h-2 text-white" />
+                                            </div>
+                                          );
+                                        } else if (statusColor === 'yellow') {
+                                          return (
+                                            <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}>
+                                              <Clock className="w-2 h-2 text-white" />
+                                            </div>
+                                          );
+                                        } else {
+                                          return (
+                                            <div className="w-3 h-3 rounded-full bg-red-500 flex items-center justify-center" title={approval.completionResult || 'Не согласовано'}>
+                                              <X className="w-2 h-2 text-white" />
+                                            </div>
+                                          );
+                                        }
+                                      })()}
                                     </div>
                                     <p className="text-[10px] text-gray-900 truncate leading-tight">
                                       {approval.role || '-'}
@@ -774,15 +825,29 @@ export default function PurchaseRequestDetailPage() {
                           <div className="text-[10px] font-semibold text-gray-900 flex-1 leading-tight">Руководитель закупок</div>
                           {/* Индикатор статуса */}
                           <div className="flex-shrink-0">
-                            {managerStageApprovals.length > 0 && managerStageApprovals[0].completionDate ? (
-                              <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center" title="Согласовано">
-                                <Check className="w-2 h-2 text-white" />
-                              </div>
-                            ) : managerStageApprovals.length > 0 && managerStageApprovals[0].assignmentDate ? (
-                              <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title="В работе">
-                                <Clock className="w-2 h-2 text-white" />
-                              </div>
-                            ) : null}
+                            {managerStageApprovals.length > 0 && (() => {
+                              const approval = managerStageApprovals[0];
+                              const statusColor = getApprovalStatusColor(approval);
+                              if (statusColor === 'green') {
+                                return (
+                                  <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано'}>
+                                    <Check className="w-2 h-2 text-white" />
+                                  </div>
+                                );
+                              } else if (statusColor === 'yellow') {
+                                return (
+                                  <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}>
+                                    <Clock className="w-2 h-2 text-white" />
+                                  </div>
+                                );
+                              } else {
+                                return (
+                                  <div className="w-3 h-3 rounded-full bg-red-500 flex items-center justify-center" title={approval.completionResult || 'Не согласовано'}>
+                                    <X className="w-2 h-2 text-white" />
+                                  </div>
+                                );
+                              }
+                            })()}
                           </div>
                         </div>
                         
@@ -916,7 +981,8 @@ export default function PurchaseRequestDetailPage() {
               </div>
             </div>
 
-            {/* Раздел: Закупка */}
+            {/* Раздел: Закупка - показываем только если требуется закупка */}
+            {purchaseRequest.requiresPurchase !== false && (
             <div className="flex flex-col lg:flex-row gap-2 lg:gap-4 items-stretch">
               <div className="flex-1 bg-white rounded-lg shadow-lg overflow-hidden">
                 <div className="px-2 py-1.5 border-b border-gray-300 bg-gray-100">
@@ -961,6 +1027,7 @@ export default function PurchaseRequestDetailPage() {
                 </div>
               </div>
             </div>
+            )}
 
             {/* Раздел: Договор */}
             <div className="flex flex-col lg:flex-row gap-2 lg:gap-4 items-stretch">

@@ -1,7 +1,11 @@
 package com.uzproc.backend.service;
 
 import com.uzproc.backend.entity.PurchaseRequest;
+import com.uzproc.backend.entity.PurchaseRequestApproval;
+import com.uzproc.backend.entity.PurchaseRequestStatus;
+import com.uzproc.backend.repository.PurchaseRequestApprovalRepository;
 import com.uzproc.backend.repository.PurchaseRequestRepository;
+import java.util.stream.Collectors;
 import jakarta.persistence.criteria.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,9 +27,13 @@ public class PurchaseRequestService {
     private static final Logger logger = LoggerFactory.getLogger(PurchaseRequestService.class);
     
     private final PurchaseRequestRepository purchaseRequestRepository;
+    private final PurchaseRequestApprovalRepository approvalRepository;
 
-    public PurchaseRequestService(PurchaseRequestRepository purchaseRequestRepository) {
+    public PurchaseRequestService(
+            PurchaseRequestRepository purchaseRequestRepository,
+            PurchaseRequestApprovalRepository approvalRepository) {
         this.purchaseRequestRepository = purchaseRequestRepository;
+        this.approvalRepository = approvalRepository;
     }
 
     public Page<PurchaseRequest> findAll(
@@ -41,14 +49,15 @@ public class PurchaseRequestService {
             String costType,
             String contractType,
             Boolean isPlanned,
-            Boolean requiresPurchase) {
+            Boolean requiresPurchase,
+            List<String> status) {
         
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, idPurchaseRequest: {}, cfo: {}, purchaseRequestInitiator: '{}', name: '{}', costType: '{}', contractType: '{}', isPlanned: {}, requiresPurchase: {}",
-                year, idPurchaseRequest, cfo, purchaseRequestInitiator, name, costType, contractType, isPlanned, requiresPurchase);
+        logger.info("Filter parameters - year: {}, idPurchaseRequest: {}, cfo: {}, purchaseRequestInitiator: '{}', name: '{}', costType: '{}', contractType: '{}', isPlanned: {}, requiresPurchase: {}, status: {}",
+                year, idPurchaseRequest, cfo, purchaseRequestInitiator, name, costType, contractType, isPlanned, requiresPurchase, status);
         
         Specification<PurchaseRequest> spec = buildSpecification(
-                year, idPurchaseRequest, cfo, purchaseRequestInitiator, name, costType, contractType, isPlanned, requiresPurchase);
+                year, idPurchaseRequest, cfo, purchaseRequestInitiator, name, costType, contractType, isPlanned, requiresPurchase, status);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -76,7 +85,8 @@ public class PurchaseRequestService {
             String costType,
             String contractType,
             Boolean isPlanned,
-            Boolean requiresPurchase) {
+            Boolean requiresPurchase,
+            List<String> status) {
         
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -166,6 +176,47 @@ public class PurchaseRequestService {
                 logger.info("Added requiresPurchase filter: {}", requiresPurchase);
             }
             
+            // Фильтр по статусу (множественный выбор)
+            if (status != null && !status.isEmpty()) {
+                // Убираем пустые значения и тримим
+                List<String> validStatusValues = status.stream()
+                    .filter(s -> s != null && !s.trim().isEmpty())
+                    .map(String::trim)
+                    .toList();
+                
+                if (!validStatusValues.isEmpty()) {
+                    // Преобразуем русские названия в enum значения
+                    List<PurchaseRequestStatus> statusEnums = validStatusValues.stream()
+                        .map(statusStr -> {
+                            // Ищем enum по displayName
+                            for (PurchaseRequestStatus statusEnum : PurchaseRequestStatus.values()) {
+                                if (statusEnum.getDisplayName().equals(statusStr)) {
+                                    return statusEnum;
+                                }
+                            }
+                            return null;
+                        })
+                        .filter(s -> s != null)
+                        .collect(Collectors.toList());
+                    
+                    if (!statusEnums.isEmpty()) {
+                        if (statusEnums.size() == 1) {
+                            // Одно значение - точное совпадение
+                            predicates.add(cb.equal(root.get("status"), statusEnums.get(0)));
+                            predicateCount++;
+                            logger.info("Added single status filter: '{}'", statusEnums.get(0).getDisplayName());
+                        } else {
+                            // Несколько значений - IN запрос
+                            predicates.add(root.get("status").in(statusEnums));
+                            predicateCount++;
+                            logger.info("Added multiple status filter: {}", statusEnums.stream()
+                                .map(PurchaseRequestStatus::getDisplayName)
+                                .collect(Collectors.toList()));
+                        }
+                    }
+                }
+            }
+            
             logger.info("Total predicates added: {}", predicateCount);
             
             if (predicates.isEmpty()) {
@@ -185,6 +236,89 @@ public class PurchaseRequestService {
             return Sort.by(direction, sortBy);
         }
         return Sort.unsorted();
+    }
+
+    /**
+     * Обновляет статус заявки на закупку на основе согласований
+     * Логика:
+     * - Если хотя бы одно согласование не согласовано → статус "Не согласована"
+     * - Если хотя бы одно согласование активно (не завершено) → статус "На согласовании"
+     * 
+     * @param idPurchaseRequest ID заявки на закупку
+     */
+    @Transactional
+    public void updateStatusBasedOnApprovals(Long idPurchaseRequest) {
+        // Находим заявку по idPurchaseRequest
+        PurchaseRequest purchaseRequest = purchaseRequestRepository.findByIdPurchaseRequest(idPurchaseRequest)
+                .orElse(null);
+        
+        if (purchaseRequest == null) {
+            logger.debug("Purchase request with id {} not found for status update", idPurchaseRequest);
+            return;
+        }
+        
+        // Получаем все согласования для заявки
+        List<PurchaseRequestApproval> approvals = approvalRepository.findByIdPurchaseRequest(idPurchaseRequest);
+        
+        if (approvals.isEmpty()) {
+            logger.debug("No approvals found for purchase request {}, status not updated", idPurchaseRequest);
+            return;
+        }
+        
+        boolean hasNotCoordinated = false;
+        boolean hasActiveApproval = false;
+        
+        // Проверяем каждое согласование
+        for (PurchaseRequestApproval approval : approvals) {
+            // Проверяем, не согласовано ли согласование
+            String completionResult = approval.getCompletionResult();
+            if (completionResult != null && !completionResult.trim().isEmpty()) {
+                String resultLower = completionResult.toLowerCase().trim();
+                // Проверяем различные варианты "не согласован"
+                if (resultLower.contains("не согласован") || 
+                    resultLower.contains("не согласована") ||
+                    resultLower.contains("отклонен") ||
+                    resultLower.contains("отклонена")) {
+                    hasNotCoordinated = true;
+                    logger.debug("Found not coordinated approval for request {}: {}", 
+                        idPurchaseRequest, completionResult);
+                }
+            }
+            
+            // Проверяем, активно ли согласование (назначено, но не завершено)
+            if (approval.getAssignmentDate() != null && approval.getCompletionDate() == null) {
+                hasActiveApproval = true;
+                logger.debug("Found active approval for request {}: stage={}, role={}", 
+                    idPurchaseRequest, approval.getStage(), approval.getRole());
+            }
+        }
+        
+        // Сохраняем текущий статус для сравнения
+        PurchaseRequestStatus currentStatus = purchaseRequest.getStatus();
+        
+        // Определяем новый статус
+        PurchaseRequestStatus newStatus = null;
+        
+        // Приоритет: сначала проверяем на не согласованные
+        if (hasNotCoordinated) {
+            newStatus = PurchaseRequestStatus.NOT_COORDINATED;
+        } else if (hasActiveApproval) {
+            newStatus = PurchaseRequestStatus.ON_APPROVAL;
+        }
+        
+        // Обновляем статус только если он изменился
+        if (newStatus != null && currentStatus != newStatus) {
+            purchaseRequest.setStatus(newStatus);
+            purchaseRequestRepository.save(purchaseRequest);
+            logger.info("Status updated for purchase request {}: {} -> {}", 
+                idPurchaseRequest, 
+                currentStatus != null ? currentStatus.getDisplayName() : "null",
+                newStatus.getDisplayName());
+        } else if (newStatus == null) {
+            logger.debug("No status change needed for request {} (no active approvals or not coordinated)", idPurchaseRequest);
+        } else {
+            logger.debug("Status for request {} already set to: {}", idPurchaseRequest, newStatus.getDisplayName());
+        }
     }
 }
 

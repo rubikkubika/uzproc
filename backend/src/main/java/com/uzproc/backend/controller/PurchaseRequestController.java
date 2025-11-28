@@ -40,11 +40,12 @@ public class PurchaseRequestController {
             @RequestParam(required = false) String costType,
             @RequestParam(required = false) String contractType,
             @RequestParam(required = false) Boolean isPlanned,
-            @RequestParam(required = false) Boolean requiresPurchase) {
+            @RequestParam(required = false) Boolean requiresPurchase,
+            @RequestParam(required = false) List<String> status) {
         
         Page<PurchaseRequest> purchaseRequests = purchaseRequestService.findAll(
                 page, size, year, sortBy, sortDir, idPurchaseRequest, cfo, purchaseRequestInitiator,
-                name, costType, contractType, isPlanned, requiresPurchase);
+                name, costType, contractType, isPlanned, requiresPurchase, status);
         
         return ResponseEntity.ok(purchaseRequests);
     }

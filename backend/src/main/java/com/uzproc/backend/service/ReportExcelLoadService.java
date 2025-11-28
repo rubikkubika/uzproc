@@ -4,6 +4,7 @@ import com.uzproc.backend.entity.PurchaseRequest;
 import com.uzproc.backend.entity.PurchaseRequestApproval;
 import com.uzproc.backend.repository.PurchaseRequestApprovalRepository;
 import com.uzproc.backend.repository.PurchaseRequestRepository;
+import com.uzproc.backend.service.PurchaseRequestService;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.usermodel.DataFormatter;
@@ -37,17 +38,17 @@ public class ReportExcelLoadService {
     private static final String STAGE_MANAGER = "Руководитель закупщика";
     private static final String STAGE_APPROVAL = "Утверждение заявки на ЗП";
     
-    // Колонки для этапа "Согласование Заявки на ЗП" (31-60)
-    private static final int STAGE_APPROVAL_REQUEST_START_COL = 31;
-    private static final int STAGE_APPROVAL_REQUEST_END_COL = 60;
+    // Колонки для этапа "Согласование Заявки на ЗП" (34-73, 10 ролей × 4 колонки)
+    private static final int STAGE_APPROVAL_REQUEST_START_COL = 34;
+    private static final int STAGE_APPROVAL_REQUEST_END_COL = 73;
     
-    // Колонки для этапа "Руководитель закупщика" (61-63)
-    private static final int STAGE_MANAGER_START_COL = 61;
-    private static final int STAGE_MANAGER_END_COL = 63;
+    // Колонки для этапа "Руководитель закупщика" (75-78, 1 роль × 4 колонки)
+    private static final int STAGE_MANAGER_START_COL = 75;
+    private static final int STAGE_MANAGER_END_COL = 78;
     
-    // Колонки для этапа "Утверждение заявки на ЗП" (64-75)
-    private static final int STAGE_APPROVAL_START_COL = 64;
-    private static final int STAGE_APPROVAL_END_COL = 75;
+    // Колонки для этапа "Утверждение заявки на ЗП" (80-96, 4 роли × 4 колонки, но есть пропуск колонки 92)
+    private static final int STAGE_APPROVAL_START_COL = 80;
+    private static final int STAGE_APPROVAL_END_COL = 96;
     
     // Роли для этапа "Согласование Заявки на ЗП"
     private static final String[] APPROVAL_REQUEST_ROLES = {
@@ -64,22 +65,29 @@ public class ReportExcelLoadService {
     };
     
     // Роли для этапа "Утверждение заявки на ЗП"
+    // Внимание: колонка 92 пропущена в файле, поэтому для 4-й роли начинаем с колонки 93
     private static final String[] APPROVAL_ROLES = {
         "Ответственный закупщик",
         "Подготовил документ",
         "Руководитель закупщика",
         "Ответственный закупщик"
     };
+    
+    // Специальная обработка для этапа "Утверждение заявки на ЗП" из-за пропуска колонки 92
+    private static final int STAGE_APPROVAL_SKIP_COL = 92;
 
     private final PurchaseRequestRepository purchaseRequestRepository;
     private final PurchaseRequestApprovalRepository approvalRepository;
+    private final PurchaseRequestService purchaseRequestService;
     private final DataFormatter dataFormatter = new DataFormatter();
 
     public ReportExcelLoadService(
             PurchaseRequestRepository purchaseRequestRepository,
-            PurchaseRequestApprovalRepository approvalRepository) {
+            PurchaseRequestApprovalRepository approvalRepository,
+            PurchaseRequestService purchaseRequestService) {
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.approvalRepository = approvalRepository;
+        this.purchaseRequestService = purchaseRequestService;
     }
 
     /**
@@ -155,6 +163,10 @@ public class ReportExcelLoadService {
                     int rowApprovalsCount = parseApprovalsForRequest(row, purchaseRequest.getIdPurchaseRequest());
                     approvalsCount += rowApprovalsCount;
                     
+                    // Обновляем статус заявки на основе согласований
+                    // Вызываем всегда, так как согласования могли быть изменены
+                    purchaseRequestService.updateStatusBasedOnApprovals(purchaseRequest.getIdPurchaseRequest());
+                    
                     processedCount++;
                     
                 } catch (Exception e) {
@@ -187,9 +199,9 @@ public class ReportExcelLoadService {
         count += parseApprovalStage(row, idPurchaseRequest, STAGE_MANAGER, 
             STAGE_MANAGER_START_COL, STAGE_MANAGER_END_COL, new String[]{"Руководитель закупщика"});
         
-        // Парсим этап "Утверждение заявки на ЗП" (колонки 64-75)
-        count += parseApprovalStage(row, idPurchaseRequest, STAGE_APPROVAL, 
-            STAGE_APPROVAL_START_COL, STAGE_APPROVAL_END_COL, APPROVAL_ROLES);
+        // Парсим этап "Утверждение заявки на ЗП" (колонки 80-96, с пропуском колонки 92)
+        count += parseApprovalStageWithSkip(row, idPurchaseRequest, STAGE_APPROVAL, 
+            STAGE_APPROVAL_START_COL, STAGE_APPROVAL_END_COL, APPROVAL_ROLES, STAGE_APPROVAL_SKIP_COL);
         
         return count;
     }
@@ -202,9 +214,9 @@ public class ReportExcelLoadService {
         int count = 0;
         int roleIndex = 0;
         
-        // Для каждой роли есть 3 колонки: Дата назначения, Дата выполнения, Дней в работе
-        for (int col = startCol; col <= endCol && roleIndex < roles.length; col += 3) {
-            if (col + 2 > endCol) {
+        // Для каждой роли есть 4 колонки: Дата назначения, Дата выполнения, Дней в работе, Результат выполнения
+        for (int col = startCol; col <= endCol && roleIndex < roles.length; col += 4) {
+            if (col + 3 > endCol) {
                 break;
             }
             
@@ -213,36 +225,191 @@ public class ReportExcelLoadService {
             // Колонка col: Дата назначения
             // Колонка col+1: Дата выполнения
             // Колонка col+2: Дней в работе
+            // Колонка col+3: Результат выполнения
             
             Cell assignmentDateCell = row.getCell(col);
             Cell completionDateCell = row.getCell(col + 1);
             Cell daysInWorkCell = row.getCell(col + 2);
+            Cell completionResultCell = row.getCell(col + 3);
             
             LocalDateTime assignmentDate = parseDateCell(assignmentDateCell);
             LocalDateTime completionDate = parseDateCell(completionDateCell);
             Integer daysInWork = parseIntegerCell(daysInWorkCell);
+            String completionResult = getCellValueAsString(completionResultCell);
+            
+            // Логирование для отладки
+            logger.info("Parsing approval: stage={}, role={}, col={}, assignmentDate={}, completionDate={}, daysInWork={}, completionResultCell={}, completionResult={}", 
+                stage, role, col + 3, assignmentDate, completionDate, daysInWork, 
+                completionResultCell != null ? "exists" : "null", completionResult);
             
             // Сохраняем согласование только если есть хотя бы одно значение
-            if (assignmentDate != null || completionDate != null || daysInWork != null) {
+            if (assignmentDate != null || completionDate != null || daysInWork != null 
+                    || (completionResult != null && !completionResult.trim().isEmpty())) {
                 PurchaseRequestApproval approval = approvalRepository
                     .findByIdPurchaseRequestAndStageAndRole(idPurchaseRequest, stage, role)
                     .orElse(new PurchaseRequestApproval(idPurchaseRequest, stage, role));
                 
+                boolean updated = false;
+                
                 if (assignmentDate != null) {
                     approval.setAssignmentDate(assignmentDate);
+                    updated = true;
                 }
                 if (completionDate != null) {
                     approval.setCompletionDate(completionDate);
+                    updated = true;
                 }
                 if (daysInWork != null) {
                     approval.setDaysInWork(daysInWork);
+                    updated = true;
+                }
+                // Всегда обновляем результат выполнения
+                // Если ячейка существует, читаем значение (даже если пустое)
+                String trimmedResult = completionResult != null ? completionResult.trim() : null;
+                String currentResult = approval.getCompletionResult();
+                
+                // Обновляем, если значение изменилось или если ячейка существует и значение пустое (для очистки)
+                if (completionResultCell != null) {
+                    // Ячейка существует - обновляем значение
+                    if (trimmedResult == null || trimmedResult.isEmpty()) {
+                        if (currentResult != null) {
+                            approval.setCompletionResult(null);
+                            updated = true;
+                            logger.debug("Cleared completion result for stage={}, role={}", stage, role);
+                        }
+                    } else {
+                        if (!trimmedResult.equals(currentResult)) {
+                            approval.setCompletionResult(trimmedResult);
+                            updated = true;
+                            logger.debug("Updated completion result for stage={}, role={}: '{}'", 
+                                stage, role, trimmedResult);
+                        }
+                    }
+                } else if (trimmedResult != null && !trimmedResult.isEmpty()) {
+                    // Ячейка не существует, но значение есть (из merged cell или другого источника)
+                    if (!trimmedResult.equals(currentResult)) {
+                        approval.setCompletionResult(trimmedResult);
+                        updated = true;
+                        logger.debug("Updated completion result for stage={}, role={}: '{}'", 
+                            stage, role, trimmedResult);
+                    }
                 }
                 
-                approvalRepository.save(approval);
-                count++;
+                if (updated || approval.getId() == null) {
+                    approvalRepository.save(approval);
+                    count++;
+                }
             }
             
             roleIndex++;
+        }
+        
+        return count;
+    }
+    
+    /**
+     * Парсит согласования для одного этапа с учетом пропущенных колонок
+     */
+    private int parseApprovalStageWithSkip(Row row, Long idPurchaseRequest, String stage, 
+                                           int startCol, int endCol, String[] roles, int skipCol) {
+        int count = 0;
+        int roleIndex = 0;
+        
+        // Для каждой роли есть 4 колонки: Дата назначения, Дата выполнения, Дней в работе, Результат выполнения
+        for (int col = startCol; col <= endCol && roleIndex < roles.length; ) {
+            // Пропускаем указанную колонку
+            if (col == skipCol) {
+                col++;
+                continue;
+            }
+            
+            if (col + 3 > endCol) {
+                break;
+            }
+            
+            String role = roles[roleIndex];
+            
+            // Колонка col: Дата назначения
+            // Колонка col+1: Дата выполнения
+            // Колонка col+2: Дней в работе
+            // Колонка col+3: Результат выполнения
+            
+            Cell assignmentDateCell = row.getCell(col);
+            Cell completionDateCell = row.getCell(col + 1);
+            Cell daysInWorkCell = row.getCell(col + 2);
+            Cell completionResultCell = row.getCell(col + 3);
+            
+            LocalDateTime assignmentDate = parseDateCell(assignmentDateCell);
+            LocalDateTime completionDate = parseDateCell(completionDateCell);
+            Integer daysInWork = parseIntegerCell(daysInWorkCell);
+            String completionResult = getCellValueAsString(completionResultCell);
+            
+            // Логирование для отладки
+            logger.info("Parsing approval: stage={}, role={}, col={}, assignmentDate={}, completionDate={}, daysInWork={}, completionResultCell={}, completionResult={}", 
+                stage, role, col + 3, assignmentDate, completionDate, daysInWork, 
+                completionResultCell != null ? "exists" : "null", completionResult);
+            
+            // Сохраняем согласование только если есть хотя бы одно значение
+            if (assignmentDate != null || completionDate != null || daysInWork != null 
+                    || (completionResult != null && !completionResult.trim().isEmpty())) {
+                PurchaseRequestApproval approval = approvalRepository
+                    .findByIdPurchaseRequestAndStageAndRole(idPurchaseRequest, stage, role)
+                    .orElse(new PurchaseRequestApproval(idPurchaseRequest, stage, role));
+                
+                boolean updated = false;
+                
+                if (assignmentDate != null) {
+                    approval.setAssignmentDate(assignmentDate);
+                    updated = true;
+                }
+                if (completionDate != null) {
+                    approval.setCompletionDate(completionDate);
+                    updated = true;
+                }
+                if (daysInWork != null) {
+                    approval.setDaysInWork(daysInWork);
+                    updated = true;
+                }
+                // Всегда обновляем результат выполнения
+                // Если ячейка существует, читаем значение (даже если пустое)
+                String trimmedResult = completionResult != null ? completionResult.trim() : null;
+                String currentResult = approval.getCompletionResult();
+                
+                // Обновляем, если значение изменилось или если ячейка существует и значение пустое (для очистки)
+                if (completionResultCell != null) {
+                    // Ячейка существует - обновляем значение
+                    if (trimmedResult == null || trimmedResult.isEmpty()) {
+                        if (currentResult != null) {
+                            approval.setCompletionResult(null);
+                            updated = true;
+                            logger.debug("Cleared completion result for stage={}, role={}", stage, role);
+                        }
+                    } else {
+                        if (!trimmedResult.equals(currentResult)) {
+                            approval.setCompletionResult(trimmedResult);
+                            updated = true;
+                            logger.debug("Updated completion result for stage={}, role={}: '{}'", 
+                                stage, role, trimmedResult);
+                        }
+                    }
+                } else if (trimmedResult != null && !trimmedResult.isEmpty()) {
+                    // Ячейка не существует, но значение есть (из merged cell или другого источника)
+                    if (!trimmedResult.equals(currentResult)) {
+                        approval.setCompletionResult(trimmedResult);
+                        updated = true;
+                        logger.debug("Updated completion result for stage={}, role={}: '{}'", 
+                            stage, role, trimmedResult);
+                    }
+                }
+                
+                if (updated || approval.getId() == null) {
+                    approvalRepository.save(approval);
+                    count++;
+                }
+            }
+            
+            roleIndex++;
+            col += 4; // Переходим к следующей роли
         }
         
         return count;
@@ -275,7 +442,26 @@ public class ReportExcelLoadService {
             return null;
         }
         try {
-            return dataFormatter.formatCellValue(cell);
+            // Проверяем, является ли ячейка ошибкой Excel
+            if (cell.getCellType() == CellType.ERROR) {
+                return null;
+            }
+            
+            // Проверяем формулу с ошибкой
+            if (cell.getCellType() == CellType.FORMULA) {
+                if (cell.getCachedFormulaResultType() == CellType.ERROR) {
+                    return null;
+                }
+            }
+            
+            String value = dataFormatter.formatCellValue(cell);
+            
+            // Фильтруем ошибки Excel (#NULL!, #N/A, #VALUE!, #REF!, #DIV/0!, #NAME?, #NUM!)
+            if (value != null && (value.startsWith("#") || value.trim().isEmpty())) {
+                return null;
+            }
+            
+            return value;
         } catch (Exception e) {
             logger.debug("Error formatting cell value: {}", e.getMessage());
             return null;

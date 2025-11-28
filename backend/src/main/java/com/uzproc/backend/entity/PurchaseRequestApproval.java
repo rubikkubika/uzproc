@@ -46,6 +46,9 @@ public class PurchaseRequestApproval {
     @Column(name = "days_in_work")
     private Integer daysInWork;
 
+    @Column(name = "completion_result", length = 500)
+    private String completionResult;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -130,6 +133,14 @@ public class PurchaseRequestApproval {
 
     public void setDaysInWork(Integer daysInWork) {
         this.daysInWork = daysInWork;
+    }
+
+    public String getCompletionResult() {
+        return completionResult;
+    }
+
+    public void setCompletionResult(String completionResult) {
+        this.completionResult = completionResult;
     }
 
     public LocalDateTime getCreatedAt() {

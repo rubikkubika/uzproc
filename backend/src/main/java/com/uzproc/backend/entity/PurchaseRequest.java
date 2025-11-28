@@ -70,6 +70,10 @@ public class PurchaseRequest {
     @Column(name = "requires_purchase")
     private Boolean requiresPurchase;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", length = 50)
+    private PurchaseRequestStatus status;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -261,5 +265,13 @@ public class PurchaseRequest {
 
     public void setRequiresPurchase(Boolean requiresPurchase) {
         this.requiresPurchase = requiresPurchase;
+    }
+
+    public PurchaseRequestStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(PurchaseRequestStatus status) {
+        this.status = status;
     }
 }
