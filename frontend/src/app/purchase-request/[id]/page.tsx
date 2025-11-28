@@ -37,6 +37,16 @@ interface Purchase {
   purchaseRequestId: number | null;
 }
 
+interface Approval {
+  id: number;
+  idPurchaseRequest: number;
+  stage: string;
+  role: string;
+  assignmentDate: string | null;
+  completionDate: string | null;
+  daysInWork: number | null;
+}
+
 const SIDEBAR_COLLAPSED_KEY = 'sidebarCollapsed';
 const ACTIVE_TAB_KEY = 'activeTab';
 
@@ -53,55 +63,7 @@ export default function PurchaseRequestDetailPage() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [activeTab, setActiveTab] = useState('purchase-requests');
-  
-  // Моковые данные для этапа Согласование (пока без бэка)
-  const [approvalStage] = useState<{
-    approvers: Array<{
-      name: string;
-      assignedDate: string | null;
-      completedDate: string | null;
-      status: 'in_progress' | 'approved' | 'rejected';
-    }>;
-  }>({
-    approvers: [
-      { name: 'Иванов И.И.', assignedDate: new Date().toISOString(), completedDate: null, status: 'in_progress' },
-      { name: 'Петров П.П.', assignedDate: new Date().toISOString(), completedDate: new Date().toISOString(), status: 'approved' },
-      { name: 'Сидоров С.С.', assignedDate: new Date().toISOString(), completedDate: null, status: 'in_progress' },
-      { name: 'Козлов К.К.', assignedDate: new Date().toISOString(), completedDate: null, status: 'in_progress' },
-      { name: 'Смирнов С.С.', assignedDate: new Date().toISOString(), completedDate: new Date().toISOString(), status: 'approved' },
-      { name: 'Волков В.В.', assignedDate: new Date().toISOString(), completedDate: null, status: 'in_progress' },
-      { name: 'Морозов М.М.', assignedDate: new Date().toISOString(), completedDate: new Date().toISOString(), status: 'approved' },
-      { name: 'Новиков Н.Н.', assignedDate: new Date().toISOString(), completedDate: null, status: 'in_progress' },
-      { name: 'Федоров Ф.Ф.', assignedDate: new Date().toISOString(), completedDate: new Date().toISOString(), status: 'approved' },
-      { name: 'Соколов С.С.', assignedDate: new Date().toISOString(), completedDate: null, status: 'in_progress' },
-    ],
-  });
-
-  // Моковые данные для этапа Руководитель закупок (пока без бэка)
-  const [purchasingManagerStage] = useState<{
-    status: 'in_progress' | 'approved' | 'rejected';
-    manager: string;
-    assignedDate: string | null;
-    completedDate: string | null;
-  }>({
-    status: 'in_progress',
-    manager: 'Васильев В.В.',
-    assignedDate: null,
-    completedDate: null,
-  });
-
-  // Моковые данные для этапа Утверждение (пока без бэка)
-  const [approvalFinalStage] = useState<{
-    status: 'in_progress' | 'approved' | 'rejected';
-    manager: string;
-    assignedDate: string | null;
-    completedDate: string | null;
-  }>({
-    status: 'in_progress',
-    manager: 'Николаев Н.Н.',
-    assignedDate: null,
-    completedDate: null,
-  });
+  const [approvals, setApprovals] = useState<Approval[]>([]);
   
   // Защита от дублирующих запросов
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -216,6 +178,11 @@ export default function PurchaseRequestDetailPage() {
           if (data && data.id) {
             fetchPurchase(data.id);
           }
+          
+          // Загружаем согласования по idPurchaseRequest
+          if (data && data.idPurchaseRequest) {
+            fetchApprovals(data.idPurchaseRequest);
+          }
         }
       } catch (err) {
         // Игнорируем ошибку отмены запроса
@@ -271,6 +238,22 @@ export default function PurchaseRequestDetailPage() {
     }
   };
 
+  // Функция для загрузки согласований по idPurchaseRequest
+  const fetchApprovals = async (idPurchaseRequest: number) => {
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/purchase-request-approvals/by-purchase-request/${idPurchaseRequest}`);
+      if (response.ok) {
+        const data = await response.json();
+        setApprovals(data || []);
+      } else {
+        setApprovals([]);
+      }
+    } catch (err) {
+      console.error('Error fetching approvals:', err);
+      setApprovals([]);
+    }
+  };
+
   const formatDate = (dateString: string | null): string => {
     if (!dateString) return '-';
     try {
@@ -284,7 +267,12 @@ export default function PurchaseRequestDetailPage() {
     }
   };
 
-  const calculateDays = (assignedDate: string | null, completedDate: string | null): string => {
+  const calculateDays = (assignedDate: string | null, completedDate: string | null, daysInWork: number | null): string => {
+    // Если есть daysInWork из бэкенда, используем его
+    if (daysInWork !== null && daysInWork !== undefined) {
+      return daysInWork.toString();
+    }
+    // Иначе вычисляем из дат
     if (!assignedDate || !completedDate) return '-';
     try {
       const assigned = new Date(assignedDate);
@@ -296,6 +284,21 @@ export default function PurchaseRequestDetailPage() {
       return '-';
     }
   };
+
+  // Фильтруем согласования по этапам
+  const approvalStageApprovals = approvals.filter(a => 
+    a.stage === 'Согласование Заявки на ЗП'
+  );
+  const managerStageApprovals = approvals.filter(a => 
+    a.stage === 'Руководитель закупщика'
+  );
+  const finalApprovalStageApprovals = approvals.filter(a => 
+    a.stage === 'Утверждение заявки на ЗП'
+  );
+  
+  // Проверяем, выполнено ли утверждение заявки
+  const isApprovalCompleted = finalApprovalStageApprovals.length > 0 && 
+    finalApprovalStageApprovals.some(a => a.completionDate !== null);
 
   const formatCurrency = (amount: number | null): string => {
     if (amount === null) return '-';
@@ -467,9 +470,15 @@ export default function PurchaseRequestDetailPage() {
                 <div className="flex items-end gap-2">
                   {/* Заявка - активна */}
                   <div className="flex flex-col items-center gap-0.5">
-                    <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center" title="Заявка">
-                      <Clock className="w-2.5 h-2.5 text-white" />
-                    </div>
+                    {isApprovalCompleted ? (
+                      <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center" title="Заявка утверждена">
+                        <Check className="w-2.5 h-2.5 text-white" />
+                      </div>
+                    ) : (
+                      <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center" title="Заявка">
+                        <Clock className="w-2.5 h-2.5 text-white" />
+                      </div>
+                    )}
                     <span className="text-[10px] text-gray-600 whitespace-nowrap leading-none">Заявка</span>
                   </div>
 
@@ -691,7 +700,8 @@ export default function PurchaseRequestDetailPage() {
                     {/* Раздел: Этапы */}
                     <div className="space-y-1.5">
                       {/* Этап: Согласование */}
-                      <div className="border border-gray-200 rounded p-1.5 bg-gray-50">
+                      {approvalStageApprovals.length > 0 && (
+                      <div className="border border-gray-200 rounded p-1.5">
                         <div className="flex items-start gap-1.5 mb-1">
                           <div className="text-[10px] font-semibold text-gray-900 flex-1 leading-tight">Согласование</div>
                         </div>
@@ -716,144 +726,130 @@ export default function PurchaseRequestDetailPage() {
                         </div>
                         
                         <div className="space-y-1">
-                          {approvalStage.approvers.map((approver, index) => (
-                            <div key={index} className="flex gap-x-1 items-end border-b border-gray-200 pb-1 last:border-b-0 last:pb-0">
+                          {approvalStageApprovals.length > 0 ? (
+                            approvalStageApprovals.map((approval) => (
+                              <div key={approval.id} className="flex gap-x-1 items-end border-b border-gray-200 pb-1 last:border-b-0 last:pb-0">
+                                <div className="flex-[2] min-w-0">
+                                  <div className="flex items-center gap-1">
+                                    {/* Индикатор статуса */}
+                                    <div className="flex-shrink-0">
+                                      {approval.completionDate ? (
+                                        <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center" title="Согласовано">
+                                          <Check className="w-2 h-2 text-white" />
+                                        </div>
+                                      ) : approval.assignmentDate ? (
+                                        <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title="В работе">
+                                          <Clock className="w-2 h-2 text-white" />
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                    <p className="text-[10px] text-gray-900 truncate leading-tight">
+                                      {approval.role || '-'}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="flex-shrink-0" style={{ width: '50px' }}>
+                                  <p className="text-[10px] text-gray-900 truncate leading-tight">
+                                    {formatDate(approval.assignmentDate)}
+                                  </p>
+                                </div>
+                                <div className="flex-shrink-0" style={{ width: '35px' }}>
+                                  <p className="text-[10px] text-gray-900 truncate leading-tight">
+                                    {calculateDays(approval.assignmentDate, approval.completionDate, approval.daysInWork)}
+                                  </p>
+                                </div>
+                              </div>
+                            ))
+                          ) : (
+                            <div className="text-[10px] text-gray-500 text-center py-1">Нет данных</div>
+                          )}
+                        </div>
+                      </div>
+                      )}
+
+                      {/* Этап: Руководитель закупок */}
+                      {managerStageApprovals.length > 0 && (
+                      <div className="border border-gray-200 rounded p-1.5">
+                        <div className="flex items-start gap-1.5 mb-1">
+                          <div className="text-[10px] font-semibold text-gray-900 flex-1 leading-tight">Руководитель закупок</div>
+                          {/* Индикатор статуса */}
+                          <div className="flex-shrink-0">
+                            {managerStageApprovals.length > 0 && managerStageApprovals[0].completionDate ? (
+                              <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center" title="Согласовано">
+                                <Check className="w-2 h-2 text-white" />
+                              </div>
+                            ) : managerStageApprovals.length > 0 && managerStageApprovals[0].assignmentDate ? (
+                              <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title="В работе">
+                                <Clock className="w-2 h-2 text-white" />
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                        
+                        {/* Заголовки колонок */}
+                        <div className="flex gap-x-1 items-end mb-1 pb-1 border-b border-gray-200">
+                          <div className="flex-[2] min-w-0">
+                            <label className="block text-[9px] font-semibold text-gray-600 leading-tight">
+                              ФИО
+                            </label>
+                          </div>
+                          <div className="flex-shrink-0" style={{ width: '50px' }}>
+                            <label className="block text-[9px] font-semibold text-gray-600 leading-tight">
+                              Назначено
+                            </label>
+                          </div>
+                          <div className="flex-shrink-0" style={{ width: '35px' }}>
+                            <label className="block text-[9px] font-semibold text-gray-600 leading-tight">
+                              Дней
+                            </label>
+                          </div>
+                        </div>
+                        
+                        {managerStageApprovals.length > 0 ? (
+                          managerStageApprovals.map((approval) => (
+                            <div key={approval.id} className="flex gap-x-1 items-end">
                               <div className="flex-[2] min-w-0">
                                 <div className="flex items-center gap-1">
                                   {/* Индикатор статуса */}
                                   <div className="flex-shrink-0">
-                                    {approver.status === 'rejected' ? (
-                                      <div className="w-3 h-3 rounded-full bg-red-500 flex items-center justify-center" title="Не согласовано">
-                                        <X className="w-2 h-2 text-white" />
-                                      </div>
-                                    ) : approver.completedDate ? (
+                                    {approval.completionDate ? (
                                       <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center" title="Согласовано">
                                         <Check className="w-2 h-2 text-white" />
                                       </div>
-                                    ) : approver.assignedDate ? (
+                                    ) : approval.assignmentDate ? (
                                       <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title="В работе">
                                         <Clock className="w-2 h-2 text-white" />
                                       </div>
                                     ) : null}
                                   </div>
                                   <p className="text-[10px] text-gray-900 truncate leading-tight">
-                                    {approver.name || '-'}
+                                    {approval.role || '-'}
                                   </p>
                                 </div>
                               </div>
                               <div className="flex-shrink-0" style={{ width: '50px' }}>
                                 <p className="text-[10px] text-gray-900 truncate leading-tight">
-                                  {formatDate(approver.assignedDate)}
+                                  {formatDate(approval.assignmentDate)}
                                 </p>
                               </div>
                               <div className="flex-shrink-0" style={{ width: '35px' }}>
                                 <p className="text-[10px] text-gray-900 truncate leading-tight">
-                                  {calculateDays(approver.assignedDate, approver.completedDate)}
+                                  {calculateDays(approval.assignmentDate, approval.completionDate, approval.daysInWork)}
                                 </p>
                               </div>
                             </div>
-                          ))}
-                        </div>
+                          ))
+                        ) : (
+                          <div className="text-[10px] text-gray-500 text-center py-1">Нет данных</div>
+                        )}
                       </div>
-
-                      {/* Этап: Руководитель закупок */}
-                      <div className="border border-gray-200 rounded p-1.5 bg-gray-50">
-                        <div className="flex items-start gap-1.5 mb-1">
-                          <div className="text-[10px] font-semibold text-gray-900 flex-1 leading-tight">Руководитель закупок</div>
-                          {/* Индикатор статуса */}
-                          <div className="flex-shrink-0">
-                            {purchasingManagerStage.status === 'rejected' ? (
-                              <div className="w-3 h-3 rounded-full bg-red-500 flex items-center justify-center" title="Не согласовано">
-                                <X className="w-2 h-2 text-white" />
-                              </div>
-                            ) : purchasingManagerStage.completedDate ? (
-                              <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center" title="Согласовано">
-                                <Check className="w-2 h-2 text-white" />
-                              </div>
-                            ) : purchasingManagerStage.assignedDate ? (
-                              <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title="В работе">
-                                <Clock className="w-2 h-2 text-white" />
-                              </div>
-                            ) : null}
-                          </div>
-                        </div>
-                        
-                        {/* Заголовки колонок */}
-                        <div className="flex gap-x-1 items-end mb-1 pb-1 border-b border-gray-200">
-                          <div className="flex-[2] min-w-0">
-                            <label className="block text-[9px] font-semibold text-gray-600 leading-tight">
-                              ФИО
-                            </label>
-                          </div>
-                          <div className="flex-shrink-0" style={{ width: '50px' }}>
-                            <label className="block text-[9px] font-semibold text-gray-600 leading-tight">
-                              Назначено
-                            </label>
-                          </div>
-                          <div className="flex-shrink-0" style={{ width: '35px' }}>
-                            <label className="block text-[9px] font-semibold text-gray-600 leading-tight">
-                              Дней
-                            </label>
-                          </div>
-                        </div>
-                        
-                        <div className="flex gap-x-1 items-end">
-                          <div className="flex-[2] min-w-0">
-                            <div className="flex items-center gap-1">
-                              {/* Индикатор статуса */}
-                              <div className="flex-shrink-0">
-                                {purchasingManagerStage.status === 'rejected' ? (
-                                  <div className="w-3 h-3 rounded-full bg-red-500 flex items-center justify-center" title="Не согласовано">
-                                    <X className="w-2 h-2 text-white" />
-                                  </div>
-                                ) : purchasingManagerStage.completedDate ? (
-                                  <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center" title="Согласовано">
-                                    <Check className="w-2 h-2 text-white" />
-                                  </div>
-                                ) : purchasingManagerStage.assignedDate ? (
-                                  <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title="В работе">
-                                    <Clock className="w-2 h-2 text-white" />
-                                  </div>
-                                ) : null}
-                              </div>
-                              <p className="text-[10px] text-gray-900 truncate leading-tight">
-                                {purchasingManagerStage.manager || '-'}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex-shrink-0" style={{ width: '50px' }}>
-                            <p className="text-[10px] text-gray-900 truncate leading-tight">
-                              {formatDate(purchasingManagerStage.assignedDate)}
-                            </p>
-                          </div>
-                          <div className="flex-shrink-0" style={{ width: '35px' }}>
-                            <p className="text-[10px] text-gray-900 truncate leading-tight">
-                              {calculateDays(purchasingManagerStage.assignedDate, purchasingManagerStage.completedDate)}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
+                      )}
 
                       {/* Этап: Утверждение */}
-                      <div className="border border-gray-200 rounded p-1.5 bg-gray-50">
+                      {finalApprovalStageApprovals.length > 0 && (
+                      <div className="border border-gray-200 rounded p-1.5">
                         <div className="flex items-start gap-1.5 mb-1">
                           <div className="text-[10px] font-semibold text-gray-900 flex-1 leading-tight">Утверждение</div>
-                          {/* Индикатор статуса */}
-                          <div className="flex-shrink-0">
-                            {approvalFinalStage.status === 'rejected' ? (
-                              <div className="w-3 h-3 rounded-full bg-red-500 flex items-center justify-center" title="Не согласовано">
-                                <X className="w-2 h-2 text-white" />
-                              </div>
-                            ) : approvalFinalStage.completedDate ? (
-                              <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center" title="Согласовано">
-                                <Check className="w-2 h-2 text-white" />
-                              </div>
-                            ) : approvalFinalStage.assignedDate ? (
-                              <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title="В работе">
-                                <Clock className="w-2 h-2 text-white" />
-                              </div>
-                            ) : null}
-                          </div>
                         </div>
                         
                         {/* Заголовки колонок */}
@@ -875,42 +871,45 @@ export default function PurchaseRequestDetailPage() {
                           </div>
                         </div>
                         
-                        <div className="flex gap-x-1 items-end">
-                          <div className="flex-[2] min-w-0">
-                            <div className="flex items-center gap-1">
-                              {/* Индикатор статуса */}
-                              <div className="flex-shrink-0">
-                                {approvalFinalStage.status === 'rejected' ? (
-                                  <div className="w-3 h-3 rounded-full bg-red-500 flex items-center justify-center" title="Не согласовано">
-                                    <X className="w-2 h-2 text-white" />
+                        {finalApprovalStageApprovals.length > 0 ? (
+                          finalApprovalStageApprovals.map((approval) => (
+                            <div key={approval.id} className="flex gap-x-1 items-end border-b border-gray-200 pb-1 last:border-b-0 last:pb-0">
+                              <div className="flex-[2] min-w-0">
+                                <div className="flex items-center gap-1">
+                                  {/* Индикатор статуса */}
+                                  <div className="flex-shrink-0">
+                                    {approval.completionDate ? (
+                                      <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center" title="Согласовано">
+                                        <Check className="w-2 h-2 text-white" />
+                                      </div>
+                                    ) : approval.assignmentDate ? (
+                                      <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title="В работе">
+                                        <Clock className="w-2 h-2 text-white" />
+                                      </div>
+                                    ) : null}
                                   </div>
-                                ) : approvalFinalStage.completedDate ? (
-                                  <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center" title="Согласовано">
-                                    <Check className="w-2 h-2 text-white" />
-                                  </div>
-                                ) : approvalFinalStage.assignedDate ? (
-                                  <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title="В работе">
-                                    <Clock className="w-2 h-2 text-white" />
-                                  </div>
-                                ) : null}
+                                  <p className="text-[10px] text-gray-900 truncate leading-tight">
+                                    {approval.role || '-'}
+                                  </p>
+                                </div>
                               </div>
-                              <p className="text-[10px] text-gray-900 truncate leading-tight">
-                                {approvalFinalStage.manager || '-'}
-                              </p>
+                              <div className="flex-shrink-0" style={{ width: '50px' }}>
+                                <p className="text-[10px] text-gray-900 truncate leading-tight">
+                                  {formatDate(approval.assignmentDate)}
+                                </p>
+                              </div>
+                              <div className="flex-shrink-0" style={{ width: '35px' }}>
+                                <p className="text-[10px] text-gray-900 truncate leading-tight">
+                                  {calculateDays(approval.assignmentDate, approval.completionDate, approval.daysInWork)}
+                                </p>
+                              </div>
                             </div>
-                          </div>
-                          <div className="flex-shrink-0" style={{ width: '50px' }}>
-                            <p className="text-[10px] text-gray-900 truncate leading-tight">
-                              {formatDate(approvalFinalStage.assignedDate)}
-                            </p>
-                          </div>
-                          <div className="flex-shrink-0" style={{ width: '35px' }}>
-                            <p className="text-[10px] text-gray-900 truncate leading-tight">
-                              {calculateDays(approvalFinalStage.assignedDate, approvalFinalStage.completedDate)}
-                            </p>
-                          </div>
-                        </div>
+                          ))
+                        ) : (
+                          <div className="text-[10px] text-gray-500 text-center py-1">Нет данных</div>
+                        )}
                       </div>
+                      )}
                     </div>
                   </div>
                 </div>

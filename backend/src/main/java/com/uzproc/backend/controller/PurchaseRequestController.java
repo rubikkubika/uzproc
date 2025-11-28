@@ -2,7 +2,7 @@ package com.uzproc.backend.controller;
 
 import com.uzproc.backend.entity.PurchaseRequest;
 import com.uzproc.backend.service.PurchaseRequestService;
-import com.uzproc.backend.service.ExcelLoadService;
+import com.uzproc.backend.service.EntityExcelLoadService;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,11 +17,11 @@ import java.util.Map;
 public class PurchaseRequestController {
 
     private final PurchaseRequestService purchaseRequestService;
-    private final ExcelLoadService excelLoadService;
+    private final EntityExcelLoadService excelLoadService;
 
     public PurchaseRequestController(
             PurchaseRequestService purchaseRequestService,
-            ExcelLoadService excelLoadService) {
+            EntityExcelLoadService excelLoadService) {
         this.purchaseRequestService = purchaseRequestService;
         this.excelLoadService = excelLoadService;
     }

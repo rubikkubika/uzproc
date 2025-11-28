@@ -48,9 +48,9 @@ ALTER TABLE purchase_requests
 
 **Важно:** Номер версии `V{N}` должен быть последовательным (например, если последняя миграция `V6`, то следующая будет `V7`).
 
-### 3. Обновление ExcelLoadService
+### 3. Обновление EntityExcelLoadService
 
-**Файл:** `backend/src/main/java/com/uzproc/backend/service/ExcelLoadService.java`
+**Файл:** `backend/src/main/java/com/uzproc/backend/service/EntityExcelLoadService.java`
 
 #### 3.1. Добавление константы для названия колонки
 

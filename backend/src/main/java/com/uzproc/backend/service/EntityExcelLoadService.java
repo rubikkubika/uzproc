@@ -32,9 +32,9 @@ import java.util.Optional;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
-public class ExcelLoadService {
+public class EntityExcelLoadService {
 
-    private static final Logger logger = LoggerFactory.getLogger(ExcelLoadService.class);
+    private static final Logger logger = LoggerFactory.getLogger(EntityExcelLoadService.class);
     private static final String DOCUMENT_TYPE_COLUMN = "Вид документа";
     private static final String PURCHASE_REQUEST_TYPE = "Заявка на ЗП";
     private static final String PURCHASE_TYPE = "Закупочная процедура";
@@ -55,7 +55,7 @@ public class ExcelLoadService {
     private final UserRepository userRepository;
     private final DataFormatter dataFormatter = new DataFormatter();
 
-    public ExcelLoadService(
+    public EntityExcelLoadService(
             PurchaseRequestRepository purchaseRequestRepository,
             PurchaseRepository purchaseRepository,
             UserRepository userRepository) {

@@ -317,7 +317,65 @@ docker compose up -d postgres
 
 ## Разделение ответственности: Контроллеры и Сервисы
 
-**КРИТИЧЕСКИ ВАЖНО:** Вся бизнес-логика должна находиться в сервисах, контроллеры должны только обрабатывать HTTP-запросы.
+**КРИТИЧЕСКИ ВАЖНО:** При создании нового контроллера **ОБЯЗАТЕЛЬНО** нужно создать соответствующий сервисный слой. Вся бизнес-логика должна находиться в сервисах, контроллеры должны только обрабатывать HTTP-запросы.
+
+### Правило при создании новых контроллеров:
+
+1. **Всегда создавать сервис перед контроллером:**
+   - При создании нового контроллера сначала создать соответствующий сервис
+   - Контроллер должен только вызывать методы сервиса
+   - Вся логика работы с данными, валидация, бизнес-правила - в сервисе
+
+2. **Структура создания:**
+   ```
+   1. Создать Entity (если еще нет)
+   2. Создать Repository (если еще нет)
+   3. Создать Service с бизнес-логикой
+   4. Создать Controller, который использует Service
+   ```
+
+3. **Пример правильного подхода:**
+   ```java
+   // ✅ ПРАВИЛЬНО: Сначала сервис
+   @Service
+   @Transactional(readOnly = true)
+   public class NewEntityService {
+       private final NewEntityRepository repository;
+       
+       public List<NewEntity> findAll() {
+           // Вся логика здесь
+           return repository.findAll();
+       }
+   }
+   
+   // Затем контроллер
+   @RestController
+   @RequestMapping("/api/new-entities")
+   public class NewEntityController {
+       private final NewEntityService service;
+       
+       @GetMapping
+       public ResponseEntity<List<NewEntity>> getAll() {
+           return ResponseEntity.ok(service.findAll());
+       }
+   }
+   ```
+
+4. **Что НЕ делать:**
+   ```java
+   // ❌ НЕПРАВИЛЬНО: Логика в контроллере
+   @RestController
+   @RequestMapping("/api/new-entities")
+   public class NewEntityController {
+       private final NewEntityRepository repository; // ❌ Прямая работа с репозиторием
+       
+       @GetMapping
+       public ResponseEntity<List<NewEntity>> getAll() {
+           // ❌ Логика в контроллере
+           return ResponseEntity.ok(repository.findAll());
+       }
+   }
+   ```
 
 ### Правила для контроллеров:
 

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
-import { ArrowUp, ArrowDown, ArrowUpDown, Clock, Search, X, Download, Copy } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpDown, Clock, Search, X, Download, Copy, Check } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 
@@ -143,6 +143,9 @@ export default function PurchaseRequestsTable() {
   const [isResizing, setIsResizing] = useState<string | null>(null);
   const resizeStartX = useRef<number>(0);
   const resizeStartWidth = useRef<number>(0);
+  
+  // Состояние для статусов утверждения заявок (idPurchaseRequest -> isApproved)
+  const [approvalStatuses, setApprovalStatuses] = useState<Map<number, boolean>>(new Map());
   const resizeColumn = useRef<string | null>(null);
 
   // Загружаем сохраненные ширины колонок из localStorage
@@ -351,6 +354,33 @@ export default function PurchaseRequestsTable() {
         // (все фильтры, включая ЦФО, применяются на бэкенде, пагинация тоже на бэкенде)
         // totalElements и totalPages уже учитывают все примененные фильтры
         setData(result);
+      }
+      
+      // Загружаем статусы утверждения для всех заявок на странице
+      if (result.content && result.content.length > 0) {
+        const statusMap = new Map<number, boolean>();
+        const promises = result.content
+          .filter((req: PurchaseRequest) => req.idPurchaseRequest !== null)
+          .map(async (req: PurchaseRequest) => {
+            try {
+              const approvalResponse = await fetch(
+                `${getBackendUrl()}/api/purchase-request-approvals/by-purchase-request/${req.idPurchaseRequest}`
+              );
+              if (approvalResponse.ok) {
+                const approvals = await approvalResponse.json();
+                // Проверяем, есть ли согласования этапа "Утверждение заявки на ЗП" с completionDate
+                const finalApprovals = approvals.filter((a: any) => 
+                  a.stage === 'Утверждение заявки на ЗП' && a.completionDate !== null
+                );
+                statusMap.set(req.idPurchaseRequest!, finalApprovals.length > 0);
+              }
+            } catch (err) {
+              console.error(`Error fetching approvals for request ${req.idPurchaseRequest}:`, err);
+            }
+          });
+        
+        await Promise.all(promises);
+        setApprovalStatuses(statusMap);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Произошла ошибка');
@@ -1502,9 +1532,15 @@ export default function PurchaseRequestsTable() {
                     <div className="flex items-end gap-2">
                       {/* Заявка - активна */}
                       <div className="flex flex-col items-center gap-0.5">
-                        <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center" title="Заявка">
-                          <Clock className="w-2.5 h-2.5 text-white" />
-                        </div>
+                        {request.idPurchaseRequest && approvalStatuses.get(request.idPurchaseRequest) ? (
+                          <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center" title="Заявка утверждена">
+                            <Check className="w-2.5 h-2.5 text-white" />
+                          </div>
+                        ) : (
+                          <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center" title="Заявка">
+                            <Clock className="w-2.5 h-2.5 text-white" />
+                          </div>
+                        )}
                         <span className="text-[10px] text-gray-600 whitespace-nowrap leading-none">Заявка</span>
                       </div>
                       {/* Закупка - неактивна */}

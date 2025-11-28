@@ -1,6 +1,7 @@
 package com.uzproc.backend.config;
 
-import com.uzproc.backend.service.ExcelLoadService;
+import com.uzproc.backend.service.EntityExcelLoadService;
+import com.uzproc.backend.service.ReportExcelLoadService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
@@ -19,7 +20,7 @@ public class ExcelFileAutoLoader {
     private static final Logger logger = LoggerFactory.getLogger(ExcelFileAutoLoader.class);
 
     @Bean
-    public CommandLineRunner autoLoadExcelFile(ExcelLoadService excelLoadService) {
+    public CommandLineRunner autoLoadExcelFile(EntityExcelLoadService excelLoadService) {
         return args -> {
             try {
                 Path alldocumentsPath = null;
@@ -97,6 +98,81 @@ public class ExcelFileAutoLoader {
                 logger.info("Automatic Excel file processing completed. Total loaded {} records", totalLoaded);
             } catch (Exception e) {
                 logger.error("Error during automatic Excel file processing", e);
+            }
+        };
+    }
+
+    @Bean
+    public CommandLineRunner autoLoadReportFile(ReportExcelLoadService reportExcelLoadService) {
+        return args -> {
+            try {
+                Path reportPath = null;
+                
+                // Сначала проверяем путь для Docker контейнера
+                Path dockerPath = Paths.get("/app/report");
+                if (Files.exists(dockerPath)) {
+                    reportPath = dockerPath;
+                    logger.info("Found report folder in Docker container: {}", dockerPath);
+                } else {
+                    // Ищем папку report относительно корня проекта
+                    String userDir = System.getProperty("user.dir");
+                    Path currentDir = Paths.get(userDir).toAbsolutePath();
+                    Path projectRoot = currentDir;
+                    
+                    // Если запускаем из backend/, поднимаемся на уровень выше
+                    if (currentDir.getFileName() != null && currentDir.getFileName().toString().equals("backend")) {
+                        projectRoot = currentDir.getParent();
+                        logger.info("Detected backend directory, using project root: {}", projectRoot);
+                    }
+                    
+                    reportPath = projectRoot.resolve("frontend").resolve("upload").resolve("report");
+                    
+                    // Если не нашли, пробуем альтернативные пути
+                    if (!Files.exists(reportPath)) {
+                        reportPath = currentDir.resolve("..").resolve("frontend").resolve("upload").resolve("report").normalize();
+                        logger.info("Trying alternative path: {}", reportPath);
+                    }
+                }
+                
+                if (reportPath == null || !Files.exists(reportPath)) {
+                    logger.info("Report folder not found. Tried paths: /app/report, {}, and relative paths. Skipping automatic report file processing.", 
+                        Paths.get("").toAbsolutePath().resolve("frontend").resolve("upload").resolve("report"));
+                    return;
+                }
+                
+                File reportDir = reportPath.toFile();
+                if (!reportDir.isDirectory()) {
+                    logger.warn("Path is not a directory: {}", reportPath);
+                    return;
+                }
+                
+                // Ищем все Excel файлы в папке
+                File[] excelFiles = reportDir.listFiles((dir, name) -> 
+                    name.endsWith(".xls") || name.endsWith(".xlsx"));
+                
+                if (excelFiles == null || excelFiles.length == 0) {
+                    logger.info("No Excel files found in report folder: {}", reportPath);
+                    return;
+                }
+                
+                logger.info("Found {} Excel file(s) in report folder: {}", excelFiles.length, reportPath);
+                logger.info("Starting automatic report file processing...");
+                
+                int totalLoaded = 0;
+                for (File excelFile : excelFiles) {
+                    try {
+                        logger.info("Processing report file: {}", excelFile.getName());
+                        int loadedCount = reportExcelLoadService.loadFromExcel(excelFile);
+                        totalLoaded += loadedCount;
+                        logger.info("Loaded {} records from report file {}", loadedCount, excelFile.getName());
+                    } catch (Exception e) {
+                        logger.error("Error processing report file {}: {}", excelFile.getName(), e.getMessage(), e);
+                    }
+                }
+                
+                logger.info("Automatic report file processing completed. Total loaded {} records", totalLoaded);
+            } catch (Exception e) {
+                logger.error("Error during automatic report file processing", e);
             }
         };
     }
