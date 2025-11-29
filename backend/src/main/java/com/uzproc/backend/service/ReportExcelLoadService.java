@@ -155,10 +155,16 @@ public class ReportExcelLoadService {
                 return 0;
             }
 
-            // Читаем заголовки (строки 0-2) для построения карты колонок
-            Row headerRow0 = rowIterator.hasNext() ? rowIterator.next() : null; // Строка 0 - этапы
-            Row headerRow1 = rowIterator.hasNext() ? rowIterator.next() : null; // Строка 1 - роли
-            Row headerRow2 = rowIterator.hasNext() ? rowIterator.next() : null; // Строка 2 - поля/действия
+            // Пропускаем первые 3 строки (0, 1, 2) - они содержат фильтры или пустые
+            // Заголовки находятся в строках 3, 4, 5 (индексы 3, 4, 5)
+            for (int i = 0; i < 3 && rowIterator.hasNext(); i++) {
+                rowIterator.next();
+            }
+            
+            // Читаем заголовки (строки 3-5) для построения карты колонок
+            Row headerRow0 = rowIterator.hasNext() ? rowIterator.next() : null; // Строка 3 (POI индекс 3) - этапы
+            Row headerRow1 = rowIterator.hasNext() ? rowIterator.next() : null; // Строка 4 (POI индекс 4) - роли
+            Row headerRow2 = rowIterator.hasNext() ? rowIterator.next() : null; // Строка 5 (POI индекс 5) - поля/действия
             
             if (headerRow2 == null) {
                 logger.warn("Header rows not found in report file {}", excelFile.getName());
@@ -176,7 +182,7 @@ public class ReportExcelLoadService {
             int purchaseApprovalsCount = 0;
             int skippedCount = 0;
             
-            // Обрабатываем строки данных (начиная со строки 3)
+            // Обрабатываем строки данных (начиная со строки 6)
             while (rowIterator.hasNext()) {
                 Row row = rowIterator.next();
                 
@@ -307,12 +313,13 @@ public class ReportExcelLoadService {
     private Map<String, Integer> buildApprovalColumnMap(Sheet sheet, Row headerRow0, Row headerRow1, Row headerRow2) {
         Map<String, Integer> columnMap = new HashMap<>();
         
-        // Строим карту merged cells для строки 0 (этапы)
+        // Строим карту merged cells для строки 3 (этапы) - headerRow0 имеет индекс 3
         Map<Integer, String> mergedStageMap = new HashMap<>();
+        int stageRowIndex = headerRow0 != null ? headerRow0.getRowNum() : 3;
         for (int i = 0; i < sheet.getNumMergedRegions(); i++) {
             CellRangeAddress mergedRegion = sheet.getMergedRegion(i);
-            if (mergedRegion.getFirstRow() == 0 && mergedRegion.getLastRow() == 0) {
-                // Это merged cell в строке 0 (этапы)
+            if (mergedRegion.getFirstRow() == stageRowIndex && mergedRegion.getLastRow() == stageRowIndex) {
+                // Это merged cell в строке этапов
                 Cell firstCell = headerRow0 != null ? headerRow0.getCell(mergedRegion.getFirstColumn()) : null;
                 String stageValue = getCellValueAsString(firstCell);
                 if (stageValue != null && !stageValue.trim().isEmpty()) {
@@ -324,12 +331,13 @@ public class ReportExcelLoadService {
             }
         }
         
-        // Строим карту merged cells для строки 1 (роли)
+        // Строим карту merged cells для строки 4 (роли) - headerRow1 имеет индекс 4
         Map<Integer, String> mergedRoleMap = new HashMap<>();
+        int roleRowIndex = headerRow1 != null ? headerRow1.getRowNum() : 4;
         for (int i = 0; i < sheet.getNumMergedRegions(); i++) {
             CellRangeAddress mergedRegion = sheet.getMergedRegion(i);
-            if (mergedRegion.getFirstRow() == 1 && mergedRegion.getLastRow() == 1) {
-                // Это merged cell в строке 1 (роли)
+            if (mergedRegion.getFirstRow() == roleRowIndex && mergedRegion.getLastRow() == roleRowIndex) {
+                // Это merged cell в строке ролей
                 Cell firstCell = headerRow1 != null ? headerRow1.getCell(mergedRegion.getFirstColumn()) : null;
                 String roleValue = getCellValueAsString(firstCell);
                 if (roleValue != null && !roleValue.trim().isEmpty()) {
