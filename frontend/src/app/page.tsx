@@ -14,11 +14,9 @@ import PurchasesByStatusChart from '@/components/PurchasesByStatusChart';
 import PurchasesByFormatChart from '@/components/PurchasesByFormatChart';
 import PurchasesAmountChart from '@/components/PurchasesAmountChart';
 import PurchasesTimelineChart from '@/components/PurchasesTimelineChart';
-import PurchasesStatus from '@/components/PurchasesStatus';
 import ApprovalTimeChart from '@/components/ApprovalTimeChart';
 import TopLongestPurchases from '@/components/TopLongestPurchases';
 import PurchaserWorkload from '@/components/PurchaserWorkload';
-import UsersTable from '@/components/UsersTable';
 import PurchaseRequestsTable from '@/components/PurchaseRequestsTable';
 import PurchasesTable from '@/components/PurchasesTable';
 import UploadCSV from '@/components/UploadCSV';
@@ -212,13 +210,6 @@ function DashboardContent() {
         );
 
       // Backend разделы
-      case 'users':
-        return (
-          <div className="space-y-6">
-            <UsersTable />
-          </div>
-        );
-
       case 'purchase-requests':
         return (
           <div className="space-y-6">
@@ -299,9 +290,6 @@ function DashboardContent() {
             </div>
           </div>
         );
-
-      case 'initiator-status':
-        return <PurchasesStatus />;
 
       case 'initiator-history':
         return (

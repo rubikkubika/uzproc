@@ -49,7 +49,6 @@ const menuItems = [
 
   const initiatorItems = [
     { id: 'create-purchase', label: 'Создать закупку', icon: Package, disabled: true },
-    { id: 'initiator-status', label: 'Статус заявок', icon: TrendingUp },
   ];
 
   const backendItems: Array<{ id: string; label: string; icon: any }> = [];

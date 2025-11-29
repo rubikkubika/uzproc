@@ -160,7 +160,11 @@ public class ReportExcelLoadService {
                     PurchaseRequest purchaseRequest = purchaseRequestOpt.get();
                     
                     // Парсим согласования для этой заявки
-                    int rowApprovalsCount = parseApprovalsForRequest(row, purchaseRequest.getIdPurchaseRequest());
+                    Long idPurchaseRequest = purchaseRequest.getIdPurchaseRequest();
+                    if (requestNumber == 1944L) {
+                        logger.info("=== ОБРАБОТКА ЗАЯВКИ 1944: requestNumber={}, idPurchaseRequest={} ===", requestNumber, idPurchaseRequest);
+                    }
+                    int rowApprovalsCount = parseApprovalsForRequest(row, idPurchaseRequest);
                     approvalsCount += rowApprovalsCount;
                     
                     // Обновляем статус заявки на основе согласований
@@ -189,6 +193,10 @@ public class ReportExcelLoadService {
      * Парсит согласования для заявки из строки
      */
     private int parseApprovalsForRequest(Row row, Long idPurchaseRequest) {
+        // Логирование для заявки 1944
+        if (idPurchaseRequest == 1944L) {
+            logger.info("=== НАЧАЛО ПАРСИНГА СОГЛАСОВАНИЙ ДЛЯ ЗАЯВКИ 1944 ===");
+        }
         int count = 0;
         
         // Парсим этап "Согласование Заявки на ЗП" (колонки 31-60)
@@ -241,6 +249,29 @@ public class ReportExcelLoadService {
             logger.info("Parsing approval: stage={}, role={}, col={}, assignmentDate={}, completionDate={}, daysInWork={}, completionResultCell={}, completionResult={}", 
                 stage, role, col + 3, assignmentDate, completionDate, daysInWork, 
                 completionResultCell != null ? "exists" : "null", completionResult);
+            
+            // Детальное логирование для заявки 1944
+            if (idPurchaseRequest == 1944L) {
+                logger.info("=== ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ДЛЯ ЗАЯВКИ 1944 ===");
+                logger.info("Роль: {}", role);
+                logger.info("Этап: {}", stage);
+                logger.info("Колонка {} (Дата назначения): cellType={}, cell={}, parsed={}", 
+                    col, assignmentDateCell != null ? assignmentDateCell.getCellType().toString() : "null",
+                    assignmentDateCell != null ? "exists" : "null", assignmentDate);
+                logger.info("Колонка {} (Дата выполнения): cellType={}, cell={}, parsed={}", 
+                    col + 1, completionDateCell != null ? completionDateCell.getCellType().toString() : "null",
+                    completionDateCell != null ? "exists" : "null", completionDate);
+                logger.info("Колонка {} (Дней в работе): cellType={}, cell={}, parsed={}", 
+                    col + 2, daysInWorkCell != null ? daysInWorkCell.getCellType().toString() : "null",
+                    daysInWorkCell != null ? "exists" : "null", daysInWork);
+                logger.info("Колонка {} (Результат выполнения): cellType={}, cell={}, parsed={}", 
+                    col + 3, completionResultCell != null ? completionResultCell.getCellType().toString() : "null",
+                    completionResultCell != null ? "exists" : "null", completionResult);
+                boolean willBeSaved = assignmentDate != null || completionDate != null || daysInWork != null 
+                    || (completionResult != null && !completionResult.trim().isEmpty());
+                logger.info("Будет сохранено в БД: {}", willBeSaved);
+                logger.info("=== КОНЕЦ ДЕТАЛЬНОГО ЛОГИРОВАНИЯ ===");
+            }
             
             // Сохраняем согласование только если есть хотя бы одно значение
             if (assignmentDate != null || completionDate != null || daysInWork != null 
