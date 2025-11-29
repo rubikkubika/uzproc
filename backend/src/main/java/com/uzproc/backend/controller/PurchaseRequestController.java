@@ -1,6 +1,6 @@
 package com.uzproc.backend.controller;
 
-import com.uzproc.backend.entity.PurchaseRequest;
+import com.uzproc.backend.dto.PurchaseRequestDto;
 import com.uzproc.backend.service.PurchaseRequestService;
 import com.uzproc.backend.service.EntityExcelLoadService;
 import org.springframework.data.domain.Page;
@@ -27,7 +27,7 @@ public class PurchaseRequestController {
     }
 
     @GetMapping
-    public ResponseEntity<Page<PurchaseRequest>> getAllPurchaseRequests(
+    public ResponseEntity<Page<PurchaseRequestDto>> getAllPurchaseRequests(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) Integer year,
@@ -43,7 +43,7 @@ public class PurchaseRequestController {
             @RequestParam(required = false) Boolean requiresPurchase,
             @RequestParam(required = false) List<String> status) {
         
-        Page<PurchaseRequest> purchaseRequests = purchaseRequestService.findAll(
+        Page<PurchaseRequestDto> purchaseRequests = purchaseRequestService.findAll(
                 page, size, year, sortBy, sortDir, idPurchaseRequest, cfo, purchaseRequestInitiator,
                 name, costType, contractType, isPlanned, requiresPurchase, status);
         
@@ -51,8 +51,8 @@ public class PurchaseRequestController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<PurchaseRequest> getPurchaseRequestById(@PathVariable Long id) {
-        PurchaseRequest purchaseRequest = purchaseRequestService.findById(id);
+    public ResponseEntity<PurchaseRequestDto> getPurchaseRequestById(@PathVariable Long id) {
+        PurchaseRequestDto purchaseRequest = purchaseRequestService.findById(id);
         if (purchaseRequest != null) {
             return ResponseEntity.ok(purchaseRequest);
         }

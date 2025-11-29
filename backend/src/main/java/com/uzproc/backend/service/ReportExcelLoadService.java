@@ -1,13 +1,18 @@
 package com.uzproc.backend.service;
 
+import com.uzproc.backend.entity.Purchase;
 import com.uzproc.backend.entity.PurchaseRequest;
+import com.uzproc.backend.entity.PurchaseApproval;
 import com.uzproc.backend.entity.PurchaseRequestApproval;
+import com.uzproc.backend.repository.PurchaseApprovalRepository;
 import com.uzproc.backend.repository.PurchaseRequestApprovalRepository;
+import com.uzproc.backend.repository.PurchaseRepository;
 import com.uzproc.backend.repository.PurchaseRequestRepository;
 import com.uzproc.backend.service.PurchaseRequestService;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.usermodel.DataFormatter;
+import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.ss.util.DateFormatConverter;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.slf4j.Logger;
@@ -21,7 +26,10 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -37,18 +45,14 @@ public class ReportExcelLoadService {
     private static final String STAGE_APPROVAL_REQUEST = "Согласование Заявки на ЗП";
     private static final String STAGE_MANAGER = "Руководитель закупщика";
     private static final String STAGE_APPROVAL = "Утверждение заявки на ЗП";
+    private static final String STAGE_APPROVAL_NO_ZP = "Утверждение заявки на ЗП (НЕ требуется ЗП)";
     
-    // Колонки для этапа "Согласование Заявки на ЗП" (34-73, 10 ролей × 4 колонки)
-    private static final int STAGE_APPROVAL_REQUEST_START_COL = 34;
-    private static final int STAGE_APPROVAL_REQUEST_END_COL = 73;
+    // Этапы согласований для закупок
+    private static final String STAGE_RESULTS_APPROVAL = "Согласование результатов ЗП";
+    private static final String STAGE_PURCHASE_COMMISSION = "Закупочная комиссия";
+    private static final String STAGE_COMMISSION_RESULT_CHECK = "Проверка результата закупочной комиссии";
     
-    // Колонки для этапа "Руководитель закупщика" (75-78, 1 роль × 4 колонки)
-    private static final int STAGE_MANAGER_START_COL = 75;
-    private static final int STAGE_MANAGER_END_COL = 78;
-    
-    // Колонки для этапа "Утверждение заявки на ЗП" (80-96, 4 роли × 4 колонки, но есть пропуск колонки 92)
-    private static final int STAGE_APPROVAL_START_COL = 80;
-    private static final int STAGE_APPROVAL_END_COL = 96;
+    // Константы колонок больше не нужны - используем динамический поиск по заголовкам
     
     // Роли для этапа "Согласование Заявки на ЗП"
     private static final String[] APPROVAL_REQUEST_ROLES = {
@@ -73,20 +77,57 @@ public class ReportExcelLoadService {
         "Ответственный закупщик"
     };
     
-    // Специальная обработка для этапа "Утверждение заявки на ЗП" из-за пропуска колонки 92
-    private static final int STAGE_APPROVAL_SKIP_COL = 92;
+    // Роли для этапа "Утверждение заявки на ЗП (НЕ требуется ЗП)"
+    private static final String[] APPROVAL_NO_ZP_ROLES = {
+        "Ответственный закупщик"
+    };
+    
+    // Роли для этапа "Согласование результатов ЗП"
+    private static final String[] RESULTS_APPROVAL_ROLES = {
+        "Руководитель закупщика документа",
+        "Служба безопасности",
+        "Руководитель закупщика",
+        "Руководитель ЦФО",
+        "Финансист ЦФО"
+    };
+    
+    // Роли для этапа "Закупочная комиссия"
+    private static final String[] PURCHASE_COMMISSION_ROLES = {
+        "Секретарь ЗК",
+        "Финансовый директор",
+        "Финансовый директор (Маркет)",
+        "Генеральный директор",
+        "Операционный директор",
+        "Директор ДИТ",
+        "Директор ЮД (CLO)",
+        "Директор Проектного офиса (PMO)",
+        "Директор по закупкам (CPO)",
+        "Директор по безопасности",
+        "Председатель Закупочной комиссии"
+    };
+    
+    // Роли для этапа "Проверка результата закупочной комиссии"
+    private static final String[] COMMISSION_RESULT_CHECK_ROLES = {
+        "Ответственный закупщик"
+    };
 
     private final PurchaseRequestRepository purchaseRequestRepository;
-    private final PurchaseRequestApprovalRepository approvalRepository;
+    private final PurchaseRequestApprovalRepository requestApprovalRepository;
+    private final PurchaseRepository purchaseRepository;
+    private final PurchaseApprovalRepository purchaseApprovalRepository;
     private final PurchaseRequestService purchaseRequestService;
     private final DataFormatter dataFormatter = new DataFormatter();
 
     public ReportExcelLoadService(
             PurchaseRequestRepository purchaseRequestRepository,
-            PurchaseRequestApprovalRepository approvalRepository,
+            PurchaseRequestApprovalRepository requestApprovalRepository,
+            PurchaseRepository purchaseRepository,
+            PurchaseApprovalRepository purchaseApprovalRepository,
             PurchaseRequestService purchaseRequestService) {
         this.purchaseRequestRepository = purchaseRequestRepository;
-        this.approvalRepository = approvalRepository;
+        this.requestApprovalRepository = requestApprovalRepository;
+        this.purchaseRepository = purchaseRepository;
+        this.purchaseApprovalRepository = purchaseApprovalRepository;
         this.purchaseRequestService = purchaseRequestService;
     }
 
@@ -114,7 +155,7 @@ public class ReportExcelLoadService {
                 return 0;
             }
 
-            // Пропускаем заголовки (строки 0-2)
+            // Читаем заголовки (строки 0-2) для построения карты колонок
             Row headerRow0 = rowIterator.hasNext() ? rowIterator.next() : null; // Строка 0 - этапы
             Row headerRow1 = rowIterator.hasNext() ? rowIterator.next() : null; // Строка 1 - роли
             Row headerRow2 = rowIterator.hasNext() ? rowIterator.next() : null; // Строка 2 - поля/действия
@@ -124,10 +165,15 @@ public class ReportExcelLoadService {
                 return 0;
             }
 
+            // Строим карту колонок на основе заголовков с учетом merged cells
+            Map<String, Integer> approvalColumnMap = buildApprovalColumnMap(sheet, headerRow0, headerRow1, headerRow2);
+            logger.info("Built approval column map with {} entries", approvalColumnMap.size());
             logger.info("Processing report file: {}", excelFile.getName());
             
-            int processedCount = 0;
-            int approvalsCount = 0;
+            int processedRequestsCount = 0;
+            int processedPurchasesCount = 0;
+            int requestApprovalsCount = 0;
+            int purchaseApprovalsCount = 0;
             int skippedCount = 0;
             
             // Обрабатываем строки данных (начиная со строки 3)
@@ -151,27 +197,41 @@ public class ReportExcelLoadService {
                     // Находим заявку по id_purchase_request
                     Optional<PurchaseRequest> purchaseRequestOpt = purchaseRequestRepository.findByIdPurchaseRequest(requestNumber);
                     
-                    if (purchaseRequestOpt.isEmpty()) {
-                        logger.debug("Purchase request with id {} not found, skipping row {}", requestNumber, row.getRowNum() + 1);
+                    if (purchaseRequestOpt.isPresent()) {
+                        PurchaseRequest purchaseRequest = purchaseRequestOpt.get();
+                        Long idPurchaseRequest = purchaseRequest.getIdPurchaseRequest();
+                        
+                        // Парсим согласования для заявки
+                        if (requestNumber == 1944L) {
+                            logger.info("=== ОБРАБОТКА ЗАЯВКИ 1944: requestNumber={}, idPurchaseRequest={} ===", requestNumber, idPurchaseRequest);
+                        }
+                        int rowApprovalsCount = parseApprovalsForRequest(row, idPurchaseRequest, approvalColumnMap);
+                        requestApprovalsCount += rowApprovalsCount;
+                        
+                        // Обновляем статус заявки на основе согласований
+                        purchaseRequestService.updateStatusBasedOnApprovals(purchaseRequest.getIdPurchaseRequest());
+                        
+                        processedRequestsCount++;
+                    }
+                    
+                    // Находим закупки по purchaseRequestId (используем тот же номер заявки)
+                    List<Purchase> purchases = purchaseRepository.findByPurchaseRequestId(requestNumber);
+                    if (!purchases.isEmpty()) {
+                        for (Purchase purchase : purchases) {
+                            Long purchaseRequestId = purchase.getPurchaseRequestId();
+                            if (purchaseRequestId != null) {
+                                // Парсим согласования для закупки
+                                int rowPurchaseApprovalsCount = parseApprovalsForPurchase(row, purchaseRequestId, approvalColumnMap);
+                                purchaseApprovalsCount += rowPurchaseApprovalsCount;
+                                processedPurchasesCount++;
+                            }
+                        }
+                    }
+                    
+                    if (purchaseRequestOpt.isEmpty() && purchases.isEmpty()) {
+                        logger.debug("Neither purchase request nor purchase with id {} found, skipping row {}", requestNumber, row.getRowNum() + 1);
                         skippedCount++;
-                        continue;
                     }
-                    
-                    PurchaseRequest purchaseRequest = purchaseRequestOpt.get();
-                    
-                    // Парсим согласования для этой заявки
-                    Long idPurchaseRequest = purchaseRequest.getIdPurchaseRequest();
-                    if (requestNumber == 1944L) {
-                        logger.info("=== ОБРАБОТКА ЗАЯВКИ 1944: requestNumber={}, idPurchaseRequest={} ===", requestNumber, idPurchaseRequest);
-                    }
-                    int rowApprovalsCount = parseApprovalsForRequest(row, idPurchaseRequest);
-                    approvalsCount += rowApprovalsCount;
-                    
-                    // Обновляем статус заявки на основе согласований
-                    // Вызываем всегда, так как согласования могли быть изменены
-                    purchaseRequestService.updateStatusBasedOnApprovals(purchaseRequest.getIdPurchaseRequest());
-                    
-                    processedCount++;
                     
                 } catch (Exception e) {
                     logger.error("Error processing row {}: {}", row.getRowNum() + 1, e.getMessage(), e);
@@ -179,10 +239,10 @@ public class ReportExcelLoadService {
                 }
             }
             
-            logger.info("Processed {} requests, loaded {} approvals, skipped {} rows from report file {}", 
-                processedCount, approvalsCount, skippedCount, excelFile.getName());
+            logger.info("Processed {} requests ({} approvals), {} purchases ({} approvals), skipped {} rows from report file {}", 
+                processedRequestsCount, requestApprovalsCount, processedPurchasesCount, purchaseApprovalsCount, skippedCount, excelFile.getName());
             
-            return processedCount;
+            return processedRequestsCount + processedPurchasesCount;
             
         } finally {
             workbook.close();
@@ -190,33 +250,411 @@ public class ReportExcelLoadService {
     }
     
     /**
-     * Парсит согласования для заявки из строки
+     * Парсит согласования для заявки на закупку из строки
      */
-    private int parseApprovalsForRequest(Row row, Long idPurchaseRequest) {
+    private int parseApprovalsForRequest(Row row, Long idPurchaseRequest, Map<String, Integer> approvalColumnMap) {
         // Логирование для заявки 1944
         if (idPurchaseRequest == 1944L) {
             logger.info("=== НАЧАЛО ПАРСИНГА СОГЛАСОВАНИЙ ДЛЯ ЗАЯВКИ 1944 ===");
         }
         int count = 0;
         
-        // Парсим этап "Согласование Заявки на ЗП" (колонки 31-60)
-        count += parseApprovalStage(row, idPurchaseRequest, STAGE_APPROVAL_REQUEST, 
-            STAGE_APPROVAL_REQUEST_START_COL, STAGE_APPROVAL_REQUEST_END_COL, APPROVAL_REQUEST_ROLES);
+        // Парсим этап "Согласование Заявки на ЗП"
+        count += parseApprovalStageDynamic(row, idPurchaseRequest, STAGE_APPROVAL_REQUEST, 
+            APPROVAL_REQUEST_ROLES, approvalColumnMap);
         
-        // Парсим этап "Руководитель закупщика" (колонки 61-63)
-        count += parseApprovalStage(row, idPurchaseRequest, STAGE_MANAGER, 
-            STAGE_MANAGER_START_COL, STAGE_MANAGER_END_COL, new String[]{"Руководитель закупщика"});
+        // Парсим этап "Руководитель закупщика"
+        count += parseApprovalStageDynamic(row, idPurchaseRequest, STAGE_MANAGER, 
+            new String[]{"Руководитель закупщика"}, approvalColumnMap);
         
-        // Парсим этап "Утверждение заявки на ЗП" (колонки 80-96, с пропуском колонки 92)
-        count += parseApprovalStageWithSkip(row, idPurchaseRequest, STAGE_APPROVAL, 
-            STAGE_APPROVAL_START_COL, STAGE_APPROVAL_END_COL, APPROVAL_ROLES, STAGE_APPROVAL_SKIP_COL);
+        // Парсим этап "Утверждение заявки на ЗП"
+        count += parseApprovalStageDynamic(row, idPurchaseRequest, STAGE_APPROVAL, 
+            APPROVAL_ROLES, approvalColumnMap);
+        
+        // Парсим этап "Утверждение заявки на ЗП (НЕ требуется ЗП)"
+        count += parseApprovalStageDynamic(row, idPurchaseRequest, STAGE_APPROVAL_NO_ZP, 
+            APPROVAL_NO_ZP_ROLES, approvalColumnMap);
         
         return count;
     }
     
     /**
-     * Парсит согласования для одного этапа
+     * Парсит согласования для закупки из строки
      */
+    private int parseApprovalsForPurchase(Row row, Long purchaseRequestId, Map<String, Integer> approvalColumnMap) {
+        int count = 0;
+        
+        // Парсим этап "Согласование результатов ЗП"
+        count += parseApprovalStageDynamicForPurchase(row, purchaseRequestId, STAGE_RESULTS_APPROVAL, 
+            RESULTS_APPROVAL_ROLES, approvalColumnMap);
+        
+        // Парсим этап "Закупочная комиссия"
+        count += parseApprovalStageDynamicForPurchase(row, purchaseRequestId, STAGE_PURCHASE_COMMISSION, 
+            PURCHASE_COMMISSION_ROLES, approvalColumnMap);
+        
+        // Парсим этап "Проверка результата закупочной комиссии"
+        count += parseApprovalStageDynamicForPurchase(row, purchaseRequestId, STAGE_COMMISSION_RESULT_CHECK, 
+            COMMISSION_RESULT_CHECK_ROLES, approvalColumnMap);
+        
+        return count;
+    }
+    
+    /**
+     * Строит карту колонок для согласований на основе заголовков
+     * Ключ: "Этап|Роль|Поле", Значение: индекс колонки
+     * Учитывает merged cells для этапов и ролей
+     */
+    private Map<String, Integer> buildApprovalColumnMap(Sheet sheet, Row headerRow0, Row headerRow1, Row headerRow2) {
+        Map<String, Integer> columnMap = new HashMap<>();
+        
+        // Строим карту merged cells для строки 0 (этапы)
+        Map<Integer, String> mergedStageMap = new HashMap<>();
+        for (int i = 0; i < sheet.getNumMergedRegions(); i++) {
+            CellRangeAddress mergedRegion = sheet.getMergedRegion(i);
+            if (mergedRegion.getFirstRow() == 0 && mergedRegion.getLastRow() == 0) {
+                // Это merged cell в строке 0 (этапы)
+                Cell firstCell = headerRow0 != null ? headerRow0.getCell(mergedRegion.getFirstColumn()) : null;
+                String stageValue = getCellValueAsString(firstCell);
+                if (stageValue != null && !stageValue.trim().isEmpty()) {
+                    // Заполняем все колонки в merged region значением этапа
+                    for (int col = mergedRegion.getFirstColumn(); col <= mergedRegion.getLastColumn(); col++) {
+                        mergedStageMap.put(col, stageValue.trim());
+                    }
+                }
+            }
+        }
+        
+        // Строим карту merged cells для строки 1 (роли)
+        Map<Integer, String> mergedRoleMap = new HashMap<>();
+        for (int i = 0; i < sheet.getNumMergedRegions(); i++) {
+            CellRangeAddress mergedRegion = sheet.getMergedRegion(i);
+            if (mergedRegion.getFirstRow() == 1 && mergedRegion.getLastRow() == 1) {
+                // Это merged cell в строке 1 (роли)
+                Cell firstCell = headerRow1 != null ? headerRow1.getCell(mergedRegion.getFirstColumn()) : null;
+                String roleValue = getCellValueAsString(firstCell);
+                if (roleValue != null && !roleValue.trim().isEmpty()) {
+                    // Заполняем все колонки в merged region значением роли
+                    for (int col = mergedRegion.getFirstColumn(); col <= mergedRegion.getLastColumn(); col++) {
+                        mergedRoleMap.put(col, roleValue.trim());
+                    }
+                }
+            }
+        }
+        
+        int maxCol = Math.max(
+            Math.max(headerRow0 != null ? headerRow0.getLastCellNum() : 0, 
+                     headerRow1 != null ? headerRow1.getLastCellNum() : 0),
+            headerRow2 != null ? headerRow2.getLastCellNum() : 0
+        );
+        
+        String currentStage = null;
+        String currentRole = null;
+        for (int col = 0; col < maxCol; col++) {
+            // Получаем этап: сначала из merged cells, потом из ячейки
+            String stage = mergedStageMap.get(col);
+            if (stage == null || stage.trim().isEmpty()) {
+                stage = getCellValueAsString(headerRow0 != null ? headerRow0.getCell(col) : null);
+            }
+            
+            // Если этап найден и изменился, сохраняем его как текущий и сбрасываем роль
+            if (stage != null && !stage.trim().isEmpty()) {
+                String trimmedStage = stage.trim();
+                if (!trimmedStage.equals(currentStage)) {
+                    currentStage = trimmedStage;
+                    // Сбрасываем роль только при смене этапа
+                    currentRole = null;
+                }
+            }
+            
+            // Пропускаем колонки без этапа (основные поля заявки)
+            if (currentStage == null || currentStage.isEmpty()) {
+                continue;
+            }
+            
+            // Получаем роль: сначала из merged cells, потом из ячейки
+            String role = mergedRoleMap.get(col);
+            if (role == null || role.trim().isEmpty()) {
+                role = getCellValueAsString(headerRow1 != null ? headerRow1.getCell(col) : null);
+            }
+            
+            String field = getCellValueAsString(headerRow2 != null ? headerRow2.getCell(col) : null);
+            
+            // Если роль найдена и изменилась, сохраняем ее как текущую
+            if (role != null && !role.trim().isEmpty()) {
+                String trimmedRole = role.trim();
+                if (!trimmedRole.equals(currentRole)) {
+                    currentRole = trimmedRole;
+                }
+            }
+            
+            // Используем текущую роль, если в этой колонке роль не указана
+            String roleToUse = (role != null && !role.trim().isEmpty()) ? role.trim() : currentRole;
+            
+            // Формируем ключ: "Этап|Роль|Поле"
+            if (roleToUse != null && !roleToUse.isEmpty() && field != null && !field.trim().isEmpty()) {
+                String key = currentStage + "|" + roleToUse + "|" + field.trim();
+                columnMap.put(key, col);
+                logger.debug("Mapped column {}: {}", col, key);
+            } else if (currentStage != null && !currentStage.isEmpty()) {
+                // Логируем, если этап есть, но роль или поле отсутствуют
+                logger.debug("Skipping column {}: stage={}, role={}, currentRole={}, field={}", 
+                    col, currentStage, role, currentRole, field);
+            }
+        }
+        
+        logger.info("Built approval column map with {} entries", columnMap.size());
+        return columnMap;
+    }
+    
+    /**
+     * Находит индекс колонки для согласования по этапу, роли и полю
+     */
+    private Integer findApprovalColumn(Map<String, Integer> columnMap, String stage, String role, String field) {
+        // Пробуем точное совпадение
+        String exactKey = stage + "|" + role + "|" + field;
+        Integer col = columnMap.get(exactKey);
+        if (col != null) {
+            return col;
+        }
+        
+        // Пробуем найти по частичному совпадению (для работы с вариациями названий)
+        String normalizedStage = normalizeString(stage);
+        String normalizedRole = normalizeString(role);
+        String normalizedField = normalizeString(field);
+        
+        for (Map.Entry<String, Integer> entry : columnMap.entrySet()) {
+            String key = entry.getKey();
+            String[] parts = key.split("\\|");
+            if (parts.length == 3) {
+                String keyStage = normalizeString(parts[0]);
+                String keyRole = normalizeString(parts[1]);
+                String keyField = normalizeString(parts[2]);
+                
+                if (keyStage.contains(normalizedStage) || normalizedStage.contains(keyStage)) {
+                    if (keyRole.contains(normalizedRole) || normalizedRole.contains(keyRole)) {
+                        if (keyField.contains(normalizedField) || normalizedField.contains(keyField)) {
+                            logger.debug("Found column by partial match: {} -> {}", key, entry.getValue());
+                            return entry.getValue();
+                        }
+                    }
+                }
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Нормализует строку для сравнения (убирает пробелы, приводит к нижнему регистру)
+     */
+    private String normalizeString(String str) {
+        if (str == null) {
+            return "";
+        }
+        return str.trim().toLowerCase().replaceAll("\\s+", " ");
+    }
+    
+    /**
+     * Парсит согласования для одного этапа динамически по карте колонок (для заявок)
+     */
+    private int parseApprovalStageDynamic(Row row, Long idPurchaseRequest, String stage, 
+                                         String[] roles, Map<String, Integer> columnMap) {
+        int count = 0;
+        
+        for (String role : roles) {
+            // Ищем колонки для этой роли и этапа
+            Integer assignmentDateCol = findApprovalColumn(columnMap, stage, role, "Дата назначения");
+            Integer completionDateCol = findApprovalColumn(columnMap, stage, role, "Дата выполнения");
+            Integer daysInWorkCol = findApprovalColumn(columnMap, stage, role, "Дней в работе");
+            Integer completionResultCol = findApprovalColumn(columnMap, stage, role, "Результат выполнения");
+            
+            // Если не нашли ни одной колонки, пропускаем эту роль
+            if (assignmentDateCol == null && completionDateCol == null && 
+                daysInWorkCol == null && completionResultCol == null) {
+                logger.debug("No columns found for stage={}, role={}", stage, role);
+                continue;
+            }
+            
+            Cell assignmentDateCell = assignmentDateCol != null ? row.getCell(assignmentDateCol) : null;
+            Cell completionDateCell = completionDateCol != null ? row.getCell(completionDateCol) : null;
+            Cell daysInWorkCell = daysInWorkCol != null ? row.getCell(daysInWorkCol) : null;
+            Cell completionResultCell = completionResultCol != null ? row.getCell(completionResultCol) : null;
+            
+            LocalDateTime assignmentDate = parseDateCell(assignmentDateCell);
+            LocalDateTime completionDate = parseDateCell(completionDateCell);
+            Integer daysInWork = parseIntegerCell(daysInWorkCell);
+            String completionResult = getCellValueAsString(completionResultCell);
+            
+            // Логирование для отладки
+            logger.debug("Parsing approval: stage={}, role={}, assignmentDateCol={}, completionDateCol={}, daysInWorkCol={}, completionResultCol={}, assignmentDate={}, completionDate={}, daysInWork={}, completionResult={}", 
+                stage, role, assignmentDateCol, completionDateCol, daysInWorkCol, completionResultCol,
+                assignmentDate, completionDate, daysInWork, completionResult);
+            
+            // Сохраняем согласование только если есть хотя бы одно значение
+            if (assignmentDate != null || completionDate != null || daysInWork != null 
+                    || (completionResult != null && !completionResult.trim().isEmpty())) {
+                PurchaseRequestApproval approval = requestApprovalRepository
+                    .findByIdPurchaseRequestAndStageAndRole(idPurchaseRequest, stage, role)
+                    .orElse(new PurchaseRequestApproval(idPurchaseRequest, stage, role));
+                
+                boolean updated = false;
+                
+                if (assignmentDate != null) {
+                    approval.setAssignmentDate(assignmentDate);
+                    updated = true;
+                }
+                if (completionDate != null) {
+                    approval.setCompletionDate(completionDate);
+                    updated = true;
+                }
+                if (daysInWork != null) {
+                    approval.setDaysInWork(daysInWork);
+                    updated = true;
+                }
+                // Всегда обновляем результат выполнения
+                String trimmedResult = completionResult != null ? completionResult.trim() : null;
+                String currentResult = approval.getCompletionResult();
+                
+                // Обновляем, если значение изменилось или если ячейка существует и значение пустое (для очистки)
+                if (completionResultCell != null) {
+                    // Ячейка существует - обновляем значение
+                    if (trimmedResult == null || trimmedResult.isEmpty()) {
+                        if (currentResult != null) {
+                            approval.setCompletionResult(null);
+                            updated = true;
+                            logger.debug("Cleared completion result for stage={}, role={}", stage, role);
+                        }
+                    } else {
+                        if (!trimmedResult.equals(currentResult)) {
+                            approval.setCompletionResult(trimmedResult);
+                            updated = true;
+                            logger.debug("Updated completion result for stage={}, role={}: '{}'", 
+                                stage, role, trimmedResult);
+                        }
+                    }
+                } else if (trimmedResult != null && !trimmedResult.isEmpty()) {
+                    // Ячейка не существует, но значение есть (из merged cell или другого источника)
+                    if (!trimmedResult.equals(currentResult)) {
+                        approval.setCompletionResult(trimmedResult);
+                        updated = true;
+                        logger.debug("Updated completion result for stage={}, role={}: '{}'", 
+                            stage, role, trimmedResult);
+                    }
+                }
+                
+                if (updated || approval.getId() == null) {
+                    requestApprovalRepository.save(approval);
+                    count++;
+                }
+            }
+        }
+        
+        return count;
+    }
+    
+    /**
+     * Парсит согласования для одного этапа динамически по карте колонок (для закупок)
+     */
+    private int parseApprovalStageDynamicForPurchase(Row row, Long purchaseRequestId, String stage, 
+                                                     String[] roles, Map<String, Integer> columnMap) {
+        int count = 0;
+        
+        for (String role : roles) {
+            // Ищем колонки для этой роли и этапа
+            Integer assignmentDateCol = findApprovalColumn(columnMap, stage, role, "Дата назначения");
+            Integer completionDateCol = findApprovalColumn(columnMap, stage, role, "Дата выполнения");
+            Integer daysInWorkCol = findApprovalColumn(columnMap, stage, role, "Дней в работе");
+            Integer completionResultCol = findApprovalColumn(columnMap, stage, role, "Результат выполнения");
+            
+            // Если не нашли ни одной колонки, пропускаем эту роль
+            if (assignmentDateCol == null && completionDateCol == null && 
+                daysInWorkCol == null && completionResultCol == null) {
+                logger.debug("No columns found for purchase stage={}, role={}", stage, role);
+                continue;
+            }
+            
+            Cell assignmentDateCell = assignmentDateCol != null ? row.getCell(assignmentDateCol) : null;
+            Cell completionDateCell = completionDateCol != null ? row.getCell(completionDateCol) : null;
+            Cell daysInWorkCell = daysInWorkCol != null ? row.getCell(daysInWorkCol) : null;
+            Cell completionResultCell = completionResultCol != null ? row.getCell(completionResultCol) : null;
+            
+            LocalDateTime assignmentDate = parseDateCell(assignmentDateCell);
+            LocalDateTime completionDate = parseDateCell(completionDateCell);
+            Integer daysInWork = parseIntegerCell(daysInWorkCell);
+            String completionResult = getCellValueAsString(completionResultCell);
+            
+            // Логирование для отладки
+            logger.debug("Parsing purchase approval: stage={}, role={}, assignmentDateCol={}, completionDateCol={}, daysInWorkCol={}, completionResultCol={}, assignmentDate={}, completionDate={}, daysInWork={}, completionResult={}", 
+                stage, role, assignmentDateCol, completionDateCol, daysInWorkCol, completionResultCol,
+                assignmentDate, completionDate, daysInWork, completionResult);
+            
+            // Сохраняем согласование только если есть хотя бы одно значение
+            if (assignmentDate != null || completionDate != null || daysInWork != null 
+                    || (completionResult != null && !completionResult.trim().isEmpty())) {
+                PurchaseApproval approval = purchaseApprovalRepository
+                    .findByPurchaseRequestIdAndStageAndRole(purchaseRequestId, stage, role)
+                    .orElse(new PurchaseApproval(purchaseRequestId, stage, role));
+                
+                boolean updated = false;
+                
+                if (assignmentDate != null) {
+                    approval.setAssignmentDate(assignmentDate);
+                    updated = true;
+                }
+                if (completionDate != null) {
+                    approval.setCompletionDate(completionDate);
+                    updated = true;
+                }
+                if (daysInWork != null) {
+                    approval.setDaysInWork(daysInWork);
+                    updated = true;
+                }
+                // Всегда обновляем результат выполнения
+                String trimmedResult = completionResult != null ? completionResult.trim() : null;
+                String currentResult = approval.getCompletionResult();
+                
+                // Обновляем, если значение изменилось или если ячейка существует и значение пустое (для очистки)
+                if (completionResultCell != null) {
+                    // Ячейка существует - обновляем значение
+                    if (trimmedResult == null || trimmedResult.isEmpty()) {
+                        if (currentResult != null) {
+                            approval.setCompletionResult(null);
+                            updated = true;
+                            logger.debug("Cleared completion result for purchase stage={}, role={}", stage, role);
+                        }
+                    } else {
+                        if (!trimmedResult.equals(currentResult)) {
+                            approval.setCompletionResult(trimmedResult);
+                            updated = true;
+                            logger.debug("Updated completion result for purchase stage={}, role={}: '{}'", 
+                                stage, role, trimmedResult);
+                        }
+                    }
+                } else if (trimmedResult != null && !trimmedResult.isEmpty()) {
+                    // Ячейка не существует, но значение есть (из merged cell или другого источника)
+                    if (!trimmedResult.equals(currentResult)) {
+                        approval.setCompletionResult(trimmedResult);
+                        updated = true;
+                        logger.debug("Updated completion result for purchase stage={}, role={}: '{}'", 
+                            stage, role, trimmedResult);
+                    }
+                }
+                
+                if (updated || approval.getId() == null) {
+                    purchaseApprovalRepository.save(approval);
+                    count++;
+                }
+            }
+        }
+        
+        return count;
+    }
+    
+    /**
+     * Парсит согласования для одного этапа (устаревший метод, больше не используется)
+     * @deprecated Используйте parseApprovalStageDynamic вместо этого метода
+     */
+    @Deprecated
     private int parseApprovalStage(Row row, Long idPurchaseRequest, String stage, 
                                    int startCol, int endCol, String[] roles) {
         int count = 0;
@@ -276,7 +714,7 @@ public class ReportExcelLoadService {
             // Сохраняем согласование только если есть хотя бы одно значение
             if (assignmentDate != null || completionDate != null || daysInWork != null 
                     || (completionResult != null && !completionResult.trim().isEmpty())) {
-                PurchaseRequestApproval approval = approvalRepository
+                PurchaseRequestApproval approval = requestApprovalRepository
                     .findByIdPurchaseRequestAndStageAndRole(idPurchaseRequest, stage, role)
                     .orElse(new PurchaseRequestApproval(idPurchaseRequest, stage, role));
                 
@@ -327,7 +765,7 @@ public class ReportExcelLoadService {
                 }
                 
                 if (updated || approval.getId() == null) {
-                    approvalRepository.save(approval);
+                    requestApprovalRepository.save(approval);
                     count++;
                 }
             }
@@ -339,8 +777,10 @@ public class ReportExcelLoadService {
     }
     
     /**
-     * Парсит согласования для одного этапа с учетом пропущенных колонок
+     * Парсит согласования для одного этапа с учетом пропущенных колонок (устаревший метод, больше не используется)
+     * @deprecated Используйте parseApprovalStageDynamic вместо этого метода
      */
+    @Deprecated
     private int parseApprovalStageWithSkip(Row row, Long idPurchaseRequest, String stage, 
                                            int startCol, int endCol, String[] roles, int skipCol) {
         int count = 0;
@@ -383,7 +823,7 @@ public class ReportExcelLoadService {
             // Сохраняем согласование только если есть хотя бы одно значение
             if (assignmentDate != null || completionDate != null || daysInWork != null 
                     || (completionResult != null && !completionResult.trim().isEmpty())) {
-                PurchaseRequestApproval approval = approvalRepository
+                PurchaseRequestApproval approval = requestApprovalRepository
                     .findByIdPurchaseRequestAndStageAndRole(idPurchaseRequest, stage, role)
                     .orElse(new PurchaseRequestApproval(idPurchaseRequest, stage, role));
                 
@@ -434,7 +874,7 @@ public class ReportExcelLoadService {
                 }
                 
                 if (updated || approval.getId() == null) {
-                    approvalRepository.save(approval);
+                    requestApprovalRepository.save(approval);
                     count++;
                 }
             }

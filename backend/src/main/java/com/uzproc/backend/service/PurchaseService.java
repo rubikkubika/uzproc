@@ -1,5 +1,6 @@
 package com.uzproc.backend.service;
 
+import com.uzproc.backend.dto.PurchaseDto;
 import com.uzproc.backend.entity.Purchase;
 import com.uzproc.backend.repository.PurchaseRepository;
 import jakarta.persistence.criteria.Predicate;
@@ -28,7 +29,7 @@ public class PurchaseService {
         this.purchaseRepository = purchaseRepository;
     }
 
-    public Page<Purchase> findAll(
+    public Page<PurchaseDto> findAll(
             int page,
             int size,
             Integer year,
@@ -59,12 +60,45 @@ public class PurchaseService {
                 purchases.getContent().size(), page, size, purchases.getTotalElements());
         logger.info("=== END FILTER REQUEST ===\n");
         
-        return purchases;
+        // Конвертируем entity в DTO
+        Page<PurchaseDto> dtoPage = purchases.map(this::toDto);
+        
+        return dtoPage;
     }
 
-    public Purchase findById(Long id) {
-        return purchaseRepository.findById(id)
+    public PurchaseDto findById(Long id) {
+        Purchase purchase = purchaseRepository.findById(id)
                 .orElse(null);
+        if (purchase == null) {
+            return null;
+        }
+        return toDto(purchase);
+    }
+
+    /**
+     * Конвертирует Purchase entity в PurchaseDto
+     */
+    private PurchaseDto toDto(Purchase entity) {
+        PurchaseDto dto = new PurchaseDto();
+        dto.setId(entity.getId());
+        dto.setGuid(entity.getGuid());
+        dto.setPurchaseNumber(entity.getPurchaseNumber());
+        dto.setPurchaseCreationDate(entity.getPurchaseCreationDate());
+        dto.setInnerId(entity.getInnerId());
+        dto.setName(entity.getName());
+        dto.setTitle(entity.getTitle());
+        dto.setCfo(entity.getCfo());
+        dto.setMcc(entity.getMcc());
+        dto.setPurchaseInitiator(entity.getPurchaseInitiator());
+        dto.setPurchaseSubject(entity.getPurchaseSubject());
+        dto.setBudgetAmount(entity.getBudgetAmount());
+        dto.setCostType(entity.getCostType());
+        dto.setContractType(entity.getContractType());
+        dto.setContractDurationMonths(entity.getContractDurationMonths());
+        dto.setPurchaseRequestId(entity.getPurchaseRequestId());
+        dto.setCreatedAt(entity.getCreatedAt());
+        dto.setUpdatedAt(entity.getUpdatedAt());
+        return dto;
     }
 
     private Specification<Purchase> buildSpecification(

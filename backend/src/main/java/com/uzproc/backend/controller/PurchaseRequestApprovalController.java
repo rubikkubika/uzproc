@@ -1,7 +1,7 @@
 package com.uzproc.backend.controller;
 
-import com.uzproc.backend.entity.PurchaseRequest;
-import com.uzproc.backend.entity.PurchaseRequestApproval;
+import com.uzproc.backend.dto.PurchaseRequestApprovalDto;
+import com.uzproc.backend.dto.PurchaseRequestDto;
 import com.uzproc.backend.service.PurchaseRequestApprovalService;
 import com.uzproc.backend.service.PurchaseRequestService;
 import org.springframework.http.ResponseEntity;
@@ -27,8 +27,8 @@ public class PurchaseRequestApprovalController {
      * Получить все согласования для заявки по id заявки (внутренний id)
      */
     @GetMapping("/by-request-id/{id}")
-    public ResponseEntity<List<PurchaseRequestApproval>> getApprovalsByRequestId(@PathVariable Long id) {
-        PurchaseRequest purchaseRequest = purchaseRequestService.findById(id);
+    public ResponseEntity<List<PurchaseRequestApprovalDto>> getApprovalsByRequestId(@PathVariable Long id) {
+        PurchaseRequestDto purchaseRequest = purchaseRequestService.findById(id);
         if (purchaseRequest == null) {
             return ResponseEntity.notFound().build();
         }
@@ -39,7 +39,7 @@ public class PurchaseRequestApprovalController {
             return ResponseEntity.ok(List.of());
         }
         
-        List<PurchaseRequestApproval> approvals = approvalService.findByPurchaseRequestId(idPurchaseRequest);
+        List<PurchaseRequestApprovalDto> approvals = approvalService.findByPurchaseRequestId(idPurchaseRequest);
         return ResponseEntity.ok(approvals);
     }
 
@@ -47,9 +47,9 @@ public class PurchaseRequestApprovalController {
      * Получить все согласования для заявки по id_purchase_request
      */
     @GetMapping("/by-purchase-request/{idPurchaseRequest}")
-    public ResponseEntity<List<PurchaseRequestApproval>> getApprovalsByPurchaseRequestId(
+    public ResponseEntity<List<PurchaseRequestApprovalDto>> getApprovalsByPurchaseRequestId(
             @PathVariable Long idPurchaseRequest) {
-        List<PurchaseRequestApproval> approvals = approvalService.findByPurchaseRequestId(idPurchaseRequest);
+        List<PurchaseRequestApprovalDto> approvals = approvalService.findByPurchaseRequestId(idPurchaseRequest);
         return ResponseEntity.ok(approvals);
     }
 
@@ -57,10 +57,10 @@ public class PurchaseRequestApprovalController {
      * Получить согласования для заявки по этапу
      */
     @GetMapping("/by-purchase-request/{idPurchaseRequest}/stage/{stage}")
-    public ResponseEntity<List<PurchaseRequestApproval>> getApprovalsByPurchaseRequestIdAndStage(
+    public ResponseEntity<List<PurchaseRequestApprovalDto>> getApprovalsByPurchaseRequestIdAndStage(
             @PathVariable Long idPurchaseRequest,
             @PathVariable String stage) {
-        List<PurchaseRequestApproval> approvals = approvalService.findByPurchaseRequestIdAndStage(idPurchaseRequest, stage);
+        List<PurchaseRequestApprovalDto> approvals = approvalService.findByPurchaseRequestIdAndStage(idPurchaseRequest, stage);
         return ResponseEntity.ok(approvals);
     }
 }

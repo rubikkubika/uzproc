@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -20,5 +21,6 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long>, JpaSp
     Optional<Purchase> findByInnerId(String innerId);
     boolean existsByInnerId(String innerId);
     Page<Purchase> findByPurchaseCreationDateBetween(LocalDateTime start, LocalDateTime end, Pageable pageable);
+    List<Purchase> findByPurchaseRequestId(Long purchaseRequestId);
 }
 

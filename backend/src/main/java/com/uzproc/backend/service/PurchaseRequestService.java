@@ -1,10 +1,12 @@
 package com.uzproc.backend.service;
 
+import com.uzproc.backend.dto.PurchaseRequestDto;
 import com.uzproc.backend.entity.PurchaseRequest;
 import com.uzproc.backend.entity.PurchaseRequestApproval;
 import com.uzproc.backend.entity.PurchaseRequestStatus;
 import com.uzproc.backend.repository.PurchaseRequestApprovalRepository;
 import com.uzproc.backend.repository.PurchaseRequestRepository;
+import com.uzproc.backend.repository.PurchaseRepository;
 import java.util.stream.Collectors;
 import jakarta.persistence.criteria.Predicate;
 import org.slf4j.Logger;
@@ -28,15 +30,18 @@ public class PurchaseRequestService {
     
     private final PurchaseRequestRepository purchaseRequestRepository;
     private final PurchaseRequestApprovalRepository approvalRepository;
+    private final PurchaseRepository purchaseRepository;
 
     public PurchaseRequestService(
             PurchaseRequestRepository purchaseRequestRepository,
-            PurchaseRequestApprovalRepository approvalRepository) {
+            PurchaseRequestApprovalRepository approvalRepository,
+            PurchaseRepository purchaseRepository) {
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.approvalRepository = approvalRepository;
+        this.purchaseRepository = purchaseRepository;
     }
 
-    public Page<PurchaseRequest> findAll(
+    public Page<PurchaseRequestDto> findAll(
             int page,
             int size,
             Integer year,
@@ -68,12 +73,61 @@ public class PurchaseRequestService {
                 purchaseRequests.getContent().size(), page, size, purchaseRequests.getTotalElements());
         logger.info("=== END FILTER REQUEST ===\n");
         
-        return purchaseRequests;
+        // Конвертируем entity в DTO
+        Page<PurchaseRequestDto> dtoPage = purchaseRequests.map(this::toDto);
+        
+        return dtoPage;
     }
 
-    public PurchaseRequest findById(Long id) {
-        return purchaseRequestRepository.findById(id)
+    public PurchaseRequestDto findById(Long id) {
+        PurchaseRequest purchaseRequest = purchaseRequestRepository.findById(id)
                 .orElse(null);
+        if (purchaseRequest == null) {
+            return null;
+        }
+        return toDto(purchaseRequest);
+    }
+
+    /**
+     * Конвертирует PurchaseRequest entity в PurchaseRequestDto
+     */
+    private PurchaseRequestDto toDto(PurchaseRequest entity) {
+        PurchaseRequestDto dto = new PurchaseRequestDto();
+        dto.setId(entity.getId());
+        dto.setGuid(entity.getGuid());
+        dto.setIdPurchaseRequest(entity.getIdPurchaseRequest());
+        dto.setPurchaseRequestCreationDate(entity.getPurchaseRequestCreationDate());
+        dto.setInnerId(entity.getInnerId());
+        dto.setName(entity.getName());
+        dto.setTitle(entity.getTitle());
+        dto.setPurchaseRequestPlanYear(entity.getPurchaseRequestPlanYear());
+        dto.setCompany(entity.getCompany());
+        dto.setCfo(entity.getCfo());
+        dto.setMcc(entity.getMcc());
+        dto.setPurchaseRequestInitiator(entity.getPurchaseRequestInitiator());
+        dto.setPurchaseRequestSubject(entity.getPurchaseRequestSubject());
+        dto.setBudgetAmount(entity.getBudgetAmount());
+        dto.setCostType(entity.getCostType());
+        dto.setContractType(entity.getContractType());
+        dto.setContractDurationMonths(entity.getContractDurationMonths());
+        dto.setIsPlanned(entity.getIsPlanned());
+        dto.setRequiresPurchase(entity.getRequiresPurchase());
+        dto.setStatus(entity.getStatus());
+        dto.setCreatedAt(entity.getCreatedAt());
+        dto.setUpdatedAt(entity.getUpdatedAt());
+        
+        // Загружаем связанные закупки по idPurchaseRequest
+        if (entity.getIdPurchaseRequest() != null) {
+            List<com.uzproc.backend.entity.Purchase> purchases = purchaseRepository.findByPurchaseRequestId(entity.getIdPurchaseRequest());
+            List<Long> purchaseIds = purchases.stream()
+                    .map(com.uzproc.backend.entity.Purchase::getId)
+                    .collect(Collectors.toList());
+            dto.setPurchaseIds(purchaseIds);
+        } else {
+            dto.setPurchaseIds(new ArrayList<>());
+        }
+        
+        return dto;
     }
 
     private Specification<PurchaseRequest> buildSpecification(

@@ -3,3 +3,4 @@ ALTER TABLE purchase_request_approvals
 ADD COLUMN completion_result VARCHAR(500);
 
 
+

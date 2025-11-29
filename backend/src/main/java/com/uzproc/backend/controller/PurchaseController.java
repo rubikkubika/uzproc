@@ -1,6 +1,6 @@
 package com.uzproc.backend.controller;
 
-import com.uzproc.backend.entity.Purchase;
+import com.uzproc.backend.dto.PurchaseDto;
 import com.uzproc.backend.service.PurchaseService;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -20,7 +20,7 @@ public class PurchaseController {
     }
 
     @GetMapping
-    public ResponseEntity<Page<Purchase>> getAllPurchases(
+    public ResponseEntity<Page<PurchaseDto>> getAllPurchases(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) Integer year,
@@ -35,7 +35,7 @@ public class PurchaseController {
             @RequestParam(required = false) String contractType,
             @RequestParam(required = false) Long purchaseRequestId) {
         
-        Page<Purchase> purchases = purchaseService.findAll(
+        Page<PurchaseDto> purchases = purchaseService.findAll(
                 page, size, year, sortBy, sortDir, innerId, purchaseNumber, cfo, purchaseInitiator,
                 name, costType, contractType, purchaseRequestId);
         
@@ -43,8 +43,8 @@ public class PurchaseController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Purchase> getPurchaseById(@PathVariable Long id) {
-        Purchase purchase = purchaseService.findById(id);
+    public ResponseEntity<PurchaseDto> getPurchaseById(@PathVariable Long id) {
+        PurchaseDto purchase = purchaseService.findById(id);
         if (purchase != null) {
             return ResponseEntity.ok(purchase);
         }

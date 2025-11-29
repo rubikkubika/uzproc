@@ -1546,9 +1546,10 @@ public class EntityExcelLoadService {
                         // Проверяем, существует ли заявка с таким idPurchaseRequest
                         Optional<PurchaseRequest> purchaseRequest = purchaseRequestRepository.findByIdPurchaseRequest(purchaseRequestId);
                         if (purchaseRequest.isPresent()) {
-                            purchase.setPurchaseRequestId(purchaseRequest.get().getId());
+                            // Устанавливаем idPurchaseRequest, а не id (первичный ключ)
+                            purchase.setPurchaseRequestId(purchaseRequest.get().getIdPurchaseRequest());
                             logger.debug("Parsed purchaseRequestId for purchase row {}: {} (from link: '{}')", 
-                                row.getRowNum() + 1, purchaseRequest.get().getId(), link);
+                                row.getRowNum() + 1, purchaseRequest.get().getIdPurchaseRequest(), link);
                         } else {
                             logger.debug("Purchase request with idPurchaseRequest={} not found for purchase row {} (link: '{}')", 
                                 purchaseRequestId, row.getRowNum() + 1, link);

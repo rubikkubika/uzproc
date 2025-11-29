@@ -1,101 +1,31 @@
-package com.uzproc.backend.entity;
-
-import jakarta.persistence.*;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
+package com.uzproc.backend.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-@Entity
-@Table(name = "purchases")
-public class Purchase {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+public class PurchaseDto {
     private Long id;
-
-    @Column(name = "guid", unique = true, nullable = true, updatable = false)
     private UUID guid;
-
-    @Column(name = "purchase_number")
     private Long purchaseNumber;
-
-    @Column(name = "purchase_creation_date")
     private LocalDateTime purchaseCreationDate;
-
-    @Column(name = "inner_id", length = 255)
     private String innerId;
-
-    @Column(name = "name", length = 500)
     private String name;
-
-    @Column(name = "title", length = 500)
     private String title;
-
-    @Column(name = "cfo", length = 255)
     private String cfo;
-
-    @Column(name = "mcc", length = 255)
     private String mcc;
-
-    @Column(name = "purchase_initiator", length = 255)
     private String purchaseInitiator;
-
-    @Column(name = "purchase_subject", length = 500)
     private String purchaseSubject;
-
-    @Column(name = "budget_amount", precision = 15, scale = 2)
     private BigDecimal budgetAmount;
-
-    @Column(name = "cost_type", length = 255)
     private String costType;
-
-    @Column(name = "contract_type", length = 255)
     private String contractType;
-
-    @Column(name = "contract_duration_months")
     private Integer contractDurationMonths;
-
-    // Связь с PurchaseRequest по полю idPurchaseRequest
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "purchase_request_id", 
-                referencedColumnName = "id_purchase_request", 
-                insertable = false, 
-                updatable = false)
-    private PurchaseRequest purchaseRequest;
-
-    @Column(name = "purchase_request_id")
     private Long purchaseRequestId;
-
-    // Обратная связь с PurchaseApproval (одна закупка может иметь много согласований)
-    @OneToMany(mappedBy = "purchase", fetch = FetchType.LAZY)
-    private java.util.List<PurchaseApproval> approvals;
-
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
-
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    public Purchase() {
-    }
-
-    public Purchase(Long id, UUID guid, LocalDateTime createdAt, LocalDateTime updatedAt) {
-        this.id = id;
-        this.guid = guid;
-        this.createdAt = createdAt;
-        this.updatedAt = updatedAt;
-    }
-
-    @PrePersist
-    protected void onCreate() {
-        if (guid == null) {
-            guid = UUID.randomUUID();
-        }
+    // Constructors
+    public PurchaseDto() {
     }
 
     // Getters and Setters
@@ -225,25 +155,6 @@ public class Purchase {
 
     public void setPurchaseRequestId(Long purchaseRequestId) {
         this.purchaseRequestId = purchaseRequestId;
-    }
-
-    public PurchaseRequest getPurchaseRequest() {
-        return purchaseRequest;
-    }
-
-    public void setPurchaseRequest(PurchaseRequest purchaseRequest) {
-        this.purchaseRequest = purchaseRequest;
-        if (purchaseRequest != null && purchaseRequest.getIdPurchaseRequest() != null) {
-            this.purchaseRequestId = purchaseRequest.getIdPurchaseRequest();
-        }
-    }
-
-    public java.util.List<PurchaseApproval> getApprovals() {
-        return approvals;
-    }
-
-    public void setApprovals(java.util.List<PurchaseApproval> approvals) {
-        this.approvals = approvals;
     }
 
     public LocalDateTime getCreatedAt() {

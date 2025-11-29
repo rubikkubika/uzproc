@@ -26,6 +26,7 @@ interface PurchaseRequest {
   isPlanned: boolean | null;
   requiresPurchase: boolean | null;
   innerId: string | null;
+  purchaseIds: number[] | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -175,9 +176,9 @@ export default function PurchaseRequestDetailPage() {
         if (!abortController.signal.aborted && currentIdRef.current === id) {
           setPurchaseRequest(data);
           
-          // Загружаем связанную закупку
-          if (data && data.id) {
-            fetchPurchase(data.id);
+          // Загружаем связанную закупку по idPurchaseRequest (не по id!)
+          if (data && data.idPurchaseRequest) {
+            fetchPurchase(data.idPurchaseRequest);
           }
           
           // Загружаем согласования по idPurchaseRequest
@@ -330,6 +331,9 @@ export default function PurchaseRequestDetailPage() {
   );
   const finalApprovalStageApprovals = approvals.filter(a => 
     a.stage === 'Утверждение заявки на ЗП'
+  );
+  const finalApprovalNoZpStageApprovals = approvals.filter(a => 
+    a.stage === 'Утверждение заявки на ЗП (НЕ требуется ЗП)'
   );
   
   // Проверяем, выполнено ли утверждение заявки
@@ -747,9 +751,6 @@ export default function PurchaseRequestDetailPage() {
                         {/* Заголовки колонок */}
                         <div className="flex gap-x-1 items-end mb-1 pb-1 border-b border-gray-200">
                           <div className="flex-[2] min-w-0">
-                            <label className="block text-[9px] font-semibold text-gray-600 leading-tight">
-                              ФИО
-                            </label>
                           </div>
                           <div className="flex-shrink-0" style={{ width: '50px' }}>
                             <label className="block text-[9px] font-semibold text-gray-600 leading-tight">
@@ -854,9 +855,6 @@ export default function PurchaseRequestDetailPage() {
                         {/* Заголовки колонок */}
                         <div className="flex gap-x-1 items-end mb-1 pb-1 border-b border-gray-200">
                           <div className="flex-[2] min-w-0">
-                            <label className="block text-[9px] font-semibold text-gray-600 leading-tight">
-                              ФИО
-                            </label>
                           </div>
                           <div className="flex-shrink-0" style={{ width: '50px' }}>
                             <label className="block text-[9px] font-semibold text-gray-600 leading-tight">
@@ -920,9 +918,6 @@ export default function PurchaseRequestDetailPage() {
                         {/* Заголовки колонок */}
                         <div className="flex gap-x-1 items-end mb-1 pb-1 border-b border-gray-200">
                           <div className="flex-[2] min-w-0">
-                            <label className="block text-[9px] font-semibold text-gray-600 leading-tight">
-                              ФИО
-                            </label>
                           </div>
                           <div className="flex-shrink-0" style={{ width: '50px' }}>
                             <label className="block text-[9px] font-semibold text-gray-600 leading-tight">
@@ -938,6 +933,69 @@ export default function PurchaseRequestDetailPage() {
                         
                         {finalApprovalStageApprovals.length > 0 ? (
                           finalApprovalStageApprovals.map((approval) => (
+                            <div key={approval.id} className="flex gap-x-1 items-end border-b border-gray-200 pb-1 last:border-b-0 last:pb-0">
+                              <div className="flex-[2] min-w-0">
+                                <div className="flex items-center gap-1">
+                                  {/* Индикатор статуса */}
+                                  <div className="flex-shrink-0">
+                                    {approval.completionDate ? (
+                                      <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center" title="Согласовано">
+                                        <Check className="w-2 h-2 text-white" />
+                                      </div>
+                                    ) : approval.assignmentDate ? (
+                                      <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title="В работе">
+                                        <Clock className="w-2 h-2 text-white" />
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                  <p className="text-[10px] text-gray-900 truncate leading-tight">
+                                    {approval.role || '-'}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex-shrink-0" style={{ width: '50px' }}>
+                                <p className="text-[10px] text-gray-900 truncate leading-tight">
+                                  {formatDate(approval.assignmentDate)}
+                                </p>
+                              </div>
+                              <div className="flex-shrink-0" style={{ width: '35px' }}>
+                                <p className="text-[10px] text-gray-900 truncate leading-tight">
+                                  {calculateDays(approval.assignmentDate, approval.completionDate, approval.daysInWork)}
+                                </p>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-[10px] text-gray-500 text-center py-1">Нет данных</div>
+                        )}
+                      </div>
+                      )}
+
+                      {/* Этап: Утверждение заявки на ЗП (НЕ требуется ЗП) */}
+                      {finalApprovalNoZpStageApprovals.length > 0 && (
+                      <div className="border border-gray-200 rounded p-1.5">
+                        <div className="flex items-start gap-1.5 mb-1">
+                          <div className="text-[10px] font-semibold text-gray-900 flex-1 leading-tight">Утверждение заявки на ЗП (НЕ требуется ЗП)</div>
+                        </div>
+                        
+                        {/* Заголовки колонок */}
+                        <div className="flex gap-x-1 items-end mb-1 pb-1 border-b border-gray-200">
+                          <div className="flex-[2] min-w-0">
+                          </div>
+                          <div className="flex-shrink-0" style={{ width: '50px' }}>
+                            <label className="block text-[9px] font-semibold text-gray-600 leading-tight">
+                              Назначено
+                            </label>
+                          </div>
+                          <div className="flex-shrink-0" style={{ width: '35px' }}>
+                            <label className="block text-[9px] font-semibold text-gray-600 leading-tight">
+                              Дней
+                            </label>
+                          </div>
+                        </div>
+                        
+                        {finalApprovalNoZpStageApprovals.length > 0 ? (
+                          finalApprovalNoZpStageApprovals.map((approval) => (
                             <div key={approval.id} className="flex gap-x-1 items-end border-b border-gray-200 pb-1 last:border-b-0 last:pb-0">
                               <div className="flex-[2] min-w-0">
                                 <div className="flex items-center gap-1">

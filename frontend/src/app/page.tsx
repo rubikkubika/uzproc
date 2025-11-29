@@ -210,6 +210,15 @@ function DashboardContent() {
         );
 
       // Backend разделы
+      case 'users':
+        return (
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded-lg shadow-lg">
+              <p className="text-gray-500">Таблица пользователей будет добавлена в следующих версиях</p>
+            </div>
+          </div>
+        );
+
       case 'purchase-requests':
         return (
           <div className="space-y-6">
@@ -287,6 +296,15 @@ function DashboardContent() {
           <div className="space-y-6">
             <div className="bg-white p-6 rounded-lg shadow-lg">
               <p className="text-gray-500">Список запросов будет добавлен в следующих версиях</p>
+            </div>
+          </div>
+        );
+
+      case 'initiator-status':
+        return (
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded-lg shadow-lg">
+              <p className="text-gray-500">Статус закупок будет добавлен в следующих версиях</p>
             </div>
           </div>
         );
