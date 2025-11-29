@@ -33,6 +33,11 @@ public interface PurchaseApprovalRepository extends JpaRepository<PurchaseApprov
      * Находит все согласования для определенной роли
      */
     List<PurchaseApproval> findByRole(String role);
+    
+    /**
+     * Находит все согласования для закупки по purchaseRequestId и этапу
+     */
+    List<PurchaseApproval> findByPurchaseRequestIdAndStage(Long purchaseRequestId, String stage);
 }
 
 
