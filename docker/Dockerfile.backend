@@ -31,6 +31,9 @@ COPY frontend/upload/alldocuments /app/alldocuments
 # Copy report folder for ReportExcelLoadService
 COPY frontend/upload/report /app/report
 
+# Copy plan folder for PurchasePlanExcelLoadService
+COPY frontend/upload/plan /app/plan
+
 # Change ownership to spring user
 RUN chown -R spring:spring /app
 
