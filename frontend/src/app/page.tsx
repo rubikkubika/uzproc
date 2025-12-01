@@ -19,6 +19,7 @@ import TopLongestPurchases from '@/components/TopLongestPurchases';
 import PurchaserWorkload from '@/components/PurchaserWorkload';
 import PurchaseRequestsTable from '@/components/PurchaseRequestsTable';
 import PurchasesTable from '@/components/PurchasesTable';
+import PurchasePlanItemsTable from '@/components/PurchasePlanItemsTable';
 import UploadCSV from '@/components/UploadCSV';
 
 const SIDEBAR_COLLAPSED_KEY = 'sidebarCollapsed';
@@ -233,6 +234,13 @@ function DashboardContent() {
           </div>
         );
 
+      case 'purchase-plan':
+        return (
+          <div className="space-y-6">
+            <PurchasePlanItemsTable />
+          </div>
+        );
+
       case 'upload':
         return <UploadCSV />;
 
@@ -343,8 +351,8 @@ function DashboardContent() {
 
         return (
           <div className="flex h-screen bg-gray-100">
-            <div className="w-full max-w-[1920px] mx-auto flex">
-              <div suppressHydrationWarning>
+            <div className="w-full max-w-[1920px] mx-auto flex" style={{ gap: 0 }}>
+              <div suppressHydrationWarning style={{ flexShrink: 0 }}>
                 <Sidebar 
                   activeTab={activeTab} 
                   onTabChange={handleTabChange}
@@ -375,7 +383,7 @@ function DashboardContent() {
                 </div>
               </div>
 
-              <main className="flex-1 overflow-y-auto p-2 sm:p-3 lg:p-4 pt-16 sm:pt-20 lg:pt-4">
+              <main className="flex-1 overflow-y-auto p-2 sm:p-3 lg:p-4 pt-16 sm:pt-20 lg:pt-4 safari-main-content" style={{ marginLeft: 0, flexShrink: 1, minWidth: 0 }}>
                 {renderContent()}
               </main>
             </div>

@@ -2,6 +2,7 @@ package com.uzproc.backend.config;
 
 import com.uzproc.backend.service.EntityExcelLoadService;
 import com.uzproc.backend.service.ReportExcelLoadService;
+import com.uzproc.backend.service.PurchasePlanExcelLoadService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
@@ -173,6 +174,81 @@ public class ExcelFileAutoLoader {
                 logger.info("Automatic report file processing completed. Total loaded {} records", totalLoaded);
             } catch (Exception e) {
                 logger.error("Error during automatic report file processing", e);
+            }
+        };
+    }
+
+    @Bean
+    public CommandLineRunner autoLoadPurchasePlanFile(PurchasePlanExcelLoadService purchasePlanExcelLoadService) {
+        return args -> {
+            try {
+                Path planPath = null;
+                
+                // Сначала проверяем путь для Docker контейнера
+                Path dockerPath = Paths.get("/app/plan");
+                if (Files.exists(dockerPath)) {
+                    planPath = dockerPath;
+                    logger.info("Found plan folder in Docker container: {}", dockerPath);
+                } else {
+                    // Ищем папку plan относительно корня проекта
+                    String userDir = System.getProperty("user.dir");
+                    Path currentDir = Paths.get(userDir).toAbsolutePath();
+                    Path projectRoot = currentDir;
+                    
+                    // Если запускаем из backend/, поднимаемся на уровень выше
+                    if (currentDir.getFileName() != null && currentDir.getFileName().toString().equals("backend")) {
+                        projectRoot = currentDir.getParent();
+                        logger.info("Detected backend directory, using project root: {}", projectRoot);
+                    }
+                    
+                    planPath = projectRoot.resolve("frontend").resolve("upload").resolve("plan");
+                    
+                    // Если не нашли, пробуем альтернативные пути
+                    if (!Files.exists(planPath)) {
+                        planPath = currentDir.resolve("..").resolve("frontend").resolve("upload").resolve("plan").normalize();
+                        logger.info("Trying alternative path: {}", planPath);
+                    }
+                }
+                
+                if (planPath == null || !Files.exists(planPath)) {
+                    logger.info("Plan folder not found. Tried paths: /app/plan, {}, and relative paths. Skipping automatic purchase plan file processing.", 
+                        Paths.get("").toAbsolutePath().resolve("frontend").resolve("upload").resolve("plan"));
+                    return;
+                }
+                
+                File planDir = planPath.toFile();
+                if (!planDir.isDirectory()) {
+                    logger.warn("Path is not a directory: {}", planPath);
+                    return;
+                }
+                
+                // Ищем все Excel файлы в папке
+                File[] excelFiles = planDir.listFiles((dir, name) -> 
+                    name.endsWith(".xls") || name.endsWith(".xlsx"));
+                
+                if (excelFiles == null || excelFiles.length == 0) {
+                    logger.info("No Excel files found in plan folder: {}", planPath);
+                    return;
+                }
+                
+                logger.info("Found {} Excel file(s) in plan folder: {}", excelFiles.length, planPath);
+                logger.info("Starting automatic purchase plan file processing...");
+                
+                int totalLoaded = 0;
+                for (File excelFile : excelFiles) {
+                    try {
+                        logger.info("Processing purchase plan file: {}", excelFile.getName());
+                        int loadedCount = purchasePlanExcelLoadService.loadPurchasePlanItemsFromExcel(excelFile);
+                        totalLoaded += loadedCount;
+                        logger.info("Loaded {} records from purchase plan file {}", loadedCount, excelFile.getName());
+                    } catch (Exception e) {
+                        logger.error("Error processing purchase plan file {}: {}", excelFile.getName(), e.getMessage(), e);
+                    }
+                }
+                
+                logger.info("Automatic purchase plan file processing completed. Total loaded {} records", totalLoaded);
+            } catch (Exception e) {
+                logger.error("Error during automatic purchase plan file processing", e);
             }
         };
     }

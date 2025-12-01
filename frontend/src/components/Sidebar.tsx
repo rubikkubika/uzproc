@@ -126,7 +126,13 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
         transform
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         ${isCollapsed ? 'lg:w-16' : 'w-fit lg:max-w-fit'}
+        flex-shrink-0
       `}
+      style={{
+        // Явно задаем стили для Safari
+        boxSizing: 'border-box',
+        WebkitBoxSizing: 'border-box',
+      }}
       data-sidebar-collapsed={isCollapsed ? 'true' : 'false'}
       >
         {/* Градиентная полоска */}
