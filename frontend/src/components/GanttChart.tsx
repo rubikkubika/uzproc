@@ -205,6 +205,26 @@ export default function GanttChart({
         newStartDate.setTime(newStartDate.getTime() - diff);
       }
 
+      // Ограничиваем даты сроком окончания договора, если он установлен
+      if (contractEndDate) {
+        const contractEnd = new Date(contractEndDate);
+        contractEnd.setHours(23, 59, 59, 999); // Устанавливаем конец дня
+        
+        // Конец полоски не должен быть позже срока окончания договора
+        if (newEndDate > contractEnd) {
+          const diff = newEndDate.getTime() - contractEnd.getTime();
+          newEndDate.setTime(contractEnd.getTime());
+          newStartDate.setTime(newStartDate.getTime() - diff);
+        }
+        
+        // Начало полоски тоже не должно быть позже срока окончания договора
+        if (newStartDate > contractEnd) {
+          const diff = newStartDate.getTime() - contractEnd.getTime();
+          newStartDate.setTime(contractEnd.getTime());
+          newEndDate.setTime(newEndDate.getTime() - diff);
+        }
+      }
+
       // Форматируем даты для временного отображения
       const formatDate = (date: Date) => {
         const year = date.getFullYear();
@@ -313,6 +333,26 @@ export default function GanttChart({
         newStartDate.setTime(newStartDate.getTime() - diff);
       }
 
+      // Ограничиваем даты сроком окончания договора, если он установлен
+      if (contractEndDate) {
+        const contractEnd = new Date(contractEndDate);
+        contractEnd.setHours(23, 59, 59, 999); // Устанавливаем конец дня
+        
+        // Конец полоски не должен быть позже срока окончания договора
+        if (newEndDate > contractEnd) {
+          const diff = newEndDate.getTime() - contractEnd.getTime();
+          newEndDate.setTime(contractEnd.getTime());
+          newStartDate.setTime(newStartDate.getTime() - diff);
+        }
+        
+        // Начало полоски тоже не должно быть позже срока окончания договора
+        if (newStartDate > contractEnd) {
+          const diff = newStartDate.getTime() - contractEnd.getTime();
+          newStartDate.setTime(contractEnd.getTime());
+          newEndDate.setTime(newEndDate.getTime() - diff);
+        }
+      }
+
       // Форматируем даты для отправки
       const formatDate = (date: Date) => {
         const year = date.getFullYear();
@@ -378,7 +418,7 @@ export default function GanttChart({
         clearTimeout(updateTimeoutRef.current);
       }
     };
-  }, [isDragging, dragStartX, initialStartDate, initialEndDate, currentYear, itemId, onDatesUpdate, onDatesChange]);
+  }, [isDragging, dragStartX, initialStartDate, initialEndDate, currentYear, itemId, onDatesUpdate, onDatesChange, contractEndDate]);
 
   if (!startDate || !endDate) {
     return (

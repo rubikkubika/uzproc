@@ -54,17 +54,22 @@ export default function PurchasePlanItemsTable() {
 
   // Состояние для множественных фильтров (чекбоксы)
   const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
+  const [companyFilter, setCompanyFilter] = useState<Set<string>>(new Set());
   
   // Состояние для открытия/закрытия выпадающих списков
   const [isCfoFilterOpen, setIsCfoFilterOpen] = useState(false);
+  const [isCompanyFilterOpen, setIsCompanyFilterOpen] = useState(false);
   
   // Поиск внутри фильтров
   const [cfoSearchQuery, setCfoSearchQuery] = useState('');
+  const [companySearchQuery, setCompanySearchQuery] = useState('');
   
   // Позиции для выпадающих списков
   const [cfoFilterPosition, setCfoFilterPosition] = useState<{ top: number; left: number } | null>(null);
+  const [companyFilterPosition, setCompanyFilterPosition] = useState<{ top: number; left: number } | null>(null);
   
   const cfoFilterButtonRef = useRef<HTMLButtonElement>(null);
+  const companyFilterButtonRef = useRef<HTMLButtonElement>(null);
   
   // Функция для расчета позиции выпадающего списка
   const calculateFilterPosition = useCallback((buttonRef: React.RefObject<HTMLButtonElement | null>) => {
@@ -85,6 +90,14 @@ export default function PurchasePlanItemsTable() {
       setCfoFilterPosition(position);
     }
   }, [isCfoFilterOpen, calculateFilterPosition]);
+  
+  // Обновляем позицию при открытии фильтра компаний
+  useEffect(() => {
+    if (isCompanyFilterOpen && companyFilterButtonRef.current) {
+      const position = calculateFilterPosition(companyFilterButtonRef);
+      setCompanyFilterPosition(position);
+    }
+  }, [isCompanyFilterOpen, calculateFilterPosition]);
 
   // Локальное состояние для текстовых фильтров
   const [localFilters, setLocalFilters] = useState<Record<string, string>>({
@@ -381,6 +394,7 @@ export default function PurchasePlanItemsTable() {
           const years = new Set<number>();
           const values: Record<string, Set<string>> = {
             cfo: new Set(),
+            company: new Set(),
           };
           
           result.content.forEach((item: PurchasePlanItem) => {
@@ -390,11 +404,13 @@ export default function PurchasePlanItemsTable() {
             }
             // Собираем уникальные значения
             if (item.cfo) values.cfo.add(item.cfo);
+            if (item.company) values.company.add(item.company);
           });
           
           const yearsArray = Array.from(years).sort((a, b) => b - a);
           const uniqueValuesData = {
             cfo: Array.from(values.cfo).sort(),
+            company: Array.from(values.company).sort(),
           };
           
           setAllYears(yearsArray);
@@ -437,8 +453,11 @@ export default function PurchasePlanItemsTable() {
       }
       
       // Добавляем параметры фильтрации
-      if (filters.company && filters.company.trim() !== '') {
-        params.append('company', filters.company.trim());
+      // Фильтр по компании - передаем все выбранные значения на бэкенд
+      if (companyFilter.size > 0) {
+        companyFilter.forEach(company => {
+          params.append('company', company);
+        });
       }
       // Фильтр по ЦФО - передаем все выбранные значения на бэкенд
       if (cfoFilter.size > 0) {
@@ -487,7 +506,7 @@ export default function PurchasePlanItemsTable() {
 
   useEffect(() => {
     fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters);
-  }, [currentPage, pageSize, selectedYear, sortField, sortDirection, filters, cfoFilter]);
+  }, [currentPage, pageSize, selectedYear, sortField, sortDirection, filters, cfoFilter, companyFilter]);
 
   // Восстановление фокуса после обновления localFilters
   useEffect(() => {
@@ -554,6 +573,7 @@ export default function PurchasePlanItemsTable() {
   // Получение уникальных значений для фильтров
   const [uniqueValues, setUniqueValues] = useState<Record<string, string[]>>({
     cfo: [],
+    company: [],
   });
 
   useEffect(() => {
@@ -564,14 +584,17 @@ export default function PurchasePlanItemsTable() {
           const result = await response.json();
           const values: Record<string, Set<string>> = {
             cfo: new Set(),
+            company: new Set(),
           };
           
           result.content.forEach((item: PurchasePlanItem) => {
             if (item.cfo) values.cfo.add(item.cfo);
+            if (item.company) values.company.add(item.company);
           });
           
           setUniqueValues({
             cfo: Array.from(values.cfo).sort(),
+            company: Array.from(values.company).sort(),
           });
         }
       } catch (err) {
@@ -584,6 +607,7 @@ export default function PurchasePlanItemsTable() {
   const getUniqueValues = (field: keyof PurchasePlanItem): string[] => {
     const fieldMap: Record<string, keyof typeof uniqueValues> = {
       cfo: 'cfo',
+      company: 'company',
     };
     return uniqueValues[fieldMap[field] || 'cfo'] || [];
   };
@@ -612,6 +636,30 @@ export default function PurchasePlanItemsTable() {
     setCurrentPage(0);
   };
 
+  // Обработчики для фильтра по компаниям
+  const handleCompanyToggle = (company: string) => {
+    const newSet = new Set(companyFilter);
+    if (newSet.has(company)) {
+      newSet.delete(company);
+    } else {
+      newSet.add(company);
+    }
+    setCompanyFilter(newSet);
+    setCurrentPage(0);
+  };
+
+  const handleCompanySelectAll = () => {
+    const allCompanies = getUniqueValues('company');
+    const newSet = new Set(allCompanies);
+    setCompanyFilter(newSet);
+    setCurrentPage(0);
+  };
+
+  const handleCompanyDeselectAll = () => {
+    setCompanyFilter(new Set());
+    setCurrentPage(0);
+  };
+
   // Закрываем выпадающие списки при клике вне их
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -619,15 +667,18 @@ export default function PurchasePlanItemsTable() {
       if (isCfoFilterOpen && !target.closest('.cfo-filter-container')) {
         setIsCfoFilterOpen(false);
       }
+      if (isCompanyFilterOpen && !target.closest('.company-filter-container')) {
+        setIsCompanyFilterOpen(false);
+      }
     };
 
-    if (isCfoFilterOpen) {
+    if (isCfoFilterOpen || isCompanyFilterOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
-  }, [isCfoFilterOpen]);
+  }, [isCfoFilterOpen, isCompanyFilterOpen]);
 
   // Фильтруем опции по поисковому запросу
   const getFilteredCfoOptions = useMemo(() => {
@@ -641,6 +692,18 @@ export default function PurchasePlanItemsTable() {
       return cfo.toLowerCase().includes(searchLower);
     });
   }, [cfoSearchQuery, uniqueValues.cfo]);
+
+  const getFilteredCompanyOptions = useMemo(() => {
+    const allCompanies = uniqueValues.company || [];
+    if (!companySearchQuery || !companySearchQuery.trim()) {
+      return allCompanies;
+    }
+    const searchLower = companySearchQuery.toLowerCase().trim();
+    return allCompanies.filter(company => {
+      if (!company) return false;
+      return company.toLowerCase().includes(searchLower);
+    });
+  }, [companySearchQuery, uniqueValues.company]);
 
   if (loading) {
     return (
@@ -786,14 +849,15 @@ export default function PurchasePlanItemsTable() {
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-200">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-700 font-medium">Год планирования:</span>
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-700 font-medium">Год планирования:</span>
             {allYears.map((year) => (
               <button
                 key={year}
                 onClick={() => setSelectedYear(year)}
-                className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                  className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
                   selectedYear === year
                     ? 'bg-blue-600 text-white border-blue-600'
                     : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
@@ -804,7 +868,7 @@ export default function PurchasePlanItemsTable() {
             ))}
             <button
               onClick={() => setSelectedYear(null)}
-              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
                 selectedYear === null
                   ? 'bg-blue-600 text-white border-blue-600'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
@@ -813,7 +877,7 @@ export default function PurchasePlanItemsTable() {
               Все
             </button>
           </div>
-          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4">
             <p className="text-sm text-gray-500">
               Всего записей: {totalRecords}
             </p>
@@ -827,6 +891,7 @@ export default function PurchasePlanItemsTable() {
                   setFilters(emptyFilters);
                   setLocalFilters(emptyFilters);
                   setCfoFilter(new Set());
+                  setCompanyFilter(new Set());
                 setSortField('requestDate');
                 setSortDirection('asc');
                   setFocusedField(null);
@@ -836,6 +901,90 @@ export default function PurchasePlanItemsTable() {
               >
                 Сбросить фильтры
               </button>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-700 font-medium">Компания:</span>
+            <div className="relative company-filter-container">
+              <button
+                ref={companyFilterButtonRef}
+                type="button"
+                onClick={() => setIsCompanyFilterOpen(!isCompanyFilterOpen)}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-left focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center gap-2 hover:bg-gray-50 min-w-[200px]"
+              >
+                <span className="text-gray-700 truncate flex-1 text-left">
+                  {companyFilter.size === 0 
+                    ? 'Все компании' 
+                    : companyFilter.size === 1
+                    ? (Array.from(companyFilter)[0] || 'Все компании')
+                    : `${companyFilter.size} выбрано`}
+                </span>
+                <svg className={`w-4 h-4 transition-transform flex-shrink-0 ${isCompanyFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {isCompanyFilterOpen && companyFilterPosition && (
+                <div 
+                  className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden"
+                  style={{
+                    top: `${companyFilterPosition.top}px`,
+                    left: `${companyFilterPosition.left}px`,
+                  }}
+                >
+                  <div className="p-2 border-b border-gray-200">
+                    <div className="relative">
+                      <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
+                      <input
+                        type="text"
+                        value={companySearchQuery}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          setCompanySearchQuery(e.target.value);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        onFocus={(e) => e.stopPropagation()}
+                        className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="Поиск..."
+                      />
+                    </div>
+                  </div>
+                  <div className="p-2 border-b border-gray-200 flex gap-2">
+                    <button
+                      onClick={() => handleCompanySelectAll()}
+                      className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                    >
+                      Все
+                    </button>
+                    <button
+                      onClick={() => handleCompanyDeselectAll()}
+                      className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                    >
+                      Снять
+                    </button>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto">
+                    {getFilteredCompanyOptions.length === 0 ? (
+                      <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
+                    ) : (
+                      getFilteredCompanyOptions.map((company) => (
+                        <label
+                          key={company}
+                          className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={companyFilter.has(company)}
+                            onChange={() => handleCompanyToggle(company)}
+                            className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                          />
+                          <span className="ml-2 text-xs text-gray-700 flex-1">{company}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -903,8 +1052,6 @@ export default function PurchasePlanItemsTable() {
         <table className="w-full border-collapse">
           <thead className="bg-gray-50">
             <tr>
-              <SortableHeader field="year" label="Год" columnKey="year" />
-              <SortableHeader field="company" label="Компания" filterType="text" columnKey="company" />
               <th 
                 className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" 
                       style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px`, verticalAlign: 'top', overflow: 'hidden' }}
@@ -1079,19 +1226,6 @@ export default function PurchasePlanItemsTable() {
                   key={item.id} 
                   className="hover:bg-gray-50"
                 >
-                        <td 
-                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
-                          style={{ width: `${getColumnWidth('year')}px`, minWidth: `${getColumnWidth('year')}px`, maxWidth: `${getColumnWidth('year')}px` }}
-                        >
-                          {item.year || '-'}
-                        </td>
-                        <td 
-                          className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" 
-                          title={item.company || ''}
-                          style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px` }}
-                        >
-                          {item.company || '-'}
-                        </td>
                         <td 
                           className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" 
                           title={item.cfo || ''}
@@ -1288,7 +1422,7 @@ export default function PurchasePlanItemsTable() {
               ))
             ) : (
               <tr>
-                <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                   Нет данных
                 </td>
               </tr>
