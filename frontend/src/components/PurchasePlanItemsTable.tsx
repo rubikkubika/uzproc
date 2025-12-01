@@ -922,7 +922,7 @@ export default function PurchasePlanItemsTable() {
                     style={{ width: `${getColumnWidth('requestDate')}px`, minWidth: `${getColumnWidth('requestDate')}px`, maxWidth: `${getColumnWidth('requestDate')}px` }}
                   >
                     {tempDates[item.id]?.requestDate 
-                      ? new Date(tempDates[item.id].requestDate).toLocaleDateString('ru-RU')
+                      ? new Date(tempDates[item.id]!.requestDate!).toLocaleDateString('ru-RU')
                       : (item.requestDate ? new Date(item.requestDate).toLocaleDateString('ru-RU') : '-')}
                   </td>
                   <td 
@@ -932,7 +932,7 @@ export default function PurchasePlanItemsTable() {
                     style={{ width: `${getColumnWidth('newContractDate')}px`, minWidth: `${getColumnWidth('newContractDate')}px`, maxWidth: `${getColumnWidth('newContractDate')}px` }}
                   >
                     {tempDates[item.id]?.newContractDate 
-                      ? new Date(tempDates[item.id].newContractDate).toLocaleDateString('ru-RU')
+                      ? new Date(tempDates[item.id]!.newContractDate!).toLocaleDateString('ru-RU')
                       : (item.newContractDate ? new Date(item.newContractDate).toLocaleDateString('ru-RU') : '-')}
                   </td>
                   <td className="px-1 py-1 border-r border-gray-200" style={{ width: '350px', minWidth: '350px' }}>
