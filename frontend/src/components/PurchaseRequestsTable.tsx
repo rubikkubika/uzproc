@@ -1376,21 +1376,24 @@ export default function PurchaseRequestsTable() {
                     )}
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleSort('cfo')}
-                    className="flex items-center gap-1 hover:text-gray-700 transition-colors w-full min-h-[20px]"
-                  >
-                    <span className="uppercase">ЦФО</span>
-                    {sortField === 'cfo' ? (
-                      sortDirection === 'asc' ? (
-                        <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                  <div className="flex items-center gap-1 min-h-[20px]">
+                    <button
+                      onClick={() => handleSort('cfo')}
+                      className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                      style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                    >
+                      {sortField === 'cfo' ? (
+                        sortDirection === 'asc' ? (
+                          <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                        ) : (
+                          <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                        )
                       ) : (
-                        <ArrowDown className="w-3 h-3 flex-shrink-0" />
-                      )
-                    ) : (
-                      <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
-                    )}
-                  </button>
+                        <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                      )}
+                    </button>
+                    <span className="uppercase text-xs font-medium text-gray-500 tracking-wider">ЦФО</span>
+                  </div>
                 </div>
                 <div
                   className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"

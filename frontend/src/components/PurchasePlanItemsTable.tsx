@@ -42,8 +42,8 @@ export default function PurchasePlanItemsTable() {
   const [totalRecords, setTotalRecords] = useState<number>(0);
   
   // Состояние для сортировки
-  const [sortField, setSortField] = useState<SortField>('year');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [sortField, setSortField] = useState<SortField>('requestDate');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   
   // Состояние для фильтров
   const [filters, setFilters] = useState<Record<string, string>>({
@@ -138,12 +138,18 @@ export default function PurchasePlanItemsTable() {
           };
           
           setAllYears(yearsArray);
+          
+          // Устанавливаем по умолчанию последний год планирования
+          if (yearsArray.length > 0 && selectedYear === null) {
+            setSelectedYear(yearsArray[0]);
+          }
         }
       } catch (err) {
         console.error('Error fetching metadata:', err);
       }
     };
     fetchMetadata();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchData = async (
@@ -420,41 +426,83 @@ export default function PurchasePlanItemsTable() {
     const filterValue = filterType === 'text' ? (localFilters[fieldKey] || '') : (filters[fieldKey] || '');
 
     return (
-      <th className={`px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 ${width || ''}`}>
-        <div className="flex flex-col gap-1 h-full">
-          {field ? (
-            <button
-              onClick={() => handleSort(field as SortField)}
-              className="flex items-center gap-1 hover:text-gray-700 transition-colors w-full"
-            >
-              <span>{label}</span>
-              {isSorted ? (
-                sortDirection === 'asc' ? (
-                  <ArrowUp className="w-3 h-3 flex-shrink-0" />
+      <th className={`px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 ${width || ''}`} style={{ verticalAlign: 'top', overflow: 'hidden' }}>
+        <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+          <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+            {filterType === 'text' ? (
+              <input
+                key={`filter-${fieldKey}`}
+                type="text"
+                data-filter-field={fieldKey}
+                value={filterValue}
+                onChange={(e) => {
+                  const newValue = e.target.value;
+                  const cursorPos = e.target.selectionStart || 0;
+                  setLocalFilters(prev => ({
+                    ...prev,
+                    [fieldKey]: newValue,
+                  }));
+                  handleFilterChange(fieldKey, newValue, true);
+                  // Сохраняем позицию курсора после обновления
+                  requestAnimationFrame(() => {
+                    const input = e.target as HTMLInputElement;
+                    if (input && document.activeElement === input) {
+                      const newPos = Math.min(cursorPos, newValue.length);
+                      input.setSelectionRange(newPos, newPos);
+                    }
+                  });
+                }}
+                onFocus={(e) => {
+                  e.stopPropagation();
+                  setFocusedField(fieldKey);
+                }}
+                onBlur={(e) => {
+                  // Снимаем фокус только если пользователь явно кликнул в другое место
+                  setTimeout(() => {
+                    const activeElement = document.activeElement as HTMLElement;
+                    if (activeElement && 
+                        activeElement !== e.target && 
+                        !activeElement.closest('input[data-filter-field]') &&
+                        !activeElement.closest('select')) {
+                      setFocusedField(null);
+                    }
+                  }, 200);
+                }}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  // Предотвращаем потерю фокуса при нажатии некоторых клавиш
+                  e.stopPropagation();
+                }}
+                className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                placeholder="Фильтр"
+                style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+              />
+            ) : (
+              <div className="flex-1" style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0 }}></div>
+            )}
+          </div>
+          <div className="flex items-center gap-1 min-h-[20px]">
+            {field ? (
+              <button
+                onClick={() => handleSort(field as SortField)}
+                className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+              >
+                {isSorted ? (
+                  sortDirection === 'asc' ? (
+                    <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                  ) : (
+                    <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                  )
                 ) : (
-                  <ArrowDown className="w-3 h-3 flex-shrink-0" />
-                )
-              ) : (
-                <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
-              )}
-            </button>
-          ) : (
-            <span>{label}</span>
-          )}
-          {filterType === 'text' && (
-            <input
-              type="text"
-              value={filterValue}
-              onChange={(e) => {
-                setFocusedField(fieldKey);
-                handleFilterChange(fieldKey, e.target.value, true);
-              }}
-              onFocus={() => setFocusedField(fieldKey)}
-              data-filter-field={fieldKey}
-              className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 h-6"
-              placeholder="Фильтр..."
-            />
-          )}
+                  <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                )}
+              </button>
+            ) : (
+              <div style={{ width: '20px', minWidth: '20px', flexShrink: 0 }}></div>
+            )}
+            <span className={`text-xs font-medium text-gray-500 tracking-wider ${label === 'ЦФО' ? 'uppercase' : ''}`}>{label}</span>
+          </div>
         </div>
       </th>
     );
@@ -465,14 +513,14 @@ export default function PurchasePlanItemsTable() {
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-200">
-        <div className="flex items-center gap-4 flex-nowrap">
-          <div className="flex items-center gap-2 flex-nowrap">
-            <span className="text-sm text-gray-700 font-medium whitespace-nowrap">Год планирования:</span>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-700 font-medium">Год планирования:</span>
             {allYears.map((year) => (
               <button
                 key={year}
                 onClick={() => setSelectedYear(year)}
-                className={`px-3 py-1.5 text-sm rounded-lg border transition-colors whitespace-nowrap ${
+                className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
                   selectedYear === year
                     ? 'bg-blue-600 text-white border-blue-600'
                     : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
@@ -483,7 +531,7 @@ export default function PurchasePlanItemsTable() {
             ))}
             <button
               onClick={() => setSelectedYear(null)}
-              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors whitespace-nowrap ${
+              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
                 selectedYear === null
                   ? 'bg-blue-600 text-white border-blue-600'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
@@ -492,31 +540,29 @@ export default function PurchasePlanItemsTable() {
               Все
             </button>
           </div>
-          <div className="flex items-center gap-4 flex-nowrap ml-auto">
-            <p className="text-sm text-gray-500 whitespace-nowrap">
+          <div className="flex items-center gap-4">
+            <p className="text-sm text-gray-500">
               Всего записей: {totalRecords}
             </p>
-            {(Object.values(filters).some(f => f.trim() !== '') || cfoFilter.size > 0 || sortField || selectedYear !== null) && (
-              <button
-                onClick={() => {
-                  const emptyFilters = {
-                    company: '',
-                    cfo: '',
-                    purchaseSubject: '',
-                  };
-                  setFilters(emptyFilters);
-                  setLocalFilters(emptyFilters);
-                  setCfoFilter(new Set());
-                  setSortField(null);
-                  setSortDirection(null);
-                  setFocusedField(null);
-                  setSelectedYear(null);
-                }}
-                className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors whitespace-nowrap"
-              >
-                Сбросить фильтры
-              </button>
-            )}
+            <button
+              onClick={() => {
+                const emptyFilters = {
+                  company: '',
+                  cfo: '',
+                  purchaseSubject: '',
+                };
+                setFilters(emptyFilters);
+                setLocalFilters(emptyFilters);
+                setCfoFilter(new Set());
+                setSortField('requestDate');
+                setSortDirection('asc');
+                setFocusedField(null);
+                setSelectedYear(allYears.length > 0 ? allYears[0] : null);
+              }}
+              className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors"
+            >
+              Сбросить фильтры
+            </button>
           </div>
         </div>
       </div>
@@ -584,114 +630,121 @@ export default function PurchasePlanItemsTable() {
         <table className="w-full border-collapse">
           <thead className="bg-gray-50">
             <tr>
-              <SortableHeader field="year" label="Год" width="w-16" />
-              <SortableHeader field="company" label="Компания" width="w-32" />
+              <SortableHeader field="year" label="Год" />
+              <SortableHeader field="company" label="Компания" filterType="text" />
               <th 
-                className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-300 relative" 
+                className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" 
+                style={{ verticalAlign: 'top', overflow: 'hidden' }}
               >
-                <div className="flex flex-col gap-1 h-full">
-                  <button
-                    onClick={() => handleSort('cfo')}
-                    className="flex items-center gap-1 hover:text-gray-700 transition-colors w-full"
-                  >
-                    <span>ЦФО</span>
-                    {sortField === 'cfo' ? (
-                      sortDirection === 'asc' ? (
-                        <ArrowUp className="w-3 h-3 flex-shrink-0" />
-                      ) : (
-                        <ArrowDown className="w-3 h-3 flex-shrink-0" />
-                      )
-                    ) : (
-                      <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
-                    )}
-                  </button>
-                  <div className="relative cfo-filter-container">
-                    <button
-                      ref={cfoFilterButtonRef}
-                      type="button"
-                      onClick={() => setIsCfoFilterOpen(!isCfoFilterOpen)}
-                      className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded bg-white text-left focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center gap-1 hover:bg-gray-50 h-6"
-                    >
-                      <span className="text-gray-600 truncate flex-1 min-w-0 text-left">
-                        {cfoFilter.size === 0 
-                          ? 'Все' 
-                          : cfoFilter.size === 1
-                          ? (Array.from(cfoFilter)[0] || 'Все')
-                          : `${cfoFilter.size} выбрано`}
-                      </span>
-                      <svg className={`w-3 h-3 transition-transform flex-shrink-0 ${isCfoFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                    {isCfoFilterOpen && cfoFilterPosition && (
-                      <div 
-                        className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden"
-                        style={{
-                          top: `${cfoFilterPosition.top}px`,
-                          left: `${cfoFilterPosition.left}px`,
-                        }}
+                <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                  <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                    <div className="relative cfo-filter-container flex-1">
+                      <button
+                        ref={cfoFilterButtonRef}
+                        type="button"
+                        onClick={() => setIsCfoFilterOpen(!isCfoFilterOpen)}
+                        className="w-full text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-left focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center gap-1 hover:bg-gray-50"
+                        style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
                       >
-                        <div className="p-2 border-b border-gray-200">
-                          <div className="relative">
-                            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
-                            <input
-                              type="text"
-                              value={cfoSearchQuery}
-                              onChange={(e) => {
-                                e.stopPropagation();
-                                setCfoSearchQuery(e.target.value);
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                              onFocus={(e) => e.stopPropagation()}
-                              className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                              placeholder="Поиск..."
-                            />
+                        <span className="text-gray-600 truncate flex-1 min-w-0 text-left">
+                          {cfoFilter.size === 0 
+                            ? 'Все' 
+                            : cfoFilter.size === 1
+                            ? (Array.from(cfoFilter)[0] || 'Все')
+                            : `${cfoFilter.size} выбрано`}
+                        </span>
+                        <svg className={`w-3 h-3 transition-transform flex-shrink-0 ${isCfoFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      {isCfoFilterOpen && cfoFilterPosition && (
+                        <div 
+                          className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden"
+                          style={{
+                            top: `${cfoFilterPosition.top}px`,
+                            left: `${cfoFilterPosition.left}px`,
+                          }}
+                        >
+                          <div className="p-2 border-b border-gray-200">
+                            <div className="relative">
+                              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
+                              <input
+                                type="text"
+                                value={cfoSearchQuery}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  setCfoSearchQuery(e.target.value);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                onFocus={(e) => e.stopPropagation()}
+                                className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                placeholder="Поиск..."
+                              />
+                            </div>
+                          </div>
+                          <div className="p-2 border-b border-gray-200 flex gap-2">
+                            <button
+                              onClick={() => handleCfoSelectAll()}
+                              className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                            >
+                              Все
+                            </button>
+                            <button
+                              onClick={() => handleCfoDeselectAll()}
+                              className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                            >
+                              Снять
+                            </button>
+                          </div>
+                          <div className="max-h-48 overflow-y-auto">
+                            {getFilteredCfoOptions.length === 0 ? (
+                              <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
+                            ) : (
+                              getFilteredCfoOptions.map((cfo) => (
+                                <label
+                                  key={cfo}
+                                  className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={cfoFilter.has(cfo)}
+                                    onChange={() => handleCfoToggle(cfo)}
+                                    className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                                  />
+                                  <span className="ml-2 text-xs text-gray-700 flex-1">{cfo}</span>
+                                </label>
+                              ))
+                            )}
                           </div>
                         </div>
-                        <div className="p-2 border-b border-gray-200 flex gap-2">
-                          <button
-                            onClick={() => handleCfoSelectAll()}
-                            className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                          >
-                            Все
-                          </button>
-                          <button
-                            onClick={() => handleCfoDeselectAll()}
-                            className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
-                          >
-                            Снять
-                          </button>
-                        </div>
-                        <div className="max-h-48 overflow-y-auto">
-                          {getFilteredCfoOptions.length === 0 ? (
-                            <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
-                          ) : (
-                            getFilteredCfoOptions.map((cfo) => (
-                              <label
-                                key={cfo}
-                                className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={cfoFilter.has(cfo)}
-                                  onChange={() => handleCfoToggle(cfo)}
-                                  className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
-                                />
-                                <span className="ml-2 text-xs text-gray-700 flex-1">{cfo}</span>
-                              </label>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 min-h-[20px]">
+                    <button
+                      onClick={() => handleSort('cfo')}
+                      className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                      style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                    >
+                      {sortField === 'cfo' ? (
+                        sortDirection === 'asc' ? (
+                          <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                        ) : (
+                          <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                      )}
+                    </button>
+                    <span className="uppercase text-xs font-medium text-gray-500 tracking-wider">ЦФО</span>
                   </div>
                 </div>
               </th>
-              <SortableHeader field="purchaseSubject" label="Предмет закупки" width="w-48" />
-              <SortableHeader field="budgetAmount" label="Бюджет (UZS)" width="w-28" />
-              <SortableHeader field="contractEndDate" label="Срок окончания договора" width="w-32" />
-              <SortableHeader field="requestDate" label="Дата заявки" width="w-28" />
-              <SortableHeader field="newContractDate" label="Дата нового договора" width="w-32" />
+              <SortableHeader field="purchaseSubject" label="Предмет закупки" filterType="text" />
+              <SortableHeader field="budgetAmount" label="Бюджет (UZS)" />
+              <SortableHeader field="contractEndDate" label="Срок окончания договора" />
+              <SortableHeader field="requestDate" label="Дата заявки" />
+              <SortableHeader field="newContractDate" label="Дата нового договора" />
               <th className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300" style={{ width: '350px', minWidth: '350px' }}>
                 <div className="flex flex-col gap-1">
                   <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}></div>
@@ -711,32 +764,32 @@ export default function PurchasePlanItemsTable() {
                   className="hover:bg-gray-50"
                 >
                   <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200">
-                    {item.year || '-'}
-                  </td>
+                          {item.year || '-'}
+                        </td>
                   <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={item.company || ''}>
-                    {item.company || '-'}
-                  </td>
+                          {item.company || '-'}
+                        </td>
                   <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={item.cfo || ''}>
-                    {item.cfo || '-'}
-                  </td>
+                          {item.cfo || '-'}
+                        </td>
                   <td className="px-2 py-2 text-xs text-gray-900 break-words border-r border-gray-200">
-                    {item.purchaseSubject || '-'}
-                  </td>
+                          {item.purchaseSubject || '-'}
+                        </td>
                   <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200">
-                    {item.budgetAmount ? new Intl.NumberFormat('ru-RU', { 
-                      notation: 'compact',
-                      maximumFractionDigits: 1 
-                    }).format(item.budgetAmount) : '-'}
-                  </td>
+                          {item.budgetAmount ? new Intl.NumberFormat('ru-RU', { 
+                            notation: 'compact',
+                            maximumFractionDigits: 1 
+                          }).format(item.budgetAmount) : '-'}
+                        </td>
                   <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200">
-                    {item.contractEndDate ? new Date(item.contractEndDate).toLocaleDateString('ru-RU') : '-'}
-                  </td>
+                          {item.contractEndDate ? new Date(item.contractEndDate).toLocaleDateString('ru-RU') : '-'}
+                        </td>
                   <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200">
-                    {item.requestDate ? new Date(item.requestDate).toLocaleDateString('ru-RU') : '-'}
-                  </td>
+                          {item.requestDate ? new Date(item.requestDate).toLocaleDateString('ru-RU') : '-'}
+                        </td>
                   <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200">
-                    {item.newContractDate ? new Date(item.newContractDate).toLocaleDateString('ru-RU') : '-'}
-                  </td>
+                          {item.newContractDate ? new Date(item.newContractDate).toLocaleDateString('ru-RU') : '-'}
+                        </td>
                   <td className="px-1 py-1 border-r border-gray-200" style={{ width: '350px', minWidth: '350px' }}>
                     <GanttChart
                       itemId={item.id}
