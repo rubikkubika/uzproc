@@ -109,6 +109,34 @@ export default function PurchasePlanItemsTable() {
   // Состояние для редактирования дат
   const [editingDate, setEditingDate] = useState<{ itemId: number; field: 'requestDate' | 'newContractDate' | 'contractEndDate' } | null>(null);
   
+  // Автоматически открываем календарь при появлении input
+  useEffect(() => {
+    if (editingDate) {
+      // Используем небольшой таймаут для гарантии, что input уже отрендерен
+      setTimeout(() => {
+        // Ищем активный input по data-атрибуту
+        const activeInput = document.querySelector(
+          `input[type="date"][data-editing-date="${editingDate.itemId}-${editingDate.field}"]`
+        ) as HTMLInputElement;
+        
+        if (activeInput) {
+          // Пробуем использовать showPicker() если доступно (современные браузеры)
+          if ('showPicker' in activeInput && typeof (activeInput as any).showPicker === 'function') {
+            try {
+              (activeInput as any).showPicker();
+            } catch (e) {
+              // Если showPicker не поддерживается, используем click()
+              activeInput.click();
+            }
+          } else {
+            // Для старых браузеров используем click()
+            activeInput.click();
+          }
+        }
+      }, 10);
+    }
+  }, [editingDate]);
+  
   // Функция для обновления даты на бэкенде
   const handleDateUpdate = async (itemId: number, field: 'requestDate' | 'newContractDate' | 'contractEndDate', newDate: string) => {
     if (!newDate || newDate.trim() === '') return;
@@ -1094,6 +1122,7 @@ export default function PurchasePlanItemsTable() {
                     {editingDate?.itemId === item.id && editingDate?.field === 'contractEndDate' ? (
                       <input
                         type="date"
+                        data-editing-date={`${item.id}-contractEndDate`}
                         autoFocus
                         defaultValue={item.contractEndDate ? item.contractEndDate.split('T')[0] : ''}
                         onChange={(e) => {
@@ -1126,6 +1155,7 @@ export default function PurchasePlanItemsTable() {
                     {editingDate?.itemId === item.id && editingDate?.field === 'requestDate' ? (
                       <input
                         type="date"
+                        data-editing-date={`${item.id}-requestDate`}
                         autoFocus
                         min={item.year ? `${item.year - 1}-12-01` : undefined}
                         max={item.year ? `${item.year}-12-31` : undefined}
@@ -1168,6 +1198,7 @@ export default function PurchasePlanItemsTable() {
                     {editingDate?.itemId === item.id && editingDate?.field === 'newContractDate' ? (
                       <input
                         type="date"
+                        data-editing-date={`${item.id}-newContractDate`}
                         autoFocus
                         min={item.year ? `${item.year}-01-01` : undefined}
                         max={item.year ? `${item.year}-12-31` : undefined}
