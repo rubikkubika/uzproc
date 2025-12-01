@@ -249,6 +249,43 @@ export default function PurchasePlanItemsTable() {
   const getColumnWidth = (columnKey: string): number => {
     return columnWidths[columnKey] || getDefaultColumnWidth(columnKey);
   };
+
+  // Функция для подсчета количества закупок по месяцам
+  const getMonthlyDistribution = useMemo(() => {
+    if (!data?.content || data.content.length === 0) {
+      return Array(13).fill(0);
+    }
+
+    // Определяем год для отображения (используем selectedYear или год из первой записи)
+    const displayYear = selectedYear || data.content[0]?.year || new Date().getFullYear();
+    const prevYear = displayYear - 1;
+
+    // Инициализируем массив для 13 месяцев: декабрь предыдущего года + 12 месяцев текущего года
+    const monthCounts = Array(13).fill(0);
+    
+    // Месяцы: [Дек пред.года, Янв, Фев, Мар, Апр, Май, Июн, Июл, Авг, Сен, Окт, Ноя, Дек]
+    data.content.forEach((item) => {
+      if (!item.requestDate) return;
+      
+      const requestDate = new Date(item.requestDate);
+      const itemYear = requestDate.getFullYear();
+      const itemMonth = requestDate.getMonth(); // 0-11
+      
+      // Проверяем, попадает ли дата в период отображения
+      if (itemYear === prevYear && itemMonth === 11) {
+        // Декабрь предыдущего года
+        monthCounts[0]++;
+      } else if (itemYear === displayYear) {
+        // Месяцы текущего года (0-11 -> индексы 1-12)
+        monthCounts[itemMonth + 1]++;
+      }
+    });
+
+    return monthCounts;
+  }, [data?.content, selectedYear]);
+
+  // Максимальное значение для нормализации высоты столбцов
+  const maxCount = Math.max(...getMonthlyDistribution, 1);
   
   // Обработчик начала изменения размера
   const handleResizeStart = useCallback((e: React.MouseEvent, columnKey: string) => {
@@ -963,13 +1000,51 @@ export default function PurchasePlanItemsTable() {
                   <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}></div>
                   <div className="flex items-center gap-1 min-h-[20px]">
                     <div style={{ width: '20px', minWidth: '20px', flexShrink: 0 }}></div>
-                    <span className="text-xs font-medium text-gray-500 tracking-wider">Гант</span>
+                    {/* Столбчатая диаграмма распределения по месяцам */}
+                    <div className="flex-1 flex items-end gap-0.5 h-16 px-1 relative" style={{ minHeight: '64px' }}>
+                      {getMonthlyDistribution.map((count, index) => {
+                        const monthLabels = ['Дек', 'Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+                        const isYearDivider = index === 1; // После декабря предыдущего года
+                        const heightPercent = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                        
+                  return (
+                          <div key={index} className="flex-1 flex flex-col items-center gap-0.5 relative" style={{ minWidth: 0 }}>
+                            {/* Столбец */}
+                            <div 
+                              className="w-full bg-blue-500 rounded-t hover:bg-blue-600 transition-colors relative group cursor-pointer"
+                              style={{ 
+                                height: `${Math.max(heightPercent, count > 0 ? 5 : 0)}%`,
+                                minHeight: count > 0 ? '4px' : '0px'
+                              }}
+                              title={`${monthLabels[index]}: ${count} закупок`}
+                            >
+                              {/* Число на столбце (показываем только если столбец достаточно высокий) */}
+                              {count > 0 && heightPercent > 15 && (
+                                <div className="absolute -top-5 left-1/2 transform -translate-x-1/2 text-[8px] text-gray-600 font-medium whitespace-nowrap pointer-events-none">
+                                  {count}
+                                </div>
+                              )}
+                            </div>
+                            {/* Подпись месяца */}
+                            <div className={`text-[8px] text-center ${isYearDivider ? 'font-bold text-gray-800 border-l-2 border-gray-700 pl-0.5' : 'text-gray-500'}`} style={{ lineHeight: '1' }}>
+                              {monthLabels[index]}
+                            </div>
+                            {/* Показываем число под столбцом, если столбец слишком низкий */}
+                            {count > 0 && heightPercent <= 15 && (
+                              <div className="text-[7px] text-gray-600 font-medium -mt-0.5">
+                                {count}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
                     </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-white divide-y divide-gray-200 border-t-2 border-gray-400">
             {hasData ? (
               data?.content.map((item) => (
                 <tr 
