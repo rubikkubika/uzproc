@@ -33,6 +33,7 @@ export default function GanttChart({
   const containerRef = useRef<HTMLDivElement>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [tempDates, setTempDates] = useState<{ requestDate: string | null; newContractDate: string | null } | null>(null);
+  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Получаем год для расчетов
   const currentYear = year || new Date().getFullYear();
@@ -45,16 +46,19 @@ export default function GanttChart({
     ? new Date(tempDates.newContractDate) 
     : (newContractDate ? new Date(newContractDate) : null);
 
-  // Вычисляем позицию и ширину полосы
+  // Вычисляем позицию и ширину полосы на основе дат
   const getBarPosition = () => {
     if (!startDate || !endDate) return { left: 0, width: 0 };
 
-    const yearStart = new Date(currentYear, 0, 1);
-    const yearEnd = new Date(currentYear, 11, 31);
+    // Используем начало и конец года (00:00:00 1 января и 23:59:59.999 31 декабря)
+    // Это должно точно соответствовать расчетам при перетаскивании
+    const yearStart = new Date(currentYear, 0, 1, 0, 0, 0, 0);
+    const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999);
     
-    // Ограничиваем даты рамками года
-    const actualStart = startDate < yearStart ? yearStart : startDate;
-    const actualEnd = endDate > yearEnd ? yearEnd : endDate;
+    // Ограничиваем даты рамками года для отображения
+    // Если дата выходит за рамки года, используем границу года
+    const actualStart = startDate < yearStart ? yearStart : (startDate > yearEnd ? yearEnd : startDate);
+    const actualEnd = endDate > yearEnd ? yearEnd : (endDate < yearStart ? yearStart : endDate);
 
     // Более точный расчет с использованием миллисекунд
     const yearStartTime = yearStart.getTime();
@@ -62,10 +66,14 @@ export default function GanttChart({
     const actualStartTime = actualStart.getTime();
     const actualEndTime = actualEnd.getTime();
     
+    // Вычисляем общее время года в миллисекундах
     const totalTime = yearEndTime - yearStartTime;
+    
+    // Вычисляем смещение от начала года для начала и конца полосы
     const startTime = actualStartTime - yearStartTime;
     const endTime = actualEndTime - yearStartTime;
     
+    // Конвертируем в проценты
     const leftPercent = (startTime / totalTime) * 100;
     const widthPercent = ((endTime - startTime) / totalTime) * 100;
 
@@ -79,11 +87,13 @@ export default function GanttChart({
 
   // Обработчик начала перетаскивания
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (!startDate || !endDate) return;
+    if (!startDate || !endDate || !containerRef.current) return;
     
     e.preventDefault();
     setIsDragging(true);
-    setDragStartX(e.clientX);
+    // Сохраняем позицию мыши относительно контейнера
+    const containerRect = containerRef.current.getBoundingClientRect();
+    setDragStartX(e.clientX - containerRect.left);
     setInitialStartDate(new Date(startDate));
     setInitialEndDate(new Date(endDate));
     setDragOffset(0);
@@ -96,25 +106,26 @@ export default function GanttChart({
     const handleMouseMove = (e: MouseEvent) => {
       if (!containerRef.current || !initialStartDate || !initialEndDate) return;
 
-      const containerWidth = containerRef.current.offsetWidth;
-      const deltaX = e.clientX - dragStartX;
-      const deltaPercent = (deltaX / containerWidth) * 100;
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const containerWidth = containerRect.width;
+      // Вычисляем позицию мыши относительно контейнера
+      const currentMouseX = e.clientX - containerRect.left;
+      const deltaX = currentMouseX - dragStartX;
       
-      // Вычисляем количество дней в году (более точный расчет)
-      const yearStart = new Date(currentYear, 0, 1);
-      const yearEnd = new Date(currentYear, 11, 31);
+      // Вычисляем границы года (используем те же, что и в getBarPosition)
+      const yearStart = new Date(currentYear, 0, 1, 0, 0, 0, 0);
+      const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999);
       const totalTime = yearEnd.getTime() - yearStart.getTime();
-      const totalDays = totalTime / (1000 * 60 * 60 * 24);
       
-      // Конвертируем проценты в дни (более точный расчет)
-      const deltaDays = (deltaPercent / 100) * totalDays;
+      // Преобразуем смещение в пикселях напрямую в миллисекунды
+      // Это более точно, чем через проценты и дни
+      const deltaTime = (deltaX / containerWidth) * totalTime;
       
       // Вычисляем новые даты (более точный расчет)
       const initialStartTime = initialStartDate.getTime();
       const initialEndTime = initialEndDate.getTime();
       const duration = initialEndTime - initialStartTime;
       
-      const deltaTime = deltaDays * (1000 * 60 * 60 * 24);
       const newStartTime = initialStartTime + deltaTime;
       const newEndTime = newStartTime + duration;
       
@@ -123,15 +134,15 @@ export default function GanttChart({
 
       // Ограничиваем даты рамками года
       if (newStartDate < yearStart) {
-        const diff = Math.ceil((yearStart.getTime() - newStartDate.getTime()) / (1000 * 60 * 60 * 24));
-        newStartDate.setDate(newStartDate.getDate() + diff);
-        newEndDate.setDate(newEndDate.getDate() + diff);
+        const diff = yearStart.getTime() - newStartDate.getTime();
+        newStartDate.setTime(yearStart.getTime());
+        newEndDate.setTime(newEndDate.getTime() + diff);
       }
       
       if (newEndDate > yearEnd) {
-        const diff = Math.ceil((newEndDate.getTime() - yearEnd.getTime()) / (1000 * 60 * 60 * 24));
-        newStartDate.setDate(newStartDate.getDate() - diff);
-        newEndDate.setDate(newEndDate.getDate() - diff);
+        const diff = newEndDate.getTime() - yearEnd.getTime();
+        newEndDate.setTime(yearEnd.getTime());
+        newStartDate.setTime(newStartDate.getTime() - diff);
       }
 
       // Форматируем даты для временного отображения
@@ -153,6 +164,43 @@ export default function GanttChart({
         onDatesChange(tempRequestDate, tempNewContractDate);
       }
 
+      // Отправляем обновление на бэкенд с debounce (каждые 300мс)
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+      
+      updateTimeoutRef.current = setTimeout(async () => {
+        setIsUpdating(true);
+        try {
+          console.log('Updating dates on backend:', { itemId, tempRequestDate, tempNewContractDate });
+          const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/dates`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              requestDate: tempRequestDate,
+              newContractDate: tempNewContractDate,
+            }),
+          });
+
+          if (response.ok) {
+            const updatedData = await response.json();
+            console.log('Dates updated successfully on backend:', updatedData);
+            if (onDatesUpdate) {
+              onDatesUpdate(tempRequestDate, tempNewContractDate);
+            }
+          } else {
+            const errorText = await response.text();
+            console.error('Failed to update dates on backend:', response.status, errorText);
+          }
+        } catch (error) {
+          console.error('Error updating dates on backend:', error);
+        } finally {
+          setIsUpdating(false);
+        }
+      }, 300);
+
       setDragOffset(deltaX);
     };
 
@@ -162,25 +210,26 @@ export default function GanttChart({
         return;
       }
 
-      const containerWidth = containerRef.current.offsetWidth;
-      const deltaX = e.clientX - dragStartX;
-      const deltaPercent = (deltaX / containerWidth) * 100;
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const containerWidth = containerRect.width;
+      // Вычисляем позицию мыши относительно контейнера
+      const currentMouseX = e.clientX - containerRect.left;
+      const deltaX = currentMouseX - dragStartX;
       
-      // Вычисляем количество дней в году (более точный расчет)
-      const yearStart = new Date(currentYear, 0, 1);
-      const yearEnd = new Date(currentYear, 11, 31);
+      // Вычисляем границы года (используем те же, что и в getBarPosition)
+      const yearStart = new Date(currentYear, 0, 1, 0, 0, 0, 0);
+      const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999);
       const totalTime = yearEnd.getTime() - yearStart.getTime();
-      const totalDays = totalTime / (1000 * 60 * 60 * 24);
       
-      // Конвертируем проценты в дни (более точный расчет)
-      const deltaDays = (deltaPercent / 100) * totalDays;
+      // Преобразуем смещение в пикселях напрямую в миллисекунды
+      // Это более точно, чем через проценты и дни
+      const deltaTime = (deltaX / containerWidth) * totalTime;
       
       // Вычисляем новые даты (более точный расчет)
       const initialStartTime = initialStartDate.getTime();
       const initialEndTime = initialEndDate.getTime();
       const duration = initialEndTime - initialStartTime;
       
-      const deltaTime = deltaDays * (1000 * 60 * 60 * 24);
       const newStartTime = initialStartTime + deltaTime;
       const newEndTime = newStartTime + duration;
       
@@ -189,15 +238,15 @@ export default function GanttChart({
 
       // Ограничиваем даты рамками года
       if (newStartDate < yearStart) {
-        const diff = Math.ceil((yearStart.getTime() - newStartDate.getTime()) / (1000 * 60 * 60 * 24));
-        newStartDate.setDate(newStartDate.getDate() + diff);
-        newEndDate.setDate(newEndDate.getDate() + diff);
+        const diff = yearStart.getTime() - newStartDate.getTime();
+        newStartDate.setTime(yearStart.getTime());
+        newEndDate.setTime(newEndDate.getTime() + diff);
       }
       
       if (newEndDate > yearEnd) {
-        const diff = Math.ceil((newEndDate.getTime() - yearEnd.getTime()) / (1000 * 60 * 60 * 24));
-        newStartDate.setDate(newStartDate.getDate() - diff);
-        newEndDate.setDate(newEndDate.getDate() - diff);
+        const diff = newEndDate.getTime() - yearEnd.getTime();
+        newEndDate.setTime(yearEnd.getTime());
+        newStartDate.setTime(newStartDate.getTime() - diff);
       }
 
       // Форматируем даты для отправки
@@ -211,9 +260,16 @@ export default function GanttChart({
       const newRequestDate = formatDate(newStartDate);
       const newContractDate = formatDate(newEndDate);
 
-      // Отправляем обновление на сервер
+      // Отменяем pending обновление, если оно есть
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+        updateTimeoutRef.current = null;
+      }
+
+      // Отправляем финальное обновление на бэкенд
       setIsUpdating(true);
       try {
+        console.log('Final update dates on backend:', { itemId, newRequestDate, newContractDate });
         const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/dates`, {
           method: 'PATCH',
           headers: {
@@ -226,14 +282,17 @@ export default function GanttChart({
         });
 
         if (response.ok) {
+          const updatedData = await response.json();
+          console.log('Final dates updated successfully on backend:', updatedData);
           if (onDatesUpdate) {
             onDatesUpdate(newRequestDate, newContractDate);
           }
         } else {
-          console.error('Failed to update dates');
+          const errorText = await response.text();
+          console.error('Failed to update final dates on backend:', response.status, errorText);
         }
       } catch (error) {
-        console.error('Error updating dates:', error);
+        console.error('Error updating final dates on backend:', error);
       } finally {
         setIsUpdating(false);
       }
@@ -250,6 +309,10 @@ export default function GanttChart({
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      // Очищаем timeout при размонтировании
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
     };
   }, [isDragging, dragStartX, initialStartDate, initialEndDate, currentYear, itemId, onDatesUpdate, onDatesChange]);
 

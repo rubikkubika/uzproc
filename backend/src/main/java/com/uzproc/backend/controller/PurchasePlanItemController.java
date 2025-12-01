@@ -43,5 +43,16 @@ public class PurchasePlanItemController {
         }
         return ResponseEntity.notFound().build();
     }
+
+    @PatchMapping("/{id}/dates")
+    public ResponseEntity<PurchasePlanItemDto> updatePurchasePlanItemDates(
+            @PathVariable Long id,
+            @RequestBody PurchasePlanItemDto dto) {
+        PurchasePlanItemDto updatedItem = purchasePlanItemService.updateDates(id, dto.getRequestDate(), dto.getNewContractDate());
+        if (updatedItem != null) {
+            return ResponseEntity.ok(updatedItem);
+        }
+        return ResponseEntity.notFound().build();
+    }
 }
 

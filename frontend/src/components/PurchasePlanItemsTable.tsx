@@ -95,6 +95,99 @@ export default function PurchasePlanItemsTable() {
   // ID активного поля для восстановления фокуса
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
+  // Состояние для ширин колонок
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const [isResizing, setIsResizing] = useState<string | null>(null);
+  const resizeStartX = useRef<number>(0);
+  const resizeStartWidth = useRef<number>(0);
+  const resizeColumn = useRef<string | null>(null);
+
+  // Состояние для временных дат при перетаскивании Ганта
+  const [tempDates, setTempDates] = useState<Record<number, { requestDate: string | null; newContractDate: string | null }>>({});
+  const [animatingDates, setAnimatingDates] = useState<Record<number, boolean>>({});
+
+  // Загружаем сохраненные ширины колонок из localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('purchasePlanItemsTableColumnWidths');
+      if (saved) {
+        const widths = JSON.parse(saved);
+        setColumnWidths(widths);
+      }
+    } catch (err) {
+      console.error('Error loading column widths:', err);
+    }
+  }, []);
+
+  // Сохраняем ширины колонок в localStorage
+  const saveColumnWidths = useCallback((widths: Record<string, number>) => {
+    try {
+      localStorage.setItem('purchasePlanItemsTableColumnWidths', JSON.stringify(widths));
+    } catch (err) {
+      console.error('Error saving column widths:', err);
+    }
+  }, []);
+
+  // Функция для получения ширины колонки по умолчанию
+  const getDefaultColumnWidth = (columnKey: string): number => {
+    const defaults: Record<string, number> = {
+      year: 64, // w-16 = 4rem = 64px
+      company: 128, // w-32 = 8rem = 128px
+      cfo: 128, // w-32 = 8rem = 128px
+      purchaseSubject: 192, // w-48 = 12rem = 192px
+      budgetAmount: 112, // w-28 = 7rem = 112px
+      contractEndDate: 128, // w-32 = 8rem = 128px
+      requestDate: 112, // w-28 = 7rem = 112px
+      newContractDate: 128, // w-32 = 8rem = 128px
+    };
+    return defaults[columnKey] || 120;
+  };
+
+  // Функция для получения текущей ширины колонки
+  const getColumnWidth = (columnKey: string): number => {
+    return columnWidths[columnKey] || getDefaultColumnWidth(columnKey);
+  };
+
+  // Обработчик начала изменения размера
+  const handleResizeStart = useCallback((e: React.MouseEvent, columnKey: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsResizing(columnKey);
+    resizeColumn.current = columnKey;
+    resizeStartX.current = e.clientX;
+    const currentWidth = columnWidths[columnKey] || getDefaultColumnWidth(columnKey);
+    resizeStartWidth.current = currentWidth;
+  }, [columnWidths]);
+
+  // Обработчик изменения размера
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!resizeColumn.current) return;
+      const diff = e.clientX - resizeStartX.current;
+      const newWidth = Math.max(50, resizeStartWidth.current + diff); // Минимальная ширина 50px
+      setColumnWidths(prev => {
+        const updated = { ...prev, [resizeColumn.current!]: newWidth };
+        saveColumnWidths(updated);
+        return updated;
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(null);
+      resizeColumn.current = null;
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, saveColumnWidths]);
+
   // Загружаем общее количество записей без фильтров
   useEffect(() => {
     const fetchTotalRecords = async () => {
@@ -414,19 +507,25 @@ export default function PurchasePlanItemsTable() {
     field, 
     label, 
     filterType = 'text',
-    width
+    width,
+    columnKey
   }: { 
     field: string | null; 
     label: string;
     filterType?: 'text' | 'select';
     width?: string;
+    columnKey?: string;
   }) => {
     const isSorted = sortField === field;
     const fieldKey = field || '';
     const filterValue = filterType === 'text' ? (localFilters[fieldKey] || '') : (filters[fieldKey] || '');
+    const columnWidth = columnKey ? getColumnWidth(columnKey) : undefined;
+    const style: React.CSSProperties = columnWidth 
+      ? { width: `${columnWidth}px`, minWidth: `${columnWidth}px`, maxWidth: `${columnWidth}px`, verticalAlign: 'top', overflow: 'hidden' }
+      : { verticalAlign: 'top', overflow: 'hidden' };
 
     return (
-      <th className={`px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 ${width || ''}`} style={{ verticalAlign: 'top', overflow: 'hidden' }}>
+      <th className={`px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${width || ''}`} style={style}>
         <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
           <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
             {filterType === 'text' ? (
@@ -504,6 +603,13 @@ export default function PurchasePlanItemsTable() {
             <span className={`text-xs font-medium text-gray-500 tracking-wider ${label === 'ЦФО' ? 'uppercase' : ''}`}>{label}</span>
           </div>
         </div>
+        {columnKey && (
+          <div
+            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+            onMouseDown={(e) => handleResizeStart(e, columnKey)}
+            style={{ zIndex: 10 }}
+          />
+        )}
       </th>
     );
   };
@@ -630,11 +736,11 @@ export default function PurchasePlanItemsTable() {
         <table className="w-full border-collapse">
           <thead className="bg-gray-50">
             <tr>
-              <SortableHeader field="year" label="Год" />
-              <SortableHeader field="company" label="Компания" filterType="text" />
+              <SortableHeader field="year" label="Год" columnKey="year" />
+              <SortableHeader field="company" label="Компания" filterType="text" columnKey="company" />
               <th 
                 className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" 
-                style={{ verticalAlign: 'top', overflow: 'hidden' }}
+                style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px`, verticalAlign: 'top', overflow: 'hidden' }}
               >
                 <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                   <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
@@ -739,12 +845,17 @@ export default function PurchasePlanItemsTable() {
                     <span className="uppercase text-xs font-medium text-gray-500 tracking-wider">ЦФО</span>
                   </div>
                 </div>
+                <div
+                  className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+                  onMouseDown={(e) => handleResizeStart(e, 'cfo')}
+                  style={{ zIndex: 10 }}
+                />
               </th>
-              <SortableHeader field="purchaseSubject" label="Предмет закупки" filterType="text" />
-              <SortableHeader field="budgetAmount" label="Бюджет (UZS)" />
-              <SortableHeader field="contractEndDate" label="Срок окончания договора" />
-              <SortableHeader field="requestDate" label="Дата заявки" />
-              <SortableHeader field="newContractDate" label="Дата нового договора" />
+              <SortableHeader field="purchaseSubject" label="Предмет закупки" filterType="text" columnKey="purchaseSubject" />
+              <SortableHeader field="budgetAmount" label="Бюджет (UZS)" columnKey="budgetAmount" />
+              <SortableHeader field="contractEndDate" label="Срок окончания договора" columnKey="contractEndDate" />
+              <SortableHeader field="requestDate" label="Дата заявки" columnKey="requestDate" />
+              <SortableHeader field="newContractDate" label="Дата нового договора" columnKey="newContractDate" />
               <th className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300" style={{ width: '350px', minWidth: '350px' }}>
                 <div className="flex flex-col gap-1">
                   <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}></div>
@@ -763,41 +874,87 @@ export default function PurchasePlanItemsTable() {
                   key={item.id} 
                   className="hover:bg-gray-50"
                 >
-                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200">
-                          {item.year || '-'}
-                        </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={item.company || ''}>
-                          {item.company || '-'}
-                        </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={item.cfo || ''}>
-                          {item.cfo || '-'}
-                        </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 break-words border-r border-gray-200">
-                          {item.purchaseSubject || '-'}
-                        </td>
-                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200">
-                          {item.budgetAmount ? new Intl.NumberFormat('ru-RU', { 
-                            notation: 'compact',
-                            maximumFractionDigits: 1 
-                          }).format(item.budgetAmount) : '-'}
-                        </td>
-                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200">
-                          {item.contractEndDate ? new Date(item.contractEndDate).toLocaleDateString('ru-RU') : '-'}
-                        </td>
-                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200">
-                          {item.requestDate ? new Date(item.requestDate).toLocaleDateString('ru-RU') : '-'}
-                        </td>
-                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200">
-                          {item.newContractDate ? new Date(item.newContractDate).toLocaleDateString('ru-RU') : '-'}
-                        </td>
+                  <td 
+                    className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
+                    style={{ width: `${getColumnWidth('year')}px`, minWidth: `${getColumnWidth('year')}px`, maxWidth: `${getColumnWidth('year')}px` }}
+                  >
+                    {item.year || '-'}
+                  </td>
+                  <td 
+                    className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" 
+                    title={item.company || ''}
+                    style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px` }}
+                  >
+                    {item.company || '-'}
+                  </td>
+                  <td 
+                    className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" 
+                    title={item.cfo || ''}
+                    style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px` }}
+                  >
+                    {item.cfo || '-'}
+                  </td>
+                  <td 
+                    className="px-2 py-2 text-xs text-gray-900 break-words border-r border-gray-200"
+                    style={{ width: `${getColumnWidth('purchaseSubject')}px`, minWidth: `${getColumnWidth('purchaseSubject')}px`, maxWidth: `${getColumnWidth('purchaseSubject')}px` }}
+                  >
+                    {item.purchaseSubject || '-'}
+                  </td>
+                  <td 
+                    className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
+                    style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px` }}
+                  >
+                    {item.budgetAmount ? new Intl.NumberFormat('ru-RU', { 
+                      notation: 'compact',
+                      maximumFractionDigits: 1 
+                    }).format(item.budgetAmount) : '-'}
+                  </td>
+                  <td 
+                    className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
+                    style={{ width: `${getColumnWidth('contractEndDate')}px`, minWidth: `${getColumnWidth('contractEndDate')}px`, maxWidth: `${getColumnWidth('contractEndDate')}px` }}
+                  >
+                    {item.contractEndDate ? new Date(item.contractEndDate).toLocaleDateString('ru-RU') : '-'}
+                  </td>
+                  <td 
+                    className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${
+                      animatingDates[item.id] ? 'animate-pulse bg-blue-50 text-blue-700 font-semibold' : 'text-gray-900'
+                    }`}
+                    style={{ width: `${getColumnWidth('requestDate')}px`, minWidth: `${getColumnWidth('requestDate')}px`, maxWidth: `${getColumnWidth('requestDate')}px` }}
+                  >
+                    {tempDates[item.id]?.requestDate 
+                      ? new Date(tempDates[item.id].requestDate).toLocaleDateString('ru-RU')
+                      : (item.requestDate ? new Date(item.requestDate).toLocaleDateString('ru-RU') : '-')}
+                  </td>
+                  <td 
+                    className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${
+                      animatingDates[item.id] ? 'animate-pulse bg-blue-50 text-blue-700 font-semibold' : 'text-gray-900'
+                    }`}
+                    style={{ width: `${getColumnWidth('newContractDate')}px`, minWidth: `${getColumnWidth('newContractDate')}px`, maxWidth: `${getColumnWidth('newContractDate')}px` }}
+                  >
+                    {tempDates[item.id]?.newContractDate 
+                      ? new Date(tempDates[item.id].newContractDate).toLocaleDateString('ru-RU')
+                      : (item.newContractDate ? new Date(item.newContractDate).toLocaleDateString('ru-RU') : '-')}
+                  </td>
                   <td className="px-1 py-1 border-r border-gray-200" style={{ width: '350px', minWidth: '350px' }}>
                     <GanttChart
                       itemId={item.id}
                       year={item.year}
                       requestDate={item.requestDate}
                       newContractDate={item.newContractDate}
+                      onDatesChange={(requestDate, newContractDate) => {
+                        // Обновляем временные даты при перетаскивании
+                        setTempDates(prev => ({
+                          ...prev,
+                          [item.id]: { requestDate, newContractDate }
+                        }));
+                        // Запускаем анимацию
+                        setAnimatingDates(prev => ({
+                          ...prev,
+                          [item.id]: true
+                        }));
+                      }}
                       onDatesUpdate={(requestDate, newContractDate) => {
-                        // Обновляем данные в таблице
+                        // Обновляем данные в таблице после завершения перетаскивания
                         if (data) {
                           const updatedContent = data.content.map(i => 
                             i.id === item.id 
@@ -806,6 +963,20 @@ export default function PurchasePlanItemsTable() {
                           );
                           setData({ ...data, content: updatedContent });
                         }
+                        // Убираем временные даты
+                        setTempDates(prev => {
+                          const newTemp = { ...prev };
+                          delete newTemp[item.id];
+                          return newTemp;
+                        });
+                        // Останавливаем анимацию через небольшую задержку
+                        setTimeout(() => {
+                          setAnimatingDates(prev => {
+                            const newAnimating = { ...prev };
+                            delete newAnimating[item.id];
+                            return newAnimating;
+                          });
+                        }, 500);
                       }}
                     />
                   </td>

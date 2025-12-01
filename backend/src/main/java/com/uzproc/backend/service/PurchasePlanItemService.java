@@ -70,6 +70,20 @@ public class PurchasePlanItemService {
         return toDto(item);
     }
 
+    @Transactional
+    public PurchasePlanItemDto updateDates(Long id, LocalDate requestDate, LocalDate newContractDate) {
+        return purchasePlanItemRepository.findById(id)
+                .map(item -> {
+                    item.setRequestDate(requestDate);
+                    item.setNewContractDate(newContractDate);
+                    PurchasePlanItem saved = purchasePlanItemRepository.save(item);
+                    logger.info("Updated dates for purchase plan item {}: requestDate={}, newContractDate={}", 
+                            id, requestDate, newContractDate);
+                    return toDto(saved);
+                })
+                .orElse(null);
+    }
+
     /**
      * Конвертирует PurchasePlanItem entity в PurchasePlanItemDto
      */
