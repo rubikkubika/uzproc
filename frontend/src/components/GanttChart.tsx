@@ -10,6 +10,7 @@ interface GanttChartProps {
   newContractDate: string | null;
   onDatesUpdate?: (requestDate: string, newContractDate: string) => void;
   onDatesChange?: (requestDate: string, newContractDate: string) => void; // Для временных изменений во время перетаскивания
+  onDragStart?: () => void; // Вызывается при начале перетаскивания
 }
 
 const MONTHS = [
@@ -23,7 +24,8 @@ export default function GanttChart({
   requestDate, 
   newContractDate,
   onDatesUpdate,
-  onDatesChange
+  onDatesChange,
+  onDragStart
 }: GanttChartProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartX, setDragStartX] = useState(0);
@@ -90,6 +92,12 @@ export default function GanttChart({
     if (!startDate || !endDate || !containerRef.current) return;
     
     e.preventDefault();
+    
+    // Закрываем режим редактирования даты, если он открыт
+    if (onDragStart) {
+      onDragStart();
+    }
+    
     setIsDragging(true);
     // Сохраняем позицию мыши относительно контейнера
     const containerRect = containerRef.current.getBoundingClientRect();

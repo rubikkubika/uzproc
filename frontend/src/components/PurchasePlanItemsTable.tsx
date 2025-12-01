@@ -1074,6 +1074,12 @@ export default function PurchasePlanItemsTable() {
                       year={item.year}
                       requestDate={item.requestDate}
                       newContractDate={item.newContractDate}
+                      onDragStart={() => {
+                        // Закрываем режим редактирования даты при начале перетаскивания Ганта
+                        if (editingDate?.itemId === item.id) {
+                          setEditingDate(null);
+                        }
+                      }}
                       onDatesChange={(requestDate, newContractDate) => {
                         // Обновляем временные даты при перетаскивании
                         setTempDates(prev => ({
