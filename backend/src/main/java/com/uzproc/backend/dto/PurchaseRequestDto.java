@@ -19,6 +19,7 @@ public class PurchaseRequestDto {
     private String cfo;
     private String mcc;
     private String purchaseRequestInitiator;
+    private String purchaser;
     private String purchaseRequestSubject;
     private BigDecimal budgetAmount;
     private String costType;
@@ -131,6 +132,14 @@ public class PurchaseRequestDto {
 
     public void setPurchaseRequestInitiator(String purchaseRequestInitiator) {
         this.purchaseRequestInitiator = purchaseRequestInitiator;
+    }
+
+    public String getPurchaser() {
+        return purchaser;
+    }
+
+    public void setPurchaser(String purchaser) {
+        this.purchaser = purchaser;
     }
 
     public String getPurchaseRequestSubject() {

@@ -1,6 +1,7 @@
 package com.uzproc.backend.service;
 
 import com.uzproc.backend.dto.PurchaseRequestDto;
+import com.uzproc.backend.dto.PurchaserStatsDto;
 import com.uzproc.backend.entity.PurchaseRequest;
 import com.uzproc.backend.entity.PurchaseRequestApproval;
 import com.uzproc.backend.entity.PurchaseRequestStatus;
@@ -19,8 +20,13 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @Transactional(readOnly = true)
@@ -114,6 +120,7 @@ public class PurchaseRequestService {
         dto.setCfo(entity.getCfo());
         dto.setMcc(entity.getMcc());
         dto.setPurchaseRequestInitiator(entity.getPurchaseRequestInitiator());
+        dto.setPurchaser(entity.getPurchaser());
         dto.setPurchaseRequestSubject(entity.getPurchaseRequestSubject());
         dto.setBudgetAmount(entity.getBudgetAmount());
         dto.setCostType(entity.getCostType());
@@ -382,8 +389,8 @@ public class PurchaseRequestService {
                     logger.debug("Found active final approval for request {}: stage={}, role={}", 
                         idPurchaseRequest, stage, approval.getRole());
                 } else {
-                    hasActiveApproval = true;
-                    logger.debug("Found active approval for request {}: stage={}, role={}", 
+                hasActiveApproval = true;
+                logger.debug("Found active approval for request {}: stage={}, role={}", 
                         idPurchaseRequest, stage, approval.getRole());
                 }
             }
@@ -419,6 +426,139 @@ public class PurchaseRequestService {
         } else {
             logger.debug("Status for request {} already set to: {}", idPurchaseRequest, newStatus.getDisplayName());
         }
+    }
+
+    /**
+     * Получить статистику по закупщикам для закупок (requiresPurchase != false)
+     */
+    public List<PurchaserStatsDto> getPurchasesStatsByPurchaser(Integer year) {
+        List<PurchaseRequest> allRequests;
+        
+        if (year != null) {
+            // Фильтруем по году
+            LocalDateTime startOfYear = LocalDateTime.of(year, 1, 1, 0, 0);
+            LocalDateTime endOfYear = LocalDateTime.of(year, 12, 31, 23, 59, 59);
+            Specification<PurchaseRequest> yearSpec = (root, query, cb) -> 
+                cb.between(root.get("purchaseRequestCreationDate"), startOfYear, endOfYear);
+            allRequests = purchaseRequestRepository.findAll(yearSpec);
+            logger.debug("Filtering purchases by year {}: found {} requests", year, allRequests.size());
+        } else {
+            allRequests = purchaseRequestRepository.findAll();
+            logger.debug("Loading all purchases: found {} requests", allRequests.size());
+        }
+        
+        // Фильтруем только закупки (requiresPurchase != false)
+        List<PurchaseRequest> purchases = allRequests.stream()
+            .filter(pr -> pr.getRequiresPurchase() != null && pr.getRequiresPurchase() != false)
+            .filter(pr -> pr.getPurchaser() != null && !pr.getPurchaser().trim().isEmpty())
+            .collect(Collectors.toList());
+        
+        logger.debug("Filtered purchases (requiresPurchase != false): {} requests", purchases.size());
+        return calculateStatsByPurchaser(purchases);
+    }
+
+    /**
+     * Получить статистику по закупщикам для заказов (requiresPurchase == false)
+     */
+    public List<PurchaserStatsDto> getOrdersStatsByPurchaser(Integer year) {
+        List<PurchaseRequest> allRequests;
+        
+        if (year != null) {
+            // Фильтруем по году
+            LocalDateTime startOfYear = LocalDateTime.of(year, 1, 1, 0, 0);
+            LocalDateTime endOfYear = LocalDateTime.of(year, 12, 31, 23, 59, 59);
+            Specification<PurchaseRequest> yearSpec = (root, query, cb) -> 
+                cb.between(root.get("purchaseRequestCreationDate"), startOfYear, endOfYear);
+            allRequests = purchaseRequestRepository.findAll(yearSpec);
+            logger.debug("Filtering orders by year {}: found {} requests", year, allRequests.size());
+        } else {
+            allRequests = purchaseRequestRepository.findAll();
+            logger.debug("Loading all orders: found {} requests", allRequests.size());
+        }
+        
+        // Фильтруем только заказы (requiresPurchase == false)
+        List<PurchaseRequest> orders = allRequests.stream()
+            .filter(pr -> pr.getRequiresPurchase() != null && pr.getRequiresPurchase() == false)
+            .filter(pr -> pr.getPurchaser() != null && !pr.getPurchaser().trim().isEmpty())
+            .collect(Collectors.toList());
+        
+        logger.debug("Filtered orders (requiresPurchase == false): {} requests", orders.size());
+        return calculateStatsByPurchaser(orders);
+    }
+
+    /**
+     * Рассчитать статистику по закупщикам
+     */
+    private List<PurchaserStatsDto> calculateStatsByPurchaser(List<PurchaseRequest> requests) {
+        Map<String, StatsData> statsMap = new HashMap<>();
+        
+        for (PurchaseRequest pr : requests) {
+            String purchaser = pr.getPurchaser() != null ? pr.getPurchaser().trim() : "Не назначен";
+            if (purchaser.isEmpty()) {
+                purchaser = "Не назначен";
+            }
+            
+            StatsData stats = statsMap.computeIfAbsent(purchaser, k -> new StatsData());
+            stats.total++;
+            
+            // Определяем статус
+            PurchaseRequestStatus status = pr.getStatus();
+            if (status == PurchaseRequestStatus.APPROVED || status == PurchaseRequestStatus.COORDINATED) {
+                stats.completed++;
+            } else if (status != null && status != PurchaseRequestStatus.NOT_COORDINATED && status != PurchaseRequestStatus.NOT_APPROVED) {
+                stats.active++;
+            }
+            
+            // Сумма
+            if (pr.getBudgetAmount() != null) {
+                stats.totalAmount = stats.totalAmount.add(pr.getBudgetAmount());
+            }
+            
+            // Дни согласования (если есть дата создания)
+            if (pr.getPurchaseRequestCreationDate() != null && pr.getUpdatedAt() != null) {
+                Duration duration = Duration.between(pr.getPurchaseRequestCreationDate(), pr.getUpdatedAt());
+                long days = duration.toDays();
+                if (days > 0) {
+                    stats.totalDays += days;
+                    stats.requestsWithDays++;
+                }
+            }
+        }
+        
+        // Конвертируем в DTO
+        return statsMap.entrySet().stream()
+            .map(entry -> {
+                StatsData data = entry.getValue();
+                long averageDays = data.requestsWithDays > 0 
+                    ? data.totalDays / data.requestsWithDays 
+                    : 0;
+                
+                return new PurchaserStatsDto(
+                    entry.getKey(),
+                    data.total,
+                    data.active,
+                    data.completed,
+                    averageDays,
+                    data.totalAmount
+                );
+            })
+            .sorted((a, b) -> Long.compare(
+                (b.getActivePurchases() + b.getTotalPurchases()),
+                (a.getActivePurchases() + a.getTotalPurchases())
+            ))
+            .collect(Collectors.toList());
+    }
+    
+    /**
+     * Вспомогательный класс для хранения статистики
+     */
+    private static class StatsData {
+        long total = 0;
+        long active = 0;
+        long completed = 0;
+        long totalDays = 0;
+        long requestsWithDays = 0;
+        BigDecimal totalAmount = BigDecimal.ZERO;
     }
 }
 

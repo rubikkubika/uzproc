@@ -31,9 +31,15 @@ export async function GET(request: Request) {
     // Проверка существования файла
     if (!fs.existsSync(filePath)) {
       console.error('File not found at:', filePath);
+      // Возвращаем пустой массив вместо 404, чтобы фронтенд мог работать
       return NextResponse.json(
-        { error: 'CSV file not found', path: filePath },
-        { status: 404 }
+        [],
+        { 
+          status: 200,
+          headers: {
+            'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+          },
+        }
       );
     }
 

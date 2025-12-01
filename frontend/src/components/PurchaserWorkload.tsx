@@ -3,6 +3,32 @@
 import { useState, useEffect, useRef } from 'react';
 import { Settings, Image as ImageIcon } from 'lucide-react';
 import html2canvas from 'html2canvas';
+import { getBackendUrl } from '@/utils/api';
+
+interface PurchaseRequest {
+  id: number;
+  idPurchaseRequest: number | null;
+  guid: string;
+  purchaseRequestPlanYear: number | null;
+  company: string | null;
+  cfo: string | null;
+  mcc: string | null;
+  purchaseRequestInitiator: string | null;
+  name: string | null;
+  title: string | null;
+  purchaseRequestCreationDate: string | null;
+  budgetAmount: number | null;
+  costType: string | null;
+  contractType: string | null;
+  contractDurationMonths: number | null;
+  isPlanned: boolean | null;
+  requiresPurchase: boolean | null;
+  status: string | null;
+  purchaser: string | null;
+  purchaseRequestSubject: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
 interface PurchaseData {
   [key: string]: string;
@@ -29,7 +55,18 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
   const [allStats, setAllStats] = useState<PurchaserStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [allPurchases, setAllPurchases] = useState<PurchaseData[]>([]);
+  const [purchasesData, setPurchasesData] = useState<PurchaseData[]>([]);
+  const [ordersData, setOrdersData] = useState<PurchaseData[]>([]);
+  const [purchasesStats, setPurchasesStats] = useState<PurchaserStats[]>([]);
+  const [ordersStats, setOrdersStats] = useState<PurchaserStats[]>([]);
   const [selectedPurchaser, setSelectedPurchaser] = useState<string | null>(null);
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState<number | null>(currentYear);
+  const [allYears, setAllYears] = useState<number[]>([]);
+  const [purchasesSelectedPurchasers, setPurchasesSelectedPurchasers] = useState<Set<string>>(new Set());
+  const [ordersSelectedPurchasers, setOrdersSelectedPurchasers] = useState<Set<string>>(new Set());
+  const [isPurchasesSettingsOpen, setIsPurchasesSettingsOpen] = useState(false);
+  const [isOrdersSettingsOpen, setIsOrdersSettingsOpen] = useState(false);
   const [filteredPurchases, setFilteredPurchases] = useState<PurchaseData[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>('in-progress');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -55,24 +92,159 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
         const savedPurchasers = JSON.parse(saved);
         setSelectedPurchasers(new Set(savedPurchasers));
       }
+      
+      // Загружаем сохраненные выборы для сводных таблиц
+      const savedPurchasesPurchasers = localStorage.getItem('purchasesWorkload_selectedPurchasers');
+      if (savedPurchasesPurchasers) {
+        setPurchasesSelectedPurchasers(new Set(JSON.parse(savedPurchasesPurchasers)));
+      }
+      
+      const savedOrdersPurchasers = localStorage.getItem('ordersWorkload_selectedPurchasers');
+      if (savedOrdersPurchasers) {
+        setOrdersSelectedPurchasers(new Set(JSON.parse(savedOrdersPurchasers)));
+      }
     } catch (err) {
       console.error('Error loading saved purchasers:', err);
     }
   }, []);
 
+  // Загрузка списка годов
   useEffect(() => {
+    const fetchYears = async () => {
+      try {
+        // Загружаем все заявки для получения списка годов (несколько страниц, если нужно)
+        const years = new Set<number>();
+        let page = 0;
+        const pageSize = 1000;
+        let hasMore = true;
+        
+        while (hasMore) {
+          const response = await fetch(`${getBackendUrl()}/api/purchase-requests?page=${page}&size=${pageSize}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.content && data.content.length > 0) {
+              data.content.forEach((request: any) => {
+                if (request.purchaseRequestCreationDate) {
+                  const date = new Date(request.purchaseRequestCreationDate);
+                  const year = date.getFullYear();
+                  if (!isNaN(year) && year > 2000 && year < 2100) {
+                    years.add(year);
+                  }
+                }
+              });
+              // Проверяем, есть ли еще страницы
+              hasMore = page < data.totalPages - 1;
+              page++;
+            } else {
+              hasMore = false;
+            }
+          } else {
+            hasMore = false;
+          }
+        }
+        
+        const sortedYears = Array.from(years).sort((a, b) => b - a);
+        setAllYears(sortedYears);
+        console.log('Loaded years:', sortedYears);
+      } catch (err) {
+        console.error('Error fetching years:', err);
+      }
+    };
+    fetchYears();
+  }, []);
+
+  // Загрузка статистики по закупкам с бэкенда
+  useEffect(() => {
+    const loadStats = async () => {
+      try {
+        setLoading(true);
+        
+        const yearParam = selectedYear !== null ? `?year=${selectedYear}` : '';
+        console.log('Loading stats with year:', selectedYear, 'URL param:', yearParam);
+        
+        // Загружаем статистику по закупкам
+        const purchasesUrl = `${getBackendUrl()}/api/purchase-requests/stats/purchases-by-purchaser${yearParam}`;
+        console.log('Fetching purchases stats from:', purchasesUrl);
+        const purchasesResponse = await fetch(purchasesUrl);
+        if (purchasesResponse.ok) {
+          const purchasesData = await purchasesResponse.json();
+          const purchasesStatsArray = purchasesData.map((stat: any) => ({
+            purchaser: stat.purchaser || 'Не назначен',
+            totalPurchases: stat.totalPurchases || 0,
+            activePurchases: stat.activePurchases || 0,
+            completedPurchases: stat.completedPurchases || 0,
+            pendingPurchases: stat.activePurchases || 0,
+            averageDays: stat.averageDays || 0,
+            totalAmount: typeof stat.totalAmount === 'number' ? stat.totalAmount : (parseFloat(stat.totalAmount) || 0)
+          }));
+          setPurchasesStats(purchasesStatsArray);
+        } else {
+          console.error('Failed to load purchases stats:', purchasesResponse.status);
+          setPurchasesStats([]);
+        }
+        
+        // Загружаем статистику по заказам
+        const ordersUrl = `${getBackendUrl()}/api/purchase-requests/stats/orders-by-purchaser${yearParam}`;
+        console.log('Fetching orders stats from:', ordersUrl);
+        const ordersResponse = await fetch(ordersUrl);
+        if (ordersResponse.ok) {
+          const ordersData = await ordersResponse.json();
+          const ordersStatsArray = ordersData.map((stat: any) => ({
+            purchaser: stat.purchaser || 'Не назначен',
+            totalPurchases: stat.totalPurchases || 0,
+            activePurchases: stat.activePurchases || 0,
+            completedPurchases: stat.completedPurchases || 0,
+            pendingPurchases: stat.activePurchases || 0,
+            averageDays: stat.averageDays || 0,
+            totalAmount: typeof stat.totalAmount === 'number' ? stat.totalAmount : (parseFloat(stat.totalAmount) || 0)
+          }));
+          console.log('Setting orders stats:', ordersStatsArray.length, 'items');
+          setOrdersStats(ordersStatsArray);
+        } else {
+          console.error('Failed to load orders stats:', ordersResponse.status);
+          setOrdersStats([]);
+        }
+        
+        // Загружаем данные для детального просмотра (из CSV для совместимости)
     fetch('/api/purchases-data?all=true')
-      .then(res => res.json())
+          .then(res => {
+            if (!res.ok) {
+              return res.json().then(errorData => {
+                throw new Error(`HTTP error! status: ${res.status}, message: ${errorData?.error || res.statusText}`);
+              }).catch(() => {
+                throw new Error(`HTTP error! status: ${res.status}`);
+              });
+            }
+            return res.json();
+          })
       .then(data => {
-        setAllPurchases(data);
-        calculateWorkload(data);
-        setLoading(false);
+            if (data && data.error) {
+              console.error('API returned error:', data.error);
+              setAllPurchases([]);
+              calculateWorkload([]);
+              return;
+            }
+            const purchasesArray = Array.isArray(data) ? data : [];
+            setAllPurchases(purchasesArray);
+            calculateWorkload(purchasesArray);
       })
       .catch(err => {
-        console.error('Error:', err);
+            console.error('Error fetching purchases data:', err);
+            setAllPurchases([]);
+            calculateWorkload([]);
+          });
+        
         setLoading(false);
-      });
-  }, []);
+      } catch (err) {
+        console.error('Error loading stats:', err);
+        setPurchasesStats([]);
+        setOrdersStats([]);
+        setLoading(false);
+      }
+    };
+    
+    loadStats();
+  }, [selectedYear]);
 
   // Фильтрация статистики по выбранным закупщикам
   useEffect(() => {
@@ -203,7 +375,29 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
     }
   }, [selectedPurchaser, statusFilter, allPurchases, purchaseFilters]);
 
+  // Определяем, является ли запись заказом (закупка не требуется) или закупкой
+  const isOrder = (item: PurchaseData): boolean => {
+    // Проверяем наличие этапа "Утверждение заявки на ЗП (НЕ требуется ЗП)"
+    for (const key in item) {
+      if (key.includes('Утверждение заявки на ЗП (НЕ требуется ЗП)')) {
+        return true;
+      }
+    }
+    // Проверяем поле "Требуется Закупка" или "Не требуется ЗП"
+    const requiresPurchase = item['Требуется Закупка'] || item['Не требуется ЗП (Заявка на ЗП)'] || '';
+    if (requiresPurchase && (requiresPurchase.toLowerCase().includes('нет') || requiresPurchase.toLowerCase().includes('не требуется'))) {
+      return true;
+    }
+    return false;
+  };
+
   const calculateWorkload = (purchases: PurchaseData[]) => {
+    // Проверяем, что purchases - это массив
+    if (!Array.isArray(purchases)) {
+      console.warn('calculateWorkload: purchases is not an array', purchases);
+      return;
+    }
+
     const purchaserMap = new Map<string, {
       total: number;
       active: number;
@@ -214,6 +408,19 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
       totalAmount: number;
     }>();
 
+    // Разделяем на закупки и заказы
+    const purchasesList: PurchaseData[] = [];
+    const ordersList: PurchaseData[] = [];
+
+    purchases.forEach(item => {
+      if (isOrder(item)) {
+        ordersList.push(item);
+      } else {
+        purchasesList.push(item);
+      }
+    });
+
+    // Рассчитываем статистику для всех (общая статистика)
     purchases.forEach(item => {
       const purchaser = item['Закупшик'] || 'Не назначен';
       const status = item['Состояние заявки на ЗП'] || '';
@@ -272,6 +479,142 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
     } else {
       setStats(sorted.filter(stat => selectedPurchasers.has(stat.purchaser)));
     }
+
+    // Сохраняем разделенные данные для сводных таблиц
+    setPurchasesData(purchasesList);
+    setOrdersData(ordersList);
+  };
+
+  // Используем данные с бэкенда для статистики по закупкам
+  const getPurchasesStats = (): PurchaserStats[] => {
+    return purchasesStats;
+  };
+
+  // Используем данные с бэкенда для статистики по заказам
+  const getOrdersStats = (): PurchaserStats[] => {
+    return ordersStats;
+  };
+
+  // Рассчитываем статистику по закупкам в разрезе закупщиков (legacy, для CSV данных)
+  const calculatePurchasesStats = (): PurchaserStats[] => {
+    const purchaserMap = new Map<string, {
+      total: number;
+      active: number;
+      completed: number;
+      pending: number;
+      totalDays: number;
+      purchasesWithDays: number;
+      totalAmount: number;
+    }>();
+
+    purchasesData.forEach(item => {
+      const purchaser = item['Закупшик'] || 'Не назначен';
+      const status = item['Состояние заявки на ЗП'] || '';
+      const amount = parseFloat((item['Cумма предпологаемого контракта ФАКТ'] || '0').replace(/\s/g, '').replace(/,/g, ''));
+      const totalDaysStr = item['Дней всего согласования ЗП'] || '';
+      const totalDays = parseInt(totalDaysStr) || 0;
+
+      if (!purchaserMap.has(purchaser)) {
+        purchaserMap.set(purchaser, {
+          total: 0,
+          active: 0,
+          completed: 0,
+          pending: 0,
+          totalDays: 0,
+          purchasesWithDays: 0,
+          totalAmount: 0
+        });
+      }
+
+      const stats = purchaserMap.get(purchaser)!;
+      stats.total++;
+
+      if (status.includes('Согласован')) {
+        stats.completed++;
+      } else if (status && !status.includes('Удалена')) {
+        stats.active++;
+      }
+
+      if (totalDays > 0) {
+        stats.totalDays += totalDays;
+        stats.purchasesWithDays++;
+      }
+
+      if (!isNaN(amount)) {
+        stats.totalAmount += amount;
+      }
+    });
+
+    return Array.from(purchaserMap.entries()).map(([purchaser, data]) => ({
+      purchaser,
+      totalPurchases: data.total,
+      activePurchases: data.active,
+      completedPurchases: data.completed,
+      pendingPurchases: data.active,
+      averageDays: data.purchasesWithDays > 0 ? Math.round(data.totalDays / data.purchasesWithDays) : 0,
+      totalAmount: data.totalAmount
+    })).sort((a, b) => (b.activePurchases + b.totalPurchases) - (a.activePurchases + a.totalPurchases));
+  };
+
+  // Рассчитываем статистику по заказам в разрезе закупщиков
+  const calculateOrdersStats = (): PurchaserStats[] => {
+    const purchaserMap = new Map<string, {
+      total: number;
+      active: number;
+      completed: number;
+      pending: number;
+      totalDays: number;
+      purchasesWithDays: number;
+      totalAmount: number;
+    }>();
+
+    ordersData.forEach(item => {
+      const purchaser = item['Закупшик'] || 'Не назначен';
+      const status = item['Состояние заявки на ЗП'] || '';
+      const amount = parseFloat((item['Cумма предпологаемого контракта ФАКТ'] || '0').replace(/\s/g, '').replace(/,/g, ''));
+      const totalDaysStr = item['Дней всего согласования ЗП'] || '';
+      const totalDays = parseInt(totalDaysStr) || 0;
+
+      if (!purchaserMap.has(purchaser)) {
+        purchaserMap.set(purchaser, {
+          total: 0,
+          active: 0,
+          completed: 0,
+          pending: 0,
+          totalDays: 0,
+          purchasesWithDays: 0,
+          totalAmount: 0
+        });
+      }
+
+      const stats = purchaserMap.get(purchaser)!;
+      stats.total++;
+
+      if (status.includes('Согласован')) {
+        stats.completed++;
+      } else if (status && !status.includes('Удалена')) {
+        stats.active++;
+      }
+
+      if (totalDays > 0) {
+        stats.totalDays += totalDays;
+        stats.purchasesWithDays++;
+      }
+
+      if (!isNaN(amount)) {
+        stats.totalAmount += amount;
+      }
+    });
+
+    return Array.from(purchaserMap.entries()).map(([purchaser, data]) => ({
+      purchaser,
+      totalPurchases: data.total,
+      activePurchases: data.active,
+      completedPurchases: data.completed,
+      pendingPurchases: data.active,
+      averageDays: data.purchasesWithDays > 0 ? Math.round(data.totalDays / data.purchasesWithDays) : 0,
+      totalAmount: data.totalAmount
+    })).sort((a, b) => (b.activePurchases + b.totalPurchases) - (a.activePurchases + a.totalPurchases));
   };
 
   const formatNumber = (num: number) => {
@@ -1681,45 +2024,232 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
     );
   }
 
+  const purchasesStatsData = getPurchasesStats();
+  const ordersStatsData = getOrdersStats();
+
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2">
-              {selectedPurchasers.size > 0 && (
-                <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-                  Показано: {stats.length} из {allStats.length}
-                </span>
-              )}
-            </div>
-            <p className="text-sm text-gray-600">
-              Анализ распределения закупок и рабочей нагрузки. 
-              <span className="text-blue-600 font-medium ml-1">Двойной клик по строке</span> для просмотра закупок закупщика.
-            </p>
+      {/* Фильтры по году */}
+      <div className="bg-white rounded-lg shadow-lg p-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-700 font-medium">Фильтр по году создания:</span>
+            {allYears.map((year) => (
+              <button
+                key={year}
+                onClick={() => {
+                  console.log('Year button clicked:', year);
+                  setSelectedYear(year);
+                }}
+                className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                  selectedYear === year
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                {year}
+              </button>
+            ))}
+            <button
+              onClick={() => {
+                console.log('All records button clicked');
+                setSelectedYear(null);
+              }}
+              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                selectedYear === null
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              Все записи
+            </button>
           </div>
           <button
-            onClick={() => setIsSettingsOpen(true)}
-            className="ml-4 p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors relative"
+            onClick={() => {
+              setSelectedYear(currentYear);
+            }}
+            className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors"
+          >
+            Сбросить фильтры
+          </button>
+        </div>
+      </div>
+
+      {/* Сводная таблица по Закупкам */}
+      <div className="bg-white rounded-lg shadow-lg p-3">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-base font-bold text-gray-900">Сводная таблица по Закупкам</h2>
+          <button
+            onClick={() => setIsPurchasesSettingsOpen(true)}
+            className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors relative"
             title="Настройки отображения закупщиков"
           >
-            <Settings className="w-5 h-5" />
-            {selectedPurchasers.size > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-blue-600 text-white text-xs rounded-full flex items-center justify-center">
-                {selectedPurchasers.size}
+            <Settings className="w-4 h-4" />
+            {purchasesSelectedPurchasers.size > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center">
+                {purchasesSelectedPurchasers.size}
+                </span>
+              )}
+          </button>
+            </div>
+        
+        {/* Модальное окно настроек для закупок */}
+        {isPurchasesSettingsOpen && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+              <div className="p-4 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-gray-900">Выбор закупщиков для таблицы Закупок</h3>
+                  <button
+                    onClick={() => setIsPurchasesSettingsOpen(false)}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <p className="text-sm text-gray-600 mt-2">
+                  Выберите закупщиков, которых хотите видеть в таблице. Выбор сохраняется автоматически.
+            </p>
+          </div>
+              
+              <div className="p-4 overflow-y-auto flex-1">
+                <div className="flex gap-2 mb-4">
+          <button
+                    onClick={() => {
+                      const allPurchasers = new Set(purchasesStatsData.map(s => s.purchaser));
+                      setPurchasesSelectedPurchasers(allPurchasers);
+                      localStorage.setItem('purchasesWorkload_selectedPurchasers', JSON.stringify(Array.from(allPurchasers)));
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                  >
+                    Выбрать всех
+                  </button>
+                  <button
+                    onClick={() => {
+                      setPurchasesSelectedPurchasers(new Set());
+                      localStorage.setItem('purchasesWorkload_selectedPurchasers', JSON.stringify([]));
+                    }}
+                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
+                  >
+                    Снять выбор
+                  </button>
+                </div>
+                
+                <div className="space-y-2">
+                  {purchasesStatsData.length === 0 ? (
+                    <div className="text-sm text-gray-500 p-4 text-center">Нет данных</div>
+                  ) : (
+                    purchasesStatsData.map((stat) => (
+                      <label
+                        key={stat.purchaser}
+                        className="flex items-center p-3 rounded-lg hover:bg-gray-50 cursor-pointer border border-gray-200"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={purchasesSelectedPurchasers.has(stat.purchaser)}
+                          onChange={(e) => {
+                            const newSet = new Set(purchasesSelectedPurchasers);
+                            if (e.target.checked) {
+                              newSet.add(stat.purchaser);
+                            } else {
+                              newSet.delete(stat.purchaser);
+                            }
+                            setPurchasesSelectedPurchasers(newSet);
+                            localStorage.setItem('purchasesWorkload_selectedPurchasers', JSON.stringify(Array.from(newSet)));
+                          }}
+                          className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 focus:ring-2"
+                        />
+                        <div className="ml-3 flex-1">
+                          <div className="font-medium text-gray-900">{stat.purchaser}</div>
+                          <div className="text-sm text-gray-500">
+                            Всего: {stat.totalPurchases} | В работе: {stat.activePurchases} | Завершено: {stat.completedPurchases}
+                          </div>
+                        </div>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+              
+              <div className="p-4 border-t border-gray-200 flex justify-end">
+                <button
+                  onClick={() => setIsPurchasesSettingsOpen(false)}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                >
+                  Готово
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-gray-300">
+                <th className="text-left py-1.5 px-2 font-semibold text-gray-700">Закупщик</th>
+                <th className="text-right py-1.5 px-2 font-semibold text-gray-700">Всего закупок</th>
+                <th className="text-right py-1.5 px-2 font-semibold text-gray-700">Завершено</th>
+                <th className="text-right py-1.5 px-2 font-semibold text-gray-700">В работе</th>
+                <th className="text-right py-1.5 px-2 font-semibold text-gray-700">Среднее время (дн.)</th>
+                <th className="text-right py-1.5 px-2 font-semibold text-gray-700">Общая сумма</th>
+              </tr>
+            </thead>
+            <tbody>
+              {purchasesStatsData.length > 0 ? (
+                purchasesStatsData
+                  .filter(stat => purchasesSelectedPurchasers.size === 0 || purchasesSelectedPurchasers.has(stat.purchaser))
+                  .map((stat, index) => (
+                  <tr 
+                    key={index} 
+                    className="border-b border-gray-100 hover:bg-gray-50"
+                  >
+                    <td className="py-1.5 px-2 text-gray-900 font-medium">{stat.purchaser}</td>
+                    <td className="py-1.5 px-2 text-gray-700 text-right">{stat.totalPurchases}</td>
+                    <td className="py-1.5 px-2 text-green-600 font-semibold text-right">{stat.completedPurchases}</td>
+                    <td className="py-1.5 px-2 text-blue-600 font-semibold text-right">{stat.activePurchases}</td>
+                    <td className="py-1.5 px-2 text-gray-700 text-right">{stat.averageDays > 0 ? stat.averageDays : '-'}</td>
+                    <td className="py-1.5 px-2 text-gray-700 text-right">{formatNumber(stat.totalAmount)} сум</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="py-2 text-center text-gray-500">Нет данных</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Сводная таблица по Заказам */}
+      <div className="bg-white rounded-lg shadow-lg p-3">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-base font-bold text-gray-900">Сводная таблица по Заказам</h2>
+          <button
+            onClick={() => setIsOrdersSettingsOpen(true)}
+            className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors relative"
+            title="Настройки отображения закупщиков"
+          >
+            <Settings className="w-4 h-4" />
+            {ordersSelectedPurchasers.size > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center">
+                {ordersSelectedPurchasers.size}
               </span>
             )}
           </button>
         </div>
 
-        {/* Модальное окно настроек */}
-        {isSettingsOpen && (
+        {/* Модальное окно настроек для заказов */}
+        {isOrdersSettingsOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
-              <div className="p-6 border-b border-gray-200">
+              <div className="p-4 border-b border-gray-200">
                 <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-gray-900">Выбор закупщиков для таблицы Заказов</h3>
                   <button
-                    onClick={() => setIsSettingsOpen(false)}
+                    onClick={() => setIsOrdersSettingsOpen(false)}
                     className="text-gray-400 hover:text-gray-600 transition-colors"
                   >
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1732,16 +2262,23 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
                 </p>
               </div>
               
-              <div className="p-6 overflow-y-auto flex-1">
+              <div className="p-4 overflow-y-auto flex-1">
                 <div className="flex gap-2 mb-4">
                   <button
-                    onClick={handleSelectAll}
+                    onClick={() => {
+                      const allPurchasers = new Set(ordersStatsData.map(s => s.purchaser));
+                      setOrdersSelectedPurchasers(allPurchasers);
+                      localStorage.setItem('ordersWorkload_selectedPurchasers', JSON.stringify(Array.from(allPurchasers)));
+                    }}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
                   >
                     Выбрать всех
                   </button>
                   <button
-                    onClick={handleDeselectAll}
+                    onClick={() => {
+                      setOrdersSelectedPurchasers(new Set());
+                      localStorage.setItem('ordersWorkload_selectedPurchasers', JSON.stringify([]));
+                    }}
                     className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
                   >
                     Снять выбор
@@ -1749,15 +2286,27 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
                 </div>
                 
                 <div className="space-y-2">
-                  {allStats.map((stat) => (
+                  {ordersStatsData.length === 0 ? (
+                    <div className="text-sm text-gray-500 p-4 text-center">Нет данных</div>
+                  ) : (
+                    ordersStatsData.map((stat) => (
                     <label
                       key={stat.purchaser}
                       className="flex items-center p-3 rounded-lg hover:bg-gray-50 cursor-pointer border border-gray-200"
                     >
                       <input
                         type="checkbox"
-                        checked={selectedPurchasers.has(stat.purchaser)}
-                        onChange={() => handleTogglePurchaser(stat.purchaser)}
+                          checked={ordersSelectedPurchasers.has(stat.purchaser)}
+                          onChange={(e) => {
+                            const newSet = new Set(ordersSelectedPurchasers);
+                            if (e.target.checked) {
+                              newSet.add(stat.purchaser);
+                            } else {
+                              newSet.delete(stat.purchaser);
+                            }
+                            setOrdersSelectedPurchasers(newSet);
+                            localStorage.setItem('ordersWorkload_selectedPurchasers', JSON.stringify(Array.from(newSet)));
+                          }}
                         className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 focus:ring-2"
                       />
                       <div className="ml-3 flex-1">
@@ -1767,13 +2316,14 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
                         </div>
                       </div>
                     </label>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
               
-              <div className="p-6 border-t border-gray-200 flex justify-end">
+              <div className="p-4 border-t border-gray-200 flex justify-end">
                 <button
-                  onClick={() => setIsSettingsOpen(false)}
+                  onClick={() => setIsOrdersSettingsOpen(false)}
                   className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
                 >
                   Готово
@@ -1782,39 +2332,45 @@ export default function PurchaserWorkload({ onPurchaserDoubleClick }: PurchaserW
             </div>
           </div>
         )}
-
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full text-xs">
             <thead>
-              <tr className="border-b-2 border-gray-300">
-                <th className="text-left py-3 px-2 text-xs sm:text-sm font-semibold text-gray-700">Закупщик</th>
-                <th className="text-left py-3 px-2 text-xs sm:text-sm font-semibold text-gray-700">Всего закупок</th>
-                <th className="text-left py-3 px-2 text-xs sm:text-sm font-semibold text-gray-700">Завершено</th>
-                <th className="text-left py-3 px-2 text-xs sm:text-sm font-semibold text-gray-700">В работе</th>
-                <th className="text-left py-3 px-2 text-xs sm:text-sm font-semibold text-gray-700">Среднее время (дн.)</th>
-                <th className="text-left py-3 px-2 text-xs sm:text-sm font-semibold text-gray-700">Общая сумма</th>
+              <tr className="border-b border-gray-300">
+                <th className="text-left py-1.5 px-2 font-semibold text-gray-700">Закупщик</th>
+                <th className="text-right py-1.5 px-2 font-semibold text-gray-700">Всего заказов</th>
+                <th className="text-right py-1.5 px-2 font-semibold text-gray-700">Завершено</th>
+                <th className="text-right py-1.5 px-2 font-semibold text-gray-700">В работе</th>
+                <th className="text-right py-1.5 px-2 font-semibold text-gray-700">Среднее время (дн.)</th>
+                <th className="text-right py-1.5 px-2 font-semibold text-gray-700">Общая сумма</th>
               </tr>
             </thead>
             <tbody>
-              {stats.map((stat, index) => (
+              {ordersStatsData.length > 0 ? (
+                ordersStatsData
+                  .filter(stat => ordersSelectedPurchasers.size === 0 || ordersSelectedPurchasers.has(stat.purchaser))
+                  .map((stat, index) => (
                 <tr 
                   key={index} 
-                  className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
-                  onDoubleClick={() => handlePurchaserDoubleClick(stat.purchaser)}
-                  title="Двойной клик для просмотра закупок этого закупщика"
-                >
-                  <td className="py-3 px-2 text-xs sm:text-sm text-gray-900 font-medium">{stat.purchaser}</td>
-                  <td className="py-3 px-2 text-xs sm:text-sm text-gray-700">{stat.totalPurchases}</td>
-                  <td className="py-3 px-2 text-xs sm:text-sm text-green-600 font-semibold">{stat.completedPurchases}</td>
-                  <td className="py-3 px-2 text-xs sm:text-sm text-blue-600 font-semibold">{stat.activePurchases}</td>
-                  <td className="py-3 px-2 text-xs sm:text-sm text-gray-700">{stat.averageDays > 0 ? stat.averageDays : '-'}</td>
-                  <td className="py-3 px-2 text-xs sm:text-sm text-gray-700">{formatNumber(stat.totalAmount)} сум</td>
+                    className="border-b border-gray-100 hover:bg-gray-50"
+                  >
+                    <td className="py-1.5 px-2 text-gray-900 font-medium">{stat.purchaser}</td>
+                    <td className="py-1.5 px-2 text-gray-700 text-right">{stat.totalPurchases}</td>
+                    <td className="py-1.5 px-2 text-green-600 font-semibold text-right">{stat.completedPurchases}</td>
+                    <td className="py-1.5 px-2 text-blue-600 font-semibold text-right">{stat.activePurchases}</td>
+                    <td className="py-1.5 px-2 text-gray-700 text-right">{stat.averageDays > 0 ? stat.averageDays : '-'}</td>
+                    <td className="py-1.5 px-2 text-gray-700 text-right">{formatNumber(stat.totalAmount)} сум</td>
                 </tr>
-              ))}
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="py-2 text-center text-gray-500">Нет данных</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
+
     </div>
   );
 }

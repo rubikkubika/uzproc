@@ -1,6 +1,7 @@
 package com.uzproc.backend.controller;
 
 import com.uzproc.backend.dto.PurchaseRequestDto;
+import com.uzproc.backend.dto.PurchaserStatsDto;
 import com.uzproc.backend.service.PurchaseRequestService;
 import com.uzproc.backend.service.EntityExcelLoadService;
 import org.springframework.data.domain.Page;
@@ -99,6 +100,20 @@ public class PurchaseRequestController {
                 "message", "Ошибка при обновлении статуса: " + e.getMessage()
             ));
         }
+    }
+
+    @GetMapping("/stats/purchases-by-purchaser")
+    public ResponseEntity<List<PurchaserStatsDto>> getPurchasesStatsByPurchaser(
+            @RequestParam(required = false) Integer year) {
+        List<PurchaserStatsDto> stats = purchaseRequestService.getPurchasesStatsByPurchaser(year);
+        return ResponseEntity.ok(stats);
+    }
+
+    @GetMapping("/stats/orders-by-purchaser")
+    public ResponseEntity<List<PurchaserStatsDto>> getOrdersStatsByPurchaser(
+            @RequestParam(required = false) Integer year) {
+        List<PurchaserStatsDto> stats = purchaseRequestService.getOrdersStatsByPurchaser(year);
+        return ResponseEntity.ok(stats);
     }
 }
 

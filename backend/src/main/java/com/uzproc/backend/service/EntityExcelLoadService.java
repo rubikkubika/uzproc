@@ -161,6 +161,21 @@ public class EntityExcelLoadService {
             Integer planColumnIndex = findColumnIndex(columnIndexMap, PLAN_COLUMN);
             Integer preparedByColumnIndex = findColumnIndex(columnIndexMap, PREPARED_BY_COLUMN);
             Integer purchaserColumnIndex = findColumnIndex(columnIndexMap, PURCHASER_COLUMN);
+            // Пробуем альтернативные названия колонки
+            if (purchaserColumnIndex == null) {
+                purchaserColumnIndex = findColumnIndex(columnIndexMap, "Ответственный за ЗП");
+            }
+            if (purchaserColumnIndex == null) {
+                purchaserColumnIndex = findColumnIndex(columnIndexMap, "Закупщик");
+            }
+            if (purchaserColumnIndex == null) {
+                purchaserColumnIndex = findColumnIndex(columnIndexMap, "Ответственный за закупку");
+            }
+            if (purchaserColumnIndex != null) {
+                logger.info("Found purchaser column at index {}", purchaserColumnIndex);
+            } else {
+                logger.warn("Purchaser column not found in Excel file. Tried: '{}', 'Ответственный за ЗП', 'Закупщик', 'Ответственный за закупку'. Available columns: {}", PURCHASER_COLUMN, columnIndexMap.keySet());
+            }
             
             // Если не нашли по имени, пробуем найти по известным позициям (из логов видно, что Column 4 = "Номер заявки на ЗП")
             if (requestNumberColumnIndex == null && headerRow.getCell(4) != null) {
@@ -398,6 +413,21 @@ public class EntityExcelLoadService {
             Integer planColumnIndex = findColumnIndex(columnIndexMap, PLAN_COLUMN);
             Integer preparedByColumnIndex = findColumnIndex(columnIndexMap, PREPARED_BY_COLUMN);
             Integer purchaserColumnIndex = findColumnIndex(columnIndexMap, PURCHASER_COLUMN);
+            // Пробуем альтернативные названия колонки
+            if (purchaserColumnIndex == null) {
+                purchaserColumnIndex = findColumnIndex(columnIndexMap, "Ответственный за ЗП");
+            }
+            if (purchaserColumnIndex == null) {
+                purchaserColumnIndex = findColumnIndex(columnIndexMap, "Закупщик");
+            }
+            if (purchaserColumnIndex == null) {
+                purchaserColumnIndex = findColumnIndex(columnIndexMap, "Ответственный за закупку");
+            }
+            if (purchaserColumnIndex != null) {
+                logger.info("Found purchaser column at index {}", purchaserColumnIndex);
+            } else {
+                logger.warn("Purchaser column not found in Excel file. Tried: '{}', 'Ответственный за ЗП', 'Закупщик', 'Ответственный за закупку'. Available columns: {}", PURCHASER_COLUMN, columnIndexMap.keySet());
+            }
             
             // Если не нашли по имени, пробуем найти по известным позициям (из логов видно, что Column 4 = "Номер заявки на ЗП")
             if (requestNumberColumnIndex == null && headerRow.getCell(4) != null) {
@@ -755,7 +785,12 @@ public class EntityExcelLoadService {
                 String purchaser = getCellValueAsString(purchaserCell);
                 if (purchaser != null && !purchaser.trim().isEmpty()) {
                     pr.setPurchaser(purchaser.trim());
+                    logger.debug("Row {}: parsed purchaser: '{}'", row.getRowNum() + 1, purchaser.trim());
+                } else {
+                    logger.debug("Row {}: purchaser cell is empty or null", row.getRowNum() + 1);
                 }
+            } else {
+                logger.debug("Row {}: purchaserColumnIndex is null, skipping purchaser field", row.getRowNum() + 1);
             }
             
             return pr;

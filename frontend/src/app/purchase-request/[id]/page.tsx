@@ -15,6 +15,7 @@ interface PurchaseRequest {
   cfo: string | null;
   mcc: string | null;
   purchaseRequestInitiator: string | null;
+  purchaser: string | null;
   name: string | null;
   title: string | null;
   purchaseRequestSubject: string | null;
@@ -705,6 +706,14 @@ export default function PurchaseRequestDetailPage() {
                     </label>
                     <p className="text-xs text-gray-900">
                       {purchaseRequest.purchaseRequestInitiator || '-'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                      Закупщик
+                    </label>
+                    <p className="text-xs text-gray-900">
+                      {purchaseRequest.purchaser || '-'}
                     </p>
                   </div>
                   <div>
