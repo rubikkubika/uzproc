@@ -49,6 +49,9 @@ public class PurchaseRequest {
     @Column(name = "purchase_request_initiator", length = 255)
     private String purchaseRequestInitiator;
 
+    @Column(name = "purchaser", length = 255)
+    private String purchaser;
+
     @Column(name = "purchase_request_subject", length = 500)
     private String purchaseRequestSubject;
 
@@ -157,6 +160,14 @@ public class PurchaseRequest {
 
     public void setPurchaseRequestInitiator(String purchaseRequestInitiator) {
         this.purchaseRequestInitiator = purchaseRequestInitiator;
+    }
+
+    public String getPurchaser() {
+        return purchaser;
+    }
+
+    public void setPurchaser(String purchaser) {
+        this.purchaser = purchaser;
     }
 
     public String getPurchaseRequestSubject() {

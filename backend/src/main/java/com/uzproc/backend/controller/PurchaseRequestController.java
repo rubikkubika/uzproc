@@ -75,5 +75,30 @@ public class PurchaseRequestController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
     }
+
+    @PostMapping("/update-status/{idPurchaseRequest}")
+    public ResponseEntity<Map<String, Object>> updateStatus(@PathVariable Long idPurchaseRequest) {
+        try {
+            purchaseRequestService.updateStatusBasedOnApprovals(idPurchaseRequest);
+            PurchaseRequestDto purchaseRequest = purchaseRequestService.findByIdPurchaseRequest(idPurchaseRequest);
+            if (purchaseRequest != null) {
+                return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "idPurchaseRequest", idPurchaseRequest,
+                    "status", purchaseRequest.getStatus() != null ? purchaseRequest.getStatus().getDisplayName() : "null"
+                ));
+            } else {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                    "success", false,
+                    "message", "Заявка с номером " + idPurchaseRequest + " не найдена"
+                ));
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                "success", false,
+                "message", "Ошибка при обновлении статуса: " + e.getMessage()
+            ));
+        }
+    }
 }
 

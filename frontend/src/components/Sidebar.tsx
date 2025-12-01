@@ -94,7 +94,16 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
   };
 
   const handleTabChange = (tab: string) => {
-    onTabChange(tab);
+    // Проверяем, находимся ли мы на главной странице
+    const isOnHomePage = typeof window !== 'undefined' && window.location.pathname === '/';
+    
+    if (isOnHomePage) {
+      // Если на главной странице, просто меняем вкладку
+      onTabChange(tab);
+    } else {
+      // Если не на главной странице, перенаправляем на главную с нужной вкладкой
+      router.push(`/?tab=${tab}`);
+    }
     setIsMobileMenuOpen(false);
   };
 

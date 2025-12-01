@@ -88,6 +88,15 @@ public class PurchaseRequestService {
         return toDto(purchaseRequest);
     }
 
+    public PurchaseRequestDto findByIdPurchaseRequest(Long idPurchaseRequest) {
+        PurchaseRequest purchaseRequest = purchaseRequestRepository.findByIdPurchaseRequest(idPurchaseRequest)
+                .orElse(null);
+        if (purchaseRequest == null) {
+            return null;
+        }
+        return toDto(purchaseRequest);
+    }
+
     /**
      * Конвертирует PurchaseRequest entity в PurchaseRequestDto
      */
@@ -296,6 +305,7 @@ public class PurchaseRequestService {
      * Обновляет статус заявки на закупку на основе согласований
      * Логика:
      * - Если хотя бы одно согласование не согласовано → статус "Не согласована"
+     * - Если есть активное и не законченное утверждение → статус "На утверждении"
      * - Если хотя бы одно согласование активно (не завершено) → статус "На согласовании"
      * 
      * @param idPurchaseRequest ID заявки на закупку
@@ -321,6 +331,8 @@ public class PurchaseRequestService {
         
         boolean hasNotCoordinated = false;
         boolean hasActiveApproval = false;
+        boolean hasActiveFinalApproval = false;
+        boolean hasCompletedFinalApproval = false;
         
         // Проверяем каждое согласование
         for (PurchaseRequestApproval approval : approvals) {
@@ -339,11 +351,41 @@ public class PurchaseRequestService {
                 }
             }
             
+            String stage = approval.getStage();
+            // Проверяем, является ли это утверждением
+            boolean isFinalApproval = stage != null && (stage.equals("Утверждение заявки на ЗП") || 
+                stage.equals("Утверждение заявки на ЗП (НЕ требуется ЗП)"));
+            
+            // Проверяем, завершено ли утверждение
+            if (isFinalApproval && approval.getCompletionDate() != null) {
+                // Проверяем, что результат положительный (согласовано)
+                if (completionResult != null && !completionResult.trim().isEmpty()) {
+                    String resultLower = completionResult.toLowerCase().trim();
+                    if (resultLower.contains("согласован") || resultLower.contains("согласовано") ||
+                        resultLower.contains("утвержден") || resultLower.contains("утверждено")) {
+                        hasCompletedFinalApproval = true;
+                        logger.debug("Found completed final approval for request {}: stage={}, role={}, result={}", 
+                            idPurchaseRequest, stage, approval.getRole(), completionResult);
+                    }
+                } else {
+                    // Если completionDate есть, но completionResult пустой, считаем утвержденным
+                    hasCompletedFinalApproval = true;
+                    logger.debug("Found completed final approval for request {}: stage={}, role={} (no result specified)", 
+                        idPurchaseRequest, stage, approval.getRole());
+                }
+            }
+            
             // Проверяем, активно ли согласование (назначено, но не завершено)
             if (approval.getAssignmentDate() != null && approval.getCompletionDate() == null) {
-                hasActiveApproval = true;
-                logger.debug("Found active approval for request {}: stage={}, role={}", 
-                    idPurchaseRequest, approval.getStage(), approval.getRole());
+                if (isFinalApproval) {
+                    hasActiveFinalApproval = true;
+                    logger.debug("Found active final approval for request {}: stage={}, role={}", 
+                        idPurchaseRequest, stage, approval.getRole());
+                } else {
+                    hasActiveApproval = true;
+                    logger.debug("Found active approval for request {}: stage={}, role={}", 
+                        idPurchaseRequest, stage, approval.getRole());
+                }
             }
         }
         
@@ -353,9 +395,13 @@ public class PurchaseRequestService {
         // Определяем новый статус
         PurchaseRequestStatus newStatus = null;
         
-        // Приоритет: сначала проверяем на не согласованные
+        // Приоритет: сначала проверяем на не согласованные, потом на завершенное утверждение, потом на активное утверждение, потом на согласование
         if (hasNotCoordinated) {
             newStatus = PurchaseRequestStatus.NOT_COORDINATED;
+        } else if (hasCompletedFinalApproval) {
+            newStatus = PurchaseRequestStatus.APPROVED;
+        } else if (hasActiveFinalApproval) {
+            newStatus = PurchaseRequestStatus.ON_APPROVAL_FINAL;
         } else if (hasActiveApproval) {
             newStatus = PurchaseRequestStatus.ON_APPROVAL;
         }

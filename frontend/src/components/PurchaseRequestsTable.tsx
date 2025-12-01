@@ -405,9 +405,10 @@ export default function PurchaseRequestsTable() {
               );
               if (approvalResponse.ok) {
                 const approvals = await approvalResponse.json();
-                // Проверяем, есть ли согласования этапа "Утверждение заявки на ЗП" с completionDate
+                // Проверяем, есть ли согласования этапа "Утверждение заявки на ЗП" или "Утверждение заявки на ЗП (НЕ требуется ЗП)" с completionDate
                 const finalApprovals = approvals.filter((a: any) => 
-                  a.stage === 'Утверждение заявки на ЗП' && a.completionDate !== null
+                  (a.stage === 'Утверждение заявки на ЗП' || a.stage === 'Утверждение заявки на ЗП (НЕ требуется ЗП)') && 
+                  a.completionDate !== null
                 );
                 statusMap.set(req.idPurchaseRequest!, finalApprovals.length > 0);
               }
@@ -1383,21 +1384,21 @@ export default function PurchaseRequestsTable() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 min-h-[20px]">
-                    <button
-                      onClick={() => handleSort('cfo')}
+                  <button
+                    onClick={() => handleSort('cfo')}
                       className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
                       style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
-                    >
-                      {sortField === 'cfo' ? (
-                        sortDirection === 'asc' ? (
-                          <ArrowUp className="w-3 h-3 flex-shrink-0" />
-                        ) : (
-                          <ArrowDown className="w-3 h-3 flex-shrink-0" />
-                        )
+                  >
+                    {sortField === 'cfo' ? (
+                      sortDirection === 'asc' ? (
+                        <ArrowUp className="w-3 h-3 flex-shrink-0" />
                       ) : (
-                        <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
-                      )}
-                    </button>
+                        <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                    )}
+                  </button>
                     <span className="uppercase text-xs font-medium text-gray-500 tracking-wider">ЦФО</span>
                   </div>
                 </div>
@@ -1711,7 +1712,7 @@ export default function PurchaseRequestsTable() {
                     <div className="flex items-end gap-2">
                       {/* Заявка - активна */}
                       <div className="flex flex-col items-center gap-0.5">
-                        {request.idPurchaseRequest && approvalStatuses.get(request.idPurchaseRequest) ? (
+                        {(request.status === 'Утверждена' || (request.idPurchaseRequest && approvalStatuses.get(request.idPurchaseRequest))) ? (
                           <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center" title="Заявка утверждена">
                             <Check className="w-2.5 h-2.5 text-white" />
                           </div>
@@ -1722,21 +1723,28 @@ export default function PurchaseRequestsTable() {
                         )}
                         <span className="text-[10px] text-gray-600 whitespace-nowrap leading-none">Заявка</span>
                       </div>
-                      {/* Закупка - неактивна */}
-                      <div className="flex flex-col items-center gap-0.5">
-                        <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Закупка"></div>
-                        <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Закупка</span>
-                      </div>
-                      {/* Договор - неактивна */}
-                      <div className="flex flex-col items-center gap-0.5">
-                        <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Договор"></div>
-                        <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Договор</span>
-                      </div>
-                      {/* Спецификация - неактивна */}
-                      <div className="flex flex-col items-center gap-0.5">
-                        <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Спецификация"></div>
-                        <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Спецификация</span>
-                      </div>
+                      
+                      {/* Если закупка требуется: Заявка → Закупка → Договор */}
+                      {request.requiresPurchase !== false ? (
+                        <>
+                          {/* Закупка - неактивна */}
+                          <div className="flex flex-col items-center gap-0.5">
+                            <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Закупка"></div>
+                            <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Закупка</span>
+                          </div>
+                          {/* Договор - неактивна */}
+                          <div className="flex flex-col items-center gap-0.5">
+                            <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Договор"></div>
+                            <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Договор</span>
+                          </div>
+                        </>
+                      ) : (
+                        /* Если закупка не требуется: Заявка → Заказ */
+                        <div className="flex flex-col items-center gap-0.5">
+                          <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Заказ"></div>
+                          <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Заказ</span>
+                        </div>
+                      )}
                     </div>
                         </td>
                       );

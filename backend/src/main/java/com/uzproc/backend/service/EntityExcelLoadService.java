@@ -48,6 +48,7 @@ public class EntityExcelLoadService {
     private static final String REQUIRES_PURCHASE_COLUMN = "Требуется Закупка";
     private static final String PLAN_COLUMN = "План (Заявка на ЗП)";
     private static final String PREPARED_BY_COLUMN = "Подготовил";
+    private static final String PURCHASER_COLUMN = "Ответственный за ЗП (Закупочная процедура)";
     private static final String LINK_COLUMN = "Ссылка";
 
     private final PurchaseRequestRepository purchaseRequestRepository;
@@ -159,6 +160,7 @@ public class EntityExcelLoadService {
             }
             Integer planColumnIndex = findColumnIndex(columnIndexMap, PLAN_COLUMN);
             Integer preparedByColumnIndex = findColumnIndex(columnIndexMap, PREPARED_BY_COLUMN);
+            Integer purchaserColumnIndex = findColumnIndex(columnIndexMap, PURCHASER_COLUMN);
             
             // Если не нашли по имени, пробуем найти по известным позициям (из логов видно, что Column 4 = "Номер заявки на ЗП")
             if (requestNumberColumnIndex == null && headerRow.getCell(4) != null) {
@@ -224,7 +226,7 @@ public class EntityExcelLoadService {
                         boolean processed = processPurchaseRequestRow(row, requestNumberColumnIndex, creationDateColumnIndex, 
                             innerIdColumnIndex, cfoColumnIndex, nameColumnIndex, titleColumnIndex, 
                             requiresPurchaseColumnIndex, requiresPurchaseColumnName, planColumnIndex, planColumnName, 
-                            preparedByColumnIndex);
+                            preparedByColumnIndex, purchaserColumnIndex);
                         if (processed) {
                             purchaseRequestsCount++;
                         } else {
@@ -281,12 +283,12 @@ public class EntityExcelLoadService {
     private boolean processPurchaseRequestRow(Row row, int requestNumberColumnIndex, int creationDateColumnIndex,
             Integer innerIdColumnIndex, Integer cfoColumnIndex, Integer nameColumnIndex, Integer titleColumnIndex,
             Integer requiresPurchaseColumnIndex, String requiresPurchaseColumnName, Integer planColumnIndex, 
-            String planColumnName, Integer preparedByColumnIndex) {
+            String planColumnName, Integer preparedByColumnIndex, Integer purchaserColumnIndex) {
         try {
             PurchaseRequest pr = parsePurchaseRequestRow(row, requestNumberColumnIndex, creationDateColumnIndex, 
                 innerIdColumnIndex, cfoColumnIndex, nameColumnIndex, titleColumnIndex, 
                 requiresPurchaseColumnIndex, requiresPurchaseColumnName, planColumnIndex, planColumnName, 
-                preparedByColumnIndex);
+                preparedByColumnIndex, purchaserColumnIndex);
             if (pr != null && pr.getIdPurchaseRequest() != null) {
                 Optional<PurchaseRequest> existing = purchaseRequestRepository.findByIdPurchaseRequest(pr.getIdPurchaseRequest());
                 if (existing.isPresent()) {
@@ -395,6 +397,7 @@ public class EntityExcelLoadService {
             }
             Integer planColumnIndex = findColumnIndex(columnIndexMap, PLAN_COLUMN);
             Integer preparedByColumnIndex = findColumnIndex(columnIndexMap, PREPARED_BY_COLUMN);
+            Integer purchaserColumnIndex = findColumnIndex(columnIndexMap, PURCHASER_COLUMN);
             
             // Если не нашли по имени, пробуем найти по известным позициям (из логов видно, что Column 4 = "Номер заявки на ЗП")
             if (requestNumberColumnIndex == null && headerRow.getCell(4) != null) {
@@ -490,7 +493,7 @@ public class EntityExcelLoadService {
                             getCellValueAsString(headerRow.getCell(requiresPurchaseColumnIndex)) : null;
                         String planColumnName = planColumnIndex != null && headerRow.getCell(planColumnIndex) != null ? 
                             getCellValueAsString(headerRow.getCell(planColumnIndex)) : null;
-                        PurchaseRequest pr = parsePurchaseRequestRow(row, requestNumberColumnIndex, creationDateColumnIndex, innerIdColumnIndex, cfoColumnIndex, nameColumnIndex, titleColumnIndex, requiresPurchaseColumnIndex, requiresPurchaseColumnName, planColumnIndex, planColumnName, preparedByColumnIndex);
+                        PurchaseRequest pr = parsePurchaseRequestRow(row, requestNumberColumnIndex, creationDateColumnIndex, innerIdColumnIndex, cfoColumnIndex, nameColumnIndex, titleColumnIndex, requiresPurchaseColumnIndex, requiresPurchaseColumnName, planColumnIndex, planColumnName, preparedByColumnIndex, purchaserColumnIndex);
                         if (pr != null && pr.getIdPurchaseRequest() != null) {
                             // Проверяем, существует ли заявка с таким номером
                             Optional<PurchaseRequest> existing = purchaseRequestRepository.findByIdPurchaseRequest(pr.getIdPurchaseRequest());
@@ -602,14 +605,23 @@ public class EntityExcelLoadService {
             }
         }
         
+        // Обновляем закупщика только если он отличается
+        if (newData.getPurchaser() != null && !newData.getPurchaser().trim().isEmpty()) {
+            if (existing.getPurchaser() == null || !existing.getPurchaser().equals(newData.getPurchaser())) {
+                existing.setPurchaser(newData.getPurchaser());
+                updated = true;
+                logger.debug("Updated purchaser for request {}: {}", existing.getIdPurchaseRequest(), newData.getPurchaser());
+            }
+        }
+        
         return updated;
     }
 
     /**
      * Парсит строку Excel в PurchaseRequest для типа "Заявка на ЗП"
-     * Загружает "Номер заявки на ЗП", "Дата создания", "Внутренний номер", "ЦФО", "Наименование", "Заголовок", "Требуется Закупка", "План" и "Подготовил"
+     * Загружает "Номер заявки на ЗП", "Дата создания", "Внутренний номер", "ЦФО", "Наименование", "Заголовок", "Требуется Закупка", "План", "Подготовил" и "Ответственный за ЗП (Закупочная процедура)"
      */
-    private PurchaseRequest parsePurchaseRequestRow(Row row, int requestNumberColumnIndex, int creationDateColumnIndex, Integer innerIdColumnIndex, Integer cfoColumnIndex, Integer nameColumnIndex, Integer titleColumnIndex, Integer requiresPurchaseColumnIndex, String requiresPurchaseColumnName, Integer planColumnIndex, String planColumnName, Integer preparedByColumnIndex) {
+    private PurchaseRequest parsePurchaseRequestRow(Row row, int requestNumberColumnIndex, int creationDateColumnIndex, Integer innerIdColumnIndex, Integer cfoColumnIndex, Integer nameColumnIndex, Integer titleColumnIndex, Integer requiresPurchaseColumnIndex, String requiresPurchaseColumnName, Integer planColumnIndex, String planColumnName, Integer preparedByColumnIndex, Integer purchaserColumnIndex) {
         PurchaseRequest pr = new PurchaseRequest();
         
         try {
@@ -734,6 +746,15 @@ public class EntityExcelLoadService {
                     String trimmedValue = preparedByValue.trim();
                     // Устанавливаем в purchaseRequestInitiator
                     pr.setPurchaseRequestInitiator(trimmedValue);
+                }
+            }
+            
+            // Закупщик (опционально) - парсим поле "Ответственный за ЗП (Закупочная процедура)"
+            if (purchaserColumnIndex != null) {
+                Cell purchaserCell = row.getCell(purchaserColumnIndex);
+                String purchaser = getCellValueAsString(purchaserCell);
+                if (purchaser != null && !purchaser.trim().isEmpty()) {
+                    pr.setPurchaser(purchaser.trim());
                 }
             }
             
