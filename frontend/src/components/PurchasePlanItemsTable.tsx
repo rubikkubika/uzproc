@@ -105,6 +105,75 @@ export default function PurchasePlanItemsTable() {
   // Состояние для временных дат при перетаскивании Ганта
   const [tempDates, setTempDates] = useState<Record<number, { requestDate: string | null; newContractDate: string | null }>>({});
   const [animatingDates, setAnimatingDates] = useState<Record<number, boolean>>({});
+  
+  // Состояние для редактирования дат
+  const [editingDate, setEditingDate] = useState<{ itemId: number; field: 'requestDate' | 'newContractDate' } | null>(null);
+  
+  // Функция для обновления даты на бэкенде
+  const handleDateUpdate = async (itemId: number, field: 'requestDate' | 'newContractDate', newDate: string) => {
+    if (!newDate || newDate.trim() === '') return;
+    
+    try {
+      const item = data?.content.find(i => i.id === itemId);
+      if (!item) return;
+      
+      // Нормализуем дату (убираем время, если есть)
+      const normalizedDate = newDate.split('T')[0];
+      
+      // Получаем текущие даты и обновляем нужное поле
+      const currentRequestDate = item.requestDate ? item.requestDate.split('T')[0] : null;
+      const currentNewContractDate = item.newContractDate ? item.newContractDate.split('T')[0] : null;
+      
+      const requestDate = field === 'requestDate' ? normalizedDate : currentRequestDate;
+      const newContractDate = field === 'newContractDate' ? normalizedDate : currentNewContractDate;
+      
+      console.log('Updating date:', { itemId, field, newDate, normalizedDate, requestDate, newContractDate });
+      
+      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/dates`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          requestDate,
+          newContractDate,
+        }),
+      });
+
+      if (response.ok) {
+        const updatedItem = await response.json();
+        console.log('Date updated successfully:', updatedItem);
+        // Обновляем данные в таблице
+        if (data) {
+          const updatedContent = data.content.map(i => 
+            i.id === itemId 
+              ? { ...i, requestDate: updatedItem.requestDate, newContractDate: updatedItem.newContractDate }
+              : i
+          );
+          setData({ ...data, content: updatedContent });
+        }
+        // Запускаем анимацию
+        setAnimatingDates(prev => ({
+          ...prev,
+          [itemId]: true
+        }));
+        setTimeout(() => {
+          setAnimatingDates(prev => {
+            const newState = { ...prev };
+            delete newState[itemId];
+            return newState;
+          });
+        }, 1000);
+        // Закрываем режим редактирования
+        setEditingDate(null);
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to update date:', response.status, errorText);
+      }
+    } catch (error) {
+      console.error('Error updating date:', error);
+    }
+  };
 
   // Загружаем сохраненные ширины колонок из localStorage
   useEffect(() => {
@@ -921,9 +990,41 @@ export default function PurchasePlanItemsTable() {
                     }`}
                     style={{ width: `${getColumnWidth('requestDate')}px`, minWidth: `${getColumnWidth('requestDate')}px`, maxWidth: `${getColumnWidth('requestDate')}px` }}
                   >
-                    {tempDates[item.id]?.requestDate 
-                      ? new Date(tempDates[item.id]!.requestDate!).toLocaleDateString('ru-RU')
-                      : (item.requestDate ? new Date(item.requestDate).toLocaleDateString('ru-RU') : '-')}
+                    {editingDate?.itemId === item.id && editingDate?.field === 'requestDate' ? (
+                      <input
+                        type="date"
+                        autoFocus
+                        min={item.year ? `${item.year}-01-01` : undefined}
+                        max={item.year ? `${item.year}-12-31` : undefined}
+                        defaultValue={item.requestDate ? item.requestDate.split('T')[0] : ''}
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            handleDateUpdate(item.id, 'requestDate', e.target.value);
+                          }
+                        }}
+                        onBlur={(e) => {
+                          if (!e.target.value) {
+                            setEditingDate(null);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') {
+                            setEditingDate(null);
+                          }
+                        }}
+                        className="w-full text-xs border border-blue-500 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    ) : (
+                      <div
+                        onClick={() => setEditingDate({ itemId: item.id, field: 'requestDate' })}
+                        className="cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors"
+                        title="Нажмите для редактирования"
+                      >
+                        {tempDates[item.id]?.requestDate 
+                          ? new Date(tempDates[item.id]!.requestDate!).toLocaleDateString('ru-RU')
+                          : (item.requestDate ? new Date(item.requestDate).toLocaleDateString('ru-RU') : '-')}
+                      </div>
+                    )}
                   </td>
                   <td 
                     className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${
@@ -931,9 +1032,41 @@ export default function PurchasePlanItemsTable() {
                     }`}
                     style={{ width: `${getColumnWidth('newContractDate')}px`, minWidth: `${getColumnWidth('newContractDate')}px`, maxWidth: `${getColumnWidth('newContractDate')}px` }}
                   >
-                    {tempDates[item.id]?.newContractDate 
-                      ? new Date(tempDates[item.id]!.newContractDate!).toLocaleDateString('ru-RU')
-                      : (item.newContractDate ? new Date(item.newContractDate).toLocaleDateString('ru-RU') : '-')}
+                    {editingDate?.itemId === item.id && editingDate?.field === 'newContractDate' ? (
+                      <input
+                        type="date"
+                        autoFocus
+                        min={item.year ? `${item.year}-01-01` : undefined}
+                        max={item.year ? `${item.year}-12-31` : undefined}
+                        defaultValue={item.newContractDate ? item.newContractDate.split('T')[0] : ''}
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            handleDateUpdate(item.id, 'newContractDate', e.target.value);
+                          }
+                        }}
+                        onBlur={(e) => {
+                          if (!e.target.value) {
+                            setEditingDate(null);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') {
+                            setEditingDate(null);
+                          }
+                        }}
+                        className="w-full text-xs border border-blue-500 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    ) : (
+                      <div
+                        onClick={() => setEditingDate({ itemId: item.id, field: 'newContractDate' })}
+                        className="cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors"
+                        title="Нажмите для редактирования"
+                      >
+                        {tempDates[item.id]?.newContractDate 
+                          ? new Date(tempDates[item.id]!.newContractDate!).toLocaleDateString('ru-RU')
+                          : (item.newContractDate ? new Date(item.newContractDate).toLocaleDateString('ru-RU') : '-')}
+                      </div>
+                    )}
                   </td>
                   <td className="px-1 py-1 border-r border-gray-200" style={{ width: '350px', minWidth: '350px' }}>
                     <GanttChart
