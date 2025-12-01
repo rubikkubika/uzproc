@@ -8,21 +8,40 @@ interface GanttChartProps {
   year: number | null;
   requestDate: string | null;
   newContractDate: string | null;
+  contractEndDate?: string | null; // Дата окончания договора
   onDatesUpdate?: (requestDate: string, newContractDate: string) => void;
   onDatesChange?: (requestDate: string, newContractDate: string) => void; // Для временных изменений во время перетаскивания
   onDragStart?: () => void; // Вызывается при начале перетаскивания
 }
 
-const MONTHS = [
-  'Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн',
-  'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'
-];
+// Функция для получения массива месяцев для отображения
+// Отображаем 13 месяцев: декабрь предыдущего года + 12 месяцев текущего года
+const getMonthsForYear = (year: number | null) => {
+  if (year === null) return [];
+  const prevYear = year - 1;
+  return [
+    { label: 'Дек', year: prevYear, month: 11 }, // Декабрь предыдущего года
+    { label: 'Янв', year: year, month: 0 },
+    { label: 'Фев', year: year, month: 1 },
+    { label: 'Мар', year: year, month: 2 },
+    { label: 'Апр', year: year, month: 3 },
+    { label: 'Май', year: year, month: 4 },
+    { label: 'Июн', year: year, month: 5 },
+    { label: 'Июл', year: year, month: 6 },
+    { label: 'Авг', year: year, month: 7 },
+    { label: 'Сен', year: year, month: 8 },
+    { label: 'Окт', year: year, month: 9 },
+    { label: 'Ноя', year: year, month: 10 },
+    { label: 'Дек', year: year, month: 11 },
+  ];
+};
 
 export default function GanttChart({ 
   itemId, 
   year, 
   requestDate, 
   newContractDate,
+  contractEndDate,
   onDatesUpdate,
   onDatesChange,
   onDragStart
@@ -39,6 +58,9 @@ export default function GanttChart({
 
   // Получаем год для расчетов
   const currentYear = year || new Date().getFullYear();
+  
+  // Получаем массив месяцев для отображения
+  const months = getMonthsForYear(currentYear);
 
   // Парсим даты (используем временные даты во время перетаскивания)
   const startDate = tempDates?.requestDate 
@@ -52,28 +74,27 @@ export default function GanttChart({
   const getBarPosition = () => {
     if (!startDate || !endDate) return { left: 0, width: 0 };
 
-    // Используем начало и конец года (00:00:00 1 января и 23:59:59.999 31 декабря)
-    // Это должно точно соответствовать расчетам при перетаскивании
-    const yearStart = new Date(currentYear, 0, 1, 0, 0, 0, 0);
-    const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+    // Период для визуального отображения: с 1 декабря предыдущего года по 31 декабря текущего года (13 месяцев)
+    const periodStart = new Date(currentYear - 1, 11, 1, 0, 0, 0, 0); // Декабрь предыдущего года
+    const periodEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999); // Декабрь текущего года
     
-    // Ограничиваем даты рамками года для отображения
-    // Если дата выходит за рамки года, используем границу года
-    const actualStart = startDate < yearStart ? yearStart : (startDate > yearEnd ? yearEnd : startDate);
-    const actualEnd = endDate > yearEnd ? yearEnd : (endDate < yearStart ? yearStart : endDate);
+    // Ограничиваем даты рамками периода для отображения
+    // Если дата выходит за рамки периода, используем границу периода
+    const actualStart = startDate < periodStart ? periodStart : (startDate > periodEnd ? periodEnd : startDate);
+    const actualEnd = endDate > periodEnd ? periodEnd : (endDate < periodStart ? periodStart : endDate);
 
     // Более точный расчет с использованием миллисекунд
-    const yearStartTime = yearStart.getTime();
-    const yearEndTime = yearEnd.getTime();
+    const periodStartTime = periodStart.getTime();
+    const periodEndTime = periodEnd.getTime();
     const actualStartTime = actualStart.getTime();
     const actualEndTime = actualEnd.getTime();
     
-    // Вычисляем общее время года в миллисекундах
-    const totalTime = yearEndTime - yearStartTime;
+    // Вычисляем общее время периода в миллисекундах
+    const totalTime = periodEndTime - periodStartTime;
     
-    // Вычисляем смещение от начала года для начала и конца полосы
-    const startTime = actualStartTime - yearStartTime;
-    const endTime = actualEndTime - yearStartTime;
+    // Вычисляем смещение от начала периода для начала и конца полосы
+    const startTime = actualStartTime - periodStartTime;
+    const endTime = actualEndTime - periodStartTime;
     
     // Конвертируем в проценты
     const leftPercent = (startTime / totalTime) * 100;
@@ -86,6 +107,33 @@ export default function GanttChart({
   // Позиция полосы рассчитывается точно на основе дат (включая временные при перетаскивании)
   const adjustedLeft = left;
   const adjustedWidth = width;
+
+  // Вычисляем позицию красной черты для даты окончания договора
+  const getContractEndDatePosition = () => {
+    if (!contractEndDate) return null;
+    
+    const contractEnd = new Date(contractEndDate);
+    const periodStart = new Date(currentYear - 1, 11, 1, 0, 0, 0, 0); // Декабрь предыдущего года
+    const periodEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999); // Декабрь текущего года
+    
+    // Если дата выходит за рамки периода, не показываем черту
+    if (contractEnd < periodStart || contractEnd > periodEnd) {
+      return null;
+    }
+    
+    const periodStartTime = periodStart.getTime();
+    const periodEndTime = periodEnd.getTime();
+    const contractEndTime = contractEnd.getTime();
+    
+    const totalTime = periodEndTime - periodStartTime;
+    const contractEndOffset = contractEndTime - periodStartTime;
+    
+    const positionPercent = (contractEndOffset / totalTime) * 100;
+    
+    return positionPercent;
+  };
+
+  const contractEndPosition = getContractEndDatePosition();
 
   // Обработчик начала перетаскивания
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -120,14 +168,18 @@ export default function GanttChart({
       const currentMouseX = e.clientX - containerRect.left;
       const deltaX = currentMouseX - dragStartX;
       
-      // Вычисляем границы года (используем те же, что и в getBarPosition)
-      const yearStart = new Date(currentYear, 0, 1, 0, 0, 0, 0);
-      const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999);
-      const totalTime = yearEnd.getTime() - yearStart.getTime();
+      // Визуальный период для расчета позиций на экране (13 месяцев)
+      const visualPeriodStart = new Date(currentYear - 1, 11, 1, 0, 0, 0, 0); // Декабрь предыдущего года
+      const visualPeriodEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999); // Декабрь текущего года
+      const visualTotalTime = visualPeriodEnd.getTime() - visualPeriodStart.getTime();
+      
+      // Период для перетаскивания (ограничиваем до декабря текущего года)
+      const dragPeriodStart = new Date(currentYear - 1, 11, 1, 0, 0, 0, 0); // Декабрь предыдущего года
+      const dragPeriodEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999); // Декабрь текущего года
       
       // Преобразуем смещение в пикселях напрямую в миллисекунды
-      // Это более точно, чем через проценты и дни
-      const deltaTime = (deltaX / containerWidth) * totalTime;
+      // Используем визуальный период для расчета позиций на экране
+      const deltaTime = (deltaX / containerWidth) * visualTotalTime;
       
       // Вычисляем новые даты (более точный расчет)
       const initialStartTime = initialStartDate.getTime();
@@ -140,16 +192,16 @@ export default function GanttChart({
       const newStartDate = new Date(newStartTime);
       const newEndDate = new Date(newEndTime);
 
-      // Ограничиваем даты рамками года
-      if (newStartDate < yearStart) {
-        const diff = yearStart.getTime() - newStartDate.getTime();
-        newStartDate.setTime(yearStart.getTime());
+      // Ограничиваем даты рамками периода перетаскивания (разрешаем выход в следующий год)
+      if (newStartDate < dragPeriodStart) {
+        const diff = dragPeriodStart.getTime() - newStartDate.getTime();
+        newStartDate.setTime(dragPeriodStart.getTime());
         newEndDate.setTime(newEndDate.getTime() + diff);
       }
       
-      if (newEndDate > yearEnd) {
-        const diff = newEndDate.getTime() - yearEnd.getTime();
-        newEndDate.setTime(yearEnd.getTime());
+      if (newEndDate > dragPeriodEnd) {
+        const diff = newEndDate.getTime() - dragPeriodEnd.getTime();
+        newEndDate.setTime(dragPeriodEnd.getTime());
         newStartDate.setTime(newStartDate.getTime() - diff);
       }
 
@@ -224,14 +276,18 @@ export default function GanttChart({
       const currentMouseX = e.clientX - containerRect.left;
       const deltaX = currentMouseX - dragStartX;
       
-      // Вычисляем границы года (используем те же, что и в getBarPosition)
-      const yearStart = new Date(currentYear, 0, 1, 0, 0, 0, 0);
-      const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999);
-      const totalTime = yearEnd.getTime() - yearStart.getTime();
+      // Визуальный период для расчета позиций на экране (13 месяцев)
+      const visualPeriodStart = new Date(currentYear - 1, 11, 1, 0, 0, 0, 0); // Декабрь предыдущего года
+      const visualPeriodEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999); // Декабрь текущего года
+      const visualTotalTime = visualPeriodEnd.getTime() - visualPeriodStart.getTime();
+      
+      // Период для перетаскивания (ограничиваем до декабря текущего года)
+      const dragPeriodStart = new Date(currentYear - 1, 11, 1, 0, 0, 0, 0); // Декабрь предыдущего года
+      const dragPeriodEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999); // Декабрь текущего года
       
       // Преобразуем смещение в пикселях напрямую в миллисекунды
-      // Это более точно, чем через проценты и дни
-      const deltaTime = (deltaX / containerWidth) * totalTime;
+      // Используем визуальный период для расчета позиций на экране
+      const deltaTime = (deltaX / containerWidth) * visualTotalTime;
       
       // Вычисляем новые даты (более точный расчет)
       const initialStartTime = initialStartDate.getTime();
@@ -244,16 +300,16 @@ export default function GanttChart({
       const newStartDate = new Date(newStartTime);
       const newEndDate = new Date(newEndTime);
 
-      // Ограничиваем даты рамками года
-      if (newStartDate < yearStart) {
-        const diff = yearStart.getTime() - newStartDate.getTime();
-        newStartDate.setTime(yearStart.getTime());
+      // Ограничиваем даты рамками периода перетаскивания (разрешаем выход в следующий год)
+      if (newStartDate < dragPeriodStart) {
+        const diff = dragPeriodStart.getTime() - newStartDate.getTime();
+        newStartDate.setTime(dragPeriodStart.getTime());
         newEndDate.setTime(newEndDate.getTime() + diff);
       }
       
-      if (newEndDate > yearEnd) {
-        const diff = newEndDate.getTime() - yearEnd.getTime();
-        newEndDate.setTime(yearEnd.getTime());
+      if (newEndDate > dragPeriodEnd) {
+        const diff = newEndDate.getTime() - dragPeriodEnd.getTime();
+        newEndDate.setTime(dragPeriodEnd.getTime());
         newStartDate.setTime(newStartDate.getTime() - diff);
       }
 
@@ -335,32 +391,64 @@ export default function GanttChart({
   return (
     <div className="relative h-8 w-full border border-gray-300 rounded" ref={containerRef}>
       {/* Месяцы */}
-      <div className="absolute top-0 left-0 right-0 h-4 flex border-b border-gray-300">
-        {MONTHS.map((month, index) => (
-          <div
-            key={index}
-            className="flex-1 text-[8px] text-gray-500 text-center border-r border-gray-300 last:border-r-0"
-            style={{ minWidth: 0 }}
-          >
-            {month}
-          </div>
-        ))}
+      <div className="absolute top-0 left-0 right-0 h-4 flex border-b border-gray-300 relative">
+        {months.map((monthData, index) => {
+          // Разделитель между годами (после декабря предыдущего года, перед январем текущего)
+          const isYearDivider = index === 1; // После декабря предыдущего года
+          return (
+            <div
+              key={index}
+              className={`flex-1 text-[8px] text-gray-500 text-center relative ${
+                isYearDivider ? 'bg-gray-50' : ''
+              }`}
+              style={{ minWidth: 0 }}
+            >
+              {monthData.label}
+            </div>
+          );
+        })}
+        {/* Вертикальные разделители для месяцев в заголовках - точно на тех же позициях, что и на полосе */}
+        {months.map((_, index) => {
+          if (index === 0) return null; // Пропускаем первый разделитель (он на границе)
+          const monthPercent = (index / months.length) * 100;
+          // Разделитель между годами (после декабря предыдущего года, перед январем текущего)
+          const isYearDivider = index === 1; // После декабря предыдущего года
+          return (
+            <div
+              key={`header-divider-${index}`}
+              className={`absolute top-0 bottom-0 ${isYearDivider ? 'w-0.5 bg-gray-700 z-30' : 'w-px bg-gray-300'}`}
+              style={{ left: `${monthPercent}%` }}
+            />
+          );
+        })}
       </div>
 
       {/* Полоса Ганта */}
       <div className="absolute top-4 left-0 right-0 h-4">
         {/* Вертикальные разделители для месяцев в области полосы */}
-        {MONTHS.map((_, index) => {
+        {months.map((_, index) => {
           if (index === 0) return null; // Пропускаем первый разделитель (он на границе)
-          const monthPercent = (index / MONTHS.length) * 100;
+          const monthPercent = (index / months.length) * 100;
+          // Разделитель между годами (после декабря предыдущего года, перед январем текущего)
+          const isYearDivider = index === 1; // После декабря предыдущего года
           return (
             <div
               key={index}
-              className="absolute top-0 bottom-0 w-px bg-gray-300"
+              className={`absolute top-0 bottom-0 ${isYearDivider ? 'w-0.5 bg-gray-700 z-10' : 'w-px bg-gray-300'}`}
               style={{ left: `${monthPercent}%` }}
             />
           );
         })}
+        
+        {/* Линия разделения между годами сверху полосы (в области заголовков) - точно на той же позиции */}
+        <div
+          className="absolute top-0 w-0.5 bg-gray-700 z-20"
+          style={{
+            left: `${(1 / months.length) * 100}%`, // Позиция после декабря предыдущего года (индекс 1)
+            height: '4px', // Высота области заголовков
+          }}
+          title="Разделение между годами"
+        />
         
         <div
           className={`absolute h-full bg-blue-500 rounded cursor-move hover:bg-blue-600 transition-all duration-200 ease-out ${
@@ -379,6 +467,17 @@ export default function GanttChart({
             </div>
           )}
         </div>
+        
+        {/* Красная черта для даты окончания договора */}
+        {contractEndPosition !== null && (
+          <div
+            className="absolute top-0 bottom-0 w-0.5 bg-red-600 z-10"
+            style={{
+              left: `${Math.max(0, Math.min(100, contractEndPosition))}%`,
+            }}
+            title={`Срок окончания договора: ${contractEndDate ? new Date(contractEndDate).toLocaleDateString('ru-RU') : ''}`}
+          />
+        )}
       </div>
     </div>
   );

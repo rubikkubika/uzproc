@@ -84,6 +84,19 @@ public class PurchasePlanItemService {
                 .orElse(null);
     }
 
+    @Transactional
+    public PurchasePlanItemDto updateContractEndDate(Long id, LocalDate contractEndDate) {
+        return purchasePlanItemRepository.findById(id)
+                .map(item -> {
+                    item.setContractEndDate(contractEndDate);
+                    PurchasePlanItem saved = purchasePlanItemRepository.save(item);
+                    logger.info("Updated contract end date for purchase plan item {}: contractEndDate={}", 
+                            id, contractEndDate);
+                    return toDto(saved);
+                })
+                .orElse(null);
+    }
+
     /**
      * Конвертирует PurchasePlanItem entity в PurchasePlanItemDto
      */

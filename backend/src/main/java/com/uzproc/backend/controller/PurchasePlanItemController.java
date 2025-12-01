@@ -54,5 +54,16 @@ public class PurchasePlanItemController {
         }
         return ResponseEntity.notFound().build();
     }
+
+    @PatchMapping("/{id}/contract-end-date")
+    public ResponseEntity<PurchasePlanItemDto> updatePurchasePlanItemContractEndDate(
+            @PathVariable Long id,
+            @RequestBody PurchasePlanItemDto dto) {
+        PurchasePlanItemDto updatedItem = purchasePlanItemService.updateContractEndDate(id, dto.getContractEndDate());
+        if (updatedItem != null) {
+            return ResponseEntity.ok(updatedItem);
+        }
+        return ResponseEntity.notFound().build();
+    }
 }
 

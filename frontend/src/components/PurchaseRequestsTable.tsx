@@ -356,15 +356,21 @@ export default function PurchaseRequestsTable() {
         params.append('contractType', filters.contractType.trim());
       }
       if (filters.isPlanned && filters.isPlanned.trim() !== '') {
-        const isPlannedValue = filters.isPlanned.trim().toLowerCase();
-        if (isPlannedValue === 'true' || isPlannedValue === 'false') {
-          params.append('isPlanned', isPlannedValue);
+        const isPlannedValue = filters.isPlanned.trim();
+        // Преобразуем "Плановая" в "true", "Внеплановая" в "false"
+        if (isPlannedValue === 'Плановая') {
+          params.append('isPlanned', 'true');
+        } else if (isPlannedValue === 'Внеплановая') {
+          params.append('isPlanned', 'false');
         }
       }
       if (filters.requiresPurchase && filters.requiresPurchase.trim() !== '') {
-        const requiresPurchaseValue = filters.requiresPurchase.trim().toLowerCase();
-        if (requiresPurchaseValue === 'true' || requiresPurchaseValue === 'false') {
-          params.append('requiresPurchase', requiresPurchaseValue);
+        const requiresPurchaseValue = filters.requiresPurchase.trim();
+        // Преобразуем "Закупка" в "true", "Заказ" в "false"
+        if (requiresPurchaseValue === 'Закупка') {
+          params.append('requiresPurchase', 'true');
+        } else if (requiresPurchaseValue === 'Заказ') {
+          params.append('requiresPurchase', 'false');
         }
       }
       
@@ -942,8 +948,8 @@ export default function PurchaseRequestsTable() {
         'Тип затрат': request.costType || '',
         'Тип договора': request.contractType || '',
         'Длительность (мес)': request.contractDurationMonths || '',
-        'План': request.isPlanned ? 'Да' : 'Нет',
-        'Требуется закупка': request.requiresPurchase ? 'Да' : 'Нет',
+        'План': request.isPlanned ? 'Плановая' : (request.isPlanned === false ? 'Внеплановая' : ''),
+        'Требуется закупка': request.requiresPurchase ? 'Закупка' : (request.requiresPurchase === false ? 'Заказ' : ''),
       }));
 
       // Создаем рабочую книгу
@@ -1019,8 +1025,8 @@ export default function PurchaseRequestsTable() {
         request.costType || '',
         request.contractType || '',
         request.contractDurationMonths || '',
-        request.isPlanned ? 'Да' : 'Нет',
-        request.requiresPurchase ? 'Да' : 'Нет',
+        request.isPlanned ? 'Плановая' : (request.isPlanned === false ? 'Внеплановая' : ''),
+        request.requiresPurchase ? 'Закупка' : (request.requiresPurchase === false ? 'Заказ' : ''),
       ]);
 
       // Объединяем заголовки и данные
@@ -1417,11 +1423,11 @@ export default function PurchaseRequestsTable() {
                 }
                 
                 if (columnKey === 'isPlanned') {
-                  return <SortableHeader key={columnKey} field="isPlanned" label="План" filterType="select" filterOptions={['true', 'false']} width="w-20" columnKey="isPlanned" />;
+                  return <SortableHeader key={columnKey} field="isPlanned" label="План" filterType="select" filterOptions={['Плановая', 'Внеплановая']} width="w-20" columnKey="isPlanned" />;
                 }
                 
                 if (columnKey === 'requiresPurchase') {
-                  return <SortableHeader key={columnKey} field="requiresPurchase" label="Закупка" filterType="select" filterOptions={['true', 'false']} width="w-24" columnKey="requiresPurchase" />;
+                  return <SortableHeader key={columnKey} field="requiresPurchase" label="Закупка" filterType="select" filterOptions={['Закупка', 'Заказ']} width="w-24" columnKey="requiresPurchase" />;
                 }
                 
                 if (columnKey === 'status') {
@@ -1636,11 +1642,11 @@ export default function PurchaseRequestsTable() {
                         >
                           {request.isPlanned ? (
                             <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">
-                              Да
+                              Плановая
                             </span>
                           ) : request.isPlanned === false ? (
                             <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
-                              Нет
+                              Внеплановая
                             </span>
                           ) : (
                             <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
@@ -1660,11 +1666,11 @@ export default function PurchaseRequestsTable() {
                         >
                           {request.requiresPurchase ? (
                             <span className="px-1.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
-                              Да
+                              Закупка
                             </span>
                           ) : request.requiresPurchase === false ? (
                             <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
-                              Нет
+                              Заказ
                             </span>
                           ) : (
                             <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">

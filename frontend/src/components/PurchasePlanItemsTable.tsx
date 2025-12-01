@@ -94,7 +94,7 @@ export default function PurchasePlanItemsTable() {
 
   // ID активного поля для восстановления фокуса
   const [focusedField, setFocusedField] = useState<string | null>(null);
-
+  
   // Состояние для ширин колонок
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
   const [isResizing, setIsResizing] = useState<string | null>(null);
@@ -107,10 +107,10 @@ export default function PurchasePlanItemsTable() {
   const [animatingDates, setAnimatingDates] = useState<Record<number, boolean>>({});
   
   // Состояние для редактирования дат
-  const [editingDate, setEditingDate] = useState<{ itemId: number; field: 'requestDate' | 'newContractDate' } | null>(null);
+  const [editingDate, setEditingDate] = useState<{ itemId: number; field: 'requestDate' | 'newContractDate' | 'contractEndDate' } | null>(null);
   
   // Функция для обновления даты на бэкенде
-  const handleDateUpdate = async (itemId: number, field: 'requestDate' | 'newContractDate', newDate: string) => {
+  const handleDateUpdate = async (itemId: number, field: 'requestDate' | 'newContractDate' | 'contractEndDate', newDate: string) => {
     if (!newDate || newDate.trim() === '') return;
     
     try {
@@ -119,6 +119,39 @@ export default function PurchasePlanItemsTable() {
       
       // Нормализуем дату (убираем время, если есть)
       const normalizedDate = newDate.split('T')[0];
+      
+      // Если это contractEndDate, используем отдельный endpoint
+      if (field === 'contractEndDate') {
+        const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/contract-end-date`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contractEndDate: normalizedDate,
+          }),
+        });
+
+        if (response.ok) {
+          const updatedItem = await response.json();
+          console.log('Contract end date updated successfully:', updatedItem);
+          // Обновляем данные в таблице
+          if (data) {
+            const updatedContent = data.content.map(i => 
+              i.id === itemId 
+                ? { ...i, contractEndDate: updatedItem.contractEndDate }
+                : i
+            );
+            setData({ ...data, content: updatedContent });
+          }
+          // Закрываем режим редактирования
+          setEditingDate(null);
+        } else {
+          const errorText = await response.text();
+          console.error('Failed to update contract end date:', response.status, errorText);
+        }
+        return;
+      }
       
       // Получаем текущие даты и обновляем нужное поле
       const currentRequestDate = item.requestDate ? item.requestDate.split('T')[0] : null;
@@ -174,7 +207,7 @@ export default function PurchasePlanItemsTable() {
       console.error('Error updating date:', error);
     }
   };
-
+  
   // Загружаем сохраненные ширины колонок из localStorage
   useEffect(() => {
     try {
@@ -187,7 +220,7 @@ export default function PurchasePlanItemsTable() {
       console.error('Error loading column widths:', err);
     }
   }, []);
-
+  
   // Сохраняем ширины колонок в localStorage
   const saveColumnWidths = useCallback((widths: Record<string, number>) => {
     try {
@@ -216,7 +249,7 @@ export default function PurchasePlanItemsTable() {
   const getColumnWidth = (columnKey: string): number => {
     return columnWidths[columnKey] || getDefaultColumnWidth(columnKey);
   };
-
+  
   // Обработчик начала изменения размера
   const handleResizeStart = useCallback((e: React.MouseEvent, columnKey: string) => {
     e.preventDefault();
@@ -227,11 +260,11 @@ export default function PurchasePlanItemsTable() {
     const currentWidth = columnWidths[columnKey] || getDefaultColumnWidth(columnKey);
     resizeStartWidth.current = currentWidth;
   }, [columnWidths]);
-
+  
   // Обработчик изменения размера
   useEffect(() => {
     if (!isResizing) return;
-
+    
     const handleMouseMove = (e: MouseEvent) => {
       if (!resizeColumn.current) return;
       const diff = e.clientX - resizeStartX.current;
@@ -242,15 +275,15 @@ export default function PurchasePlanItemsTable() {
         return updated;
       });
     };
-
+    
     const handleMouseUp = () => {
       setIsResizing(null);
       resizeColumn.current = null;
     };
-
+    
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-
+    
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
@@ -595,7 +628,7 @@ export default function PurchasePlanItemsTable() {
 
     return (
       <th className={`px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${width || ''}`} style={style}>
-        <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+      <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
           <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
             {filterType === 'text' ? (
               <input
@@ -719,25 +752,25 @@ export default function PurchasePlanItemsTable() {
             <p className="text-sm text-gray-500">
               Всего записей: {totalRecords}
             </p>
-            <button
-              onClick={() => {
-                const emptyFilters = {
-                  company: '',
-                  cfo: '',
-                  purchaseSubject: '',
-                };
-                setFilters(emptyFilters);
-                setLocalFilters(emptyFilters);
-                setCfoFilter(new Set());
+              <button
+                onClick={() => {
+                  const emptyFilters = {
+                    company: '',
+                    cfo: '',
+                    purchaseSubject: '',
+                  };
+                  setFilters(emptyFilters);
+                  setLocalFilters(emptyFilters);
+                  setCfoFilter(new Set());
                 setSortField('requestDate');
                 setSortDirection('asc');
-                setFocusedField(null);
+                  setFocusedField(null);
                 setSelectedYear(allYears.length > 0 ? allYears[0] : null);
-              }}
+                }}
               className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors"
-            >
-              Сбросить фильтры
-            </button>
+              >
+                Сбросить фильтры
+              </button>
           </div>
         </div>
       </div>
@@ -809,8 +842,8 @@ export default function PurchasePlanItemsTable() {
               <SortableHeader field="company" label="Компания" filterType="text" columnKey="company" />
               <th 
                 className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" 
-                style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px`, verticalAlign: 'top', overflow: 'hidden' }}
-              >
+                      style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px`, verticalAlign: 'top', overflow: 'hidden' }}
+                    >
                 <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                   <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                     <div className="relative cfo-filter-container flex-1">
@@ -821,96 +854,96 @@ export default function PurchasePlanItemsTable() {
                         className="w-full text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-left focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center gap-1 hover:bg-gray-50"
                         style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
                       >
-                        <span className="text-gray-600 truncate flex-1 min-w-0 text-left">
-                          {cfoFilter.size === 0 
-                            ? 'Все' 
-                            : cfoFilter.size === 1
-                            ? (Array.from(cfoFilter)[0] || 'Все')
-                            : `${cfoFilter.size} выбрано`}
-                        </span>
-                        <svg className={`w-3 h-3 transition-transform flex-shrink-0 ${isCfoFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
-                      {isCfoFilterOpen && cfoFilterPosition && (
-                        <div 
-                          className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden"
-                          style={{
-                            top: `${cfoFilterPosition.top}px`,
-                            left: `${cfoFilterPosition.left}px`,
-                          }}
-                        >
-                          <div className="p-2 border-b border-gray-200">
-                            <div className="relative">
-                              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
-                              <input
-                                type="text"
-                                value={cfoSearchQuery}
-                                onChange={(e) => {
-                                  e.stopPropagation();
-                                  setCfoSearchQuery(e.target.value);
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                                onFocus={(e) => e.stopPropagation()}
-                                className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                placeholder="Поиск..."
-                              />
-                            </div>
-                          </div>
-                          <div className="p-2 border-b border-gray-200 flex gap-2">
-                            <button
-                              onClick={() => handleCfoSelectAll()}
-                              className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                            >
-                              Все
-                            </button>
-                            <button
-                              onClick={() => handleCfoDeselectAll()}
-                              className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
-                            >
-                              Снять
-                            </button>
-                          </div>
-                          <div className="max-h-48 overflow-y-auto">
-                            {getFilteredCfoOptions.length === 0 ? (
-                              <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
-                            ) : (
-                              getFilteredCfoOptions.map((cfo) => (
-                                <label
-                                  key={cfo}
-                                  className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={cfoFilter.has(cfo)}
-                                    onChange={() => handleCfoToggle(cfo)}
-                                    className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
-                                  />
-                                  <span className="ml-2 text-xs text-gray-700 flex-1">{cfo}</span>
-                                </label>
-                              ))
-                            )}
+                      <span className="text-gray-600 truncate flex-1 min-w-0 text-left">
+                        {cfoFilter.size === 0 
+                          ? 'Все' 
+                          : cfoFilter.size === 1
+                          ? (Array.from(cfoFilter)[0] || 'Все')
+                          : `${cfoFilter.size} выбрано`}
+                      </span>
+                      <svg className={`w-3 h-3 transition-transform flex-shrink-0 ${isCfoFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {isCfoFilterOpen && cfoFilterPosition && (
+                      <div 
+                        className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden"
+                        style={{
+                          top: `${cfoFilterPosition.top}px`,
+                          left: `${cfoFilterPosition.left}px`,
+                        }}
+                      >
+                        <div className="p-2 border-b border-gray-200">
+                          <div className="relative">
+                            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
+                            <input
+                              type="text"
+                              value={cfoSearchQuery}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                setCfoSearchQuery(e.target.value);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              onFocus={(e) => e.stopPropagation()}
+                              className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              placeholder="Поиск..."
+                            />
                           </div>
                         </div>
-                      )}
+                        <div className="p-2 border-b border-gray-200 flex gap-2">
+                          <button
+                            onClick={() => handleCfoSelectAll()}
+                            className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                          >
+                            Все
+                          </button>
+                          <button
+                            onClick={() => handleCfoDeselectAll()}
+                            className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                          >
+                            Снять
+                          </button>
+                        </div>
+                        <div className="max-h-48 overflow-y-auto">
+                          {getFilteredCfoOptions.length === 0 ? (
+                            <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
+                          ) : (
+                            getFilteredCfoOptions.map((cfo) => (
+                              <label
+                                key={cfo}
+                                className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={cfoFilter.has(cfo)}
+                                  onChange={() => handleCfoToggle(cfo)}
+                                  className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                                />
+                                <span className="ml-2 text-xs text-gray-700 flex-1">{cfo}</span>
+                              </label>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 min-h-[20px]">
-                    <button
-                      onClick={() => handleSort('cfo')}
+                  <button
+                    onClick={() => handleSort('cfo')}
                       className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
                       style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
-                    >
-                      {sortField === 'cfo' ? (
-                        sortDirection === 'asc' ? (
-                          <ArrowUp className="w-3 h-3 flex-shrink-0" />
-                        ) : (
-                          <ArrowDown className="w-3 h-3 flex-shrink-0" />
-                        )
+                  >
+                    {sortField === 'cfo' ? (
+                      sortDirection === 'asc' ? (
+                        <ArrowUp className="w-3 h-3 flex-shrink-0" />
                       ) : (
-                        <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
-                      )}
-                    </button>
+                        <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                    )}
+                  </button>
                     <span className="uppercase text-xs font-medium text-gray-500 tracking-wider">ЦФО</span>
                   </div>
                 </div>
@@ -933,7 +966,7 @@ export default function PurchasePlanItemsTable() {
                     <span className="text-xs font-medium text-gray-500 tracking-wider">Гант</span>
                   </div>
                 </div>
-              </th>
+                    </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -943,58 +976,83 @@ export default function PurchasePlanItemsTable() {
                   key={item.id} 
                   className="hover:bg-gray-50"
                 >
-                  <td 
-                    className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
-                    style={{ width: `${getColumnWidth('year')}px`, minWidth: `${getColumnWidth('year')}px`, maxWidth: `${getColumnWidth('year')}px` }}
+                        <td 
+                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
+                          style={{ width: `${getColumnWidth('year')}px`, minWidth: `${getColumnWidth('year')}px`, maxWidth: `${getColumnWidth('year')}px` }}
+                        >
+                          {item.year || '-'}
+                        </td>
+                        <td 
+                          className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" 
+                          title={item.company || ''}
+                          style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px` }}
+                        >
+                          {item.company || '-'}
+                        </td>
+                        <td 
+                          className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" 
+                          title={item.cfo || ''}
+                          style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px` }}
+                        >
+                          {item.cfo || '-'}
+                        </td>
+                        <td 
+                          className="px-2 py-2 text-xs text-gray-900 break-words border-r border-gray-200"
+                          style={{ width: `${getColumnWidth('purchaseSubject')}px`, minWidth: `${getColumnWidth('purchaseSubject')}px`, maxWidth: `${getColumnWidth('purchaseSubject')}px` }}
+                        >
+                          {item.purchaseSubject || '-'}
+                        </td>
+                        <td 
+                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
+                          style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px` }}
+                        >
+                          {item.budgetAmount ? new Intl.NumberFormat('ru-RU', { 
+                            notation: 'compact',
+                            maximumFractionDigits: 1 
+                          }).format(item.budgetAmount) : '-'}
+                        </td>
+                        <td 
+                    className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 cursor-pointer hover:bg-gray-50"
+                          style={{ width: `${getColumnWidth('contractEndDate')}px`, minWidth: `${getColumnWidth('contractEndDate')}px`, maxWidth: `${getColumnWidth('contractEndDate')}px` }}
+                    onClick={() => setEditingDate({ itemId: item.id, field: 'contractEndDate' })}
                   >
-                    {item.year || '-'}
-                  </td>
-                  <td 
-                    className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" 
-                    title={item.company || ''}
-                    style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px` }}
-                  >
-                    {item.company || '-'}
-                  </td>
-                  <td 
-                    className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" 
-                    title={item.cfo || ''}
-                    style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px` }}
-                  >
-                    {item.cfo || '-'}
-                  </td>
-                  <td 
-                    className="px-2 py-2 text-xs text-gray-900 break-words border-r border-gray-200"
-                    style={{ width: `${getColumnWidth('purchaseSubject')}px`, minWidth: `${getColumnWidth('purchaseSubject')}px`, maxWidth: `${getColumnWidth('purchaseSubject')}px` }}
-                  >
-                    {item.purchaseSubject || '-'}
-                  </td>
-                  <td 
-                    className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
-                    style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px` }}
-                  >
-                    {item.budgetAmount ? new Intl.NumberFormat('ru-RU', { 
-                      notation: 'compact',
-                      maximumFractionDigits: 1 
-                    }).format(item.budgetAmount) : '-'}
-                  </td>
-                  <td 
-                    className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
-                    style={{ width: `${getColumnWidth('contractEndDate')}px`, minWidth: `${getColumnWidth('contractEndDate')}px`, maxWidth: `${getColumnWidth('contractEndDate')}px` }}
-                  >
-                    {item.contractEndDate ? new Date(item.contractEndDate).toLocaleDateString('ru-RU') : '-'}
+                    {editingDate?.itemId === item.id && editingDate?.field === 'contractEndDate' ? (
+                      <input
+                        type="date"
+                        autoFocus
+                        defaultValue={item.contractEndDate ? item.contractEndDate.split('T')[0] : ''}
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            handleDateUpdate(item.id, 'contractEndDate', e.target.value);
+                          }
+                        }}
+                        onBlur={(e) => {
+                          if (!e.target.value) {
+                            setEditingDate(null);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') {
+                            setEditingDate(null);
+                          }
+                        }}
+                        className="w-full text-xs border border-blue-500 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    ) : (
+                      item.contractEndDate ? new Date(item.contractEndDate).toLocaleDateString('ru-RU') : '-'
+                    )}
                   </td>
                   <td 
                     className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${
                       animatingDates[item.id] ? 'animate-pulse bg-blue-50 text-blue-700 font-semibold' : 'text-gray-900'
                     }`}
-                    style={{ width: `${getColumnWidth('requestDate')}px`, minWidth: `${getColumnWidth('requestDate')}px`, maxWidth: `${getColumnWidth('requestDate')}px` }}
-                  >
+                          style={{ width: `${getColumnWidth('requestDate')}px`, minWidth: `${getColumnWidth('requestDate')}px`, maxWidth: `${getColumnWidth('requestDate')}px` }}
+                        >
                     {editingDate?.itemId === item.id && editingDate?.field === 'requestDate' ? (
                       <input
                         type="date"
                         autoFocus
-                        min={item.year ? `${item.year}-01-01` : undefined}
+                        min={item.year ? `${item.year - 1}-12-01` : undefined}
                         max={item.year ? `${item.year}-12-31` : undefined}
                         defaultValue={item.requestDate ? item.requestDate.split('T')[0] : ''}
                         onChange={(e) => {
@@ -1030,8 +1088,8 @@ export default function PurchasePlanItemsTable() {
                     className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${
                       animatingDates[item.id] ? 'animate-pulse bg-blue-50 text-blue-700 font-semibold' : 'text-gray-900'
                     }`}
-                    style={{ width: `${getColumnWidth('newContractDate')}px`, minWidth: `${getColumnWidth('newContractDate')}px`, maxWidth: `${getColumnWidth('newContractDate')}px` }}
-                  >
+                          style={{ width: `${getColumnWidth('newContractDate')}px`, minWidth: `${getColumnWidth('newContractDate')}px`, maxWidth: `${getColumnWidth('newContractDate')}px` }}
+                        >
                     {editingDate?.itemId === item.id && editingDate?.field === 'newContractDate' ? (
                       <input
                         type="date"
@@ -1067,13 +1125,14 @@ export default function PurchasePlanItemsTable() {
                           : (item.newContractDate ? new Date(item.newContractDate).toLocaleDateString('ru-RU') : '-')}
                       </div>
                     )}
-                  </td>
+                        </td>
                   <td className="px-1 py-1 border-r border-gray-200" style={{ width: '350px', minWidth: '350px' }}>
                     <GanttChart
                       itemId={item.id}
                       year={item.year}
                       requestDate={item.requestDate}
                       newContractDate={item.newContractDate}
+                      contractEndDate={item.contractEndDate}
                       onDragStart={() => {
                         // Закрываем режим редактирования даты при начале перетаскивания Ганта
                         if (editingDate?.itemId === item.id) {
