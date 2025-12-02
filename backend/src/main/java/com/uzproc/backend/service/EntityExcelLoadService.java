@@ -146,6 +146,13 @@ public class EntityExcelLoadService {
             
             // Колонки для заявок
             Integer requestNumberColumnIndex = findColumnIndex(columnIndexMap, REQUEST_NUMBER_COLUMN);
+            // Пробуем альтернативные названия (включая опечатки)
+            if (requestNumberColumnIndex == null) {
+                requestNumberColumnIndex = findColumnIndex(columnIndexMap, "Номер заяки на ЗП"); // Опечатка в файле
+            }
+            if (requestNumberColumnIndex == null) {
+                requestNumberColumnIndex = findColumnIndex(columnIndexMap, "Номер заявки");
+            }
             Integer creationDateColumnIndex = findColumnIndex(columnIndexMap, CREATION_DATE_COLUMN);
             Integer innerIdColumnIndex = findColumnIndex(columnIndexMap, INNER_ID_COLUMN);
             Integer cfoColumnIndex = findColumnIndex(columnIndexMap, CFO_COLUMN);
@@ -397,6 +404,13 @@ public class EntityExcelLoadService {
             // Проверяем наличие необходимых колонок (с поиском по частичному совпадению)
             Integer documentTypeColumnIndex = findColumnIndex(columnIndexMap, DOCUMENT_TYPE_COLUMN);
             Integer requestNumberColumnIndex = findColumnIndex(columnIndexMap, REQUEST_NUMBER_COLUMN);
+            // Пробуем альтернативные названия (включая опечатки)
+            if (requestNumberColumnIndex == null) {
+                requestNumberColumnIndex = findColumnIndex(columnIndexMap, "Номер заяки на ЗП"); // Опечатка в файле
+            }
+            if (requestNumberColumnIndex == null) {
+                requestNumberColumnIndex = findColumnIndex(columnIndexMap, "Номер заявки");
+            }
             Integer creationDateColumnIndex = findColumnIndex(columnIndexMap, CREATION_DATE_COLUMN);
             Integer innerIdColumnIndex = findColumnIndex(columnIndexMap, INNER_ID_COLUMN);
             Integer cfoColumnIndex = findColumnIndex(columnIndexMap, CFO_COLUMN);
