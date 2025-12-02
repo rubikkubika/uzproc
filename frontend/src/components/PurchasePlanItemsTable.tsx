@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { getBackendUrl } from '@/utils/api';
-import { ArrowUp, ArrowDown, ArrowUpDown, Search } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpDown, Search, Download } from 'lucide-react';
 import GanttChart from './GanttChart';
+import { useReactToPrint } from 'react-to-print';
 
 interface PurchasePlanItem {
   id: number;
@@ -32,6 +33,7 @@ type SortField = keyof PurchasePlanItem | null;
 type SortDirection = 'asc' | 'desc' | null;
 
 export default function PurchasePlanItemsTable() {
+  const printRef = useRef<HTMLDivElement>(null);
   const [data, setData] = useState<PageResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -270,7 +272,7 @@ export default function PurchasePlanItemsTable() {
       console.error('Error saving column widths:', err);
     }
   }, []);
-
+  
   // Функция для получения ширины колонки по умолчанию
   const getDefaultColumnWidth = (columnKey: string): number => {
     const defaults: Record<string, number> = {
@@ -285,10 +287,40 @@ export default function PurchasePlanItemsTable() {
     };
     return defaults[columnKey] || 120;
   };
-
+  
   // Функция для получения текущей ширины колонки
   const getColumnWidth = (columnKey: string): number => {
     return columnWidths[columnKey] || getDefaultColumnWidth(columnKey);
+  };
+  
+  // Настройка ReactToPrint для экспорта в PDF
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `План_закупок_${selectedYear || 'Все'}_${new Date().toISOString().split('T')[0]}`,
+    pageStyle: `
+      @page {
+        size: A4 landscape;
+        margin: 10mm;
+      }
+      @media print {
+        body {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .no-print {
+          display: none !important;
+        }
+      }
+    `,
+  });
+
+  // Функция для экспорта плана закупок в PDF
+  const exportToPDF = () => {
+    if (!data?.content || data.content.length === 0) {
+      alert('Нет данных для экспорта');
+      return;
+    }
+    handlePrint();
   };
 
   // Функция для подсчета количества закупок по месяцам
@@ -882,6 +914,14 @@ export default function PurchasePlanItemsTable() {
               Всего записей: {totalRecords}
             </p>
               <button
+                onClick={exportToPDF}
+                className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-2"
+                title="Экспорт в PDF"
+              >
+                <Download className="w-4 h-4" />
+                Экспорт в PDF
+              </button>
+              <button
                 onClick={() => {
                   const emptyFilters = {
                     company: '',
@@ -1049,6 +1089,60 @@ export default function PurchasePlanItemsTable() {
       )}
       
       <div className="overflow-x-auto relative">
+        {/* Контейнер для печати */}
+        <div ref={printRef} className="print-container">
+          <style>{`
+            @media print {
+              .print-container {
+                width: 100%;
+                padding: 0;
+                position: relative;
+              }
+              .print-header {
+                display: block !important;
+                margin-bottom: 15px;
+                position: relative;
+                padding-left: 70px;
+              }
+              .print-header::before {
+                content: '';
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 60px;
+                height: 60px;
+                background-image: url('/images/logo-small.svg');
+                background-repeat: no-repeat;
+                background-position: center;
+                background-size: contain;
+              }
+              .print-header h1 {
+                font-size: 18px;
+                font-weight: bold;
+                margin: 0 0 5px 0;
+              }
+              .print-header p {
+                font-size: 12px;
+                margin: 0;
+              }
+              .no-print {
+                display: none !important;
+              }
+              body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+              }
+            }
+            @media screen {
+              .print-header {
+                display: none;
+              }
+            }
+          `}</style>
+          <div className="print-header">
+            <h1>План закупок</h1>
+            {selectedYear !== null && <p>Год: {selectedYear}</p>}
+          </div>
         <table className="w-full border-collapse">
           <thead className="bg-gray-50">
             <tr>
@@ -1429,6 +1523,7 @@ export default function PurchasePlanItemsTable() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );
