@@ -28,6 +28,7 @@ interface PurchaseRequest {
   requiresPurchase: boolean | null;
   innerId: string | null;
   purchaseIds: number[] | null;
+  status: string | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -35,22 +35,34 @@ public class ExcelFileAutoLoader {
                     // Ищем папку alldocuments относительно корня проекта
                     // Используем системное свойство user.dir, которое указывает на директорию запуска
                     String userDir = System.getProperty("user.dir");
-                    Path currentDir = Paths.get(userDir).toAbsolutePath();
+                    Path currentDir = Paths.get(userDir).toAbsolutePath().normalize();
                     Path projectRoot = currentDir;
                     
                     // Если запускаем из backend/, поднимаемся на уровень выше
-                    if (currentDir.getFileName() != null && currentDir.getFileName().toString().equals("backend")) {
+                    // Используем equalsIgnoreCase для кроссплатформенности (Windows может иметь разный регистр)
+                    if (currentDir.getFileName() != null && 
+                        "backend".equalsIgnoreCase(currentDir.getFileName().toString())) {
                         projectRoot = currentDir.getParent();
                         logger.info("Detected backend directory, using project root: {}", projectRoot);
                     }
                     
-                    alldocumentsPath = projectRoot.resolve("frontend").resolve("upload").resolve("alldocuments");
+                    // Пробуем основной путь
+                    alldocumentsPath = projectRoot.resolve("frontend").resolve("upload").resolve("alldocuments").normalize();
                     
                     // Если не нашли, пробуем альтернативные пути
                     if (!Files.exists(alldocumentsPath)) {
                         // Пробуем относительно текущей директории (если запускаем из backend/)
                         alldocumentsPath = currentDir.resolve("..").resolve("frontend").resolve("upload").resolve("alldocuments").normalize();
                         logger.info("Trying alternative path: {}", alldocumentsPath);
+                    }
+                    
+                    // Если все еще не нашли, пробуем абсолютный путь от корня проекта
+                    if (!Files.exists(alldocumentsPath)) {
+                        Path altPath = Paths.get("frontend", "upload", "alldocuments").toAbsolutePath().normalize();
+                        if (Files.exists(altPath)) {
+                            alldocumentsPath = altPath;
+                            logger.info("Found alldocuments using absolute path: {}", alldocumentsPath);
+                        }
                     }
                 }
                 
@@ -117,21 +129,33 @@ public class ExcelFileAutoLoader {
                 } else {
                     // Ищем папку report относительно корня проекта
                     String userDir = System.getProperty("user.dir");
-                    Path currentDir = Paths.get(userDir).toAbsolutePath();
+                    Path currentDir = Paths.get(userDir).toAbsolutePath().normalize();
                     Path projectRoot = currentDir;
                     
                     // Если запускаем из backend/, поднимаемся на уровень выше
-                    if (currentDir.getFileName() != null && currentDir.getFileName().toString().equals("backend")) {
+                    // Используем equalsIgnoreCase для кроссплатформенности (Windows может иметь разный регистр)
+                    if (currentDir.getFileName() != null && 
+                        "backend".equalsIgnoreCase(currentDir.getFileName().toString())) {
                         projectRoot = currentDir.getParent();
                         logger.info("Detected backend directory, using project root: {}", projectRoot);
                     }
                     
-                    reportPath = projectRoot.resolve("frontend").resolve("upload").resolve("report");
+                    // Пробуем основной путь
+                    reportPath = projectRoot.resolve("frontend").resolve("upload").resolve("report").normalize();
                     
                     // Если не нашли, пробуем альтернативные пути
                     if (!Files.exists(reportPath)) {
                         reportPath = currentDir.resolve("..").resolve("frontend").resolve("upload").resolve("report").normalize();
                         logger.info("Trying alternative path: {}", reportPath);
+                    }
+                    
+                    // Если все еще не нашли, пробуем абсолютный путь от корня проекта
+                    if (!Files.exists(reportPath)) {
+                        Path altPath = Paths.get("frontend", "upload", "report").toAbsolutePath().normalize();
+                        if (Files.exists(altPath)) {
+                            reportPath = altPath;
+                            logger.info("Found report using absolute path: {}", reportPath);
+                        }
                     }
                 }
                 
@@ -192,21 +216,33 @@ public class ExcelFileAutoLoader {
                 } else {
                     // Ищем папку plan относительно корня проекта
                     String userDir = System.getProperty("user.dir");
-                    Path currentDir = Paths.get(userDir).toAbsolutePath();
+                    Path currentDir = Paths.get(userDir).toAbsolutePath().normalize();
                     Path projectRoot = currentDir;
                     
                     // Если запускаем из backend/, поднимаемся на уровень выше
-                    if (currentDir.getFileName() != null && currentDir.getFileName().toString().equals("backend")) {
+                    // Используем equalsIgnoreCase для кроссплатформенности (Windows может иметь разный регистр)
+                    if (currentDir.getFileName() != null && 
+                        "backend".equalsIgnoreCase(currentDir.getFileName().toString())) {
                         projectRoot = currentDir.getParent();
                         logger.info("Detected backend directory, using project root: {}", projectRoot);
                     }
                     
-                    planPath = projectRoot.resolve("frontend").resolve("upload").resolve("plan");
+                    // Пробуем основной путь
+                    planPath = projectRoot.resolve("frontend").resolve("upload").resolve("plan").normalize();
                     
                     // Если не нашли, пробуем альтернативные пути
                     if (!Files.exists(planPath)) {
                         planPath = currentDir.resolve("..").resolve("frontend").resolve("upload").resolve("plan").normalize();
                         logger.info("Trying alternative path: {}", planPath);
+                    }
+                    
+                    // Если все еще не нашли, пробуем абсолютный путь от корня проекта
+                    if (!Files.exists(planPath)) {
+                        Path altPath = Paths.get("frontend", "upload", "plan").toAbsolutePath().normalize();
+                        if (Files.exists(altPath)) {
+                            planPath = altPath;
+                            logger.info("Found plan using absolute path: {}", planPath);
+                        }
                     }
                 }
                 

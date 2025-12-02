@@ -1,5 +1,5 @@
 # Используем официальный Node.js образ как базовый
-FROM node:20-alpine AS base
+FROM --platform=linux/amd64 node:20-alpine AS base
 
 # Устанавливаем зависимости только при необходимости
 FROM base AS deps

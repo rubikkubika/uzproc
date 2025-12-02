@@ -24,6 +24,8 @@ services:
     build:
       context: .
       dockerfile: ./docker/Dockerfile.backend
+      platforms:
+        - linux/amd64
     container_name: uzproc-backend
     ports:
       - "8080:8080"
@@ -57,6 +59,8 @@ services:
     build:
       context: ./frontend
       dockerfile: ../docker/Dockerfile.frontend
+      platforms:
+        - linux/amd64
     container_name: uzproc-frontend
     ports:
       - "3000:3000"
