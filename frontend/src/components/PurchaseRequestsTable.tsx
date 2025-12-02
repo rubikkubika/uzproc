@@ -146,9 +146,6 @@ export default function PurchaseRequestsTable() {
   const resizeStartWidth = useRef<number>(0);
   
   const resizeColumn = useRef<string | null>(null);
-  
-  // Состояние для статусов утверждения заявок (idPurchaseRequest -> isApproved)
-  const [approvalStatuses, setApprovalStatuses] = useState<Map<number, boolean>>(new Map());
 
   // Состояние для порядка колонок
   const [columnOrder, setColumnOrder] = useState<string[]>(['idPurchaseRequest', 'cfo', 'purchaseRequestInitiator', 'name', 'budgetAmount', 'isPlanned', 'requiresPurchase', 'status', 'track']);
@@ -393,33 +390,8 @@ export default function PurchaseRequestsTable() {
       // totalElements и totalPages уже учитывают все примененные фильтры
       setData(result);
       
-      // Загружаем статусы утверждения для всех заявок на странице
-      if (result.content && result.content.length > 0) {
-        const statusMap = new Map<number, boolean>();
-        const promises = result.content
-          .filter((req: PurchaseRequest) => req.idPurchaseRequest !== null)
-          .map(async (req: PurchaseRequest) => {
-            try {
-              const approvalResponse = await fetch(
-                `${getBackendUrl()}/api/purchase-request-approvals/by-purchase-request/${req.idPurchaseRequest}`
-              );
-              if (approvalResponse.ok) {
-                const approvals = await approvalResponse.json();
-                // Проверяем, есть ли согласования этапа "Утверждение заявки на ЗП" или "Утверждение заявки на ЗП (НЕ требуется ЗП)" с completionDate
-                const finalApprovals = approvals.filter((a: any) => 
-                  (a.stage === 'Утверждение заявки на ЗП' || a.stage === 'Утверждение заявки на ЗП (НЕ требуется ЗП)') && 
-                  a.completionDate !== null
-                );
-                statusMap.set(req.idPurchaseRequest!, finalApprovals.length > 0);
-              }
-            } catch (err) {
-              console.error(`Error fetching approvals for request ${req.idPurchaseRequest}:`, err);
-            }
-          });
-        
-        await Promise.all(promises);
-        setApprovalStatuses(statusMap);
-      }
+      // Согласования загружаются только при открытии конкретной заявки на закупку
+      // Здесь используем только статус из самой заявки
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Произошла ошибка');
@@ -1642,7 +1614,7 @@ export default function PurchaseRequestsTable() {
                           style={{ width: `${getColumnWidth('isPlanned')}px`, minWidth: `${getColumnWidth('isPlanned')}px`, maxWidth: `${getColumnWidth('isPlanned')}px` }}
                         >
                           {request.isPlanned ? (
-                            <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                            <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
                               Плановая
                             </span>
                           ) : request.isPlanned === false ? (
@@ -1650,7 +1622,7 @@ export default function PurchaseRequestsTable() {
                               Внеплановая
                             </span>
                           ) : (
-                            <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
+                            <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
                               -
                             </span>
                           )}
@@ -1712,7 +1684,7 @@ export default function PurchaseRequestsTable() {
                     <div className="flex items-end gap-2">
                       {/* Заявка - активна */}
                       <div className="flex flex-col items-center gap-0.5">
-                        {(request.status === 'Утверждена' || (request.idPurchaseRequest && approvalStatuses.get(request.idPurchaseRequest))) ? (
+                        {request.status === 'Утверждена' ? (
                           <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center" title="Заявка утверждена">
                             <Check className="w-2.5 h-2.5 text-white" />
                           </div>

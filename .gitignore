@@ -54,10 +54,6 @@ frontend/images/*.xls
 frontend/images/~$*.xlsx
 frontend/images/~$*.xls
 
-# Upload folders - keep structure, ignore files
-frontend/upload/plan/*
-!frontend/upload/plan/.gitkeep
-
 # Spring Boot / Java
 .apt_generated
 .classpath

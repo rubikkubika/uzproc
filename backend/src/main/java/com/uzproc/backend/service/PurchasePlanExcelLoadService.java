@@ -63,23 +63,91 @@ public class PurchasePlanExcelLoadService {
         }
 
         try {
-            Sheet sheet = workbook.getSheetAt(0); // Берем первый лист
-            Iterator<Row> rowIterator = sheet.iterator();
+            // Ищем лист "Данные"
+            Sheet sheet = null;
+            for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
+                String sheetName = workbook.getSheetName(i);
+                if ("Данные".equalsIgnoreCase(sheetName.trim())) {
+                    sheet = workbook.getSheetAt(i);
+                    logger.info("Found sheet 'Данные' at index {}", i);
+                    break;
+                }
+            }
             
-            if (!rowIterator.hasNext()) {
-                logger.warn("Sheet is empty in file {}", excelFile.getName());
+            // Если не нашли лист "Данные", используем первый лист
+            if (sheet == null) {
+                logger.warn("Sheet 'Данные' not found, using first sheet");
+                sheet = workbook.getSheetAt(0);
+            }
+            
+            // Ищем заголовки в первых строках (на случай, если структура файла изменилась)
+            Row headerRow = null;
+            int headerRowIndex = -1;
+            Map<String, Integer> columnIndexMap = null;
+            
+            // Пробуем найти заголовки в первых 10 строках
+            for (int i = 0; i < 10 && i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null) {
+                    continue;
+                }
+                
+                Map<String, Integer> tempMap = buildColumnIndexMap(row);
+                
+                // Проверяем, есть ли в этой строке хотя бы несколько ожидаемых колонок
+                int foundColumns = 0;
+                if (tempMap.containsKey(YEAR_COLUMN) || findColumnIndex(tempMap, YEAR_COLUMN) != null) foundColumns++;
+                if (tempMap.containsKey(COMPANY_COLUMN) || findColumnIndex(tempMap, COMPANY_COLUMN) != null) foundColumns++;
+                if (tempMap.containsKey(CFO_COLUMN) || findColumnIndex(tempMap, CFO_COLUMN) != null) foundColumns++;
+                if (tempMap.containsKey(PURCHASE_SUBJECT_COLUMN) || findColumnIndex(tempMap, PURCHASE_SUBJECT_COLUMN) != null) foundColumns++;
+                
+                // Если нашли хотя бы 2 из 4 основных колонок, считаем это заголовками
+                if (foundColumns >= 2) {
+                    headerRow = row;
+                    headerRowIndex = i;
+                    columnIndexMap = tempMap;
+                    logger.info("Found header row at index {} (0-based)", i);
+                    break;
+                }
+            }
+            
+            if (headerRow == null || columnIndexMap == null) {
+                logger.error("Could not find header row in first 10 rows of file {}", excelFile.getName());
                 return 0;
             }
-
-            // Читаем заголовки (первая строка)
-            Row headerRow = rowIterator.next();
-            Map<String, Integer> columnIndexMap = buildColumnIndexMap(headerRow);
             
-            // Находим индексы колонок
+            // Создаем итератор, начиная со строки после заголовков
+            Iterator<Row> rowIterator = sheet.iterator();
+            // Пропускаем строки до заголовков
+            for (int i = 0; i <= headerRowIndex; i++) {
+                if (rowIterator.hasNext()) {
+                    rowIterator.next();
+                }
+            }
+            
+            // Находим индексы колонок с альтернативными названиями
             Integer yearColumnIndex = findColumnIndex(columnIndexMap, YEAR_COLUMN);
+            if (yearColumnIndex == null) {
+                yearColumnIndex = findColumnIndex(columnIndexMap, "Год плана");
+            }
+            
             Integer companyColumnIndex = findColumnIndex(columnIndexMap, COMPANY_COLUMN);
+            if (companyColumnIndex == null) {
+                companyColumnIndex = findColumnIndex(columnIndexMap, "Компания/Организация");
+            }
+            
             Integer cfoColumnIndex = findColumnIndex(columnIndexMap, CFO_COLUMN);
+            if (cfoColumnIndex == null) {
+                cfoColumnIndex = findColumnIndex(columnIndexMap, "Центр финансовой ответственности");
+            }
+            
             Integer purchaseSubjectColumnIndex = findColumnIndex(columnIndexMap, PURCHASE_SUBJECT_COLUMN);
+            if (purchaseSubjectColumnIndex == null) {
+                purchaseSubjectColumnIndex = findColumnIndex(columnIndexMap, "Предмет");
+            }
+            if (purchaseSubjectColumnIndex == null) {
+                purchaseSubjectColumnIndex = findColumnIndex(columnIndexMap, "Наименование предмета закупки");
+            }
             
             // Пробуем найти колонку бюджета с разными вариантами названия
             Integer budgetAmountColumnIndex = findColumnIndex(columnIndexMap, BUDGET_AMOUNT_COLUMN);
@@ -103,8 +171,22 @@ public class PurchasePlanExcelLoadService {
             }
             
             Integer contractEndDateColumnIndex = findColumnIndex(columnIndexMap, CONTRACT_END_DATE_COLUMN);
+            if (contractEndDateColumnIndex == null) {
+                contractEndDateColumnIndex = findColumnIndex(columnIndexMap, "Срок окончания договора");
+            }
+            if (contractEndDateColumnIndex == null) {
+                contractEndDateColumnIndex = findColumnIndex(columnIndexMap, "Дата окончания договора");
+            }
+            
             Integer requestDateColumnIndex = findColumnIndex(columnIndexMap, REQUEST_DATE_COLUMN);
+            if (requestDateColumnIndex == null) {
+                requestDateColumnIndex = findColumnIndex(columnIndexMap, "Дата заявки на закупку");
+            }
+            
             Integer newContractDateColumnIndex = findColumnIndex(columnIndexMap, NEW_CONTRACT_DATE_COLUMN);
+            if (newContractDateColumnIndex == null) {
+                newContractDateColumnIndex = findColumnIndex(columnIndexMap, "Дата нового контракта");
+            }
             
             // Логируем все найденные колонки
             logger.info("All columns in Excel file:");
@@ -134,13 +216,27 @@ public class PurchasePlanExcelLoadService {
                             cfoColumnIndex, purchaseSubjectColumnIndex, budgetAmountColumnIndex,
                             contractEndDateColumnIndex, requestDateColumnIndex, newContractDateColumnIndex);
                     
-                    if (item != null) {
-                        // Проверяем, существует ли уже запись с таким же guid (если есть уникальный идентификатор)
-                        // Или создаем новую запись
-                        purchasePlanItemRepository.save(item);
+                    if (item != null && item.getPurchaseSubject() != null && !item.getPurchaseSubject().trim().isEmpty()) {
+                        // Проверяем, существует ли уже запись с таким же purchase_subject (без учета регистра)
+                        Optional<PurchasePlanItem> existingItem = purchasePlanItemRepository.findByPurchaseSubjectIgnoreCase(item.getPurchaseSubject().trim());
+                        
+                        if (existingItem.isPresent()) {
+                            // Обновляем существующую запись
+                            PurchasePlanItem existing = existingItem.get();
+                            updatePurchasePlanItemFields(existing, item);
+                            purchasePlanItemRepository.save(existing);
+                            logger.debug("Updated existing purchase plan item with subject: {}", item.getPurchaseSubject());
+                        } else {
+                            // Создаем новую запись
+                            purchasePlanItemRepository.save(item);
+                            logger.debug("Created new purchase plan item with subject: {}", item.getPurchaseSubject());
+                        }
                         loadedCount++;
                     } else {
                         skippedCount++;
+                        if (item != null && (item.getPurchaseSubject() == null || item.getPurchaseSubject().trim().isEmpty())) {
+                            logger.debug("Skipping row {}: purchase subject is empty", row.getRowNum() + 1);
+                        }
                     }
                 } catch (Exception e) {
                     logger.warn("Error processing purchase plan item row {}: {}", row.getRowNum() + 1, e.getMessage());
@@ -656,6 +752,54 @@ public class PurchasePlanExcelLoadService {
             }
         }
         return true;
+    }
+
+    /**
+     * Обновляет поля существующей записи плана закупок данными из новой записи
+     */
+    private void updatePurchasePlanItemFields(PurchasePlanItem existing, PurchasePlanItem newData) {
+        boolean updated = false;
+        
+        if (newData.getYear() != null && !newData.getYear().equals(existing.getYear())) {
+            existing.setYear(newData.getYear());
+            updated = true;
+        }
+        
+        if (newData.getCompany() != null && !newData.getCompany().trim().isEmpty() && 
+            !newData.getCompany().equals(existing.getCompany())) {
+            existing.setCompany(newData.getCompany());
+            updated = true;
+        }
+        
+        if (newData.getCfo() != null && !newData.getCfo().trim().isEmpty() && 
+            !newData.getCfo().equals(existing.getCfo())) {
+            existing.setCfo(newData.getCfo());
+            updated = true;
+        }
+        
+        if (newData.getBudgetAmount() != null && !newData.getBudgetAmount().equals(existing.getBudgetAmount())) {
+            existing.setBudgetAmount(newData.getBudgetAmount());
+            updated = true;
+        }
+        
+        if (newData.getContractEndDate() != null && !newData.getContractEndDate().equals(existing.getContractEndDate())) {
+            existing.setContractEndDate(newData.getContractEndDate());
+            updated = true;
+        }
+        
+        if (newData.getRequestDate() != null && !newData.getRequestDate().equals(existing.getRequestDate())) {
+            existing.setRequestDate(newData.getRequestDate());
+            updated = true;
+        }
+        
+        if (newData.getNewContractDate() != null && !newData.getNewContractDate().equals(existing.getNewContractDate())) {
+            existing.setNewContractDate(newData.getNewContractDate());
+            updated = true;
+        }
+        
+        if (updated) {
+            logger.debug("Updated purchase plan item fields for subject: {}", existing.getPurchaseSubject());
+        }
     }
 }
 

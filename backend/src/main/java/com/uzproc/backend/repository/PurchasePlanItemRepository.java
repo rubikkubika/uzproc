@@ -14,5 +14,9 @@ import java.util.UUID;
 public interface PurchasePlanItemRepository extends JpaRepository<PurchasePlanItem, Long>, JpaSpecificationExecutor<PurchasePlanItem> {
     Optional<PurchasePlanItem> findByGuid(UUID guid);
     boolean existsByGuid(UUID guid);
+    
+    // Поиск по purchase_subject без учета регистра (для соответствия уникальному индексу)
+    @org.springframework.data.jpa.repository.Query("SELECT p FROM PurchasePlanItem p WHERE LOWER(p.purchaseSubject) = LOWER(:purchaseSubject)")
+    Optional<PurchasePlanItem> findByPurchaseSubjectIgnoreCase(@org.springframework.data.repository.query.Param("purchaseSubject") String purchaseSubject);
 }
 
