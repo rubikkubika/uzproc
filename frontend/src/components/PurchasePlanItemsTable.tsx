@@ -1125,6 +1125,14 @@ export default function PurchasePlanItemsTable() {
                 font-size: 12px;
                 margin: 0;
               }
+              /* Увеличиваем ширину столбца "Предмет закупки" при печати */
+              /* Столбец "Предмет закупки" - это второй столбец после ЦФО */
+              table thead th:nth-child(2),
+              table tbody td:nth-child(2) {
+                width: 350px !important;
+                min-width: 350px !important;
+                max-width: 350px !important;
+              }
               .no-print {
                 display: none !important;
               }
