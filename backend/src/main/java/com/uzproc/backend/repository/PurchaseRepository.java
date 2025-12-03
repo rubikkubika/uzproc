@@ -24,3 +24,4 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long>, JpaSp
     List<Purchase> findByPurchaseRequestId(Long purchaseRequestId);
 }
 
+

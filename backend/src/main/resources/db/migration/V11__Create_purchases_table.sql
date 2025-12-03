@@ -23,3 +23,4 @@ CREATE INDEX idx_purchases_number ON purchases(purchase_number);
 CREATE INDEX idx_purchases_creation_date ON purchases(purchase_creation_date);
 CREATE INDEX idx_purchases_cfo ON purchases(cfo);
 
+
