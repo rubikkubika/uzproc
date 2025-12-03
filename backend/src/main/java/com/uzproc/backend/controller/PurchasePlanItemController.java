@@ -27,10 +27,13 @@ public class PurchasePlanItemController {
             @RequestParam(required = false) String sortDir,
             @RequestParam(required = false) String company,
             @RequestParam(required = false) List<String> cfo,
-            @RequestParam(required = false) String purchaseSubject) {
+            @RequestParam(required = false) String purchaseSubject,
+            @RequestParam(required = false) List<String> purchaser,
+            @RequestParam(required = false) Integer requestMonth,
+            @RequestParam(required = false) Integer requestYear) {
         
         Page<PurchasePlanItemDto> items = purchasePlanItemService.findAll(
-                page, size, year, sortBy, sortDir, company, cfo, purchaseSubject);
+                page, size, year, sortBy, sortDir, company, cfo, purchaseSubject, purchaser, requestMonth, requestYear);
         
         return ResponseEntity.ok(items);
     }

@@ -27,6 +27,8 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (response.ok) {
+        // Сохраняем логин в localStorage для предзаполнения в модальных окнах
+        localStorage.setItem('lastUsername', username);
         // Успешный вход, перенаправляем на главную страницу
         router.push('/');
         router.refresh();

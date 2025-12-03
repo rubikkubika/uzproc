@@ -38,13 +38,16 @@ public class PurchasePlanItemService {
             String sortDir,
             String company,
             List<String> cfo,
-            String purchaseSubject) {
+            String purchaseSubject,
+            List<String> purchaser,
+            Integer requestMonth,
+            Integer requestYear) {
         
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, company: '{}', cfo: {}, purchaseSubject: '{}'",
-                year, company, cfo, purchaseSubject);
+        logger.info("Filter parameters - year: {}, company: '{}', cfo: {}, purchaseSubject: '{}', purchaser: {}, requestMonth: {}, requestYear: {}",
+                year, company, cfo, purchaseSubject, purchaser, requestMonth, requestYear);
         
-        Specification<PurchasePlanItem> spec = buildSpecification(year, company, cfo, purchaseSubject);
+        Specification<PurchasePlanItem> spec = buildSpecification(year, company, cfo, purchaseSubject, purchaser, requestMonth, requestYear);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -112,6 +115,17 @@ public class PurchasePlanItemService {
         dto.setContractEndDate(entity.getContractEndDate());
         dto.setRequestDate(entity.getRequestDate());
         dto.setNewContractDate(entity.getNewContractDate());
+        dto.setPurchaser(entity.getPurchaser());
+        dto.setProduct(entity.getProduct());
+        dto.setHasContract(entity.getHasContract());
+        dto.setCurrentKa(entity.getCurrentKa());
+        dto.setCurrentAmount(entity.getCurrentAmount());
+        dto.setCurrentContractAmount(entity.getCurrentContractAmount());
+        dto.setCurrentContractBalance(entity.getCurrentContractBalance());
+        dto.setCurrentContractEndDate(entity.getCurrentContractEndDate());
+        dto.setAutoRenewal(entity.getAutoRenewal());
+        dto.setComplexity(entity.getComplexity());
+        dto.setHolding(entity.getHolding());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
         return dto;
@@ -121,7 +135,10 @@ public class PurchasePlanItemService {
             Integer year,
             String company,
             List<String> cfo,
-            String purchaseSubject) {
+            String purchaseSubject,
+            List<String> purchaser,
+            Integer requestMonth,
+            Integer requestYear) {
         
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -172,6 +189,55 @@ public class PurchasePlanItemService {
                 predicates.add(cb.like(cb.lower(root.get("purchaseSubject")), "%" + purchaseSubject.toLowerCase() + "%"));
                 predicateCount++;
                 logger.info("Added purchaseSubject filter: '{}'", purchaseSubject);
+            }
+            
+            // Фильтр по закупщику (поддержка множественного выбора - точное совпадение)
+            if (purchaser != null && !purchaser.isEmpty()) {
+                // Убираем пустые значения и тримим
+                List<String> validPurchaserValues = purchaser.stream()
+                    .filter(s -> s != null && !s.trim().isEmpty())
+                    .map(String::trim)
+                    .toList();
+                
+                if (!validPurchaserValues.isEmpty()) {
+                    if (validPurchaserValues.size() == 1) {
+                        // Одно значение - точное совпадение
+                        predicates.add(cb.equal(cb.lower(root.get("purchaser")), validPurchaserValues.get(0).toLowerCase()));
+                        predicateCount++;
+                        logger.info("Added single purchaser filter: '{}'", validPurchaserValues.get(0));
+                    } else {
+                        // Несколько значений - IN запрос
+                        List<Predicate> purchaserPredicates = validPurchaserValues.stream()
+                            .map(purchaserValue -> cb.equal(cb.lower(root.get("purchaser")), purchaserValue.toLowerCase()))
+                            .toList();
+                        predicates.add(cb.or(purchaserPredicates.toArray(new Predicate[0])));
+                        predicateCount++;
+                        logger.info("Added multiple purchaser filter: {}", validPurchaserValues);
+                    }
+                }
+            }
+            
+            // Фильтр по месяцу даты заявки
+            if (requestMonth != null) {
+                if (requestMonth == -1) {
+                    // Фильтр для записей без даты
+                    predicates.add(cb.isNull(root.get("requestDate")));
+                    predicateCount++;
+                    logger.info("Added requestMonth filter: без даты (null)");
+                } else {
+                    // Фильтр по конкретному месяцу
+                    // Определяем год для фильтрации:
+                    // 1. Если передан requestYear - используем его (для месяцев из другого года, например декабрь предыдущего года)
+                    // 2. Иначе используем year (год планирования)
+                    // 3. Иначе текущий год
+                    Integer filterYear = requestYear != null ? requestYear : (year != null ? year : java.time.Year.now().getValue());
+                    java.time.LocalDate startOfMonth = java.time.LocalDate.of(filterYear, requestMonth + 1, 1);
+                    java.time.LocalDate endOfMonth = startOfMonth.withDayOfMonth(startOfMonth.lengthOfMonth());
+                    
+                    predicates.add(cb.between(root.get("requestDate"), startOfMonth, endOfMonth));
+                    predicateCount++;
+                    logger.info("Added requestMonth filter: месяц {} года {} ({} - {})", requestMonth, filterYear, startOfMonth, endOfMonth);
+                }
             }
             
             logger.info("Total predicates added: {}", predicateCount);

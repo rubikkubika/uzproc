@@ -44,6 +44,39 @@ public class PurchasePlanItem {
     @Column(name = "new_contract_date")
     private LocalDate newContractDate;
 
+    @Column(name = "purchaser", length = 255)
+    private String purchaser;
+
+    @Column(name = "product", length = 500)
+    private String product;
+
+    @Column(name = "has_contract")
+    private Boolean hasContract;
+
+    @Column(name = "current_ka", length = 255)
+    private String currentKa;
+
+    @Column(name = "current_amount", precision = 15, scale = 2)
+    private BigDecimal currentAmount;
+
+    @Column(name = "current_contract_amount", precision = 15, scale = 2)
+    private BigDecimal currentContractAmount;
+
+    @Column(name = "current_contract_balance", precision = 15, scale = 2)
+    private BigDecimal currentContractBalance;
+
+    @Column(name = "current_contract_end_date")
+    private LocalDate currentContractEndDate;
+
+    @Column(name = "auto_renewal")
+    private Boolean autoRenewal;
+
+    @Column(name = "complexity", length = 255)
+    private String complexity;
+
+    @Column(name = "holding", length = 255)
+    private String holding;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -148,6 +181,94 @@ public class PurchasePlanItem {
 
     public void setNewContractDate(LocalDate newContractDate) {
         this.newContractDate = newContractDate;
+    }
+
+    public String getPurchaser() {
+        return purchaser;
+    }
+
+    public void setPurchaser(String purchaser) {
+        this.purchaser = purchaser;
+    }
+
+    public String getProduct() {
+        return product;
+    }
+
+    public void setProduct(String product) {
+        this.product = product;
+    }
+
+    public Boolean getHasContract() {
+        return hasContract;
+    }
+
+    public void setHasContract(Boolean hasContract) {
+        this.hasContract = hasContract;
+    }
+
+    public String getCurrentKa() {
+        return currentKa;
+    }
+
+    public void setCurrentKa(String currentKa) {
+        this.currentKa = currentKa;
+    }
+
+    public BigDecimal getCurrentAmount() {
+        return currentAmount;
+    }
+
+    public void setCurrentAmount(BigDecimal currentAmount) {
+        this.currentAmount = currentAmount;
+    }
+
+    public BigDecimal getCurrentContractAmount() {
+        return currentContractAmount;
+    }
+
+    public void setCurrentContractAmount(BigDecimal currentContractAmount) {
+        this.currentContractAmount = currentContractAmount;
+    }
+
+    public BigDecimal getCurrentContractBalance() {
+        return currentContractBalance;
+    }
+
+    public void setCurrentContractBalance(BigDecimal currentContractBalance) {
+        this.currentContractBalance = currentContractBalance;
+    }
+
+    public LocalDate getCurrentContractEndDate() {
+        return currentContractEndDate;
+    }
+
+    public void setCurrentContractEndDate(LocalDate currentContractEndDate) {
+        this.currentContractEndDate = currentContractEndDate;
+    }
+
+    public Boolean getAutoRenewal() {
+        return autoRenewal;
+    }
+
+    public void setAutoRenewal(Boolean autoRenewal) {
+        this.autoRenewal = autoRenewal;
+    }
+
+    public String getComplexity() {
+        return complexity;
+    }
+
+    public void setComplexity(String complexity) {
+        this.complexity = complexity;
+    }
+
+    public String getHolding() {
+        return holding;
+    }
+
+    public void setHolding(String holding) {
+        this.holding = holding;
     }
 
     public LocalDateTime getCreatedAt() {

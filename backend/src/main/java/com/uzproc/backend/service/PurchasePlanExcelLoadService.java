@@ -37,6 +37,17 @@ public class PurchasePlanExcelLoadService {
     private static final String CONTRACT_END_DATE_COLUMN = "Срок окончания действия договора";
     private static final String REQUEST_DATE_COLUMN = "Дата заявки";
     private static final String NEW_CONTRACT_DATE_COLUMN = "Дата нового договора";
+    private static final String PURCHASER_COLUMN = "Закупщик";
+    private static final String PRODUCT_COLUMN = "Продукция";
+    private static final String HAS_CONTRACT_COLUMN = "Есть договор";
+    private static final String CURRENT_KA_COLUMN = "КА действующего";
+    private static final String CURRENT_AMOUNT_COLUMN = "Сумма текущего";
+    private static final String CURRENT_CONTRACT_AMOUNT_COLUMN = "Сумма текущего договора";
+    private static final String CURRENT_CONTRACT_BALANCE_COLUMN = "Остаток текущего договора";
+    private static final String CURRENT_CONTRACT_END_DATE_COLUMN = "Дата окончания действующего";
+    private static final String AUTO_RENEWAL_COLUMN = "Автопролонгация";
+    private static final String COMPLEXITY_COLUMN = "Сложность";
+    private static final String HOLDING_COLUMN = "Холдинг";
 
     private final PurchasePlanItemRepository purchasePlanItemRepository;
     private final DataFormatter dataFormatter = new DataFormatter();
@@ -182,11 +193,61 @@ public class PurchasePlanExcelLoadService {
             if (requestDateColumnIndex == null) {
                 requestDateColumnIndex = findColumnIndex(columnIndexMap, "Дата заявки на закупку");
             }
+            if (requestDateColumnIndex == null) {
+                requestDateColumnIndex = findColumnIndex(columnIndexMap, "Дата заявки на ЗП");
+            }
+            if (requestDateColumnIndex == null) {
+                requestDateColumnIndex = findColumnIndex(columnIndexMap, "Дата создания заявки");
+            }
+            if (requestDateColumnIndex != null) {
+                logger.info("Found request date column at index {}", requestDateColumnIndex);
+            } else {
+                logger.warn("Request date column not found in Excel file. Tried: '{}', 'Дата заявки на закупку', 'Дата заявки на ЗП', 'Дата создания заявки'", REQUEST_DATE_COLUMN);
+            }
             
             Integer newContractDateColumnIndex = findColumnIndex(columnIndexMap, NEW_CONTRACT_DATE_COLUMN);
             if (newContractDateColumnIndex == null) {
                 newContractDateColumnIndex = findColumnIndex(columnIndexMap, "Дата нового контракта");
             }
+            if (newContractDateColumnIndex == null) {
+                newContractDateColumnIndex = findColumnIndex(columnIndexMap, "Дата нового договора");
+            }
+            if (newContractDateColumnIndex == null) {
+                newContractDateColumnIndex = findColumnIndex(columnIndexMap, "Дата заключения нового договора");
+            }
+            if (newContractDateColumnIndex != null) {
+                logger.info("Found new contract date column at index {}", newContractDateColumnIndex);
+            } else {
+                logger.warn("New contract date column not found in Excel file. Tried: '{}', 'Дата нового контракта', 'Дата заключения нового договора'", NEW_CONTRACT_DATE_COLUMN);
+            }
+            
+            Integer purchaserColumnIndex = findColumnIndex(columnIndexMap, PURCHASER_COLUMN);
+            if (purchaserColumnIndex == null) {
+                purchaserColumnIndex = findColumnIndex(columnIndexMap, "Ответственный за ЗП (Закупочная процедура)");
+            }
+            if (purchaserColumnIndex == null) {
+                purchaserColumnIndex = findColumnIndex(columnIndexMap, "Ответственный за ЗП");
+            }
+            if (purchaserColumnIndex == null) {
+                purchaserColumnIndex = findColumnIndex(columnIndexMap, "Ответственный за закупку");
+            }
+            if (purchaserColumnIndex != null) {
+                logger.info("Found purchaser column at index {}", purchaserColumnIndex);
+            } else {
+                logger.warn("Purchaser column not found in Excel file. Tried: '{}', 'Ответственный за ЗП (Закупочная процедура)', 'Ответственный за ЗП', 'Ответственный за закупку'", PURCHASER_COLUMN);
+            }
+            
+            // Поиск новых колонок
+            Integer productColumnIndex = findColumnIndex(columnIndexMap, PRODUCT_COLUMN);
+            Integer hasContractColumnIndex = findColumnIndex(columnIndexMap, HAS_CONTRACT_COLUMN);
+            Integer currentKaColumnIndex = findColumnIndex(columnIndexMap, CURRENT_KA_COLUMN);
+            Integer currentAmountColumnIndex = findColumnIndex(columnIndexMap, CURRENT_AMOUNT_COLUMN);
+            Integer currentContractAmountColumnIndex = findColumnIndex(columnIndexMap, CURRENT_CONTRACT_AMOUNT_COLUMN);
+            Integer currentContractBalanceColumnIndex = findColumnIndex(columnIndexMap, CURRENT_CONTRACT_BALANCE_COLUMN);
+            Integer currentContractEndDateColumnIndex = findColumnIndex(columnIndexMap, CURRENT_CONTRACT_END_DATE_COLUMN);
+            Integer autoRenewalColumnIndex = findColumnIndex(columnIndexMap, AUTO_RENEWAL_COLUMN);
+            Integer complexityColumnIndex = findColumnIndex(columnIndexMap, COMPLEXITY_COLUMN);
+            Integer holdingColumnIndex = findColumnIndex(columnIndexMap, HOLDING_COLUMN);
             
             // Логируем все найденные колонки
             logger.info("All columns in Excel file:");
@@ -196,9 +257,14 @@ public class PurchasePlanExcelLoadService {
             
             // Логируем найденные колонки
             logger.info("Found columns - year: {}, company: {}, cfo: {}, purchaseSubject: {}, budgetAmount: {}, " +
-                    "contractEndDate: {}, requestDate: {}, newContractDate: {}",
+                    "contractEndDate: {}, requestDate: {}, newContractDate: {}, purchaser: {}, product: {}, " +
+                    "hasContract: {}, currentKa: {}, currentAmount: {}, currentContractAmount: {}, " +
+                    "currentContractBalance: {}, currentContractEndDate: {}, autoRenewal: {}, complexity: {}, holding: {}",
                     yearColumnIndex, companyColumnIndex, cfoColumnIndex, purchaseSubjectColumnIndex,
-                    budgetAmountColumnIndex, contractEndDateColumnIndex, requestDateColumnIndex, newContractDateColumnIndex);
+                    budgetAmountColumnIndex, contractEndDateColumnIndex, requestDateColumnIndex, newContractDateColumnIndex, purchaserColumnIndex,
+                    productColumnIndex, hasContractColumnIndex, currentKaColumnIndex, currentAmountColumnIndex,
+                    currentContractAmountColumnIndex, currentContractBalanceColumnIndex, currentContractEndDateColumnIndex,
+                    autoRenewalColumnIndex, complexityColumnIndex, holdingColumnIndex);
             
             int loadedCount = 0;
             int skippedCount = 0;
@@ -214,7 +280,10 @@ public class PurchasePlanExcelLoadService {
                 try {
                     PurchasePlanItem item = parsePurchasePlanItemRow(row, yearColumnIndex, companyColumnIndex,
                             cfoColumnIndex, purchaseSubjectColumnIndex, budgetAmountColumnIndex,
-                            contractEndDateColumnIndex, requestDateColumnIndex, newContractDateColumnIndex);
+                            contractEndDateColumnIndex, requestDateColumnIndex, newContractDateColumnIndex, purchaserColumnIndex,
+                            productColumnIndex, hasContractColumnIndex, currentKaColumnIndex, currentAmountColumnIndex,
+                            currentContractAmountColumnIndex, currentContractBalanceColumnIndex, currentContractEndDateColumnIndex,
+                            autoRenewalColumnIndex, complexityColumnIndex, holdingColumnIndex);
                     
                     if (item != null && item.getPurchaseSubject() != null && !item.getPurchaseSubject().trim().isEmpty()) {
                         // Проверяем, существует ли уже запись с таким же purchase_subject (без учета регистра)
@@ -256,7 +325,10 @@ public class PurchasePlanExcelLoadService {
      */
     private PurchasePlanItem parsePurchasePlanItemRow(Row row, Integer yearColumnIndex, Integer companyColumnIndex,
             Integer cfoColumnIndex, Integer purchaseSubjectColumnIndex, Integer budgetAmountColumnIndex,
-            Integer contractEndDateColumnIndex, Integer requestDateColumnIndex, Integer newContractDateColumnIndex) {
+            Integer contractEndDateColumnIndex, Integer requestDateColumnIndex, Integer newContractDateColumnIndex, Integer purchaserColumnIndex,
+            Integer productColumnIndex, Integer hasContractColumnIndex, Integer currentKaColumnIndex, Integer currentAmountColumnIndex,
+            Integer currentContractAmountColumnIndex, Integer currentContractBalanceColumnIndex, Integer currentContractEndDateColumnIndex,
+            Integer autoRenewalColumnIndex, Integer complexityColumnIndex, Integer holdingColumnIndex) {
         PurchasePlanItem item = new PurchasePlanItem();
         
         try {
@@ -342,6 +414,105 @@ public class PurchasePlanExcelLoadService {
                 LocalDate newContractDate = parseLocalDateCell(newContractDateCell);
                 if (newContractDate != null) {
                     item.setNewContractDate(newContractDate);
+                }
+            }
+            
+            // Закупщик
+            if (purchaserColumnIndex != null) {
+                Cell purchaserCell = row.getCell(purchaserColumnIndex);
+                String purchaser = getCellValueAsString(purchaserCell);
+                if (purchaser != null && !purchaser.trim().isEmpty()) {
+                    item.setPurchaser(purchaser.trim());
+                }
+            }
+            
+            // Продукция
+            if (productColumnIndex != null) {
+                Cell productCell = row.getCell(productColumnIndex);
+                String product = getCellValueAsString(productCell);
+                if (product != null && !product.trim().isEmpty()) {
+                    item.setProduct(product.trim());
+                }
+            }
+            
+            // Есть договор
+            if (hasContractColumnIndex != null) {
+                Cell hasContractCell = row.getCell(hasContractColumnIndex);
+                Boolean hasContract = parseBooleanCell(hasContractCell);
+                if (hasContract != null) {
+                    item.setHasContract(hasContract);
+                }
+            }
+            
+            // КА действующего
+            if (currentKaColumnIndex != null) {
+                Cell currentKaCell = row.getCell(currentKaColumnIndex);
+                String currentKa = getCellValueAsString(currentKaCell);
+                if (currentKa != null && !currentKa.trim().isEmpty()) {
+                    item.setCurrentKa(currentKa.trim());
+                }
+            }
+            
+            // Сумма текущего
+            if (currentAmountColumnIndex != null) {
+                Cell currentAmountCell = row.getCell(currentAmountColumnIndex);
+                BigDecimal currentAmount = parseBigDecimalCell(currentAmountCell);
+                if (currentAmount != null) {
+                    item.setCurrentAmount(currentAmount);
+                }
+            }
+            
+            // Сумма текущего договора
+            if (currentContractAmountColumnIndex != null) {
+                Cell currentContractAmountCell = row.getCell(currentContractAmountColumnIndex);
+                BigDecimal currentContractAmount = parseBigDecimalCell(currentContractAmountCell);
+                if (currentContractAmount != null) {
+                    item.setCurrentContractAmount(currentContractAmount);
+                }
+            }
+            
+            // Остаток текущего договора
+            if (currentContractBalanceColumnIndex != null) {
+                Cell currentContractBalanceCell = row.getCell(currentContractBalanceColumnIndex);
+                BigDecimal currentContractBalance = parseBigDecimalCell(currentContractBalanceCell);
+                if (currentContractBalance != null) {
+                    item.setCurrentContractBalance(currentContractBalance);
+                }
+            }
+            
+            // Дата окончания действующего
+            if (currentContractEndDateColumnIndex != null) {
+                Cell currentContractEndDateCell = row.getCell(currentContractEndDateColumnIndex);
+                LocalDate currentContractEndDate = parseLocalDateCell(currentContractEndDateCell);
+                if (currentContractEndDate != null) {
+                    item.setCurrentContractEndDate(currentContractEndDate);
+                }
+            }
+            
+            // Автопролонгация
+            if (autoRenewalColumnIndex != null) {
+                Cell autoRenewalCell = row.getCell(autoRenewalColumnIndex);
+                Boolean autoRenewal = parseBooleanCell(autoRenewalCell);
+                if (autoRenewal != null) {
+                    item.setAutoRenewal(autoRenewal);
+                }
+            }
+            
+            // Сложность
+            if (complexityColumnIndex != null) {
+                Cell complexityCell = row.getCell(complexityColumnIndex);
+                String complexity = getCellValueAsString(complexityCell);
+                if (complexity != null && !complexity.trim().isEmpty()) {
+                    item.setComplexity(complexity.trim());
+                }
+            }
+            
+            // Холдинг
+            if (holdingColumnIndex != null) {
+                Cell holdingCell = row.getCell(holdingColumnIndex);
+                String holding = getCellValueAsString(holdingCell);
+                if (holding != null && !holding.trim().isEmpty()) {
+                    item.setHolding(holding.trim());
                 }
             }
             
@@ -735,6 +906,61 @@ public class PurchasePlanExcelLoadService {
     }
 
     /**
+     * Парсит ячейку в Boolean
+     */
+    private Boolean parseBooleanCell(Cell cell) {
+        if (cell == null) {
+            return null;
+        }
+        
+        try {
+            switch (cell.getCellType()) {
+                case BOOLEAN:
+                    return cell.getBooleanCellValue();
+                case STRING:
+                    String strValue = getCellValueAsString(cell);
+                    if (strValue == null || strValue.trim().isEmpty()) {
+                        return null;
+                    }
+                    strValue = strValue.trim().toLowerCase();
+                    if (strValue.equals("да") || strValue.equals("true") || strValue.equals("1") || 
+                        strValue.equals("yes") || strValue.equals("y") || strValue.equals("есть")) {
+                        return true;
+                    }
+                    if (strValue.equals("нет") || strValue.equals("false") || strValue.equals("0") || 
+                        strValue.equals("no") || strValue.equals("n") || strValue.equals("нету")) {
+                        return false;
+                    }
+                    return null;
+                case NUMERIC:
+                    double numValue = cell.getNumericCellValue();
+                    return numValue != 0;
+                case FORMULA:
+                    if (cell.getCachedFormulaResultType() == CellType.BOOLEAN) {
+                        return cell.getBooleanCellValue();
+                    } else if (cell.getCachedFormulaResultType() == CellType.STRING) {
+                        String formulaValue = getCellValueAsString(cell);
+                        if (formulaValue != null && !formulaValue.trim().isEmpty()) {
+                            formulaValue = formulaValue.trim().toLowerCase();
+                            if (formulaValue.equals("да") || formulaValue.equals("true") || formulaValue.equals("1")) {
+                                return true;
+                            }
+                            if (formulaValue.equals("нет") || formulaValue.equals("false") || formulaValue.equals("0")) {
+                                return false;
+                            }
+                        }
+                    }
+                    return null;
+                default:
+                    return null;
+            }
+        } catch (Exception e) {
+            logger.warn("Cannot parse Boolean from cell: {}", getCellValueAsString(cell));
+            return null;
+        }
+    }
+
+    /**
      * Проверяет, пустая ли строка
      */
     private boolean isRowEmpty(Row row) {
@@ -794,6 +1020,67 @@ public class PurchasePlanExcelLoadService {
         
         if (newData.getNewContractDate() != null && !newData.getNewContractDate().equals(existing.getNewContractDate())) {
             existing.setNewContractDate(newData.getNewContractDate());
+            updated = true;
+        }
+        
+        if (newData.getPurchaser() != null && !newData.getPurchaser().trim().isEmpty() && 
+            !newData.getPurchaser().equals(existing.getPurchaser())) {
+            existing.setPurchaser(newData.getPurchaser());
+            updated = true;
+            logger.debug("Updated purchaser for purchase plan item {}: {}", existing.getId(), newData.getPurchaser());
+        }
+        
+        if (newData.getProduct() != null && !newData.getProduct().trim().isEmpty() && 
+            !newData.getProduct().equals(existing.getProduct())) {
+            existing.setProduct(newData.getProduct());
+            updated = true;
+        }
+        
+        if (newData.getHasContract() != null && !newData.getHasContract().equals(existing.getHasContract())) {
+            existing.setHasContract(newData.getHasContract());
+            updated = true;
+        }
+        
+        if (newData.getCurrentKa() != null && !newData.getCurrentKa().trim().isEmpty() && 
+            !newData.getCurrentKa().equals(existing.getCurrentKa())) {
+            existing.setCurrentKa(newData.getCurrentKa());
+            updated = true;
+        }
+        
+        if (newData.getCurrentAmount() != null && !newData.getCurrentAmount().equals(existing.getCurrentAmount())) {
+            existing.setCurrentAmount(newData.getCurrentAmount());
+            updated = true;
+        }
+        
+        if (newData.getCurrentContractAmount() != null && !newData.getCurrentContractAmount().equals(existing.getCurrentContractAmount())) {
+            existing.setCurrentContractAmount(newData.getCurrentContractAmount());
+            updated = true;
+        }
+        
+        if (newData.getCurrentContractBalance() != null && !newData.getCurrentContractBalance().equals(existing.getCurrentContractBalance())) {
+            existing.setCurrentContractBalance(newData.getCurrentContractBalance());
+            updated = true;
+        }
+        
+        if (newData.getCurrentContractEndDate() != null && !newData.getCurrentContractEndDate().equals(existing.getCurrentContractEndDate())) {
+            existing.setCurrentContractEndDate(newData.getCurrentContractEndDate());
+            updated = true;
+        }
+        
+        if (newData.getAutoRenewal() != null && !newData.getAutoRenewal().equals(existing.getAutoRenewal())) {
+            existing.setAutoRenewal(newData.getAutoRenewal());
+            updated = true;
+        }
+        
+        if (newData.getComplexity() != null && !newData.getComplexity().trim().isEmpty() && 
+            !newData.getComplexity().equals(existing.getComplexity())) {
+            existing.setComplexity(newData.getComplexity());
+            updated = true;
+        }
+        
+        if (newData.getHolding() != null && !newData.getHolding().trim().isEmpty() && 
+            !newData.getHolding().equals(existing.getHolding())) {
+            existing.setHolding(newData.getHolding());
             updated = true;
         }
         

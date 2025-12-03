@@ -16,6 +16,17 @@ public class PurchasePlanItemDto {
     private LocalDate contractEndDate;
     private LocalDate requestDate;
     private LocalDate newContractDate;
+    private String purchaser;
+    private String product;
+    private Boolean hasContract;
+    private String currentKa;
+    private BigDecimal currentAmount;
+    private BigDecimal currentContractAmount;
+    private BigDecimal currentContractBalance;
+    private LocalDate currentContractEndDate;
+    private Boolean autoRenewal;
+    private String complexity;
+    private String holding;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -102,6 +113,94 @@ public class PurchasePlanItemDto {
 
     public void setNewContractDate(LocalDate newContractDate) {
         this.newContractDate = newContractDate;
+    }
+
+    public String getPurchaser() {
+        return purchaser;
+    }
+
+    public void setPurchaser(String purchaser) {
+        this.purchaser = purchaser;
+    }
+
+    public String getProduct() {
+        return product;
+    }
+
+    public void setProduct(String product) {
+        this.product = product;
+    }
+
+    public Boolean getHasContract() {
+        return hasContract;
+    }
+
+    public void setHasContract(Boolean hasContract) {
+        this.hasContract = hasContract;
+    }
+
+    public String getCurrentKa() {
+        return currentKa;
+    }
+
+    public void setCurrentKa(String currentKa) {
+        this.currentKa = currentKa;
+    }
+
+    public BigDecimal getCurrentAmount() {
+        return currentAmount;
+    }
+
+    public void setCurrentAmount(BigDecimal currentAmount) {
+        this.currentAmount = currentAmount;
+    }
+
+    public BigDecimal getCurrentContractAmount() {
+        return currentContractAmount;
+    }
+
+    public void setCurrentContractAmount(BigDecimal currentContractAmount) {
+        this.currentContractAmount = currentContractAmount;
+    }
+
+    public BigDecimal getCurrentContractBalance() {
+        return currentContractBalance;
+    }
+
+    public void setCurrentContractBalance(BigDecimal currentContractBalance) {
+        this.currentContractBalance = currentContractBalance;
+    }
+
+    public LocalDate getCurrentContractEndDate() {
+        return currentContractEndDate;
+    }
+
+    public void setCurrentContractEndDate(LocalDate currentContractEndDate) {
+        this.currentContractEndDate = currentContractEndDate;
+    }
+
+    public Boolean getAutoRenewal() {
+        return autoRenewal;
+    }
+
+    public void setAutoRenewal(Boolean autoRenewal) {
+        this.autoRenewal = autoRenewal;
+    }
+
+    public String getComplexity() {
+        return complexity;
+    }
+
+    public void setComplexity(String complexity) {
+        this.complexity = complexity;
+    }
+
+    public String getHolding() {
+        return holding;
+    }
+
+    public void setHolding(String holding) {
+        this.holding = holding;
     }
 
     public LocalDateTime getCreatedAt() {

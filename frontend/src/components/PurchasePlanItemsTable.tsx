@@ -17,6 +17,9 @@ interface PurchasePlanItem {
   contractEndDate: string | null;
   requestDate: string | null;
   newContractDate: string | null;
+  purchaser: string | null;
+  hasContract: boolean | null;
+  autoRenewal: boolean | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -32,16 +35,21 @@ interface PageResponse {
 type SortField = keyof PurchasePlanItem | null;
 type SortDirection = 'asc' | 'desc' | null;
 
+// Ключ для сохранения фильтров в localStorage
+const FILTERS_STORAGE_KEY = 'purchasePlanItems_filters';
+
 export default function PurchasePlanItemsTable() {
   const printRef = useRef<HTMLDivElement>(null);
   const [data, setData] = useState<PageResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(100);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [allYears, setAllYears] = useState<number[]>([]);
   const [totalRecords, setTotalRecords] = useState<number>(0);
+  const [selectedMonth, setSelectedMonth] = useState<number | null>(null); // null = все месяцы, -1 = без даты, 0-11 = месяц (0=январь, 11=декабрь)
+  const [selectedMonthYear, setSelectedMonthYear] = useState<number | null>(null); // Год для фильтра по месяцу (если отличается от selectedYear)
   
   // Состояние для сортировки
   const [sortField, setSortField] = useState<SortField>('requestDate');
@@ -57,21 +65,45 @@ export default function PurchasePlanItemsTable() {
   // Состояние для множественных фильтров (чекбоксы)
   const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
   const [companyFilter, setCompanyFilter] = useState<Set<string>>(new Set());
+  const [purchaserFilter, setPurchaserFilter] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') {
+      return new Set<string>();
+    }
+    try {
+      const saved = localStorage.getItem(FILTERS_STORAGE_KEY);
+      if (saved) {
+        const savedFilters = JSON.parse(saved);
+        if (Array.isArray(savedFilters?.purchaserFilter)) {
+          const purchaserArray = savedFilters.purchaserFilter.filter(
+            (item: unknown): item is string => typeof item === 'string'
+          );
+          return new Set<string>(purchaserArray);
+        }
+      }
+    } catch (err) {
+      console.error('Error loading initial purchaserFilter from localStorage:', err);
+    }
+    return new Set<string>();
+  });
   
   // Состояние для открытия/закрытия выпадающих списков
   const [isCfoFilterOpen, setIsCfoFilterOpen] = useState(false);
   const [isCompanyFilterOpen, setIsCompanyFilterOpen] = useState(false);
+  const [isPurchaserFilterOpen, setIsPurchaserFilterOpen] = useState(false);
   
   // Поиск внутри фильтров
   const [cfoSearchQuery, setCfoSearchQuery] = useState('');
   const [companySearchQuery, setCompanySearchQuery] = useState('');
+  const [purchaserSearchQuery, setPurchaserSearchQuery] = useState('');
   
   // Позиции для выпадающих списков
   const [cfoFilterPosition, setCfoFilterPosition] = useState<{ top: number; left: number } | null>(null);
   const [companyFilterPosition, setCompanyFilterPosition] = useState<{ top: number; left: number } | null>(null);
+  const [purchaserFilterPosition, setPurchaserFilterPosition] = useState<{ top: number; left: number } | null>(null);
   
   const cfoFilterButtonRef = useRef<HTMLButtonElement>(null);
   const companyFilterButtonRef = useRef<HTMLButtonElement>(null);
+  const purchaserFilterButtonRef = useRef<HTMLButtonElement>(null);
   
   // Функция для расчета позиции выпадающего списка
   const calculateFilterPosition = useCallback((buttonRef: React.RefObject<HTMLButtonElement | null>) => {
@@ -101,6 +133,14 @@ export default function PurchasePlanItemsTable() {
     }
   }, [isCompanyFilterOpen, calculateFilterPosition]);
 
+  // Обновляем позицию при открытии фильтра закупщиков
+  useEffect(() => {
+    if (isPurchaserFilterOpen && purchaserFilterButtonRef.current) {
+      const position = calculateFilterPosition(purchaserFilterButtonRef);
+      setPurchaserFilterPosition(position);
+    }
+  }, [isPurchaserFilterOpen, calculateFilterPosition]);
+
   // Локальное состояние для текстовых фильтров
   const [localFilters, setLocalFilters] = useState<Record<string, string>>({
     company: '',
@@ -123,6 +163,23 @@ export default function PurchasePlanItemsTable() {
   
   // Состояние для редактирования дат
   const [editingDate, setEditingDate] = useState<{ itemId: number; field: 'requestDate' | 'newContractDate' | 'contractEndDate' } | null>(null);
+
+  // Состояние для подтверждения изменений (повторный ввод логина/пароля)
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authUsername, setAuthUsername] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [pendingDateChange, setPendingDateChange] = useState<{ 
+    itemId: number;
+    field: 'requestDate' | 'newContractDate' | 'contractEndDate';
+    newDate: string;
+    // Для перетаскивания Ганта - сохраняем старые и новые значения обоих полей
+    oldRequestDate?: string | null;
+    oldNewContractDate?: string | null;
+    newRequestDate?: string | null;
+    newNewContractDate?: string | null;
+  } | null>(null);
   
   // Автоматически открываем календарь при появлении input
   useEffect(() => {
@@ -152,8 +209,92 @@ export default function PurchasePlanItemsTable() {
     }
   }, [editingDate]);
   
-  // Функция для обновления даты на бэкенде
-  const handleDateUpdate = async (itemId: number, field: 'requestDate' | 'newContractDate' | 'contractEndDate', newDate: string) => {
+  // Функция для обновления дат через перетаскивание Ганта
+  const performGanttDateUpdate = async (itemId: number, requestDate: string | null, newContractDate: string | null) => {
+    try {
+      const item = data?.content.find(i => i.id === itemId);
+      if (!item) return;
+      
+      // Нормализуем даты (убираем время, если есть)
+      const normalizedRequestDate = requestDate ? requestDate.split('T')[0] : null;
+      const normalizedNewContractDate = newContractDate ? newContractDate.split('T')[0] : null;
+      
+      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/dates`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          requestDate: normalizedRequestDate,
+          newContractDate: normalizedNewContractDate,
+        }),
+      });
+
+      if (response.ok) {
+        const updatedItem = await response.json();
+        console.log('Gantt dates updated successfully:', updatedItem);
+        // Обновляем данные в таблице
+        if (data) {
+          const updatedContent = data.content.map(i => 
+            i.id === itemId 
+              ? { ...i, requestDate: updatedItem.requestDate, newContractDate: updatedItem.newContractDate }
+              : i
+          );
+          setData({ ...data, content: updatedContent });
+        }
+        // Убираем временные даты
+        setTempDates(prev => {
+          const newTemp = { ...prev };
+          delete newTemp[itemId];
+          return newTemp;
+        });
+        // Останавливаем анимацию через небольшую задержку
+        setTimeout(() => {
+          setAnimatingDates(prev => {
+            const newAnimating = { ...prev };
+            delete newAnimating[itemId];
+            return newAnimating;
+          });
+        }, 500);
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to update gantt dates:', response.status, errorText);
+        // Откатываем изменения при ошибке
+        if (data && pendingDateChange) {
+          const updatedContent = data.content.map(i => 
+            i.id === itemId 
+              ? { 
+                  ...i, 
+                  requestDate: pendingDateChange.oldRequestDate !== undefined ? pendingDateChange.oldRequestDate : i.requestDate, 
+                  newContractDate: pendingDateChange.oldNewContractDate !== undefined ? pendingDateChange.oldNewContractDate : i.newContractDate 
+                }
+              : i
+          );
+          setData({ ...data, content: updatedContent });
+        }
+        setAuthError('Ошибка при сохранении изменений');
+      }
+    } catch (error) {
+      console.error('Error updating gantt dates:', error);
+      // Откатываем изменения при ошибке
+      if (data && pendingDateChange) {
+        const updatedContent = data.content.map(i => 
+          i.id === itemId 
+            ? { 
+                ...i, 
+                requestDate: pendingDateChange.oldRequestDate !== undefined ? pendingDateChange.oldRequestDate : i.requestDate, 
+                newContractDate: pendingDateChange.oldNewContractDate !== undefined ? pendingDateChange.oldNewContractDate : i.newContractDate 
+              }
+            : i
+        );
+        setData({ ...data, content: updatedContent });
+      }
+      setAuthError('Ошибка при сохранении изменений');
+    }
+  };
+
+  // Низкоуровневая функция обновления даты на бэкенде (вызывается после успешной повторной аутентификации)
+  const performDateUpdate = async (itemId: number, field: 'requestDate' | 'newContractDate' | 'contractEndDate', newDate: string) => {
     if (!newDate || newDate.trim() === '') return;
     
     try {
@@ -250,6 +391,59 @@ export default function PurchasePlanItemsTable() {
       console.error('Error updating date:', error);
     }
   };
+
+  // Обертка: перед любым обновлением даты запрашиваем повторный ввод логина/пароля
+  const handleDateUpdate = (itemId: number, field: 'requestDate' | 'newContractDate' | 'contractEndDate', newDate: string) => {
+    if (!newDate || newDate.trim() === '') return;
+    setPendingDateChange({ itemId, field, newDate });
+    // Загружаем сохраненный логин из localStorage
+    const savedUsername = localStorage.getItem('lastUsername') || '';
+    setAuthUsername(savedUsername);
+    setAuthPassword('');
+    setAuthError(null);
+    setIsAuthModalOpen(true);
+  };
+
+  const handleAuthConfirm = async () => {
+    if (!pendingDateChange) return;
+    setAuthLoading(true);
+    setAuthError(null);
+
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username: authUsername, password: authPassword }),
+      });
+
+      const dataResp = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setAuthError(dataResp.error || 'Неверный логин или пароль');
+        setAuthLoading(false);
+        return;
+      }
+
+      // Успешная повторная аутентификация — выполняем изменение
+      if (pendingDateChange.newRequestDate !== undefined && pendingDateChange.newNewContractDate !== undefined) {
+        // Это изменение через перетаскивание Ганта - обновляем оба поля
+        await performGanttDateUpdate(pendingDateChange.itemId, pendingDateChange.newRequestDate, pendingDateChange.newNewContractDate);
+      } else {
+        // Это изменение через клик по полю даты
+        await performDateUpdate(pendingDateChange.itemId, pendingDateChange.field, pendingDateChange.newDate);
+      }
+      setIsAuthModalOpen(false);
+      setPendingDateChange(null);
+      setAuthPassword('');
+    } catch (err) {
+      console.error('Error during re-auth:', err);
+      setAuthError('Ошибка при проверке пароля');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
   
   // Загружаем сохраненные ширины колонок из localStorage
   useEffect(() => {
@@ -263,6 +457,119 @@ export default function PurchasePlanItemsTable() {
       console.error('Error loading column widths:', err);
     }
   }, []);
+
+  // Флаг для отслеживания загрузки фильтров из localStorage
+  const filtersLoadedRef = useRef(false);
+
+  // Загружаем сохраненные фильтры из localStorage при монтировании (синхронно, до других useEffect)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(FILTERS_STORAGE_KEY);
+      if (saved) {
+        const savedFilters = JSON.parse(saved);
+        
+        // Восстанавливаем год
+        if (savedFilters.selectedYear !== undefined && savedFilters.selectedYear !== null) {
+          setSelectedYear(savedFilters.selectedYear);
+        }
+        
+        // Восстанавливаем выбранный месяц
+        if (savedFilters.selectedMonth !== undefined) {
+          setSelectedMonth(savedFilters.selectedMonth);
+        }
+        // Восстанавливаем год для фильтра по месяцу
+        if (savedFilters.selectedMonthYear !== undefined) {
+          setSelectedMonthYear(savedFilters.selectedMonthYear);
+        }
+        
+        // Восстанавливаем текстовые фильтры
+        if (savedFilters.filters) {
+          setFilters(savedFilters.filters);
+          setLocalFilters(savedFilters.filters);
+        } else {
+          // Если фильтров нет, устанавливаем пустые значения
+          const emptyFilters = {
+            company: '',
+            cfo: '',
+            purchaseSubject: '',
+          };
+          setFilters(emptyFilters);
+          setLocalFilters(emptyFilters);
+        }
+        
+        // Восстанавливаем множественные фильтры (Set нужно преобразовать из массива)
+        // Важно: восстанавливаем даже пустые массивы, чтобы не потерять состояние "нет выбранных"
+        if (savedFilters.cfoFilter !== undefined) {
+          if (Array.isArray(savedFilters.cfoFilter)) {
+            setCfoFilter(new Set(savedFilters.cfoFilter));
+          } else {
+            setCfoFilter(new Set());
+          }
+        }
+        if (savedFilters.companyFilter !== undefined) {
+          if (Array.isArray(savedFilters.companyFilter)) {
+            setCompanyFilter(new Set(savedFilters.companyFilter));
+          } else {
+            setCompanyFilter(new Set());
+          }
+        }
+        
+        // Восстанавливаем сортировку
+        if (savedFilters.sortField !== undefined) {
+          setSortField(savedFilters.sortField);
+        }
+        if (savedFilters.sortDirection !== undefined) {
+          setSortDirection(savedFilters.sortDirection);
+        }
+        
+        // Восстанавливаем размер страницы
+        if (savedFilters.pageSize) {
+          setPageSize(savedFilters.pageSize);
+        }
+        
+        // Восстанавливаем текущую страницу
+        if (savedFilters.currentPage !== undefined) {
+          setCurrentPage(savedFilters.currentPage);
+        }
+        
+        filtersLoadedRef.current = true;
+      } else {
+        // Если нет сохраненных фильтров, помечаем, что загрузка завершена
+        filtersLoadedRef.current = true;
+      }
+    } catch (err) {
+      console.error('Error loading saved filters:', err);
+      filtersLoadedRef.current = true;
+    }
+  }, []);
+
+  // Сохраняем фильтры в localStorage при их изменении
+  // НЕ сохраняем при первой загрузке, пока фильтры не восстановлены из localStorage
+  useEffect(() => {
+    // Пропускаем сохранение, если фильтры еще не загружены из localStorage
+    if (!filtersLoadedRef.current) {
+      return;
+    }
+    
+    try {
+      const filtersToSave = {
+        selectedYear,
+        selectedMonth,
+        selectedMonthYear,
+        filters,
+        cfoFilter: Array.from(cfoFilter),
+        companyFilter: Array.from(companyFilter),
+        purchaserFilter: Array.from(purchaserFilter),
+        sortField,
+        sortDirection,
+        pageSize,
+        currentPage,
+      };
+      localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filtersToSave));
+    } catch (err) {
+      console.error('Error saving filters:', err);
+    }
+  }, [selectedYear, selectedMonth, selectedMonthYear, filters, cfoFilter, companyFilter, purchaserFilter, sortField, sortDirection, pageSize, currentPage]);
   
   // Сохраняем ширины колонок в localStorage
   const saveColumnWidths = useCallback((widths: Record<string, number>) => {
@@ -284,6 +591,9 @@ export default function PurchasePlanItemsTable() {
       contractEndDate: 128, // w-32 = 8rem = 128px
       requestDate: 112, // w-28 = 7rem = 112px
       newContractDate: 128, // w-32 = 8rem = 128px
+      purchaser: 128, // w-32 = 8rem = 128px
+      hasContract: 112, // w-28 = 7rem = 112px
+      autoRenewal: 128, // w-32 = 8rem = 128px
     };
     return defaults[columnKey] || 120;
   };
@@ -323,41 +633,123 @@ export default function PurchasePlanItemsTable() {
     handlePrint();
   };
 
-  // Функция для подсчета количества закупок по месяцам
+  // Состояние для данных диаграммы (все отфильтрованные данные)
+  const [chartData, setChartData] = useState<PurchasePlanItem[]>([]);
+
+  // Загружаем все отфильтрованные данные для диаграммы
+  useEffect(() => {
+    const fetchChartData = async () => {
+      try {
+        const params = new URLSearchParams();
+        params.append('page', '0');
+        params.append('size', '10000'); // Загружаем все данные для диаграммы
+        
+        // Для диаграммы не применяем фильтр по году планирования, если выбран месяц из другого года
+        // Это позволяет показывать все данные, включая записи с датой заявки в другом году
+        if (selectedYear !== null && selectedMonthYear === null) {
+          params.append('year', String(selectedYear));
+        }
+        
+        // Добавляем параметры фильтрации
+        if (companyFilter.size > 0) {
+          companyFilter.forEach(company => {
+            params.append('company', company);
+          });
+        }
+        if (cfoFilter.size > 0) {
+          cfoFilter.forEach(cfo => {
+            params.append('cfo', cfo);
+          });
+        }
+        if (filters.purchaseSubject && filters.purchaseSubject.trim() !== '') {
+          params.append('purchaseSubject', filters.purchaseSubject.trim());
+        }
+        // Фильтр по закупщику - передаем все выбранные значения на бэкенд
+        if (purchaserFilter.size > 0) {
+          purchaserFilter.forEach(purchaser => {
+            params.append('purchaser', purchaser);
+          });
+        }
+        // Для диаграммы не применяем фильтр по месяцу, чтобы показать все месяцы
+        
+        const fetchUrl = `${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`;
+        const response = await fetch(fetchUrl);
+        if (response.ok) {
+          const result = await response.json();
+          setChartData(result.content || []);
+        }
+      } catch (err) {
+        console.error('Error fetching chart data:', err);
+        setChartData([]);
+      }
+    };
+    
+    fetchChartData();
+  }, [selectedYear, selectedMonthYear, filters, cfoFilter, companyFilter, purchaserFilter]);
+
+  // Функция для подсчета количества закупок по месяцам (использует отфильтрованные данные)
   const getMonthlyDistribution = useMemo(() => {
-    if (!data?.content || data.content.length === 0) {
-      return Array(13).fill(0);
+    if (!chartData || chartData.length === 0) {
+      return Array(14).fill(0); // 13 месяцев + без даты
     }
 
-    // Определяем год для отображения (используем selectedYear или год из первой записи)
-    const displayYear = selectedYear || data.content[0]?.year || new Date().getFullYear();
+    // Определяем год для отображения (используем selectedYear или год планирования из первой записи)
+    // Если selectedYear не установлен, определяем год на основе данных
+    let displayYear: number;
+    if (selectedYear !== null) {
+      displayYear = selectedYear;
+    } else {
+      // Определяем год на основе года планирования из данных или года из даты заявки
+      const yearFromData = chartData.find(item => item.year !== null)?.year;
+      if (yearFromData) {
+        displayYear = yearFromData;
+      } else {
+        // Если нет года планирования, используем год из даты заявки
+        const itemWithDate = chartData.find(item => item.requestDate);
+        if (itemWithDate && itemWithDate.requestDate) {
+          displayYear = new Date(itemWithDate.requestDate).getFullYear();
+        } else {
+          displayYear = new Date().getFullYear();
+        }
+      }
+    }
     const prevYear = displayYear - 1;
 
-    // Инициализируем массив для 13 месяцев: декабрь предыдущего года + 12 месяцев текущего года
-    const monthCounts = Array(13).fill(0);
+    // Инициализируем массив для 14 элементов: декабрь предыдущего года + 12 месяцев текущего года + без даты
+    const monthCounts = Array(14).fill(0);
     
-    // Месяцы: [Дек пред.года, Янв, Фев, Мар, Апр, Май, Июн, Июл, Авг, Сен, Окт, Ноя, Дек]
-    data.content.forEach((item) => {
-      if (!item.requestDate) return;
+    // Месяцы: [Дек пред.года, Янв, Фев, Мар, Апр, Май, Июн, Июл, Авг, Сен, Окт, Ноя, Дек, Без даты]
+    chartData.forEach((item) => {
+      if (!item.requestDate) {
+        // Записи без даты - индекс 13
+        monthCounts[13]++;
+        return;
+      }
       
       const requestDate = new Date(item.requestDate);
       const itemYear = requestDate.getFullYear();
       const itemMonth = requestDate.getMonth(); // 0-11
       
-      // Проверяем, попадает ли дата в период отображения
+      // Распределяем записи по столбцам на основе года и месяца из requestDate
       if (itemYear === prevYear && itemMonth === 11) {
-        // Декабрь предыдущего года
+        // Декабрь предыдущего года (например, декабрь 2025 при displayYear = 2026) - индекс 0
         monthCounts[0]++;
       } else if (itemYear === displayYear) {
         // Месяцы текущего года (0-11 -> индексы 1-12)
         monthCounts[itemMonth + 1]++;
+      } else if (itemYear === displayYear + 1 && itemMonth === 11) {
+        // Декабрь следующего года - это может быть последний столбец (индекс 12)
+        // Но обычно это не должно происходить, так как мы показываем только текущий год и предыдущий
+        // Оставляем это для случаев, когда данные выходят за рамки
+        monthCounts[12]++;
       }
+      // Игнорируем записи из других годов
     });
 
     return monthCounts;
-  }, [data?.content, selectedYear]);
+  }, [chartData, selectedYear]);
 
-  // Максимальное значение для нормализации высоты столбцов
+  // Максимальное значение для нормализации высоты столбцов (включая все столбцы)
   const maxCount = Math.max(...getMonthlyDistribution, 1);
   
   // Обработчик начала изменения размера
@@ -427,6 +819,7 @@ export default function PurchasePlanItemsTable() {
           const values: Record<string, Set<string>> = {
             cfo: new Set(),
             company: new Set(),
+            purchaser: new Set(),
           };
           
           result.content.forEach((item: PurchasePlanItem) => {
@@ -437,18 +830,23 @@ export default function PurchasePlanItemsTable() {
             // Собираем уникальные значения
             if (item.cfo) values.cfo.add(item.cfo);
             if (item.company) values.company.add(item.company);
+            if (item.purchaser) values.purchaser.add(item.purchaser);
           });
           
           const yearsArray = Array.from(years).sort((a, b) => b - a);
           const uniqueValuesData = {
             cfo: Array.from(values.cfo).sort(),
             company: Array.from(values.company).sort(),
+            purchaser: Array.from(values.purchaser).sort(),
           };
           
           setAllYears(yearsArray);
           
-          // Устанавливаем по умолчанию последний год планирования
-          if (yearsArray.length > 0 && selectedYear === null) {
+          // Устанавливаем по умолчанию последний год планирования только если:
+          // 1. Есть годы в данных
+          // 2. Год не был установлен (null)
+          // 3. Фильтры из localStorage уже загружены (чтобы не перезаписать сохраненный год)
+          if (yearsArray.length > 0 && selectedYear === null && filtersLoadedRef.current) {
             setSelectedYear(yearsArray[0]);
           }
         }
@@ -466,7 +864,8 @@ export default function PurchasePlanItemsTable() {
     year: number | null = null,
     sortField: SortField = null,
     sortDirection: SortDirection = null,
-    filters: Record<string, string> = {}
+    filters: Record<string, string> = {},
+    month: number | null = null
   ) => {
     setLoading(true);
     setError(null);
@@ -475,7 +874,10 @@ export default function PurchasePlanItemsTable() {
       params.append('page', String(page));
       params.append('size', String(size));
       
-      if (year !== null) {
+      // Фильтр по году планирования применяем только если не выбран месяц предыдущего года
+      // Если selectedMonthYear установлен, это означает, что выбран месяц из другого года
+      // и мы не должны фильтровать по году планирования
+      if (year !== null && selectedMonthYear === null) {
         params.append('year', String(year));
       }
       
@@ -499,6 +901,19 @@ export default function PurchasePlanItemsTable() {
       }
       if (filters.purchaseSubject && filters.purchaseSubject.trim() !== '') {
         params.append('purchaseSubject', filters.purchaseSubject.trim());
+      }
+      // Фильтр по закупщику - передаем все выбранные значения на бэкенд
+      if (purchaserFilter.size > 0) {
+        purchaserFilter.forEach(purchaser => {
+          params.append('purchaser', purchaser);
+        });
+      }
+      if (month !== null) {
+        params.append('requestMonth', String(month));
+        // Если выбран месяц из другого года (например, декабрь предыдущего года), передаем год для фильтрации по дате заявки
+        if (selectedMonthYear !== null) {
+          params.append('requestYear', String(selectedMonthYear));
+        }
       }
       
       const fetchUrl = `${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`;
@@ -537,8 +952,8 @@ export default function PurchasePlanItemsTable() {
   }, [localFilters]);
 
   useEffect(() => {
-    fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters);
-  }, [currentPage, pageSize, selectedYear, sortField, sortDirection, filters, cfoFilter, companyFilter]);
+    fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters, selectedMonth);
+  }, [currentPage, pageSize, selectedYear, sortField, sortDirection, filters, cfoFilter, companyFilter, purchaserFilter, selectedMonth]);
 
   // Восстановление фокуса после обновления localFilters
   useEffect(() => {
@@ -606,6 +1021,7 @@ export default function PurchasePlanItemsTable() {
   const [uniqueValues, setUniqueValues] = useState<Record<string, string[]>>({
     cfo: [],
     company: [],
+    purchaser: [],
   });
 
   useEffect(() => {
@@ -617,16 +1033,19 @@ export default function PurchasePlanItemsTable() {
           const values: Record<string, Set<string>> = {
             cfo: new Set(),
             company: new Set(),
+            purchaser: new Set(),
           };
           
           result.content.forEach((item: PurchasePlanItem) => {
             if (item.cfo) values.cfo.add(item.cfo);
             if (item.company) values.company.add(item.company);
+            if (item.purchaser) values.purchaser.add(item.purchaser);
           });
           
           setUniqueValues({
             cfo: Array.from(values.cfo).sort(),
             company: Array.from(values.company).sort(),
+            purchaser: Array.from(values.purchaser).sort(),
           });
         }
       } catch (err) {
@@ -640,6 +1059,7 @@ export default function PurchasePlanItemsTable() {
     const fieldMap: Record<string, keyof typeof uniqueValues> = {
       cfo: 'cfo',
       company: 'company',
+      purchaser: 'purchaser',
     };
     return uniqueValues[fieldMap[field] || 'cfo'] || [];
   };
@@ -692,6 +1112,87 @@ export default function PurchasePlanItemsTable() {
     setCurrentPage(0);
   };
 
+  // Обработчики для фильтра по закупщикам
+  const handlePurchaserToggle = (purchaser: string) => {
+    const newSet = new Set(purchaserFilter);
+    if (newSet.has(purchaser)) {
+      newSet.delete(purchaser);
+    } else {
+      newSet.add(purchaser);
+    }
+    setPurchaserFilter(newSet);
+    setCurrentPage(0);
+
+    // Немедленно сохраняем обновленный фильтр по закупщику в localStorage,
+    // чтобы не потерять выбор при быстром переходе на другую страницу
+    try {
+      const filtersToSave = {
+        selectedYear,
+        selectedMonth,
+        filters,
+        cfoFilter: Array.from(cfoFilter),
+        companyFilter: Array.from(companyFilter),
+        purchaserFilter: Array.from(newSet),
+        sortField,
+        sortDirection,
+        pageSize,
+        currentPage: 0,
+      };
+      localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filtersToSave));
+    } catch (err) {
+      console.error('Error saving purchaserFilter on toggle:', err);
+    }
+  };
+
+  const handlePurchaserSelectAll = () => {
+    const allPurchasers = getUniqueValues('purchaser');
+    const newSet = new Set(allPurchasers);
+    setPurchaserFilter(newSet);
+    setCurrentPage(0);
+
+    try {
+      const filtersToSave = {
+        selectedYear,
+        selectedMonth,
+        filters,
+        cfoFilter: Array.from(cfoFilter),
+        companyFilter: Array.from(companyFilter),
+        purchaserFilter: Array.from(newSet),
+        sortField,
+        sortDirection,
+        pageSize,
+        currentPage: 0,
+      };
+      localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filtersToSave));
+    } catch (err) {
+      console.error('Error saving purchaserFilter on select all:', err);
+    }
+  };
+
+  const handlePurchaserDeselectAll = () => {
+    const emptySet = new Set<string>();
+    setPurchaserFilter(emptySet);
+    setCurrentPage(0);
+
+    try {
+      const filtersToSave = {
+        selectedYear,
+        selectedMonth,
+        filters,
+        cfoFilter: Array.from(cfoFilter),
+        companyFilter: Array.from(companyFilter),
+        purchaserFilter: Array.from(emptySet),
+        sortField,
+        sortDirection,
+        pageSize,
+        currentPage: 0,
+      };
+      localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filtersToSave));
+    } catch (err) {
+      console.error('Error saving purchaserFilter on deselect all:', err);
+    }
+  };
+
   // Закрываем выпадающие списки при клике вне их
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -702,15 +1203,18 @@ export default function PurchasePlanItemsTable() {
       if (isCompanyFilterOpen && !target.closest('.company-filter-container')) {
         setIsCompanyFilterOpen(false);
       }
+      if (isPurchaserFilterOpen && !target.closest('.purchaser-filter-container')) {
+        setIsPurchaserFilterOpen(false);
+      }
     };
 
-    if (isCfoFilterOpen || isCompanyFilterOpen) {
+    if (isCfoFilterOpen || isCompanyFilterOpen || isPurchaserFilterOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
-  }, [isCfoFilterOpen, isCompanyFilterOpen]);
+  }, [isCfoFilterOpen, isCompanyFilterOpen, isPurchaserFilterOpen]);
 
   // Фильтруем опции по поисковому запросу
   const getFilteredCfoOptions = useMemo(() => {
@@ -736,6 +1240,18 @@ export default function PurchasePlanItemsTable() {
       return company.toLowerCase().includes(searchLower);
     });
   }, [companySearchQuery, uniqueValues.company]);
+
+  const getFilteredPurchaserOptions = useMemo(() => {
+    const allPurchasers = uniqueValues.purchaser || [];
+    if (!purchaserSearchQuery || !purchaserSearchQuery.trim()) {
+      return allPurchasers;
+    }
+    const searchLower = purchaserSearchQuery.toLowerCase().trim();
+    return allPurchasers.filter(purchaser => {
+      if (!purchaser) return false;
+      return purchaser.toLowerCase().includes(searchLower);
+    });
+  }, [purchaserSearchQuery, uniqueValues.purchaser]);
 
   if (loading) {
     return (
@@ -880,6 +1396,94 @@ export default function PurchasePlanItemsTable() {
 
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+      {/* Модальное окно подтверждения паролем перед изменением данных */}
+      {isAuthModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Подтверждение изменения</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Для сохранения изменения необходимо повторно ввести логин и пароль, как при входе в систему.
+            </p>
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Логин</label>
+                <input
+                  type="text"
+                  value={authUsername}
+                  onChange={(e) => setAuthUsername(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Пароль</label>
+                <input
+                  type="password"
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              {authError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-xs">
+                  {authError}
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
+                onClick={() => {
+                  // Откатываем изменения, если они были применены локально (при перетаскивании Ганта)
+                  if (pendingDateChange && (pendingDateChange.oldRequestDate !== undefined || pendingDateChange.oldNewContractDate !== undefined)) {
+                    // Восстанавливаем исходные данные
+                    if (data) {
+                      const updatedContent = data.content.map(i => 
+                        i.id === pendingDateChange.itemId 
+                          ? { 
+                              ...i, 
+                              requestDate: pendingDateChange.oldRequestDate !== undefined ? pendingDateChange.oldRequestDate : i.requestDate,
+                              newContractDate: pendingDateChange.oldNewContractDate !== undefined ? pendingDateChange.oldNewContractDate : i.newContractDate
+                            }
+                          : i
+                      );
+                      setData({ ...data, content: updatedContent });
+                    }
+                    // Убираем временные даты
+                    setTempDates(prev => {
+                      const newTemp = { ...prev };
+                      delete newTemp[pendingDateChange.itemId];
+                      return newTemp;
+                    });
+                    // Останавливаем анимацию
+                    setAnimatingDates(prev => {
+                      const newAnimating = { ...prev };
+                      delete newAnimating[pendingDateChange.itemId];
+                      return newAnimating;
+                    });
+                  }
+                  setIsAuthModalOpen(false);
+                  setPendingDateChange(null);
+                  setAuthPassword('');
+                  setAuthError(null);
+                }}
+                disabled={authLoading}
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                className="px-3 py-1.5 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handleAuthConfirm}
+                disabled={authLoading || !authUsername || !authPassword}
+              >
+                {authLoading ? 'Проверка...' : 'Подтвердить и сохранить'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="px-6 py-4 border-b border-gray-200">
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-4">
@@ -932,10 +1536,20 @@ export default function PurchasePlanItemsTable() {
                   setLocalFilters(emptyFilters);
                   setCfoFilter(new Set());
                   setCompanyFilter(new Set());
+                  setPurchaserFilter(new Set());
                 setSortField('requestDate');
                 setSortDirection('asc');
                   setFocusedField(null);
                 setSelectedYear(allYears.length > 0 ? allYears[0] : null);
+                setSelectedMonth(null);
+                setSelectedMonthYear(null);
+                setCurrentPage(0);
+                // Очищаем сохраненные фильтры из localStorage
+                try {
+                  localStorage.removeItem(FILTERS_STORAGE_KEY);
+                } catch (err) {
+                  console.error('Error clearing saved filters:', err);
+                }
                 }}
               className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors"
               >
@@ -1268,6 +1882,121 @@ export default function PurchasePlanItemsTable() {
                 />
               </th>
               <SortableHeader field="purchaseSubject" label="Предмет закупки" filterType="text" columnKey="purchaseSubject" />
+              <th 
+                className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" 
+                style={{ width: `${getColumnWidth('purchaser')}px`, minWidth: `${getColumnWidth('purchaser')}px`, maxWidth: `${getColumnWidth('purchaser')}px`, verticalAlign: 'top', overflow: 'hidden' }}
+              >
+                <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                  <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                    <div className="relative purchaser-filter-container flex-1">
+                      <button
+                        ref={purchaserFilterButtonRef}
+                        type="button"
+                        onClick={() => setIsPurchaserFilterOpen(!isPurchaserFilterOpen)}
+                        className="w-full text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-left focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center gap-1 hover:bg-gray-50"
+                        style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+                      >
+                        <span className="text-gray-600 truncate flex-1 min-w-0 text-left">
+                          {purchaserFilter.size === 0 
+                            ? 'Все' 
+                            : purchaserFilter.size === 1
+                            ? (Array.from(purchaserFilter)[0] || 'Все')
+                            : `${purchaserFilter.size} выбрано`}
+                        </span>
+                        <svg className={`w-3 h-3 transition-transform flex-shrink-0 ${isPurchaserFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      {isPurchaserFilterOpen && purchaserFilterPosition && (
+                        <div 
+                          className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden"
+                          style={{
+                            top: `${purchaserFilterPosition.top}px`,
+                            left: `${purchaserFilterPosition.left}px`,
+                          }}
+                        >
+                          <div className="p-2 border-b border-gray-200">
+                            <div className="relative">
+                              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
+                              <input
+                                type="text"
+                                value={purchaserSearchQuery}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  setPurchaserSearchQuery(e.target.value);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                onFocus={(e) => e.stopPropagation()}
+                                className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                placeholder="Поиск..."
+                              />
+                            </div>
+                          </div>
+                          <div className="p-2 border-b border-gray-200 flex gap-2">
+                            <button
+                              onClick={() => handlePurchaserSelectAll()}
+                              className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                            >
+                              Все
+                            </button>
+                            <button
+                              onClick={() => handlePurchaserDeselectAll()}
+                              className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                            >
+                              Снять
+                            </button>
+                          </div>
+                          <div className="max-h-48 overflow-y-auto">
+                            {getFilteredPurchaserOptions.length === 0 ? (
+                              <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
+                            ) : (
+                              getFilteredPurchaserOptions.map((purchaser) => (
+                                <label
+                                  key={purchaser}
+                                  className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={purchaserFilter.has(purchaser)}
+                                    onChange={() => handlePurchaserToggle(purchaser)}
+                                    className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                                  />
+                                  <span className="ml-2 text-xs text-gray-700 flex-1">{purchaser}</span>
+                                </label>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 min-h-[20px]">
+                    <button
+                      onClick={() => handleSort('purchaser')}
+                      className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                      style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                    >
+                      {sortField === 'purchaser' ? (
+                        sortDirection === 'asc' ? (
+                          <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                        ) : (
+                          <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                      )}
+                    </button>
+                    <span className="text-xs font-medium text-gray-500 tracking-wider">Закупщик</span>
+                  </div>
+                </div>
+                <div
+                  className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+                  onMouseDown={(e) => handleResizeStart(e, 'purchaser')}
+                  style={{ zIndex: 10 }}
+                />
+              </th>
+              <SortableHeader field="hasContract" label="Есть договор" columnKey="hasContract" />
+              <SortableHeader field="autoRenewal" label="Автопролонгация" columnKey="autoRenewal" />
               <SortableHeader field="budgetAmount" label="Бюджет (UZS)" columnKey="budgetAmount" />
               <SortableHeader field="contractEndDate" label="Срок окончания договора" columnKey="contractEndDate" />
               <SortableHeader field="requestDate" label="Дата заявки" columnKey="requestDate" />
@@ -1280,20 +2009,83 @@ export default function PurchasePlanItemsTable() {
                     {/* Столбчатая диаграмма распределения по месяцам */}
                     <div className="flex-1 flex items-end gap-0.5 h-16 px-1 relative" style={{ minHeight: '64px' }}>
                       {getMonthlyDistribution.map((count, index) => {
-                        const monthLabels = ['Дек', 'Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+                        const monthLabels = ['Дек', 'Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек', 'Без даты'];
                         const isYearDivider = index === 1; // После декабря предыдущего года
+                        const isNoDate = index === 13; // Последний столбец - без даты
                         const heightPercent = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                        
+                        // Определяем месяц для фильтрации
+                        // index 0 = декабрь предыдущего года (месяц 11 предыдущего года)
+                        // index 1-12 = январь-декабрь текущего года (месяцы 0-11)
+                        // index 13 = без даты (-1)
+                        const displayYear = selectedYear || chartData[0]?.year || new Date().getFullYear();
+                        const prevYear = displayYear - 1;
+                        
+                        let monthForFilter: number | null = null;
+                        let yearForFilter: number | null = null;
+                        if (index === 0) {
+                          // Декабрь предыдущего года - для фильтрации используем месяц 11 и предыдущий год
+                          monthForFilter = 11; // Декабрь
+                          yearForFilter = prevYear; // Предыдущий год
+                        } else if (index >= 1 && index <= 12) {
+                          // Месяцы текущего года (index 1 = январь = месяц 0)
+                          monthForFilter = index - 1;
+                          yearForFilter = displayYear; // Текущий год
+                        } else if (index === 13) {
+                          // Без даты
+                          monthForFilter = -1;
+                          yearForFilter = null;
+                        }
+                        
+                        // Проверяем, выбран ли этот месяц и год
+                        // Для декабря предыдущего года проверяем, что selectedMonthYear = prevYear и selectedMonth = 11
+                        // Для месяцев текущего года проверяем, что selectedMonth = monthForFilter и selectedMonthYear = null
+                        const isSelected = selectedMonth === monthForFilter && 
+                          (monthForFilter === -1 || (index === 0 && selectedMonthYear === prevYear) || (index >= 1 && index <= 12 && selectedMonthYear === null));
                         
                   return (
                           <div key={index} className="flex-1 flex flex-col items-center gap-0.5 relative" style={{ minWidth: 0 }}>
                             {/* Столбец */}
                             <div 
-                              className="w-full bg-blue-500 rounded-t hover:bg-blue-600 transition-colors relative group cursor-pointer"
+                              className={`w-full rounded-t transition-colors relative group cursor-pointer ${
+                                isSelected 
+                                  ? 'bg-blue-700 ring-2 ring-blue-400' 
+                                  : count > 0 
+                                    ? 'bg-blue-500 hover:bg-blue-600' 
+                                    : 'bg-gray-200'
+                              }`}
                               style={{ 
                                 height: `${Math.max(heightPercent, count > 0 ? 5 : 0)}%`,
                                 minHeight: count > 0 ? '4px' : '0px'
                               }}
                               title={`${monthLabels[index]}: ${count} закупок`}
+                              onClick={() => {
+                                if (monthForFilter !== null) {
+                                  // Переключаем фильтр: если уже выбран этот месяц, снимаем фильтр
+                                  const currentDisplayYear = selectedYear || chartData[0]?.year || new Date().getFullYear();
+                                  const currentPrevYear = currentDisplayYear - 1;
+                                  const isCurrentlySelected = selectedMonth === monthForFilter && 
+                                    (monthForFilter === -1 || (index === 0 && selectedMonthYear === currentPrevYear) || (index >= 1 && index <= 12 && selectedMonthYear === null));
+                                  
+                                  if (isCurrentlySelected) {
+                                    setSelectedMonth(null);
+                                    setSelectedMonthYear(null);
+                                  } else {
+                                    setSelectedMonth(monthForFilter);
+                                    // Если это декабрь предыдущего года, сохраняем год для фильтрации по месяцу
+                                    if (index === 0 && yearForFilter !== null) {
+                                      setSelectedMonthYear(yearForFilter);
+                                    } else {
+                                      // Для месяцев текущего года сбрасываем selectedMonthYear
+                                      setSelectedMonthYear(null);
+                                      // Для месяцев текущего года устанавливаем текущий год (если он не установлен)
+                                      if (index >= 1 && index <= 12 && yearForFilter !== null && selectedYear === null) {
+                                        setSelectedYear(yearForFilter);
+                                      }
+                                    }
+                                  }
+                                }
+                              }}
                             >
                               {/* Число на столбце (показываем только если столбец достаточно высокий) */}
                               {count > 0 && heightPercent > 15 && (
@@ -1303,7 +2095,7 @@ export default function PurchasePlanItemsTable() {
                               )}
                             </div>
                             {/* Подпись месяца */}
-                            <div className={`text-[8px] text-center ${isYearDivider ? 'font-bold text-gray-800 border-l-2 border-gray-700 pl-0.5' : 'text-gray-500'}`} style={{ lineHeight: '1' }}>
+                            <div className={`text-[8px] text-center ${isYearDivider ? 'font-bold text-gray-800 border-l-2 border-gray-700 pl-0.5' : isSelected ? 'font-bold text-blue-700' : 'text-gray-500'}`} style={{ lineHeight: '1' }}>
                               {monthLabels[index]}
                             </div>
                             {/* Показываем число под столбцом, если столбец слишком низкий */}
@@ -1340,6 +2132,25 @@ export default function PurchasePlanItemsTable() {
                           style={{ width: `${getColumnWidth('purchaseSubject')}px`, minWidth: `${getColumnWidth('purchaseSubject')}px`, maxWidth: `${getColumnWidth('purchaseSubject')}px` }}
                         >
                           {item.purchaseSubject || '-'}
+                        </td>
+                        <td 
+                          className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200"
+                          title={item.purchaser || ''}
+                          style={{ width: `${getColumnWidth('purchaser')}px`, minWidth: `${getColumnWidth('purchaser')}px`, maxWidth: `${getColumnWidth('purchaser')}px` }}
+                        >
+                          {item.purchaser || '-'}
+                        </td>
+                        <td 
+                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center"
+                          style={{ width: `${getColumnWidth('hasContract')}px`, minWidth: `${getColumnWidth('hasContract')}px`, maxWidth: `${getColumnWidth('hasContract')}px` }}
+                        >
+                          {item.hasContract === true ? 'Да' : item.hasContract === false ? 'Нет' : '-'}
+                        </td>
+                        <td 
+                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center"
+                          style={{ width: `${getColumnWidth('autoRenewal')}px`, minWidth: `${getColumnWidth('autoRenewal')}px`, maxWidth: `${getColumnWidth('autoRenewal')}px` }}
+                        >
+                          {item.autoRenewal === true ? 'Да' : item.autoRenewal === false ? 'Нет' : '-'}
                         </td>
                         <td 
                           className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
@@ -1494,7 +2305,11 @@ export default function PurchasePlanItemsTable() {
                         }));
                       }}
                       onDatesUpdate={(requestDate, newContractDate) => {
-                        // Обновляем данные в таблице после завершения перетаскивания
+                        // Сохраняем старые значения для возможного отката
+                        const oldRequestDate = item.requestDate;
+                        const oldNewContractDate = item.newContractDate;
+                        
+                        // Временно обновляем данные в таблице для визуального отображения
                         if (data) {
                           const updatedContent = data.content.map(i => 
                             i.id === item.id 
@@ -1503,20 +2318,24 @@ export default function PurchasePlanItemsTable() {
                           );
                           setData({ ...data, content: updatedContent });
                         }
-                        // Убираем временные даты
-                        setTempDates(prev => {
-                          const newTemp = { ...prev };
-                          delete newTemp[item.id];
-                          return newTemp;
+                        
+                        // Запрашиваем подтверждение паролем перед отправкой на бэкенд
+                        setPendingDateChange({ 
+                          itemId: item.id, 
+                          field: 'requestDate', // Используем requestDate как основной, но обновляем оба поля
+                          newDate: requestDate || '',
+                          oldRequestDate,
+                          oldNewContractDate,
+                          newRequestDate: requestDate,
+                          newNewContractDate: newContractDate
                         });
-                        // Останавливаем анимацию через небольшую задержку
-                        setTimeout(() => {
-                          setAnimatingDates(prev => {
-                            const newAnimating = { ...prev };
-                            delete newAnimating[item.id];
-                            return newAnimating;
-                          });
-                        }, 500);
+                        
+                        // Загружаем сохраненный логин из localStorage
+                        const savedUsername = localStorage.getItem('lastUsername') || '';
+                        setAuthUsername(savedUsername);
+                        setAuthPassword('');
+                        setAuthError(null);
+                        setIsAuthModalOpen(true);
                       }}
                     />
                   </td>
@@ -1524,7 +2343,7 @@ export default function PurchasePlanItemsTable() {
               ))
             ) : (
               <tr>
-                <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={9} className="px-6 py-8 text-center text-gray-500">
                   Нет данных
                 </td>
               </tr>
