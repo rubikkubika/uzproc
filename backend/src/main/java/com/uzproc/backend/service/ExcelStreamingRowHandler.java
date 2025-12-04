@@ -252,6 +252,12 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             
             // Требуется Закупка (опционально, булево поле)
             Integer requiresPurchaseCol = findColumnIndex(REQUIRES_PURCHASE_COLUMN);
+            if (requiresPurchaseCol == null) {
+                requiresPurchaseCol = findColumnIndex("Требуется закупка");
+            }
+            if (requiresPurchaseCol == null) {
+                requiresPurchaseCol = findColumnIndex("Не требуется ЗП (Заявка на ЗП)");
+            }
             if (requiresPurchaseCol != null) {
                 String cellValueStr = currentRowData.get(requiresPurchaseCol);
                 boolean isInvertedLogic = requiresPurchaseColumnName != null && requiresPurchaseColumnName.contains("Не требуется");
@@ -261,17 +267,26 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                     Boolean parsedValue = parseBooleanString(cellValueStr);
                     if (parsedValue != null) {
                         if (isInvertedLogic) {
+                            // Для колонки "Не требуется ЗП": "да" = не требуется (false), "нет" = требуется (true)
                             requiresPurchase = !parsedValue;
                         } else {
+                            // Обычная логика: "да" = требуется (true), "нет" = не требуется (false)
                             requiresPurchase = parsedValue;
                         }
+                    } else {
+                        // Если значение не распознано, но колонка найдена, логируем
+                        logger.debug("Row {}: Cannot parse requiresPurchase value '{}' (column: '{}')", 
+                            currentRowNum + 1, cellValueStr, requiresPurchaseColumnName);
                     }
                 } else if (isInvertedLogic) {
+                    // Если колонка "Не требуется" и ячейка пустая, значит требуется
                     requiresPurchase = true;
                 }
                 
                 if (requiresPurchase != null) {
                     pr.setRequiresPurchase(requiresPurchase);
+                    logger.debug("Row {}: parsed requiresPurchase as: {} (column: '{}', value: '{}', inverted: {})", 
+                        currentRowNum + 1, requiresPurchase, requiresPurchaseColumnName, cellValueStr, isInvertedLogic);
                 }
             }
             
@@ -485,6 +500,7 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     
     /**
      * Парсит строку в Boolean
+     * Логика аналогична parseBooleanCell в EntityExcelLoadService
      */
     private Boolean parseBooleanString(String value) {
         if (value == null || value.trim().isEmpty()) {
@@ -494,10 +510,12 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
         String strValue = value.trim().toLowerCase();
         
         // Проверяем различные варианты "да"/"нет", "true"/"false", "1"/"0"
+        // Также проверяем варианты с "не требуется" - это означает false
         if (strValue.contains("не требуется") || strValue.contains("нетребуется")) {
             return false;
         }
         // Проверяем значения для поля "План": "Плановая" = true, "Внеплановая" = false
+        // ВАЖНО: сначала проверяем "внеплановая", так как она содержит "плановая"
         if (strValue.equals("внеплановая") || strValue.startsWith("внеплановая")) {
             return false;
         } else if (strValue.equals("плановая") || strValue.startsWith("плановая")) {
@@ -511,6 +529,7 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             return false;
         }
         
+        logger.debug("Cannot parse boolean from string value: '{}'", strValue);
         return null;
     }
     
