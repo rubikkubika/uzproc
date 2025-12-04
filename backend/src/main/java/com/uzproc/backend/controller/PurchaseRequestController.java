@@ -4,6 +4,8 @@ import com.uzproc.backend.dto.PurchaseRequestDto;
 import com.uzproc.backend.dto.PurchaserStatsDto;
 import com.uzproc.backend.service.PurchaseRequestService;
 import com.uzproc.backend.service.EntityExcelLoadService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +19,7 @@ import java.util.Map;
 @RequestMapping("/purchase-requests")
 public class PurchaseRequestController {
 
+    private static final Logger logger = LoggerFactory.getLogger(PurchaseRequestController.class);
     private final PurchaseRequestService purchaseRequestService;
     private final EntityExcelLoadService excelLoadService;
 
@@ -62,9 +65,15 @@ public class PurchaseRequestController {
 
     @PostMapping("/upload-from-excel")
     public ResponseEntity<Map<String, Object>> uploadFromExcel(@RequestParam("file") MultipartFile file) {
+        logger.info("Received file upload request: filename={}, size={}, contentType={}", 
+            file.getOriginalFilename(), file.getSize(), file.getContentType());
+        
         Map<String, Object> response = excelLoadService.uploadFromExcel(file);
         
         boolean success = (Boolean) response.getOrDefault("success", false);
+        logger.info("File upload result: success={}, message={}, loadedCount={}", 
+            success, response.get("message"), response.get("loadedCount"));
+        
         if (success) {
             return ResponseEntity.ok(response);
         } else {

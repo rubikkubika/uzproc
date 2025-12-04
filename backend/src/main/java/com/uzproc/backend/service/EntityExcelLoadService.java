@@ -141,42 +141,42 @@ public class EntityExcelLoadService {
             Row headerRow = rowIterator.next();
             Map<String, Integer> columnIndexMap = buildColumnIndexMap(headerRow);
             
-            // Находим все нужные колонки один раз
-            Integer documentTypeColumnIndex = findColumnIndex(columnIndexMap, DOCUMENT_TYPE_COLUMN);
+            // Находим все нужные колонки один раз (используем findColumnIndexInHeader для поиска ПЕРВОЙ колонки)
+            Integer documentTypeColumnIndex = findColumnIndexInHeader(headerRow, DOCUMENT_TYPE_COLUMN);
             
             // Колонки для заявок
-            Integer requestNumberColumnIndex = findColumnIndex(columnIndexMap, REQUEST_NUMBER_COLUMN);
+            Integer requestNumberColumnIndex = findColumnIndexInHeader(headerRow, REQUEST_NUMBER_COLUMN);
             // Пробуем альтернативные названия (включая опечатки)
             if (requestNumberColumnIndex == null) {
-                requestNumberColumnIndex = findColumnIndex(columnIndexMap, "Номер заяки на ЗП"); // Опечатка в файле
+                requestNumberColumnIndex = findColumnIndexInHeader(headerRow, "Номер заяки на ЗП"); // Опечатка в файле
             }
             if (requestNumberColumnIndex == null) {
-                requestNumberColumnIndex = findColumnIndex(columnIndexMap, "Номер заявки");
+                requestNumberColumnIndex = findColumnIndexInHeader(headerRow, "Номер заявки");
             }
-            Integer creationDateColumnIndex = findColumnIndex(columnIndexMap, CREATION_DATE_COLUMN);
-            Integer innerIdColumnIndex = findColumnIndex(columnIndexMap, INNER_ID_COLUMN);
-            Integer cfoColumnIndex = findColumnIndex(columnIndexMap, CFO_COLUMN);
-            Integer nameColumnIndex = findColumnIndex(columnIndexMap, NAME_COLUMN);
-            Integer titleColumnIndex = findColumnIndex(columnIndexMap, TITLE_COLUMN);
-            Integer requiresPurchaseColumnIndex = findColumnIndex(columnIndexMap, REQUIRES_PURCHASE_COLUMN);
+            Integer creationDateColumnIndex = findColumnIndexInHeader(headerRow, CREATION_DATE_COLUMN);
+            Integer innerIdColumnIndex = findColumnIndexInHeader(headerRow, INNER_ID_COLUMN);
+            Integer cfoColumnIndex = findColumnIndexInHeader(headerRow, CFO_COLUMN);
+            Integer nameColumnIndex = findColumnIndexInHeader(headerRow, NAME_COLUMN);
+            Integer titleColumnIndex = findColumnIndexInHeader(headerRow, TITLE_COLUMN);
+            Integer requiresPurchaseColumnIndex = findColumnIndexInHeader(headerRow, REQUIRES_PURCHASE_COLUMN);
             if (requiresPurchaseColumnIndex == null) {
-                requiresPurchaseColumnIndex = findColumnIndex(columnIndexMap, "Требуется закупка");
+                requiresPurchaseColumnIndex = findColumnIndexInHeader(headerRow, "Требуется закупка");
             }
             if (requiresPurchaseColumnIndex == null) {
-                requiresPurchaseColumnIndex = findColumnIndex(columnIndexMap, "Не требуется ЗП (Заявка на ЗП)");
+                requiresPurchaseColumnIndex = findColumnIndexInHeader(headerRow, "Не требуется ЗП (Заявка на ЗП)");
             }
-            Integer planColumnIndex = findColumnIndex(columnIndexMap, PLAN_COLUMN);
-            Integer preparedByColumnIndex = findColumnIndex(columnIndexMap, PREPARED_BY_COLUMN);
-            Integer purchaserColumnIndex = findColumnIndex(columnIndexMap, PURCHASER_COLUMN);
+            Integer planColumnIndex = findColumnIndexInHeader(headerRow, PLAN_COLUMN);
+            Integer preparedByColumnIndex = findColumnIndexInHeader(headerRow, PREPARED_BY_COLUMN);
+            Integer purchaserColumnIndex = findColumnIndexInHeader(headerRow, PURCHASER_COLUMN);
             // Пробуем альтернативные названия колонки
             if (purchaserColumnIndex == null) {
-                purchaserColumnIndex = findColumnIndex(columnIndexMap, "Ответственный за ЗП");
+                purchaserColumnIndex = findColumnIndexInHeader(headerRow, "Ответственный за ЗП");
             }
             if (purchaserColumnIndex == null) {
-                purchaserColumnIndex = findColumnIndex(columnIndexMap, "Закупщик");
+                purchaserColumnIndex = findColumnIndexInHeader(headerRow, "Закупщик");
             }
             if (purchaserColumnIndex == null) {
-                purchaserColumnIndex = findColumnIndex(columnIndexMap, "Ответственный за закупку");
+                purchaserColumnIndex = findColumnIndexInHeader(headerRow, "Ответственный за закупку");
             }
             if (purchaserColumnIndex != null) {
                 logger.info("Found purchaser column at index {}", purchaserColumnIndex);
@@ -202,9 +202,9 @@ public class EntityExcelLoadService {
                 requestNumberColumnIndex, creationDateColumnIndex, innerIdColumnIndex, cfoColumnIndex, nameColumnIndex, titleColumnIndex);
             
             // Колонки для закупок
-            Integer purchaseInnerIdColumnIndex = findColumnIndex(columnIndexMap, INNER_ID_COLUMN);
-            Integer purchaseCreationDateColumnIndex = findColumnIndex(columnIndexMap, CREATION_DATE_COLUMN);
-            Integer purchaseLinkColumnIndex = findColumnIndex(columnIndexMap, LINK_COLUMN);
+            Integer purchaseInnerIdColumnIndex = findColumnIndexInHeader(headerRow, INNER_ID_COLUMN);
+            Integer purchaseCreationDateColumnIndex = findColumnIndexInHeader(headerRow, CREATION_DATE_COLUMN);
+            Integer purchaseLinkColumnIndex = findColumnIndexInHeader(headerRow, LINK_COLUMN);
             
             // Проверяем обязательные колонки
             if (documentTypeColumnIndex == null) {
@@ -401,41 +401,42 @@ public class EntityExcelLoadService {
             Row headerRow = rowIterator.next();
             Map<String, Integer> columnIndexMap = buildColumnIndexMap(headerRow);
             
-            // Проверяем наличие необходимых колонок (с поиском по частичному совпадению)
-            Integer documentTypeColumnIndex = findColumnIndex(columnIndexMap, DOCUMENT_TYPE_COLUMN);
-            Integer requestNumberColumnIndex = findColumnIndex(columnIndexMap, REQUEST_NUMBER_COLUMN);
+            // Проверяем наличие необходимых колонок (ищем ПЕРВУЮ колонку с таким названием)
+            // Используем findColumnIndexInHeader для гарантии, что при дубликатах используется первая колонка
+            Integer documentTypeColumnIndex = findColumnIndexInHeader(headerRow, DOCUMENT_TYPE_COLUMN);
+            Integer requestNumberColumnIndex = findColumnIndexInHeader(headerRow, REQUEST_NUMBER_COLUMN);
             // Пробуем альтернативные названия (включая опечатки)
             if (requestNumberColumnIndex == null) {
-                requestNumberColumnIndex = findColumnIndex(columnIndexMap, "Номер заяки на ЗП"); // Опечатка в файле
+                requestNumberColumnIndex = findColumnIndexInHeader(headerRow, "Номер заяки на ЗП"); // Опечатка в файле
             }
             if (requestNumberColumnIndex == null) {
-                requestNumberColumnIndex = findColumnIndex(columnIndexMap, "Номер заявки");
+                requestNumberColumnIndex = findColumnIndexInHeader(headerRow, "Номер заявки");
             }
-            Integer creationDateColumnIndex = findColumnIndex(columnIndexMap, CREATION_DATE_COLUMN);
-            Integer innerIdColumnIndex = findColumnIndex(columnIndexMap, INNER_ID_COLUMN);
-            Integer cfoColumnIndex = findColumnIndex(columnIndexMap, CFO_COLUMN);
-            Integer nameColumnIndex = findColumnIndex(columnIndexMap, NAME_COLUMN);
-            Integer titleColumnIndex = findColumnIndex(columnIndexMap, TITLE_COLUMN);
-            Integer requiresPurchaseColumnIndex = findColumnIndex(columnIndexMap, REQUIRES_PURCHASE_COLUMN);
+            Integer creationDateColumnIndex = findColumnIndexInHeader(headerRow, CREATION_DATE_COLUMN);
+            Integer innerIdColumnIndex = findColumnIndexInHeader(headerRow, INNER_ID_COLUMN);
+            Integer cfoColumnIndex = findColumnIndexInHeader(headerRow, CFO_COLUMN);
+            Integer nameColumnIndex = findColumnIndexInHeader(headerRow, NAME_COLUMN);
+            Integer titleColumnIndex = findColumnIndexInHeader(headerRow, TITLE_COLUMN);
+            Integer requiresPurchaseColumnIndex = findColumnIndexInHeader(headerRow, REQUIRES_PURCHASE_COLUMN);
             // Пробуем альтернативные названия колонки
             if (requiresPurchaseColumnIndex == null) {
-                requiresPurchaseColumnIndex = findColumnIndex(columnIndexMap, "Требуется закупка");
+                requiresPurchaseColumnIndex = findColumnIndexInHeader(headerRow, "Требуется закупка");
             }
             if (requiresPurchaseColumnIndex == null) {
-                requiresPurchaseColumnIndex = findColumnIndex(columnIndexMap, "Не требуется ЗП (Заявка на ЗП)");
+                requiresPurchaseColumnIndex = findColumnIndexInHeader(headerRow, "Не требуется ЗП (Заявка на ЗП)");
             }
-            Integer planColumnIndex = findColumnIndex(columnIndexMap, PLAN_COLUMN);
-            Integer preparedByColumnIndex = findColumnIndex(columnIndexMap, PREPARED_BY_COLUMN);
-            Integer purchaserColumnIndex = findColumnIndex(columnIndexMap, PURCHASER_COLUMN);
+            Integer planColumnIndex = findColumnIndexInHeader(headerRow, PLAN_COLUMN);
+            Integer preparedByColumnIndex = findColumnIndexInHeader(headerRow, PREPARED_BY_COLUMN);
+            Integer purchaserColumnIndex = findColumnIndexInHeader(headerRow, PURCHASER_COLUMN);
             // Пробуем альтернативные названия колонки
             if (purchaserColumnIndex == null) {
-                purchaserColumnIndex = findColumnIndex(columnIndexMap, "Ответственный за ЗП");
+                purchaserColumnIndex = findColumnIndexInHeader(headerRow, "Ответственный за ЗП");
             }
             if (purchaserColumnIndex == null) {
-                purchaserColumnIndex = findColumnIndex(columnIndexMap, "Закупщик");
+                purchaserColumnIndex = findColumnIndexInHeader(headerRow, "Закупщик");
             }
             if (purchaserColumnIndex == null) {
-                purchaserColumnIndex = findColumnIndex(columnIndexMap, "Ответственный за закупку");
+                purchaserColumnIndex = findColumnIndexInHeader(headerRow, "Ответственный за закупку");
             }
             if (purchaserColumnIndex != null) {
                 logger.info("Found purchaser column at index {}", purchaserColumnIndex);
@@ -519,16 +520,37 @@ public class EntityExcelLoadService {
             int loadedCount = 0;
             int updatedCount = 0;
             int createdCount = 0;
+            int totalRowsProcessed = 0;
+            int emptyRowsSkipped = 0;
+            Map<String, Integer> documentTypeCounts = new HashMap<>();
+            
+            logger.info("Starting to process rows. Document type column index: {}", documentTypeColumnIndex);
             
             while (rowIterator.hasNext()) {
                 Row row = rowIterator.next();
+                totalRowsProcessed++;
                 
                 if (isRowEmpty(row)) {
+                    emptyRowsSkipped++;
                     continue;
                 }
 
                 // Получаем значение из колонки "Вид документа"
-                String documentType = getCellValueAsString(row.getCell(documentTypeColumnIndex));
+                Cell documentTypeCell = row.getCell(documentTypeColumnIndex);
+                String documentType = getCellValueAsString(documentTypeCell);
+                
+                // Собираем статистику по типам документов
+                if (documentType != null && !documentType.trim().isEmpty()) {
+                    documentTypeCounts.put(documentType, documentTypeCounts.getOrDefault(documentType, 0) + 1);
+                } else {
+                    documentTypeCounts.put("(пусто)", documentTypeCounts.getOrDefault("(пусто)", 0) + 1);
+                }
+                
+                // Логируем первые 10 строк для отладки
+                if (totalRowsProcessed <= 10) {
+                    logger.debug("Row {}: documentType='{}' (cell index: {})", 
+                        row.getRowNum() + 1, documentType, documentTypeColumnIndex);
+                }
                 
                 // Фильтруем только "Заявка на ЗП"
                 if (PURCHASE_REQUEST_TYPE.equals(documentType)) {
@@ -563,6 +585,9 @@ public class EntityExcelLoadService {
                 }
             }
 
+            logger.info("Processing summary for file {}: total rows processed: {}, empty rows skipped: {}, loaded: {} (created: {}, updated: {})", 
+                excelFile.getName(), totalRowsProcessed, emptyRowsSkipped, loadedCount, createdCount, updatedCount);
+            logger.info("Document type distribution: {}", documentTypeCounts);
             logger.info("Loaded {} records: {} created, {} updated", loadedCount, createdCount, updatedCount);
             return loadedCount;
         } finally {
@@ -1096,8 +1121,111 @@ public class EntityExcelLoadService {
     /**
      * Находит индекс колонки по точному или частичному совпадению
      * Учитывает проблемы с кодировкой, используя байтовое сравнение
+     * Ищет ПЕРВУЮ колонку с таким названием (не перезаписывает при дубликатах)
      */
     private Integer findColumnIndex(Map<String, Integer> columnIndexMap, String columnName) {
+        // Используем старый метод для обратной совместимости
+        return findColumnIndexInMap(columnIndexMap, columnName);
+    }
+    
+    /**
+     * Находит индекс колонки напрямую в заголовке, возвращая ПЕРВУЮ найденную колонку
+     * Это гарантирует, что при наличии дубликатов названий будет использована первая колонка
+     */
+    private Integer findColumnIndexInHeader(Row headerRow, String columnName) {
+        if (headerRow == null) {
+            return null;
+        }
+        
+        // Получаем байты исходной строки в разных кодировках для сравнения
+        byte[] columnNameBytesUtf8 = columnName.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] columnNameBytesCp1251 = null;
+        try {
+            columnNameBytesCp1251 = columnName.getBytes("Windows-1251");
+        } catch (java.io.UnsupportedEncodingException e) {
+            // Игнорируем
+        }
+        
+        String normalizedColumnName = normalizeString(columnName);
+        String[] keywords = extractKeywords(columnName);
+        
+        // Проходим по всем колонкам в порядке их появления (слева направо)
+        for (int i = 0; i < headerRow.getLastCellNum(); i++) {
+            Cell cell = headerRow.getCell(i);
+            if (cell == null) {
+                continue;
+            }
+            
+            String headerValue = getCellValueAsString(cell);
+            if (headerValue == null || headerValue.trim().isEmpty()) {
+                continue;
+            }
+            
+            String trimmed = headerValue.trim();
+            
+            // 1. Точное совпадение
+            if (trimmed.equals(columnName)) {
+                logger.info("Found column '{}' by exact match at index {}: '{}'", columnName, i, trimmed);
+                return i;
+            }
+            
+            // 2. Байтовое совпадение (для работы с проблемами кодировки)
+            byte[] trimmedBytesUtf8 = trimmed.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            if (java.util.Arrays.equals(columnNameBytesUtf8, trimmedBytesUtf8)) {
+                logger.info("Found column '{}' by byte match (UTF-8) at index {}: '{}'", columnName, i, trimmed);
+                return i;
+            }
+            
+            if (columnNameBytesCp1251 != null) {
+                try {
+                    byte[] trimmedBytesCp1251 = trimmed.getBytes("Windows-1251");
+                    if (java.util.Arrays.equals(columnNameBytesCp1251, trimmedBytesCp1251)) {
+                        logger.info("Found column '{}' by byte match (CP1251) at index {}: '{}'", columnName, i, trimmed);
+                        return i;
+                    }
+                } catch (java.io.UnsupportedEncodingException e) {
+                    // Игнорируем
+                }
+            }
+            
+            // 3. Нормализованное сравнение
+            String normalizedTrimmed = normalizeString(trimmed);
+            if (normalizedTrimmed.equals(normalizedColumnName)) {
+                logger.info("Found column '{}' by normalized match at index {}: '{}'", columnName, i, trimmed);
+                return i;
+            }
+            
+            // 4. По ключевым словам
+            boolean matches = true;
+            for (String keyword : keywords) {
+                if (keyword.length() > 2 && !normalizedTrimmed.contains(normalizeString(keyword))) {
+                    matches = false;
+                    break;
+                }
+            }
+            if (matches && keywords.length > 0) {
+                logger.info("Found column '{}' by keyword match at index {}: '{}'", columnName, i, trimmed);
+                return i;
+            }
+            
+            // 5. Частичное совпадение (без учета регистра и пробелов)
+            String lowerTrimmed = trimmed.toLowerCase();
+            String lowerColumnName = columnName.toLowerCase();
+            if (lowerTrimmed.contains(lowerColumnName) || lowerColumnName.contains(lowerTrimmed) ||
+                normalizedTrimmed.contains(normalizedColumnName) || 
+                normalizedColumnName.contains(normalizedTrimmed)) {
+                logger.info("Found column '{}' by partial match at index {}: '{}'", columnName, i, trimmed);
+                return i;
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Находит индекс колонки в Map (старый метод для обратной совместимости)
+     */
+    private Integer findColumnIndexInMap(Map<String, Integer> columnIndexMap, String columnName) {
         // Сначала пробуем точное совпадение
         Integer exactMatch = columnIndexMap.get(columnName);
         if (exactMatch != null) {
@@ -1411,7 +1539,7 @@ public class EntityExcelLoadService {
             Row headerRow = rowIterator.next();
             Map<String, Integer> columnIndexMap = buildColumnIndexMap(headerRow);
             
-            Integer preparedByColumnIndex = findColumnIndex(columnIndexMap, PREPARED_BY_COLUMN);
+            Integer preparedByColumnIndex = findColumnIndexInHeader(headerRow, PREPARED_BY_COLUMN);
             
             if (preparedByColumnIndex == null) {
                 logger.warn("Column '{}' not found in file {}", PREPARED_BY_COLUMN, excelFile.getName());
@@ -1473,11 +1601,11 @@ public class EntityExcelLoadService {
             Row headerRow = rowIterator.next();
             Map<String, Integer> columnIndexMap = buildColumnIndexMap(headerRow);
             
-            Integer documentTypeColumnIndex = findColumnIndex(columnIndexMap, DOCUMENT_TYPE_COLUMN);
-            Integer innerIdColumnIndex = findColumnIndex(columnIndexMap, INNER_ID_COLUMN);
-            Integer creationDateColumnIndex = findColumnIndex(columnIndexMap, CREATION_DATE_COLUMN);
-            Integer cfoColumnIndex = findColumnIndex(columnIndexMap, CFO_COLUMN);
-            Integer linkColumnIndex = findColumnIndex(columnIndexMap, LINK_COLUMN);
+            Integer documentTypeColumnIndex = findColumnIndexInHeader(headerRow, DOCUMENT_TYPE_COLUMN);
+            Integer innerIdColumnIndex = findColumnIndexInHeader(headerRow, INNER_ID_COLUMN);
+            Integer creationDateColumnIndex = findColumnIndexInHeader(headerRow, CREATION_DATE_COLUMN);
+            Integer cfoColumnIndex = findColumnIndexInHeader(headerRow, CFO_COLUMN);
+            Integer linkColumnIndex = findColumnIndexInHeader(headerRow, LINK_COLUMN);
             
             if (innerIdColumnIndex == null) {
                 logger.warn("Column '{}' not found in file {} for purchases", INNER_ID_COLUMN, excelFile.getName());

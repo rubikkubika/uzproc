@@ -78,9 +78,9 @@ public class ExcelFileAutoLoader {
                     return;
                 }
                 
-                // Ищем все Excel файлы в папке
+                // Ищем все Excel файлы в папке (исключаем временные файлы, начинающиеся с ~$)
                 File[] excelFiles = alldocumentsDir.listFiles((dir, name) -> 
-                    name.endsWith(".xls") || name.endsWith(".xlsx"));
+                    (name.endsWith(".xls") || name.endsWith(".xlsx")) && !name.startsWith("~$"));
                 
                 if (excelFiles == null || excelFiles.length == 0) {
                     logger.info("No Excel files found in alldocuments folder: {}", alldocumentsPath);
@@ -93,7 +93,7 @@ public class ExcelFileAutoLoader {
                 int totalLoaded = 0;
                 for (File excelFile : excelFiles) {
                     try {
-                        logger.info("Processing file: {}", excelFile.getName());
+                        logger.info("Processing file: {} (size: {} bytes)", excelFile.getName(), excelFile.length());
                         // Используем оптимизированный метод, который открывает файл один раз
                         Map<String, Integer> counts = excelLoadService.loadAllFromExcel(excelFile);
                         int purchaseRequestsCount = counts.getOrDefault("purchaseRequests", 0);
@@ -171,9 +171,9 @@ public class ExcelFileAutoLoader {
                     return;
                 }
                 
-                // Ищем все Excel файлы в папке
+                // Ищем все Excel файлы в папке (исключаем временные файлы, начинающиеся с ~$)
                 File[] excelFiles = reportDir.listFiles((dir, name) -> 
-                    name.endsWith(".xls") || name.endsWith(".xlsx"));
+                    (name.endsWith(".xls") || name.endsWith(".xlsx")) && !name.startsWith("~$"));
                 
                 if (excelFiles == null || excelFiles.length == 0) {
                     logger.info("No Excel files found in report folder: {}", reportPath);
@@ -258,9 +258,9 @@ public class ExcelFileAutoLoader {
                     return;
                 }
                 
-                // Ищем все Excel файлы в папке
+                // Ищем все Excel файлы в папке (исключаем временные файлы, начинающиеся с ~$)
                 File[] excelFiles = planDir.listFiles((dir, name) -> 
-                    name.endsWith(".xls") || name.endsWith(".xlsx"));
+                    (name.endsWith(".xls") || name.endsWith(".xlsx")) && !name.startsWith("~$"));
                 
                 if (excelFiles == null || excelFiles.length == 0) {
                     logger.info("No Excel files found in plan folder: {}", planPath);
