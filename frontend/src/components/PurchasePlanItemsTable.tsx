@@ -749,8 +749,10 @@ export default function PurchasePlanItemsTable() {
     return monthCounts;
   }, [chartData, selectedYear]);
 
-  // Максимальное значение для нормализации высоты столбцов (включая все столбцы)
-  const maxCount = Math.max(...getMonthlyDistribution, 1);
+  // Максимальное значение для нормализации высоты столбцов (исключаем столбец "без даты")
+  // Берем только первые 13 элементов (месяцы), исключая последний (индекс 13 - "без даты")
+  const monthlyCounts = getMonthlyDistribution.slice(0, 13);
+  const maxCount = Math.max(...monthlyCounts, 1);
   
   // Обработчик начала изменения размера
   const handleResizeStart = useCallback((e: React.MouseEvent, columnKey: string) => {
@@ -2003,16 +2005,29 @@ export default function PurchasePlanItemsTable() {
               <SortableHeader field="newContractDate" label="Дата нового договора" columnKey="newContractDate" />
               <th className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300" style={{ width: '350px', minWidth: '350px' }}>
                 <div className="flex flex-col gap-1">
-                  <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}></div>
                   <div className="flex items-center gap-1 min-h-[20px]">
-                    <div style={{ width: '20px', minWidth: '20px', flexShrink: 0 }}></div>
+                    <div style={{ width: '10px', minWidth: '10px', flexShrink: 0 }}></div>
                     {/* Столбчатая диаграмма распределения по месяцам */}
-                    <div className="flex-1 flex items-end gap-0.5 h-16 px-1 relative" style={{ minHeight: '64px' }}>
+                    <div className="flex-1 flex items-end gap-0.5 h-20 px-1 relative" style={{ minHeight: '80px', height: '80px' }}>
                       {getMonthlyDistribution.map((count, index) => {
                         const monthLabels = ['Дек', 'Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек', 'Без даты'];
                         const isYearDivider = index === 1; // После декабря предыдущего года
                         const isNoDate = index === 13; // Последний столбец - без даты
-                        const heightPercent = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                        // Для столбца без даты высота всегда максимальная (100%), для остальных - зависит от значения
+                        // Максимальный столбец по значению должен быть 100% высоты контейнера
+                        // Остальные столбцы пропорционально меньше
+                        // Используем абсолютную высоту в пикселях для правильного отображения
+                        const containerHeight = 80; // Высота контейнера в пикселях
+                        const topMargin = 4; // Отступ сверху для максимального столбца (в пикселях)
+                        const availableHeight = containerHeight - topMargin; // Доступная высота для столбцов
+                        let columnHeight = 0;
+                        if (isNoDate) {
+                          columnHeight = containerHeight;
+                        } else if (count > 0 && maxCount > 0) {
+                          // Прямая пропорция: максимальный столбец = доступная высота (с отступом сверху)
+                          columnHeight = (count / maxCount) * availableHeight;
+                        }
+                        const heightPercent = isNoDate ? 100 : (count > 0 && maxCount > 0 ? (count / maxCount) * 100 : 0);
                         
                         // Определяем месяц для фильтрации
                         // index 0 = декабрь предыдущего года (месяц 11 предыдущего года)
@@ -2044,19 +2059,25 @@ export default function PurchasePlanItemsTable() {
                           (monthForFilter === -1 || (index === 0 && selectedMonthYear === prevYear) || (index >= 1 && index <= 12 && selectedMonthYear === null));
                         
                   return (
-                          <div key={index} className="flex-1 flex flex-col items-center gap-0.5 relative" style={{ minWidth: 0 }}>
+                          <div key={index} className="flex-1 flex flex-col items-center gap-0.5 relative" style={{ minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                             {/* Столбец */}
                             <div 
                               className={`w-full rounded-t transition-colors relative group cursor-pointer ${
-                                isSelected 
-                                  ? 'bg-blue-700 ring-2 ring-blue-400' 
-                                  : count > 0 
-                                    ? 'bg-blue-500 hover:bg-blue-600' 
-                                    : 'bg-gray-200'
+                                isNoDate
+                                  ? isSelected
+                                    ? 'bg-red-700 ring-2 ring-red-400'
+                                    : 'bg-red-500 hover:bg-red-600'
+                                  : isSelected 
+                                    ? 'bg-blue-700 ring-2 ring-blue-400' 
+                                    : count > 0 
+                                      ? 'bg-blue-500 hover:bg-blue-600' 
+                                      : 'bg-gray-200'
                               }`}
                               style={{ 
-                                height: `${Math.max(heightPercent, count > 0 ? 5 : 0)}%`,
-                                minHeight: count > 0 ? '4px' : '0px'
+                                height: `${columnHeight}px`,
+                                minHeight: isNoDate ? containerHeight + 'px' : (count > 0 ? '2px' : '0px'),
+                                maxHeight: isNoDate ? containerHeight + 'px' : containerHeight + 'px',
+                                flexShrink: 0
                               }}
                               title={`${monthLabels[index]}: ${count} закупок`}
                               onClick={() => {
@@ -2087,9 +2108,9 @@ export default function PurchasePlanItemsTable() {
                                 }
                               }}
                             >
-                              {/* Число на столбце (показываем только если столбец достаточно высокий) */}
-                              {count > 0 && heightPercent > 15 && (
-                                <div className="absolute -top-5 left-1/2 transform -translate-x-1/2 text-[8px] text-gray-600 font-medium whitespace-nowrap pointer-events-none">
+                              {/* Число на столбце (показываем внутри столбца, белым цветом) */}
+                              {(isNoDate || (count > 0 && heightPercent > 15)) && (
+                                <div className="absolute inset-0 flex items-center justify-center text-[8px] text-white font-bold whitespace-nowrap pointer-events-none">
                                   {count}
                                 </div>
                               )}
@@ -2098,9 +2119,9 @@ export default function PurchasePlanItemsTable() {
                             <div className={`text-[8px] text-center ${isYearDivider ? 'font-bold text-gray-800 border-l-2 border-gray-700 pl-0.5' : isSelected ? 'font-bold text-blue-700' : 'text-gray-500'}`} style={{ lineHeight: '1' }}>
                               {monthLabels[index]}
                             </div>
-                            {/* Показываем число под столбцом, если столбец слишком низкий */}
-                            {count > 0 && heightPercent <= 15 && (
-                              <div className="text-[7px] text-gray-600 font-medium -mt-0.5">
+                            {/* Показываем число под столбцом, если столбец слишком низкий (но не для столбца без даты) */}
+                            {!isNoDate && count > 0 && heightPercent <= 15 && (
+                              <div className="text-[7px] text-gray-600 font-bold -mt-0.5">
                                 {count}
                               </div>
                             )}
