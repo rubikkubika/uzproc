@@ -10,6 +10,14 @@ import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.openxml4j.opc.OPCPackage;
+import org.apache.poi.xssf.eventusermodel.XSSFReader;
+import org.apache.poi.xssf.eventusermodel.ReadOnlySharedStringsTable;
+import org.apache.poi.xssf.model.StylesTable;
+import org.apache.poi.xssf.eventusermodel.XSSFSheetXMLHandler;
+import org.xml.sax.InputSource;
+import org.xml.sax.XMLReader;
+import org.xml.sax.helpers.XMLReaderFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -30,6 +38,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.web.multipart.MultipartFile;
+import java.io.InputStream;
 
 @Service
 public class EntityExcelLoadService {
@@ -117,8 +126,25 @@ public class EntityExcelLoadService {
     /**
      * Оптимизированная загрузка всех данных из Excel файла за один проход
      * Открывает файл один раз и обрабатывает все типы строк (заявки, закупки, пользователи)
+     * Для больших файлов (>10 МБ) использует потоковое чтение через Event API
      */
     public Map<String, Integer> loadAllFromExcel(File excelFile) throws IOException {
+        // Проверяем размер файла
+        long fileSizeMB = excelFile.length() / (1024 * 1024);
+        boolean isLargeFile = fileSizeMB > 10; // Файлы больше 10 МБ считаем большими
+        
+        // Для больших .xlsx файлов используем потоковое чтение
+        if (isLargeFile && excelFile.getName().endsWith(".xlsx")) {
+            try {
+                logger.info("Large file detected ({} MB), using streaming mode", fileSizeMB);
+                return loadAllFromExcelStreaming(excelFile);
+            } catch (Exception e) {
+                logger.warn("Streaming mode failed, falling back to standard mode: {}", e.getMessage());
+                // Fallback на стандартный метод
+            }
+        }
+        
+        // Стандартный метод для небольших файлов или .xls
         Workbook workbook;
         try (FileInputStream fis = new FileInputStream(excelFile)) {
             if (excelFile.getName().endsWith(".xlsx")) {
@@ -296,6 +322,65 @@ public class EntityExcelLoadService {
             );
         } finally {
             workbook.close();
+        }
+    }
+    
+    /**
+     * Потоковое чтение больших Excel файлов через Event API
+     * Не загружает весь файл в память, обрабатывает построчно
+     */
+    private Map<String, Integer> loadAllFromExcelStreaming(File excelFile) throws Exception {
+        logger.info("Starting streaming read of file: {}", excelFile.getName());
+        
+        OPCPackage pkg = OPCPackage.open(excelFile);
+        XSSFReader reader = new XSSFReader(pkg);
+        
+        try {
+            // Получаем таблицу стилей и общие строки
+            StylesTable stylesTable = reader.getStylesTable();
+            ReadOnlySharedStringsTable sharedStringsTable = new ReadOnlySharedStringsTable(pkg);
+            
+            // Создаем обработчик строк
+            ExcelStreamingRowHandler rowHandler = new ExcelStreamingRowHandler(
+                this,
+                purchaseRequestRepository,
+                purchaseRepository,
+                userRepository,
+                stylesTable,
+                sharedStringsTable
+            );
+            
+            // Создаем XML парсер
+            XMLReader parser = XMLReaderFactory.createXMLReader();
+            XSSFSheetXMLHandler handler = new XSSFSheetXMLHandler(
+                stylesTable,
+                sharedStringsTable,
+                rowHandler,
+                new DataFormatter(),
+                false
+            );
+            parser.setContentHandler(handler);
+            
+            // Обрабатываем первый лист
+            Iterator<InputStream> sheets = reader.getSheetsData();
+            if (sheets.hasNext()) {
+                InputStream sheetInputStream = sheets.next();
+                try {
+                    InputSource sheetSource = new InputSource(sheetInputStream);
+                    parser.parse(sheetSource);
+                } finally {
+                    sheetInputStream.close();
+                }
+            }
+            
+            Map<String, Integer> results = rowHandler.getResults();
+            logger.info("Streaming read completed: {} purchase requests, {} purchases, {} users", 
+                results.get("purchaseRequests"), results.get("purchases"), results.get("users"));
+            
+            return results;
+            
+        } finally {
+            pkg.close();
         }
     }
     
@@ -1389,7 +1474,11 @@ public class EntityExcelLoadService {
      * и создает/обновляет User
      * Формат: "Surname Name (Отдел, Должность)"
      */
-    private void parseAndSaveUser(String preparedByValue) {
+    /**
+     * Парсит и сохраняет пользователя из строки "Подготовил"
+     * Доступен для использования в других классах (например, ExcelStreamingRowHandler)
+     */
+    public void parseAndSaveUser(String preparedByValue) {
         try {
             // Парсим строку формата "Kupriianova Anastasiia (Административно-хозяйственный отдел, Офис менеджер)"
             String surname = null;
