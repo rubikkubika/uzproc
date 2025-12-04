@@ -252,31 +252,51 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             
             // Требуется Закупка (опционально, булево поле)
             Integer requiresPurchaseCol = findColumnIndex(REQUIRES_PURCHASE_COLUMN);
+            String foundColumnName = null;
             if (requiresPurchaseCol == null) {
                 requiresPurchaseCol = findColumnIndex("Требуется закупка");
             }
             if (requiresPurchaseCol == null) {
                 requiresPurchaseCol = findColumnIndex("Не требуется ЗП (Заявка на ЗП)");
             }
+            
+            // Находим реальное название колонки по индексу
+            if (requiresPurchaseCol != null) {
+                for (Map.Entry<String, Integer> entry : columnIndices.entrySet()) {
+                    if (entry.getValue().equals(requiresPurchaseCol)) {
+                        foundColumnName = entry.getKey();
+                        break;
+                    }
+                }
+                // Если не нашли точное совпадение, используем сохраненное название
+                if (foundColumnName == null) {
+                    foundColumnName = requiresPurchaseColumnName;
+                }
+            }
+            
             if (requiresPurchaseCol != null) {
                 String cellValueStr = currentRowData.get(requiresPurchaseCol);
-                boolean isInvertedLogic = requiresPurchaseColumnName != null && requiresPurchaseColumnName.contains("Не требуется");
+                // Проверяем, является ли это колонкой "Не требуется" - для неё логика инвертированная
+                boolean isInvertedLogic = (foundColumnName != null && foundColumnName.contains("Не требуется")) ||
+                                         (requiresPurchaseColumnName != null && requiresPurchaseColumnName.contains("Не требуется"));
+                
+                logger.debug("Row {}: Found requiresPurchase column at index {}, name: '{}', value: '{}', inverted: {}", 
+                    currentRowNum + 1, requiresPurchaseCol, foundColumnName != null ? foundColumnName : requiresPurchaseColumnName, cellValueStr, isInvertedLogic);
                 
                 Boolean requiresPurchase = null;
                 if (cellValueStr != null && !cellValueStr.trim().isEmpty()) {
                     Boolean parsedValue = parseBooleanString(cellValueStr);
                     if (parsedValue != null) {
                         if (isInvertedLogic) {
-                            // Для колонки "Не требуется ЗП": "да" = не требуется (false), "нет" = требуется (true)
+                            // Для колонки "Не требуется ЗП": "Да" = не требуется (false), "Нет" = требуется (true)
                             requiresPurchase = !parsedValue;
                         } else {
-                            // Обычная логика: "да" = требуется (true), "нет" = не требуется (false)
+                            // Обычная логика: "Да" = требуется (true), "Нет" = не требуется (false)
                             requiresPurchase = parsedValue;
                         }
                     } else {
-                        // Если значение не распознано, но колонка найдена, логируем
-                        logger.debug("Row {}: Cannot parse requiresPurchase value '{}' (column: '{}')", 
-                            currentRowNum + 1, cellValueStr, requiresPurchaseColumnName);
+                        logger.warn("Row {}: Cannot parse requiresPurchase value '{}'", 
+                            currentRowNum + 1, cellValueStr);
                     }
                 } else if (isInvertedLogic) {
                     // Если колонка "Не требуется" и ячейка пустая, значит требуется
@@ -285,9 +305,15 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 
                 if (requiresPurchase != null) {
                     pr.setRequiresPurchase(requiresPurchase);
-                    logger.debug("Row {}: parsed requiresPurchase as: {} (column: '{}', value: '{}', inverted: {})", 
-                        currentRowNum + 1, requiresPurchase, requiresPurchaseColumnName, cellValueStr, isInvertedLogic);
+                    logger.info("Row {}: SET requiresPurchase to {} (value: '{}', inverted: {})", 
+                        currentRowNum + 1, requiresPurchase, cellValueStr, isInvertedLogic);
+                } else {
+                    logger.debug("Row {}: requiresPurchase is null (value: '{}')", 
+                        currentRowNum + 1, cellValueStr);
                 }
+            } else {
+                logger.debug("Row {}: requiresPurchase column not found. Available columns: {}", 
+                    currentRowNum + 1, columnIndices.keySet());
             }
             
             // План (опционально, булево поле)
@@ -321,13 +347,26 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             // Сохраняем или обновляем
             if (existingOpt.isPresent()) {
                 PurchaseRequest existing = existingOpt.get();
+                Boolean oldRequiresPurchase = existing.getRequiresPurchase();
+                Boolean newRequiresPurchase = pr.getRequiresPurchase();
+                logger.debug("Row {}: Existing request {} from DB: requiresPurchase={}, new value={}", 
+                    currentRowNum + 1, existing.getIdPurchaseRequest(), oldRequiresPurchase, newRequiresPurchase);
                 boolean updated = updatePurchaseRequestFields(existing, pr);
                 if (updated) {
                     purchaseRequestRepository.save(existing);
+                    logger.info("Row {}: SAVED updated purchase request {} (requiresPurchase: {} -> {})", 
+                        currentRowNum + 1, existing.getIdPurchaseRequest(), oldRequiresPurchase, existing.getRequiresPurchase());
+                } else {
+                    logger.debug("Row {}: No changes for purchase request {} (requiresPurchase: {})", 
+                        currentRowNum + 1, existing.getIdPurchaseRequest(), existing.getRequiresPurchase());
                 }
             } else {
+                logger.info("Row {}: SAVING new purchase request {} with requiresPurchase: {}", 
+                    currentRowNum + 1, pr.getIdPurchaseRequest(), pr.getRequiresPurchase());
                 purchaseRequestRepository.save(pr);
                 purchaseRequestsCreated++;
+                logger.info("Row {}: SAVED new purchase request {} with requiresPurchase: {}", 
+                    currentRowNum + 1, pr.getIdPurchaseRequest(), pr.getRequiresPurchase());
             }
             purchaseRequestsCount++;
             
@@ -601,11 +640,36 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
         }
         
         // Обновляем requiresPurchase
+        // ВАЖНО: Всегда обновляем поле, если оно установлено в Excel, так как в БД могут быть NULL значения,
+        // которые Hibernate может возвращать как false
         if (newData.getRequiresPurchase() != null) {
-            if (existing.getRequiresPurchase() == null || !existing.getRequiresPurchase().equals(newData.getRequiresPurchase())) {
-                existing.setRequiresPurchase(newData.getRequiresPurchase());
-                updated = true;
+            Boolean existingValue = existing.getRequiresPurchase();
+            Boolean newValue = newData.getRequiresPurchase();
+            boolean shouldUpdate = !java.util.Objects.equals(existingValue, newValue);
+            
+            // Принудительно обновляем, если значение отличается или если существующее значение может быть NULL в БД
+            // (Hibernate может возвращать false для NULL, поэтому всегда обновляем, если новое значение установлено)
+            if (!shouldUpdate) {
+                // Если значения равны, но в БД может быть NULL, принудительно обновляем
+                logger.debug("Force updating requiresPurchase for request {} (ensuring value is set in DB): {} -> {}", 
+                    existing.getIdPurchaseRequest(), existingValue, newValue);
+                shouldUpdate = true;
             }
+            
+            logger.debug("Checking requiresPurchase for request {}: existing={}, new={}, shouldUpdate={}", 
+                existing.getIdPurchaseRequest(), existingValue, newValue, shouldUpdate);
+            
+            if (shouldUpdate) {
+                logger.info("Updating requiresPurchase for request {}: {} -> {}", 
+                    existing.getIdPurchaseRequest(), existingValue, newValue);
+                existing.setRequiresPurchase(newValue);
+                updated = true;
+            } else {
+                logger.debug("requiresPurchase unchanged for request {}: {}", 
+                    existing.getIdPurchaseRequest(), existingValue);
+            }
+        } else {
+            logger.debug("newData.getRequiresPurchase() is null for request {}", existing.getIdPurchaseRequest());
         }
         
         // Обновляем isPlanned
