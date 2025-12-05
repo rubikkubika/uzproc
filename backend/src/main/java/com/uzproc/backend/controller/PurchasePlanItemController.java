@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/purchase-plan-items")
@@ -31,10 +32,11 @@ public class PurchasePlanItemController {
             @RequestParam(required = false) List<String> purchaser,
             @RequestParam(required = false) List<String> category,
             @RequestParam(required = false) Integer requestMonth,
-            @RequestParam(required = false) Integer requestYear) {
+            @RequestParam(required = false) Integer requestYear,
+            @RequestParam(required = false) String currentContractEndDate) {
         
         Page<PurchasePlanItemDto> items = purchasePlanItemService.findAll(
-                page, size, year, sortBy, sortDir, company, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear);
+                page, size, year, sortBy, sortDir, company, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear, currentContractEndDate);
         
         return ResponseEntity.ok(items);
     }
@@ -49,14 +51,18 @@ public class PurchasePlanItemController {
     }
 
     @PatchMapping("/{id}/dates")
-    public ResponseEntity<PurchasePlanItemDto> updatePurchasePlanItemDates(
+    public ResponseEntity<?> updatePurchasePlanItemDates(
             @PathVariable Long id,
             @RequestBody PurchasePlanItemDto dto) {
-        PurchasePlanItemDto updatedItem = purchasePlanItemService.updateDates(id, dto.getRequestDate(), dto.getNewContractDate());
-        if (updatedItem != null) {
-            return ResponseEntity.ok(updatedItem);
+        try {
+            PurchasePlanItemDto updatedItem = purchasePlanItemService.updateDates(id, dto.getRequestDate(), dto.getNewContractDate());
+            if (updatedItem != null) {
+                return ResponseEntity.ok(updatedItem);
+            }
+            return ResponseEntity.notFound().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         }
-        return ResponseEntity.notFound().build();
     }
 
     @PatchMapping("/{id}/contract-end-date")
@@ -68,6 +74,13 @@ public class PurchasePlanItemController {
             return ResponseEntity.ok(updatedItem);
         }
         return ResponseEntity.notFound().build();
+    }
+
+    @GetMapping("/monthly-stats")
+    public ResponseEntity<Map<String, Object>> getMonthlyStats(
+            @RequestParam(required = false) Integer year) {
+        Map<String, Object> stats = purchasePlanItemService.getMonthlyStats(year);
+        return ResponseEntity.ok(stats);
     }
 }
 

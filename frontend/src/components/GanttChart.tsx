@@ -9,6 +9,7 @@ interface GanttChartProps {
   requestDate: string | null;
   newContractDate: string | null;
   contractEndDate?: string | null; // Дата окончания договора
+  currentContractEndDate?: string | null; // Дата окончания действующего договора
   onDatesUpdate?: (requestDate: string, newContractDate: string) => void;
   onDatesChange?: (requestDate: string, newContractDate: string) => void; // Для временных изменений во время перетаскивания
   onDragStart?: () => void; // Вызывается при начале перетаскивания
@@ -42,6 +43,7 @@ export default function GanttChart({
   requestDate, 
   newContractDate,
   contractEndDate,
+  currentContractEndDate,
   onDatesUpdate,
   onDatesChange,
   onDragStart
@@ -134,6 +136,33 @@ export default function GanttChart({
   };
 
   const contractEndPosition = getContractEndDatePosition();
+
+  // Вычисляем позицию красной черты для даты окончания действующего договора
+  const getCurrentContractEndDatePosition = () => {
+    if (!currentContractEndDate) return null;
+    
+    const currentContractEnd = new Date(currentContractEndDate);
+    const periodStart = new Date(currentYear - 1, 11, 1, 0, 0, 0, 0); // Декабрь предыдущего года
+    const periodEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999); // Декабрь текущего года
+    
+    // Если дата выходит за рамки периода, не показываем черту
+    if (currentContractEnd < periodStart || currentContractEnd > periodEnd) {
+      return null;
+    }
+    
+    const periodStartTime = periodStart.getTime();
+    const periodEndTime = periodEnd.getTime();
+    const currentContractEndTime = currentContractEnd.getTime();
+    
+    const totalTime = periodEndTime - periodStartTime;
+    const currentContractEndOffset = currentContractEndTime - periodStartTime;
+    
+    const positionPercent = (currentContractEndOffset / totalTime) * 100;
+    
+    return positionPercent;
+  };
+
+  const currentContractEndPosition = getCurrentContractEndDatePosition();
 
   // Обработчик начала перетаскивания
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -353,6 +382,27 @@ export default function GanttChart({
         }
       }
 
+      // Ограничиваем даты сроком окончания действующего договора, если он установлен
+      // Дата нового договора не может быть позже даты окончания действующего договора
+      if (currentContractEndDate) {
+        const currentContractEnd = new Date(currentContractEndDate);
+        currentContractEnd.setHours(23, 59, 59, 999); // Устанавливаем конец дня
+        
+        // Конец полоски (newContractDate) не должен быть позже срока окончания действующего договора
+        if (newEndDate > currentContractEnd) {
+          const diff = newEndDate.getTime() - currentContractEnd.getTime();
+          newEndDate.setTime(currentContractEnd.getTime());
+          newStartDate.setTime(newStartDate.getTime() - diff);
+        }
+        
+        // Начало полоски тоже не должно быть позже срока окончания действующего договора
+        if (newStartDate > currentContractEnd) {
+          const diff = newStartDate.getTime() - currentContractEnd.getTime();
+          newStartDate.setTime(currentContractEnd.getTime());
+          newEndDate.setTime(newEndDate.getTime() - diff);
+        }
+      }
+
       // Форматируем даты для отправки
       const formatDate = (date: Date) => {
         const year = date.getFullYear();
@@ -418,7 +468,7 @@ export default function GanttChart({
         clearTimeout(updateTimeoutRef.current);
       }
     };
-  }, [isDragging, dragStartX, initialStartDate, initialEndDate, currentYear, itemId, onDatesUpdate, onDatesChange, contractEndDate]);
+  }, [isDragging, dragStartX, initialStartDate, initialEndDate, currentYear, itemId, onDatesUpdate, onDatesChange, contractEndDate, currentContractEndDate]);
 
   if (!startDate || !endDate) {
     return (
@@ -516,6 +566,17 @@ export default function GanttChart({
               left: `${Math.max(0, Math.min(100, contractEndPosition))}%`,
             }}
             title={`Срок окончания договора: ${contractEndDate ? new Date(contractEndDate).toLocaleDateString('ru-RU') : ''}`}
+          />
+        )}
+        
+        {/* Красная черта для даты окончания действующего договора */}
+        {currentContractEndPosition !== null && (
+          <div
+            className="absolute top-0 bottom-0 w-0.5 bg-red-600 z-10"
+            style={{
+              left: `${Math.max(0, Math.min(100, currentContractEndPosition))}%`,
+            }}
+            title={`Дата окончания действующего договора: ${currentContractEndDate ? new Date(currentContractEndDate).toLocaleDateString('ru-RU') : ''}`}
           />
         )}
       </div>

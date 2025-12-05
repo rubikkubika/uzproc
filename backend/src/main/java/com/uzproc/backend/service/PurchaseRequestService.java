@@ -162,13 +162,13 @@ public class PurchaseRequestService {
             List<Predicate> predicates = new ArrayList<>();
             int predicateCount = 0;
             
-            // Фильтр по году (по дате создания записи в БД - createdAt)
+            // Фильтр по году (по дате создания заявки - purchaseRequestCreationDate)
             if (year != null) {
                 java.time.LocalDateTime startOfYear = java.time.LocalDateTime.of(year, 1, 1, 0, 0);
                 java.time.LocalDateTime endOfYear = java.time.LocalDateTime.of(year, 12, 31, 23, 59, 59);
-                predicates.add(cb.between(root.get("createdAt"), startOfYear, endOfYear));
+                predicates.add(cb.between(root.get("purchaseRequestCreationDate"), startOfYear, endOfYear));
                 predicateCount++;
-                logger.info("Added year filter (by createdAt): {}", year);
+                logger.info("Added year filter (by purchaseRequestCreationDate): {}", year);
             }
             
             // Фильтр по номеру заявки
@@ -310,8 +310,10 @@ public class PurchaseRequestService {
 
     /**
      * Обновляет статус заявки на закупку на основе согласований
-     * Логика:
+     * Логика (приоритет по убыванию):
+     * - Если хотя бы одно согласование не утверждено → статус "Не утверждена"
      * - Если хотя бы одно согласование не согласовано → статус "Не согласована"
+     * - Если есть завершенное утверждение → статус "Утверждена"
      * - Если есть активное и не законченное утверждение → статус "На утверждении"
      * - Если хотя бы одно согласование активно (не завершено) → статус "На согласовании"
      * 
@@ -336,6 +338,7 @@ public class PurchaseRequestService {
             return;
         }
         
+        boolean hasNotApproved = false;
         boolean hasNotCoordinated = false;
         boolean hasActiveApproval = false;
         boolean hasActiveFinalApproval = false;
@@ -347,6 +350,14 @@ public class PurchaseRequestService {
             String completionResult = approval.getCompletionResult();
             if (completionResult != null && !completionResult.trim().isEmpty()) {
                 String resultLower = completionResult.toLowerCase().trim();
+                // Проверяем различные варианты "не утверждено"
+                if (resultLower.contains("не утвержден") || 
+                    resultLower.contains("не утверждено") ||
+                    resultLower.contains("не утверждена")) {
+                    hasNotApproved = true;
+                    logger.debug("Found not approved approval for request {}: {}", 
+                        idPurchaseRequest, completionResult);
+                }
                 // Проверяем различные варианты "не согласован"
                 if (resultLower.contains("не согласован") || 
                     resultLower.contains("не согласована") ||
@@ -402,8 +413,11 @@ public class PurchaseRequestService {
         // Определяем новый статус
         PurchaseRequestStatus newStatus = null;
         
-        // Приоритет: сначала проверяем на не согласованные, потом на завершенное утверждение, потом на активное утверждение, потом на согласование
-        if (hasNotCoordinated) {
+        // Приоритет: сначала проверяем на не утверждено (самый высокий), потом на не согласованные, 
+        // потом на завершенное утверждение, потом на активное утверждение, потом на согласование
+        if (hasNotApproved) {
+            newStatus = PurchaseRequestStatus.NOT_APPROVED;
+        } else if (hasNotCoordinated) {
             newStatus = PurchaseRequestStatus.NOT_COORDINATED;
         } else if (hasCompletedFinalApproval) {
             newStatus = PurchaseRequestStatus.APPROVED;
@@ -547,6 +561,101 @@ public class PurchaseRequestService {
                 (a.getActivePurchases() + a.getTotalPurchases())
             ))
             .collect(Collectors.toList());
+    }
+    
+    /**
+     * Получить список доступных годов из purchaseRequestCreationDate
+     */
+    public List<Integer> getAvailableYears(Boolean requiresPurchase) {
+        Specification<PurchaseRequest> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (requiresPurchase != null && requiresPurchase) {
+                predicates.add(cb.equal(root.get("requiresPurchase"), true));
+            }
+            return predicates.isEmpty() ? cb.conjunction() : cb.and(predicates.toArray(new Predicate[0]));
+        };
+        
+        List<PurchaseRequest> requests = purchaseRequestRepository.findAll(spec);
+        return requests.stream()
+            .map(PurchaseRequest::getPurchaseRequestCreationDate)
+            .filter(date -> date != null)
+            .map(LocalDateTime::getYear)
+            .distinct()
+            .sorted((a, b) -> b.compareTo(a)) // Сортировка по убыванию
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Получить агрегированные данные по месяцам для заявок на закупку
+     * Логика: "Дек (пред. год)" = декабрь выбранного года, остальные месяцы = год + 1
+     */
+    public Map<String, Object> getMonthlyStats(Integer year, Boolean requiresPurchase) {
+        // Загружаем данные для выбранного года (декабрь) и года + 1 (январь-декабрь)
+        Specification<PurchaseRequest> specForYear = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            
+            if (requiresPurchase != null && requiresPurchase) {
+                predicates.add(cb.equal(root.get("requiresPurchase"), true));
+            }
+            
+            if (year != null) {
+                // Декабрь выбранного года
+                LocalDateTime startOfDecember = LocalDateTime.of(year, 12, 1, 0, 0);
+                LocalDateTime endOfDecember = LocalDateTime.of(year, 12, 31, 23, 59, 59);
+                // Январь-декабрь года + 1
+                LocalDateTime startOfNextYear = LocalDateTime.of(year + 1, 1, 1, 0, 0);
+                LocalDateTime endOfNextYear = LocalDateTime.of(year + 1, 12, 31, 23, 59, 59);
+                
+                predicates.add(cb.or(
+                    cb.between(root.get("purchaseRequestCreationDate"), startOfDecember, endOfDecember),
+                    cb.between(root.get("purchaseRequestCreationDate"), startOfNextYear, endOfNextYear)
+                ));
+            }
+            
+            return predicates.isEmpty() ? cb.conjunction() : cb.and(predicates.toArray(new Predicate[0]));
+        };
+        
+        List<PurchaseRequest> requests = purchaseRequestRepository.findAll(specForYear);
+        
+        // Группируем по месяцам
+        Map<String, Integer> monthCounts = new HashMap<>();
+        monthCounts.put("Дек (пред. год)", 0);
+        for (int i = 0; i < 12; i++) {
+            String[] monthNames = {"Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"};
+            monthCounts.put(monthNames[i], 0);
+        }
+        
+        for (PurchaseRequest request : requests) {
+            if (request.getPurchaseRequestCreationDate() != null) {
+                LocalDateTime date = request.getPurchaseRequestCreationDate();
+                int monthIndex = date.getMonthValue() - 1; // 0-11
+                int requestYear = date.getYear();
+                
+                if (year != null) {
+                    // Если это декабрь выбранного года - идет в "Дек (пред. год)"
+                    if (monthIndex == 11 && requestYear == year) {
+                        monthCounts.put("Дек (пред. год)", monthCounts.get("Дек (пред. год)") + 1);
+                    } else if (requestYear == year + 1) {
+                        // Остальные месяцы года + 1
+                        String[] monthNames = {"Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"};
+                        monthCounts.put(monthNames[monthIndex], monthCounts.get(monthNames[monthIndex]) + 1);
+                    }
+                } else {
+                    // Если год не указан, показываем все данные
+                    int currentYear = LocalDateTime.now().getYear();
+                    if (monthIndex == 11 && requestYear == currentYear) {
+                        monthCounts.put("Дек (пред. год)", monthCounts.get("Дек (пред. год)") + 1);
+                    } else {
+                        String[] monthNames = {"Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"};
+                        monthCounts.put(monthNames[monthIndex], monthCounts.get(monthNames[monthIndex]) + 1);
+                    }
+                }
+            }
+        }
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("monthCounts", monthCounts);
+        return result;
     }
     
     /**

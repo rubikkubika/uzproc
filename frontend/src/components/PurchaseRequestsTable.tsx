@@ -50,7 +50,7 @@ export default function PurchaseRequestsTable() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
-  const [pageSize, setPageSize] = useState(25);
+  const [pageSize, setPageSize] = useState(100);
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number | null>(currentYear);
   const [totalRecords, setTotalRecords] = useState<number>(0);
@@ -1114,7 +1114,10 @@ export default function PurchaseRequestsTable() {
             {allYears.map((year) => (
               <button
                 key={year}
-                onClick={() => setSelectedYear(year)}
+                onClick={() => {
+                  setSelectedYear(year);
+                  setCurrentPage(0); // Сбрасываем на первую страницу при изменении года
+                }}
                 className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
                   selectedYear === year
                     ? 'bg-blue-600 text-white border-blue-600'
@@ -1125,7 +1128,10 @@ export default function PurchaseRequestsTable() {
               </button>
             ))}
             <button
-              onClick={() => setSelectedYear(null)}
+              onClick={() => {
+                setSelectedYear(null);
+                setCurrentPage(0); // Сбрасываем на первую страницу при сбросе фильтра
+              }}
               className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
                 selectedYear === null
                   ? 'bg-blue-600 text-white border-blue-600'
@@ -1687,6 +1693,10 @@ export default function PurchaseRequestsTable() {
                         {request.status === 'Утверждена' ? (
                           <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center" title="Заявка утверждена">
                             <Check className="w-2.5 h-2.5 text-white" />
+                          </div>
+                        ) : request.status === 'Не утверждена' || request.status === 'Не согласована' ? (
+                          <div className="relative w-4 h-4 rounded-full bg-red-500 flex items-center justify-center" title="Заявка: Не утверждена или Не согласована">
+                            <X className="w-2.5 h-2.5 text-white" />
                           </div>
                         ) : (
                           <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center" title="Заявка">

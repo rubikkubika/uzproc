@@ -5,6 +5,7 @@ import { getBackendUrl } from '@/utils/api';
 import { ArrowUp, ArrowDown, ArrowUpDown, Search, Download, Settings } from 'lucide-react';
 import GanttChart from './GanttChart';
 import { useReactToPrint } from 'react-to-print';
+import * as XLSX from 'xlsx';
 
 interface PurchasePlanItem {
   id: number;
@@ -111,6 +112,7 @@ export default function PurchasePlanItemsTable() {
     company: '',
     cfo: '',
     purchaseSubject: '',
+    currentContractEndDate: '',
   });
 
   // Состояние для множественных фильтров (чекбоксы)
@@ -292,6 +294,7 @@ export default function PurchasePlanItemsTable() {
   const [localFilters, setLocalFilters] = useState<Record<string, string>>({
     company: '',
     purchaseSubject: '',
+    currentContractEndDate: '',
   });
 
   // ID активного поля для восстановления фокуса
@@ -362,6 +365,10 @@ export default function PurchasePlanItemsTable() {
       const item = data?.content.find(i => i.id === itemId);
       if (!item) return;
       
+      // Сохраняем исходные значения для возможного отката
+      const oldRequestDate = item.requestDate;
+      const oldNewContractDate = item.newContractDate;
+      
       // Нормализуем даты (убираем время, если есть)
       const normalizedRequestDate = requestDate ? requestDate.split('T')[0] : null;
       const normalizedNewContractDate = newContractDate ? newContractDate.split('T')[0] : null;
@@ -407,36 +414,34 @@ export default function PurchasePlanItemsTable() {
         const errorText = await response.text();
         console.error('Failed to update gantt dates:', response.status, errorText);
         // Откатываем изменения при ошибке
-        if (data && pendingDateChange) {
+        if (data) {
           const updatedContent = data.content.map(i => 
             i.id === itemId 
               ? { 
                   ...i, 
-                  requestDate: pendingDateChange.oldRequestDate !== undefined ? pendingDateChange.oldRequestDate : i.requestDate, 
-                  newContractDate: pendingDateChange.oldNewContractDate !== undefined ? pendingDateChange.oldNewContractDate : i.newContractDate 
+                  requestDate: oldRequestDate, 
+                  newContractDate: oldNewContractDate 
                 }
               : i
           );
           setData({ ...data, content: updatedContent });
         }
-        setAuthError('Ошибка при сохранении изменений');
       }
     } catch (error) {
       console.error('Error updating gantt dates:', error);
       // Откатываем изменения при ошибке
-      if (data && pendingDateChange) {
+      if (data) {
         const updatedContent = data.content.map(i => 
           i.id === itemId 
             ? { 
                 ...i, 
-                requestDate: pendingDateChange.oldRequestDate !== undefined ? pendingDateChange.oldRequestDate : i.requestDate, 
-                newContractDate: pendingDateChange.oldNewContractDate !== undefined ? pendingDateChange.oldNewContractDate : i.newContractDate 
+                requestDate: oldRequestDate, 
+                newContractDate: oldNewContractDate 
               }
             : i
         );
         setData({ ...data, content: updatedContent });
       }
-      setAuthError('Ошибка при сохранении изменений');
     }
   };
 
@@ -539,16 +544,11 @@ export default function PurchasePlanItemsTable() {
     }
   };
 
-  // Обертка: перед любым обновлением даты запрашиваем повторный ввод логина/пароля
+  // Обертка: сразу сохраняем изменения без проверки пароля
   const handleDateUpdate = (itemId: number, field: 'requestDate' | 'newContractDate' | 'contractEndDate', newDate: string) => {
     if (!newDate || newDate.trim() === '') return;
-    setPendingDateChange({ itemId, field, newDate });
-    // Загружаем сохраненный логин из localStorage
-    const savedUsername = localStorage.getItem('lastUsername') || '';
-    setAuthUsername(savedUsername);
-    setAuthPassword('');
-    setAuthError(null);
-    setIsAuthModalOpen(true);
+    // Сразу сохраняем изменения без проверки пароля
+    performDateUpdate(itemId, field, newDate);
   };
 
   const handleAuthConfirm = async () => {
@@ -631,14 +631,22 @@ export default function PurchasePlanItemsTable() {
         
         // Восстанавливаем текстовые фильтры
         if (savedFilters.filters) {
-          setFilters(savedFilters.filters);
-          setLocalFilters(savedFilters.filters);
+          // Убеждаемся, что все поля присутствуют
+          const restoredFilters = {
+            company: savedFilters.filters.company || '',
+            cfo: savedFilters.filters.cfo || '',
+            purchaseSubject: savedFilters.filters.purchaseSubject || '',
+            currentContractEndDate: savedFilters.filters.currentContractEndDate || '',
+          };
+          setFilters(restoredFilters);
+          setLocalFilters(restoredFilters);
         } else {
           // Если фильтров нет, устанавливаем пустые значения
           const emptyFilters = {
             company: '',
             cfo: '',
             purchaseSubject: '',
+            currentContractEndDate: '',
           };
           setFilters(emptyFilters);
           setLocalFilters(emptyFilters);
@@ -799,6 +807,183 @@ export default function PurchasePlanItemsTable() {
       return;
     }
     handlePrint();
+  };
+
+  // Функция для подготовки данных для экспорта в Excel
+  const prepareExportData = (items: PurchasePlanItem[]) => {
+    return items.map((item) => ({
+      'ID': item.id || '',
+      'GUID': item.guid || '',
+      'Год': item.year || '',
+      'Компания': item.company || '',
+      'ЦФО': item.cfo || '',
+      'Предмет закупки': item.purchaseSubject || '',
+      'Бюджет (UZS)': item.budgetAmount || '',
+      'Срок окончания договора': item.contractEndDate 
+        ? new Date(item.contractEndDate).toLocaleDateString('ru-RU')
+        : '',
+      'Дата заявки': item.requestDate 
+        ? new Date(item.requestDate).toLocaleDateString('ru-RU')
+        : '',
+      'Дата нового договора': item.newContractDate 
+        ? new Date(item.newContractDate).toLocaleDateString('ru-RU')
+        : '',
+      'Закупщик': item.purchaser || '',
+      'Продукция': item.product || '',
+      'Есть договор': item.hasContract ? 'Да' : (item.hasContract === false ? 'Нет' : ''),
+      'КА действующего': item.currentKa || '',
+      'Сумма текущего': item.currentAmount || '',
+      'Сумма текущего договора': item.currentContractAmount || '',
+      'Остаток текущего договора': item.currentContractBalance || '',
+      'Дата окончания действующего': item.currentContractEndDate 
+        ? new Date(item.currentContractEndDate).toLocaleDateString('ru-RU')
+        : '',
+      'Автопролонгация': item.autoRenewal ? 'Да' : (item.autoRenewal === false ? 'Нет' : ''),
+      'Сложность': item.complexity || '',
+      'Холдинг': item.holding || '',
+      'Категория': item.category || '',
+      'Дата создания': item.createdAt 
+        ? new Date(item.createdAt).toLocaleDateString('ru-RU')
+        : '',
+      'Дата обновления': item.updatedAt 
+        ? new Date(item.updatedAt).toLocaleDateString('ru-RU')
+        : '',
+    }));
+  };
+
+  // Функция для экспорта в Excel с примененными фильтрами
+  const handleExportToExcelWithFilters = async () => {
+    if (!data || !data.content || data.content.length === 0) {
+      alert('Нет данных для экспорта');
+      return;
+    }
+
+    try {
+      const exportData = prepareExportData(data.content);
+
+      // Создаем рабочую книгу
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+
+      // Устанавливаем ширину колонок
+      const colWidths = [
+        { wch: 8 },  // ID
+        { wch: 40 }, // GUID
+        { wch: 8 },  // Год
+        { wch: 20 }, // Компания
+        { wch: 20 }, // ЦФО
+        { wch: 40 }, // Предмет закупки
+        { wch: 15 }, // Бюджет
+        { wch: 20 }, // Срок окончания договора
+        { wch: 15 }, // Дата заявки
+        { wch: 20 }, // Дата нового договора
+        { wch: 20 }, // Закупщик
+        { wch: 20 }, // Продукция
+        { wch: 15 }, // Есть договор
+        { wch: 20 }, // КА действующего
+        { wch: 15 }, // Сумма текущего
+        { wch: 20 }, // Сумма текущего договора
+        { wch: 20 }, // Остаток текущего договора
+        { wch: 25 }, // Дата окончания действующего
+        { wch: 15 }, // Автопролонгация
+        { wch: 15 }, // Сложность
+        { wch: 20 }, // Холдинг
+        { wch: 20 }, // Категория
+        { wch: 15 }, // Дата создания
+        { wch: 15 }, // Дата обновления
+      ];
+      ws['!cols'] = colWidths;
+
+      // Добавляем лист в книгу
+      XLSX.utils.book_append_sheet(wb, ws, 'План закупок');
+
+      // Генерируем имя файла с датой
+      const fileName = `План_закупок_с_фильтрами_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+      // Сохраняем файл
+      XLSX.writeFile(wb, fileName);
+    } catch (error) {
+      console.error('Ошибка при экспорте в Excel:', error);
+      alert('Ошибка при экспорте в Excel');
+    }
+  };
+
+  // Функция для экспорта в Excel всех данных без фильтров
+  const handleExportToExcelAll = async () => {
+    try {
+      setLoading(true);
+      
+      // Загружаем все данные без фильтров
+      const params = new URLSearchParams();
+      params.append('page', '0');
+      params.append('size', '100000'); // Большое число для получения всех записей
+      // Не передаем никаких фильтров
+
+      const fetchUrl = `${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`;
+      const response = await fetch(fetchUrl);
+      
+      if (!response.ok) {
+        throw new Error('Ошибка загрузки данных');
+      }
+      
+      const result = await response.json();
+      
+      if (!result.content || result.content.length === 0) {
+        alert('Нет данных для экспорта');
+        setLoading(false);
+        return;
+      }
+
+      const exportData = prepareExportData(result.content);
+
+      // Создаем рабочую книгу
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+
+      // Устанавливаем ширину колонок
+      const colWidths = [
+        { wch: 8 },  // ID
+        { wch: 40 }, // GUID
+        { wch: 8 },  // Год
+        { wch: 20 }, // Компания
+        { wch: 20 }, // ЦФО
+        { wch: 40 }, // Предмет закупки
+        { wch: 15 }, // Бюджет
+        { wch: 20 }, // Срок окончания договора
+        { wch: 15 }, // Дата заявки
+        { wch: 20 }, // Дата нового договора
+        { wch: 20 }, // Закупщик
+        { wch: 20 }, // Продукция
+        { wch: 15 }, // Есть договор
+        { wch: 20 }, // КА действующего
+        { wch: 15 }, // Сумма текущего
+        { wch: 20 }, // Сумма текущего договора
+        { wch: 20 }, // Остаток текущего договора
+        { wch: 25 }, // Дата окончания действующего
+        { wch: 15 }, // Автопролонгация
+        { wch: 15 }, // Сложность
+        { wch: 20 }, // Холдинг
+        { wch: 20 }, // Категория
+        { wch: 15 }, // Дата создания
+        { wch: 15 }, // Дата обновления
+      ];
+      ws['!cols'] = colWidths;
+
+      // Добавляем лист в книгу
+      XLSX.utils.book_append_sheet(wb, ws, 'План закупок');
+
+      // Генерируем имя файла с датой
+      const fileName = `План_закупок_все_данные_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+      // Сохраняем файл
+      XLSX.writeFile(wb, fileName);
+      
+      setLoading(false);
+    } catch (error) {
+      console.error('Ошибка при экспорте в Excel:', error);
+      alert('Ошибка при экспорте в Excel');
+      setLoading(false);
+    }
   };
 
   // Состояние для данных диаграммы (все отфильтрованные данные)
@@ -1083,6 +1268,16 @@ export default function PurchasePlanItemsTable() {
       if (filters.purchaseSubject && filters.purchaseSubject.trim() !== '') {
         params.append('purchaseSubject', filters.purchaseSubject.trim());
       }
+      // Фильтр по дате окончания действующего договора
+      if (filters.currentContractEndDate && filters.currentContractEndDate.trim() !== '') {
+        const dateValue = filters.currentContractEndDate.trim();
+        // Если пользователь ввел "-", передаем специальное значение для фильтрации по null
+        if (dateValue === '-') {
+          params.append('currentContractEndDate', 'null');
+        } else {
+          params.append('currentContractEndDate', dateValue);
+        }
+      }
       // Фильтр по закупщику - передаем все выбранные значения на бэкенд
       if (purchaserFilter.size > 0) {
         purchaserFilter.forEach(purchaser => {
@@ -1119,7 +1314,7 @@ export default function PurchasePlanItemsTable() {
 
   // Debounce для текстовых фильтров
   useEffect(() => {
-    const textFields = ['company', 'purchaseSubject'];
+    const textFields = ['company', 'purchaseSubject', 'currentContractEndDate'];
     const hasTextChanges = textFields.some(field => localFilters[field] !== filters[field]);
     
     if (hasTextChanges) {
@@ -1139,8 +1334,12 @@ export default function PurchasePlanItemsTable() {
   }, [localFilters]);
 
   useEffect(() => {
+    // Не вызываем fetchData до тех пор, пока фильтры не загружены из localStorage
+    if (!filtersLoadedRef.current) {
+      return;
+    }
     fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters, selectedMonth);
-  }, [currentPage, pageSize, selectedYear, sortField, sortDirection, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter, selectedMonth]);
+  }, [currentPage, pageSize, selectedYear, selectedMonthYear, sortField, sortDirection, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter, selectedMonth]);
 
   // Восстановление фокуса после обновления localFilters
   useEffect(() => {
@@ -1810,6 +2009,24 @@ export default function PurchasePlanItemsTable() {
               >
                 <Download className="w-4 h-4" />
                 Экспорт в PDF
+              </button>
+              <button
+                onClick={handleExportToExcelWithFilters}
+                className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg border border-green-600 hover:bg-green-700 transition-colors flex items-center gap-2"
+                title="Экспорт в Excel с фильтрами"
+                disabled={!data || !data.content || data.content.length === 0}
+              >
+                <Download className="w-4 h-4" />
+                Excel (с фильтрами)
+              </button>
+              <button
+                onClick={handleExportToExcelAll}
+                className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg border border-green-600 hover:bg-green-700 transition-colors flex items-center gap-2"
+                title="Экспорт в Excel всех данных"
+                disabled={loading}
+              >
+                <Download className="w-4 h-4" />
+                Excel (все данные)
               </button>
               <button
                 onClick={() => {
@@ -2876,6 +3093,7 @@ export default function PurchasePlanItemsTable() {
                       requestDate={item.requestDate}
                       newContractDate={item.newContractDate}
                       contractEndDate={item.contractEndDate}
+                      currentContractEndDate={item.currentContractEndDate}
                       onDragStart={() => {
                         // Закрываем режим редактирования даты при начале перетаскивания Ганта
                         if (editingDate?.itemId === item.id) {
@@ -2895,10 +3113,6 @@ export default function PurchasePlanItemsTable() {
                         }));
                       }}
                       onDatesUpdate={(requestDate, newContractDate) => {
-                        // Сохраняем старые значения для возможного отката
-                        const oldRequestDate = item.requestDate;
-                        const oldNewContractDate = item.newContractDate;
-                        
                         // Временно обновляем данные в таблице для визуального отображения
                         if (data) {
                           const updatedContent = data.content.map(i => 
@@ -2909,23 +3123,8 @@ export default function PurchasePlanItemsTable() {
                           setData({ ...data, content: updatedContent });
                         }
                         
-                        // Запрашиваем подтверждение паролем перед отправкой на бэкенд
-                        setPendingDateChange({ 
-                          itemId: item.id, 
-                          field: 'requestDate', // Используем requestDate как основной, но обновляем оба поля
-                          newDate: requestDate || '',
-                          oldRequestDate,
-                          oldNewContractDate,
-                          newRequestDate: requestDate,
-                          newNewContractDate: newContractDate
-                        });
-                        
-                        // Загружаем сохраненный логин из localStorage
-                        const savedUsername = localStorage.getItem('lastUsername') || '';
-                        setAuthUsername(savedUsername);
-                        setAuthPassword('');
-                        setAuthError(null);
-                        setIsAuthModalOpen(true);
+                        // Сразу сохраняем изменения без проверки пароля
+                        performGanttDateUpdate(item.id, requestDate, newContractDate);
                       }}
                     />
                   </td>

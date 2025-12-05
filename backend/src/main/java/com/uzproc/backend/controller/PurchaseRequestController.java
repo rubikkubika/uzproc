@@ -124,5 +124,20 @@ public class PurchaseRequestController {
         List<PurchaserStatsDto> stats = purchaseRequestService.getOrdersStatsByPurchaser(year);
         return ResponseEntity.ok(stats);
     }
+
+    @GetMapping("/years")
+    public ResponseEntity<List<Integer>> getAvailableYears(
+            @RequestParam(required = false, defaultValue = "false") Boolean requiresPurchase) {
+        List<Integer> years = purchaseRequestService.getAvailableYears(requiresPurchase);
+        return ResponseEntity.ok(years);
+    }
+
+    @GetMapping("/monthly-stats")
+    public ResponseEntity<Map<String, Object>> getMonthlyStats(
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false, defaultValue = "false") Boolean requiresPurchase) {
+        Map<String, Object> stats = purchaseRequestService.getMonthlyStats(year, requiresPurchase);
+        return ResponseEntity.ok(stats);
+    }
 }
 

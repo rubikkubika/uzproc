@@ -16,7 +16,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @Transactional(readOnly = true)
@@ -42,13 +44,14 @@ public class PurchasePlanItemService {
             List<String> purchaser,
             List<String> category,
             Integer requestMonth,
-            Integer requestYear) {
+            Integer requestYear,
+            String currentContractEndDate) {
         
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, company: '{}', cfo: {}, purchaseSubject: '{}', purchaser: {}, category: {}, requestMonth: {}, requestYear: {}",
-                year, company, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear);
+        logger.info("Filter parameters - year: {}, company: '{}', cfo: {}, purchaseSubject: '{}', purchaser: {}, category: {}, requestMonth: {}, requestYear: {}, currentContractEndDate: '{}'",
+                year, company, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear, currentContractEndDate);
         
-        Specification<PurchasePlanItem> spec = buildSpecification(year, company, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear);
+        Specification<PurchasePlanItem> spec = buildSpecification(year, company, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear, currentContractEndDate);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -78,6 +81,17 @@ public class PurchasePlanItemService {
     public PurchasePlanItemDto updateDates(Long id, LocalDate requestDate, LocalDate newContractDate) {
         return purchasePlanItemRepository.findById(id)
                 .map(item -> {
+                    // Валидация: дата нового договора не может быть позже даты окончания действующего договора
+                    if (newContractDate != null && item.getCurrentContractEndDate() != null) {
+                        if (newContractDate.isAfter(item.getCurrentContractEndDate())) {
+                            logger.warn("Validation failed for purchase plan item {}: newContractDate ({}) cannot be after currentContractEndDate ({})", 
+                                    id, newContractDate, item.getCurrentContractEndDate());
+                            throw new IllegalArgumentException(
+                                    String.format("Дата нового договора (%s) не может быть позже даты окончания действующего договора (%s)", 
+                                            newContractDate, item.getCurrentContractEndDate()));
+                        }
+                    }
+                    
                     item.setRequestDate(requestDate);
                     item.setNewContractDate(newContractDate);
                     PurchasePlanItem saved = purchasePlanItemRepository.save(item);
@@ -141,7 +155,8 @@ public class PurchasePlanItemService {
             List<String> purchaser,
             List<String> category,
             Integer requestMonth,
-            Integer requestYear) {
+            Integer requestYear,
+            String currentContractEndDate) {
         
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -269,6 +284,26 @@ public class PurchasePlanItemService {
                 }
             }
             
+            // Фильтр по дате окончания действующего договора
+            if (currentContractEndDate != null && !currentContractEndDate.trim().isEmpty()) {
+                String trimmedValue = currentContractEndDate.trim();
+                // Если значение "null" или "-", фильтруем записи без даты
+                if ("null".equalsIgnoreCase(trimmedValue) || "-".equals(trimmedValue)) {
+                    predicates.add(cb.isNull(root.get("currentContractEndDate")));
+                    predicateCount++;
+                    logger.info("Added currentContractEndDate filter: без даты (null)");
+                } else {
+                    try {
+                        LocalDate filterDate = LocalDate.parse(trimmedValue);
+                        predicates.add(cb.equal(root.get("currentContractEndDate"), filterDate));
+                        predicateCount++;
+                        logger.info("Added currentContractEndDate filter: {}", filterDate);
+                    } catch (Exception e) {
+                        logger.warn("Invalid currentContractEndDate filter value: '{}', error: {}", currentContractEndDate, e.getMessage());
+                    }
+                }
+            }
+            
             logger.info("Total predicates added: {}", predicateCount);
             
             if (predicates.isEmpty()) {
@@ -288,6 +323,64 @@ public class PurchasePlanItemService {
             return Sort.by(direction, sortBy);
         }
         return Sort.unsorted();
+    }
+
+    /**
+     * Получить агрегированные данные по месяцам для плана закупок
+     * Логика: "Дек (пред. год)" = декабрь выбранного года (selectedYear), остальные месяцы = год + 1
+     * year - год планирования (year в таблице purchase_plan_items), который соответствует selectedYear + 1 на фронтенде
+     * selectedYear на фронтенде = year - 1 на бэкенде
+     * "Дек (пред. год)" = декабрь selectedYear = декабрь (year - 1)
+     * Январь-декабрь = year (selectedYear + 1)
+     */
+    public Map<String, Object> getMonthlyStats(Integer year) {
+        // Загружаем данные с годом планирования = year
+        // requestDate может быть в декабре (year - 1) или в year
+        Specification<PurchasePlanItem> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (year != null) {
+                predicates.add(cb.equal(root.get("year"), year));
+            }
+            return predicates.isEmpty() ? cb.conjunction() : cb.and(predicates.toArray(new Predicate[0]));
+        };
+        
+        List<PurchasePlanItem> items = purchasePlanItemRepository.findAll(spec);
+        
+        // Группируем по месяцам на основе requestDate
+        Map<String, Integer> monthCounts = new HashMap<>();
+        monthCounts.put("Дек (пред. год)", 0);
+        for (int i = 0; i < 12; i++) {
+            String[] monthNames = {"Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"};
+            monthCounts.put(monthNames[i], 0);
+        }
+        
+        for (PurchasePlanItem item : items) {
+            if (item.getRequestDate() != null) {
+                LocalDate date = item.getRequestDate();
+                int monthIndex = date.getMonthValue() - 1; // 0-11
+                int requestYear = date.getYear();
+                
+                if (year != null) {
+                    // selectedYear = year - 1
+                    // "Дек (пред. год)" = декабрь selectedYear = декабрь (year - 1)
+                    if (monthIndex == 11 && requestYear == year - 1) {
+                        monthCounts.put("Дек (пред. год)", monthCounts.get("Дек (пред. год)") + 1);
+                    } else if (requestYear == year) {
+                        // Остальные месяцы года планирования (year = selectedYear + 1)
+                        String[] monthNames = {"Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"};
+                        monthCounts.put(monthNames[monthIndex], monthCounts.get(monthNames[monthIndex]) + 1);
+                    }
+                } else {
+                    // Если год не указан, показываем все данные
+                    String[] monthNames = {"Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"};
+                    monthCounts.put(monthNames[monthIndex], monthCounts.get(monthNames[monthIndex]) + 1);
+                }
+            }
+        }
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("monthCounts", monthCounts);
+        return result;
     }
 }
 

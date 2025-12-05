@@ -29,61 +29,32 @@ export default function PurchasePlanItemsMonthlyChart() {
   const [loading, setLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [allYears, setAllYears] = useState<number[]>([]);
+  const [yearsLoaded, setYearsLoaded] = useState(false);
 
-  // Загружаем список доступных годов при первой загрузке
-  // Используем небольшой размер страницы для получения только списка годов
+  // Загружаем список доступных годов при первой загрузке (оптимизированный endpoint)
   useEffect(() => {
     const fetchAvailableYears = async () => {
       try {
         const backendUrl = getBackendUrl();
-        // Загружаем только первую страницу с фильтром requiresPurchase=true для получения списка годов
-        const url = `${backendUrl}/api/purchase-requests?page=0&size=1000&requiresPurchase=true`;
+        const url = `${backendUrl}/api/purchase-requests/years?requiresPurchase=true`;
         const response = await fetch(url);
         if (response.ok) {
-          const result = await response.json();
-          const requests = result.content || [];
-          const years = new Set<number>();
-          requests.forEach((request: any) => {
-            if (request.createdAt) {
-              const date = new Date(request.createdAt);
-              const year = date.getFullYear();
-              if (!isNaN(year)) {
-                years.add(year);
-              }
-            }
-          });
-          
-          // Если есть больше данных, загружаем еще страницы для получения всех годов
-          if (result.totalPages > 1) {
-            const allPromises = [];
-            for (let page = 1; page < Math.min(result.totalPages, 10); page++) {
-              allPromises.push(
-                fetch(`${backendUrl}/api/purchase-requests?page=${page}&size=1000&requiresPurchase=true`)
-                  .then(res => res.json())
-                  .then(data => data.content || [])
-              );
-            }
-            const allPages = await Promise.all(allPromises);
-            allPages.flat().forEach((request: any) => {
-              if (request.createdAt) {
-                const date = new Date(request.createdAt);
-                const year = date.getFullYear();
-                if (!isNaN(year)) {
-                  years.add(year);
-                }
-              }
-            });
-          }
-          
-          const sortedYears = Array.from(years).sort((a, b) => b - a);
-          setAllYears(sortedYears);
+          const years = await response.json();
+          setAllYears(years);
           // Устанавливаем текущий год по умолчанию, если есть данные
-          if (sortedYears.length > 0 && selectedYear === null) {
-            setSelectedYear(new Date().getFullYear());
+          if (years.length > 0) {
+            const currentYear = new Date().getFullYear();
+            // Проверяем, есть ли текущий год в списке доступных годов
+            const yearToSet = years.includes(currentYear) ? currentYear : years[years.length - 1];
+            setSelectedYear(yearToSet);
           }
+          setYearsLoaded(true);
+        } else {
+          setYearsLoaded(true); // Устанавливаем в true даже при ошибке, чтобы не блокировать загрузку
         }
       } catch (err) {
         console.error('Error fetching available years:', err);
+        setYearsLoaded(true); // Устанавливаем в true даже при ошибке, чтобы не блокировать загрузку
       }
     };
     
@@ -91,191 +62,116 @@ export default function PurchasePlanItemsMonthlyChart() {
   }, []);
 
   useEffect(() => {
+    // Не загружаем данные, пока годы не загружены
+    if (!yearsLoaded) {
+      return;
+    }
+    
+    // Если selectedYear все еще null после загрузки годов и есть доступные годы, ждем установки
+    if (selectedYear === null && allYears.length > 0) {
+      return; // Ждем, пока selectedYear будет установлен
+    }
+    
+    // Если годов нет, загружаем данные без фильтра (selectedYear останется null)
+
     const fetchData = async () => {
       try {
         setLoading(true);
         const backendUrl = getBackendUrl();
         
-        // Загружаем позиции плана закупок для года = selectedYear + 1
+        // Загружаем позиции плана закупок для года = selectedYear + 1 (оптимизированный endpoint)
         const planItemsYear = selectedYear !== null ? selectedYear + 1 : null;
-        let planItemsUrl = `${backendUrl}/api/purchase-plan-items?page=0&size=10000`;
+        let planItemsUrl = `${backendUrl}/api/purchase-plan-items/monthly-stats`;
         if (planItemsYear !== null) {
-          planItemsUrl += `&year=${planItemsYear}`;
+          planItemsUrl += `?year=${planItemsYear}`;
         }
-        console.log('Fetching purchase plan items from:', planItemsUrl, 'for year:', planItemsYear);
+        console.log('Fetching purchase plan items monthly stats from:', planItemsUrl, 'for year:', planItemsYear);
         
         const planItemsResponse = await fetch(planItemsUrl);
         if (!planItemsResponse.ok) {
           throw new Error(`Ошибка загрузки данных плана закупок: ${planItemsResponse.status} ${planItemsResponse.statusText}`);
         }
         const planItemsResult = await planItemsResponse.json();
-        const planItems = planItemsResult.content || [];
+        const planItemsMonthCounts = planItemsResult.monthCounts || {};
         
-        console.log('Loaded plan items:', planItems.length, 'for year:', planItemsYear);
+        console.log('Loaded plan items monthly stats:', planItemsMonthCounts);
         
-        // Загружаем заявки на закупку с requiresPurchase = true
-        // Фильтры применяются на бэкенде (year, requiresPurchase)
-        // Загружаем все страницы для получения всех отфильтрованных данных
-        // Также загружаем декабрь предыдущего года для отображения в начале диаграммы
-        let purchaseRequests: any[] = [];
-        
-        // Функция для загрузки данных по году
-        const loadPurchaseRequestsByYear = async (year: number | null) => {
-          let requests: any[] = [];
-          let currentPage = 0;
-          let hasMorePages = true;
-          
-          while (hasMorePages) {
-            const params = new URLSearchParams();
-            params.append('page', String(currentPage));
-            params.append('size', '1000'); // Используем разумный размер страницы
-            params.append('requiresPurchase', 'true');
-            if (year !== null) {
-              params.append('year', String(year));
-            }
-            
-            const purchaseRequestsUrl = `${backendUrl}/api/purchase-requests?${params.toString()}`;
-            console.log('Fetching purchase requests from:', purchaseRequestsUrl);
+        // Загружаем заявки на закупку с requiresPurchase = true (оптимизированный endpoint)
+        let purchaseRequestsUrl = `${backendUrl}/api/purchase-requests/monthly-stats?requiresPurchase=true`;
+        if (selectedYear !== null) {
+          purchaseRequestsUrl += `&year=${selectedYear}`;
+        }
+        console.log('Fetching purchase requests monthly stats from:', purchaseRequestsUrl);
             
             const purchaseRequestsResponse = await fetch(purchaseRequestsUrl);
             if (!purchaseRequestsResponse.ok) {
               throw new Error(`Ошибка загрузки данных заявок: ${purchaseRequestsResponse.status} ${purchaseRequestsResponse.statusText}`);
             }
             const purchaseRequestsResult = await purchaseRequestsResponse.json();
-            const pageContent = purchaseRequestsResult.content || [];
-            requests = requests.concat(pageContent);
-            
-            hasMorePages = currentPage + 1 < purchaseRequestsResult.totalPages;
-            currentPage++;
-            
-            // Ограничиваем количество страниц для безопасности
-            if (currentPage >= 100) {
-              console.warn('Reached maximum page limit (100)');
-              break;
-            }
-          }
-          
-          return requests;
+        const purchaseRequestsMonthCounts = purchaseRequestsResult.monthCounts || {};
+        
+        console.log('Loaded purchase requests monthly stats:', purchaseRequestsMonthCounts);
+        
+        // Месяцы с декабрем выбранного года в начале
+        // Бэкенд возвращает данные с ключом "Дек (пред. год)", но отображаем "Дек" + год
+        const decemberLabel = selectedYear ? `Дек ${selectedYear}` : 'Дек (пред. год)';
+        const monthLabels = [decemberLabel, 'Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+        
+        // Ключи для получения данных из бэкенда (бэкенд использует "Дек (пред. год)")
+        const backendMonthKeys = ['Дек (пред. год)', 'Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+        
+        // Собираем все значения для вычисления максимума (используем ключи бэкенда)
+        const allPlanItemsValues = backendMonthKeys.map(month => planItemsMonthCounts[month] || 0).filter(v => v > 0);
+        const allPurchaseRequestsValues = backendMonthKeys.map(month => purchaseRequestsMonthCounts[month] || 0).filter(v => v > 0);
+        const maxPlanItems = allPlanItemsValues.length > 0 ? Math.max(...allPlanItemsValues) : 1;
+        const maxPurchaseRequests = allPurchaseRequestsValues.length > 0 ? Math.max(...allPurchaseRequestsValues) : 1;
+        const globalMax = Math.max(maxPlanItems, maxPurchaseRequests);
+        
+        // Функция для применения нелинейного масштабирования (как в диаграмме плана закупок)
+        // Используем степенную функцию с показателем 0.4 для более агрессивного масштабирования маленьких значений
+        const applyNonLinearScaling = (value: number, maxValue: number): number => {
+          if (value <= 0 || maxValue <= 0) return 0;
+          const ratio = value / maxValue;
+          const scaledRatio = Math.pow(ratio, 0.4);
+          // Округляем до целого числа для избежания дробных значений
+          return Math.round(scaledRatio * maxValue);
         };
-        
-        // Загружаем данные для выбранного года
-        if (selectedYear !== null) {
-          const currentYearRequests = await loadPurchaseRequestsByYear(selectedYear);
-          // Фильтруем только ноябрь и декабрь выбранного года
-          const currentYearNovemberDecember = currentYearRequests.filter((request: any) => {
-            if (request.createdAt) {
-              const date = new Date(request.createdAt);
-              const month = date.getMonth(); // 0-11
-              return date.getFullYear() === selectedYear && (month === 10 || month === 11); // 10 = ноябрь, 11 = декабрь
-            }
-            return false;
-          });
-          purchaseRequests = purchaseRequests.concat(currentYearNovemberDecember);
-          
-          // Загружаем декабрь предыдущего года
-          const previousYear = selectedYear - 1;
-          const previousYearRequests = await loadPurchaseRequestsByYear(previousYear);
-          // Фильтруем только декабрь предыдущего года
-          const previousYearDecember = previousYearRequests.filter((request: any) => {
-            if (request.createdAt) {
-              const date = new Date(request.createdAt);
-              return date.getFullYear() === previousYear && date.getMonth() === 11; // 11 = декабрь
-            }
-            return false;
-          });
-          purchaseRequests = purchaseRequests.concat(previousYearDecember);
-        } else {
-          // Если год не выбран, загружаем все данные
-          purchaseRequests = await loadPurchaseRequestsByYear(null);
-        }
-        
-        console.log('Loaded purchase requests (filtered on backend):', purchaseRequests.length);
-        
-        // Месяцы с декабрем предыдущего года в начале
-        const monthLabels = ['Дек (пред. год)', 'Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
-        const monthNames = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
-        
-        // Группируем позиции плана закупок по месяцам на основе requestDate
-        const planItemsMonthCounts: Record<string, number> = {};
-        monthLabels.forEach(month => {
-          planItemsMonthCounts[month] = 0;
-        });
-        
-        planItems.forEach((item: any) => {
-          if (item.requestDate) {
-            const date = new Date(item.requestDate);
-            const monthIndex = date.getMonth(); // 0-11
-            const year = date.getFullYear();
-            
-            // Проверяем, что год соответствует году плана закупок (selectedYear + 1)
-            if (planItemsYear !== null && year === planItemsYear) {
-              const monthLabel = monthNames[monthIndex];
-              planItemsMonthCounts[monthLabel] = (planItemsMonthCounts[monthLabel] || 0) + 1;
-            } else if (planItemsYear === null) {
-              // Если год не выбран, показываем все данные
-              const monthLabel = monthNames[monthIndex];
-              planItemsMonthCounts[monthLabel] = (planItemsMonthCounts[monthLabel] || 0) + 1;
-            }
-            // Игнорируем записи из других годов
-          }
-        });
-        
-        // Группируем заявки на закупку по месяцам на основе createdAt (дата создания записи в БД)
-        const purchaseRequestsMonthCounts: Record<string, number> = {};
-        monthLabels.forEach(month => {
-          purchaseRequestsMonthCounts[month] = 0;
-        });
-        
-        const previousYear = selectedYear !== null ? selectedYear - 1 : null;
-        
-        purchaseRequests.forEach((request: any) => {
-          // Используем createdAt для группировки по месяцам (дата создания записи в БД)
-          if (request.createdAt) {
-            const date = new Date(request.createdAt);
-            const monthIndex = date.getMonth(); // 0-11
-            const year = date.getFullYear();
-            
-            // Проверяем, что год соответствует выбранному году (или предыдущему для декабря)
-            if (selectedYear !== null) {
-              // Если это декабрь предыдущего года, добавляем в "Дек (пред. год)"
-              if (monthIndex === 11 && year === previousYear) {
-                purchaseRequestsMonthCounts['Дек (пред. год)'] = (purchaseRequestsMonthCounts['Дек (пред. год)'] || 0) + 1;
-              } else if (year === selectedYear) {
-                // Остальные месяцы выбранного года
-                const monthLabel = monthNames[monthIndex];
-                purchaseRequestsMonthCounts[monthLabel] = (purchaseRequestsMonthCounts[monthLabel] || 0) + 1;
-              }
-              // Игнорируем записи из других годов
-            } else {
-              // Если год не выбран, показываем все данные
-              // Если это декабрь предыдущего года (относительно текущего года), добавляем в "Дек (пред. год)"
-              const currentYear = new Date().getFullYear();
-              if (monthIndex === 11 && year === currentYear - 1) {
-                purchaseRequestsMonthCounts['Дек (пред. год)'] = (purchaseRequestsMonthCounts['Дек (пред. год)'] || 0) + 1;
-              } else {
-                const monthLabel = monthNames[monthIndex];
-                purchaseRequestsMonthCounts[monthLabel] = (purchaseRequestsMonthCounts[monthLabel] || 0) + 1;
-              }
-            }
-          }
-        });
         
         const chartData = {
           labels: monthLabels,
           datasets: [
             {
-              label: `Количество позиций плана закупок${planItemsYear ? ` (${planItemsYear} год)` : ''}`,
-              data: monthLabels.map(month => planItemsMonthCounts[month] || 0),
-              backgroundColor: 'rgba(34, 197, 94, 0.8)',
-              borderColor: 'rgb(22, 163, 74)',
-              borderWidth: 1,
+              label: planItemsYear ? `Позиции плана закупок (${planItemsYear} год)` : 'Позиции плана закупок',
+              // Применяем нелинейное масштабирование к данным для отображения
+              // Сохраняем оригинальные значения в метаданных для подписей и тултипов
+              data: backendMonthKeys.map(month => {
+                const originalValue = planItemsMonthCounts[month] || 0;
+                if (originalValue <= 0) return null;
+                // Применяем нелинейное масштабирование
+                return applyNonLinearScaling(originalValue, globalMax);
+              }),
+              // Сохраняем оригинальные значения для использования в подписях
+              _originalValues: backendMonthKeys.map(month => planItemsMonthCounts[month] || 0),
+              backgroundColor: 'rgba(34, 197, 94, 1)',
+              borderColor: 'rgba(34, 197, 94, 1)',
+              borderWidth: 0, // Убираем контуры
+              borderRadius: 6,
             },
             {
               label: `Заявки на закупку (требуется закупка)${selectedYear ? ` (${selectedYear} год)` : ''}`,
-              data: monthLabels.map(month => purchaseRequestsMonthCounts[month] || 0),
-              backgroundColor: 'rgba(59, 130, 246, 0.8)',
-              borderColor: 'rgb(37, 99, 235)',
-              borderWidth: 1,
+              // Применяем нелинейное масштабирование к данным для отображения
+              data: backendMonthKeys.map(month => {
+                const originalValue = purchaseRequestsMonthCounts[month] || 0;
+                if (originalValue <= 0) return null;
+                // Применяем нелинейное масштабирование
+                return applyNonLinearScaling(originalValue, globalMax);
+              }),
+              // Сохраняем оригинальные значения для использования в подписях
+              _originalValues: backendMonthKeys.map(month => purchaseRequestsMonthCounts[month] || 0),
+              backgroundColor: 'rgba(59, 130, 246, 1)',
+              borderColor: 'rgba(59, 130, 246, 1)',
+              borderWidth: 0, // Убираем контуры
+              borderRadius: 6,
             },
           ],
         };
@@ -291,7 +187,7 @@ export default function PurchasePlanItemsMonthlyChart() {
     };
     
     fetchData();
-  }, [selectedYear]);
+  }, [selectedYear, yearsLoaded, allYears.length]);
 
   if (loading) {
     return (
@@ -336,66 +232,120 @@ export default function PurchasePlanItemsMonthlyChart() {
             </div>
           )}
         </div>
-      <div className="h-64">
+      <div className="h-96">
         <Bar 
           data={data} 
           options={{
             responsive: true,
             maintainAspectRatio: false,
             layout: {
-              padding: 20
+              padding: {
+                top: 20,
+                right: 20,
+                bottom: 10,
+                left: 10
+              }
             },
             plugins: {
               legend: {
                 display: true,
                 position: 'top' as const,
+                labels: {
+                  padding: 15,
+                  font: {
+                    size: 13
+                  },
+                  usePointStyle: true,
+                  pointStyle: 'circle'
+                }
               },
               tooltip: {
+                enabled: true,
+                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                padding: 12,
+                titleFont: {
+                  size: 14,
+                  weight: 'bold' as const
+                },
+                bodyFont: {
+                  size: 13
+                },
                 callbacks: {
-                  label: (context) => {
+                  label: (context: any) => {
                     const datasetLabel = context.dataset.label || '';
-                    const value = context.parsed.y || 0;
+                    // Используем оригинальные значения для тултипов
+                    const originalValues = (context.dataset as any)._originalValues;
+                    const originalValue = originalValues ? originalValues[context.dataIndex] : (context.parsed.y || 0);
                     if (datasetLabel.includes('позиций')) {
-                      return `${datasetLabel}: ${value} позиций`;
+                      return `${datasetLabel}: ${originalValue} позиций`;
                     } else if (datasetLabel.includes('Заявки')) {
-                      return `${datasetLabel}: ${value} заявок`;
+                      return `${datasetLabel}: ${originalValue} заявок`;
                     }
-                    return `${datasetLabel}: ${value}`;
+                    return `${datasetLabel}: ${originalValue}`;
                   }
                 }
               },
               datalabels: {
                 display: true,
-                color: '#6b7280',
+                color: '#ffffff',
                 font: {
                   weight: 'bold' as const,
-                  size: 12
+                  size: 16
                 },
-                formatter: function(value: any) {
-                  return value > 0 ? value : '';
+                formatter: function(value: any, context: any) {
+                  // Используем оригинальные значения для подписей (целые числа)
+                  const dataset = context.dataset;
+                  const originalValues = (dataset as any)._originalValues;
+                  if (originalValues && originalValues[context.dataIndex] > 0) {
+                    return originalValues[context.dataIndex];
+                  }
+                  return '';
                 },
-                anchor: 'end' as const,
-                align: 'top' as const,
-                offset: 10,
-                padding: 4
+                anchor: 'center' as const,
+                align: 'center' as const,
+                offset: 0,
+                padding: 4,
+                textStrokeColor: 'rgba(0, 0, 0, 0.5)',
+                textStrokeWidth: 2
               }
             },
             scales: {
+              x: {
+                grid: {
+                  display: true,
+                  color: 'rgba(0, 0, 0, 0.1)',
+                  drawOnChartArea: true,
+                  drawTicks: false
+                },
+                ticks: {
+                  font: {
+                    size: 12
+                  },
+                  padding: 10,
+                  maxRotation: 0, // Убираем поворот подписей
+                  minRotation: 0,  // Убираем поворот подписей
+                  autoSkip: false  // Не пропускаем метки месяцев
+                },
+                categoryPercentage: 0.95,
+                barPercentage: 0.98,
+              } as any,
               y: {
                 beginAtZero: true,
-                ticks: {
-                  stepSize: 1,
-                  callback: (value) => {
-                    if (Number.isInteger(value)) {
-                      return value.toString();
-                    }
-                    return '';
-                  }
+                grid: {
+                  color: 'rgba(0, 0, 0, 0.05)'
                 },
-                display: true
-              }
+                ticks: {
+                  display: false
+                },
+                display: false,
+                // Настраиваем масштаб аналогично диаграмме на странице плана закупок
+                // Используем простой отступ сверху, как в других диаграммах
+                afterDataLimits: (scale: any) => {
+                  scale.max += scale.max * 0.1;
+                }
+              } as any
             }
-          }} 
+          } as any} 
         />
       </div>
     </div>
