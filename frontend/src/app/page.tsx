@@ -20,6 +20,7 @@ import PurchaserWorkload from '@/components/PurchaserWorkload';
 import PurchaseRequestsTable from '@/components/PurchaseRequestsTable';
 import PurchasesTable from '@/components/PurchasesTable';
 import PurchasePlanItemsTable from '@/components/PurchasePlanItemsTable';
+import PurchasePlanItemsMonthlyChart from '@/components/PurchasePlanItemsMonthlyChart';
 import UploadCSV from '@/components/UploadCSV';
 
 const SIDEBAR_COLLAPSED_KEY = 'sidebarCollapsed';
@@ -150,6 +151,13 @@ function DashboardContent() {
               </div>
               <div className="lg:col-span-1">
                 <PurchasesTimelineChart />
+              </div>
+            </div>
+            
+            {/* Диаграмма позиций плана закупок по месяцам */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-3 lg:gap-6">
+              <div className="lg:col-span-1">
+                <PurchasePlanItemsMonthlyChart />
               </div>
             </div>
             
