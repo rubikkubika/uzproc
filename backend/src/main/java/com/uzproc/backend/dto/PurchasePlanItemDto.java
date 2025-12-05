@@ -27,6 +27,7 @@ public class PurchasePlanItemDto {
     private Boolean autoRenewal;
     private String complexity;
     private String holding;
+    private String category;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -201,6 +202,14 @@ public class PurchasePlanItemDto {
 
     public void setHolding(String holding) {
         this.holding = holding;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
     }
 
     public LocalDateTime getCreatedAt() {

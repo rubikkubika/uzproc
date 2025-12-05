@@ -2,7 +2,7 @@
 
 ## Использование терминала
 
-**КРИТИЧЕСКИ ВАЖНО:** Для всех терминальных команд использовать Git Bash, а не PowerShell или CMD.
+**КРИТИЧЕСКИ ВАЖНО:** Для всех терминальных команд использовать Git Bash в первую очередь, а не PowerShell или CMD.
 
 ### Правила:
 
@@ -11,7 +11,32 @@
    - Использовать Unix-подобные команды (`pkill`, `kill`, `lsof`, `curl` и т.д.)
    - Использовать bash-синтаксис для условных операций (`||`, `&&`, `2>/dev/null`)
 
-2. **Примеры правильных команд:**
+2. **Правильный способ запуска Git Bash из PowerShell:**
+   
+   Когда терминал по умолчанию - PowerShell (Windows), использовать следующий синтаксис для вызова Git Bash:
+   ```powershell
+   # Вызов Git Bash с одной командой
+   & "C:\Program Files\Git\bin\bash.exe" -c "команда"
+   
+   # Вызов Git Bash с несколькими командами
+   & "C:\Program Files\Git\bin\bash.exe" -c "cd backend && mvn spring-boot:run"
+   
+   # Примеры правильных команд для остановки процессов:
+   & "C:\Program Files\Git\bin\bash.exe" -c "pkill -f 'spring-boot:run' || true"
+   & "C:\Program Files\Git\bin\bash.exe" -c "kill -9 `$(lsof -ti:8080) 2>/dev/null || true"
+   
+   # Примеры правильных команд для запуска:
+   & "C:\Program Files\Git\bin\bash.exe" -c "cd backend && mvn spring-boot:run"
+   & "C:\Program Files\Git\bin\bash.exe" -c "sleep 15 && curl http://localhost:8080/api/health"
+   ```
+   
+   **Важно:** 
+   - Использовать `&` для вызова команды в PowerShell
+   - Путь к Git Bash может отличаться, стандартный путь: `C:\Program Files\Git\bin\bash.exe`
+   - Для переменных в bash командах использовать обратные кавычки: `` `$var `` вместо `$var`
+   - Для строк в bash командах использовать одинарные кавычки: `'строка'`
+
+3. **Примеры правильных команд (если терминал уже Git Bash):**
    ```bash
    # Остановка процессов
    pkill -f "spring-boot:run" || true
@@ -24,16 +49,20 @@
    cd backend && mvn spring-boot:run
    ```
 
-3. **НЕ использовать:**
-   - PowerShell команды (`Get-Process`, `Get-NetTCPConnection`, `Stop-Process` и т.д.)
+4. **НЕ использовать:**
+   - PowerShell команды (`Get-Process`, `Get-NetTCPConnection`, `Stop-Process` и т.д.) - только если Git Bash недоступен
    - CMD команды (`taskkill`, `netstat` и т.д.)
-   - Windows-специфичные команды
+   - Windows-специфичные команды напрямую
 
-4. **Исключения:**
+5. **Исключения:**
    - PowerShell скрипты для деплоя (`scripts/deploy-simple.ps1`) остаются без изменений, так как они специально созданы для PowerShell
    - Docker команды (`docker compose`) работают одинаково в bash и PowerShell
+   - Если Git Bash недоступен или не установлен, можно использовать PowerShell команды как запасной вариант
 
-**ВАЖНО:** Все новые команды должны быть написаны для Git Bash, даже если пользователь работает на Windows.
+**ВАЖНО:** 
+- Все новые команды должны быть написаны для Git Bash в первую очередь
+- При работе в PowerShell использовать правильный синтаксис вызова Git Bash: `& "C:\Program Files\Git\bin\bash.exe" -c "команда"`
+- Если терминал уже Git Bash, использовать команды напрямую без обертки
 
 ## Деплой на сервер
 Когда пользователь упоминает "деплой", "deploy", "опубликовать", "публикация", "выложить на сервер" или похожие фразы, необходимо автоматически выполнить скрипт деплоя:
@@ -110,56 +139,64 @@ docker compose up -d postgres
 ### Запуск фронтенда
 
 1. **Остановить существующие процессы:**
-   - **macOS/Linux:**
+   - **macOS/Linux (Git Bash):**
      ```bash
      pkill -f "next dev" || true
      kill -9 $(lsof -ti:3000) 2>/dev/null || true
      ```
-   - **Windows (PowerShell):**
+   - **Windows (PowerShell с вызовом Git Bash):**
      ```powershell
-     Get-Process | Where-Object {$_.ProcessName -like "*node*" -and $_.CommandLine -like "*next dev*"} | Stop-Process -Force -ErrorAction SilentlyContinue
+     & "C:\Program Files\Git\bin\bash.exe" -c "pkill -f 'next dev' || true"
+     & "C:\Program Files\Git\bin\bash.exe" -c "kill -9 `$(lsof -ti:3000) 2>/dev/null || true"
+     ```
+   - **Windows (если Git Bash недоступен, запасной вариант):**
+     ```powershell
+     Get-Process | Where-Object {$_.ProcessName -like "*node*"} | Stop-Process -Force -ErrorAction SilentlyContinue
      $port = Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue
      if ($port) { Stop-Process -Id $port.OwningProcess -Force -ErrorAction SilentlyContinue }
      ```
-   - **Windows (CMD):**
-     ```cmd
-     taskkill /F /IM node.exe /FI "WINDOWTITLE eq *next dev*" 2>nul
-     for /f "tokens=5" %a in ('netstat -aon ^| findstr :3000') do taskkill /F /PID %a 2>nul
-     ```
 
 2. **Запустить фронтенд:**
-   ```bash
-   cd frontend
-   npm run dev
-   ```
+   - **Если терминал Git Bash:**
+     ```bash
+     cd frontend && npm run dev
+     ```
+   - **Если терминал PowerShell:**
+     ```powershell
+     & "C:\Program Files\Git\bin\bash.exe" -c "cd frontend && npm run dev"
+     ```
    - Фронтенд будет доступен на http://localhost:3000
    - Скрипты в `package.json` используют стандартные команды (`next dev`), которые работают на Mac и Windows
 
 ### Запуск бэкенда
 
 1. **Остановить существующие процессы:**
-   - **macOS/Linux:**
+   - **macOS/Linux (Git Bash):**
      ```bash
      pkill -f "spring-boot:run" || true
      kill -9 $(lsof -ti:8080) 2>/dev/null || true
      ```
-   - **Windows (PowerShell):**
+   - **Windows (PowerShell с вызовом Git Bash):**
      ```powershell
-     Get-Process | Where-Object {$_.ProcessName -like "*java*" -and $_.CommandLine -like "*spring-boot*"} | Stop-Process -Force -ErrorAction SilentlyContinue
+     & "C:\Program Files\Git\bin\bash.exe" -c "pkill -f 'spring-boot:run' || true"
+     & "C:\Program Files\Git\bin\bash.exe" -c "kill -9 `$(lsof -ti:8080) 2>/dev/null || true"
+     ```
+   - **Windows (если Git Bash недоступен, запасной вариант):**
+     ```powershell
+     Get-Process | Where-Object {$_.ProcessName -like "*java*"} | Stop-Process -Force -ErrorAction SilentlyContinue
      $port = Get-NetTCPConnection -LocalPort 8080 -ErrorAction SilentlyContinue
      if ($port) { Stop-Process -Id $port.OwningProcess -Force -ErrorAction SilentlyContinue }
      ```
-   - **Windows (CMD):**
-     ```cmd
-     taskkill /F /IM java.exe /FI "WINDOWTITLE eq *spring-boot*" 2>nul
-     for /f "tokens=5" %a in ('netstat -aon ^| findstr :8080') do taskkill /F /PID %a 2>nul
-     ```
 
 2. **Запустить бэкенд:**
-   ```bash
-   cd backend
-   mvn spring-boot:run
-   ```
+   - **Если терминал Git Bash:**
+     ```bash
+     cd backend && mvn spring-boot:run
+     ```
+   - **Если терминал PowerShell:**
+     ```powershell
+     & "C:\Program Files\Git\bin\bash.exe" -c "cd backend && mvn spring-boot:run"
+     ```
    - Бэкенд будет доступен на http://localhost:8080/api
    - Health check: http://localhost:8080/api/health
    - Команда `mvn spring-boot:run` работает одинаково на всех платформах
@@ -168,11 +205,13 @@ docker compose up -d postgres
 
 После запуска проверить:
 - **Фронтенд:**
-  - macOS/Linux: `curl http://localhost:3000` (ожидается HTTP 307 или 200)
-  - Windows: `curl http://localhost:3000` или `Invoke-WebRequest http://localhost:3000` (PowerShell)
+  - macOS/Linux (Git Bash): `curl http://localhost:3000` (ожидается HTTP 307 или 200)
+  - Windows (PowerShell с Git Bash): `& "C:\Program Files\Git\bin\bash.exe" -c "curl http://localhost:3000"`
+  - Windows (запасной вариант): `Invoke-WebRequest http://localhost:3000` (PowerShell)
 - **Бэкенд:**
-  - macOS/Linux: `curl http://localhost:8080/api/health` (ожидается `{"service":"uzproc-backend","status":"UP"}`)
-  - Windows: `curl http://localhost:8080/api/health` или `Invoke-WebRequest http://localhost:8080/api/health` (PowerShell)
+  - macOS/Linux (Git Bash): `curl http://localhost:8080/api/health` (ожидается `{"service":"uzproc-backend","status":"UP"}`)
+  - Windows (PowerShell с Git Bash): `& "C:\Program Files\Git\bin\bash.exe" -c "curl http://localhost:8080/api/health"`
+  - Windows (запасной вариант): `Invoke-WebRequest http://localhost:8080/api/health` (PowerShell)
 
 ### Важные замечания
 
@@ -180,9 +219,9 @@ docker compose up -d postgres
   - macOS: настроено через `.bash_profile` и `.zshrc` для автоматической загрузки nvm
   - Windows: Node.js должен быть установлен и добавлен в PATH системы (обычно делается автоматически при установке)
 - PostgreSQL запускается в Docker, так как это инфраструктура (команда `docker compose up -d postgres` работает одинаково на всех платформах)
-- При перезапуске всегда останавливать старые процессы перед запуском новых (использовать соответствующие команды для вашей ОС)
+- При перезапуске всегда останавливать старые процессы перед запуском новых (использовать Git Bash команды в первую очередь)
 - Запускать сервисы в фоновом режиме (`is_background: true`) или с перенаправлением вывода для логирования
-- На Windows рекомендуется использовать PowerShell для более удобной работы с процессами и портами
+- **На Windows использовать Git Bash через PowerShell:** `& "C:\Program Files\Git\bin\bash.exe" -c "команда"`
 
 ## Создание скриптов
 НЕ создавать скрипты (shell, PowerShell, bash и т.д.) автоматически, если пользователь явно не запросил создание скрипта. Создавать скрипты только когда пользователь явно просит:
@@ -268,33 +307,44 @@ docker compose up -d postgres
 ### Процесс перезапуска:
 
 1. **Остановить существующие процессы бэкенда:**
-   - **macOS/Linux:**
+   - **macOS/Linux (Git Bash):**
      ```bash
      pkill -f "spring-boot:run" || true
      kill -9 $(lsof -ti:8080) 2>/dev/null || true
      ```
-   - **Windows (PowerShell):**
+   - **Windows (PowerShell с вызовом Git Bash):**
      ```powershell
-     Get-Process | Where-Object {$_.ProcessName -like "*java*" -and $_.CommandLine -like "*spring-boot*"} | Stop-Process -Force -ErrorAction SilentlyContinue
+     & "C:\Program Files\Git\bin\bash.exe" -c "pkill -f 'spring-boot:run' || true"
+     & "C:\Program Files\Git\bin\bash.exe" -c "kill -9 `$(lsof -ti:8080) 2>/dev/null || true"
+     ```
+   - **Windows (если Git Bash недоступен, запасной вариант):**
+     ```powershell
+     Get-Process | Where-Object {$_.ProcessName -like "*java*"} | Stop-Process -Force -ErrorAction SilentlyContinue
      $port = Get-NetTCPConnection -LocalPort 8080 -ErrorAction SilentlyContinue
      if ($port) { Stop-Process -Id $port.OwningProcess -Force -ErrorAction SilentlyContinue }
      ```
-   - **Windows (CMD):**
-     ```cmd
-     taskkill /F /IM java.exe /FI "WINDOWTITLE eq *spring-boot*" 2>nul
-     for /f "tokens=5" %a in ('netstat -aon ^| findstr :8080') do taskkill /F /PID %a 2>nul
-     ```
 
 2. **Запустить бэкенд:**
-   ```bash
-   cd backend
-   mvn spring-boot:run
-   ```
+   - **Если терминал Git Bash:**
+     ```bash
+     cd backend && mvn spring-boot:run
+     ```
+   - **Если терминал PowerShell:**
+     ```powershell
+     & "C:\Program Files\Git\bin\bash.exe" -c "cd backend && mvn spring-boot:run"
+     ```
    - Запускать в фоновом режиме (`is_background: true`)
 
 3. **Проверить, что бэкенд запустился:**
-   - Подождать 10-15 секунд после запуска
-   - Выполнить health check: `curl http://localhost:8080/api/health`
+   - Подождать 15-20 секунд после запуска
+   - **Если терминал Git Bash:**
+     ```bash
+     curl http://localhost:8080/api/health
+     ```
+   - **Если терминал PowerShell:**
+     ```powershell
+     & "C:\Program Files\Git\bin\bash.exe" -c "curl http://localhost:8080/api/health"
+     ```
    - Ожидается ответ: `{"service":"uzproc-backend","status":"UP"}`
 
 ### Когда перезапускать:

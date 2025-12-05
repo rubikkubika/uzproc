@@ -116,6 +116,7 @@ export default function PurchasePlanItemsTable() {
   // Состояние для множественных фильтров (чекбоксы)
   const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
   const [companyFilter, setCompanyFilter] = useState<Set<string>>(new Set());
+  const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
   const [purchaserFilter, setPurchaserFilter] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') {
       return new Set<string>();
@@ -140,20 +141,24 @@ export default function PurchasePlanItemsTable() {
   // Состояние для открытия/закрытия выпадающих списков
   const [isCfoFilterOpen, setIsCfoFilterOpen] = useState(false);
   const [isCompanyFilterOpen, setIsCompanyFilterOpen] = useState(false);
+  const [isCategoryFilterOpen, setIsCategoryFilterOpen] = useState(false);
   const [isPurchaserFilterOpen, setIsPurchaserFilterOpen] = useState(false);
   
   // Поиск внутри фильтров
   const [cfoSearchQuery, setCfoSearchQuery] = useState('');
   const [companySearchQuery, setCompanySearchQuery] = useState('');
+  const [categorySearchQuery, setCategorySearchQuery] = useState('');
   const [purchaserSearchQuery, setPurchaserSearchQuery] = useState('');
   
   // Позиции для выпадающих списков
   const [cfoFilterPosition, setCfoFilterPosition] = useState<{ top: number; left: number } | null>(null);
   const [companyFilterPosition, setCompanyFilterPosition] = useState<{ top: number; left: number } | null>(null);
+  const [categoryFilterPosition, setCategoryFilterPosition] = useState<{ top: number; left: number } | null>(null);
   const [purchaserFilterPosition, setPurchaserFilterPosition] = useState<{ top: number; left: number } | null>(null);
   
   const cfoFilterButtonRef = useRef<HTMLButtonElement>(null);
   const companyFilterButtonRef = useRef<HTMLButtonElement>(null);
+  const categoryFilterButtonRef = useRef<HTMLButtonElement>(null);
   const purchaserFilterButtonRef = useRef<HTMLButtonElement>(null);
   
   // Состояние для видимости колонок (объявлено до использования в useEffect)
@@ -207,6 +212,14 @@ export default function PurchasePlanItemsTable() {
       setCompanyFilterPosition(position);
     }
   }, [isCompanyFilterOpen, calculateFilterPosition]);
+
+  // Обновляем позицию при открытии фильтра категории
+  useEffect(() => {
+    if (isCategoryFilterOpen && categoryFilterButtonRef.current) {
+      const position = calculateFilterPosition(categoryFilterButtonRef);
+      setCategoryFilterPosition(position);
+    }
+  }, [isCategoryFilterOpen, calculateFilterPosition]);
 
   // Обновляем позицию при открытии фильтра закупщиков
   useEffect(() => {
@@ -647,6 +660,13 @@ export default function PurchasePlanItemsTable() {
             setCompanyFilter(new Set());
           }
         }
+        if (savedFilters.categoryFilter !== undefined) {
+          if (Array.isArray(savedFilters.categoryFilter)) {
+            setCategoryFilter(new Set(savedFilters.categoryFilter));
+          } else {
+            setCategoryFilter(new Set());
+          }
+        }
         
         // Восстанавливаем сортировку
         if (savedFilters.sortField !== undefined) {
@@ -693,6 +713,7 @@ export default function PurchasePlanItemsTable() {
         filters,
         cfoFilter: Array.from(cfoFilter),
         companyFilter: Array.from(companyFilter),
+        categoryFilter: Array.from(categoryFilter),
         purchaserFilter: Array.from(purchaserFilter),
         sortField,
         sortDirection,
@@ -817,6 +838,12 @@ export default function PurchasePlanItemsTable() {
             params.append('purchaser', purchaser);
           });
         }
+        // Фильтр по категории - передаем все выбранные значения на бэкенд
+        if (categoryFilter.size > 0) {
+          categoryFilter.forEach(category => {
+            params.append('category', category);
+          });
+        }
         // Для диаграммы не применяем фильтр по месяцу, чтобы показать все месяцы
         
         const fetchUrl = `${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`;
@@ -832,7 +859,7 @@ export default function PurchasePlanItemsTable() {
     };
     
     fetchChartData();
-  }, [selectedYear, selectedMonthYear, filters, cfoFilter, companyFilter, purchaserFilter]);
+  }, [selectedYear, selectedMonthYear, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter]);
 
   // Функция для подсчета количества закупок по месяцам (использует отфильтрованные данные)
   const getMonthlyDistribution = useMemo(() => {
@@ -898,7 +925,9 @@ export default function PurchasePlanItemsTable() {
 
   // Максимальное значение для нормализации высоты столбцов (исключаем столбец "без даты")
   // Берем только первые 13 элементов (месяцы), исключая последний (индекс 13 - "без даты")
-  const monthlyCounts = getMonthlyDistribution.slice(0, 13);
+  // Вычисляем максимальное значение только среди обычных месяцев (без "Без даты")
+  // Столбец "Без даты" будет равен максимальному, остальные - пропорционально
+  const monthlyCounts = getMonthlyDistribution.slice(0, 13); // Первые 13 элементов (месяцы без "Без даты")
   const maxCount = Math.max(...monthlyCounts, 1);
   
   // Обработчик начала изменения размера
@@ -969,6 +998,7 @@ export default function PurchasePlanItemsTable() {
             cfo: new Set(),
             company: new Set(),
             purchaser: new Set(),
+            category: new Set(),
           };
           
           result.content.forEach((item: PurchasePlanItem) => {
@@ -980,6 +1010,7 @@ export default function PurchasePlanItemsTable() {
             if (item.cfo) values.cfo.add(item.cfo);
             if (item.company) values.company.add(item.company);
             if (item.purchaser) values.purchaser.add(item.purchaser);
+            if (item.category) values.category.add(item.category);
           });
           
           const yearsArray = Array.from(years).sort((a, b) => b - a);
@@ -987,6 +1018,7 @@ export default function PurchasePlanItemsTable() {
             cfo: Array.from(values.cfo).sort(),
             company: Array.from(values.company).sort(),
             purchaser: Array.from(values.purchaser).sort(),
+            category: Array.from(values.category).sort(),
           };
           
           setAllYears(yearsArray);
@@ -1057,6 +1089,12 @@ export default function PurchasePlanItemsTable() {
           params.append('purchaser', purchaser);
         });
       }
+      // Фильтр по категории - передаем все выбранные значения на бэкенд
+      if (categoryFilter.size > 0) {
+        categoryFilter.forEach(category => {
+          params.append('category', category);
+        });
+      }
       if (month !== null) {
         params.append('requestMonth', String(month));
         // Если выбран месяц из другого года (например, декабрь предыдущего года), передаем год для фильтрации по дате заявки
@@ -1102,7 +1140,7 @@ export default function PurchasePlanItemsTable() {
 
   useEffect(() => {
     fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters, selectedMonth);
-  }, [currentPage, pageSize, selectedYear, sortField, sortDirection, filters, cfoFilter, companyFilter, purchaserFilter, selectedMonth]);
+  }, [currentPage, pageSize, selectedYear, sortField, sortDirection, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter, selectedMonth]);
 
   // Восстановление фокуса после обновления localFilters
   useEffect(() => {
@@ -1171,6 +1209,7 @@ export default function PurchasePlanItemsTable() {
     cfo: [],
     company: [],
     purchaser: [],
+    category: [],
   });
 
   useEffect(() => {
@@ -1209,6 +1248,7 @@ export default function PurchasePlanItemsTable() {
       cfo: 'cfo',
       company: 'company',
       purchaser: 'purchaser',
+      category: 'category',
     };
     return uniqueValues[fieldMap[field] || 'cfo'] || [];
   };
@@ -1261,6 +1301,30 @@ export default function PurchasePlanItemsTable() {
     setCurrentPage(0);
   };
 
+  // Обработчики для фильтра по категории
+  const handleCategoryToggle = (category: string) => {
+    const newSet = new Set(categoryFilter);
+    if (newSet.has(category)) {
+      newSet.delete(category);
+    } else {
+      newSet.add(category);
+    }
+    setCategoryFilter(newSet);
+    setCurrentPage(0);
+  };
+
+  const handleCategorySelectAll = () => {
+    const allCategories = getUniqueValues('category');
+    const newSet = new Set(allCategories);
+    setCategoryFilter(newSet);
+    setCurrentPage(0);
+  };
+
+  const handleCategoryDeselectAll = () => {
+    setCategoryFilter(new Set());
+    setCurrentPage(0);
+  };
+
   // Обработчики для фильтра по закупщикам
   const handlePurchaserToggle = (purchaser: string) => {
     const newSet = new Set(purchaserFilter);
@@ -1281,6 +1345,7 @@ export default function PurchasePlanItemsTable() {
         filters,
         cfoFilter: Array.from(cfoFilter),
         companyFilter: Array.from(companyFilter),
+        categoryFilter: Array.from(categoryFilter),
         purchaserFilter: Array.from(newSet),
         sortField,
         sortDirection,
@@ -1306,6 +1371,7 @@ export default function PurchasePlanItemsTable() {
         filters,
         cfoFilter: Array.from(cfoFilter),
         companyFilter: Array.from(companyFilter),
+        categoryFilter: Array.from(categoryFilter),
         purchaserFilter: Array.from(newSet),
         sortField,
         sortDirection,
@@ -1330,6 +1396,7 @@ export default function PurchasePlanItemsTable() {
         filters,
         cfoFilter: Array.from(cfoFilter),
         companyFilter: Array.from(companyFilter),
+        categoryFilter: Array.from(categoryFilter),
         purchaserFilter: Array.from(emptySet),
         sortField,
         sortDirection,
@@ -1352,18 +1419,21 @@ export default function PurchasePlanItemsTable() {
       if (isCompanyFilterOpen && !target.closest('.company-filter-container')) {
         setIsCompanyFilterOpen(false);
       }
+      if (isCategoryFilterOpen && !target.closest('.category-filter-container')) {
+        setIsCategoryFilterOpen(false);
+      }
       if (isPurchaserFilterOpen && !target.closest('.purchaser-filter-container')) {
         setIsPurchaserFilterOpen(false);
       }
     };
 
-    if (isCfoFilterOpen || isCompanyFilterOpen || isPurchaserFilterOpen) {
+    if (isCfoFilterOpen || isCompanyFilterOpen || isCategoryFilterOpen || isPurchaserFilterOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
-  }, [isCfoFilterOpen, isCompanyFilterOpen, isPurchaserFilterOpen]);
+  }, [isCfoFilterOpen, isCompanyFilterOpen, isCategoryFilterOpen, isPurchaserFilterOpen]);
 
   // Фильтруем опции по поисковому запросу
   const getFilteredCfoOptions = useMemo(() => {
@@ -1389,6 +1459,18 @@ export default function PurchasePlanItemsTable() {
       return company.toLowerCase().includes(searchLower);
     });
   }, [companySearchQuery, uniqueValues.company]);
+
+  const getFilteredCategoryOptions = useMemo(() => {
+    const allCategories = uniqueValues.category || [];
+    if (!categorySearchQuery || !categorySearchQuery.trim()) {
+      return allCategories;
+    }
+    const searchLower = categorySearchQuery.toLowerCase().trim();
+    return allCategories.filter(category => {
+      if (!category) return false;
+      return category.toLowerCase().includes(searchLower);
+    });
+  }, [categorySearchQuery, uniqueValues.category]);
 
   const getFilteredPurchaserOptions = useMemo(() => {
     const allPurchasers = uniqueValues.purchaser || [];
@@ -1740,6 +1822,7 @@ export default function PurchasePlanItemsTable() {
                   setLocalFilters(emptyFilters);
                   setCfoFilter(new Set());
                   setCompanyFilter(new Set());
+                  setCategoryFilter(new Set());
                   setPurchaserFilter(new Set());
                 setSortField('requestDate');
                 setSortDirection('asc');
@@ -2260,7 +2343,119 @@ export default function PurchasePlanItemsTable() {
               <SortableHeader field="holding" label="Холдинг" columnKey="holding" />
               )}
               {visibleColumns.has('category') && (
-              <SortableHeader field="category" label="Категория" columnKey="category" />
+              <th 
+                className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" 
+                style={{ width: `${getColumnWidth('category')}px`, minWidth: `${getColumnWidth('category')}px`, maxWidth: `${getColumnWidth('category')}px`, verticalAlign: 'top', overflow: 'hidden' }}
+              >
+                <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                  <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                    <div className="relative category-filter-container flex-1">
+                      <button
+                        ref={categoryFilterButtonRef}
+                        type="button"
+                        onClick={() => setIsCategoryFilterOpen(!isCategoryFilterOpen)}
+                        className="w-full text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-left focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center gap-1 hover:bg-gray-50"
+                        style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+                      >
+                      <span className="text-gray-600 truncate flex-1 min-w-0 text-left">
+                        {categoryFilter.size === 0 
+                          ? 'Все' 
+                          : categoryFilter.size === 1
+                          ? (Array.from(categoryFilter)[0] || 'Все')
+                          : `${categoryFilter.size} выбрано`}
+                      </span>
+                      <svg className={`w-3 h-3 transition-transform flex-shrink-0 ${isCategoryFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {isCategoryFilterOpen && categoryFilterPosition && (
+                      <div 
+                        className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden"
+                        style={{
+                          top: `${categoryFilterPosition.top}px`,
+                          left: `${categoryFilterPosition.left}px`,
+                        }}
+                      >
+                        <div className="p-2 border-b border-gray-200">
+                          <div className="relative">
+                            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
+                            <input
+                              type="text"
+                              value={categorySearchQuery}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                setCategorySearchQuery(e.target.value);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              onFocus={(e) => e.stopPropagation()}
+                              className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              placeholder="Поиск..."
+                            />
+                          </div>
+                        </div>
+                        <div className="p-2 border-b border-gray-200 flex gap-2">
+                          <button
+                            onClick={() => handleCategorySelectAll()}
+                            className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                          >
+                            Все
+                          </button>
+                          <button
+                            onClick={() => handleCategoryDeselectAll()}
+                            className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                          >
+                            Снять
+                          </button>
+                        </div>
+                        <div className="max-h-48 overflow-y-auto">
+                          {getFilteredCategoryOptions.length === 0 ? (
+                            <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
+                          ) : (
+                            getFilteredCategoryOptions.map((category) => (
+                              <label
+                                key={category}
+                                className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={categoryFilter.has(category)}
+                                  onChange={() => handleCategoryToggle(category)}
+                                  className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                                />
+                                <span className="ml-2 text-xs text-gray-700 flex-1">{category}</span>
+                              </label>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 min-h-[20px]">
+                  <button
+                    onClick={() => handleSort('category')}
+                      className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                      style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                  >
+                    {sortField === 'category' ? (
+                      sortDirection === 'asc' ? (
+                        <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                      ) : (
+                        <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                    )}
+                  </button>
+                    <span className="text-xs font-medium text-gray-500 tracking-wider">Категория</span>
+                  </div>
+                </div>
+                <div
+                  className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+                  onMouseDown={(e) => handleResizeStart(e, 'category')}
+                  style={{ zIndex: 10 }}
+                />
+              </th>
               )}
               {visibleColumns.has('createdAt') && (
               <SortableHeader field="createdAt" label="Дата создания" columnKey="createdAt" />
@@ -2278,19 +2473,27 @@ export default function PurchasePlanItemsTable() {
                         const monthLabels = ['Дек', 'Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек', 'Без даты'];
                         const isYearDivider = index === 1; // После декабря предыдущего года
                         const isNoDate = index === 13; // Последний столбец - без даты
-                        // Для столбца без даты высота всегда максимальная (100%), для остальных - зависит от значения
-                        // Максимальный столбец по значению должен быть 100% высоты контейнера
-                        // Остальные столбцы пропорционально меньше
+                        // Столбец "Без даты" всегда равен максимальному столбцу из обычных месяцев
+                        // Остальные столбцы рассчитываются с нелинейным масштабированием для большей видимости
                         // Используем абсолютную высоту в пикселях для правильного отображения
                         const containerHeight = 80; // Высота контейнера в пикселях
-                        const topMargin = 4; // Отступ сверху для максимального столбца (в пикселях)
-                        const availableHeight = containerHeight - topMargin; // Доступная высота для столбцов
+                        const topMargin = 2; // Небольшой отступ сверху
+                        const availableHeight = containerHeight - topMargin; // Доступная высота для столбцов (78px)
                         let columnHeight = 0;
                         if (isNoDate) {
-                          columnHeight = containerHeight;
+                          // Столбец "Без даты" всегда равен максимальному столбцу из обычных месяцев
+                          columnHeight = availableHeight;
                         } else if (count > 0 && maxCount > 0) {
-                          // Прямая пропорция: максимальный столбец = доступная высота (с отступом сверху)
-                          columnHeight = (count / maxCount) * availableHeight;
+                          // Используем нелинейное масштабирование для большей видимости маленьких столбцов
+                          // Степень 0.4 делает маленькие столбцы еще более заметными (ближе к максимальному)
+                          const ratio = count / maxCount;
+                          // Применяем степенную функцию с показателем 0.4 для более агрессивного масштабирования
+                          const scaledRatio = Math.pow(ratio, 0.4);
+                          columnHeight = scaledRatio * availableHeight;
+                          // Минимальная высота для видимости столбца с данными (увеличена для лучшей видимости)
+                          if (columnHeight < 8) {
+                            columnHeight = 8;
+                          }
                         }
                         const heightPercent = isNoDate ? 100 : (count > 0 && maxCount > 0 ? (count / maxCount) * 100 : 0);
                         
@@ -2340,8 +2543,8 @@ export default function PurchasePlanItemsTable() {
                               }`}
                               style={{ 
                                 height: `${columnHeight}px`,
-                                minHeight: isNoDate ? containerHeight + 'px' : (count > 0 ? '2px' : '0px'),
-                                maxHeight: isNoDate ? containerHeight + 'px' : containerHeight + 'px',
+                                minHeight: count > 0 ? '2px' : '0px',
+                                maxHeight: containerHeight + 'px',
                                 flexShrink: 0
                               }}
                               title={`${monthLabels[index]}: ${count} закупок`}
@@ -2373,9 +2576,9 @@ export default function PurchasePlanItemsTable() {
                                 }
                               }}
                             >
-                              {/* Число на столбце (показываем внутри столбца, белым цветом) */}
-                              {(isNoDate || (count > 0 && heightPercent > 15)) && (
-                                <div className="absolute inset-0 flex items-center justify-center text-[8px] text-white font-bold whitespace-nowrap pointer-events-none">
+                              {/* Число на столбце (всегда показываем внутри столбца, белым цветом) */}
+                              {count > 0 && (
+                                <div className="absolute inset-0 flex items-center justify-center text-[9px] text-white font-bold whitespace-nowrap pointer-events-none" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}>
                                   {count}
                                 </div>
                               )}
@@ -2384,12 +2587,6 @@ export default function PurchasePlanItemsTable() {
                             <div className={`text-[8px] text-center ${isYearDivider ? 'font-bold text-gray-800 border-l-2 border-gray-700 pl-0.5' : isSelected ? 'font-bold text-blue-700' : 'text-gray-500'}`} style={{ lineHeight: '1' }}>
                               {monthLabels[index]}
                             </div>
-                            {/* Показываем число под столбцом, если столбец слишком низкий (но не для столбца без даты) */}
-                            {!isNoDate && count > 0 && heightPercent <= 15 && (
-                              <div className="text-[7px] text-gray-600 font-bold -mt-0.5">
-                                {count}
-                              </div>
-                            )}
                           </div>
                         );
                       })}

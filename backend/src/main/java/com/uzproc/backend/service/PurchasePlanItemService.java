@@ -40,14 +40,15 @@ public class PurchasePlanItemService {
             List<String> cfo,
             String purchaseSubject,
             List<String> purchaser,
+            List<String> category,
             Integer requestMonth,
             Integer requestYear) {
         
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, company: '{}', cfo: {}, purchaseSubject: '{}', purchaser: {}, requestMonth: {}, requestYear: {}",
-                year, company, cfo, purchaseSubject, purchaser, requestMonth, requestYear);
+        logger.info("Filter parameters - year: {}, company: '{}', cfo: {}, purchaseSubject: '{}', purchaser: {}, category: {}, requestMonth: {}, requestYear: {}",
+                year, company, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear);
         
-        Specification<PurchasePlanItem> spec = buildSpecification(year, company, cfo, purchaseSubject, purchaser, requestMonth, requestYear);
+        Specification<PurchasePlanItem> spec = buildSpecification(year, company, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -126,6 +127,7 @@ public class PurchasePlanItemService {
         dto.setAutoRenewal(entity.getAutoRenewal());
         dto.setComplexity(entity.getComplexity());
         dto.setHolding(entity.getHolding());
+        dto.setCategory(entity.getCategory());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
         return dto;
@@ -137,6 +139,7 @@ public class PurchasePlanItemService {
             List<String> cfo,
             String purchaseSubject,
             List<String> purchaser,
+            List<String> category,
             Integer requestMonth,
             Integer requestYear) {
         
@@ -213,6 +216,32 @@ public class PurchasePlanItemService {
                         predicates.add(cb.or(purchaserPredicates.toArray(new Predicate[0])));
                         predicateCount++;
                         logger.info("Added multiple purchaser filter: {}", validPurchaserValues);
+                    }
+                }
+            }
+            
+            // Фильтр по категории (поддержка множественного выбора - точное совпадение)
+            if (category != null && !category.isEmpty()) {
+                // Убираем пустые значения и тримим
+                List<String> validCategoryValues = category.stream()
+                    .filter(s -> s != null && !s.trim().isEmpty())
+                    .map(String::trim)
+                    .toList();
+                
+                if (!validCategoryValues.isEmpty()) {
+                    if (validCategoryValues.size() == 1) {
+                        // Одно значение - точное совпадение
+                        predicates.add(cb.equal(cb.lower(root.get("category")), validCategoryValues.get(0).toLowerCase()));
+                        predicateCount++;
+                        logger.info("Added single category filter: '{}'", validCategoryValues.get(0));
+                    } else {
+                        // Несколько значений - IN запрос
+                        List<Predicate> categoryPredicates = validCategoryValues.stream()
+                            .map(categoryValue -> cb.equal(cb.lower(root.get("category")), categoryValue.toLowerCase()))
+                            .toList();
+                        predicates.add(cb.or(categoryPredicates.toArray(new Predicate[0])));
+                        predicateCount++;
+                        logger.info("Added multiple category filter: {}", validCategoryValues);
                     }
                 }
             }
