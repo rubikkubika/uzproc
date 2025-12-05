@@ -162,13 +162,13 @@ public class PurchaseRequestService {
             List<Predicate> predicates = new ArrayList<>();
             int predicateCount = 0;
             
-            // Фильтр по году
+            // Фильтр по году (по дате создания записи в БД - createdAt)
             if (year != null) {
                 java.time.LocalDateTime startOfYear = java.time.LocalDateTime.of(year, 1, 1, 0, 0);
                 java.time.LocalDateTime endOfYear = java.time.LocalDateTime.of(year, 12, 31, 23, 59, 59);
-                predicates.add(cb.between(root.get("purchaseRequestCreationDate"), startOfYear, endOfYear));
+                predicates.add(cb.between(root.get("createdAt"), startOfYear, endOfYear));
                 predicateCount++;
-                logger.info("Added year filter: {}", year);
+                logger.info("Added year filter (by createdAt): {}", year);
             }
             
             // Фильтр по номеру заявки

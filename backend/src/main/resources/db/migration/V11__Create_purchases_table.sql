@@ -25,3 +25,4 @@ CREATE INDEX idx_purchases_cfo ON purchases(cfo);
 
 
 
+

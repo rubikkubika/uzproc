@@ -9,13 +9,6 @@ import SupplierChart from '@/components/SupplierChart';
 import RevenueChart from '@/components/RevenueChart';
 import BudgetChart from '@/components/BudgetChart';
 import PerformanceChart from '@/components/PerformanceChart';
-import PurchasesStats from '@/components/PurchasesStats';
-import PurchasesByStatusChart from '@/components/PurchasesByStatusChart';
-import PurchasesByFormatChart from '@/components/PurchasesByFormatChart';
-import PurchasesAmountChart from '@/components/PurchasesAmountChart';
-import PurchasesTimelineChart from '@/components/PurchasesTimelineChart';
-import ApprovalTimeChart from '@/components/ApprovalTimeChart';
-import TopLongestPurchases from '@/components/TopLongestPurchases';
 import PurchaserWorkload from '@/components/PurchaserWorkload';
 import PurchaseRequestsTable from '@/components/PurchaseRequestsTable';
 import PurchasesTable from '@/components/PurchasesTable';
@@ -132,39 +125,11 @@ function DashboardContent() {
       case 'overview':
         return (
           <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-            {/* Статистические карточки */}
-            <PurchasesStats />
-
-            {/* Диаграммы */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-3 lg:gap-6">
-              <div className="lg:col-span-1">
-                <PurchasesByStatusChart />
-              </div>
-              <div className="lg:col-span-1">
-                <PurchasesByFormatChart />
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-3 lg:gap-6">
-              <div className="lg:col-span-1">
-                <PurchasesAmountChart />
-              </div>
-              <div className="lg:col-span-1">
-                <PurchasesTimelineChart />
-              </div>
-            </div>
-            
             {/* Диаграмма позиций плана закупок по месяцам */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-3 lg:gap-6">
               <div className="lg:col-span-1">
                 <PurchasePlanItemsMonthlyChart />
               </div>
-            </div>
-            
-            {/* Анализ времени согласования */}
-            <div className="space-y-4">
-              <ApprovalTimeChart />
-              <TopLongestPurchases />
             </div>
           </div>
         );
