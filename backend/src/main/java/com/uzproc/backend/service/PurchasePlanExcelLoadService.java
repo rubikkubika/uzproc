@@ -48,6 +48,7 @@ public class PurchasePlanExcelLoadService {
     private static final String AUTO_RENEWAL_COLUMN = "Автопролонгация";
     private static final String COMPLEXITY_COLUMN = "Сложность";
     private static final String HOLDING_COLUMN = "Холдинг";
+    private static final String CATEGORY_COLUMN = "Категория";
 
     private final PurchasePlanItemRepository purchasePlanItemRepository;
     private final DataFormatter dataFormatter = new DataFormatter();
@@ -248,6 +249,7 @@ public class PurchasePlanExcelLoadService {
             Integer autoRenewalColumnIndex = findColumnIndex(columnIndexMap, AUTO_RENEWAL_COLUMN);
             Integer complexityColumnIndex = findColumnIndex(columnIndexMap, COMPLEXITY_COLUMN);
             Integer holdingColumnIndex = findColumnIndex(columnIndexMap, HOLDING_COLUMN);
+            Integer categoryColumnIndex = findColumnIndex(columnIndexMap, CATEGORY_COLUMN);
             
             // Логируем все найденные колонки
             logger.info("All columns in Excel file:");
@@ -259,12 +261,12 @@ public class PurchasePlanExcelLoadService {
             logger.info("Found columns - year: {}, company: {}, cfo: {}, purchaseSubject: {}, budgetAmount: {}, " +
                     "contractEndDate: {}, requestDate: {}, newContractDate: {}, purchaser: {}, product: {}, " +
                     "hasContract: {}, currentKa: {}, currentAmount: {}, currentContractAmount: {}, " +
-                    "currentContractBalance: {}, currentContractEndDate: {}, autoRenewal: {}, complexity: {}, holding: {}",
+                    "currentContractBalance: {}, currentContractEndDate: {}, autoRenewal: {}, complexity: {}, holding: {}, category: {}",
                     yearColumnIndex, companyColumnIndex, cfoColumnIndex, purchaseSubjectColumnIndex,
                     budgetAmountColumnIndex, contractEndDateColumnIndex, requestDateColumnIndex, newContractDateColumnIndex, purchaserColumnIndex,
                     productColumnIndex, hasContractColumnIndex, currentKaColumnIndex, currentAmountColumnIndex,
                     currentContractAmountColumnIndex, currentContractBalanceColumnIndex, currentContractEndDateColumnIndex,
-                    autoRenewalColumnIndex, complexityColumnIndex, holdingColumnIndex);
+                    autoRenewalColumnIndex, complexityColumnIndex, holdingColumnIndex, categoryColumnIndex);
             
             int loadedCount = 0;
             int skippedCount = 0;
@@ -283,7 +285,7 @@ public class PurchasePlanExcelLoadService {
                             contractEndDateColumnIndex, requestDateColumnIndex, newContractDateColumnIndex, purchaserColumnIndex,
                             productColumnIndex, hasContractColumnIndex, currentKaColumnIndex, currentAmountColumnIndex,
                             currentContractAmountColumnIndex, currentContractBalanceColumnIndex, currentContractEndDateColumnIndex,
-                            autoRenewalColumnIndex, complexityColumnIndex, holdingColumnIndex);
+                            autoRenewalColumnIndex, complexityColumnIndex, holdingColumnIndex, categoryColumnIndex);
                     
                     if (item != null && item.getPurchaseSubject() != null && !item.getPurchaseSubject().trim().isEmpty()) {
                         // Проверяем, существует ли уже запись с таким же purchase_subject (без учета регистра)
@@ -328,7 +330,7 @@ public class PurchasePlanExcelLoadService {
             Integer contractEndDateColumnIndex, Integer requestDateColumnIndex, Integer newContractDateColumnIndex, Integer purchaserColumnIndex,
             Integer productColumnIndex, Integer hasContractColumnIndex, Integer currentKaColumnIndex, Integer currentAmountColumnIndex,
             Integer currentContractAmountColumnIndex, Integer currentContractBalanceColumnIndex, Integer currentContractEndDateColumnIndex,
-            Integer autoRenewalColumnIndex, Integer complexityColumnIndex, Integer holdingColumnIndex) {
+            Integer autoRenewalColumnIndex, Integer complexityColumnIndex, Integer holdingColumnIndex, Integer categoryColumnIndex) {
         PurchasePlanItem item = new PurchasePlanItem();
         
         try {
@@ -513,6 +515,15 @@ public class PurchasePlanExcelLoadService {
                 String holding = getCellValueAsString(holdingCell);
                 if (holding != null && !holding.trim().isEmpty()) {
                     item.setHolding(holding.trim());
+                }
+            }
+            
+            // Категория
+            if (categoryColumnIndex != null) {
+                Cell categoryCell = row.getCell(categoryColumnIndex);
+                String category = getCellValueAsString(categoryCell);
+                if (category != null && !category.trim().isEmpty()) {
+                    item.setCategory(category.trim());
                 }
             }
             
@@ -1082,6 +1093,13 @@ public class PurchasePlanExcelLoadService {
             !newData.getHolding().equals(existing.getHolding())) {
             existing.setHolding(newData.getHolding());
             updated = true;
+        }
+        
+        if (newData.getCategory() != null && !newData.getCategory().trim().isEmpty() && 
+            !newData.getCategory().equals(existing.getCategory())) {
+            existing.setCategory(newData.getCategory());
+            updated = true;
+            logger.debug("Updated category for purchase plan item {}: {}", existing.getId(), newData.getCategory());
         }
         
         if (updated) {

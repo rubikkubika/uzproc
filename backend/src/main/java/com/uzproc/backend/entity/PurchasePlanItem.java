@@ -77,6 +77,9 @@ public class PurchasePlanItem {
     @Column(name = "holding", length = 255)
     private String holding;
 
+    @Column(name = "category", length = 255)
+    private String category;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -269,6 +272,14 @@ public class PurchasePlanItem {
 
     public void setHolding(String holding) {
         this.holding = holding;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
     }
 
     public LocalDateTime getCreatedAt() {

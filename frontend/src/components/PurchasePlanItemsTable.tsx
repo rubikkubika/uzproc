@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { getBackendUrl } from '@/utils/api';
-import { ArrowUp, ArrowDown, ArrowUpDown, Search, Download } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpDown, Search, Download, Settings } from 'lucide-react';
 import GanttChart from './GanttChart';
 import { useReactToPrint } from 'react-to-print';
 
@@ -18,8 +18,17 @@ interface PurchasePlanItem {
   requestDate: string | null;
   newContractDate: string | null;
   purchaser: string | null;
+  product: string | null;
   hasContract: boolean | null;
+  currentKa: string | null;
+  currentAmount: number | null;
+  currentContractAmount: number | null;
+  currentContractBalance: number | null;
+  currentContractEndDate: string | null;
   autoRenewal: boolean | null;
+  complexity: string | null;
+  holding: string | null;
+  category: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -37,6 +46,48 @@ type SortDirection = 'asc' | 'desc' | null;
 
 // Ключ для сохранения фильтров в localStorage
 const FILTERS_STORAGE_KEY = 'purchasePlanItems_filters';
+const COLUMNS_VISIBILITY_STORAGE_KEY = 'purchasePlanItems_columnsVisibility';
+
+// Определение всех возможных колонок (все поля сущности PurchasePlanItem)
+const ALL_COLUMNS = [
+  { key: 'id', label: 'ID' },
+  { key: 'guid', label: 'GUID' },
+  { key: 'year', label: 'Год' },
+  { key: 'company', label: 'Компания' },
+  { key: 'cfo', label: 'ЦФО' },
+  { key: 'purchaseSubject', label: 'Предмет закупки' },
+  { key: 'budgetAmount', label: 'Бюджет (UZS)' },
+  { key: 'contractEndDate', label: 'Срок окончания договора' },
+  { key: 'requestDate', label: 'Дата заявки' },
+  { key: 'newContractDate', label: 'Дата нового договора' },
+  { key: 'purchaser', label: 'Закупщик' },
+  { key: 'product', label: 'Продукция' },
+  { key: 'hasContract', label: 'Есть договор' },
+  { key: 'currentKa', label: 'КА действующего' },
+  { key: 'currentAmount', label: 'Сумма текущего' },
+  { key: 'currentContractAmount', label: 'Сумма текущего договора' },
+  { key: 'currentContractBalance', label: 'Остаток текущего договора' },
+  { key: 'currentContractEndDate', label: 'Дата окончания действующего' },
+  { key: 'autoRenewal', label: 'Автопролонгация' },
+  { key: 'complexity', label: 'Сложность' },
+  { key: 'holding', label: 'Холдинг' },
+  { key: 'category', label: 'Категория' },
+  { key: 'createdAt', label: 'Дата создания' },
+  { key: 'updatedAt', label: 'Дата обновления' },
+] as const;
+
+// Колонки, которые отображаются по умолчанию
+const DEFAULT_VISIBLE_COLUMNS = [
+  'cfo',
+  'purchaseSubject',
+  'purchaser',
+  'hasContract',
+  'autoRenewal',
+  'budgetAmount',
+  'contractEndDate',
+  'requestDate',
+  'newContractDate',
+];
 
 export default function PurchasePlanItemsTable() {
   const printRef = useRef<HTMLDivElement>(null);
@@ -105,6 +156,30 @@ export default function PurchasePlanItemsTable() {
   const companyFilterButtonRef = useRef<HTMLButtonElement>(null);
   const purchaserFilterButtonRef = useRef<HTMLButtonElement>(null);
   
+  // Состояние для видимости колонок (объявлено до использования в useEffect)
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') {
+      return new Set(DEFAULT_VISIBLE_COLUMNS);
+    }
+    try {
+      const saved = localStorage.getItem(COLUMNS_VISIBILITY_STORAGE_KEY);
+      if (saved) {
+        const savedColumns = JSON.parse(saved);
+        if (Array.isArray(savedColumns)) {
+          return new Set(savedColumns.filter((col: unknown): col is string => typeof col === 'string'));
+        }
+      }
+    } catch (err) {
+      console.error('Error loading column visibility from localStorage:', err);
+    }
+    return new Set(DEFAULT_VISIBLE_COLUMNS);
+  });
+
+  // Состояние для открытия меню выбора колонок (объявлено до использования в useEffect)
+  const [isColumnsMenuOpen, setIsColumnsMenuOpen] = useState(false);
+  const [columnsMenuPosition, setColumnsMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const columnsMenuButtonRef = useRef<HTMLButtonElement>(null);
+  
   // Функция для расчета позиции выпадающего списка
   const calculateFilterPosition = useCallback((buttonRef: React.RefObject<HTMLButtonElement | null>) => {
     if (buttonRef.current) {
@@ -140,6 +215,65 @@ export default function PurchasePlanItemsTable() {
       setPurchaserFilterPosition(position);
     }
   }, [isPurchaserFilterOpen, calculateFilterPosition]);
+
+  // Обновляем позицию при открытии меню выбора колонок
+  useEffect(() => {
+    if (isColumnsMenuOpen && columnsMenuButtonRef.current) {
+      const position = calculateFilterPosition(columnsMenuButtonRef);
+      setColumnsMenuPosition(position);
+    }
+  }, [isColumnsMenuOpen, calculateFilterPosition]);
+
+  // Сохраняем видимость колонок в localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(COLUMNS_VISIBILITY_STORAGE_KEY, JSON.stringify(Array.from(visibleColumns)));
+      } catch (err) {
+        console.error('Error saving column visibility to localStorage:', err);
+      }
+    }
+  }, [visibleColumns]);
+
+  // Закрываем меню выбора колонок при клике вне его
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isColumnsMenuOpen && columnsMenuButtonRef.current && !columnsMenuButtonRef.current.contains(event.target as Node)) {
+        const menuElement = document.querySelector('.fixed.z-50.w-64.bg-white.border.border-gray-300');
+        if (menuElement && !menuElement.contains(event.target as Node)) {
+          setIsColumnsMenuOpen(false);
+        }
+      }
+    };
+
+    if (isColumnsMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isColumnsMenuOpen]);
+
+  // Функции для управления видимостью колонок
+  const toggleColumnVisibility = (columnKey: string) => {
+    setVisibleColumns(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(columnKey)) {
+        newSet.delete(columnKey);
+      } else {
+        newSet.add(columnKey);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllColumns = () => {
+    setVisibleColumns(new Set(ALL_COLUMNS.map(col => col.key)));
+  };
+
+  const selectDefaultColumns = () => {
+    setVisibleColumns(new Set(DEFAULT_VISIBLE_COLUMNS));
+  };
 
   // Локальное состояние для текстовых фильтров
   const [localFilters, setLocalFilters] = useState<Record<string, string>>({
@@ -583,6 +717,8 @@ export default function PurchasePlanItemsTable() {
   // Функция для получения ширины колонки по умолчанию
   const getDefaultColumnWidth = (columnKey: string): number => {
     const defaults: Record<string, number> = {
+      id: 64, // w-16 = 4rem = 64px
+      guid: 256, // w-64 = 16rem = 256px
       year: 64, // w-16 = 4rem = 64px
       company: 128, // w-32 = 8rem = 128px
       cfo: 128, // w-32 = 8rem = 128px
@@ -592,8 +728,19 @@ export default function PurchasePlanItemsTable() {
       requestDate: 112, // w-28 = 7rem = 112px
       newContractDate: 128, // w-32 = 8rem = 128px
       purchaser: 128, // w-32 = 8rem = 128px
+      product: 192, // w-48 = 12rem = 192px
       hasContract: 112, // w-28 = 7rem = 112px
+      currentKa: 128, // w-32 = 8rem = 128px
+      currentAmount: 128, // w-32 = 8rem = 128px
+      currentContractAmount: 160, // w-40 = 10rem = 160px
+      currentContractBalance: 160, // w-40 = 10rem = 160px
+      currentContractEndDate: 160, // w-40 = 10rem = 160px
       autoRenewal: 128, // w-32 = 8rem = 128px
+      complexity: 112, // w-28 = 7rem = 112px
+      holding: 128, // w-32 = 8rem = 128px
+      category: 128, // w-32 = 8rem = 128px
+      createdAt: 128, // w-32 = 8rem = 128px
+      updatedAt: 128, // w-32 = 8rem = 128px
     };
     return defaults[columnKey] || 120;
   };
@@ -1519,6 +1666,61 @@ export default function PurchasePlanItemsTable() {
             <p className="text-sm text-gray-500">
               Всего записей: {totalRecords}
             </p>
+              <div className="relative">
+                <button
+                  ref={columnsMenuButtonRef}
+                  onClick={() => setIsColumnsMenuOpen(!isColumnsMenuOpen)}
+                  className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-2"
+                  title="Настройка колонок"
+                >
+                  <Settings className="w-4 h-4" />
+                  Колонки
+                </button>
+                {isColumnsMenuOpen && columnsMenuPosition && (
+                  <div 
+                    className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-96 overflow-hidden"
+                    style={{
+                      top: `${columnsMenuPosition.top}px`,
+                      left: `${columnsMenuPosition.left}px`,
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="p-3 border-b border-gray-200">
+                      <h3 className="text-sm font-semibold text-gray-900">Выбор колонок</h3>
+                    </div>
+                    <div className="p-2 border-b border-gray-200 flex gap-2">
+                      <button
+                        onClick={selectAllColumns}
+                        className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                      >
+                        Все
+                      </button>
+                      <button
+                        onClick={selectDefaultColumns}
+                        className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                      >
+                        По умолчанию
+                      </button>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto">
+                      {ALL_COLUMNS.map((column) => (
+                        <label
+                          key={column.key}
+                          className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={visibleColumns.has(column.key)}
+                            onChange={() => toggleColumnVisibility(column.key)}
+                            className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                          />
+                          <span className="ml-2 text-xs text-gray-700 flex-1">{column.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
               <button
                 onClick={exportToPDF}
                 className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-2"
@@ -1770,6 +1972,7 @@ export default function PurchasePlanItemsTable() {
         <table className="w-full border-collapse">
           <thead className="bg-gray-50">
             <tr>
+              {visibleColumns.has('cfo') && (
               <th 
                 className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" 
                       style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px`, verticalAlign: 'top', overflow: 'hidden' }}
@@ -1883,7 +2086,11 @@ export default function PurchasePlanItemsTable() {
                   style={{ zIndex: 10 }}
                 />
               </th>
+              )}
+              {visibleColumns.has('purchaseSubject') && (
               <SortableHeader field="purchaseSubject" label="Предмет закупки" filterType="text" columnKey="purchaseSubject" />
+              )}
+              {visibleColumns.has('purchaser') && (
               <th 
                 className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" 
                 style={{ width: `${getColumnWidth('purchaser')}px`, minWidth: `${getColumnWidth('purchaser')}px`, maxWidth: `${getColumnWidth('purchaser')}px`, verticalAlign: 'top', overflow: 'hidden' }}
@@ -1997,12 +2204,70 @@ export default function PurchasePlanItemsTable() {
                   style={{ zIndex: 10 }}
                 />
               </th>
+              )}
+              {visibleColumns.has('hasContract') && (
               <SortableHeader field="hasContract" label="Есть договор" columnKey="hasContract" />
+              )}
+              {visibleColumns.has('autoRenewal') && (
               <SortableHeader field="autoRenewal" label="Автопролонгация" columnKey="autoRenewal" />
+              )}
+              {visibleColumns.has('budgetAmount') && (
               <SortableHeader field="budgetAmount" label="Бюджет (UZS)" columnKey="budgetAmount" />
+              )}
+              {visibleColumns.has('contractEndDate') && (
               <SortableHeader field="contractEndDate" label="Срок окончания договора" columnKey="contractEndDate" />
+              )}
+              {visibleColumns.has('requestDate') && (
               <SortableHeader field="requestDate" label="Дата заявки" columnKey="requestDate" />
+              )}
+              {visibleColumns.has('newContractDate') && (
               <SortableHeader field="newContractDate" label="Дата нового договора" columnKey="newContractDate" />
+              )}
+              {visibleColumns.has('id') && (
+              <SortableHeader field="id" label="ID" columnKey="id" />
+              )}
+              {visibleColumns.has('guid') && (
+              <SortableHeader field="guid" label="GUID" columnKey="guid" />
+              )}
+              {visibleColumns.has('year') && (
+              <SortableHeader field="year" label="Год" columnKey="year" />
+              )}
+              {visibleColumns.has('company') && (
+              <SortableHeader field="company" label="Компания" columnKey="company" />
+              )}
+              {visibleColumns.has('product') && (
+              <SortableHeader field="product" label="Продукция" columnKey="product" />
+              )}
+              {visibleColumns.has('currentKa') && (
+              <SortableHeader field="currentKa" label="КА действующего" columnKey="currentKa" />
+              )}
+              {visibleColumns.has('currentAmount') && (
+              <SortableHeader field="currentAmount" label="Сумма текущего" columnKey="currentAmount" />
+              )}
+              {visibleColumns.has('currentContractAmount') && (
+              <SortableHeader field="currentContractAmount" label="Сумма текущего договора" columnKey="currentContractAmount" />
+              )}
+              {visibleColumns.has('currentContractBalance') && (
+              <SortableHeader field="currentContractBalance" label="Остаток текущего договора" columnKey="currentContractBalance" />
+              )}
+              {visibleColumns.has('currentContractEndDate') && (
+              <SortableHeader field="currentContractEndDate" label="Дата окончания действующего" columnKey="currentContractEndDate" />
+              )}
+              {visibleColumns.has('complexity') && (
+              <SortableHeader field="complexity" label="Сложность" columnKey="complexity" />
+              )}
+              {visibleColumns.has('holding') && (
+              <SortableHeader field="holding" label="Холдинг" columnKey="holding" />
+              )}
+              {visibleColumns.has('category') && (
+              <SortableHeader field="category" label="Категория" columnKey="category" />
+              )}
+              {visibleColumns.has('createdAt') && (
+              <SortableHeader field="createdAt" label="Дата создания" columnKey="createdAt" />
+              )}
+              {visibleColumns.has('updatedAt') && (
+              <SortableHeader field="updatedAt" label="Дата обновления" columnKey="updatedAt" />
+              )}
               <th className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300" style={{ width: '350px', minWidth: '350px' }}>
                 <div className="flex flex-col gap-1">
                   <div className="flex items-center gap-1 min-h-[20px]">
@@ -2141,6 +2406,7 @@ export default function PurchasePlanItemsTable() {
                   key={item.id} 
                   className="hover:bg-gray-50"
                 >
+                        {visibleColumns.has('cfo') && (
                         <td 
                           className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" 
                           title={item.cfo || ''}
@@ -2148,12 +2414,16 @@ export default function PurchasePlanItemsTable() {
                         >
                           {item.cfo || '-'}
                         </td>
+                        )}
+                        {visibleColumns.has('purchaseSubject') && (
                         <td 
                           className="px-2 py-2 text-xs text-gray-900 break-words border-r border-gray-200"
                           style={{ width: `${getColumnWidth('purchaseSubject')}px`, minWidth: `${getColumnWidth('purchaseSubject')}px`, maxWidth: `${getColumnWidth('purchaseSubject')}px` }}
                         >
                           {item.purchaseSubject || '-'}
                         </td>
+                        )}
+                        {visibleColumns.has('purchaser') && (
                         <td 
                           className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200"
                           title={item.purchaser || ''}
@@ -2161,18 +2431,24 @@ export default function PurchasePlanItemsTable() {
                         >
                           {item.purchaser || '-'}
                         </td>
+                        )}
+                        {visibleColumns.has('hasContract') && (
                         <td 
                           className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center"
                           style={{ width: `${getColumnWidth('hasContract')}px`, minWidth: `${getColumnWidth('hasContract')}px`, maxWidth: `${getColumnWidth('hasContract')}px` }}
                         >
                           {item.hasContract === true ? 'Да' : item.hasContract === false ? 'Нет' : '-'}
                         </td>
+                        )}
+                        {visibleColumns.has('autoRenewal') && (
                         <td 
                           className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center"
                           style={{ width: `${getColumnWidth('autoRenewal')}px`, minWidth: `${getColumnWidth('autoRenewal')}px`, maxWidth: `${getColumnWidth('autoRenewal')}px` }}
                         >
                           {item.autoRenewal === true ? 'Да' : item.autoRenewal === false ? 'Нет' : '-'}
                         </td>
+                        )}
+                        {visibleColumns.has('budgetAmount') && (
                         <td 
                           className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
                           style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px` }}
@@ -2182,6 +2458,8 @@ export default function PurchasePlanItemsTable() {
                             maximumFractionDigits: 1 
                           }).format(item.budgetAmount) : '-'}
                         </td>
+                        )}
+                        {visibleColumns.has('contractEndDate') && (
                         <td 
                     className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 cursor-pointer hover:bg-gray-50"
                           style={{ width: `${getColumnWidth('contractEndDate')}px`, minWidth: `${getColumnWidth('contractEndDate')}px`, maxWidth: `${getColumnWidth('contractEndDate')}px` }}
@@ -2214,6 +2492,8 @@ export default function PurchasePlanItemsTable() {
                       item.contractEndDate ? new Date(item.contractEndDate).toLocaleDateString('ru-RU') : '-'
                     )}
                   </td>
+                  )}
+                  {visibleColumns.has('requestDate') && (
                   <td 
                     className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${
                       animatingDates[item.id] ? 'animate-pulse bg-blue-50 text-blue-700 font-semibold' : 'text-gray-900'
@@ -2257,6 +2537,8 @@ export default function PurchasePlanItemsTable() {
                       </div>
                     )}
                   </td>
+                  )}
+                  {visibleColumns.has('newContractDate') && (
                   <td 
                     className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${
                       animatingDates[item.id] ? 'animate-pulse bg-blue-50 text-blue-700 font-semibold' : 'text-gray-900'
@@ -2300,6 +2582,91 @@ export default function PurchasePlanItemsTable() {
                       </div>
                     )}
                         </td>
+                  )}
+                  {visibleColumns.has('id') && (
+                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center" style={{ width: `${getColumnWidth('id')}px`, minWidth: `${getColumnWidth('id')}px`, maxWidth: `${getColumnWidth('id')}px` }}>
+                    {item.id}
+                  </td>
+                  )}
+                  {visibleColumns.has('guid') && (
+                  <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={item.guid} style={{ width: `${getColumnWidth('guid')}px`, minWidth: `${getColumnWidth('guid')}px`, maxWidth: `${getColumnWidth('guid')}px` }}>
+                    {item.guid || '-'}
+                  </td>
+                  )}
+                  {visibleColumns.has('year') && (
+                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center" style={{ width: `${getColumnWidth('year')}px`, minWidth: `${getColumnWidth('year')}px`, maxWidth: `${getColumnWidth('year')}px` }}>
+                    {item.year || '-'}
+                  </td>
+                  )}
+                  {visibleColumns.has('company') && (
+                  <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={item.company || ''} style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px` }}>
+                    {item.company || '-'}
+                  </td>
+                  )}
+                  {visibleColumns.has('product') && (
+                  <td className="px-2 py-2 text-xs text-gray-900 break-words border-r border-gray-200" style={{ width: `${getColumnWidth('product')}px`, minWidth: `${getColumnWidth('product')}px`, maxWidth: `${getColumnWidth('product')}px` }}>
+                    {item.product || '-'}
+                  </td>
+                  )}
+                  {visibleColumns.has('currentKa') && (
+                  <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={item.currentKa || ''} style={{ width: `${getColumnWidth('currentKa')}px`, minWidth: `${getColumnWidth('currentKa')}px`, maxWidth: `${getColumnWidth('currentKa')}px` }}>
+                    {item.currentKa || '-'}
+                  </td>
+                  )}
+                  {visibleColumns.has('currentAmount') && (
+                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" style={{ width: `${getColumnWidth('currentAmount')}px`, minWidth: `${getColumnWidth('currentAmount')}px`, maxWidth: `${getColumnWidth('currentAmount')}px` }}>
+                    {item.currentAmount ? new Intl.NumberFormat('ru-RU', { 
+                      notation: 'compact',
+                      maximumFractionDigits: 1 
+                    }).format(item.currentAmount) : '-'}
+                  </td>
+                  )}
+                  {visibleColumns.has('currentContractAmount') && (
+                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" style={{ width: `${getColumnWidth('currentContractAmount')}px`, minWidth: `${getColumnWidth('currentContractAmount')}px`, maxWidth: `${getColumnWidth('currentContractAmount')}px` }}>
+                    {item.currentContractAmount ? new Intl.NumberFormat('ru-RU', { 
+                      notation: 'compact',
+                      maximumFractionDigits: 1 
+                    }).format(item.currentContractAmount) : '-'}
+                  </td>
+                  )}
+                  {visibleColumns.has('currentContractBalance') && (
+                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" style={{ width: `${getColumnWidth('currentContractBalance')}px`, minWidth: `${getColumnWidth('currentContractBalance')}px`, maxWidth: `${getColumnWidth('currentContractBalance')}px` }}>
+                    {item.currentContractBalance ? new Intl.NumberFormat('ru-RU', { 
+                      notation: 'compact',
+                      maximumFractionDigits: 1 
+                    }).format(item.currentContractBalance) : '-'}
+                  </td>
+                  )}
+                  {visibleColumns.has('currentContractEndDate') && (
+                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" style={{ width: `${getColumnWidth('currentContractEndDate')}px`, minWidth: `${getColumnWidth('currentContractEndDate')}px`, maxWidth: `${getColumnWidth('currentContractEndDate')}px` }}>
+                    {item.currentContractEndDate ? new Date(item.currentContractEndDate).toLocaleDateString('ru-RU') : '-'}
+                  </td>
+                  )}
+                  {visibleColumns.has('complexity') && (
+                  <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={item.complexity || ''} style={{ width: `${getColumnWidth('complexity')}px`, minWidth: `${getColumnWidth('complexity')}px`, maxWidth: `${getColumnWidth('complexity')}px` }}>
+                    {item.complexity || '-'}
+                  </td>
+                  )}
+                  {visibleColumns.has('holding') && (
+                  <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={item.holding || ''} style={{ width: `${getColumnWidth('holding')}px`, minWidth: `${getColumnWidth('holding')}px`, maxWidth: `${getColumnWidth('holding')}px` }}>
+                    {item.holding || '-'}
+                  </td>
+                  )}
+                  {visibleColumns.has('category') && (
+                  <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={item.category || ''} style={{ width: `${getColumnWidth('category')}px`, minWidth: `${getColumnWidth('category')}px`, maxWidth: `${getColumnWidth('category')}px` }}>
+                    {item.category || '-'}
+                  </td>
+                  )}
+                  {visibleColumns.has('createdAt') && (
+                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" style={{ width: `${getColumnWidth('createdAt')}px`, minWidth: `${getColumnWidth('createdAt')}px`, maxWidth: `${getColumnWidth('createdAt')}px` }}>
+                    {item.createdAt ? new Date(item.createdAt).toLocaleDateString('ru-RU') : '-'}
+                  </td>
+                  )}
+                  {visibleColumns.has('updatedAt') && (
+                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" style={{ width: `${getColumnWidth('updatedAt')}px`, minWidth: `${getColumnWidth('updatedAt')}px`, maxWidth: `${getColumnWidth('updatedAt')}px` }}>
+                    {item.updatedAt ? new Date(item.updatedAt).toLocaleDateString('ru-RU') : '-'}
+                  </td>
+                  )}
                   <td className="px-1 py-1 border-r border-gray-200" style={{ width: '350px', minWidth: '350px' }}>
                     <GanttChart
                       itemId={item.id}
