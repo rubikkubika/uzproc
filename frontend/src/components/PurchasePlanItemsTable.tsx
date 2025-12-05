@@ -361,13 +361,14 @@ export default function PurchasePlanItemsTable() {
   
   // Функция для обновления дат через перетаскивание Ганта
   const performGanttDateUpdate = async (itemId: number, requestDate: string | null, newContractDate: string | null) => {
+    const item = data?.content.find(i => i.id === itemId);
+    if (!item) return;
+    
+    // Сохраняем исходные значения для возможного отката
+    const oldRequestDate = item.requestDate;
+    const oldNewContractDate = item.newContractDate;
+    
     try {
-      const item = data?.content.find(i => i.id === itemId);
-      if (!item) return;
-      
-      // Сохраняем исходные значения для возможного отката
-      const oldRequestDate = item.requestDate;
-      const oldNewContractDate = item.newContractDate;
       
       // Нормализуем даты (убираем время, если есть)
       const normalizedRequestDate = requestDate ? requestDate.split('T')[0] : null;
