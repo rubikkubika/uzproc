@@ -64,6 +64,19 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private static final String PURCHASER_COLUMN = "Ответственный за ЗП (Закупочная процедура)";
     private static final String LINK_COLUMN = "Ссылка";
     
+    // Оптимизация: статические DateTimeFormatter для парсинга дат (создаются один раз)
+    private static final DateTimeFormatter[] DATE_TIME_FORMATTERS = {
+        DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss"),
+        DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"),
+        DateTimeFormatter.ofPattern("dd.MM.yyyy"),
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"),
+        DateTimeFormatter.ofPattern("yyyy-MM-dd"),
+        DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"),
+        DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"),
+        DateTimeFormatter.ofPattern("dd/MM/yyyy")
+    };
+    
     // Названия колонок для проверки инвертированной логики
     private String requiresPurchaseColumnName = null;
     private String planColumnName = null;
@@ -528,6 +541,10 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     /**
      * Парсит строку с датой в различных форматах
      */
+    /**
+     * Парсит строку с датой в различных форматах
+     * Оптимизировано: использует статические DateTimeFormatter вместо создания новых
+     */
     private LocalDateTime parseStringDate(String dateStr) {
         if (dateStr == null || dateStr.trim().isEmpty()) {
             return null;
@@ -535,28 +552,12 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
         
         dateStr = dateStr.trim();
         
-        // Список форматов для парсинга
-        DateTimeFormatter[] formatters = {
-            DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss"),
-            DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"),
-            DateTimeFormatter.ofPattern("dd.MM.yyyy"),
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"),
-            DateTimeFormatter.ofPattern("yyyy-MM-dd"),
-            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"),
-            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"),
-            DateTimeFormatter.ofPattern("dd/MM/yyyy"),
-            DateTimeFormatter.ISO_LOCAL_DATE_TIME,
-            DateTimeFormatter.ISO_LOCAL_DATE
-        };
-        
-        // Пробуем распарсить каждым форматом
-        for (DateTimeFormatter formatter : formatters) {
+        // Используем предварительно созданные статические форматтеры
+        for (int i = 0; i < DATE_TIME_FORMATTERS.length; i++) {
+            DateTimeFormatter formatter = DATE_TIME_FORMATTERS[i];
             try {
-                if (formatter == DateTimeFormatter.ISO_LOCAL_DATE_TIME || 
-                    formatter == DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss") ||
-                    formatter == DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss") ||
-                    formatter == DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")) {
+                // Форматтеры с индексами 0, 3, 6 содержат время (HH:mm:ss)
+                if (i == 0 || i == 3 || i == 6) {
                     return LocalDateTime.parse(dateStr, formatter);
                 } else {
                     LocalDate date = LocalDate.parse(dateStr, formatter);
@@ -565,6 +566,18 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             } catch (DateTimeParseException e) {
                 // Пробуем следующий формат
             }
+        }
+        
+        // Пробуем ISO форматы как fallback
+        try {
+            return LocalDateTime.parse(dateStr, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        } catch (DateTimeParseException e) {
+            // ignore
+        }
+        try {
+            return LocalDate.parse(dateStr, DateTimeFormatter.ISO_LOCAL_DATE).atStartOfDay();
+        } catch (DateTimeParseException e) {
+            // ignore
         }
         
         return null;

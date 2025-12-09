@@ -110,6 +110,19 @@ public class ReportExcelLoadService {
     private static final String[] COMMISSION_RESULT_CHECK_ROLES = {
         "Ответственный закупщик"
     };
+    
+    // Оптимизация: статические DateTimeFormatter для парсинга дат (создаются один раз)
+    private static final java.time.format.DateTimeFormatter[] DATE_TIME_FORMATTERS = {
+        java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss"),
+        java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"),
+        java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy"),
+        java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
+        java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"),
+        java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"),
+        java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"),
+        java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"),
+        java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")
+    };
 
     private final PurchaseRequestRepository purchaseRequestRepository;
     private final PurchaseRequestApprovalRepository requestApprovalRepository;
@@ -1122,30 +1135,21 @@ public class ReportExcelLoadService {
     
     /**
      * Парсит строку с датой в LocalDateTime
+     * Оптимизировано: использует статические DateTimeFormatter вместо создания новых
      */
     private LocalDateTime parseStringDate(String dateStr) {
         if (dateStr == null || dateStr.trim().isEmpty()) {
             return null;
         }
         
-        // Различные форматы дат
-        String[] dateFormats = {
-            "dd.MM.yyyy HH:mm:ss",
-            "dd.MM.yyyy HH:mm",
-            "dd.MM.yyyy",
-            "yyyy-MM-dd HH:mm:ss",
-            "yyyy-MM-dd HH:mm",
-            "yyyy-MM-dd",
-            "dd/MM/yyyy HH:mm:ss",
-            "dd/MM/yyyy HH:mm",
-            "dd/MM/yyyy"
-        };
+        dateStr = dateStr.trim();
         
-        for (String format : dateFormats) {
+        // Используем предварительно созданные статические форматтеры
+        for (int i = 0; i < DATE_TIME_FORMATTERS.length; i++) {
+            java.time.format.DateTimeFormatter formatter = DATE_TIME_FORMATTERS[i];
             try {
-                java.time.format.DateTimeFormatter formatter = 
-                    java.time.format.DateTimeFormatter.ofPattern(format);
-                if (format.contains("HH:mm")) {
+                // Форматтеры с индексами 0, 3, 6 содержат время (HH:mm:ss)
+                if (i == 0 || i == 3 || i == 6) {
                     return LocalDateTime.parse(dateStr, formatter);
                 } else {
                     return java.time.LocalDate.parse(dateStr, formatter).atStartOfDay();

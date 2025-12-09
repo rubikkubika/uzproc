@@ -74,6 +74,22 @@ public class EntityExcelLoadService {
     private static final String LINK_COLUMN = "Ссылка";
     private static final String STATUS_COLUMN = "Состояние";
 
+    // Оптимизация: статические DateTimeFormatter для парсинга дат (создаются один раз)
+    private static final DateTimeFormatter[] DATE_TIME_FORMATTERS = {
+        DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss"),
+        DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"),
+        DateTimeFormatter.ofPattern("dd.MM.yyyy"),
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"),
+        DateTimeFormatter.ofPattern("yyyy-MM-dd"),
+        DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"),
+        DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"),
+        DateTimeFormatter.ofPattern("dd/MM/yyyy")
+    };
+    
+    // Оптимизация: предкомпилированные паттерны для парсинга чисел
+    private static final java.util.regex.Pattern DIGITS_ONLY_PATTERN = java.util.regex.Pattern.compile("[^0-9]");
+
     private final PurchaseRequestRepository purchaseRequestRepository;
     private final PurchaseRepository purchaseRepository;
     private final ContractRepository contractRepository;
@@ -150,9 +166,9 @@ public class EntityExcelLoadService {
      * Для больших файлов (>10 МБ) использует потоковое чтение через Event API
      */
     public Map<String, Integer> loadAllFromExcel(File excelFile) throws IOException {
-        // Проверяем размер файла
+        // Проверяем размер файла (оптимизация: снижен порог до 5 МБ для более раннего переключения на streaming)
         long fileSizeMB = excelFile.length() / (1024 * 1024);
-        boolean isLargeFile = fileSizeMB > 10; // Файлы больше 10 МБ считаем большими
+        boolean isLargeFile = fileSizeMB > 5; // Файлы больше 5 МБ считаем большими
         
         // Для больших .xlsx файлов используем потоковое чтение
         if (isLargeFile && excelFile.getName().endsWith(".xlsx")) {
@@ -293,24 +309,27 @@ public class EntityExcelLoadService {
             logger.info("Processing rows with creation date for current year: {}", currentYear);
             
             // КЭШИРОВАНИЕ: Загружаем все существующие ID в память для быстрой проверки
+            // Оптимизация: загружаем каждую сущность из БД только один раз
             logger.info("Loading existing records into memory cache...");
             Map<Long, PurchaseRequest> existingRequestsMap = purchaseRequestRepository.findAll()
                 .stream()
                 .collect(Collectors.toMap(PurchaseRequest::getIdPurchaseRequest, pr -> pr));
-            Set<String> existingPurchaseInnerIds = purchaseRepository.findAll()
-                .stream()
+            
+            // Загружаем purchases один раз и используем для обеих коллекций
+            List<Purchase> allPurchases = purchaseRepository.findAll();
+            Set<String> existingPurchaseInnerIds = allPurchases.stream()
                 .map(Purchase::getInnerId)
                 .filter(id -> id != null)
                 .map(String::trim)
                 .collect(Collectors.toSet());
-            Map<String, Purchase> existingPurchasesMap = purchaseRepository.findAll()
-                .stream()
+            Map<String, Purchase> existingPurchasesMap = allPurchases.stream()
                 .filter(p -> p.getInnerId() != null)
-                .collect(Collectors.toMap(p -> p.getInnerId().trim(), p -> p));
+                .collect(Collectors.toMap(p -> p.getInnerId().trim(), p -> p, (p1, p2) -> p1));
+            
             Map<String, Contract> existingContractsMap = contractRepository.findAll()
                 .stream()
                 .filter(c -> c.getInnerId() != null)
-                .collect(Collectors.toMap(c -> c.getInnerId().trim(), c -> c));
+                .collect(Collectors.toMap(c -> c.getInnerId().trim(), c -> c, (c1, c2) -> c1));
             logger.info("Loaded {} purchase requests, {} purchases, {} contracts into cache", 
                 existingRequestsMap.size(), existingPurchaseInnerIds.size(), existingContractsMap.size());
             
@@ -391,14 +410,16 @@ public class EntityExcelLoadService {
                                     purchaseRequestsToCreate.add(pr);
                                 }
                                 
-                                // Сохраняем пачками
+                                // Сохраняем пачками с flush для освобождения памяти
                                 if (purchaseRequestsToCreate.size() >= BATCH_SIZE) {
                                     purchaseRequestRepository.saveAll(purchaseRequestsToCreate);
+                                    purchaseRequestRepository.flush();
                                     purchaseRequestsCreated += purchaseRequestsToCreate.size();
                                     purchaseRequestsToCreate.clear();
                                 }
                                 if (purchaseRequestsToUpdate.size() >= BATCH_SIZE) {
                                     purchaseRequestRepository.saveAll(purchaseRequestsToUpdate);
+                                    purchaseRequestRepository.flush();
                                     purchaseRequestsUpdated += purchaseRequestsToUpdate.size();
                                     purchaseRequestsToUpdate.clear();
                                 }
@@ -432,14 +453,16 @@ public class EntityExcelLoadService {
                                     purchasesToCreate.add(purchase);
                                 }
                                 
-                                // Сохраняем пачками
+                                // Сохраняем пачками с flush для освобождения памяти
                                 if (purchasesToCreate.size() >= BATCH_SIZE) {
                                     purchaseRepository.saveAll(purchasesToCreate);
+                                    purchaseRepository.flush();
                                     purchasesCreated += purchasesToCreate.size();
                                     purchasesToCreate.clear();
                                 }
                                 if (purchasesToUpdate.size() >= BATCH_SIZE) {
                                     purchaseRepository.saveAll(purchasesToUpdate);
+                                    purchaseRepository.flush();
                                     purchasesUpdated += purchasesToUpdate.size();
                                     purchasesToUpdate.clear();
                                 }
@@ -469,14 +492,16 @@ public class EntityExcelLoadService {
                                     contractsToCreate.add(contract);
                                 }
                                 
-                                // Сохраняем пачками
+                                // Сохраняем пачками с flush для освобождения памяти
                                 if (contractsToCreate.size() >= BATCH_SIZE) {
                                     contractRepository.saveAll(contractsToCreate);
+                                    contractRepository.flush();
                                     contractsCount += contractsToCreate.size();
                                     contractsToCreate.clear();
                                 }
                                 if (contractsToUpdate.size() >= BATCH_SIZE) {
                                     contractRepository.saveAll(contractsToUpdate);
+                                    contractRepository.flush();
                                     contractsCount += contractsToUpdate.size();
                                     contractsToUpdate.clear();
                                 }
@@ -962,14 +987,16 @@ public class EntityExcelLoadService {
                                 purchaseRequestsToCreate.add(pr);
                             }
                             
-                            // Сохраняем пачками
+                            // Сохраняем пачками с flush для освобождения памяти
                             if (purchaseRequestsToCreate.size() >= BATCH_SIZE) {
                                 purchaseRequestRepository.saveAll(purchaseRequestsToCreate);
+                                purchaseRequestRepository.flush();
                                 createdCount += purchaseRequestsToCreate.size();
                                 purchaseRequestsToCreate.clear();
                             }
                             if (purchaseRequestsToUpdate.size() >= BATCH_SIZE) {
                                 purchaseRequestRepository.saveAll(purchaseRequestsToUpdate);
+                                purchaseRequestRepository.flush();
                                 updatedCount += purchaseRequestsToUpdate.size();
                                 purchaseRequestsToUpdate.clear();
                             }
@@ -1415,41 +1442,47 @@ public class EntityExcelLoadService {
      * Быстрая проверка, относится ли дата в ячейке к текущему году
      * Оптимизирован для проверки года без полного парсинга даты
      */
+    /**
+     * Оптимизированная проверка года из ячейки даты
+     * Использует быстрые пути для наиболее частых форматов
+     */
     private boolean isCurrentYear(Cell dateCell, int currentYear) {
         if (dateCell == null) {
             return false;
         }
         
-        try {
-            // Быстрый путь для дат в формате Excel (NUMERIC + DateFormatted)
-            if (dateCell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(dateCell)) {
-                Date date = dateCell.getDateCellValue();
-                Calendar cal = Calendar.getInstance();
-                cal.setTime(date);
-                int year = cal.get(Calendar.YEAR);
-                return year == currentYear;
-            }
-            
-            // Для строк - быстрая проверка по первым символам года
-            if (dateCell.getCellType() == CellType.STRING) {
-                String dateStr = getCellValueAsString(dateCell);
-                if (dateStr != null && dateStr.length() >= 4) {
-                    // Проверяем, содержит ли строка текущий год (dd.MM.YYYY или YYYY-MM-DD)
-                    if (dateStr.contains(String.valueOf(currentYear))) {
-                        // Для точности можно проверить позицию года в строке
-                        return true; // Быстрая проверка
-                    }
+        CellType cellType = dateCell.getCellType();
+        
+        // Быстрый путь для дат в формате Excel (NUMERIC + DateFormatted)
+        if (cellType == CellType.NUMERIC) {
+            try {
+                if (DateUtil.isCellDateFormatted(dateCell)) {
+                    Date date = dateCell.getDateCellValue();
+                    Calendar cal = Calendar.getInstance();
+                    cal.setTime(date);
+                    return cal.get(Calendar.YEAR) == currentYear;
                 }
+            } catch (Exception e) {
+                // Fallback на полный парсинг ниже
             }
-            
-            // Fallback на полный парсинг
-            LocalDateTime creationDate = parseDateCell(dateCell);
-            return creationDate != null && creationDate.getYear() == currentYear;
-        } catch (Exception e) {
-            // Если быстрая проверка не удалась, используем полный парсинг
-            LocalDateTime creationDate = parseDateCell(dateCell);
-            return creationDate != null && creationDate.getYear() == currentYear;
         }
+        
+        // Для строк - быстрая проверка по содержимому года
+        if (cellType == CellType.STRING) {
+            String dateStr = getCellValueAsString(dateCell);
+            if (dateStr != null && dateStr.length() >= 4) {
+                // Быстрая проверка: строка содержит текущий год
+                if (dateStr.contains(String.valueOf(currentYear))) {
+                    return true;
+                }
+                // Строка не содержит текущий год - точно не текущий год
+                return false;
+            }
+        }
+        
+        // Fallback на полный парсинг (для формул и других случаев)
+        LocalDateTime creationDate = parseDateCell(dateCell);
+        return creationDate != null && creationDate.getYear() == currentYear;
     }
 
     private LocalDateTime parseDateCell(Cell cell) {
@@ -1529,6 +1562,7 @@ public class EntityExcelLoadService {
     
     /**
      * Парсит строку с датой в различных форматах
+     * Оптимизировано: использует статические DateTimeFormatter вместо создания новых
      */
     private LocalDateTime parseStringDate(String dateStr) {
         if (dateStr == null || dateStr.trim().isEmpty()) {
@@ -1537,28 +1571,12 @@ public class EntityExcelLoadService {
         
         dateStr = dateStr.trim();
         
-        // Список форматов для парсинга
-        DateTimeFormatter[] formatters = {
-            DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss"),
-            DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"),
-            DateTimeFormatter.ofPattern("dd.MM.yyyy"),
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"),
-            DateTimeFormatter.ofPattern("yyyy-MM-dd"),
-            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"),
-            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"),
-            DateTimeFormatter.ofPattern("dd/MM/yyyy"),
-            DateTimeFormatter.ISO_LOCAL_DATE_TIME,
-            DateTimeFormatter.ISO_LOCAL_DATE
-        };
-        
-        // Пробуем распарсить каждым форматом
-        for (DateTimeFormatter formatter : formatters) {
+        // Используем предварительно созданные статические форматтеры
+        for (int i = 0; i < DATE_TIME_FORMATTERS.length; i++) {
+            DateTimeFormatter formatter = DATE_TIME_FORMATTERS[i];
             try {
-                if (formatter == DateTimeFormatter.ISO_LOCAL_DATE_TIME || 
-                    formatter == DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss") ||
-                    formatter == DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss") ||
-                    formatter == DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")) {
+                // Форматтеры с индексами 0, 3, 6 содержат время (HH:mm:ss)
+                if (i == 0 || i == 3 || i == 6) {
                     return LocalDateTime.parse(dateStr, formatter);
                 } else {
                     LocalDate date = LocalDate.parse(dateStr, formatter);
@@ -1567,6 +1585,18 @@ public class EntityExcelLoadService {
             } catch (Exception e) {
                 // Пробуем следующий формат
             }
+        }
+        
+        // Пробуем ISO форматы как fallback
+        try {
+            return LocalDateTime.parse(dateStr, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        } catch (Exception e) {
+            // ignore
+        }
+        try {
+            return LocalDate.parse(dateStr, DateTimeFormatter.ISO_LOCAL_DATE).atStartOfDay();
+        } catch (Exception e) {
+            // ignore
         }
         
         return null;
@@ -1981,6 +2011,10 @@ public class EntityExcelLoadService {
     /**
      * Проверяет, пустая ли строка
      */
+    /**
+     * Оптимизированная проверка на пустую строку
+     * Использует быструю проверку типа ячейки без полного парсинга содержимого
+     */
     private boolean isRowEmpty(Row row) {
         if (row == null) {
             return true;
@@ -1988,10 +2022,53 @@ public class EntityExcelLoadService {
         
         for (int i = 0; i < row.getLastCellNum(); i++) {
             Cell cell = row.getCell(i);
-            if (cell != null && cell.getCellType() != CellType.BLANK) {
-                String value = getCellValueAsString(cell);
-                if (value != null && !value.trim().isEmpty()) {
-                    return false;
+            if (cell == null) {
+                continue;
+            }
+            
+            CellType type = cell.getCellType();
+            
+            // Пропускаем пустые ячейки
+            if (type == CellType.BLANK) {
+                continue;
+            }
+            
+            // Для числовых и булевых - строка точно не пустая
+            if (type == CellType.NUMERIC || type == CellType.BOOLEAN) {
+                return false;
+            }
+            
+            // Для строк - быстрая проверка без полного форматирования
+            if (type == CellType.STRING) {
+                try {
+                    String value = cell.getStringCellValue();
+                    if (value != null && !value.trim().isEmpty()) {
+                        return false;
+                    }
+                } catch (Exception e) {
+                    // Fallback на полный парсинг
+                    String value = getCellValueAsString(cell);
+                    if (value != null && !value.trim().isEmpty()) {
+                        return false;
+                    }
+                }
+            }
+            
+            // Для формул - проверяем результат
+            if (type == CellType.FORMULA) {
+                try {
+                    CellType cachedType = cell.getCachedFormulaResultType();
+                    if (cachedType == CellType.NUMERIC || cachedType == CellType.BOOLEAN) {
+                        return false;
+                    }
+                    if (cachedType == CellType.STRING) {
+                        String value = cell.getStringCellValue();
+                        if (value != null && !value.trim().isEmpty()) {
+                            return false;
+                        }
+                    }
+                } catch (Exception e) {
+                    // ignore
                 }
             }
         }
@@ -2210,14 +2287,16 @@ public class EntityExcelLoadService {
                             purchasesToCreate.add(purchase);
                         }
                         
-                        // Сохраняем пачками
+                        // Сохраняем пачками с flush для освобождения памяти
                         if (purchasesToCreate.size() >= BATCH_SIZE) {
                             purchaseRepository.saveAll(purchasesToCreate);
+                            purchaseRepository.flush();
                             createdCount += purchasesToCreate.size();
                             purchasesToCreate.clear();
                         }
                         if (purchasesToUpdate.size() >= BATCH_SIZE) {
                             purchaseRepository.saveAll(purchasesToUpdate);
+                            purchaseRepository.flush();
                             updatedCount += purchasesToUpdate.size();
                             purchasesToUpdate.clear();
                         }

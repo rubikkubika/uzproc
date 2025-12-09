@@ -50,6 +50,16 @@ public class PurchasePlanExcelLoadService {
     private static final String COMPLEXITY_COLUMN = "Сложность";
     private static final String HOLDING_COLUMN = "Холдинг";
     private static final String CATEGORY_COLUMN = "Категория";
+    
+    // Оптимизация: статические DateTimeFormatter для парсинга дат (создаются один раз)
+    private static final java.time.format.DateTimeFormatter[] DATE_FORMATTERS = {
+        java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy"),
+        java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"),
+        java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"),
+        java.time.format.DateTimeFormatter.ofPattern("MM/dd/yyyy"),
+        java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy"),
+        java.time.format.DateTimeFormatter.ofPattern("yyyy.MM.dd")
+    };
 
     private final PurchasePlanItemRepository purchasePlanItemRepository;
     private final DataFormatter dataFormatter = new DataFormatter();
@@ -784,6 +794,7 @@ public class PurchasePlanExcelLoadService {
     /**
      * Парсит строку с датой в LocalDate
      * Поддерживает различные форматы: dd.MM.yyyy, yyyy-MM-dd, dd/MM/yyyy и т.д.
+     * Оптимизировано: использует статические DateTimeFormatter вместо создания новых
      */
     private LocalDate parseStringDate(String dateStr) {
         if (dateStr == null || dateStr.trim().isEmpty()) {
@@ -793,19 +804,9 @@ public class PurchasePlanExcelLoadService {
         // Убираем лишние пробелы
         dateStr = dateStr.trim();
         
-        // Пробуем различные форматы
-        String[] formats = {
-            "dd.MM.yyyy",
-            "yyyy-MM-dd",
-            "dd/MM/yyyy",
-            "MM/dd/yyyy",
-            "dd-MM-yyyy",
-            "yyyy.MM.dd"
-        };
-        
-        for (String format : formats) {
+        // Используем предварительно созданные статические форматтеры
+        for (java.time.format.DateTimeFormatter formatter : DATE_FORMATTERS) {
             try {
-                java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern(format);
                 return LocalDate.parse(dateStr, formatter);
             } catch (Exception e) {
                 // Пробуем следующий формат
