@@ -13,6 +13,8 @@ import PurchaserWorkload from '@/components/PurchaserWorkload';
 import PurchaseRequestsTable from '@/components/PurchaseRequestsTable';
 import PurchasesTable from '@/components/PurchasesTable';
 import PurchasePlanItemsTable from '@/components/PurchasePlanItemsTable';
+import ContractsTable from '@/components/ContractsTable';
+import SpecificationsTable from '@/components/SpecificationsTable';
 import PurchasePlanItemsMonthlyChart from '@/components/PurchasePlanItemsMonthlyChart';
 import PurchaseRequestsYearlyChart from '@/components/PurchaseRequestsYearlyChart';
 import UploadCSV from '@/components/UploadCSV';
@@ -215,6 +217,20 @@ function DashboardContent() {
         return (
           <div className="space-y-6">
             <PurchasePlanItemsTable />
+          </div>
+        );
+
+      case 'contracts':
+        return (
+          <div className="space-y-6">
+            <ContractsTable />
+          </div>
+        );
+
+      case 'specifications':
+        return (
+          <div className="space-y-6">
+            <SpecificationsTable />
           </div>
         );
 

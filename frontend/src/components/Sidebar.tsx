@@ -45,6 +45,8 @@ const menuItems = [
     { id: 'purchase-requests', label: 'Заявки на закупку', icon: Package },
     { id: 'purchases', label: 'Закупки', icon: Package },
     { id: 'purchase-plan', label: 'План закупок', icon: Calendar },
+    { id: 'contracts', label: 'Договоры', icon: Package },
+    { id: 'specifications', label: 'Спецификации', icon: Package },
   ];
 
   const initiatorItems = [

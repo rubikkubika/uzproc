@@ -1,8 +1,10 @@
 package com.uzproc.backend.service;
 
+import com.uzproc.backend.entity.Contract;
 import com.uzproc.backend.entity.Purchase;
 import com.uzproc.backend.entity.PurchaseRequest;
 import com.uzproc.backend.entity.User;
+import com.uzproc.backend.repository.ContractRepository;
 import com.uzproc.backend.repository.PurchaseRepository;
 import com.uzproc.backend.repository.PurchaseRequestRepository;
 import com.uzproc.backend.repository.UserRepository;
@@ -47,6 +49,8 @@ public class EntityExcelLoadService {
     private static final String DOCUMENT_TYPE_COLUMN = "Вид документа";
     private static final String PURCHASE_REQUEST_TYPE = "Заявка на ЗП";
     private static final String PURCHASE_TYPE = "Закупочная процедура";
+    private static final String CONTRACT_TYPE = "Договор";
+    private static final String DOCUMENT_FORM_COLUMN = "Форма документа";
     private static final String REQUEST_NUMBER_COLUMN = "Номер заявки на ЗП";
     private static final String PURCHASE_NUMBER_COLUMN = "Номер закупки";
     private static final String CREATION_DATE_COLUMN = "Дата создания";
@@ -62,15 +66,18 @@ public class EntityExcelLoadService {
 
     private final PurchaseRequestRepository purchaseRequestRepository;
     private final PurchaseRepository purchaseRepository;
+    private final ContractRepository contractRepository;
     private final UserRepository userRepository;
     private final DataFormatter dataFormatter = new DataFormatter();
 
     public EntityExcelLoadService(
             PurchaseRequestRepository purchaseRequestRepository,
             PurchaseRepository purchaseRepository,
+            ContractRepository contractRepository,
             UserRepository userRepository) {
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.purchaseRepository = purchaseRepository;
+        this.contractRepository = contractRepository;
         this.userRepository = userRepository;
     }
 
@@ -93,16 +100,18 @@ public class EntityExcelLoadService {
                 // Загружаем данные из Excel - вызываем отдельные методы для каждой сущности
                 int purchaseRequestsCount = loadPurchaseRequestsFromExcel(tempFile.toFile());
                 int purchasesCount = loadPurchasesFromExcel(tempFile.toFile());
+                int contractsCount = loadContractsFromExcel(tempFile.toFile());
                 int usersCount = loadUsersFromExcel(tempFile.toFile());
                 
-                int totalCount = purchaseRequestsCount + purchasesCount + usersCount;
+                int totalCount = purchaseRequestsCount + purchasesCount + contractsCount + usersCount;
                 
                 response.put("success", true);
-                response.put("message", String.format("Успешно загружено: %d заявок, %d закупок, %d пользователей (всего %d записей)", 
-                    purchaseRequestsCount, purchasesCount, usersCount, totalCount));
+                response.put("message", String.format("Успешно загружено: %d заявок, %d закупок, %d договоров, %d пользователей (всего %d записей)", 
+                    purchaseRequestsCount, purchasesCount, contractsCount, usersCount, totalCount));
                 response.put("loadedCount", totalCount);
                 response.put("purchaseRequestsCount", purchaseRequestsCount);
                 response.put("purchasesCount", purchasesCount);
+                response.put("contractsCount", contractsCount);
                 response.put("usersCount", usersCount);
             } finally {
                 // Удаляем временный файл
@@ -160,7 +169,7 @@ public class EntityExcelLoadService {
             
             if (!rowIterator.hasNext()) {
                 logger.warn("Sheet is empty in file {}", excelFile.getName());
-                return Map.of("purchaseRequests", 0, "purchases", 0, "users", 0);
+                return Map.of("purchaseRequests", 0, "purchases", 0, "contracts", 0, "users", 0);
             }
 
             // Читаем заголовки один раз
@@ -235,12 +244,21 @@ public class EntityExcelLoadService {
             // Проверяем обязательные колонки
             if (documentTypeColumnIndex == null) {
                 logger.warn("Column '{}' not found in file {}", DOCUMENT_TYPE_COLUMN, excelFile.getName());
-                return Map.of("purchaseRequests", 0, "purchases", 0, "users", 0);
+                return Map.of("purchaseRequests", 0, "purchases", 0, "contracts", 0, "users", 0);
             }
+            
+            // Колонки для договоров
+            Integer contractInnerIdColumnIndex = findColumnIndexInHeader(headerRow, INNER_ID_COLUMN);
+            Integer contractCreationDateColumnIndex = findColumnIndexInHeader(headerRow, CREATION_DATE_COLUMN);
+            Integer contractCfoColumnIndex = findColumnIndexInHeader(headerRow, CFO_COLUMN);
+            Integer contractNameColumnIndex = findColumnIndexInHeader(headerRow, NAME_COLUMN);
+            Integer contractTitleColumnIndex = findColumnIndexInHeader(headerRow, TITLE_COLUMN);
+            Integer contractDocumentFormColumnIndex = findColumnIndexInHeader(headerRow, DOCUMENT_FORM_COLUMN);
             
             // Счетчики
             int purchaseRequestsCount = 0;
             int purchasesCount = 0;
+            int contractsCount = 0;
             int usersCount = 0;
             int purchaseRequestsCreated = 0;
             int purchaseRequestsUpdated = 0;
@@ -261,8 +279,16 @@ public class EntityExcelLoadService {
                 // Получаем тип документа
                 String documentType = getCellValueAsString(row.getCell(documentTypeColumnIndex));
                 
+                // Логируем все типы документов для отладки (первые 20 строк)
+                if (row.getRowNum() < 20) {
+                    logger.info("Row {}: documentType='{}' (CONTRACT_TYPE='{}', equals={}, trimEquals={})", 
+                        row.getRowNum() + 1, documentType, CONTRACT_TYPE, 
+                        CONTRACT_TYPE.equals(documentType), 
+                        documentType != null && CONTRACT_TYPE.equals(documentType.trim()));
+                }
+                
                 // Обрабатываем строку в зависимости от типа
-                if (PURCHASE_REQUEST_TYPE.equals(documentType)) {
+                if (documentType != null && PURCHASE_REQUEST_TYPE.equals(documentType.trim())) {
                     purchaseRequestTypeRowsFound++;
                     logger.debug("Found purchase request type row {}: documentType='{}'", row.getRowNum() + 1, documentType);
                     // Обработка заявки
@@ -285,12 +311,21 @@ public class EntityExcelLoadService {
                         logger.warn("Skipping purchase request row {}: missing required columns (requestNumber: {}, creationDate: {})", 
                             row.getRowNum() + 1, requestNumberColumnIndex, creationDateColumnIndex);
                     }
-                } else if (PURCHASE_TYPE.equals(documentType)) {
+                } else if (documentType != null && PURCHASE_TYPE.equals(documentType.trim())) {
                     // Обработка закупки
                     if (purchaseInnerIdColumnIndex != null) {
                         boolean processed = processPurchaseRow(row, purchaseInnerIdColumnIndex, purchaseCreationDateColumnIndex, cfoColumnIndex, purchaseLinkColumnIndex);
                         if (processed) {
                             purchasesCount++;
+                        }
+                    }
+                } else if (documentType != null && CONTRACT_TYPE.equals(documentType.trim())) {
+                    // Обработка договора
+                    if (contractInnerIdColumnIndex != null) {
+                        boolean processed = processContractRow(row, contractInnerIdColumnIndex, contractCreationDateColumnIndex, 
+                                contractCfoColumnIndex, contractNameColumnIndex, contractTitleColumnIndex, contractDocumentFormColumnIndex);
+                        if (processed) {
+                            contractsCount++;
                         }
                     }
                 }
@@ -312,12 +347,13 @@ public class EntityExcelLoadService {
             
             logger.info("Purchase request processing summary: found {} rows with type '{}', loaded {}, skipped (missing columns) {}, parse errors {}", 
                 purchaseRequestTypeRowsFound, PURCHASE_REQUEST_TYPE, purchaseRequestsCount, purchaseRequestSkippedMissingColumns, purchaseRequestParseErrors);
-            logger.info("Loaded {} purchase requests, {} purchases, {} users from file {}", 
-                purchaseRequestsCount, purchasesCount, usersCount, excelFile.getName());
+            logger.info("Loaded {} purchase requests, {} purchases, {} contracts, {} users from file {}", 
+                purchaseRequestsCount, purchasesCount, contractsCount, usersCount, excelFile.getName());
             
             return Map.of(
                 "purchaseRequests", purchaseRequestsCount,
                 "purchases", purchasesCount,
+                "contracts", contractsCount,
                 "users", usersCount
             );
         } finally {
@@ -418,6 +454,40 @@ public class EntityExcelLoadService {
     /**
      * Обрабатывает одну строку закупки
      */
+    private boolean processContractRow(Row row, Integer innerIdColumnIndex, Integer creationDateColumnIndex, 
+            Integer cfoColumnIndex, Integer nameColumnIndex, Integer titleColumnIndex, Integer documentFormColumnIndex) {
+        try {
+            Contract contract = parseContractRow(row, innerIdColumnIndex, creationDateColumnIndex, cfoColumnIndex, 
+                    nameColumnIndex, titleColumnIndex, documentFormColumnIndex);
+            if (contract == null) {
+                logger.warn("parseContractRow returned null for row {}", row.getRowNum() + 1);
+                return false;
+            }
+            if (contract.getInnerId() == null || contract.getInnerId().trim().isEmpty()) {
+                logger.warn("Inner ID is empty for contract row {}", row.getRowNum() + 1);
+                return false;
+            }
+            // Проверяем, существует ли договор с таким innerId
+            Optional<Contract> existing = contractRepository.findByInnerId(contract.getInnerId().trim());
+            
+            if (existing.isPresent()) {
+                // Обновляем существующий договор
+                Contract existingContract = existing.get();
+                boolean updated = updateContractFields(existingContract, contract);
+                if (updated) {
+                    contractRepository.save(existingContract);
+                }
+            } else {
+                // Создаем новый договор
+                contractRepository.save(contract);
+            }
+            return true;
+        } catch (Exception e) {
+            logger.warn("Error processing contract row {}: {}", row.getRowNum() + 1, e.getMessage(), e);
+            return false;
+        }
+    }
+
     private boolean processPurchaseRow(Row row, Integer innerIdColumnIndex, Integer creationDateColumnIndex, Integer cfoColumnIndex, Integer linkColumnIndex) {
         try {
             Purchase purchase = parsePurchaseRow(row, innerIdColumnIndex, creationDateColumnIndex, cfoColumnIndex, linkColumnIndex);
@@ -1932,6 +2002,288 @@ public class EntityExcelLoadService {
             logger.warn("Error parsing purchaseRequestId from link '{}': {}", link, e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * Загружает договоры из Excel файла
+     * Фильтрует по "Вид документа" = "Договор"
+     */
+    public int loadContractsFromExcel(File excelFile) throws IOException {
+        Workbook workbook;
+        try (FileInputStream fis = new FileInputStream(excelFile)) {
+            if (excelFile.getName().endsWith(".xlsx")) {
+                workbook = new XSSFWorkbook(fis);
+            } else {
+                workbook = new HSSFWorkbook(fis);
+            }
+        }
+
+        try {
+            Sheet sheet = workbook.getSheetAt(0);
+            Iterator<Row> rowIterator = sheet.iterator();
+            
+            if (!rowIterator.hasNext()) {
+                logger.warn("Sheet is empty in file {}", excelFile.getName());
+                return 0;
+            }
+
+            // Читаем заголовки
+            Row headerRow = rowIterator.next();
+            Map<String, Integer> columnIndexMap = buildColumnIndexMap(headerRow);
+            
+            Integer documentTypeColumnIndex = findColumnIndexInHeader(headerRow, DOCUMENT_TYPE_COLUMN);
+            Integer innerIdColumnIndex = findColumnIndexInHeader(headerRow, INNER_ID_COLUMN);
+            Integer creationDateColumnIndex = findColumnIndexInHeader(headerRow, CREATION_DATE_COLUMN);
+            Integer cfoColumnIndex = findColumnIndexInHeader(headerRow, CFO_COLUMN);
+            Integer nameColumnIndex = findColumnIndexInHeader(headerRow, NAME_COLUMN);
+            Integer titleColumnIndex = findColumnIndexInHeader(headerRow, TITLE_COLUMN);
+            Integer documentFormColumnIndex = findColumnIndexInHeader(headerRow, DOCUMENT_FORM_COLUMN);
+            
+            if (innerIdColumnIndex == null) {
+                logger.warn("Column '{}' not found in file {} for contracts", INNER_ID_COLUMN, excelFile.getName());
+                return 0;
+            } else {
+                logger.info("Found column '{}' at index {} for contracts", INNER_ID_COLUMN, innerIdColumnIndex);
+            }
+
+            if (documentTypeColumnIndex == null) {
+                logger.warn("Column '{}' not found in file {}", DOCUMENT_TYPE_COLUMN, excelFile.getName());
+                return 0;
+            }
+
+            if (documentFormColumnIndex == null) {
+                logger.info("Column '{}' not found in file {} for contracts, will skip document form parsing", DOCUMENT_FORM_COLUMN, excelFile.getName());
+            } else {
+                logger.info("Found column '{}' at index {} for contracts", DOCUMENT_FORM_COLUMN, documentFormColumnIndex);
+            }
+
+            int loadedCount = 0;
+            int createdCount = 0;
+            int updatedCount = 0;
+            int contractTypeRowsFound = 0;
+            int parseErrors = 0;
+            int emptyInnerId = 0;
+            
+            while (rowIterator.hasNext()) {
+                Row row = rowIterator.next();
+                
+                if (isRowEmpty(row)) {
+                    continue;
+                }
+
+                // Получаем значение из колонки "Вид документа"
+                String documentType = getCellValueAsString(row.getCell(documentTypeColumnIndex));
+                
+                // Логируем все типы документов для отладки (первые 20 строк)
+                if (row.getRowNum() < 20) {
+                    logger.info("Row {}: documentType='{}' (CONTRACT_TYPE='{}', equals={}, trimEquals={})", 
+                        row.getRowNum() + 1, documentType, CONTRACT_TYPE, 
+                        CONTRACT_TYPE.equals(documentType), 
+                        documentType != null && CONTRACT_TYPE.equals(documentType.trim()));
+                }
+                
+                // Фильтруем только "Договор" (с учетом пробелов)
+                if (documentType != null && CONTRACT_TYPE.equals(documentType.trim())) {
+                    contractTypeRowsFound++;
+                    logger.info("Found contract type row {}: documentType='{}'", row.getRowNum() + 1, documentType);
+                    try {
+                        Contract contract = parseContractRow(row, innerIdColumnIndex, creationDateColumnIndex, cfoColumnIndex, 
+                                nameColumnIndex, titleColumnIndex, documentFormColumnIndex);
+                        if (contract == null) {
+                            logger.warn("parseContractRow returned null for row {}", row.getRowNum() + 1);
+                            parseErrors++;
+                            continue;
+                        }
+                        if (contract.getInnerId() == null || contract.getInnerId().trim().isEmpty()) {
+                            logger.warn("Inner ID is empty for row {}", row.getRowNum() + 1);
+                            emptyInnerId++;
+                            continue;
+                        }
+                        // Проверяем, существует ли договор с таким innerId
+                        Optional<Contract> existing = contractRepository.findByInnerId(contract.getInnerId().trim());
+                        
+                        if (existing.isPresent()) {
+                            // Обновляем существующий договор
+                            Contract existingContract = existing.get();
+                            boolean updated = updateContractFields(existingContract, contract);
+                            if (updated) {
+                                contractRepository.save(existingContract);
+                                updatedCount++;
+                            }
+                        } else {
+                            // Создаем новый договор
+                            contractRepository.save(contract);
+                            createdCount++;
+                        }
+                        loadedCount++;
+                    } catch (Exception e) {
+                        logger.warn("Error parsing row {}: {}", row.getRowNum() + 1, e.getMessage(), e);
+                        parseErrors++;
+                    }
+                }
+            }
+            
+            logger.info("Contract processing summary: found {} rows with type '{}', loaded {}, created {}, updated {}, parse errors {}, empty inner IDs {}", 
+                contractTypeRowsFound, CONTRACT_TYPE, loadedCount, createdCount, updatedCount, parseErrors, emptyInnerId);
+
+            logger.info("Loaded {} contracts: {} created, {} updated", loadedCount, createdCount, updatedCount);
+            return loadedCount;
+        } finally {
+            workbook.close();
+        }
+    }
+
+    /**
+     * Парсит строку Excel в Contract для типа "Договор"
+     * Заполняет innerId из колонки "Внутренний номер", дату создания из колонки "Дата создания",
+     * форму документа из колонки "Форма документа" и другие поля
+     */
+    private Contract parseContractRow(Row row, Integer innerIdColumnIndex, Integer creationDateColumnIndex, 
+            Integer cfoColumnIndex, Integer nameColumnIndex, Integer titleColumnIndex, Integer documentFormColumnIndex) {
+        Contract contract = new Contract();
+        
+        try {
+            // Внутренний номер (обязательное поле)
+            if (innerIdColumnIndex != null) {
+                Cell innerIdCell = row.getCell(innerIdColumnIndex);
+                String innerId = getCellValueAsString(innerIdCell);
+                if (innerId != null && !innerId.trim().isEmpty()) {
+                    contract.setInnerId(innerId.trim());
+                    logger.debug("Parsed innerId for contract row {}: {}", row.getRowNum() + 1, innerId.trim());
+                } else {
+                    logger.warn("Row {}: Empty inner ID", row.getRowNum() + 1);
+                    return null;
+                }
+            } else {
+                logger.warn("Column '{}' not found for contract row {}", INNER_ID_COLUMN, row.getRowNum() + 1);
+                return null;
+            }
+            
+            // Дата создания (опциональное поле)
+            if (creationDateColumnIndex != null) {
+                Cell creationDateCell = row.getCell(creationDateColumnIndex);
+                LocalDateTime creationDate = parseDateCell(creationDateCell);
+                if (creationDate != null) {
+                    contract.setContractCreationDate(creationDate);
+                    logger.debug("Parsed creation date for contract row {}: {}", row.getRowNum() + 1, creationDate);
+                } else {
+                    String cellValue = creationDateCell != null ? getCellValueAsString(creationDateCell) : "null";
+                    logger.debug("Could not parse creation date in contract row {}: cell value = '{}'", 
+                        row.getRowNum() + 1, cellValue);
+                }
+            }
+            
+            // ЦФО (опциональное поле)
+            if (cfoColumnIndex != null) {
+                Cell cfoCell = row.getCell(cfoColumnIndex);
+                String cfo = getCellValueAsString(cfoCell);
+                if (cfo != null && !cfo.trim().isEmpty()) {
+                    contract.setCfo(cfo.trim());
+                    logger.debug("Parsed cfo for contract row {}: {}", row.getRowNum() + 1, cfo.trim());
+                }
+            }
+            
+            // Наименование (опциональное поле)
+            if (nameColumnIndex != null) {
+                Cell nameCell = row.getCell(nameColumnIndex);
+                String name = getCellValueAsString(nameCell);
+                if (name != null && !name.trim().isEmpty()) {
+                    contract.setName(name.trim());
+                    logger.debug("Parsed name for contract row {}: {}", row.getRowNum() + 1, name.trim());
+                }
+            }
+            
+            // Заголовок (опциональное поле)
+            if (titleColumnIndex != null) {
+                Cell titleCell = row.getCell(titleColumnIndex);
+                String title = getCellValueAsString(titleCell);
+                if (title != null && !title.trim().isEmpty()) {
+                    contract.setTitle(title.trim());
+                    logger.debug("Parsed title for contract row {}: {}", row.getRowNum() + 1, title.trim());
+                }
+            }
+            
+            // Форма документа (опциональное поле)
+            if (documentFormColumnIndex != null) {
+                Cell documentFormCell = row.getCell(documentFormColumnIndex);
+                String documentForm = getCellValueAsString(documentFormCell);
+                if (documentForm != null && !documentForm.trim().isEmpty()) {
+                    contract.setDocumentForm(documentForm.trim());
+                    logger.debug("Parsed documentForm for contract row {}: {}", row.getRowNum() + 1, documentForm.trim());
+                }
+            } else {
+                logger.debug("Column '{}' not found for contract row {}", DOCUMENT_FORM_COLUMN, row.getRowNum() + 1);
+            }
+            
+            return contract;
+        } catch (Exception e) {
+            logger.error("Error parsing Contract row {}: {}", row.getRowNum() + 1, e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * Обновляет поля существующего договора только если они отличаются
+     * Обновляет внутренний номер, дату создания, ЦФО, наименование, заголовок и форму документа
+     */
+    private boolean updateContractFields(Contract existing, Contract newData) {
+        boolean updated = false;
+        
+        // Обновляем внутренний номер
+        if (newData.getInnerId() != null && !newData.getInnerId().trim().isEmpty()) {
+            if (existing.getInnerId() == null || !existing.getInnerId().equals(newData.getInnerId())) {
+                existing.setInnerId(newData.getInnerId());
+                updated = true;
+                logger.debug("Updated innerId for contract {}: {}", existing.getId(), newData.getInnerId());
+            }
+        }
+        
+        // Обновляем дату создания
+        if (newData.getContractCreationDate() != null) {
+            if (existing.getContractCreationDate() == null || !existing.getContractCreationDate().equals(newData.getContractCreationDate())) {
+                existing.setContractCreationDate(newData.getContractCreationDate());
+                updated = true;
+                logger.debug("Updated creation date for contract {}: {}", existing.getId(), newData.getContractCreationDate());
+            }
+        }
+        
+        // Обновляем ЦФО
+        if (newData.getCfo() != null && !newData.getCfo().trim().isEmpty()) {
+            if (existing.getCfo() == null || !existing.getCfo().equals(newData.getCfo())) {
+                existing.setCfo(newData.getCfo());
+                updated = true;
+                logger.debug("Updated cfo for contract {}: {}", existing.getId(), newData.getCfo());
+            }
+        }
+        
+        // Обновляем наименование
+        if (newData.getName() != null && !newData.getName().trim().isEmpty()) {
+            if (existing.getName() == null || !existing.getName().equals(newData.getName())) {
+                existing.setName(newData.getName());
+                updated = true;
+                logger.debug("Updated name for contract {}: {}", existing.getId(), newData.getName());
+            }
+        }
+        
+        // Обновляем заголовок
+        if (newData.getTitle() != null && !newData.getTitle().trim().isEmpty()) {
+            if (existing.getTitle() == null || !existing.getTitle().equals(newData.getTitle())) {
+                existing.setTitle(newData.getTitle());
+                updated = true;
+                logger.debug("Updated title for contract {}: {}", existing.getId(), newData.getTitle());
+            }
+        }
+        
+        // Обновляем форму документа
+        if (newData.getDocumentForm() != null && !newData.getDocumentForm().trim().isEmpty()) {
+            if (existing.getDocumentForm() == null || !existing.getDocumentForm().equals(newData.getDocumentForm())) {
+                existing.setDocumentForm(newData.getDocumentForm());
+                updated = true;
+                logger.debug("Updated documentForm for contract {}: {}", existing.getId(), newData.getDocumentForm());
+            }
+        }
+        
+        return updated;
     }
 }
 

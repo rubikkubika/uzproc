@@ -98,11 +98,12 @@ public class ExcelFileAutoLoader {
                         Map<String, Integer> counts = excelLoadService.loadAllFromExcel(excelFile);
                         int purchaseRequestsCount = counts.getOrDefault("purchaseRequests", 0);
                         int purchasesCount = counts.getOrDefault("purchases", 0);
+                        int contractsCount = counts.getOrDefault("contracts", 0);
                         int usersCount = counts.getOrDefault("users", 0);
-                        int loadedCount = purchaseRequestsCount + purchasesCount + usersCount;
+                        int loadedCount = purchaseRequestsCount + purchasesCount + contractsCount + usersCount;
                         totalLoaded += loadedCount;
-                        logger.info("Loaded {} records from {} ({} purchase requests, {} purchases, {} users)", 
-                            loadedCount, excelFile.getName(), purchaseRequestsCount, purchasesCount, usersCount);
+                        logger.info("Loaded {} records from {} ({} purchase requests, {} purchases, {} contracts, {} users)", 
+                            loadedCount, excelFile.getName(), purchaseRequestsCount, purchasesCount, contractsCount, usersCount);
                     } catch (Exception e) {
                         logger.error("Error processing file {}: {}", excelFile.getName(), e.getMessage(), e);
                     }
