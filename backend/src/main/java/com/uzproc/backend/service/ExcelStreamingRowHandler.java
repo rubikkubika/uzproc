@@ -1,8 +1,10 @@
 package com.uzproc.backend.service;
 
+import com.uzproc.backend.entity.Contract;
 import com.uzproc.backend.entity.Purchase;
 import com.uzproc.backend.entity.PurchaseRequest;
 import com.uzproc.backend.entity.User;
+import com.uzproc.backend.repository.ContractRepository;
 import com.uzproc.backend.repository.PurchaseRepository;
 import com.uzproc.backend.repository.PurchaseRequestRepository;
 import com.uzproc.backend.repository.UserRepository;
@@ -31,6 +33,7 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private final EntityExcelLoadService excelLoadService;
     private final PurchaseRequestRepository purchaseRequestRepository;
     private final PurchaseRepository purchaseRepository;
+    private final ContractRepository contractRepository;
     private final UserRepository userRepository;
     private final DataFormatter dataFormatter;
     
@@ -43,9 +46,11 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     // Счетчики
     private int purchaseRequestsCount = 0;
     private int purchasesCount = 0;
+    private int contractsCount = 0;
     private int usersCount = 0;
     private int purchaseRequestsCreated = 0;
     private int purchasesCreated = 0;
+    private int contractsCreated = 0;
     
     // Константы
     private static final String DOCUMENT_TYPE_COLUMN = "Вид документа";
@@ -63,6 +68,7 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private static final String PREPARED_BY_COLUMN = "Подготовил";
     private static final String PURCHASER_COLUMN = "Ответственный за ЗП (Закупочная процедура)";
     private static final String LINK_COLUMN = "Ссылка";
+    private static final String DOCUMENT_FORM_COLUMN = "Форма документа";
     
     // Оптимизация: статические DateTimeFormatter для парсинга дат (создаются один раз)
     private static final DateTimeFormatter[] DATE_TIME_FORMATTERS = {
@@ -81,19 +87,18 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private String requiresPurchaseColumnName = null;
     private String planColumnName = null;
     
-    // Текущий год для фильтрации
-    private final int currentYear = LocalDate.now().getYear();
-    
     public ExcelStreamingRowHandler(
             EntityExcelLoadService excelLoadService,
             PurchaseRequestRepository purchaseRequestRepository,
             PurchaseRepository purchaseRepository,
+            ContractRepository contractRepository,
             UserRepository userRepository,
             StylesTable stylesTable,
             ReadOnlySharedStringsTable sharedStringsTable) {
         this.excelLoadService = excelLoadService;
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.purchaseRepository = purchaseRepository;
+        this.contractRepository = contractRepository;
         this.userRepository = userRepository;
         this.dataFormatter = new DataFormatter();
     }
@@ -145,28 +150,7 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     
     private void processDataRow() {
         try {
-            // Проверяем год создания - фильтруем по текущему году
-            Integer creationDateCol = columnIndices.get(CREATION_DATE_COLUMN);
-            if (creationDateCol != null) {
-                String dateStr = currentRowData.get(creationDateCol);
-                if (dateStr != null && !dateStr.trim().isEmpty()) {
-                    LocalDateTime creationDate = parseStringDate(dateStr);
-                    if (creationDate != null) {
-                        int year = creationDate.getYear();
-                        if (year != currentYear) {
-                            return; // Пропускаем строки не текущего года
-                        }
-                    } else {
-                        return; // Пропускаем строки без валидной даты
-                    }
-                } else {
-                    return; // Пропускаем строки без даты
-                }
-            } else {
-                return; // Пропускаем строки без колонки "Дата создания"
-            }
-            
-            // Получаем тип документа
+            // Получаем тип документа (без ограничения по году)
             Integer docTypeCol = columnIndices.get(DOCUMENT_TYPE_COLUMN);
             if (docTypeCol == null) {
                 // Пробуем найти колонку по частичному совпадению
@@ -192,7 +176,7 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 processPurchaseRow();
                 isProcessedType = true;
             } else if (CONTRACT_TYPE.equals(trimmedDocType)) {
-                // Контракты не обрабатываются в потоковом режиме, но учитываем для пользователей
+                processContractRow();
                 isProcessedType = true;
             }
             
@@ -498,6 +482,95 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
         }
     }
     
+    private void processContractRow() {
+        try {
+            Integer innerIdCol = columnIndices.get(INNER_ID_COLUMN);
+            if (innerIdCol == null) {
+                innerIdCol = findColumnIndex(INNER_ID_COLUMN);
+            }
+            if (innerIdCol == null) {
+                return;
+            }
+            
+            String innerIdStr = currentRowData.get(innerIdCol);
+            if (innerIdStr == null || innerIdStr.trim().isEmpty()) {
+                logger.warn("Row {}: Empty inner ID for contract", currentRowNum + 1);
+                return;
+            }
+            
+            String innerId = innerIdStr.trim();
+            
+            // Создаем или получаем существующий договор
+            Optional<Contract> existingOpt = contractRepository.findByInnerId(innerId);
+            Contract contract = existingOpt.orElse(new Contract());
+            contract.setInnerId(innerId);
+            
+            // Дата создания (опционально)
+            Integer creationDateCol = columnIndices.get(CREATION_DATE_COLUMN);
+            if (creationDateCol != null) {
+                String dateStr = currentRowData.get(creationDateCol);
+                if (dateStr != null && !dateStr.trim().isEmpty()) {
+                    LocalDateTime creationDate = parseStringDate(dateStr);
+                    if (creationDate != null) {
+                        contract.setContractCreationDate(creationDate);
+                    }
+                }
+            }
+            
+            // ЦФО (опционально)
+            Integer cfoCol = columnIndices.get(CFO_COLUMN);
+            if (cfoCol != null) {
+                String cfo = currentRowData.get(cfoCol);
+                if (cfo != null && !cfo.trim().isEmpty()) {
+                    contract.setCfo(cfo.trim());
+                }
+            }
+            
+            // Наименование (опционально)
+            Integer nameCol = columnIndices.get(NAME_COLUMN);
+            if (nameCol != null) {
+                String name = currentRowData.get(nameCol);
+                if (name != null && !name.trim().isEmpty()) {
+                    contract.setName(name.trim());
+                }
+            }
+            
+            // Заголовок (опционально)
+            Integer titleCol = columnIndices.get(TITLE_COLUMN);
+            if (titleCol != null) {
+                String title = currentRowData.get(titleCol);
+                if (title != null && !title.trim().isEmpty()) {
+                    contract.setTitle(title.trim());
+                }
+            }
+            
+            // Форма документа (опционально)
+            Integer documentFormCol = findColumnIndex(DOCUMENT_FORM_COLUMN);
+            if (documentFormCol != null) {
+                String documentForm = currentRowData.get(documentFormCol);
+                if (documentForm != null && !documentForm.trim().isEmpty()) {
+                    contract.setDocumentForm(documentForm.trim());
+                }
+            }
+            
+            // Сохраняем или обновляем
+            if (existingOpt.isPresent()) {
+                Contract existing = existingOpt.get();
+                boolean updated = updateContractFields(existing, contract);
+                if (updated) {
+                    contractRepository.save(existing);
+                }
+            } else {
+                contractRepository.save(contract);
+                contractsCreated++;
+            }
+            contractsCount++;
+            
+        } catch (Exception e) {
+            logger.warn("Error processing contract row {}: {}", currentRowNum + 1, e.getMessage(), e);
+        }
+    }
+    
     private void processUserRow() {
         try {
             Integer preparedByCol = columnIndices.get(PREPARED_BY_COLUMN);
@@ -788,6 +861,64 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     }
     
     /**
+     * Обновляет поля существующего договора только если они отличаются
+     */
+    private boolean updateContractFields(Contract existing, Contract newData) {
+        boolean updated = false;
+        
+        // Обновляем внутренний номер
+        if (newData.getInnerId() != null && !newData.getInnerId().trim().isEmpty()) {
+            if (existing.getInnerId() == null || !existing.getInnerId().equals(newData.getInnerId())) {
+                existing.setInnerId(newData.getInnerId());
+                updated = true;
+            }
+        }
+        
+        // Обновляем дату создания
+        if (newData.getContractCreationDate() != null) {
+            if (existing.getContractCreationDate() == null || 
+                !existing.getContractCreationDate().equals(newData.getContractCreationDate())) {
+                existing.setContractCreationDate(newData.getContractCreationDate());
+                updated = true;
+            }
+        }
+        
+        // Обновляем ЦФО
+        if (newData.getCfo() != null && !newData.getCfo().trim().isEmpty()) {
+            if (existing.getCfo() == null || !existing.getCfo().equals(newData.getCfo())) {
+                existing.setCfo(newData.getCfo());
+                updated = true;
+            }
+        }
+        
+        // Обновляем наименование
+        if (newData.getName() != null && !newData.getName().trim().isEmpty()) {
+            if (existing.getName() == null || !existing.getName().equals(newData.getName())) {
+                existing.setName(newData.getName());
+                updated = true;
+            }
+        }
+        
+        // Обновляем заголовок
+        if (newData.getTitle() != null && !newData.getTitle().trim().isEmpty()) {
+            if (existing.getTitle() == null || !existing.getTitle().equals(newData.getTitle())) {
+                existing.setTitle(newData.getTitle());
+                updated = true;
+            }
+        }
+        
+        // Обновляем форму документа
+        if (newData.getDocumentForm() != null && !newData.getDocumentForm().trim().isEmpty()) {
+            if (existing.getDocumentForm() == null || !existing.getDocumentForm().equals(newData.getDocumentForm())) {
+                existing.setDocumentForm(newData.getDocumentForm());
+                updated = true;
+            }
+        }
+        
+        return updated;
+    }
+    
+    /**
      * Парсит purchaseRequestId из ссылки (формат "N <число>")
      */
     private Long parsePurchaseRequestIdFromLink(String link) {
@@ -814,9 +945,11 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
         Map<String, Integer> results = new HashMap<>();
         results.put("purchaseRequests", purchaseRequestsCount);
         results.put("purchases", purchasesCount);
+        results.put("contracts", contractsCount);
         results.put("users", usersCount);
         results.put("purchaseRequestsCreated", purchaseRequestsCreated);
         results.put("purchasesCreated", purchasesCreated);
+        results.put("contractsCreated", contractsCreated);
         return results;
     }
     

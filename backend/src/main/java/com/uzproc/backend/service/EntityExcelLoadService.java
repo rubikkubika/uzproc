@@ -163,17 +163,13 @@ public class EntityExcelLoadService {
     /**
      * Оптимизированная загрузка всех данных из Excel файла за один проход
      * Открывает файл один раз и обрабатывает все типы строк (заявки, закупки, пользователи)
-     * Для больших файлов (>10 МБ) использует потоковое чтение через Event API
+     * Всегда использует потоковое чтение для .xlsx файлов
      */
     public Map<String, Integer> loadAllFromExcel(File excelFile) throws IOException {
-        // Проверяем размер файла (оптимизация: снижен порог до 5 МБ для более раннего переключения на streaming)
-        long fileSizeMB = excelFile.length() / (1024 * 1024);
-        boolean isLargeFile = fileSizeMB > 5; // Файлы больше 5 МБ считаем большими
-        
-        // Для больших .xlsx файлов используем потоковое чтение
-        if (isLargeFile && excelFile.getName().endsWith(".xlsx")) {
+        // Для всех .xlsx файлов используем потоковое чтение
+        if (excelFile.getName().endsWith(".xlsx")) {
             try {
-                logger.info("Large file detected ({} MB), using streaming mode", fileSizeMB);
+                logger.info("Using streaming mode for .xlsx file: {}", excelFile.getName());
                 return loadAllFromExcelStreaming(excelFile);
             } catch (Exception e) {
                 logger.warn("Streaming mode failed, falling back to standard mode: {}", e.getMessage());
@@ -181,7 +177,7 @@ public class EntityExcelLoadService {
             }
         }
         
-        // Стандартный метод для небольших файлов или .xls
+        // Стандартный метод для .xls файлов или fallback
         Workbook workbook;
         try (FileInputStream fis = new FileInputStream(excelFile)) {
             if (excelFile.getName().endsWith(".xlsx")) {
@@ -301,12 +297,7 @@ public class EntityExcelLoadService {
             int purchaseRequestTypeRowsFound = 0;
             int purchaseRequestSkippedMissingColumns = 0;
             int purchaseRequestParseErrors = 0;
-            int rowsSkippedByYear = 0;
             int rowsSkippedNoDate = 0;
-            
-            // Получаем текущий год для фильтрации
-            int currentYear = LocalDate.now().getYear();
-            logger.info("Processing rows with creation date for current year: {}", currentYear);
             
             // КЭШИРОВАНИЕ: Загружаем все существующие ID в память для быстрой проверки
             // Оптимизация: загружаем каждую сущность из БД только один раз
@@ -342,34 +333,12 @@ public class EntityExcelLoadService {
             List<Contract> contractsToUpdate = new ArrayList<>();
             final int BATCH_SIZE = 500; // Увеличен размер батча для лучшей производительности
             
-            // ОДИН ПРОХОД: Проверяем год и сразу обрабатываем строку
+            // ОДИН ПРОХОД: Обрабатываем все строки без ограничения по году
             while (rowIterator.hasNext()) {
                 Row row = rowIterator.next();
                 
                 if (isRowEmpty(row)) {
                     continue;
-                }
-                
-                // Проверяем дату создания - только если колонка найдена
-                if (creationDateColumnIndex != null) {
-                    Cell creationDateCell = row.getCell(creationDateColumnIndex);
-                    LocalDateTime creationDate = parseDateCell(creationDateCell);
-                    
-                    if (creationDate != null) {
-                        int year = creationDate.getYear();
-                        if (year != currentYear) {
-                            rowsSkippedByYear++;
-                            continue; // Пропускаем строки не текущего года
-                        }
-                    } else {
-                        // Если дата не распарсилась, пропускаем строку
-                        rowsSkippedNoDate++;
-                        continue;
-                    }
-                } else {
-                    // Если колонка "Дата создания" не найдена, пропускаем все строки
-                    logger.warn("Creation date column not found, skipping all rows");
-                    break;
                 }
 
                 // Получаем тип документа
@@ -558,7 +527,7 @@ public class EntityExcelLoadService {
                 contractsCount += contractsToUpdate.size();
             }
             
-            logger.info("Processing summary: scanned rows, skipped {} by year, {} without valid date", rowsSkippedByYear, rowsSkippedNoDate);
+            logger.info("Processing summary: scanned rows, skipped {} without valid date", rowsSkippedNoDate);
             logger.info("Purchase request processing summary: found {} rows with type '{}', loaded {} (created {}, updated {}), skipped (missing columns) {}, parse errors {}", 
                 purchaseRequestTypeRowsFound, PURCHASE_REQUEST_TYPE, purchaseRequestsCount, purchaseRequestsCreated, purchaseRequestsUpdated, purchaseRequestSkippedMissingColumns, purchaseRequestParseErrors);
             logger.info("Loaded {} purchase requests (created {}, updated {}), {} purchases (created {}, updated {}), {} contracts, {} users from file {}", 
@@ -595,6 +564,7 @@ public class EntityExcelLoadService {
                 this,
                 purchaseRequestRepository,
                 purchaseRepository,
+                contractRepository,
                 userRepository,
                 stylesTable,
                 sharedStringsTable
@@ -751,9 +721,21 @@ public class EntityExcelLoadService {
     /**
      * Загружает заявки на ЗП из Excel файла
      * Фильтрует по "Вид документа" = "Заявка на ЗП"
-     * Загружает только "Номер заявки на ЗП" и "Дата создания"
+     * Использует потоковое чтение для .xlsx файлов
      */
     public int loadPurchaseRequestsFromExcel(File excelFile) throws IOException {
+        // Для .xlsx файлов используем потоковое чтение
+        if (excelFile.getName().endsWith(".xlsx")) {
+            try {
+                Map<String, Integer> results = loadAllFromExcelStreaming(excelFile);
+                return results.getOrDefault("purchaseRequests", 0);
+            } catch (Exception e) {
+                logger.warn("Streaming mode failed, falling back to standard mode: {}", e.getMessage());
+                // Fallback на стандартный метод
+            }
+        }
+        
+        // Стандартный метод для .xls файлов или fallback
         Workbook workbook;
         try (FileInputStream fis = new FileInputStream(excelFile)) {
             if (excelFile.getName().endsWith(".xlsx")) {
@@ -897,10 +879,6 @@ public class EntityExcelLoadService {
                 logger.info("Plan column not found, will skip this field");
             }
 
-            // Получаем текущий год для фильтрации
-            int currentYear = LocalDate.now().getYear();
-            logger.info("Processing rows with creation date for current year: {}", currentYear);
-            
             // КЭШИРОВАНИЕ: Загружаем все существующие ID в память для быстрой проверки
             logger.info("Loading existing purchase requests into memory cache...");
             Map<Long, PurchaseRequest> existingRequestsMap = purchaseRequestRepository.findAll()
@@ -919,13 +897,12 @@ public class EntityExcelLoadService {
             int createdCount = 0;
             int totalRowsProcessed = 0;
             int emptyRowsSkipped = 0;
-            int rowsSkippedByYear = 0;
             int rowsSkippedNoDate = 0;
             Map<String, Integer> documentTypeCounts = new HashMap<>();
             
             logger.info("Starting to process rows. Document type column index: {}", documentTypeColumnIndex);
             
-            // ОДИН ПРОХОД: Проверяем год и сразу обрабатываем строку
+            // ОДИН ПРОХОД: Обрабатываем все строки без ограничения по году
             while (rowIterator.hasNext()) {
                 Row row = rowIterator.next();
                 totalRowsProcessed++;
@@ -933,19 +910,6 @@ public class EntityExcelLoadService {
                 if (isRowEmpty(row)) {
                     emptyRowsSkipped++;
                     continue;
-                }
-                
-                // Оптимизированная проверка года - быстрый путь для дат Excel
-                if (creationDateColumnIndex != null) {
-                    Cell creationDateCell = row.getCell(creationDateColumnIndex);
-                    if (!isCurrentYear(creationDateCell, currentYear)) {
-                        rowsSkippedByYear++;
-                        continue; // Пропускаем строки не текущего года
-                    }
-                } else {
-                    // Если колонка "Дата создания" не найдена, пропускаем все строки
-                    logger.warn("Creation date column not found, skipping all rows");
-                    break;
                 }
 
                 // Получаем значение из колонки "Вид документа"
@@ -1019,8 +983,8 @@ public class EntityExcelLoadService {
                 updatedCount += purchaseRequestsToUpdate.size();
             }
 
-            logger.info("Processing summary for file {}: total rows processed: {}, empty rows skipped: {}, skipped by year: {}, skipped no date: {}, loaded: {} (created: {}, updated: {})", 
-                excelFile.getName(), totalRowsProcessed, emptyRowsSkipped, rowsSkippedByYear, rowsSkippedNoDate, loadedCount, createdCount, updatedCount);
+            logger.info("Processing summary for file {}: total rows processed: {}, empty rows skipped: {}, skipped no date: {}, loaded: {} (created: {}, updated: {})", 
+                excelFile.getName(), totalRowsProcessed, emptyRowsSkipped, rowsSkippedNoDate, loadedCount, createdCount, updatedCount);
             logger.info("Document type distribution: {}", documentTypeCounts);
             logger.info("Loaded {} records: {} created, {} updated", loadedCount, createdCount, updatedCount);
             return loadedCount;
@@ -2078,8 +2042,21 @@ public class EntityExcelLoadService {
     /**
      * Загружает пользователей из Excel файла
      * Парсит поле "Подготовил" и создает/обновляет пользователей
+     * Использует потоковое чтение для .xlsx файлов
      */
     public int loadUsersFromExcel(File excelFile) throws IOException {
+        // Для .xlsx файлов используем потоковое чтение
+        if (excelFile.getName().endsWith(".xlsx")) {
+            try {
+                Map<String, Integer> results = loadAllFromExcelStreaming(excelFile);
+                return results.getOrDefault("users", 0);
+            } catch (Exception e) {
+                logger.warn("Streaming mode failed, falling back to standard mode: {}", e.getMessage());
+                // Fallback на стандартный метод
+            }
+        }
+        
+        // Стандартный метод для .xls файлов или fallback
         Workbook workbook;
         try (FileInputStream fis = new FileInputStream(excelFile)) {
             if (excelFile.getName().endsWith(".xlsx")) {
@@ -2111,10 +2088,6 @@ public class EntityExcelLoadService {
                 return 0;
             }
 
-            // Получаем текущий год для фильтрации
-            int currentYear = LocalDate.now().getYear();
-            logger.info("Loading users from rows with creation date for current year: {}", currentYear);
-
             int loadedCount = 0;
             
             while (rowIterator.hasNext()) {
@@ -2122,14 +2095,6 @@ public class EntityExcelLoadService {
                 
                 if (isRowEmpty(row)) {
                     continue;
-                }
-                
-                // Фильтруем по году создания
-                if (creationDateColumnIndex != null) {
-                    Cell creationDateCell = row.getCell(creationDateColumnIndex);
-                    if (!isCurrentYear(creationDateCell, currentYear)) {
-                        continue; // Пропускаем строки не текущего года
-                    }
                 }
                 
                 // Фильтруем только по нужным типам документов
@@ -2165,8 +2130,21 @@ public class EntityExcelLoadService {
     /**
      * Загружает закупки из Excel файла
      * Фильтрует по "Вид документа" = "Закупочная процедура"
+     * Использует потоковое чтение для .xlsx файлов
      */
     public int loadPurchasesFromExcel(File excelFile) throws IOException {
+        // Для .xlsx файлов используем потоковое чтение
+        if (excelFile.getName().endsWith(".xlsx")) {
+            try {
+                Map<String, Integer> results = loadAllFromExcelStreaming(excelFile);
+                return results.getOrDefault("purchases", 0);
+            } catch (Exception e) {
+                logger.warn("Streaming mode failed, falling back to standard mode: {}", e.getMessage());
+                // Fallback на стандартный метод
+            }
+        }
+        
+        // Стандартный метод для .xls файлов или fallback
         Workbook workbook;
         try (FileInputStream fis = new FileInputStream(excelFile)) {
             if (excelFile.getName().endsWith(".xlsx")) {
@@ -2207,10 +2185,6 @@ public class EntityExcelLoadService {
                 return 0;
             }
 
-            // Получаем текущий год для фильтрации
-            int currentYear = LocalDate.now().getYear();
-            logger.info("Processing rows with creation date for current year: {}", currentYear);
-            
             // КЭШИРОВАНИЕ: Загружаем все существующие ID в память для быстрой проверки
             logger.info("Loading existing purchases into memory cache...");
             Map<String, Purchase> existingPurchasesMap = purchaseRepository.findAll()
@@ -2230,28 +2204,14 @@ public class EntityExcelLoadService {
             int purchaseTypeRowsFound = 0;
             int parseErrors = 0;
             int emptyInnerId = 0;
-            int rowsSkippedByYear = 0;
             int rowsSkippedNoDate = 0;
             
-            // ОДИН ПРОХОД: Проверяем год и сразу обрабатываем строку
+            // ОДИН ПРОХОД: Обрабатываем все строки без ограничения по году
             while (rowIterator.hasNext()) {
                 Row row = rowIterator.next();
                 
                 if (isRowEmpty(row)) {
                     continue;
-                }
-                
-                // Оптимизированная проверка года - быстрый путь для дат Excel
-                if (creationDateColumnIndex != null) {
-                    Cell creationDateCell = row.getCell(creationDateColumnIndex);
-                    if (!isCurrentYear(creationDateCell, currentYear)) {
-                        rowsSkippedByYear++;
-                        continue; // Пропускаем строки не текущего года
-                    }
-                } else {
-                    // Если колонка "Дата создания" не найдена, пропускаем все строки
-                    logger.warn("Creation date column not found, skipping all rows");
-                    break;
                 }
 
                 // Получаем значение из колонки "Вид документа"
@@ -2319,8 +2279,8 @@ public class EntityExcelLoadService {
                 updatedCount += purchasesToUpdate.size();
             }
             
-            logger.info("Purchase processing summary: found {} rows with type '{}', skipped by year: {}, skipped no date: {}, loaded {}, created {}, updated {}, parse errors {}, empty inner IDs {}", 
-                purchaseTypeRowsFound, PURCHASE_TYPE, rowsSkippedByYear, rowsSkippedNoDate, loadedCount, createdCount, updatedCount, parseErrors, emptyInnerId);
+            logger.info("Purchase processing summary: found {} rows with type '{}', skipped no date: {}, loaded {}, created {}, updated {}, parse errors {}, empty inner IDs {}", 
+                purchaseTypeRowsFound, PURCHASE_TYPE, rowsSkippedNoDate, loadedCount, createdCount, updatedCount, parseErrors, emptyInnerId);
 
             logger.info("Loaded {} purchases: {} created, {} updated", loadedCount, createdCount, updatedCount);
             return loadedCount;
@@ -2491,8 +2451,21 @@ public class EntityExcelLoadService {
     /**
      * Загружает договоры из Excel файла
      * Фильтрует по "Вид документа" = "Договор"
+     * Использует потоковое чтение для .xlsx файлов
      */
     public int loadContractsFromExcel(File excelFile) throws IOException {
+        // Для .xlsx файлов используем потоковое чтение
+        if (excelFile.getName().endsWith(".xlsx")) {
+            try {
+                Map<String, Integer> results = loadAllFromExcelStreaming(excelFile);
+                return results.getOrDefault("contracts", 0);
+            } catch (Exception e) {
+                logger.warn("Streaming mode failed, falling back to standard mode: {}", e.getMessage());
+                // Fallback на стандартный метод
+            }
+        }
+        
+        // Стандартный метод для .xls файлов или fallback
         Workbook workbook;
         try (FileInputStream fis = new FileInputStream(excelFile)) {
             if (excelFile.getName().endsWith(".xlsx")) {
