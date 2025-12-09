@@ -51,6 +51,7 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private static final String DOCUMENT_TYPE_COLUMN = "Вид документа";
     private static final String PURCHASE_REQUEST_TYPE = "Заявка на ЗП";
     private static final String PURCHASE_TYPE = "Закупочная процедура";
+    private static final String CONTRACT_TYPE = "Договор";
     private static final String REQUEST_NUMBER_COLUMN = "Номер заявки на ЗП";
     private static final String CREATION_DATE_COLUMN = "Дата создания";
     private static final String INNER_ID_COLUMN = "Внутренний номер";
@@ -66,6 +67,9 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     // Названия колонок для проверки инвертированной логики
     private String requiresPurchaseColumnName = null;
     private String planColumnName = null;
+    
+    // Текущий год для фильтрации
+    private final int currentYear = LocalDate.now().getYear();
     
     public ExcelStreamingRowHandler(
             EntityExcelLoadService excelLoadService,
@@ -128,6 +132,27 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     
     private void processDataRow() {
         try {
+            // Проверяем год создания - фильтруем по текущему году
+            Integer creationDateCol = columnIndices.get(CREATION_DATE_COLUMN);
+            if (creationDateCol != null) {
+                String dateStr = currentRowData.get(creationDateCol);
+                if (dateStr != null && !dateStr.trim().isEmpty()) {
+                    LocalDateTime creationDate = parseStringDate(dateStr);
+                    if (creationDate != null) {
+                        int year = creationDate.getYear();
+                        if (year != currentYear) {
+                            return; // Пропускаем строки не текущего года
+                        }
+                    } else {
+                        return; // Пропускаем строки без валидной даты
+                    }
+                } else {
+                    return; // Пропускаем строки без даты
+                }
+            } else {
+                return; // Пропускаем строки без колонки "Дата создания"
+            }
+            
             // Получаем тип документа
             Integer docTypeCol = columnIndices.get(DOCUMENT_TYPE_COLUMN);
             if (docTypeCol == null) {
@@ -146,14 +171,22 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             String trimmedDocType = documentType.trim();
             
             // Обрабатываем в зависимости от типа документа
+            boolean isProcessedType = false;
             if (PURCHASE_REQUEST_TYPE.equals(trimmedDocType)) {
                 processPurchaseRequestRow();
+                isProcessedType = true;
             } else if (PURCHASE_TYPE.equals(trimmedDocType)) {
                 processPurchaseRow();
+                isProcessedType = true;
+            } else if (CONTRACT_TYPE.equals(trimmedDocType)) {
+                // Контракты не обрабатываются в потоковом режиме, но учитываем для пользователей
+                isProcessedType = true;
             }
             
-            // Обрабатываем пользователей из колонки "Подготовил"
-            processUserRow();
+            // Обрабатываем пользователей из колонки "Подготовил" только для обработанных типов документов
+            if (isProcessedType) {
+                processUserRow();
+            }
             
         } catch (Exception e) {
             logger.warn("Error processing row {}: {}", currentRowNum + 1, e.getMessage());

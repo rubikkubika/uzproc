@@ -8,7 +8,8 @@ public enum PurchaseRequestStatus {
     APPROVED("Утверждена"),
     COORDINATED("Согласована"),
     NOT_COORDINATED("Не согласована"),
-    NOT_APPROVED("Не утверждена");
+    NOT_APPROVED("Не утверждена"),
+    PROJECT("Проект");
 
     private final String displayName;
 

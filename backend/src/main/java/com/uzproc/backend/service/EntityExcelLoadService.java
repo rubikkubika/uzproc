@@ -3,6 +3,7 @@ package com.uzproc.backend.service;
 import com.uzproc.backend.entity.Contract;
 import com.uzproc.backend.entity.Purchase;
 import com.uzproc.backend.entity.PurchaseRequest;
+import com.uzproc.backend.entity.PurchaseRequestStatus;
 import com.uzproc.backend.entity.User;
 import com.uzproc.backend.repository.ContractRepository;
 import com.uzproc.backend.repository.PurchaseRepository;
@@ -39,6 +40,14 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.stream.Collectors;
+import java.util.Calendar;
 import org.springframework.web.multipart.MultipartFile;
 import java.io.InputStream;
 
@@ -63,6 +72,7 @@ public class EntityExcelLoadService {
     private static final String PREPARED_BY_COLUMN = "Подготовил";
     private static final String PURCHASER_COLUMN = "Ответственный за ЗП (Закупочная процедура)";
     private static final String LINK_COLUMN = "Ссылка";
+    private static final String STATUS_COLUMN = "Состояние";
 
     private final PurchaseRequestRepository purchaseRequestRepository;
     private final PurchaseRepository purchaseRepository;
@@ -97,11 +107,13 @@ public class EntityExcelLoadService {
             file.transferTo(tempFile.toFile());
             
             try {
-                // Загружаем данные из Excel - вызываем отдельные методы для каждой сущности
-                int purchaseRequestsCount = loadPurchaseRequestsFromExcel(tempFile.toFile());
-                int purchasesCount = loadPurchasesFromExcel(tempFile.toFile());
-                int contractsCount = loadContractsFromExcel(tempFile.toFile());
-                int usersCount = loadUsersFromExcel(tempFile.toFile());
+                // Загружаем данные из Excel за один проход с оптимизацией
+                // Используем loadAllFromExcel вместо отдельных вызовов для избежания повторной обработки файла
+                Map<String, Integer> counts = loadAllFromExcel(tempFile.toFile());
+                int purchaseRequestsCount = counts.getOrDefault("purchaseRequests", 0);
+                int purchasesCount = counts.getOrDefault("purchases", 0);
+                int contractsCount = counts.getOrDefault("contracts", 0);
+                int usersCount = counts.getOrDefault("users", 0);
                 
                 int totalCount = purchaseRequestsCount + purchasesCount + contractsCount + usersCount;
                 
@@ -218,6 +230,12 @@ public class EntityExcelLoadService {
             } else {
                 logger.warn("Purchaser column not found in Excel file. Tried: '{}', 'Ответственный за ЗП', 'Закупщик', 'Ответственный за закупку'. Available columns: {}", PURCHASER_COLUMN, columnIndexMap.keySet());
             }
+            Integer statusColumnIndex = findColumnIndexInHeader(headerRow, STATUS_COLUMN);
+            if (statusColumnIndex != null) {
+                logger.info("Found status column '{}' at index {}", STATUS_COLUMN, statusColumnIndex);
+            } else {
+                logger.warn("Status column '{}' not found in Excel file. Available columns: {}", STATUS_COLUMN, columnIndexMap.keySet());
+            }
             
             // Если не нашли по имени, пробуем найти по известным позициям (из логов видно, что Column 4 = "Номер заявки на ЗП")
             if (requestNumberColumnIndex == null && headerRow.getCell(4) != null) {
@@ -233,8 +251,8 @@ public class EntityExcelLoadService {
             }
             
             // Логирование найденных колонок для заявок
-            logger.info("Purchase request columns - requestNumber: {}, creationDate: {}, innerId: {}, cfo: {}, name: {}, title: {}", 
-                requestNumberColumnIndex, creationDateColumnIndex, innerIdColumnIndex, cfoColumnIndex, nameColumnIndex, titleColumnIndex);
+            logger.info("Purchase request columns - requestNumber: {}, creationDate: {}, innerId: {}, cfo: {}, name: {}, title: {}, status: {}", 
+                requestNumberColumnIndex, creationDateColumnIndex, innerIdColumnIndex, cfoColumnIndex, nameColumnIndex, titleColumnIndex, statusColumnIndex);
             
             // Колонки для закупок
             Integer purchaseInnerIdColumnIndex = findColumnIndexInHeader(headerRow, INNER_ID_COLUMN);
@@ -267,13 +285,72 @@ public class EntityExcelLoadService {
             int purchaseRequestTypeRowsFound = 0;
             int purchaseRequestSkippedMissingColumns = 0;
             int purchaseRequestParseErrors = 0;
+            int rowsSkippedByYear = 0;
+            int rowsSkippedNoDate = 0;
             
-            // Один проход по всем строкам
+            // Получаем текущий год для фильтрации
+            int currentYear = LocalDate.now().getYear();
+            logger.info("Processing rows with creation date for current year: {}", currentYear);
+            
+            // КЭШИРОВАНИЕ: Загружаем все существующие ID в память для быстрой проверки
+            logger.info("Loading existing records into memory cache...");
+            Map<Long, PurchaseRequest> existingRequestsMap = purchaseRequestRepository.findAll()
+                .stream()
+                .collect(Collectors.toMap(PurchaseRequest::getIdPurchaseRequest, pr -> pr));
+            Set<String> existingPurchaseInnerIds = purchaseRepository.findAll()
+                .stream()
+                .map(Purchase::getInnerId)
+                .filter(id -> id != null)
+                .map(String::trim)
+                .collect(Collectors.toSet());
+            Map<String, Purchase> existingPurchasesMap = purchaseRepository.findAll()
+                .stream()
+                .filter(p -> p.getInnerId() != null)
+                .collect(Collectors.toMap(p -> p.getInnerId().trim(), p -> p));
+            Map<String, Contract> existingContractsMap = contractRepository.findAll()
+                .stream()
+                .filter(c -> c.getInnerId() != null)
+                .collect(Collectors.toMap(c -> c.getInnerId().trim(), c -> c));
+            logger.info("Loaded {} purchase requests, {} purchases, {} contracts into cache", 
+                existingRequestsMap.size(), existingPurchaseInnerIds.size(), existingContractsMap.size());
+            
+            // Batch-операции для ускорения сохранения
+            List<PurchaseRequest> purchaseRequestsToCreate = new ArrayList<>();
+            List<PurchaseRequest> purchaseRequestsToUpdate = new ArrayList<>();
+            List<Purchase> purchasesToCreate = new ArrayList<>();
+            List<Purchase> purchasesToUpdate = new ArrayList<>();
+            List<Contract> contractsToCreate = new ArrayList<>();
+            List<Contract> contractsToUpdate = new ArrayList<>();
+            final int BATCH_SIZE = 500; // Увеличен размер батча для лучшей производительности
+            
+            // ОДИН ПРОХОД: Проверяем год и сразу обрабатываем строку
             while (rowIterator.hasNext()) {
                 Row row = rowIterator.next();
                 
                 if (isRowEmpty(row)) {
                     continue;
+                }
+                
+                // Проверяем дату создания - только если колонка найдена
+                if (creationDateColumnIndex != null) {
+                    Cell creationDateCell = row.getCell(creationDateColumnIndex);
+                    LocalDateTime creationDate = parseDateCell(creationDateCell);
+                    
+                    if (creationDate != null) {
+                        int year = creationDate.getYear();
+                        if (year != currentYear) {
+                            rowsSkippedByYear++;
+                            continue; // Пропускаем строки не текущего года
+                        }
+                    } else {
+                        // Если дата не распарсилась, пропускаем строку
+                        rowsSkippedNoDate++;
+                        continue;
+                    }
+                } else {
+                    // Если колонка "Дата создания" не найдена, пропускаем все строки
+                    logger.warn("Creation date column not found, skipping all rows");
+                    break;
                 }
 
                 // Получаем тип документа
@@ -297,13 +374,39 @@ public class EntityExcelLoadService {
                             getCellValueAsString(headerRow.getCell(requiresPurchaseColumnIndex)) : null;
                         String planColumnName = planColumnIndex != null && headerRow.getCell(planColumnIndex) != null ? 
                             getCellValueAsString(headerRow.getCell(planColumnIndex)) : null;
-                        boolean processed = processPurchaseRequestRow(row, requestNumberColumnIndex, creationDateColumnIndex, 
-                            innerIdColumnIndex, cfoColumnIndex, nameColumnIndex, titleColumnIndex, 
-                            requiresPurchaseColumnIndex, requiresPurchaseColumnName, planColumnIndex, planColumnName, 
-                            preparedByColumnIndex, purchaserColumnIndex);
-                        if (processed) {
-                            purchaseRequestsCount++;
-                        } else {
+                        try {
+                            PurchaseRequest pr = parsePurchaseRequestRow(row, requestNumberColumnIndex, creationDateColumnIndex, 
+                                innerIdColumnIndex, cfoColumnIndex, nameColumnIndex, titleColumnIndex, 
+                                requiresPurchaseColumnIndex, requiresPurchaseColumnName, planColumnIndex, planColumnName, 
+                                preparedByColumnIndex, purchaserColumnIndex, statusColumnIndex);
+                            if (pr != null && pr.getIdPurchaseRequest() != null) {
+                                // Используем кэш вместо запроса к БД
+                                PurchaseRequest existingPr = existingRequestsMap.get(pr.getIdPurchaseRequest());
+                                if (existingPr != null) {
+                                    boolean updated = updatePurchaseRequestFields(existingPr, pr);
+                                    if (updated) {
+                                        purchaseRequestsToUpdate.add(existingPr);
+                                    }
+                                } else {
+                                    purchaseRequestsToCreate.add(pr);
+                                }
+                                
+                                // Сохраняем пачками
+                                if (purchaseRequestsToCreate.size() >= BATCH_SIZE) {
+                                    purchaseRequestRepository.saveAll(purchaseRequestsToCreate);
+                                    purchaseRequestsCreated += purchaseRequestsToCreate.size();
+                                    purchaseRequestsToCreate.clear();
+                                }
+                                if (purchaseRequestsToUpdate.size() >= BATCH_SIZE) {
+                                    purchaseRequestRepository.saveAll(purchaseRequestsToUpdate);
+                                    purchaseRequestsUpdated += purchaseRequestsToUpdate.size();
+                                    purchaseRequestsToUpdate.clear();
+                                }
+                                
+                                purchaseRequestsCount++;
+                            }
+                        } catch (Exception e) {
+                            logger.warn("Error processing purchase request row {}: {}", row.getRowNum() + 1, e.getMessage());
                             purchaseRequestParseErrors++;
                         }
                     } else {
@@ -314,24 +417,83 @@ public class EntityExcelLoadService {
                 } else if (documentType != null && PURCHASE_TYPE.equals(documentType.trim())) {
                     // Обработка закупки
                     if (purchaseInnerIdColumnIndex != null) {
-                        boolean processed = processPurchaseRow(row, purchaseInnerIdColumnIndex, purchaseCreationDateColumnIndex, cfoColumnIndex, purchaseLinkColumnIndex);
-                        if (processed) {
-                            purchasesCount++;
+                        try {
+                            Purchase purchase = parsePurchaseRow(row, purchaseInnerIdColumnIndex, purchaseCreationDateColumnIndex, cfoColumnIndex, purchaseLinkColumnIndex);
+                            if (purchase != null && purchase.getInnerId() != null && !purchase.getInnerId().trim().isEmpty()) {
+                                // Используем кэш вместо запроса к БД
+                                String innerId = purchase.getInnerId().trim();
+                                Purchase existingPurchase = existingPurchasesMap.get(innerId);
+                                if (existingPurchase != null) {
+                                    boolean updated = updatePurchaseFields(existingPurchase, purchase);
+                                    if (updated) {
+                                        purchasesToUpdate.add(existingPurchase);
+                                    }
+                                } else {
+                                    purchasesToCreate.add(purchase);
+                                }
+                                
+                                // Сохраняем пачками
+                                if (purchasesToCreate.size() >= BATCH_SIZE) {
+                                    purchaseRepository.saveAll(purchasesToCreate);
+                                    purchasesCreated += purchasesToCreate.size();
+                                    purchasesToCreate.clear();
+                                }
+                                if (purchasesToUpdate.size() >= BATCH_SIZE) {
+                                    purchaseRepository.saveAll(purchasesToUpdate);
+                                    purchasesUpdated += purchasesToUpdate.size();
+                                    purchasesToUpdate.clear();
+                                }
+                                
+                                purchasesCount++;
+                            }
+                        } catch (Exception e) {
+                            logger.warn("Error processing purchase row {}: {}", row.getRowNum() + 1, e.getMessage());
                         }
                     }
                 } else if (documentType != null && CONTRACT_TYPE.equals(documentType.trim())) {
                     // Обработка договора
                     if (contractInnerIdColumnIndex != null) {
-                        boolean processed = processContractRow(row, contractInnerIdColumnIndex, contractCreationDateColumnIndex, 
-                                contractCfoColumnIndex, contractNameColumnIndex, contractTitleColumnIndex, contractDocumentFormColumnIndex);
-                        if (processed) {
-                            contractsCount++;
+                        try {
+                            Contract contract = parseContractRow(row, contractInnerIdColumnIndex, contractCreationDateColumnIndex, 
+                                    contractCfoColumnIndex, contractNameColumnIndex, contractTitleColumnIndex, contractDocumentFormColumnIndex);
+                            if (contract != null && contract.getInnerId() != null && !contract.getInnerId().trim().isEmpty()) {
+                                // Используем кэш вместо запроса к БД
+                                String innerId = contract.getInnerId().trim();
+                                Contract existingContract = existingContractsMap.get(innerId);
+                                if (existingContract != null) {
+                                    boolean updated = updateContractFields(existingContract, contract);
+                                    if (updated) {
+                                        contractsToUpdate.add(existingContract);
+                                    }
+                                } else {
+                                    contractsToCreate.add(contract);
+                                }
+                                
+                                // Сохраняем пачками
+                                if (contractsToCreate.size() >= BATCH_SIZE) {
+                                    contractRepository.saveAll(contractsToCreate);
+                                    contractsCount += contractsToCreate.size();
+                                    contractsToCreate.clear();
+                                }
+                                if (contractsToUpdate.size() >= BATCH_SIZE) {
+                                    contractRepository.saveAll(contractsToUpdate);
+                                    contractsCount += contractsToUpdate.size();
+                                    contractsToUpdate.clear();
+                                }
+                            }
+                        } catch (Exception e) {
+                            logger.warn("Error processing contract row {}: {}", row.getRowNum() + 1, e.getMessage());
                         }
                     }
                 }
                 
-                // Обработка пользователя (из колонки "Подготовил" для всех строк)
-                if (preparedByColumnIndex != null) {
+                // Обработка пользователя (из колонки "Подготовил" только для обработанных типов документов)
+                // Обрабатываем пользователей только из заявок на закупку, закупок и договоров
+                if (preparedByColumnIndex != null && 
+                    (documentType != null && (
+                        PURCHASE_REQUEST_TYPE.equals(documentType.trim()) || 
+                        PURCHASE_TYPE.equals(documentType.trim()) || 
+                        CONTRACT_TYPE.equals(documentType.trim())))) {
                     try {
                         Cell preparedByCell = row.getCell(preparedByColumnIndex);
                         String preparedByValue = getCellValueAsString(preparedByCell);
@@ -345,10 +507,37 @@ public class EntityExcelLoadService {
                 }
             }
             
-            logger.info("Purchase request processing summary: found {} rows with type '{}', loaded {}, skipped (missing columns) {}, parse errors {}", 
-                purchaseRequestTypeRowsFound, PURCHASE_REQUEST_TYPE, purchaseRequestsCount, purchaseRequestSkippedMissingColumns, purchaseRequestParseErrors);
-            logger.info("Loaded {} purchase requests, {} purchases, {} contracts, {} users from file {}", 
-                purchaseRequestsCount, purchasesCount, contractsCount, usersCount, excelFile.getName());
+            // Сохраняем остатки после цикла
+            if (!purchaseRequestsToCreate.isEmpty()) {
+                purchaseRequestRepository.saveAll(purchaseRequestsToCreate);
+                purchaseRequestsCreated += purchaseRequestsToCreate.size();
+            }
+            if (!purchaseRequestsToUpdate.isEmpty()) {
+                purchaseRequestRepository.saveAll(purchaseRequestsToUpdate);
+                purchaseRequestsUpdated += purchaseRequestsToUpdate.size();
+            }
+            if (!purchasesToCreate.isEmpty()) {
+                purchaseRepository.saveAll(purchasesToCreate);
+                purchasesCreated += purchasesToCreate.size();
+            }
+            if (!purchasesToUpdate.isEmpty()) {
+                purchaseRepository.saveAll(purchasesToUpdate);
+                purchasesUpdated += purchasesToUpdate.size();
+            }
+            if (!contractsToCreate.isEmpty()) {
+                contractRepository.saveAll(contractsToCreate);
+                contractsCount += contractsToCreate.size();
+            }
+            if (!contractsToUpdate.isEmpty()) {
+                contractRepository.saveAll(contractsToUpdate);
+                contractsCount += contractsToUpdate.size();
+            }
+            
+            logger.info("Processing summary: scanned rows, skipped {} by year, {} without valid date", rowsSkippedByYear, rowsSkippedNoDate);
+            logger.info("Purchase request processing summary: found {} rows with type '{}', loaded {} (created {}, updated {}), skipped (missing columns) {}, parse errors {}", 
+                purchaseRequestTypeRowsFound, PURCHASE_REQUEST_TYPE, purchaseRequestsCount, purchaseRequestsCreated, purchaseRequestsUpdated, purchaseRequestSkippedMissingColumns, purchaseRequestParseErrors);
+            logger.info("Loaded {} purchase requests (created {}, updated {}), {} purchases (created {}, updated {}), {} contracts, {} users from file {}", 
+                purchaseRequestsCount, purchaseRequestsCreated, purchaseRequestsUpdated, purchasesCount, purchasesCreated, purchasesUpdated, contractsCount, usersCount, excelFile.getName());
             
             return Map.of(
                 "purchaseRequests", purchaseRequestsCount,
@@ -426,22 +615,28 @@ public class EntityExcelLoadService {
     private boolean processPurchaseRequestRow(Row row, int requestNumberColumnIndex, int creationDateColumnIndex,
             Integer innerIdColumnIndex, Integer cfoColumnIndex, Integer nameColumnIndex, Integer titleColumnIndex,
             Integer requiresPurchaseColumnIndex, String requiresPurchaseColumnName, Integer planColumnIndex, 
-            String planColumnName, Integer preparedByColumnIndex, Integer purchaserColumnIndex) {
+            String planColumnName, Integer preparedByColumnIndex, Integer purchaserColumnIndex, Integer statusColumnIndex) {
         try {
             PurchaseRequest pr = parsePurchaseRequestRow(row, requestNumberColumnIndex, creationDateColumnIndex, 
                 innerIdColumnIndex, cfoColumnIndex, nameColumnIndex, titleColumnIndex, 
                 requiresPurchaseColumnIndex, requiresPurchaseColumnName, planColumnIndex, planColumnName, 
-                preparedByColumnIndex, purchaserColumnIndex);
+                preparedByColumnIndex, purchaserColumnIndex, statusColumnIndex);
             if (pr != null && pr.getIdPurchaseRequest() != null) {
                 Optional<PurchaseRequest> existing = purchaseRequestRepository.findByIdPurchaseRequest(pr.getIdPurchaseRequest());
                 if (existing.isPresent()) {
                     PurchaseRequest existingPr = existing.get();
+                    PurchaseRequestStatus oldStatus = existingPr.getStatus();
                     boolean updated = updatePurchaseRequestFields(existingPr, pr);
                     if (updated) {
                         purchaseRequestRepository.save(existingPr);
+                        logger.info("Updated purchase request {}: status {} -> {}", existingPr.getIdPurchaseRequest(), oldStatus, existingPr.getStatus());
+                    } else {
+                        logger.debug("No changes for purchase request {}: status remains {}", existingPr.getIdPurchaseRequest(), existingPr.getStatus());
                     }
                 } else {
+                    logger.info("Creating new purchase request {} with status: {}", pr.getIdPurchaseRequest(), pr.getStatus());
                     purchaseRequestRepository.save(pr);
+                    logger.info("Created purchase request {} with status: {}", pr.getIdPurchaseRequest(), pr.getStatus());
                 }
                 return true;
             }
@@ -598,6 +793,12 @@ public class EntityExcelLoadService {
             } else {
                 logger.warn("Purchaser column not found in Excel file. Tried: '{}', 'Ответственный за ЗП', 'Закупщик', 'Ответственный за закупку'. Available columns: {}", PURCHASER_COLUMN, columnIndexMap.keySet());
             }
+            Integer statusColumnIndex = findColumnIndexInHeader(headerRow, STATUS_COLUMN);
+            if (statusColumnIndex != null) {
+                logger.info("Found status column '{}' at index {}", STATUS_COLUMN, statusColumnIndex);
+            } else {
+                logger.warn("Status column '{}' not found in Excel file. Available columns: {}", STATUS_COLUMN, columnIndexMap.keySet());
+            }
             
             // Если не нашли по имени, пробуем найти по известным позициям (из логов видно, что Column 4 = "Номер заявки на ЗП")
             if (requestNumberColumnIndex == null && headerRow.getCell(4) != null) {
@@ -671,16 +872,35 @@ public class EntityExcelLoadService {
                 logger.info("Plan column not found, will skip this field");
             }
 
+            // Получаем текущий год для фильтрации
+            int currentYear = LocalDate.now().getYear();
+            logger.info("Processing rows with creation date for current year: {}", currentYear);
+            
+            // КЭШИРОВАНИЕ: Загружаем все существующие ID в память для быстрой проверки
+            logger.info("Loading existing purchase requests into memory cache...");
+            Map<Long, PurchaseRequest> existingRequestsMap = purchaseRequestRepository.findAll()
+                .stream()
+                .collect(Collectors.toMap(PurchaseRequest::getIdPurchaseRequest, pr -> pr));
+            logger.info("Loaded {} purchase requests into cache", existingRequestsMap.size());
+            
+            // Batch-операции для ускорения сохранения
+            List<PurchaseRequest> purchaseRequestsToCreate = new ArrayList<>();
+            List<PurchaseRequest> purchaseRequestsToUpdate = new ArrayList<>();
+            final int BATCH_SIZE = 500; // Увеличен размер батча для лучшей производительности
+            
             // Загружаем данные
             int loadedCount = 0;
             int updatedCount = 0;
             int createdCount = 0;
             int totalRowsProcessed = 0;
             int emptyRowsSkipped = 0;
+            int rowsSkippedByYear = 0;
+            int rowsSkippedNoDate = 0;
             Map<String, Integer> documentTypeCounts = new HashMap<>();
             
             logger.info("Starting to process rows. Document type column index: {}", documentTypeColumnIndex);
             
+            // ОДИН ПРОХОД: Проверяем год и сразу обрабатываем строку
             while (rowIterator.hasNext()) {
                 Row row = rowIterator.next();
                 totalRowsProcessed++;
@@ -688,6 +908,19 @@ public class EntityExcelLoadService {
                 if (isRowEmpty(row)) {
                     emptyRowsSkipped++;
                     continue;
+                }
+                
+                // Оптимизированная проверка года - быстрый путь для дат Excel
+                if (creationDateColumnIndex != null) {
+                    Cell creationDateCell = row.getCell(creationDateColumnIndex);
+                    if (!isCurrentYear(creationDateCell, currentYear)) {
+                        rowsSkippedByYear++;
+                        continue; // Пропускаем строки не текущего года
+                    }
+                } else {
+                    // Если колонка "Дата создания" не найдена, пропускаем все строки
+                    logger.warn("Creation date column not found, skipping all rows");
+                    break;
                 }
 
                 // Получаем значение из колонки "Вид документа"
@@ -714,24 +947,33 @@ public class EntityExcelLoadService {
                             getCellValueAsString(headerRow.getCell(requiresPurchaseColumnIndex)) : null;
                         String planColumnName = planColumnIndex != null && headerRow.getCell(planColumnIndex) != null ? 
                             getCellValueAsString(headerRow.getCell(planColumnIndex)) : null;
-                        PurchaseRequest pr = parsePurchaseRequestRow(row, requestNumberColumnIndex, creationDateColumnIndex, innerIdColumnIndex, cfoColumnIndex, nameColumnIndex, titleColumnIndex, requiresPurchaseColumnIndex, requiresPurchaseColumnName, planColumnIndex, planColumnName, preparedByColumnIndex, purchaserColumnIndex);
+                        PurchaseRequest pr = parsePurchaseRequestRow(row, requestNumberColumnIndex, creationDateColumnIndex, innerIdColumnIndex, cfoColumnIndex, nameColumnIndex, titleColumnIndex, requiresPurchaseColumnIndex, requiresPurchaseColumnName, planColumnIndex, planColumnName, preparedByColumnIndex, purchaserColumnIndex, statusColumnIndex);
                         if (pr != null && pr.getIdPurchaseRequest() != null) {
-                            // Проверяем, существует ли заявка с таким номером
-                            Optional<PurchaseRequest> existing = purchaseRequestRepository.findByIdPurchaseRequest(pr.getIdPurchaseRequest());
-                            
-                            if (existing.isPresent()) {
+                            // Используем кэш вместо запроса к БД
+                            PurchaseRequest existingPr = existingRequestsMap.get(pr.getIdPurchaseRequest());
+                            if (existingPr != null) {
                                 // Обновляем существующую заявку только измененными полями
-                                PurchaseRequest existingPr = existing.get();
                                 boolean updated = updatePurchaseRequestFields(existingPr, pr);
                                 if (updated) {
-                                    purchaseRequestRepository.save(existingPr);
-                                    updatedCount++;
+                                    purchaseRequestsToUpdate.add(existingPr);
                                 }
                             } else {
                                 // Создаем новую заявку
-                                purchaseRequestRepository.save(pr);
-                                createdCount++;
+                                purchaseRequestsToCreate.add(pr);
                             }
+                            
+                            // Сохраняем пачками
+                            if (purchaseRequestsToCreate.size() >= BATCH_SIZE) {
+                                purchaseRequestRepository.saveAll(purchaseRequestsToCreate);
+                                createdCount += purchaseRequestsToCreate.size();
+                                purchaseRequestsToCreate.clear();
+                            }
+                            if (purchaseRequestsToUpdate.size() >= BATCH_SIZE) {
+                                purchaseRequestRepository.saveAll(purchaseRequestsToUpdate);
+                                updatedCount += purchaseRequestsToUpdate.size();
+                                purchaseRequestsToUpdate.clear();
+                            }
+                            
                             loadedCount++;
                         }
                     } catch (Exception e) {
@@ -739,9 +981,19 @@ public class EntityExcelLoadService {
                     }
                 }
             }
+            
+            // Сохраняем остатки после цикла
+            if (!purchaseRequestsToCreate.isEmpty()) {
+                purchaseRequestRepository.saveAll(purchaseRequestsToCreate);
+                createdCount += purchaseRequestsToCreate.size();
+            }
+            if (!purchaseRequestsToUpdate.isEmpty()) {
+                purchaseRequestRepository.saveAll(purchaseRequestsToUpdate);
+                updatedCount += purchaseRequestsToUpdate.size();
+            }
 
-            logger.info("Processing summary for file {}: total rows processed: {}, empty rows skipped: {}, loaded: {} (created: {}, updated: {})", 
-                excelFile.getName(), totalRowsProcessed, emptyRowsSkipped, loadedCount, createdCount, updatedCount);
+            logger.info("Processing summary for file {}: total rows processed: {}, empty rows skipped: {}, skipped by year: {}, skipped no date: {}, loaded: {} (created: {}, updated: {})", 
+                excelFile.getName(), totalRowsProcessed, emptyRowsSkipped, rowsSkippedByYear, rowsSkippedNoDate, loadedCount, createdCount, updatedCount);
             logger.info("Document type distribution: {}", documentTypeCounts);
             logger.info("Loaded {} records: {} created, {} updated", loadedCount, createdCount, updatedCount);
             return loadedCount;
@@ -838,14 +1090,28 @@ public class EntityExcelLoadService {
             }
         }
         
+        // Обновляем статус только если он отличается
+        if (newData.getStatus() != null) {
+            if (existing.getStatus() == null || !existing.getStatus().equals(newData.getStatus())) {
+                PurchaseRequestStatus oldStatus = existing.getStatus();
+                existing.setStatus(newData.getStatus());
+                updated = true;
+                logger.info("Updated status for request {}: {} -> {}", existing.getIdPurchaseRequest(), oldStatus, newData.getStatus());
+            } else {
+                logger.debug("Status for request {} unchanged: {}", existing.getIdPurchaseRequest(), existing.getStatus());
+            }
+        } else {
+            logger.debug("New data status is null, skipping status update for request {}", existing.getIdPurchaseRequest());
+        }
+        
         return updated;
     }
 
     /**
      * Парсит строку Excel в PurchaseRequest для типа "Заявка на ЗП"
-     * Загружает "Номер заявки на ЗП", "Дата создания", "Внутренний номер", "ЦФО", "Наименование", "Заголовок", "Требуется Закупка", "План", "Подготовил" и "Ответственный за ЗП (Закупочная процедура)"
+     * Загружает "Номер заявки на ЗП", "Дата создания", "Внутренний номер", "ЦФО", "Наименование", "Заголовок", "Требуется Закупка", "План", "Подготовил", "Ответственный за ЗП (Закупочная процедура)" и "Состояние"
      */
-    private PurchaseRequest parsePurchaseRequestRow(Row row, int requestNumberColumnIndex, int creationDateColumnIndex, Integer innerIdColumnIndex, Integer cfoColumnIndex, Integer nameColumnIndex, Integer titleColumnIndex, Integer requiresPurchaseColumnIndex, String requiresPurchaseColumnName, Integer planColumnIndex, String planColumnName, Integer preparedByColumnIndex, Integer purchaserColumnIndex) {
+    private PurchaseRequest parsePurchaseRequestRow(Row row, int requestNumberColumnIndex, int creationDateColumnIndex, Integer innerIdColumnIndex, Integer cfoColumnIndex, Integer nameColumnIndex, Integer titleColumnIndex, Integer requiresPurchaseColumnIndex, String requiresPurchaseColumnName, Integer planColumnIndex, String planColumnName, Integer preparedByColumnIndex, Integer purchaserColumnIndex, Integer statusColumnIndex) {
         PurchaseRequest pr = new PurchaseRequest();
         
         try {
@@ -987,6 +1253,26 @@ public class EntityExcelLoadService {
                 logger.debug("Row {}: purchaserColumnIndex is null, skipping purchaser field", row.getRowNum() + 1);
             }
             
+            // Состояние (опционально) - парсим поле "Состояние"
+            if (statusColumnIndex != null) {
+                Cell statusCell = row.getCell(statusColumnIndex);
+                String statusValue = getCellValueAsString(statusCell);
+                if (statusValue != null && !statusValue.trim().isEmpty()) {
+                    String trimmedStatus = statusValue.trim();
+                    // Если "Состояние" = "Проект", то устанавливаем статус = PROJECT
+                    if ("Проект".equals(trimmedStatus)) {
+                        pr.setStatus(PurchaseRequestStatus.PROJECT);
+                        logger.info("Row {}: parsed status 'Проект', set status to PROJECT for request {}", row.getRowNum() + 1, pr.getIdPurchaseRequest());
+                    } else {
+                        logger.debug("Row {}: status value '{}' is not 'Проект', skipping status update", row.getRowNum() + 1, trimmedStatus);
+                    }
+                } else {
+                    logger.debug("Row {}: status cell is empty or null", row.getRowNum() + 1);
+                }
+            } else {
+                logger.debug("Row {}: statusColumnIndex is null, skipping status field", row.getRowNum() + 1);
+            }
+            
             return pr;
         } catch (Exception e) {
             logger.error("Error parsing PurchaseRequest row {}: {}", row.getRowNum() + 1, e.getMessage(), e);
@@ -1125,6 +1411,47 @@ public class EntityExcelLoadService {
     /**
      * Парсит ячейку с датой в LocalDateTime
      */
+    /**
+     * Быстрая проверка, относится ли дата в ячейке к текущему году
+     * Оптимизирован для проверки года без полного парсинга даты
+     */
+    private boolean isCurrentYear(Cell dateCell, int currentYear) {
+        if (dateCell == null) {
+            return false;
+        }
+        
+        try {
+            // Быстрый путь для дат в формате Excel (NUMERIC + DateFormatted)
+            if (dateCell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(dateCell)) {
+                Date date = dateCell.getDateCellValue();
+                Calendar cal = Calendar.getInstance();
+                cal.setTime(date);
+                int year = cal.get(Calendar.YEAR);
+                return year == currentYear;
+            }
+            
+            // Для строк - быстрая проверка по первым символам года
+            if (dateCell.getCellType() == CellType.STRING) {
+                String dateStr = getCellValueAsString(dateCell);
+                if (dateStr != null && dateStr.length() >= 4) {
+                    // Проверяем, содержит ли строка текущий год (dd.MM.YYYY или YYYY-MM-DD)
+                    if (dateStr.contains(String.valueOf(currentYear))) {
+                        // Для точности можно проверить позицию года в строке
+                        return true; // Быстрая проверка
+                    }
+                }
+            }
+            
+            // Fallback на полный парсинг
+            LocalDateTime creationDate = parseDateCell(dateCell);
+            return creationDate != null && creationDate.getYear() == currentYear;
+        } catch (Exception e) {
+            // Если быстрая проверка не удалась, используем полный парсинг
+            LocalDateTime creationDate = parseDateCell(dateCell);
+            return creationDate != null && creationDate.getYear() == currentYear;
+        }
+    }
+
     private LocalDateTime parseDateCell(Cell cell) {
         if (cell == null) {
             return null;
@@ -1698,12 +2025,18 @@ public class EntityExcelLoadService {
             Row headerRow = rowIterator.next();
             Map<String, Integer> columnIndexMap = buildColumnIndexMap(headerRow);
             
+            Integer documentTypeColumnIndex = findColumnIndexInHeader(headerRow, DOCUMENT_TYPE_COLUMN);
             Integer preparedByColumnIndex = findColumnIndexInHeader(headerRow, PREPARED_BY_COLUMN);
+            Integer creationDateColumnIndex = findColumnIndexInHeader(headerRow, CREATION_DATE_COLUMN);
             
             if (preparedByColumnIndex == null) {
                 logger.warn("Column '{}' not found in file {}", PREPARED_BY_COLUMN, excelFile.getName());
                 return 0;
             }
+
+            // Получаем текущий год для фильтрации
+            int currentYear = LocalDate.now().getYear();
+            logger.info("Loading users from rows with creation date for current year: {}", currentYear);
 
             int loadedCount = 0;
             
@@ -1712,6 +2045,25 @@ public class EntityExcelLoadService {
                 
                 if (isRowEmpty(row)) {
                     continue;
+                }
+                
+                // Фильтруем по году создания
+                if (creationDateColumnIndex != null) {
+                    Cell creationDateCell = row.getCell(creationDateColumnIndex);
+                    if (!isCurrentYear(creationDateCell, currentYear)) {
+                        continue; // Пропускаем строки не текущего года
+                    }
+                }
+                
+                // Фильтруем только по нужным типам документов
+                if (documentTypeColumnIndex != null) {
+                    String documentType = getCellValueAsString(row.getCell(documentTypeColumnIndex));
+                    if (documentType == null || 
+                        (!PURCHASE_REQUEST_TYPE.equals(documentType.trim()) && 
+                         !PURCHASE_TYPE.equals(documentType.trim()) && 
+                         !CONTRACT_TYPE.equals(documentType.trim()))) {
+                        continue; // Пропускаем строки других типов
+                    }
                 }
 
                 try {
@@ -1726,7 +2078,7 @@ public class EntityExcelLoadService {
                 }
             }
 
-            logger.info("Loaded {} users from file {}", loadedCount, excelFile.getName());
+            logger.info("Loaded {} users from file {} (filtered by document type and current year)", loadedCount, excelFile.getName());
             return loadedCount;
         } finally {
             workbook.close();
@@ -1778,18 +2130,51 @@ public class EntityExcelLoadService {
                 return 0;
             }
 
+            // Получаем текущий год для фильтрации
+            int currentYear = LocalDate.now().getYear();
+            logger.info("Processing rows with creation date for current year: {}", currentYear);
+            
+            // КЭШИРОВАНИЕ: Загружаем все существующие ID в память для быстрой проверки
+            logger.info("Loading existing purchases into memory cache...");
+            Map<String, Purchase> existingPurchasesMap = purchaseRepository.findAll()
+                .stream()
+                .filter(p -> p.getInnerId() != null)
+                .collect(Collectors.toMap(p -> p.getInnerId().trim(), p -> p));
+            logger.info("Loaded {} purchases into cache", existingPurchasesMap.size());
+            
+            // Batch-операции для ускорения сохранения
+            List<Purchase> purchasesToCreate = new ArrayList<>();
+            List<Purchase> purchasesToUpdate = new ArrayList<>();
+            final int BATCH_SIZE = 500; // Увеличен размер батча для лучшей производительности
+            
             int loadedCount = 0;
             int createdCount = 0;
             int updatedCount = 0;
             int purchaseTypeRowsFound = 0;
             int parseErrors = 0;
             int emptyInnerId = 0;
+            int rowsSkippedByYear = 0;
+            int rowsSkippedNoDate = 0;
             
+            // ОДИН ПРОХОД: Проверяем год и сразу обрабатываем строку
             while (rowIterator.hasNext()) {
                 Row row = rowIterator.next();
                 
                 if (isRowEmpty(row)) {
                     continue;
+                }
+                
+                // Оптимизированная проверка года - быстрый путь для дат Excel
+                if (creationDateColumnIndex != null) {
+                    Cell creationDateCell = row.getCell(creationDateColumnIndex);
+                    if (!isCurrentYear(creationDateCell, currentYear)) {
+                        rowsSkippedByYear++;
+                        continue; // Пропускаем строки не текущего года
+                    }
+                } else {
+                    // Если колонка "Дата создания" не найдена, пропускаем все строки
+                    logger.warn("Creation date column not found, skipping all rows");
+                    break;
                 }
 
                 // Получаем значение из колонки "Вид документа"
@@ -1811,22 +2196,32 @@ public class EntityExcelLoadService {
                             emptyInnerId++;
                             continue;
                         }
-                        // Проверяем, существует ли закупка с таким innerId
-                        Optional<Purchase> existing = purchaseRepository.findByInnerId(purchase.getInnerId().trim());
-                        
-                        if (existing.isPresent()) {
+                        // Используем кэш вместо запроса к БД
+                        String innerId = purchase.getInnerId().trim();
+                        Purchase existingPurchase = existingPurchasesMap.get(innerId);
+                        if (existingPurchase != null) {
                             // Обновляем существующую закупку
-                            Purchase existingPurchase = existing.get();
                             boolean updated = updatePurchaseFields(existingPurchase, purchase);
                             if (updated) {
-                                purchaseRepository.save(existingPurchase);
-                                updatedCount++;
+                                purchasesToUpdate.add(existingPurchase);
                             }
                         } else {
                             // Создаем новую закупку
-                            purchaseRepository.save(purchase);
-                            createdCount++;
+                            purchasesToCreate.add(purchase);
                         }
+                        
+                        // Сохраняем пачками
+                        if (purchasesToCreate.size() >= BATCH_SIZE) {
+                            purchaseRepository.saveAll(purchasesToCreate);
+                            createdCount += purchasesToCreate.size();
+                            purchasesToCreate.clear();
+                        }
+                        if (purchasesToUpdate.size() >= BATCH_SIZE) {
+                            purchaseRepository.saveAll(purchasesToUpdate);
+                            updatedCount += purchasesToUpdate.size();
+                            purchasesToUpdate.clear();
+                        }
+                        
                         loadedCount++;
                     } catch (Exception e) {
                         logger.warn("Error parsing row {}: {}", row.getRowNum() + 1, e.getMessage(), e);
@@ -1835,8 +2230,18 @@ public class EntityExcelLoadService {
                 }
             }
             
-            logger.info("Purchase processing summary: found {} rows with type '{}', loaded {}, created {}, updated {}, parse errors {}, empty inner IDs {}", 
-                purchaseTypeRowsFound, PURCHASE_TYPE, loadedCount, createdCount, updatedCount, parseErrors, emptyInnerId);
+            // Сохраняем остатки после цикла
+            if (!purchasesToCreate.isEmpty()) {
+                purchaseRepository.saveAll(purchasesToCreate);
+                createdCount += purchasesToCreate.size();
+            }
+            if (!purchasesToUpdate.isEmpty()) {
+                purchaseRepository.saveAll(purchasesToUpdate);
+                updatedCount += purchasesToUpdate.size();
+            }
+            
+            logger.info("Purchase processing summary: found {} rows with type '{}', skipped by year: {}, skipped no date: {}, loaded {}, created {}, updated {}, parse errors {}, empty inner IDs {}", 
+                purchaseTypeRowsFound, PURCHASE_TYPE, rowsSkippedByYear, rowsSkippedNoDate, loadedCount, createdCount, updatedCount, parseErrors, emptyInnerId);
 
             logger.info("Loaded {} purchases: {} created, {} updated", loadedCount, createdCount, updatedCount);
             return loadedCount;
