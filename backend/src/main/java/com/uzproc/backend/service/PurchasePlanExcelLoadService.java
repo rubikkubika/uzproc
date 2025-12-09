@@ -29,6 +29,7 @@ public class PurchasePlanExcelLoadService {
     private static final Logger logger = LoggerFactory.getLogger(PurchasePlanExcelLoadService.class);
     
     // Названия колонок в Excel файле плана закупок
+    private static final String GUID_COLUMN = "GUID";
     private static final String YEAR_COLUMN = "Год";
     private static final String COMPANY_COLUMN = "Компания";
     private static final String CFO_COLUMN = "ЦФО";
@@ -239,6 +240,7 @@ public class PurchasePlanExcelLoadService {
             }
             
             // Поиск новых колонок
+            Integer guidColumnIndex = findColumnIndex(columnIndexMap, GUID_COLUMN);
             Integer productColumnIndex = findColumnIndex(columnIndexMap, PRODUCT_COLUMN);
             Integer hasContractColumnIndex = findColumnIndex(columnIndexMap, HAS_CONTRACT_COLUMN);
             Integer currentKaColumnIndex = findColumnIndex(columnIndexMap, CURRENT_KA_COLUMN);
@@ -258,11 +260,11 @@ public class PurchasePlanExcelLoadService {
             }
             
             // Логируем найденные колонки
-            logger.info("Found columns - year: {}, company: {}, cfo: {}, purchaseSubject: {}, budgetAmount: {}, " +
+            logger.info("Found columns - guid: {}, year: {}, company: {}, cfo: {}, purchaseSubject: {}, budgetAmount: {}, " +
                     "contractEndDate: {}, requestDate: {}, newContractDate: {}, purchaser: {}, product: {}, " +
                     "hasContract: {}, currentKa: {}, currentAmount: {}, currentContractAmount: {}, " +
                     "currentContractBalance: {}, currentContractEndDate: {}, autoRenewal: {}, complexity: {}, holding: {}, category: {}",
-                    yearColumnIndex, companyColumnIndex, cfoColumnIndex, purchaseSubjectColumnIndex,
+                    guidColumnIndex, yearColumnIndex, companyColumnIndex, cfoColumnIndex, purchaseSubjectColumnIndex,
                     budgetAmountColumnIndex, contractEndDateColumnIndex, requestDateColumnIndex, newContractDateColumnIndex, purchaserColumnIndex,
                     productColumnIndex, hasContractColumnIndex, currentKaColumnIndex, currentAmountColumnIndex,
                     currentContractAmountColumnIndex, currentContractBalanceColumnIndex, currentContractEndDateColumnIndex,
@@ -280,7 +282,7 @@ public class PurchasePlanExcelLoadService {
                 }
 
                 try {
-                    PurchasePlanItem item = parsePurchasePlanItemRow(row, yearColumnIndex, companyColumnIndex,
+                    PurchasePlanItem item = parsePurchasePlanItemRow(row, guidColumnIndex, yearColumnIndex, companyColumnIndex,
                             cfoColumnIndex, purchaseSubjectColumnIndex, budgetAmountColumnIndex,
                             contractEndDateColumnIndex, requestDateColumnIndex, newContractDateColumnIndex, purchaserColumnIndex,
                             productColumnIndex, hasContractColumnIndex, currentKaColumnIndex, currentAmountColumnIndex,
@@ -325,7 +327,7 @@ public class PurchasePlanExcelLoadService {
     /**
      * Парсит строку Excel в PurchasePlanItem
      */
-    private PurchasePlanItem parsePurchasePlanItemRow(Row row, Integer yearColumnIndex, Integer companyColumnIndex,
+    private PurchasePlanItem parsePurchasePlanItemRow(Row row, Integer guidColumnIndex, Integer yearColumnIndex, Integer companyColumnIndex,
             Integer cfoColumnIndex, Integer purchaseSubjectColumnIndex, Integer budgetAmountColumnIndex,
             Integer contractEndDateColumnIndex, Integer requestDateColumnIndex, Integer newContractDateColumnIndex, Integer purchaserColumnIndex,
             Integer productColumnIndex, Integer hasContractColumnIndex, Integer currentKaColumnIndex, Integer currentAmountColumnIndex,
@@ -334,6 +336,20 @@ public class PurchasePlanExcelLoadService {
         PurchasePlanItem item = new PurchasePlanItem();
         
         try {
+            // GUID
+            if (guidColumnIndex != null) {
+                Cell guidCell = row.getCell(guidColumnIndex);
+                String guidStr = getCellValueAsString(guidCell);
+                if (guidStr != null && !guidStr.trim().isEmpty()) {
+                    try {
+                        java.util.UUID guid = java.util.UUID.fromString(guidStr.trim());
+                        item.setGuid(guid);
+                    } catch (IllegalArgumentException e) {
+                        logger.warn("Row {}: Invalid GUID format: '{}'", row.getRowNum() + 1, guidStr.trim());
+                    }
+                }
+            }
+            
             // Год
             if (yearColumnIndex != null) {
                 Cell yearCell = row.getCell(yearColumnIndex);
@@ -996,6 +1012,13 @@ public class PurchasePlanExcelLoadService {
      */
     private void updatePurchasePlanItemFields(PurchasePlanItem existing, PurchasePlanItem newData) {
         boolean updated = false;
+        
+        // GUID - устанавливаем только если еще не установлен (updatable = false в сущности)
+        if (newData.getGuid() != null && existing.getGuid() == null) {
+            existing.setGuid(newData.getGuid());
+            updated = true;
+            logger.debug("Updated guid for purchase plan item {}: {}", existing.getId(), newData.getGuid());
+        }
         
         if (newData.getYear() != null && !newData.getYear().equals(existing.getYear())) {
             existing.setYear(newData.getYear());
