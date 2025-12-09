@@ -14,6 +14,7 @@ import PurchaseRequestsTable from '@/components/PurchaseRequestsTable';
 import PurchasesTable from '@/components/PurchasesTable';
 import PurchasePlanItemsTable from '@/components/PurchasePlanItemsTable';
 import PurchasePlanItemsMonthlyChart from '@/components/PurchasePlanItemsMonthlyChart';
+import PurchaseRequestsYearlyChart from '@/components/PurchaseRequestsYearlyChart';
 import UploadCSV from '@/components/UploadCSV';
 
 const SIDEBAR_COLLAPSED_KEY = 'sidebarCollapsed';
@@ -124,9 +125,12 @@ function DashboardContent() {
     switch (activeTab) {
       case 'overview':
         return (
-          <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-            {/* Диаграмма позиций плана закупок по месяцам */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-3 lg:gap-6">
+          <div className="space-y-2 sm:space-y-3">
+            {/* Диаграммы на одном уровне */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-3">
+              <div className="lg:col-span-1">
+                <PurchaseRequestsYearlyChart />
+              </div>
               <div className="lg:col-span-1">
                 <PurchasePlanItemsMonthlyChart />
               </div>

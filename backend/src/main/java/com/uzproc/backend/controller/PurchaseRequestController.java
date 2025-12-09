@@ -135,8 +135,15 @@ public class PurchaseRequestController {
     @GetMapping("/monthly-stats")
     public ResponseEntity<Map<String, Object>> getMonthlyStats(
             @RequestParam(required = false) Integer year,
-            @RequestParam(required = false, defaultValue = "false") Boolean requiresPurchase) {
-        Map<String, Object> stats = purchaseRequestService.getMonthlyStats(year, requiresPurchase);
+            @RequestParam(required = false, defaultValue = "false") Boolean requiresPurchase,
+            @RequestParam(required = false, defaultValue = "false") Boolean useCalendarYear) {
+        Map<String, Object> stats = purchaseRequestService.getMonthlyStats(year, requiresPurchase, useCalendarYear);
+        return ResponseEntity.ok(stats);
+    }
+
+    @GetMapping("/yearly-stats")
+    public ResponseEntity<Map<String, Object>> getYearlyStats() {
+        Map<String, Object> stats = purchaseRequestService.getYearlyStats();
         return ResponseEntity.ok(stats);
     }
 }

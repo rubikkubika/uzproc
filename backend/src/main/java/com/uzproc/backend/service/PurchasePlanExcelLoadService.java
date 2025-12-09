@@ -241,6 +241,12 @@ public class PurchasePlanExcelLoadService {
             
             // Поиск новых колонок
             Integer guidColumnIndex = findColumnIndex(columnIndexMap, GUID_COLUMN);
+            if (guidColumnIndex == null) {
+                guidColumnIndex = findColumnIndex(columnIndexMap, "guid"); // Пробуем нижний регистр
+            }
+            if (guidColumnIndex == null) {
+                guidColumnIndex = findColumnIndex(columnIndexMap, "Guid"); // Пробуем с заглавной буквы
+            }
             Integer productColumnIndex = findColumnIndex(columnIndexMap, PRODUCT_COLUMN);
             Integer hasContractColumnIndex = findColumnIndex(columnIndexMap, HAS_CONTRACT_COLUMN);
             Integer currentKaColumnIndex = findColumnIndex(columnIndexMap, CURRENT_KA_COLUMN);

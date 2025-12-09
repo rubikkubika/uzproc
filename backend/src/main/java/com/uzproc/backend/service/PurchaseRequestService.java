@@ -25,8 +25,10 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @Transactional(readOnly = true)
@@ -165,10 +167,15 @@ public class PurchaseRequestService {
             // Фильтр по году (по дате создания заявки - purchaseRequestCreationDate)
             if (year != null) {
                 java.time.LocalDateTime startOfYear = java.time.LocalDateTime.of(year, 1, 1, 0, 0);
-                java.time.LocalDateTime endOfYear = java.time.LocalDateTime.of(year, 12, 31, 23, 59, 59);
-                predicates.add(cb.between(root.get("purchaseRequestCreationDate"), startOfYear, endOfYear));
+                java.time.LocalDateTime endOfYear = java.time.LocalDateTime.of(year, 12, 31, 23, 59, 59, 999999999);
+                // Используем greaterThanOrEqualTo и lessThanOrEqualTo для более точной фильтрации
+                predicates.add(cb.and(
+                    cb.isNotNull(root.get("purchaseRequestCreationDate")),
+                    cb.greaterThanOrEqualTo(root.get("purchaseRequestCreationDate"), startOfYear),
+                    cb.lessThanOrEqualTo(root.get("purchaseRequestCreationDate"), endOfYear)
+                ));
                 predicateCount++;
-                logger.info("Added year filter (by purchaseRequestCreationDate): {}", year);
+                logger.info("Added year filter (by purchaseRequestCreationDate): {} (January - December), excluding null dates", year);
             }
             
             // Фильтр по номеру заявки
@@ -586,11 +593,122 @@ public class PurchaseRequestService {
     }
 
     /**
+     * Получить статистику по годам: количество закупок и заказов по каждому году
+     * @return Map с ключами: years (список годов), purchases (список количеств закупок), orders (список количеств заказов)
+     */
+    public Map<String, Object> getYearlyStats() {
+        List<PurchaseRequest> allRequests = purchaseRequestRepository.findAll();
+        
+        // Группируем по годам
+        Map<Integer, Long> purchasesByYear = new HashMap<>();
+        Map<Integer, Long> ordersByYear = new HashMap<>();
+        
+        for (PurchaseRequest request : allRequests) {
+            if (request.getPurchaseRequestCreationDate() == null) {
+                continue;
+            }
+            
+            int year = request.getPurchaseRequestCreationDate().getYear();
+            
+            if (request.getRequiresPurchase() != null && request.getRequiresPurchase()) {
+                // Закупка
+                purchasesByYear.put(year, purchasesByYear.getOrDefault(year, 0L) + 1);
+            } else {
+                // Заказ
+                ordersByYear.put(year, ordersByYear.getOrDefault(year, 0L) + 1);
+            }
+        }
+        
+        // Получаем все годы и сортируем их
+        Set<Integer> allYearsSet = new HashSet<>();
+        allYearsSet.addAll(purchasesByYear.keySet());
+        allYearsSet.addAll(ordersByYear.keySet());
+        List<Integer> years = allYearsSet.stream()
+            .sorted()
+            .collect(Collectors.toList());
+        
+        // Формируем списки данных для каждого года
+        List<Long> purchases = years.stream()
+            .map(year -> purchasesByYear.getOrDefault(year, 0L))
+            .collect(Collectors.toList());
+        
+        List<Long> orders = years.stream()
+            .map(year -> ordersByYear.getOrDefault(year, 0L))
+            .collect(Collectors.toList());
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("years", years);
+        result.put("purchases", purchases);
+        result.put("orders", orders);
+        
+        logger.info("Yearly stats: {} years, total purchases: {}, total orders: {}", 
+            years.size(), 
+            purchases.stream().mapToLong(Long::longValue).sum(),
+            orders.stream().mapToLong(Long::longValue).sum());
+        
+        return result;
+    }
+
+    /**
      * Получить агрегированные данные по месяцам для заявок на закупку
      * Логика: "Дек (пред. год)" = декабрь выбранного года, остальные месяцы = год + 1
      */
     public Map<String, Object> getMonthlyStats(Integer year, Boolean requiresPurchase) {
-        // Загружаем данные для выбранного года (декабрь) и года + 1 (январь-декабрь)
+        return getMonthlyStats(year, requiresPurchase, false);
+    }
+
+    /**
+     * Получить агрегированные данные по месяцам для заявок на закупку
+     * @param year год
+     * @param requiresPurchase фильтр по типу (true = закупка, false = заказ, null = все)
+     * @param useCalendarYear если true, то используется календарный год (январь-декабрь), иначе старая логика
+     */
+    public Map<String, Object> getMonthlyStats(Integer year, Boolean requiresPurchase, Boolean useCalendarYear) {
+        // Если useCalendarYear = true, используем новую логику (январь-декабрь выбранного года)
+        if (useCalendarYear != null && useCalendarYear && year != null) {
+            Specification<PurchaseRequest> specForYear = (root, query, cb) -> {
+                List<Predicate> predicates = new ArrayList<>();
+                
+                if (requiresPurchase != null) {
+                    predicates.add(cb.equal(root.get("requiresPurchase"), requiresPurchase));
+                }
+                
+                // Календарный год: январь-декабрь выбранного года
+                LocalDateTime startOfYear = LocalDateTime.of(year, 1, 1, 0, 0);
+                LocalDateTime endOfYear = LocalDateTime.of(year, 12, 31, 23, 59, 59, 999999999);
+                
+                predicates.add(cb.and(
+                    cb.isNotNull(root.get("purchaseRequestCreationDate")),
+                    cb.greaterThanOrEqualTo(root.get("purchaseRequestCreationDate"), startOfYear),
+                    cb.lessThanOrEqualTo(root.get("purchaseRequestCreationDate"), endOfYear)
+                ));
+                
+                return predicates.isEmpty() ? cb.conjunction() : cb.and(predicates.toArray(new Predicate[0]));
+            };
+            
+            List<PurchaseRequest> requests = purchaseRequestRepository.findAll(specForYear);
+            
+            // Группируем по месяцам (январь-декабрь)
+            Map<String, Integer> monthCounts = new HashMap<>();
+            String[] monthNames = {"Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"};
+            for (String monthName : monthNames) {
+                monthCounts.put(monthName, 0);
+            }
+            
+            for (PurchaseRequest request : requests) {
+                if (request.getPurchaseRequestCreationDate() != null) {
+                    LocalDateTime date = request.getPurchaseRequestCreationDate();
+                    int monthIndex = date.getMonthValue() - 1; // 0-11
+                    monthCounts.put(monthNames[monthIndex], monthCounts.get(monthNames[monthIndex]) + 1);
+                }
+            }
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("monthCounts", monthCounts);
+            return result;
+        }
+        
+        // Старая логика для обратной совместимости (когда useCalendarYear == false или null)
         Specification<PurchaseRequest> specForYear = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             

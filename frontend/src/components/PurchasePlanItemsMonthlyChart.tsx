@@ -200,30 +200,20 @@ export default function PurchasePlanItemsMonthlyChart() {
 
   if (!data) {
     return (
-      <div className="bg-white p-6 rounded-lg shadow-lg">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">План закупок и заявки по месяцам</h3>
-        <div className="h-64 flex items-center justify-center text-gray-500">
-          Нет данных для отображения
-        </div>
-      </div>
-    );
-  }
-
-  return (
-      <div className="bg-white p-6 rounded-lg shadow-lg">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">План закупок и заявки по месяцам</h3>
+      <div className="bg-white p-2 sm:p-3 rounded-lg shadow-md">
+        <div className="mb-0.5 flex flex-wrap items-center gap-1.5 sm:gap-2 justify-between">
+          <h3 className="text-xs sm:text-sm font-bold text-gray-900">Исполнение Плана Закупок</h3>
           {allYears.length > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-700 font-medium">Год создания заявки:</span>
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <span className="text-xs font-medium text-gray-700">Год создания заявки:</span>
               {allYears.map((year) => (
                 <button
                   key={year}
                   onClick={() => setSelectedYear(year)}
-                  className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                  className={`px-2 py-1 text-xs rounded-md transition-colors ${
                     selectedYear === year
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
                   {year}
@@ -232,7 +222,37 @@ export default function PurchasePlanItemsMonthlyChart() {
             </div>
           )}
         </div>
-      <div className="h-96">
+        <div className="h-[250px] sm:h-[280px] flex items-center justify-center text-gray-500">
+          Нет данных для отображения
+        </div>
+      </div>
+    );
+  }
+
+  return (
+      <div className="bg-white p-2 sm:p-3 rounded-lg shadow-md">
+        <div className="mb-0.5 flex flex-wrap items-center gap-1.5 sm:gap-2 justify-between">
+          <h3 className="text-xs sm:text-sm font-bold text-gray-900">Исполнение Плана Закупок</h3>
+          {allYears.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <span className="text-xs font-medium text-gray-700">Год создания заявки:</span>
+              {allYears.map((year) => (
+                <button
+                  key={year}
+                  onClick={() => setSelectedYear(year)}
+                  className={`px-2 py-1 text-xs rounded-md transition-colors ${
+                    selectedYear === year
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {year}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      <div className="h-[250px] sm:h-[280px]">
         <Bar 
           data={data} 
           options={{
@@ -240,7 +260,7 @@ export default function PurchasePlanItemsMonthlyChart() {
             maintainAspectRatio: false,
             layout: {
               padding: {
-                top: 20,
+                top: 5, // Минимальный отступ сверху для легенды
                 right: 20,
                 bottom: 10,
                 left: 10
@@ -250,14 +270,7 @@ export default function PurchasePlanItemsMonthlyChart() {
               legend: {
                 display: true,
                 position: 'top' as const,
-                labels: {
-                  padding: 15,
-                  font: {
-                    size: 13
-                  },
-                  usePointStyle: true,
-                  pointStyle: 'circle'
-                }
+                align: 'start' as const, // Выравнивание легенды слева
               },
               tooltip: {
                 enabled: true,
