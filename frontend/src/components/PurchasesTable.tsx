@@ -142,6 +142,7 @@ export default function PurchasesTable() {
     const defaults: Record<string, number> = {
       innerId: 128, // w-32 = 8rem = 128px
       cfo: 80, // w-20 = 5rem = 80px
+      budgetAmount: 150, // Бюджет
     };
     return defaults[columnKey] || 120;
   };
@@ -152,7 +153,7 @@ export default function PurchasesTable() {
   };
   
   // Состояние для порядка колонок
-  const [columnOrder, setColumnOrder] = useState<string[]>(['innerId', 'cfo']);
+  const [columnOrder, setColumnOrder] = useState<string[]>(['innerId', 'cfo', 'budgetAmount']);
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   
@@ -163,7 +164,7 @@ export default function PurchasesTable() {
       if (saved) {
         const order = JSON.parse(saved);
         // Проверяем, что все колонки присутствуют
-        const defaultOrder = ['innerId', 'cfo'];
+        const defaultOrder = ['innerId', 'cfo', 'budgetAmount'];
         const validOrder = order.filter((col: string) => defaultOrder.includes(col));
         const missingCols = defaultOrder.filter(col => !validOrder.includes(col));
         setColumnOrder([...validOrder, ...missingCols]);
@@ -777,6 +778,49 @@ export default function PurchasesTable() {
       );
     }
     
+    if (columnKey === 'budgetAmount') {
+      return (
+        <th
+          key={columnKey}
+          draggable
+          onDragStart={(e) => handleDragStart(e, columnKey)}
+          onDragOver={(e) => handleDragOver(e, columnKey)}
+          onDragLeave={handleDragLeave}
+          onDrop={(e) => handleDrop(e, columnKey)}
+          className={`px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''} cursor-move`}
+          style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px`, verticalAlign: 'top' }}
+        >
+          <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+            <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+            </div>
+            <div className="flex items-center gap-1 min-h-[20px]">
+              <button
+                onClick={() => handleSort('budgetAmount')}
+                className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+              >
+                {sortField === 'budgetAmount' ? (
+                  sortDirection === 'asc' ? (
+                    <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                  ) : (
+                    <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                  )
+                ) : (
+                  <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                )}
+              </button>
+              <span className="text-xs font-medium text-gray-500 tracking-wider">Бюджет</span>
+            </div>
+          </div>
+          <div
+            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+            onMouseDown={(e) => handleResizeStart(e, 'budgetAmount')}
+            style={{ zIndex: 10 }}
+          />
+        </th>
+      );
+    }
+    
     return null;
   };
   
@@ -802,6 +846,18 @@ export default function PurchasesTable() {
           style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px` }}
         >
           {item.cfo || '-'}
+        </td>
+      );
+    }
+    
+    if (columnKey === 'budgetAmount') {
+      return (
+        <td 
+          key={columnKey} 
+          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
+          style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px` }}
+        >
+          {item.budgetAmount ? new Intl.NumberFormat('ru-RU').format(item.budgetAmount) : '-'}
         </td>
       );
     }

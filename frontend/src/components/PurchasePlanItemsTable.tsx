@@ -58,7 +58,6 @@ const ALL_COLUMNS = [
   { key: 'cfo', label: 'ЦФО' },
   { key: 'purchaseSubject', label: 'Предмет закупки' },
   { key: 'budgetAmount', label: 'Бюджет (UZS)' },
-  { key: 'contractEndDate', label: 'Срок окончания договора' },
   { key: 'requestDate', label: 'Дата заявки' },
   { key: 'newContractDate', label: 'Дата нового договора' },
   { key: 'purchaser', label: 'Закупщик' },
@@ -85,7 +84,6 @@ const DEFAULT_VISIBLE_COLUMNS = [
   'hasContract',
   'autoRenewal',
   'budgetAmount',
-  'contractEndDate',
   'requestDate',
   'newContractDate',
 ];
@@ -312,7 +310,7 @@ export default function PurchasePlanItemsTable() {
   const [animatingDates, setAnimatingDates] = useState<Record<number, boolean>>({});
   
   // Состояние для редактирования дат
-  const [editingDate, setEditingDate] = useState<{ itemId: number; field: 'requestDate' | 'newContractDate' | 'contractEndDate' } | null>(null);
+  const [editingDate, setEditingDate] = useState<{ itemId: number; field: 'requestDate' | 'newContractDate' } | null>(null);
 
   // Состояние для подтверждения изменений (повторный ввод логина/пароля)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -322,7 +320,7 @@ export default function PurchasePlanItemsTable() {
   const [authLoading, setAuthLoading] = useState(false);
   const [pendingDateChange, setPendingDateChange] = useState<{ 
     itemId: number;
-    field: 'requestDate' | 'newContractDate' | 'contractEndDate';
+    field: 'requestDate' | 'newContractDate';
     newDate: string;
     // Для перетаскивания Ганта - сохраняем старые и новые значения обоих полей
     oldRequestDate?: string | null;
@@ -447,7 +445,7 @@ export default function PurchasePlanItemsTable() {
   };
 
   // Низкоуровневая функция обновления даты на бэкенде (вызывается после успешной повторной аутентификации)
-  const performDateUpdate = async (itemId: number, field: 'requestDate' | 'newContractDate' | 'contractEndDate', newDate: string) => {
+  const performDateUpdate = async (itemId: number, field: 'requestDate' | 'newContractDate', newDate: string) => {
     if (!newDate || newDate.trim() === '') return;
     
     try {
@@ -456,39 +454,6 @@ export default function PurchasePlanItemsTable() {
       
       // Нормализуем дату (убираем время, если есть)
       const normalizedDate = newDate.split('T')[0];
-      
-      // Если это contractEndDate, используем отдельный endpoint
-      if (field === 'contractEndDate') {
-        const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/contract-end-date`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            contractEndDate: normalizedDate,
-          }),
-        });
-
-        if (response.ok) {
-          const updatedItem = await response.json();
-          console.log('Contract end date updated successfully:', updatedItem);
-          // Обновляем данные в таблице
-          if (data) {
-            const updatedContent = data.content.map(i => 
-              i.id === itemId 
-                ? { ...i, contractEndDate: updatedItem.contractEndDate }
-                : i
-            );
-            setData({ ...data, content: updatedContent });
-          }
-          // Закрываем режим редактирования
-          setEditingDate(null);
-        } else {
-          const errorText = await response.text();
-          console.error('Failed to update contract end date:', response.status, errorText);
-        }
-        return;
-      }
       
       // Получаем текущие даты и обновляем нужное поле
       const currentRequestDate = item.requestDate ? item.requestDate.split('T')[0] : null;
@@ -546,7 +511,7 @@ export default function PurchasePlanItemsTable() {
   };
 
   // Обертка: сразу сохраняем изменения без проверки пароля
-  const handleDateUpdate = (itemId: number, field: 'requestDate' | 'newContractDate' | 'contractEndDate', newDate: string) => {
+  const handleDateUpdate = (itemId: number, field: 'requestDate' | 'newContractDate', newDate: string) => {
     if (!newDate || newDate.trim() === '') return;
     // Сразу сохраняем изменения без проверки пароля
     performDateUpdate(itemId, field, newDate);
@@ -2515,9 +2480,6 @@ export default function PurchasePlanItemsTable() {
               {visibleColumns.has('budgetAmount') && (
               <SortableHeader field="budgetAmount" label="Бюджет (UZS)" columnKey="budgetAmount" />
               )}
-              {visibleColumns.has('contractEndDate') && (
-              <SortableHeader field="contractEndDate" label="Срок окончания договора" columnKey="contractEndDate" />
-              )}
               {visibleColumns.has('requestDate') && (
               <SortableHeader field="requestDate" label="Дата заявки" columnKey="requestDate" />
               )}
@@ -2879,41 +2841,7 @@ export default function PurchasePlanItemsTable() {
                           }).format(item.budgetAmount) : '-'}
                         </td>
                         )}
-                        {visibleColumns.has('contractEndDate') && (
-                        <td 
-                    className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 cursor-pointer hover:bg-gray-50"
-                          style={{ width: `${getColumnWidth('contractEndDate')}px`, minWidth: `${getColumnWidth('contractEndDate')}px`, maxWidth: `${getColumnWidth('contractEndDate')}px` }}
-                    onClick={() => setEditingDate({ itemId: item.id, field: 'contractEndDate' })}
-                  >
-                    {editingDate?.itemId === item.id && editingDate?.field === 'contractEndDate' ? (
-                      <input
-                        type="date"
-                        data-editing-date={`${item.id}-contractEndDate`}
-                        autoFocus
-                        defaultValue={item.contractEndDate ? item.contractEndDate.split('T')[0] : ''}
-                        onChange={(e) => {
-                          if (e.target.value) {
-                            handleDateUpdate(item.id, 'contractEndDate', e.target.value);
-                          }
-                        }}
-                        onBlur={(e) => {
-                          if (!e.target.value) {
-                            setEditingDate(null);
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Escape') {
-                            setEditingDate(null);
-                          }
-                        }}
-                        className="w-full text-xs border border-blue-500 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      />
-                    ) : (
-                      item.contractEndDate ? new Date(item.contractEndDate).toLocaleDateString('ru-RU') : '-'
-                    )}
-                  </td>
-                  )}
-                  {visibleColumns.has('requestDate') && (
+                        {visibleColumns.has('requestDate') && (
                   <td 
                     className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${
                       animatingDates[item.id] ? 'animate-pulse bg-blue-50 text-blue-700 font-semibold' : 'text-gray-900'

@@ -78,6 +78,7 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private static final String LINK_COLUMN = "Ссылка";
     private static final String DOCUMENT_FORM_COLUMN = "Форма документа";
     private static final String STATUS_COLUMN = "Состояние";
+    private static final String AMOUNT_COLUMN = "Сумма";
     
     // Оптимизация: статические DateTimeFormatter для парсинга дат (создаются один раз)
     private static final DateTimeFormatter[] DATE_TIME_FORMATTERS = {
@@ -162,6 +163,14 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             logger.info("Found status column '{}' at index {} in streaming mode", STATUS_COLUMN, statusCol);
         } else {
             logger.warn("Status column '{}' not found in Excel file (streaming mode). Available columns: {}", STATUS_COLUMN, columnIndices.keySet());
+        }
+        
+        // Проверяем наличие колонки "Сумма"
+        Integer amountCol = columnIndices.get(AMOUNT_COLUMN);
+        if (amountCol != null) {
+            logger.info("Found amount column '{}' at index {} in streaming mode", AMOUNT_COLUMN, amountCol);
+        } else {
+            logger.warn("Amount column '{}' not found in Excel file (streaming mode). Available columns: {}", AMOUNT_COLUMN, columnIndices.keySet());
         }
     }
     
@@ -417,6 +426,28 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 logger.debug("Row {}: statusColumnIndex is null, skipping state field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
             }
             
+            // Сумма (опционально) - парсим поле "Сумма" в поле budgetAmount
+            Integer amountCol = columnIndices.get(AMOUNT_COLUMN);
+            if (amountCol == null) {
+                amountCol = findColumnIndex(AMOUNT_COLUMN);
+            }
+            if (amountCol != null) {
+                String amountStr = currentRowData.get(amountCol);
+                if (amountStr != null && !amountStr.trim().isEmpty()) {
+                    java.math.BigDecimal amount = parseBigDecimalString(amountStr);
+                    if (amount != null) {
+                        pr.setBudgetAmount(amount);
+                        logger.info("Row {}: parsed amount value: '{}' and saved to budgetAmount field for request {}", currentRowNum + 1, amount, pr.getIdPurchaseRequest());
+                    } else {
+                        logger.debug("Row {}: cannot parse amount value '{}' for request {}", currentRowNum + 1, amountStr, pr.getIdPurchaseRequest());
+                    }
+                } else {
+                    logger.debug("Row {}: amount cell is empty or null", currentRowNum + 1);
+                }
+            } else {
+                logger.debug("Row {}: amountColumnIndex is null, skipping budgetAmount field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
+            }
+            
             // Сохраняем или обновляем
             if (existingOpt.isPresent()) {
                 PurchaseRequest existing = existingOpt.get();
@@ -532,6 +563,28 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 }
             } else {
                 logger.debug("Row {}: statusColumnIndex is null, skipping state field", currentRowNum + 1);
+            }
+            
+            // Сумма (опционально) - парсим поле "Сумма" в поле budgetAmount
+            Integer amountCol = columnIndices.get(AMOUNT_COLUMN);
+            if (amountCol == null) {
+                amountCol = findColumnIndex(AMOUNT_COLUMN);
+            }
+            if (amountCol != null) {
+                String amountStr = currentRowData.get(amountCol);
+                if (amountStr != null && !amountStr.trim().isEmpty()) {
+                    java.math.BigDecimal amount = parseBigDecimalString(amountStr);
+                    if (amount != null) {
+                        purchase.setBudgetAmount(amount);
+                        logger.info("Row {}: parsed amount value: '{}' and saved to budgetAmount field for purchase {}", currentRowNum + 1, amount, purchase.getInnerId());
+                    } else {
+                        logger.debug("Row {}: cannot parse amount value '{}' for purchase {}", currentRowNum + 1, amountStr, purchase.getInnerId());
+                    }
+                } else {
+                    logger.debug("Row {}: amount cell is empty or null", currentRowNum + 1);
+                }
+            } else {
+                logger.debug("Row {}: amountColumnIndex is null, skipping budgetAmount field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
             }
             
             // Сохраняем или обновляем
@@ -790,6 +843,47 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     }
     
     /**
+     * Парсит строку в BigDecimal, обрабатывая различные форматы
+     * Логика аналогична parseStringToBigDecimal в PurchasePlanExcelLoadService
+     */
+    private java.math.BigDecimal parseBigDecimalString(String raw) {
+        if (raw == null || raw.trim().isEmpty()) {
+            return null;
+        }
+        
+        try {
+            // Оставляем только цифры: убираем пробелы, неразрывные пробелы, "UZS" и любые другие символы
+            // Также сохраняем точку или запятую для десятичных чисел
+            String cleaned = raw.replaceAll("[^0-9.,]", "");
+            
+            // Заменяем запятую на точку для десятичных чисел
+            cleaned = cleaned.replace(",", ".");
+            
+            // Если есть несколько точек, оставляем только первую (для корректного парсинга)
+            int firstDotIndex = cleaned.indexOf('.');
+            if (firstDotIndex >= 0) {
+                String beforeDot = cleaned.substring(0, firstDotIndex);
+                String afterDot = cleaned.substring(firstDotIndex + 1).replace(".", "");
+                cleaned = beforeDot + "." + afterDot;
+            }
+            
+            logger.debug("parseBigDecimalString: cleaned value: '{}'", cleaned);
+
+            if (cleaned.isEmpty()) {
+                logger.warn("Cannot parse BigDecimal from string (no digits after cleanup): '{}'", raw);
+                return null;
+            }
+
+            java.math.BigDecimal result = new java.math.BigDecimal(cleaned);
+            logger.debug("parseBigDecimalString: parsed BigDecimal: {}", result);
+            return result;
+        } catch (NumberFormatException e) {
+            logger.warn("Cannot parse BigDecimal from string: '{}', error: {}", raw, e.getMessage());
+            return null;
+        }
+    }
+    
+    /**
      * Находит индекс колонки по точному или частичному совпадению
      */
     private Integer findColumnIndex(String columnName) {
@@ -913,6 +1007,33 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             }
         }
         
+        // Обновляем сумму (budgetAmount)
+        if (newData.getBudgetAmount() != null) {
+            if (existing.getBudgetAmount() == null || !existing.getBudgetAmount().equals(newData.getBudgetAmount())) {
+                existing.setBudgetAmount(newData.getBudgetAmount());
+                updated = true;
+                logger.debug("Updated budgetAmount for request {}: {}", existing.getIdPurchaseRequest(), newData.getBudgetAmount());
+            }
+        }
+        
+        // Обновляем state
+        if (newData.getState() != null && !newData.getState().trim().isEmpty()) {
+            if (existing.getState() == null || !existing.getState().equals(newData.getState())) {
+                existing.setState(newData.getState());
+                updated = true;
+                logger.debug("Updated state for request {}: {}", existing.getIdPurchaseRequest(), newData.getState());
+            }
+        }
+        
+        // Обновляем status
+        if (newData.getStatus() != null) {
+            if (existing.getStatus() == null || !existing.getStatus().equals(newData.getStatus())) {
+                existing.setStatus(newData.getStatus());
+                updated = true;
+                logger.debug("Updated status for request {}: {}", existing.getIdPurchaseRequest(), newData.getStatus());
+            }
+        }
+        
         return updated;
     }
     
@@ -952,6 +1073,37 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             if (existing.getPurchaseRequestId() == null || !existing.getPurchaseRequestId().equals(newData.getPurchaseRequestId())) {
                 existing.setPurchaseRequestId(newData.getPurchaseRequestId());
                 updated = true;
+            }
+        }
+        
+        // Обновляем сумму (budgetAmount)
+        if (newData.getBudgetAmount() != null) {
+            if (existing.getBudgetAmount() == null || !existing.getBudgetAmount().equals(newData.getBudgetAmount())) {
+                existing.setBudgetAmount(newData.getBudgetAmount());
+                updated = true;
+                logger.info("Updated budgetAmount for purchase {}: {} (existing was: {})", existing.getInnerId(), newData.getBudgetAmount(), existing.getBudgetAmount());
+            } else {
+                logger.debug("BudgetAmount for purchase {} unchanged: {}", existing.getInnerId(), existing.getBudgetAmount());
+            }
+        } else {
+            logger.debug("newData.getBudgetAmount() is null for purchase {}", existing.getInnerId());
+        }
+        
+        // Обновляем state
+        if (newData.getState() != null && !newData.getState().trim().isEmpty()) {
+            if (existing.getState() == null || !existing.getState().equals(newData.getState())) {
+                existing.setState(newData.getState());
+                updated = true;
+                logger.debug("Updated state for purchase {}: {}", existing.getInnerId(), newData.getState());
+            }
+        }
+        
+        // Обновляем status
+        if (newData.getStatus() != null) {
+            if (existing.getStatus() == null || !existing.getStatus().equals(newData.getStatus())) {
+                existing.setStatus(newData.getStatus());
+                updated = true;
+                logger.debug("Updated status for purchase {}: {}", existing.getInnerId(), newData.getStatus());
             }
         }
         
