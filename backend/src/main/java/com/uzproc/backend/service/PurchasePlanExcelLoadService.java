@@ -64,9 +64,13 @@ public class PurchasePlanExcelLoadService {
 
     private final PurchasePlanItemRepository purchasePlanItemRepository;
     private final DataFormatter dataFormatter = new DataFormatter();
+    private final FileProcessingStatsService statsService;
 
-    public PurchasePlanExcelLoadService(PurchasePlanItemRepository purchasePlanItemRepository) {
+    public PurchasePlanExcelLoadService(
+            PurchasePlanItemRepository purchasePlanItemRepository,
+            FileProcessingStatsService statsService) {
         this.purchasePlanItemRepository = purchasePlanItemRepository;
+        this.statsService = statsService;
     }
 
     /**
@@ -295,6 +299,9 @@ public class PurchasePlanExcelLoadService {
             
             int loadedCount = 0;
             int skippedCount = 0;
+            int createdCount = 0;
+            int updatedCount = 0;
+            long startTime = System.currentTimeMillis();
             
             // Обрабатываем все строки
             while (rowIterator.hasNext()) {
@@ -319,12 +326,16 @@ public class PurchasePlanExcelLoadService {
                         if (existingItem.isPresent()) {
                             // Обновляем существующую запись
                             PurchasePlanItem existing = existingItem.get();
-                            updatePurchasePlanItemFields(existing, item);
-                            purchasePlanItemRepository.save(existing);
-                            logger.debug("Updated existing purchase plan item with subject: {}", item.getPurchaseSubject());
+                            boolean wasUpdated = updatePurchasePlanItemFields(existing, item);
+                            if (wasUpdated) {
+                                purchasePlanItemRepository.save(existing);
+                                updatedCount++;
+                                logger.debug("Updated existing purchase plan item with subject: {}", item.getPurchaseSubject());
+                            }
                         } else {
                             // Создаем новую запись
                             purchasePlanItemRepository.save(item);
+                            createdCount++;
                             logger.debug("Created new purchase plan item with subject: {}", item.getPurchaseSubject());
                         }
                         loadedCount++;
@@ -338,6 +349,26 @@ public class PurchasePlanExcelLoadService {
                     logger.warn("Error processing purchase plan item row {}: {}", row.getRowNum() + 1, e.getMessage());
                     skippedCount++;
                 }
+            }
+            
+            long processingTime = System.currentTimeMillis() - startTime;
+            
+            // Записываем статистику
+            if (statsService != null) {
+                statsService.recordFileProcessing(
+                    excelFile.getName(),
+                    processingTime,
+                    0, // purchaseRequestsCreated
+                    0, // purchaseRequestsUpdated
+                    0, // purchasesCreated
+                    0, // purchasesUpdated
+                    0, // contractsCreated
+                    0, // contractsUpdated
+                    0, // usersCreated
+                    0, // usersUpdated
+                    createdCount, // purchasePlanItemsCreated
+                    updatedCount  // purchasePlanItemsUpdated
+                );
             }
             
             logger.info("Loaded {} purchase plan items from file {}, skipped {}", loadedCount, excelFile.getName(), skippedCount);
@@ -1046,8 +1077,9 @@ public class PurchasePlanExcelLoadService {
 
     /**
      * Обновляет поля существующей записи плана закупок данными из новой записи
+     * @return true если были изменения, false если изменений не было
      */
-    private void updatePurchasePlanItemFields(PurchasePlanItem existing, PurchasePlanItem newData) {
+    private boolean updatePurchasePlanItemFields(PurchasePlanItem existing, PurchasePlanItem newData) {
         boolean updated = false;
         
         // GUID - устанавливаем только если еще не установлен (updatable = false в сущности)
@@ -1183,6 +1215,8 @@ public class PurchasePlanExcelLoadService {
         if (updated) {
             logger.debug("Updated purchase plan item fields for subject: {}", existing.getPurchaseSubject());
         }
+        
+        return updated;
     }
 }
 

@@ -98,15 +98,19 @@ public class EntityExcelLoadService {
     private final UserRepository userRepository;
     private final DataFormatter dataFormatter = new DataFormatter();
 
+    private final FileProcessingStatsService statsService;
+
     public EntityExcelLoadService(
             PurchaseRequestRepository purchaseRequestRepository,
             PurchaseRepository purchaseRepository,
             ContractRepository contractRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            FileProcessingStatsService statsService) {
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.purchaseRepository = purchaseRepository;
         this.contractRepository = contractRepository;
         this.userRepository = userRepository;
+        this.statsService = statsService;
     }
 
     /**
@@ -168,382 +172,24 @@ public class EntityExcelLoadService {
      * Всегда использует потоковое чтение для .xlsx файлов
      */
     public Map<String, Integer> loadAllFromExcel(File excelFile) throws IOException {
-        // Для всех .xlsx файлов используем потоковое чтение
-        if (excelFile.getName().endsWith(".xlsx")) {
-            try {
-                logger.info("Using streaming mode for .xlsx file: {}", excelFile.getName());
-                return loadAllFromExcelStreaming(excelFile);
-            } catch (Exception e) {
-                logger.warn("Streaming mode failed, falling back to standard mode: {}", e.getMessage());
-                // Fallback на стандартный метод
-            }
-        }
-        
-        // Стандартный метод для .xls файлов или fallback
-        Workbook workbook;
-        try (FileInputStream fis = new FileInputStream(excelFile)) {
-            if (excelFile.getName().endsWith(".xlsx")) {
-                workbook = new XSSFWorkbook(fis);
-            } else {
-                workbook = new HSSFWorkbook(fis);
-            }
+        // Всегда используем потоковое чтение
+        if (!excelFile.getName().endsWith(".xlsx")) {
+            throw new IllegalArgumentException("Only .xlsx files are supported. File: " + excelFile.getName());
         }
 
         try {
-            Sheet sheet = workbook.getSheetAt(0);
-            Iterator<Row> rowIterator = sheet.iterator();
-            
-            if (!rowIterator.hasNext()) {
-                logger.warn("Sheet is empty in file {}", excelFile.getName());
-                return Map.of("purchaseRequests", 0, "purchases", 0, "contracts", 0, "users", 0);
-            }
-
-            // Читаем заголовки один раз
-            Row headerRow = rowIterator.next();
-            Map<String, Integer> columnIndexMap = buildColumnIndexMap(headerRow);
-            
-            // Находим все нужные колонки один раз (используем findColumnIndexInHeader для поиска ПЕРВОЙ колонки)
-            Integer documentTypeColumnIndex = findColumnIndexInHeader(headerRow, DOCUMENT_TYPE_COLUMN);
-            
-            // Колонки для заявок
-            Integer requestNumberColumnIndex = findColumnIndexInHeader(headerRow, REQUEST_NUMBER_COLUMN);
-            // Пробуем альтернативные названия (включая опечатки)
-            if (requestNumberColumnIndex == null) {
-                requestNumberColumnIndex = findColumnIndexInHeader(headerRow, "Номер заяки на ЗП"); // Опечатка в файле
-            }
-            if (requestNumberColumnIndex == null) {
-                requestNumberColumnIndex = findColumnIndexInHeader(headerRow, "Номер заявки");
-            }
-            Integer creationDateColumnIndex = findColumnIndexInHeader(headerRow, CREATION_DATE_COLUMN);
-            Integer innerIdColumnIndex = findColumnIndexInHeader(headerRow, INNER_ID_COLUMN);
-            Integer cfoColumnIndex = findColumnIndexInHeader(headerRow, CFO_COLUMN);
-            Integer nameColumnIndex = findColumnIndexInHeader(headerRow, NAME_COLUMN);
-            Integer titleColumnIndex = findColumnIndexInHeader(headerRow, TITLE_COLUMN);
-            Integer requiresPurchaseColumnIndex = findColumnIndexInHeader(headerRow, REQUIRES_PURCHASE_COLUMN);
-            if (requiresPurchaseColumnIndex == null) {
-                requiresPurchaseColumnIndex = findColumnIndexInHeader(headerRow, "Требуется закупка");
-            }
-            if (requiresPurchaseColumnIndex == null) {
-                requiresPurchaseColumnIndex = findColumnIndexInHeader(headerRow, "Не требуется ЗП (Заявка на ЗП)");
-            }
-            Integer planColumnIndex = findColumnIndexInHeader(headerRow, PLAN_COLUMN);
-            Integer preparedByColumnIndex = findColumnIndexInHeader(headerRow, PREPARED_BY_COLUMN);
-            Integer purchaserColumnIndex = findColumnIndexInHeader(headerRow, PURCHASER_COLUMN);
-            // Пробуем альтернативные названия колонки
-            if (purchaserColumnIndex == null) {
-                purchaserColumnIndex = findColumnIndexInHeader(headerRow, "Ответственный за ЗП");
-            }
-            if (purchaserColumnIndex == null) {
-                purchaserColumnIndex = findColumnIndexInHeader(headerRow, "Закупщик");
-            }
-            if (purchaserColumnIndex == null) {
-                purchaserColumnIndex = findColumnIndexInHeader(headerRow, "Ответственный за закупку");
-            }
-            if (purchaserColumnIndex != null) {
-                logger.info("Found purchaser column at index {}", purchaserColumnIndex);
-            } else {
-                logger.warn("Purchaser column not found in Excel file. Tried: '{}', 'Ответственный за ЗП', 'Закупщик', 'Ответственный за закупку'. Available columns: {}", PURCHASER_COLUMN, columnIndexMap.keySet());
-            }
-            Integer statusColumnIndex = findColumnIndexInHeader(headerRow, STATUS_COLUMN);
-            if (statusColumnIndex != null) {
-                logger.info("Found status column '{}' at index {}", STATUS_COLUMN, statusColumnIndex);
-            } else {
-                logger.warn("Status column '{}' not found in Excel file. Available columns: {}", STATUS_COLUMN, columnIndexMap.keySet());
-            }
-            
-            // Если не нашли по имени, пробуем найти по известным позициям (из логов видно, что Column 4 = "Номер заявки на ЗП")
-            if (requestNumberColumnIndex == null && headerRow.getCell(4) != null) {
-                String cell4Value = getCellValueAsString(headerRow.getCell(4));
-                logger.info("Checking column 4 (index 4) for request number: '{}'", cell4Value);
-                // Проверяем, содержит ли колонка 4 ключевые слова "номер" и "заявки"
-                if (cell4Value != null && (cell4Value.toLowerCase().contains("номер") || 
-                    cell4Value.toLowerCase().contains("заявки") || 
-                    cell4Value.toLowerCase().contains("зп"))) {
-                    requestNumberColumnIndex = 4;
-                    logger.info("Using column index 4 for request number based on content: '{}'", cell4Value);
-                }
-            }
-            
-            // Логирование найденных колонок для заявок
-            logger.info("Purchase request columns - requestNumber: {}, creationDate: {}, innerId: {}, cfo: {}, name: {}, title: {}, status: {}", 
-                requestNumberColumnIndex, creationDateColumnIndex, innerIdColumnIndex, cfoColumnIndex, nameColumnIndex, titleColumnIndex, statusColumnIndex);
-            
-            // Колонки для закупок
-            Integer purchaseInnerIdColumnIndex = findColumnIndexInHeader(headerRow, INNER_ID_COLUMN);
-            Integer purchaseCreationDateColumnIndex = findColumnIndexInHeader(headerRow, CREATION_DATE_COLUMN);
-            Integer purchaseLinkColumnIndex = findColumnIndexInHeader(headerRow, LINK_COLUMN);
-            
-            // Проверяем обязательные колонки
-            if (documentTypeColumnIndex == null) {
-                logger.warn("Column '{}' not found in file {}", DOCUMENT_TYPE_COLUMN, excelFile.getName());
-                return Map.of("purchaseRequests", 0, "purchases", 0, "contracts", 0, "users", 0);
-            }
-            
-            // Колонки для договоров
-            Integer contractInnerIdColumnIndex = findColumnIndexInHeader(headerRow, INNER_ID_COLUMN);
-            Integer contractCreationDateColumnIndex = findColumnIndexInHeader(headerRow, CREATION_DATE_COLUMN);
-            Integer contractCfoColumnIndex = findColumnIndexInHeader(headerRow, CFO_COLUMN);
-            Integer contractNameColumnIndex = findColumnIndexInHeader(headerRow, NAME_COLUMN);
-            Integer contractTitleColumnIndex = findColumnIndexInHeader(headerRow, TITLE_COLUMN);
-            Integer contractDocumentFormColumnIndex = findColumnIndexInHeader(headerRow, DOCUMENT_FORM_COLUMN);
-            
-            // Счетчики
-            int purchaseRequestsCount = 0;
-            int purchasesCount = 0;
-            int contractsCount = 0;
-            int usersCount = 0;
-            int purchaseRequestsCreated = 0;
-            int purchaseRequestsUpdated = 0;
-            int purchasesCreated = 0;
-            int purchasesUpdated = 0;
-            int purchaseRequestTypeRowsFound = 0;
-            int purchaseRequestSkippedMissingColumns = 0;
-            int purchaseRequestParseErrors = 0;
-            int rowsSkippedNoDate = 0;
-            
-            // КЭШИРОВАНИЕ: Загружаем все существующие ID в память для быстрой проверки
-            // Оптимизация: загружаем каждую сущность из БД только один раз
-            logger.info("Loading existing records into memory cache...");
-            Map<Long, PurchaseRequest> existingRequestsMap = purchaseRequestRepository.findAll()
-                .stream()
-                .collect(Collectors.toMap(PurchaseRequest::getIdPurchaseRequest, pr -> pr));
-            
-            // Загружаем purchases один раз и используем для обеих коллекций
-            List<Purchase> allPurchases = purchaseRepository.findAll();
-            Set<String> existingPurchaseInnerIds = allPurchases.stream()
-                .map(Purchase::getInnerId)
-                .filter(id -> id != null)
-                .map(String::trim)
-                .collect(Collectors.toSet());
-            Map<String, Purchase> existingPurchasesMap = allPurchases.stream()
-                .filter(p -> p.getInnerId() != null)
-                .collect(Collectors.toMap(p -> p.getInnerId().trim(), p -> p, (p1, p2) -> p1));
-            
-            Map<String, Contract> existingContractsMap = contractRepository.findAll()
-                .stream()
-                .filter(c -> c.getInnerId() != null)
-                .collect(Collectors.toMap(c -> c.getInnerId().trim(), c -> c, (c1, c2) -> c1));
-            logger.info("Loaded {} purchase requests, {} purchases, {} contracts into cache", 
-                existingRequestsMap.size(), existingPurchaseInnerIds.size(), existingContractsMap.size());
-            
-            // Batch-операции для ускорения сохранения
-            List<PurchaseRequest> purchaseRequestsToCreate = new ArrayList<>();
-            List<PurchaseRequest> purchaseRequestsToUpdate = new ArrayList<>();
-            List<Purchase> purchasesToCreate = new ArrayList<>();
-            List<Purchase> purchasesToUpdate = new ArrayList<>();
-            List<Contract> contractsToCreate = new ArrayList<>();
-            List<Contract> contractsToUpdate = new ArrayList<>();
-            final int BATCH_SIZE = 500; // Увеличен размер батча для лучшей производительности
-            
-            // ОДИН ПРОХОД: Обрабатываем все строки без ограничения по году
-            while (rowIterator.hasNext()) {
-                Row row = rowIterator.next();
-                
-                if (isRowEmpty(row)) {
-                    continue;
-                }
-
-                // Получаем тип документа
-                String documentType = getCellValueAsString(row.getCell(documentTypeColumnIndex));
-                
-                // Логируем все типы документов для отладки (первые 20 строк)
-                if (row.getRowNum() < 20) {
-                    logger.info("Row {}: documentType='{}' (CONTRACT_TYPE='{}', equals={}, trimEquals={})", 
-                        row.getRowNum() + 1, documentType, CONTRACT_TYPE, 
-                        CONTRACT_TYPE.equals(documentType), 
-                        documentType != null && CONTRACT_TYPE.equals(documentType.trim()));
-                }
-                
-                // Обрабатываем строку в зависимости от типа
-                if (documentType != null && PURCHASE_REQUEST_TYPE.equals(documentType.trim())) {
-                    purchaseRequestTypeRowsFound++;
-                    logger.debug("Found purchase request type row {}: documentType='{}'", row.getRowNum() + 1, documentType);
-                    // Обработка заявки
-                    if (requestNumberColumnIndex != null && creationDateColumnIndex != null) {
-                        String requiresPurchaseColumnName = requiresPurchaseColumnIndex != null && headerRow.getCell(requiresPurchaseColumnIndex) != null ? 
-                            getCellValueAsString(headerRow.getCell(requiresPurchaseColumnIndex)) : null;
-                        String planColumnName = planColumnIndex != null && headerRow.getCell(planColumnIndex) != null ? 
-                            getCellValueAsString(headerRow.getCell(planColumnIndex)) : null;
-                        try {
-                            PurchaseRequest pr = parsePurchaseRequestRow(row, requestNumberColumnIndex, creationDateColumnIndex, 
-                                innerIdColumnIndex, cfoColumnIndex, nameColumnIndex, titleColumnIndex, 
-                                requiresPurchaseColumnIndex, requiresPurchaseColumnName, planColumnIndex, planColumnName, 
-                                preparedByColumnIndex, purchaserColumnIndex, statusColumnIndex);
-                            if (pr != null && pr.getIdPurchaseRequest() != null) {
-                                // Используем кэш вместо запроса к БД
-                                PurchaseRequest existingPr = existingRequestsMap.get(pr.getIdPurchaseRequest());
-                                if (existingPr != null) {
-                                    boolean updated = updatePurchaseRequestFields(existingPr, pr);
-                                    if (updated) {
-                                        purchaseRequestsToUpdate.add(existingPr);
-                                    }
-                                } else {
-                                    purchaseRequestsToCreate.add(pr);
-                                }
-                                
-                                // Сохраняем пачками с flush для освобождения памяти
-                                if (purchaseRequestsToCreate.size() >= BATCH_SIZE) {
-                                    purchaseRequestRepository.saveAll(purchaseRequestsToCreate);
-                                    purchaseRequestRepository.flush();
-                                    purchaseRequestsCreated += purchaseRequestsToCreate.size();
-                                    purchaseRequestsToCreate.clear();
-                                }
-                                if (purchaseRequestsToUpdate.size() >= BATCH_SIZE) {
-                                    purchaseRequestRepository.saveAll(purchaseRequestsToUpdate);
-                                    purchaseRequestRepository.flush();
-                                    purchaseRequestsUpdated += purchaseRequestsToUpdate.size();
-                                    purchaseRequestsToUpdate.clear();
-                                }
-                                
-                                purchaseRequestsCount++;
-                            }
+            logger.info("Using streaming mode for file: {}", excelFile.getName());
+            return loadAllFromExcelStreaming(excelFile);
                         } catch (Exception e) {
-                            logger.warn("Error processing purchase request row {}: {}", row.getRowNum() + 1, e.getMessage());
-                            purchaseRequestParseErrors++;
-                        }
-                    } else {
-                        purchaseRequestSkippedMissingColumns++;
-                        logger.warn("Skipping purchase request row {}: missing required columns (requestNumber: {}, creationDate: {})", 
-                            row.getRowNum() + 1, requestNumberColumnIndex, creationDateColumnIndex);
-                    }
-                } else if (documentType != null && PURCHASE_TYPE.equals(documentType.trim())) {
-                    // Обработка закупки
-                    if (purchaseInnerIdColumnIndex != null) {
-                        try {
-                            Purchase purchase = parsePurchaseRow(row, purchaseInnerIdColumnIndex, purchaseCreationDateColumnIndex, cfoColumnIndex, purchaseLinkColumnIndex, statusColumnIndex);
-                            if (purchase != null && purchase.getInnerId() != null && !purchase.getInnerId().trim().isEmpty()) {
-                                // Используем кэш вместо запроса к БД
-                                String innerId = purchase.getInnerId().trim();
-                                Purchase existingPurchase = existingPurchasesMap.get(innerId);
-                                if (existingPurchase != null) {
-                                    boolean updated = updatePurchaseFields(existingPurchase, purchase);
-                                    if (updated) {
-                                        purchasesToUpdate.add(existingPurchase);
-                                    }
-                                } else {
-                                    purchasesToCreate.add(purchase);
-                                }
-                                
-                                // Сохраняем пачками с flush для освобождения памяти
-                                if (purchasesToCreate.size() >= BATCH_SIZE) {
-                                    purchaseRepository.saveAll(purchasesToCreate);
-                                    purchaseRepository.flush();
-                                    purchasesCreated += purchasesToCreate.size();
-                                    purchasesToCreate.clear();
-                                }
-                                if (purchasesToUpdate.size() >= BATCH_SIZE) {
-                                    purchaseRepository.saveAll(purchasesToUpdate);
-                                    purchaseRepository.flush();
-                                    purchasesUpdated += purchasesToUpdate.size();
-                                    purchasesToUpdate.clear();
-                                }
-                                
-                                purchasesCount++;
-                            }
-                        } catch (Exception e) {
-                            logger.warn("Error processing purchase row {}: {}", row.getRowNum() + 1, e.getMessage());
-                        }
-                    }
-                } else if (documentType != null && CONTRACT_TYPE.equals(documentType.trim())) {
-                    // Обработка договора
-                    if (contractInnerIdColumnIndex != null) {
-                        try {
-                            Contract contract = parseContractRow(row, contractInnerIdColumnIndex, contractCreationDateColumnIndex, 
-                                    contractCfoColumnIndex, contractNameColumnIndex, contractTitleColumnIndex, contractDocumentFormColumnIndex, statusColumnIndex);
-                            if (contract != null && contract.getInnerId() != null && !contract.getInnerId().trim().isEmpty()) {
-                                // Используем кэш вместо запроса к БД
-                                String innerId = contract.getInnerId().trim();
-                                Contract existingContract = existingContractsMap.get(innerId);
-                                if (existingContract != null) {
-                                    boolean updated = updateContractFields(existingContract, contract);
-                                    if (updated) {
-                                        contractsToUpdate.add(existingContract);
-                                    }
-                                } else {
-                                    contractsToCreate.add(contract);
-                                }
-                                
-                                // Сохраняем пачками с flush для освобождения памяти
-                                if (contractsToCreate.size() >= BATCH_SIZE) {
-                                    contractRepository.saveAll(contractsToCreate);
-                                    contractRepository.flush();
-                                    contractsCount += contractsToCreate.size();
-                                    contractsToCreate.clear();
-                                }
-                                if (contractsToUpdate.size() >= BATCH_SIZE) {
-                                    contractRepository.saveAll(contractsToUpdate);
-                                    contractRepository.flush();
-                                    contractsCount += contractsToUpdate.size();
-                                    contractsToUpdate.clear();
-                                }
-                            }
-                        } catch (Exception e) {
-                            logger.warn("Error processing contract row {}: {}", row.getRowNum() + 1, e.getMessage());
-                        }
-                    }
-                }
-                
-                // Обработка пользователя (из колонки "Подготовил" только для обработанных типов документов)
-                // Обрабатываем пользователей только из заявок на закупку, закупок и договоров
-                if (preparedByColumnIndex != null && 
-                    (documentType != null && (
-                        PURCHASE_REQUEST_TYPE.equals(documentType.trim()) || 
-                        PURCHASE_TYPE.equals(documentType.trim()) || 
-                        CONTRACT_TYPE.equals(documentType.trim())))) {
-                    try {
-                        Cell preparedByCell = row.getCell(preparedByColumnIndex);
-                        String preparedByValue = getCellValueAsString(preparedByCell);
-                        if (preparedByValue != null && !preparedByValue.trim().isEmpty()) {
-                            parseAndSaveUser(preparedByValue.trim());
-                            usersCount++;
-                        }
-                    } catch (Exception e) {
-                        logger.debug("Error parsing user from row {}: {}", row.getRowNum() + 1, e.getMessage());
-                    }
-                }
-            }
-            
-            // Сохраняем остатки после цикла
-            if (!purchaseRequestsToCreate.isEmpty()) {
-                purchaseRequestRepository.saveAll(purchaseRequestsToCreate);
-                purchaseRequestsCreated += purchaseRequestsToCreate.size();
-            }
-            if (!purchaseRequestsToUpdate.isEmpty()) {
-                purchaseRequestRepository.saveAll(purchaseRequestsToUpdate);
-                purchaseRequestsUpdated += purchaseRequestsToUpdate.size();
-            }
-            if (!purchasesToCreate.isEmpty()) {
-                purchaseRepository.saveAll(purchasesToCreate);
-                purchasesCreated += purchasesToCreate.size();
-            }
-            if (!purchasesToUpdate.isEmpty()) {
-                purchaseRepository.saveAll(purchasesToUpdate);
-                purchasesUpdated += purchasesToUpdate.size();
-            }
-            if (!contractsToCreate.isEmpty()) {
-                contractRepository.saveAll(contractsToCreate);
-                contractsCount += contractsToCreate.size();
-            }
-            if (!contractsToUpdate.isEmpty()) {
-                contractRepository.saveAll(contractsToUpdate);
-                contractsCount += contractsToUpdate.size();
-            }
-            
-            logger.info("Processing summary: scanned rows, skipped {} without valid date", rowsSkippedNoDate);
-            logger.info("Purchase request processing summary: found {} rows with type '{}', loaded {} (created {}, updated {}), skipped (missing columns) {}, parse errors {}", 
-                purchaseRequestTypeRowsFound, PURCHASE_REQUEST_TYPE, purchaseRequestsCount, purchaseRequestsCreated, purchaseRequestsUpdated, purchaseRequestSkippedMissingColumns, purchaseRequestParseErrors);
-            logger.info("Loaded {} purchase requests (created {}, updated {}), {} purchases (created {}, updated {}), {} contracts, {} users from file {}", 
-                purchaseRequestsCount, purchaseRequestsCreated, purchaseRequestsUpdated, purchasesCount, purchasesCreated, purchasesUpdated, contractsCount, usersCount, excelFile.getName());
-            
-            return Map.of(
-                "purchaseRequests", purchaseRequestsCount,
-                "purchases", purchasesCount,
-                "contracts", contractsCount,
-                "users", usersCount
-            );
-        } finally {
-            workbook.close();
+            logger.error("Streaming mode failed for file {}: {}", excelFile.getName(), e.getMessage(), e);
+            throw new IOException("Failed to load Excel file using streaming mode: " + e.getMessage(), e);
         }
+    }
+    
+    // Удален стандартный метод - используем только потоковое чтение
+    @Deprecated
+    private Map<String, Integer> loadAllFromExcelStandard(File excelFile) throws IOException {
+        throw new UnsupportedOperationException("Standard mode is removed. Use streaming mode only.");
     }
     
     /**
@@ -552,6 +198,7 @@ public class EntityExcelLoadService {
      */
     private Map<String, Integer> loadAllFromExcelStreaming(File excelFile) throws Exception {
         logger.info("Starting streaming read of file: {}", excelFile.getName());
+        long startTime = System.currentTimeMillis();
         
         OPCPackage pkg = OPCPackage.open(excelFile);
         XSSFReader reader = new XSSFReader(pkg);
@@ -596,8 +243,28 @@ public class EntityExcelLoadService {
             }
             
             Map<String, Integer> results = rowHandler.getResults();
+            long processingTime = System.currentTimeMillis() - startTime;
+            
             logger.info("Streaming read completed: {} purchase requests, {} purchases, {} users", 
                 results.get("purchaseRequests"), results.get("purchases"), results.get("users"));
+            
+            // Записываем статистику
+            if (statsService != null) {
+                statsService.recordFileProcessing(
+                    excelFile.getName(),
+                    processingTime,
+                    results.getOrDefault("purchaseRequestsCreated", 0),
+                    results.getOrDefault("purchaseRequestsUpdated", 0),
+                    results.getOrDefault("purchasesCreated", 0),
+                    results.getOrDefault("purchasesUpdated", 0),
+                    results.getOrDefault("contractsCreated", 0),
+                    results.getOrDefault("contractsUpdated", 0),
+                    results.getOrDefault("usersCreated", 0),
+                    results.getOrDefault("usersUpdated", 0),
+                    0, // purchasePlanItemsCreated
+                    0  // purchasePlanItemsUpdated
+                );
+            }
             
             return results;
             
@@ -726,273 +393,24 @@ public class EntityExcelLoadService {
      * Использует потоковое чтение для .xlsx файлов
      */
     public int loadPurchaseRequestsFromExcel(File excelFile) throws IOException {
-        // Для .xlsx файлов используем потоковое чтение
-        if (excelFile.getName().endsWith(".xlsx")) {
+        // Всегда используем потоковое чтение
+        if (!excelFile.getName().endsWith(".xlsx")) {
+            throw new IllegalArgumentException("Only .xlsx files are supported. File: " + excelFile.getName());
+        }
+        
             try {
                 Map<String, Integer> results = loadAllFromExcelStreaming(excelFile);
                 return results.getOrDefault("purchaseRequests", 0);
             } catch (Exception e) {
-                logger.warn("Streaming mode failed, falling back to standard mode: {}", e.getMessage());
-                // Fallback на стандартный метод
+            logger.error("Streaming mode failed for file {}: {}", excelFile.getName(), e.getMessage(), e);
+            throw new IOException("Failed to load purchase requests using streaming mode: " + e.getMessage(), e);
             }
         }
         
-        // Стандартный метод для .xls файлов или fallback
-        Workbook workbook;
-        try (FileInputStream fis = new FileInputStream(excelFile)) {
-            if (excelFile.getName().endsWith(".xlsx")) {
-                workbook = new XSSFWorkbook(fis);
-            } else {
-                workbook = new HSSFWorkbook(fis);
-            }
-        }
-
-        try {
-            Sheet sheet = workbook.getSheetAt(0); // Берем первый лист
-            Iterator<Row> rowIterator = sheet.iterator();
-            
-            if (!rowIterator.hasNext()) {
-                logger.warn("Sheet is empty in file {}", excelFile.getName());
-                return 0;
-            }
-
-            // Читаем заголовки (первая строка)
-            Row headerRow = rowIterator.next();
-            Map<String, Integer> columnIndexMap = buildColumnIndexMap(headerRow);
-            
-            // Проверяем наличие необходимых колонок (ищем ПЕРВУЮ колонку с таким названием)
-            // Используем findColumnIndexInHeader для гарантии, что при дубликатах используется первая колонка
-            Integer documentTypeColumnIndex = findColumnIndexInHeader(headerRow, DOCUMENT_TYPE_COLUMN);
-            Integer requestNumberColumnIndex = findColumnIndexInHeader(headerRow, REQUEST_NUMBER_COLUMN);
-            // Пробуем альтернативные названия (включая опечатки)
-            if (requestNumberColumnIndex == null) {
-                requestNumberColumnIndex = findColumnIndexInHeader(headerRow, "Номер заяки на ЗП"); // Опечатка в файле
-            }
-            if (requestNumberColumnIndex == null) {
-                requestNumberColumnIndex = findColumnIndexInHeader(headerRow, "Номер заявки");
-            }
-            Integer creationDateColumnIndex = findColumnIndexInHeader(headerRow, CREATION_DATE_COLUMN);
-            Integer innerIdColumnIndex = findColumnIndexInHeader(headerRow, INNER_ID_COLUMN);
-            Integer cfoColumnIndex = findColumnIndexInHeader(headerRow, CFO_COLUMN);
-            Integer nameColumnIndex = findColumnIndexInHeader(headerRow, NAME_COLUMN);
-            Integer titleColumnIndex = findColumnIndexInHeader(headerRow, TITLE_COLUMN);
-            Integer requiresPurchaseColumnIndex = findColumnIndexInHeader(headerRow, REQUIRES_PURCHASE_COLUMN);
-            // Пробуем альтернативные названия колонки
-            if (requiresPurchaseColumnIndex == null) {
-                requiresPurchaseColumnIndex = findColumnIndexInHeader(headerRow, "Требуется закупка");
-            }
-            if (requiresPurchaseColumnIndex == null) {
-                requiresPurchaseColumnIndex = findColumnIndexInHeader(headerRow, "Не требуется ЗП (Заявка на ЗП)");
-            }
-            Integer planColumnIndex = findColumnIndexInHeader(headerRow, PLAN_COLUMN);
-            Integer preparedByColumnIndex = findColumnIndexInHeader(headerRow, PREPARED_BY_COLUMN);
-            Integer purchaserColumnIndex = findColumnIndexInHeader(headerRow, PURCHASER_COLUMN);
-            // Пробуем альтернативные названия колонки
-            if (purchaserColumnIndex == null) {
-                purchaserColumnIndex = findColumnIndexInHeader(headerRow, "Ответственный за ЗП");
-            }
-            if (purchaserColumnIndex == null) {
-                purchaserColumnIndex = findColumnIndexInHeader(headerRow, "Закупщик");
-            }
-            if (purchaserColumnIndex == null) {
-                purchaserColumnIndex = findColumnIndexInHeader(headerRow, "Ответственный за закупку");
-            }
-            if (purchaserColumnIndex != null) {
-                logger.info("Found purchaser column at index {}", purchaserColumnIndex);
-            } else {
-                logger.warn("Purchaser column not found in Excel file. Tried: '{}', 'Ответственный за ЗП', 'Закупщик', 'Ответственный за закупку'. Available columns: {}", PURCHASER_COLUMN, columnIndexMap.keySet());
-            }
-            Integer statusColumnIndex = findColumnIndexInHeader(headerRow, STATUS_COLUMN);
-            if (statusColumnIndex != null) {
-                logger.info("Found status column '{}' at index {}", STATUS_COLUMN, statusColumnIndex);
-            } else {
-                logger.warn("Status column '{}' not found in Excel file. Available columns: {}", STATUS_COLUMN, columnIndexMap.keySet());
-            }
-            
-            // Если не нашли по имени, пробуем найти по известным позициям (из логов видно, что Column 4 = "Номер заявки на ЗП")
-            if (requestNumberColumnIndex == null && headerRow.getCell(4) != null) {
-                String cell4Value = getCellValueAsString(headerRow.getCell(4));
-                logger.info("Checking column 4 (index 4) for request number: '{}'", cell4Value);
-                // Проверяем, содержит ли колонка 4 ключевые слова "номер" и "заявки"
-                if (cell4Value != null && (cell4Value.toLowerCase().contains("номер") || 
-                    cell4Value.toLowerCase().contains("заявки") || 
-                    cell4Value.toLowerCase().contains("зп"))) {
-                    requestNumberColumnIndex = 4;
-                    logger.info("Using column index 4 for request number based on content: '{}'", cell4Value);
-                }
-            }
-            
-            if (documentTypeColumnIndex == null) {
-                logger.warn("Column '{}' not found in file {}. Available columns (first 20): {}", 
-                    DOCUMENT_TYPE_COLUMN, excelFile.getName(), 
-                    columnIndexMap.keySet().stream().limit(20).toList());
-                return 0;
-            }
-            
-            if (requestNumberColumnIndex == null) {
-                logger.warn("Column '{}' not found in file {}. Available columns (first 20): {}", 
-                    REQUEST_NUMBER_COLUMN, excelFile.getName(),
-                    columnIndexMap.keySet().stream().limit(20).toList());
-                return 0;
-            }
-            
-            if (creationDateColumnIndex == null) {
-                logger.warn("Column '{}' not found in file {}. Available columns (first 20): {}", 
-                    CREATION_DATE_COLUMN, excelFile.getName(),
-                    columnIndexMap.keySet().stream().limit(20).toList());
-                return 0;
-            }
-
-            logger.info("Found required columns in file {}", excelFile.getName());
-            if (innerIdColumnIndex != null) {
-                logger.info("Found inner ID column at index {}", innerIdColumnIndex);
-            } else {
-                logger.info("Inner ID column not found, will skip this field");
-            }
-            if (cfoColumnIndex != null) {
-                logger.info("Found CFO column at index {}", cfoColumnIndex);
-            } else {
-                logger.info("CFO column not found, will skip this field");
-            }
-            if (nameColumnIndex != null) {
-                logger.info("Found name column at index {}", nameColumnIndex);
-            } else {
-                logger.info("Name column not found, will skip this field");
-            }
-            if (titleColumnIndex != null) {
-                logger.info("Found title column at index {}", titleColumnIndex);
-            } else {
-                logger.info("Title column not found, will skip this field");
-            }
-            if (requiresPurchaseColumnIndex != null) {
-                logger.info("Found requires purchase column at index {}", requiresPurchaseColumnIndex);
-                String columnName = headerRow.getCell(requiresPurchaseColumnIndex) != null ? 
-                    getCellValueAsString(headerRow.getCell(requiresPurchaseColumnIndex)) : "unknown";
-                logger.info("Requires purchase column name in file: '{}'", columnName);
-            } else {
-                logger.warn("Requires purchase column not found, will skip this field");
-                logger.info("Searched for: '{}', '{}', '{}', '{}'", 
-                    REQUIRES_PURCHASE_COLUMN, "Требуется закупка", "Требуется Закупка", "Не требуется ЗП (Заявка на ЗП)");
-                logger.info("Available columns (all): {}", columnIndexMap.keySet());
-            }
-            if (planColumnIndex != null) {
-                logger.info("Found plan column at index {}", planColumnIndex);
-            } else {
-                logger.info("Plan column not found, will skip this field");
-            }
-
-            // КЭШИРОВАНИЕ: Загружаем все существующие ID в память для быстрой проверки
-            logger.info("Loading existing purchase requests into memory cache...");
-            Map<Long, PurchaseRequest> existingRequestsMap = purchaseRequestRepository.findAll()
-                .stream()
-                .collect(Collectors.toMap(PurchaseRequest::getIdPurchaseRequest, pr -> pr));
-            logger.info("Loaded {} purchase requests into cache", existingRequestsMap.size());
-            
-            // Batch-операции для ускорения сохранения
-            List<PurchaseRequest> purchaseRequestsToCreate = new ArrayList<>();
-            List<PurchaseRequest> purchaseRequestsToUpdate = new ArrayList<>();
-            final int BATCH_SIZE = 500; // Увеличен размер батча для лучшей производительности
-            
-            // Загружаем данные
-            int loadedCount = 0;
-            int updatedCount = 0;
-            int createdCount = 0;
-            int totalRowsProcessed = 0;
-            int emptyRowsSkipped = 0;
-            int rowsSkippedNoDate = 0;
-            Map<String, Integer> documentTypeCounts = new HashMap<>();
-            
-            logger.info("Starting to process rows. Document type column index: {}", documentTypeColumnIndex);
-            
-            // ОДИН ПРОХОД: Обрабатываем все строки без ограничения по году
-            while (rowIterator.hasNext()) {
-                Row row = rowIterator.next();
-                totalRowsProcessed++;
-                
-                if (isRowEmpty(row)) {
-                    emptyRowsSkipped++;
-                    continue;
-                }
-
-                // Получаем значение из колонки "Вид документа"
-                Cell documentTypeCell = row.getCell(documentTypeColumnIndex);
-                String documentType = getCellValueAsString(documentTypeCell);
-                
-                // Собираем статистику по типам документов
-                if (documentType != null && !documentType.trim().isEmpty()) {
-                    documentTypeCounts.put(documentType, documentTypeCounts.getOrDefault(documentType, 0) + 1);
-                } else {
-                    documentTypeCounts.put("(пусто)", documentTypeCounts.getOrDefault("(пусто)", 0) + 1);
-                }
-                
-                // Логируем первые 10 строк для отладки
-                if (totalRowsProcessed <= 10) {
-                    logger.debug("Row {}: documentType='{}' (cell index: {})", 
-                        row.getRowNum() + 1, documentType, documentTypeColumnIndex);
-                }
-                
-                // Фильтруем только "Заявка на ЗП"
-                if (PURCHASE_REQUEST_TYPE.equals(documentType)) {
-                    try {
-                        String requiresPurchaseColumnName = requiresPurchaseColumnIndex != null && headerRow.getCell(requiresPurchaseColumnIndex) != null ? 
-                            getCellValueAsString(headerRow.getCell(requiresPurchaseColumnIndex)) : null;
-                        String planColumnName = planColumnIndex != null && headerRow.getCell(planColumnIndex) != null ? 
-                            getCellValueAsString(headerRow.getCell(planColumnIndex)) : null;
-                        PurchaseRequest pr = parsePurchaseRequestRow(row, requestNumberColumnIndex, creationDateColumnIndex, innerIdColumnIndex, cfoColumnIndex, nameColumnIndex, titleColumnIndex, requiresPurchaseColumnIndex, requiresPurchaseColumnName, planColumnIndex, planColumnName, preparedByColumnIndex, purchaserColumnIndex, statusColumnIndex);
-                        if (pr != null && pr.getIdPurchaseRequest() != null) {
-                            // Используем кэш вместо запроса к БД
-                            PurchaseRequest existingPr = existingRequestsMap.get(pr.getIdPurchaseRequest());
-                            if (existingPr != null) {
-                                // Обновляем существующую заявку только измененными полями
-                                boolean updated = updatePurchaseRequestFields(existingPr, pr);
-                                if (updated) {
-                                    purchaseRequestsToUpdate.add(existingPr);
-                                }
-                            } else {
-                                // Создаем новую заявку
-                                purchaseRequestsToCreate.add(pr);
-                            }
-                            
-                            // Сохраняем пачками с flush для освобождения памяти
-                            if (purchaseRequestsToCreate.size() >= BATCH_SIZE) {
-                                purchaseRequestRepository.saveAll(purchaseRequestsToCreate);
-                                purchaseRequestRepository.flush();
-                                createdCount += purchaseRequestsToCreate.size();
-                                purchaseRequestsToCreate.clear();
-                            }
-                            if (purchaseRequestsToUpdate.size() >= BATCH_SIZE) {
-                                purchaseRequestRepository.saveAll(purchaseRequestsToUpdate);
-                                purchaseRequestRepository.flush();
-                                updatedCount += purchaseRequestsToUpdate.size();
-                                purchaseRequestsToUpdate.clear();
-                            }
-                            
-                            loadedCount++;
-                        }
-                    } catch (Exception e) {
-                        logger.warn("Error parsing row {}: {}", row.getRowNum() + 1, e.getMessage());
-                    }
-                }
-            }
-            
-            // Сохраняем остатки после цикла
-            if (!purchaseRequestsToCreate.isEmpty()) {
-                purchaseRequestRepository.saveAll(purchaseRequestsToCreate);
-                createdCount += purchaseRequestsToCreate.size();
-            }
-            if (!purchaseRequestsToUpdate.isEmpty()) {
-                purchaseRequestRepository.saveAll(purchaseRequestsToUpdate);
-                updatedCount += purchaseRequestsToUpdate.size();
-            }
-
-            logger.info("Processing summary for file {}: total rows processed: {}, empty rows skipped: {}, skipped no date: {}, loaded: {} (created: {}, updated: {})", 
-                excelFile.getName(), totalRowsProcessed, emptyRowsSkipped, rowsSkippedNoDate, loadedCount, createdCount, updatedCount);
-            logger.info("Document type distribution: {}", documentTypeCounts);
-            logger.info("Loaded {} records: {} created, {} updated", loadedCount, createdCount, updatedCount);
-            return loadedCount;
-        } finally {
-            workbook.close();
-        }
+    // Удален стандартный метод - используем только потоковое чтение
+    @Deprecated
+    private int loadPurchaseRequestsFromExcelStandard(File excelFile) throws IOException {
+        throw new UnsupportedOperationException("Standard mode is removed. Use streaming mode only.");
     }
 
     /**
@@ -1254,7 +672,7 @@ public class EntityExcelLoadService {
                     String trimmedStatus = statusValue.trim();
                     // Сохраняем значение из колонки "Состояние" в поле state
                     pr.setState(trimmedStatus);
-                    logger.debug("Row {}: parsed state value: '{}' and saved to state field for request {}", row.getRowNum() + 1, trimmedStatus, pr.getIdPurchaseRequest());
+                    logger.info("Row {}: parsed state value: '{}' and saved to state field for request {}", row.getRowNum() + 1, trimmedStatus, pr.getIdPurchaseRequest());
                     // Если "Состояние" = "Проект" (case-insensitive), то устанавливаем статус = PROJECT
                     if ("Проект".equalsIgnoreCase(trimmedStatus)) {
                         pr.setStatus(PurchaseRequestStatus.PROJECT);
@@ -2050,86 +1468,24 @@ public class EntityExcelLoadService {
      * Использует потоковое чтение для .xlsx файлов
      */
     public int loadUsersFromExcel(File excelFile) throws IOException {
-        // Для .xlsx файлов используем потоковое чтение
-        if (excelFile.getName().endsWith(".xlsx")) {
+        // Всегда используем потоковое чтение
+        if (!excelFile.getName().endsWith(".xlsx")) {
+            throw new IllegalArgumentException("Only .xlsx files are supported. File: " + excelFile.getName());
+        }
+        
             try {
                 Map<String, Integer> results = loadAllFromExcelStreaming(excelFile);
                 return results.getOrDefault("users", 0);
             } catch (Exception e) {
-                logger.warn("Streaming mode failed, falling back to standard mode: {}", e.getMessage());
-                // Fallback на стандартный метод
+            logger.error("Streaming mode failed for file {}: {}", excelFile.getName(), e.getMessage(), e);
+            throw new IOException("Failed to load users using streaming mode: " + e.getMessage(), e);
             }
         }
         
-        // Стандартный метод для .xls файлов или fallback
-        Workbook workbook;
-        try (FileInputStream fis = new FileInputStream(excelFile)) {
-            if (excelFile.getName().endsWith(".xlsx")) {
-                workbook = new XSSFWorkbook(fis);
-            } else {
-                workbook = new HSSFWorkbook(fis);
-            }
-        }
-
-        try {
-            Sheet sheet = workbook.getSheetAt(0);
-            Iterator<Row> rowIterator = sheet.iterator();
-            
-            if (!rowIterator.hasNext()) {
-                logger.warn("Sheet is empty in file {}", excelFile.getName());
-                return 0;
-            }
-
-            // Читаем заголовки
-            Row headerRow = rowIterator.next();
-            Map<String, Integer> columnIndexMap = buildColumnIndexMap(headerRow);
-            
-            Integer documentTypeColumnIndex = findColumnIndexInHeader(headerRow, DOCUMENT_TYPE_COLUMN);
-            Integer preparedByColumnIndex = findColumnIndexInHeader(headerRow, PREPARED_BY_COLUMN);
-            Integer creationDateColumnIndex = findColumnIndexInHeader(headerRow, CREATION_DATE_COLUMN);
-            
-            if (preparedByColumnIndex == null) {
-                logger.warn("Column '{}' not found in file {}", PREPARED_BY_COLUMN, excelFile.getName());
-                return 0;
-            }
-
-            int loadedCount = 0;
-            
-            while (rowIterator.hasNext()) {
-                Row row = rowIterator.next();
-                
-                if (isRowEmpty(row)) {
-                    continue;
-                }
-                
-                // Фильтруем только по нужным типам документов
-                if (documentTypeColumnIndex != null) {
-                    String documentType = getCellValueAsString(row.getCell(documentTypeColumnIndex));
-                    if (documentType == null || 
-                        (!PURCHASE_REQUEST_TYPE.equals(documentType.trim()) && 
-                         !PURCHASE_TYPE.equals(documentType.trim()) && 
-                         !CONTRACT_TYPE.equals(documentType.trim()))) {
-                        continue; // Пропускаем строки других типов
-                    }
-                }
-
-                try {
-                    Cell preparedByCell = row.getCell(preparedByColumnIndex);
-                    String preparedByValue = getCellValueAsString(preparedByCell);
-                    if (preparedByValue != null && !preparedByValue.trim().isEmpty()) {
-                        parseAndSaveUser(preparedByValue.trim());
-                        loadedCount++;
-                    }
-                } catch (Exception e) {
-                    logger.warn("Error parsing user from row {}: {}", row.getRowNum() + 1, e.getMessage());
-                }
-            }
-
-            logger.info("Loaded {} users from file {} (filtered by document type and current year)", loadedCount, excelFile.getName());
-            return loadedCount;
-        } finally {
-            workbook.close();
-        }
+    // Удален стандартный метод - используем только потоковое чтение
+    @Deprecated
+    private int loadUsersFromExcelStandard(File excelFile) throws IOException {
+        throw new UnsupportedOperationException("Standard mode is removed. Use streaming mode only.");
     }
 
     /**
@@ -2138,166 +1494,24 @@ public class EntityExcelLoadService {
      * Использует потоковое чтение для .xlsx файлов
      */
     public int loadPurchasesFromExcel(File excelFile) throws IOException {
-        // Для .xlsx файлов используем потоковое чтение
-        if (excelFile.getName().endsWith(".xlsx")) {
+        // Всегда используем потоковое чтение
+        if (!excelFile.getName().endsWith(".xlsx")) {
+            throw new IllegalArgumentException("Only .xlsx files are supported. File: " + excelFile.getName());
+        }
+        
             try {
                 Map<String, Integer> results = loadAllFromExcelStreaming(excelFile);
                 return results.getOrDefault("purchases", 0);
             } catch (Exception e) {
-                logger.warn("Streaming mode failed, falling back to standard mode: {}", e.getMessage());
-                // Fallback на стандартный метод
+            logger.error("Streaming mode failed for file {}: {}", excelFile.getName(), e.getMessage(), e);
+            throw new IOException("Failed to load purchases using streaming mode: " + e.getMessage(), e);
             }
         }
         
-        // Стандартный метод для .xls файлов или fallback
-        Workbook workbook;
-        try (FileInputStream fis = new FileInputStream(excelFile)) {
-            if (excelFile.getName().endsWith(".xlsx")) {
-                workbook = new XSSFWorkbook(fis);
-            } else {
-                workbook = new HSSFWorkbook(fis);
-            }
-        }
-
-        try {
-            Sheet sheet = workbook.getSheetAt(0);
-            Iterator<Row> rowIterator = sheet.iterator();
-            
-            if (!rowIterator.hasNext()) {
-                logger.warn("Sheet is empty in file {}", excelFile.getName());
-                return 0;
-            }
-
-            // Читаем заголовки
-            Row headerRow = rowIterator.next();
-            Map<String, Integer> columnIndexMap = buildColumnIndexMap(headerRow);
-            
-            Integer documentTypeColumnIndex = findColumnIndexInHeader(headerRow, DOCUMENT_TYPE_COLUMN);
-            Integer innerIdColumnIndex = findColumnIndexInHeader(headerRow, INNER_ID_COLUMN);
-            Integer creationDateColumnIndex = findColumnIndexInHeader(headerRow, CREATION_DATE_COLUMN);
-            Integer cfoColumnIndex = findColumnIndexInHeader(headerRow, CFO_COLUMN);
-            Integer linkColumnIndex = findColumnIndexInHeader(headerRow, LINK_COLUMN);
-            Integer statusColumnIndex = findColumnIndexInHeader(headerRow, STATUS_COLUMN);
-            if (statusColumnIndex != null) {
-                logger.info("Found status column '{}' at index {} for purchases", STATUS_COLUMN, statusColumnIndex);
-            } else {
-                logger.warn("Status column '{}' not found in Excel file for purchases. Available columns: {}", STATUS_COLUMN, columnIndexMap.keySet());
-            }
-            
-            if (innerIdColumnIndex == null) {
-                logger.warn("Column '{}' not found in file {} for purchases", INNER_ID_COLUMN, excelFile.getName());
-                return 0;
-            } else {
-                logger.info("Found column '{}' at index {} for purchases", INNER_ID_COLUMN, innerIdColumnIndex);
-            }
-
-            if (documentTypeColumnIndex == null) {
-                logger.warn("Column '{}' not found in file {}", DOCUMENT_TYPE_COLUMN, excelFile.getName());
-                return 0;
-            }
-
-            // КЭШИРОВАНИЕ: Загружаем все существующие ID в память для быстрой проверки
-            logger.info("Loading existing purchases into memory cache...");
-            Map<String, Purchase> existingPurchasesMap = purchaseRepository.findAll()
-                .stream()
-                .filter(p -> p.getInnerId() != null)
-                .collect(Collectors.toMap(p -> p.getInnerId().trim(), p -> p));
-            logger.info("Loaded {} purchases into cache", existingPurchasesMap.size());
-            
-            // Batch-операции для ускорения сохранения
-            List<Purchase> purchasesToCreate = new ArrayList<>();
-            List<Purchase> purchasesToUpdate = new ArrayList<>();
-            final int BATCH_SIZE = 500; // Увеличен размер батча для лучшей производительности
-            
-            int loadedCount = 0;
-            int createdCount = 0;
-            int updatedCount = 0;
-            int purchaseTypeRowsFound = 0;
-            int parseErrors = 0;
-            int emptyInnerId = 0;
-            int rowsSkippedNoDate = 0;
-            
-            // ОДИН ПРОХОД: Обрабатываем все строки без ограничения по году
-            while (rowIterator.hasNext()) {
-                Row row = rowIterator.next();
-                
-                if (isRowEmpty(row)) {
-                    continue;
-                }
-
-                // Получаем значение из колонки "Вид документа"
-                String documentType = getCellValueAsString(row.getCell(documentTypeColumnIndex));
-                
-                // Фильтруем только "Закупочная процедура"
-                if (PURCHASE_TYPE.equals(documentType)) {
-                    purchaseTypeRowsFound++;
-                    logger.debug("Found purchase type row {}: documentType='{}'", row.getRowNum() + 1, documentType);
-                    try {
-                        Purchase purchase = parsePurchaseRow(row, innerIdColumnIndex, creationDateColumnIndex, cfoColumnIndex, linkColumnIndex, statusColumnIndex);
-                        if (purchase == null) {
-                            logger.warn("parsePurchaseRow returned null for row {}", row.getRowNum() + 1);
-                            parseErrors++;
-                            continue;
-                        }
-                        if (purchase.getInnerId() == null || purchase.getInnerId().trim().isEmpty()) {
-                            logger.warn("Inner ID is empty for row {}", row.getRowNum() + 1);
-                            emptyInnerId++;
-                            continue;
-                        }
-                        // Используем кэш вместо запроса к БД
-                        String innerId = purchase.getInnerId().trim();
-                        Purchase existingPurchase = existingPurchasesMap.get(innerId);
-                        if (existingPurchase != null) {
-                            // Обновляем существующую закупку
-                            boolean updated = updatePurchaseFields(existingPurchase, purchase);
-                            if (updated) {
-                                purchasesToUpdate.add(existingPurchase);
-                            }
-                        } else {
-                            // Создаем новую закупку
-                            purchasesToCreate.add(purchase);
-                        }
-                        
-                        // Сохраняем пачками с flush для освобождения памяти
-                        if (purchasesToCreate.size() >= BATCH_SIZE) {
-                            purchaseRepository.saveAll(purchasesToCreate);
-                            purchaseRepository.flush();
-                            createdCount += purchasesToCreate.size();
-                            purchasesToCreate.clear();
-                        }
-                        if (purchasesToUpdate.size() >= BATCH_SIZE) {
-                            purchaseRepository.saveAll(purchasesToUpdate);
-                            purchaseRepository.flush();
-                            updatedCount += purchasesToUpdate.size();
-                            purchasesToUpdate.clear();
-                        }
-                        
-                        loadedCount++;
-                    } catch (Exception e) {
-                        logger.warn("Error parsing row {}: {}", row.getRowNum() + 1, e.getMessage(), e);
-                        parseErrors++;
-                    }
-                }
-            }
-            
-            // Сохраняем остатки после цикла
-            if (!purchasesToCreate.isEmpty()) {
-                purchaseRepository.saveAll(purchasesToCreate);
-                createdCount += purchasesToCreate.size();
-            }
-            if (!purchasesToUpdate.isEmpty()) {
-                purchaseRepository.saveAll(purchasesToUpdate);
-                updatedCount += purchasesToUpdate.size();
-            }
-            
-            logger.info("Purchase processing summary: found {} rows with type '{}', skipped no date: {}, loaded {}, created {}, updated {}, parse errors {}, empty inner IDs {}", 
-                purchaseTypeRowsFound, PURCHASE_TYPE, rowsSkippedNoDate, loadedCount, createdCount, updatedCount, parseErrors, emptyInnerId);
-
-            logger.info("Loaded {} purchases: {} created, {} updated", loadedCount, createdCount, updatedCount);
-            return loadedCount;
-        } finally {
-            workbook.close();
-        }
+    // Удален стандартный метод - используем только потоковое чтение
+    @Deprecated
+    private int loadPurchasesFromExcelStandard(File excelFile) throws IOException {
+        throw new UnsupportedOperationException("Standard mode is removed. Use streaming mode only.");
     }
 
     /**
@@ -2383,7 +1597,7 @@ public class EntityExcelLoadService {
                     String trimmedStatus = statusValue.trim();
                     // Сохраняем значение из колонки "Состояние" в поле state
                     purchase.setState(trimmedStatus);
-                    logger.debug("Row {}: parsed state value: '{}' and saved to state field for purchase {}", row.getRowNum() + 1, trimmedStatus, purchase.getInnerId());
+                    logger.info("Row {}: parsed state value: '{}' and saved to state field for purchase {}", row.getRowNum() + 1, trimmedStatus, purchase.getInnerId());
                     // Если "Состояние" = "Проект" (case-insensitive), то устанавливаем статус = PROJECT
                     if ("Проект".equalsIgnoreCase(trimmedStatus)) {
                         purchase.setStatus(PurchaseStatus.PROJECT);
@@ -2506,146 +1720,24 @@ public class EntityExcelLoadService {
      * Использует потоковое чтение для .xlsx файлов
      */
     public int loadContractsFromExcel(File excelFile) throws IOException {
-        // Для .xlsx файлов используем потоковое чтение
-        if (excelFile.getName().endsWith(".xlsx")) {
+        // Всегда используем потоковое чтение
+        if (!excelFile.getName().endsWith(".xlsx")) {
+            throw new IllegalArgumentException("Only .xlsx files are supported. File: " + excelFile.getName());
+        }
+        
             try {
                 Map<String, Integer> results = loadAllFromExcelStreaming(excelFile);
                 return results.getOrDefault("contracts", 0);
             } catch (Exception e) {
-                logger.warn("Streaming mode failed, falling back to standard mode: {}", e.getMessage());
-                // Fallback на стандартный метод
+            logger.error("Streaming mode failed for file {}: {}", excelFile.getName(), e.getMessage(), e);
+            throw new IOException("Failed to load contracts using streaming mode: " + e.getMessage(), e);
             }
         }
         
-        // Стандартный метод для .xls файлов или fallback
-        Workbook workbook;
-        try (FileInputStream fis = new FileInputStream(excelFile)) {
-            if (excelFile.getName().endsWith(".xlsx")) {
-                workbook = new XSSFWorkbook(fis);
-            } else {
-                workbook = new HSSFWorkbook(fis);
-            }
-        }
-
-        try {
-            Sheet sheet = workbook.getSheetAt(0);
-            Iterator<Row> rowIterator = sheet.iterator();
-            
-            if (!rowIterator.hasNext()) {
-                logger.warn("Sheet is empty in file {}", excelFile.getName());
-                return 0;
-            }
-
-            // Читаем заголовки
-            Row headerRow = rowIterator.next();
-            Map<String, Integer> columnIndexMap = buildColumnIndexMap(headerRow);
-            
-            Integer documentTypeColumnIndex = findColumnIndexInHeader(headerRow, DOCUMENT_TYPE_COLUMN);
-            Integer innerIdColumnIndex = findColumnIndexInHeader(headerRow, INNER_ID_COLUMN);
-            Integer creationDateColumnIndex = findColumnIndexInHeader(headerRow, CREATION_DATE_COLUMN);
-            Integer cfoColumnIndex = findColumnIndexInHeader(headerRow, CFO_COLUMN);
-            Integer nameColumnIndex = findColumnIndexInHeader(headerRow, NAME_COLUMN);
-            Integer titleColumnIndex = findColumnIndexInHeader(headerRow, TITLE_COLUMN);
-            Integer documentFormColumnIndex = findColumnIndexInHeader(headerRow, DOCUMENT_FORM_COLUMN);
-            Integer statusColumnIndex = findColumnIndexInHeader(headerRow, STATUS_COLUMN);
-            if (statusColumnIndex != null) {
-                logger.info("Found status column '{}' at index {} for contracts", STATUS_COLUMN, statusColumnIndex);
-            } else {
-                logger.warn("Status column '{}' not found in Excel file for contracts. Available columns: {}", STATUS_COLUMN, columnIndexMap.keySet());
-            }
-            
-            if (innerIdColumnIndex == null) {
-                logger.warn("Column '{}' not found in file {} for contracts", INNER_ID_COLUMN, excelFile.getName());
-                return 0;
-            } else {
-                logger.info("Found column '{}' at index {} for contracts", INNER_ID_COLUMN, innerIdColumnIndex);
-            }
-
-            if (documentTypeColumnIndex == null) {
-                logger.warn("Column '{}' not found in file {}", DOCUMENT_TYPE_COLUMN, excelFile.getName());
-                return 0;
-            }
-
-            if (documentFormColumnIndex == null) {
-                logger.info("Column '{}' not found in file {} for contracts, will skip document form parsing", DOCUMENT_FORM_COLUMN, excelFile.getName());
-            } else {
-                logger.info("Found column '{}' at index {} for contracts", DOCUMENT_FORM_COLUMN, documentFormColumnIndex);
-            }
-
-            int loadedCount = 0;
-            int createdCount = 0;
-            int updatedCount = 0;
-            int contractTypeRowsFound = 0;
-            int parseErrors = 0;
-            int emptyInnerId = 0;
-            
-            while (rowIterator.hasNext()) {
-                Row row = rowIterator.next();
-                
-                if (isRowEmpty(row)) {
-                    continue;
-                }
-
-                // Получаем значение из колонки "Вид документа"
-                String documentType = getCellValueAsString(row.getCell(documentTypeColumnIndex));
-                
-                // Логируем все типы документов для отладки (первые 20 строк)
-                if (row.getRowNum() < 20) {
-                    logger.info("Row {}: documentType='{}' (CONTRACT_TYPE='{}', equals={}, trimEquals={})", 
-                        row.getRowNum() + 1, documentType, CONTRACT_TYPE, 
-                        CONTRACT_TYPE.equals(documentType), 
-                        documentType != null && CONTRACT_TYPE.equals(documentType.trim()));
-                }
-                
-                // Фильтруем только "Договор" (с учетом пробелов)
-                if (documentType != null && CONTRACT_TYPE.equals(documentType.trim())) {
-                    contractTypeRowsFound++;
-                    logger.info("Found contract type row {}: documentType='{}'", row.getRowNum() + 1, documentType);
-                    try {
-                        Contract contract = parseContractRow(row, innerIdColumnIndex, creationDateColumnIndex, cfoColumnIndex, 
-                                nameColumnIndex, titleColumnIndex, documentFormColumnIndex, statusColumnIndex);
-                        if (contract == null) {
-                            logger.warn("parseContractRow returned null for row {}", row.getRowNum() + 1);
-                            parseErrors++;
-                            continue;
-                        }
-                        if (contract.getInnerId() == null || contract.getInnerId().trim().isEmpty()) {
-                            logger.warn("Inner ID is empty for row {}", row.getRowNum() + 1);
-                            emptyInnerId++;
-                            continue;
-                        }
-                        // Проверяем, существует ли договор с таким innerId
-                        Optional<Contract> existing = contractRepository.findByInnerId(contract.getInnerId().trim());
-                        
-                        if (existing.isPresent()) {
-                            // Обновляем существующий договор
-                            Contract existingContract = existing.get();
-                            boolean updated = updateContractFields(existingContract, contract);
-                            if (updated) {
-                                contractRepository.save(existingContract);
-                                updatedCount++;
-                            }
-                        } else {
-                            // Создаем новый договор
-                            contractRepository.save(contract);
-                            createdCount++;
-                        }
-                        loadedCount++;
-                    } catch (Exception e) {
-                        logger.warn("Error parsing row {}: {}", row.getRowNum() + 1, e.getMessage(), e);
-                        parseErrors++;
-                    }
-                }
-            }
-            
-            logger.info("Contract processing summary: found {} rows with type '{}', loaded {}, created {}, updated {}, parse errors {}, empty inner IDs {}", 
-                contractTypeRowsFound, CONTRACT_TYPE, loadedCount, createdCount, updatedCount, parseErrors, emptyInnerId);
-
-            logger.info("Loaded {} contracts: {} created, {} updated", loadedCount, createdCount, updatedCount);
-            return loadedCount;
-        } finally {
-            workbook.close();
-        }
+    // Удален стандартный метод - используем только потоковое чтение
+    @Deprecated
+    private int loadContractsFromExcelStandard(File excelFile) throws IOException {
+        throw new UnsupportedOperationException("Standard mode is removed. Use streaming mode only.");
     }
 
     /**
@@ -2738,7 +1830,7 @@ public class EntityExcelLoadService {
                     String trimmedStatus = statusValue.trim();
                     // Сохраняем значение из колонки "Состояние" в поле state
                     contract.setState(trimmedStatus);
-                    logger.debug("Row {}: parsed state value: '{}' and saved to state field for contract {}", row.getRowNum() + 1, trimmedStatus, contract.getInnerId());
+                    logger.info("Row {}: parsed state value: '{}' and saved to state field for contract {}", row.getRowNum() + 1, trimmedStatus, contract.getInnerId());
                     // Если "Состояние" = "Проект" (case-insensitive), то устанавливаем статус = PROJECT
                     if ("Проект".equalsIgnoreCase(trimmedStatus)) {
                         contract.setStatus(ContractStatus.PROJECT);
@@ -2842,5 +1934,7 @@ public class EntityExcelLoadService {
         return updated;
     }
 }
+
+
 
 

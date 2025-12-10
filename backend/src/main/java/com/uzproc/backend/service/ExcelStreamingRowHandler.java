@@ -1,8 +1,11 @@
 package com.uzproc.backend.service;
 
 import com.uzproc.backend.entity.Contract;
+import com.uzproc.backend.entity.ContractStatus;
 import com.uzproc.backend.entity.Purchase;
 import com.uzproc.backend.entity.PurchaseRequest;
+import com.uzproc.backend.entity.PurchaseRequestStatus;
+import com.uzproc.backend.entity.PurchaseStatus;
 import com.uzproc.backend.entity.User;
 import com.uzproc.backend.repository.ContractRepository;
 import com.uzproc.backend.repository.PurchaseRepository;
@@ -49,8 +52,13 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private int contractsCount = 0;
     private int usersCount = 0;
     private int purchaseRequestsCreated = 0;
+    private int purchaseRequestsUpdated = 0;
     private int purchasesCreated = 0;
+    private int purchasesUpdated = 0;
     private int contractsCreated = 0;
+    private int contractsUpdated = 0;
+    private int usersCreated = 0;
+    private int usersUpdated = 0;
     
     // Константы
     private static final String DOCUMENT_TYPE_COLUMN = "Вид документа";
@@ -69,6 +77,7 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private static final String PURCHASER_COLUMN = "Ответственный за ЗП (Закупочная процедура)";
     private static final String LINK_COLUMN = "Ссылка";
     private static final String DOCUMENT_FORM_COLUMN = "Форма документа";
+    private static final String STATUS_COLUMN = "Состояние";
     
     // Оптимизация: статические DateTimeFormatter для парсинга дат (создаются один раз)
     private static final DateTimeFormatter[] DATE_TIME_FORMATTERS = {
@@ -146,6 +155,14 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
         }
         headerProcessed = true;
         logger.info("Processed header row with {} columns", columnIndices.size());
+        
+        // Проверяем наличие колонки "Состояние"
+        Integer statusCol = columnIndices.get(STATUS_COLUMN);
+        if (statusCol != null) {
+            logger.info("Found status column '{}' at index {} in streaming mode", STATUS_COLUMN, statusCol);
+        } else {
+            logger.warn("Status column '{}' not found in Excel file (streaming mode). Available columns: {}", STATUS_COLUMN, columnIndices.keySet());
+        }
     }
     
     private void processDataRow() {
@@ -374,6 +391,32 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 }
             }
             
+            // Состояние (опционально) - парсим поле "Состояние" в поле state
+            Integer statusCol = columnIndices.get(STATUS_COLUMN);
+            if (statusCol == null) {
+                statusCol = findColumnIndex(STATUS_COLUMN);
+            }
+            if (statusCol != null) {
+                String statusValue = currentRowData.get(statusCol);
+                if (statusValue != null && !statusValue.trim().isEmpty()) {
+                    String trimmedStatus = statusValue.trim();
+                    // Сохраняем значение из колонки "Состояние" в поле state
+                    pr.setState(trimmedStatus);
+                    logger.info("Row {}: parsed state value: '{}' and saved to state field for request {}", currentRowNum + 1, trimmedStatus, pr.getIdPurchaseRequest());
+                    // Если "Состояние" = "Проект" (case-insensitive), то устанавливаем статус = PROJECT
+                    if ("Проект".equalsIgnoreCase(trimmedStatus)) {
+                        pr.setStatus(PurchaseRequestStatus.PROJECT);
+                        logger.info("Row {}: parsed state '{}', set status to PROJECT for request {}", currentRowNum + 1, trimmedStatus, pr.getIdPurchaseRequest());
+                    } else {
+                        logger.debug("Row {}: state value '{}' is not 'Проект' (case-insensitive), skipping status update", currentRowNum + 1, trimmedStatus);
+                    }
+                } else {
+                    logger.debug("Row {}: status cell is empty or null", currentRowNum + 1);
+                }
+            } else {
+                logger.debug("Row {}: statusColumnIndex is null, skipping state field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
+            }
+            
             // Сохраняем или обновляем
             if (existingOpt.isPresent()) {
                 PurchaseRequest existing = existingOpt.get();
@@ -384,6 +427,7 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 boolean updated = updatePurchaseRequestFields(existing, pr);
                 if (updated) {
                     purchaseRequestRepository.save(existing);
+                    purchaseRequestsUpdated++;
                     logger.info("Row {}: SAVED updated purchase request {} (requiresPurchase: {} -> {})", 
                         currentRowNum + 1, existing.getIdPurchaseRequest(), oldRequiresPurchase, existing.getRequiresPurchase());
                 } else {
@@ -464,12 +508,39 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 }
             }
             
+            // Состояние (опционально) - парсим поле "Состояние" в поле state
+            Integer statusCol = columnIndices.get(STATUS_COLUMN);
+            if (statusCol == null) {
+                statusCol = findColumnIndex(STATUS_COLUMN);
+            }
+            if (statusCol != null) {
+                String statusValue = currentRowData.get(statusCol);
+                if (statusValue != null && !statusValue.trim().isEmpty()) {
+                    String trimmedStatus = statusValue.trim();
+                    // Сохраняем значение из колонки "Состояние" в поле state
+                    purchase.setState(trimmedStatus);
+                    logger.info("Row {}: parsed state value: '{}' and saved to state field for purchase {}", currentRowNum + 1, trimmedStatus, purchase.getInnerId());
+                    // Если "Состояние" = "Проект" (case-insensitive), то устанавливаем статус = PROJECT
+                    if ("Проект".equalsIgnoreCase(trimmedStatus)) {
+                        purchase.setStatus(PurchaseStatus.PROJECT);
+                        logger.info("Row {}: parsed state '{}', set status to PROJECT for purchase {}", currentRowNum + 1, trimmedStatus, purchase.getInnerId());
+                    } else {
+                        logger.debug("Row {}: state value '{}' is not 'Проект' (case-insensitive), skipping status update", currentRowNum + 1, trimmedStatus);
+                    }
+                } else {
+                    logger.debug("Row {}: status cell is empty or null", currentRowNum + 1);
+                }
+            } else {
+                logger.debug("Row {}: statusColumnIndex is null, skipping state field", currentRowNum + 1);
+            }
+            
             // Сохраняем или обновляем
             if (existingOpt.isPresent()) {
                 Purchase existing = existingOpt.get();
                 boolean updated = updatePurchaseFields(existing, purchase);
                 if (updated) {
                     purchaseRepository.save(existing);
+                    purchasesUpdated++;
                 }
             } else {
                 purchaseRepository.save(purchase);
@@ -553,12 +624,39 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 }
             }
             
+            // Состояние (опционально) - парсим поле "Состояние" в поле state
+            Integer statusCol = columnIndices.get(STATUS_COLUMN);
+            if (statusCol == null) {
+                statusCol = findColumnIndex(STATUS_COLUMN);
+            }
+            if (statusCol != null) {
+                String statusValue = currentRowData.get(statusCol);
+                if (statusValue != null && !statusValue.trim().isEmpty()) {
+                    String trimmedStatus = statusValue.trim();
+                    // Сохраняем значение из колонки "Состояние" в поле state
+                    contract.setState(trimmedStatus);
+                    logger.info("Row {}: parsed state value: '{}' and saved to state field for contract {}", currentRowNum + 1, trimmedStatus, contract.getInnerId());
+                    // Если "Состояние" = "Проект" (case-insensitive), то устанавливаем статус = PROJECT
+                    if ("Проект".equalsIgnoreCase(trimmedStatus)) {
+                        contract.setStatus(ContractStatus.PROJECT);
+                        logger.info("Row {}: parsed state '{}', set status to PROJECT for contract {}", currentRowNum + 1, trimmedStatus, contract.getInnerId());
+                    } else {
+                        logger.debug("Row {}: state value '{}' is not 'Проект' (case-insensitive), skipping status update", currentRowNum + 1, trimmedStatus);
+                    }
+                } else {
+                    logger.debug("Row {}: status cell is empty or null", currentRowNum + 1);
+                }
+            } else {
+                logger.debug("Row {}: statusColumnIndex is null, skipping state field", currentRowNum + 1);
+            }
+            
             // Сохраняем или обновляем
             if (existingOpt.isPresent()) {
                 Contract existing = existingOpt.get();
                 boolean updated = updateContractFields(existing, contract);
                 if (updated) {
                     contractRepository.save(existing);
+                    contractsUpdated++;
                 }
             } else {
                 contractRepository.save(contract);
@@ -948,8 +1046,13 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
         results.put("contracts", contractsCount);
         results.put("users", usersCount);
         results.put("purchaseRequestsCreated", purchaseRequestsCreated);
+        results.put("purchaseRequestsUpdated", purchaseRequestsUpdated);
         results.put("purchasesCreated", purchasesCreated);
+        results.put("purchasesUpdated", purchasesUpdated);
         results.put("contractsCreated", contractsCreated);
+        results.put("contractsUpdated", contractsUpdated);
+        results.put("usersCreated", usersCreated);
+        results.put("usersUpdated", usersUpdated);
         return results;
     }
     
