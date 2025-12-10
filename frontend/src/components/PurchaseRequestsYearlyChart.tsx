@@ -33,6 +33,8 @@ export default function PurchaseRequestsYearlyChart() {
   const [data, setData] = useState<any>(null);
   const [monthlyData, setMonthlyData] = useState<any>(null);
   const [cfoData, setCfoData] = useState<CfoTableRow[] | null>(null);
+  const [cfoSortField, setCfoSortField] = useState<keyof CfoTableRow | null>(null);
+  const [cfoSortDirection, setCfoSortDirection] = useState<'asc' | 'desc'>('asc');
   const [loading, setLoading] = useState(true);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
   const [cfoLoading, setCfoLoading] = useState(false);
@@ -621,6 +623,9 @@ export default function PurchaseRequestsYearlyChart() {
         }));
         
         setCfoData(cfoTableData);
+        // Сбрасываем сортировку при загрузке новых данных
+        setCfoSortField(null);
+        setCfoSortDirection('asc');
       } catch (err) {
         console.error('Error fetching CFO stats:', err);
       } finally {
@@ -630,6 +635,44 @@ export default function PurchaseRequestsYearlyChart() {
     
     fetchCfoData();
   }, [selectedYear, yearsLoaded]);
+
+  // Сортированные данные для таблицы ЦФО
+  const sortedCfoData = useMemo(() => {
+    if (!cfoData || !cfoSortField) {
+      return cfoData;
+    }
+    
+    const sorted = [...cfoData].sort((a, b) => {
+      const aValue = a[cfoSortField];
+      const bValue = b[cfoSortField];
+      
+      if (aValue === bValue) return 0;
+      
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return cfoSortDirection === 'asc' 
+          ? aValue.localeCompare(bValue, 'ru')
+          : bValue.localeCompare(aValue, 'ru');
+      }
+      
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return cfoSortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+      }
+      
+      return 0;
+    });
+    
+    return sorted;
+  }, [cfoData, cfoSortField, cfoSortDirection]);
+
+  // Обработчик сортировки для таблицы ЦФО
+  const handleCfoSort = useCallback((field: keyof CfoTableRow) => {
+    if (cfoSortField === field) {
+      setCfoSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setCfoSortField(field);
+      setCfoSortDirection('asc');
+    }
+  }, [cfoSortField]);
 
   const options = {
     responsive: true,
@@ -939,20 +982,115 @@ export default function PurchaseRequestsYearlyChart() {
                     <p className="mt-2 text-xs sm:text-sm text-gray-500">Загрузка данных...</p>
                   </div>
                 </div>
-              ) : cfoData && cfoData.length > 0 ? (
+              ) : sortedCfoData && sortedCfoData.length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300">ЦФО</th>
-                        <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300">Кол-во заказов</th>
-                        <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300">Сумма заказов</th>
-                        <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300">Кол-во закупочных процедур</th>
-                        <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider">Сумма закупочных процедур</th>
+                        <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative">
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleCfoSort('cfo')}
+                              className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                              style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                            >
+                              {cfoSortField === 'cfo' ? (
+                                cfoSortDirection === 'asc' ? (
+                                  <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                                ) : (
+                                  <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                                )
+                              ) : (
+                                <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                              )}
+                            </button>
+                            <span className="text-xs font-medium text-gray-500 tracking-wider uppercase">ЦФО</span>
+                          </div>
+                        </th>
+                        <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative">
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleCfoSort('ordersCount')}
+                              className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                              style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                            >
+                              {cfoSortField === 'ordersCount' ? (
+                                cfoSortDirection === 'asc' ? (
+                                  <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                                ) : (
+                                  <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                                )
+                              ) : (
+                                <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                              )}
+                            </button>
+                            <span className="text-xs font-medium text-gray-500 tracking-wider">Кол-во заказов</span>
+                          </div>
+                        </th>
+                        <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative">
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleCfoSort('ordersAmount')}
+                              className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                              style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                            >
+                              {cfoSortField === 'ordersAmount' ? (
+                                cfoSortDirection === 'asc' ? (
+                                  <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                                ) : (
+                                  <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                                )
+                              ) : (
+                                <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                              )}
+                            </button>
+                            <span className="text-xs font-medium text-gray-500 tracking-wider">Сумма заказов</span>
+                          </div>
+                        </th>
+                        <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative">
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleCfoSort('purchaseProceduresCount')}
+                              className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                              style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                            >
+                              {cfoSortField === 'purchaseProceduresCount' ? (
+                                cfoSortDirection === 'asc' ? (
+                                  <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                                ) : (
+                                  <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                                )
+                              ) : (
+                                <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                              )}
+                            </button>
+                            <span className="text-xs font-medium text-gray-500 tracking-wider">Кол-во закупочных процедур</span>
+                          </div>
+                        </th>
+                        <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider relative">
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleCfoSort('purchaseProceduresAmount')}
+                              className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                              style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                            >
+                              {cfoSortField === 'purchaseProceduresAmount' ? (
+                                cfoSortDirection === 'asc' ? (
+                                  <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                                ) : (
+                                  <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                                )
+                              ) : (
+                                <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                              )}
+                            </button>
+                            <span className="text-xs font-medium text-gray-500 tracking-wider">Сумма закупочных процедур</span>
+                          </div>
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {cfoData.map((row: CfoTableRow, index: number) => (
+                      {sortedCfoData.map((row: CfoTableRow, index: number) => (
                         <tr 
                           key={index} 
                           className="hover:bg-gray-50 cursor-pointer"
