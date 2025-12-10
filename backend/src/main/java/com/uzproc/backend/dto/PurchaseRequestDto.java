@@ -33,6 +33,8 @@ public class PurchaseRequestDto {
     private LocalDateTime updatedAt;
     // Список ID связанных закупок
     private java.util.List<Long> purchaseIds;
+    // Список связанных договоров
+    private java.util.List<ContractDto> contracts;
 
     // Constructors
     public PurchaseRequestDto() {
@@ -237,6 +239,14 @@ public class PurchaseRequestDto {
 
     public void setPurchaseIds(java.util.List<Long> purchaseIds) {
         this.purchaseIds = purchaseIds;
+    }
+
+    public java.util.List<ContractDto> getContracts() {
+        return contracts;
+    }
+
+    public void setContracts(java.util.List<ContractDto> contracts) {
+        this.contracts = contracts;
     }
 }
 

@@ -534,7 +534,15 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                         Optional<PurchaseRequest> purchaseRequest = purchaseRequestRepository.findByIdPurchaseRequest(purchaseRequestId);
                         if (purchaseRequest.isPresent()) {
                             purchase.setPurchaseRequestId(purchaseRequest.get().getIdPurchaseRequest());
+                            logger.info("Row {}: Set purchaseRequestId {} for purchase {} from link '{}'", 
+                                currentRowNum + 1, purchaseRequest.get().getIdPurchaseRequest(), purchase.getInnerId(), link.trim());
+                        } else {
+                            logger.warn("Row {}: PurchaseRequest with idPurchaseRequest {} not found for purchase {} with link '{}'", 
+                                currentRowNum + 1, purchaseRequestId, purchase.getInnerId(), link.trim());
                         }
+                    } else {
+                        logger.debug("Row {}: Could not parse purchaseRequestId from link '{}' for purchase {}", 
+                            currentRowNum + 1, link.trim(), purchase.getInnerId());
                     }
                 }
             }
@@ -674,6 +682,29 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 String documentForm = currentRowData.get(documentFormCol);
                 if (documentForm != null && !documentForm.trim().isEmpty()) {
                     contract.setDocumentForm(documentForm.trim());
+                }
+            }
+            
+            // Ссылка (опционально) - парсим purchaseRequestId
+            Integer linkCol = columnIndices.get(LINK_COLUMN);
+            if (linkCol != null) {
+                String link = currentRowData.get(linkCol);
+                if (link != null && !link.trim().isEmpty()) {
+                    Long purchaseRequestId = parsePurchaseRequestIdFromLink(link.trim());
+                    if (purchaseRequestId != null) {
+                        Optional<PurchaseRequest> purchaseRequest = purchaseRequestRepository.findByIdPurchaseRequest(purchaseRequestId);
+                        if (purchaseRequest.isPresent()) {
+                            contract.setPurchaseRequestId(purchaseRequest.get().getIdPurchaseRequest());
+                            logger.info("Row {}: Set purchaseRequestId {} for contract {} from link '{}'", 
+                                currentRowNum + 1, purchaseRequest.get().getIdPurchaseRequest(), contract.getInnerId(), link.trim());
+                        } else {
+                            logger.warn("Row {}: PurchaseRequest with idPurchaseRequest {} not found for contract {} with link '{}'", 
+                                currentRowNum + 1, purchaseRequestId, contract.getInnerId(), link.trim());
+                        }
+                    } else {
+                        logger.debug("Row {}: Could not parse purchaseRequestId from link '{}' for contract {}", 
+                            currentRowNum + 1, link.trim(), contract.getInnerId());
+                    }
                 }
             }
             
@@ -1042,6 +1073,8 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
      */
     private boolean updatePurchaseFields(Purchase existing, Purchase newData) {
         boolean updated = false;
+        logger.debug("updatePurchaseFields: existing purchaseRequestId={}, newData purchaseRequestId={} for purchase {}", 
+            existing.getPurchaseRequestId(), newData.getPurchaseRequestId(), existing.getInnerId());
         
         // Обновляем внутренний номер
         if (newData.getInnerId() != null && !newData.getInnerId().trim().isEmpty()) {
@@ -1069,10 +1102,23 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
         }
         
         // Обновляем purchaseRequestId
+        // ВАЖНО: Всегда обновляем purchaseRequestId, если в новых данных он есть, даже если значения совпадают
+        // Это нужно для случаев, когда purchaseRequestId был установлен в кеше Hibernate, но не сохранен в БД
         if (newData.getPurchaseRequestId() != null) {
-            if (existing.getPurchaseRequestId() == null || !existing.getPurchaseRequestId().equals(newData.getPurchaseRequestId())) {
-                existing.setPurchaseRequestId(newData.getPurchaseRequestId());
+            Long existingPrId = existing.getPurchaseRequestId();
+            Long newPrId = newData.getPurchaseRequestId();
+            if (existingPrId == null || !existingPrId.equals(newPrId)) {
+                existing.setPurchaseRequestId(newPrId);
                 updated = true;
+                logger.info("Updated purchaseRequestId for purchase {}: {} -> {}", 
+                    existing.getInnerId(), existingPrId, newPrId);
+            } else {
+                // Значения совпадают, но принудительно обновляем для гарантии сохранения в БД
+                // Это нужно, если purchaseRequestId был установлен в кеше, но не сохранен в БД
+                existing.setPurchaseRequestId(newPrId);
+                updated = true;
+                logger.info("Force updated purchaseRequestId for purchase {}: {} (values match, ensuring DB save)", 
+                    existing.getInnerId(), newPrId);
             }
         }
         
@@ -1162,6 +1208,54 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             if (existing.getDocumentForm() == null || !existing.getDocumentForm().equals(newData.getDocumentForm())) {
                 existing.setDocumentForm(newData.getDocumentForm());
                 updated = true;
+            }
+        }
+        
+        // Обновляем purchaseRequestId
+        // ВАЖНО: Всегда обновляем purchaseRequestId, если в новых данных он есть, даже если значения совпадают
+        // Это нужно для случаев, когда purchaseRequestId был установлен в кеше Hibernate, но не сохранен в БД
+        if (newData.getPurchaseRequestId() != null) {
+            Long existingPrId = existing.getPurchaseRequestId();
+            Long newPrId = newData.getPurchaseRequestId();
+            if (existingPrId == null || !existingPrId.equals(newPrId)) {
+                existing.setPurchaseRequestId(newPrId);
+                updated = true;
+                logger.info("Updated purchaseRequestId for contract {}: {} -> {}", 
+                    existing.getInnerId(), existingPrId, newPrId);
+            } else {
+                // Значения совпадают, но принудительно обновляем для гарантии сохранения в БД
+                // Это нужно, если purchaseRequestId был установлен в кеше, но не сохранен в БД
+                existing.setPurchaseRequestId(newPrId);
+                updated = true;
+                logger.info("Force updated purchaseRequestId for contract {}: {} (values match, ensuring DB save)", 
+                    existing.getInnerId(), newPrId);
+            }
+        }
+        
+        // Обновляем сумму (budgetAmount)
+        if (newData.getBudgetAmount() != null) {
+            if (existing.getBudgetAmount() == null || !existing.getBudgetAmount().equals(newData.getBudgetAmount())) {
+                existing.setBudgetAmount(newData.getBudgetAmount());
+                updated = true;
+                logger.debug("Updated budgetAmount for contract {}: {}", existing.getInnerId(), newData.getBudgetAmount());
+            }
+        }
+        
+        // Обновляем state
+        if (newData.getState() != null && !newData.getState().trim().isEmpty()) {
+            if (existing.getState() == null || !existing.getState().equals(newData.getState())) {
+                existing.setState(newData.getState());
+                updated = true;
+                logger.debug("Updated state for contract {}: {}", existing.getInnerId(), newData.getState());
+            }
+        }
+        
+        // Обновляем status
+        if (newData.getStatus() != null) {
+            if (existing.getStatus() == null || !existing.getStatus().equals(newData.getStatus())) {
+                existing.setStatus(newData.getStatus());
+                updated = true;
+                logger.debug("Updated status for contract {}: {}", existing.getInnerId(), newData.getStatus());
             }
         }
         

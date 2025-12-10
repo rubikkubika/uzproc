@@ -76,7 +76,7 @@ public class ContractService {
     /**
      * Конвертирует Contract entity в ContractDto
      */
-    private ContractDto toDto(Contract entity) {
+    public ContractDto toDto(Contract entity) {
         ContractDto dto = new ContractDto();
         dto.setId(entity.getId());
         dto.setGuid(entity.getGuid());
@@ -93,6 +93,7 @@ public class ContractService {
         dto.setContractDurationMonths(entity.getContractDurationMonths());
         dto.setStatus(entity.getStatus());
         dto.setState(entity.getState());
+        dto.setPurchaseRequestId(entity.getPurchaseRequestId());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
         return dto;

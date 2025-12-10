@@ -28,6 +28,7 @@ interface PurchaseRequest {
   requiresPurchase: boolean | null;
   innerId: string | null;
   purchaseIds: number[] | null;
+  contracts: Contract[] | null;
   status: string | null;
   createdAt: string;
   updatedAt: string;
@@ -37,6 +38,17 @@ interface Purchase {
   id: number;
   innerId: string | null;
   cfo: string | null;
+  purchaseRequestId: number | null;
+}
+
+interface Contract {
+  id: number;
+  innerId: string | null;
+  name: string | null;
+  title: string | null;
+  cfo: string | null;
+  contractCreationDate: string | null;
+  budgetAmount: number | null;
   purchaseRequestId: number | null;
 }
 
@@ -1408,11 +1420,70 @@ export default function PurchaseRequestDetailPage() {
                 </div>
                 <div className="p-2">
                 <div className="flex flex-col lg:flex-row gap-4 items-start">
-                  {/* Левая часть с полями спецификации */}
+                  {/* Левая часть с полями спецификации (договоры) */}
                   <div className="flex-1">
-                  <div className="text-center py-2 text-xs text-gray-500">
-                    <p>Раздел находится в разработке</p>
-                  </div>
+                  {purchaseRequest.contracts && purchaseRequest.contracts.length > 0 ? (
+                    <div className="space-y-3">
+                      {purchaseRequest.contracts.map((contract) => (
+                        <div key={contract.id} className="border border-gray-200 rounded p-2">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                Внутренний ID
+                              </label>
+                              <p className="text-xs text-gray-900">
+                                {contract.innerId || '-'}
+                              </p>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                Наименование
+                              </label>
+                              <p className="text-xs text-gray-900">
+                                {contract.name || '-'}
+                              </p>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                Заголовок
+                              </label>
+                              <p className="text-xs text-gray-900">
+                                {contract.title || '-'}
+                              </p>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                ЦФО
+                              </label>
+                              <p className="text-xs text-gray-900">
+                                {contract.cfo || '-'}
+                              </p>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                Дата создания
+                              </label>
+                              <p className="text-xs text-gray-900">
+                                {contract.contractCreationDate ? new Date(contract.contractCreationDate).toLocaleDateString('ru-RU') : '-'}
+                              </p>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                Сумма договора
+                              </label>
+                              <p className="text-xs text-gray-900">
+                                {contract.budgetAmount ? new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(contract.budgetAmount) : '-'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-2 text-xs text-gray-500">
+                      <p>Нет данных о договоре</p>
+                    </div>
+                  )}
                 </div>
 
                   {/* Правая часть с блоком согласований */}
@@ -1684,32 +1755,92 @@ export default function PurchaseRequestDetailPage() {
                 <div className="flex flex-col lg:flex-row gap-4 items-start">
                   {/* Левая часть с полями договора */}
                   <div className={purchaseRequest.requiresPurchase === false ? "flex-1 lg:flex-[0_0_50%]" : "flex-1"}>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-0">
-                          Наименование
-                        </label>
-                        <p className="text-xs text-gray-900">
-                          -
-                        </p>
+                    {/* Для заказов договоры показываются в блоке "Спецификация", здесь показываем только если это закупка */}
+                    {purchaseRequest.requiresPurchase !== false && purchaseRequest.contracts && purchaseRequest.contracts.length > 0 ? (
+                      <div className="space-y-3">
+                        {purchaseRequest.contracts.map((contract) => (
+                          <div key={contract.id} className="border border-gray-200 rounded p-2">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                              <div>
+                                <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                  Внутренний ID
+                                </label>
+                                <p className="text-xs text-gray-900">
+                                  {contract.innerId || '-'}
+                                </p>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                  Наименование
+                                </label>
+                                <p className="text-xs text-gray-900">
+                                  {contract.name || '-'}
+                                </p>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                  Заголовок
+                                </label>
+                                <p className="text-xs text-gray-900">
+                                  {contract.title || '-'}
+                                </p>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                  ЦФО
+                                </label>
+                                <p className="text-xs text-gray-900">
+                                  {contract.cfo || '-'}
+                                </p>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                  Дата создания
+                                </label>
+                                <p className="text-xs text-gray-900">
+                                  {contract.contractCreationDate ? new Date(contract.contractCreationDate).toLocaleDateString('ru-RU') : '-'}
+                                </p>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                  Сумма договора
+                                </label>
+                                <p className="text-xs text-gray-900">
+                                  {contract.budgetAmount ? new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(contract.budgetAmount) : '-'}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-0">
-                          Контрагент
-                        </label>
-                        <p className="text-xs text-gray-900">
-                          -
-                        </p>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-0">
+                            Наименование
+                          </label>
+                          <p className="text-xs text-gray-900">
+                            -
+                          </p>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-0">
+                            Контрагент
+                          </label>
+                          <p className="text-xs text-gray-900">
+                            -
+                          </p>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-0">
+                            Сумма договора
+                          </label>
+                          <p className="text-xs text-gray-900">
+                            -
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-0">
-                          Сумма договора
-                        </label>
-                        <p className="text-xs text-gray-900">
-                          -
-                        </p>
-                      </div>
-                    </div>
+                    )}
                   </div>
                   
                   {/* Правая часть - согласования или таблица спецификации */}

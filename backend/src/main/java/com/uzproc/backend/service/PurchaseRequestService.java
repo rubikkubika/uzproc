@@ -1,11 +1,14 @@
 package com.uzproc.backend.service;
 
+import com.uzproc.backend.dto.ContractDto;
 import com.uzproc.backend.dto.PurchaseRequestDto;
 import com.uzproc.backend.dto.PurchaserStatsDto;
+import com.uzproc.backend.entity.Contract;
 import com.uzproc.backend.entity.Purchase;
 import com.uzproc.backend.entity.PurchaseRequest;
 import com.uzproc.backend.entity.PurchaseRequestApproval;
 import com.uzproc.backend.entity.PurchaseRequestStatus;
+import com.uzproc.backend.repository.ContractRepository;
 import com.uzproc.backend.repository.PurchaseRequestApprovalRepository;
 import com.uzproc.backend.repository.PurchaseRequestRepository;
 import com.uzproc.backend.repository.PurchaseRepository;
@@ -40,14 +43,20 @@ public class PurchaseRequestService {
     private final PurchaseRequestRepository purchaseRequestRepository;
     private final PurchaseRequestApprovalRepository approvalRepository;
     private final PurchaseRepository purchaseRepository;
+    private final ContractRepository contractRepository;
+    private final ContractService contractService;
 
     public PurchaseRequestService(
             PurchaseRequestRepository purchaseRequestRepository,
             PurchaseRequestApprovalRepository approvalRepository,
-            PurchaseRepository purchaseRepository) {
+            PurchaseRepository purchaseRepository,
+            ContractRepository contractRepository,
+            ContractService contractService) {
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.approvalRepository = approvalRepository;
         this.purchaseRepository = purchaseRepository;
+        this.contractRepository = contractRepository;
+        this.contractService = contractService;
     }
 
     public Page<PurchaseRequestDto> findAll(
@@ -145,8 +154,16 @@ public class PurchaseRequestService {
                     .map(com.uzproc.backend.entity.Purchase::getId)
                     .collect(Collectors.toList());
             dto.setPurchaseIds(purchaseIds);
+            
+            // Загружаем связанные договоры по idPurchaseRequest
+            List<Contract> contracts = contractRepository.findByPurchaseRequestId(entity.getIdPurchaseRequest());
+            List<ContractDto> contractDtos = contracts.stream()
+                    .map(contract -> contractService.toDto(contract))
+                    .collect(Collectors.toList());
+            dto.setContracts(contractDtos);
         } else {
             dto.setPurchaseIds(new ArrayList<>());
+            dto.setContracts(new ArrayList<>());
         }
         
         return dto;
