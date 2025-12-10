@@ -147,5 +147,12 @@ public class PurchaseRequestController {
         Map<String, Object> stats = purchaseRequestService.getYearlyStats();
         return ResponseEntity.ok(stats);
     }
+
+    @GetMapping("/cfo-stats")
+    public ResponseEntity<Map<String, Object>> getCfoStats(
+            @RequestParam(required = false) Integer year) {
+        Map<String, Object> stats = purchaseRequestService.getCfoStats(year);
+        return ResponseEntity.ok(stats);
+    }
 }
 

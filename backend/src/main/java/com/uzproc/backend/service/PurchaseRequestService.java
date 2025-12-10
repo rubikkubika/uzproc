@@ -269,6 +269,20 @@ public class PurchaseRequestService {
                 predicates.add(cb.equal(root.get("requiresPurchase"), requiresPurchase));
                 predicateCount++;
                 logger.info("Added requiresPurchase filter: {}", requiresPurchase);
+                
+                // ВАЖНО: Если фильтруем по requiresPurchase и НЕ указан явный фильтр по статусам,
+                // исключаем заявки со статусами "Не согласована", "Не утверждена", "Проект"
+                // Это соответствует логике getYearlyStats, где эти статусы учитываются отдельно
+                if (status == null || status.isEmpty()) {
+                    List<PurchaseRequestStatus> excludedStatuses = List.of(
+                        PurchaseRequestStatus.NOT_COORDINATED,
+                        PurchaseRequestStatus.NOT_APPROVED,
+                        PurchaseRequestStatus.PROJECT
+                    );
+                    predicates.add(cb.not(root.get("status").in(excludedStatuses)));
+                    predicateCount++;
+                    logger.info("Excluded pending statuses (NOT_COORDINATED, NOT_APPROVED, PROJECT) from requiresPurchase filter");
+                }
             }
             
             // Фильтр по статусу (множественный выбор)
@@ -678,6 +692,94 @@ public class PurchaseRequestService {
         
         logger.info("Yearly stats: {} years, total purchases: {}, total orders: {}, total pending status: {}", 
             years.size(), 
+            purchases.stream().mapToLong(Long::longValue).sum(),
+            orders.stream().mapToLong(Long::longValue).sum(),
+            pendingStatus.stream().mapToLong(Long::longValue).sum());
+        
+        return result;
+    }
+
+    /**
+     * Получить статистику по ЦФО для выбранного года
+     * @param year год для фильтрации
+     * @return Map с ключами: cfoLabels (список ЦФО), purchases (количество закупок по ЦФО), orders (количество заказов по ЦФО), pendingStatus (количество заявок со статусами "Не согласована", "Не утверждена", "Проект" по ЦФО)
+     */
+    public Map<String, Object> getCfoStats(Integer year) {
+        Specification<PurchaseRequest> yearSpec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (year != null) {
+                LocalDateTime startOfYear = LocalDateTime.of(year, 1, 1, 0, 0);
+                LocalDateTime endOfYear = LocalDateTime.of(year, 12, 31, 23, 59, 59);
+                predicates.add(cb.between(root.get("purchaseRequestCreationDate"), startOfYear, endOfYear));
+            }
+            return predicates.isEmpty() ? cb.conjunction() : cb.and(predicates.toArray(new Predicate[0]));
+        };
+        
+        List<PurchaseRequest> allRequests = purchaseRequestRepository.findAll(yearSpec);
+        
+        // Группируем по ЦФО
+        Map<String, Long> purchasesByCfo = new HashMap<>();
+        Map<String, Long> ordersByCfo = new HashMap<>();
+        Map<String, Long> pendingStatusByCfo = new HashMap<>();
+        
+        for (PurchaseRequest request : allRequests) {
+            String cfo = request.getCfo();
+            if (cfo == null || cfo.trim().isEmpty()) {
+                cfo = "Без ЦФО";
+            } else {
+                cfo = cfo.trim();
+            }
+            
+            // Проверяем статусы: "Не согласована", "Не утверждена", "Проект"
+            boolean isPendingStatus = request.getStatus() != null && (
+                request.getStatus() == PurchaseRequestStatus.NOT_COORDINATED ||
+                request.getStatus() == PurchaseRequestStatus.NOT_APPROVED ||
+                request.getStatus() == PurchaseRequestStatus.PROJECT
+            );
+            
+            if (isPendingStatus) {
+                // Заявки со статусами "Не согласована", "Не утверждена", "Проект"
+                pendingStatusByCfo.put(cfo, pendingStatusByCfo.getOrDefault(cfo, 0L) + 1);
+            } else if (request.getRequiresPurchase() != null && request.getRequiresPurchase()) {
+                // Закупка
+                purchasesByCfo.put(cfo, purchasesByCfo.getOrDefault(cfo, 0L) + 1);
+            } else {
+                // Заказ
+                ordersByCfo.put(cfo, ordersByCfo.getOrDefault(cfo, 0L) + 1);
+            }
+        }
+        
+        // Получаем все ЦФО и сортируем их
+        Set<String> allCfoSet = new HashSet<>();
+        allCfoSet.addAll(purchasesByCfo.keySet());
+        allCfoSet.addAll(ordersByCfo.keySet());
+        allCfoSet.addAll(pendingStatusByCfo.keySet());
+        List<String> cfoLabels = allCfoSet.stream()
+            .sorted()
+            .collect(Collectors.toList());
+        
+        // Формируем списки данных для каждого ЦФО
+        List<Long> purchases = cfoLabels.stream()
+            .map(cfo -> purchasesByCfo.getOrDefault(cfo, 0L))
+            .collect(Collectors.toList());
+        
+        List<Long> orders = cfoLabels.stream()
+            .map(cfo -> ordersByCfo.getOrDefault(cfo, 0L))
+            .collect(Collectors.toList());
+        
+        List<Long> pendingStatus = cfoLabels.stream()
+            .map(cfo -> pendingStatusByCfo.getOrDefault(cfo, 0L))
+            .collect(Collectors.toList());
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("cfoLabels", cfoLabels);
+        result.put("purchases", purchases);
+        result.put("orders", orders);
+        result.put("pendingStatus", pendingStatus);
+        
+        logger.info("Cfo stats for year {}: {} CFOs, total purchases: {}, total orders: {}, total pending status: {}", 
+            year, 
+            cfoLabels.size(), 
             purchases.stream().mapToLong(Long::longValue).sum(),
             orders.stream().mapToLong(Long::longValue).sum(),
             pendingStatus.stream().mapToLong(Long::longValue).sum());

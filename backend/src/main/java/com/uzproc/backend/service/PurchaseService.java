@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -47,14 +48,15 @@ public class PurchaseService {
             String name,
             String costType,
             String contractType,
-            Long purchaseRequestId) {
+            Long purchaseRequestId,
+            List<String> status) {
         
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, month: {}, innerId: '{}', purchaseNumber: {}, cfo: {}, purchaseInitiator: '{}', name: '{}', costType: '{}', contractType: '{}', purchaseRequestId: {}",
-                year, month, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType, purchaseRequestId);
+        logger.info("Filter parameters - year: {}, month: {}, innerId: '{}', purchaseNumber: {}, cfo: {}, purchaseInitiator: '{}', name: '{}', costType: '{}', contractType: '{}', purchaseRequestId: {}, status: {}",
+                year, month, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType, purchaseRequestId, status);
         
         Specification<Purchase> spec = buildSpecification(
-                year, month, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType, purchaseRequestId);
+                year, month, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType, purchaseRequestId, status);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -118,7 +120,8 @@ public class PurchaseService {
             String name,
             String costType,
             String contractType,
-            Long purchaseRequestId) {
+            Long purchaseRequestId,
+            List<String> status) {
         
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -218,6 +221,47 @@ public class PurchaseService {
                 predicates.add(cb.equal(root.get("purchaseRequestId"), purchaseRequestId));
                 predicateCount++;
                 logger.info("Added purchaseRequestId filter: {}", purchaseRequestId);
+            }
+            
+            // Фильтр по статусу (множественный выбор)
+            if (status != null && !status.isEmpty()) {
+                // Убираем пустые значения и тримим
+                List<String> validStatusValues = status.stream()
+                    .filter(s -> s != null && !s.trim().isEmpty())
+                    .map(String::trim)
+                    .toList();
+                
+                if (!validStatusValues.isEmpty()) {
+                    // Преобразуем русские названия в enum значения
+                    List<PurchaseStatus> statusEnums = validStatusValues.stream()
+                        .map(statusStr -> {
+                            // Ищем enum по displayName
+                            for (PurchaseStatus statusEnum : PurchaseStatus.values()) {
+                                if (statusEnum.getDisplayName().equals(statusStr)) {
+                                    return statusEnum;
+                                }
+                            }
+                            return null;
+                        })
+                        .filter(s -> s != null)
+                        .collect(Collectors.toList());
+                    
+                    if (!statusEnums.isEmpty()) {
+                        if (statusEnums.size() == 1) {
+                            // Одно значение - точное совпадение
+                            predicates.add(cb.equal(root.get("status"), statusEnums.get(0)));
+                            predicateCount++;
+                            logger.info("Added single status filter: '{}'", statusEnums.get(0).getDisplayName());
+                        } else {
+                            // Несколько значений - IN запрос
+                            predicates.add(root.get("status").in(statusEnums));
+                            predicateCount++;
+                            logger.info("Added multiple status filter: {}", statusEnums.stream()
+                                .map(PurchaseStatus::getDisplayName)
+                                .collect(Collectors.toList()));
+                        }
+                    }
+                }
             }
             
             logger.info("Total predicates added: {}", predicateCount);

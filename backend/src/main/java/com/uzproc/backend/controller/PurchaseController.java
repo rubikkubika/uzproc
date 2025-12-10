@@ -35,11 +35,12 @@ public class PurchaseController {
             @RequestParam(required = false) String name,
             @RequestParam(required = false) String costType,
             @RequestParam(required = false) String contractType,
-            @RequestParam(required = false) Long purchaseRequestId) {
+            @RequestParam(required = false) Long purchaseRequestId,
+            @RequestParam(required = false) List<String> status) {
         
         Page<PurchaseDto> purchases = purchaseService.findAll(
                 page, size, year, month, sortBy, sortDir, innerId, purchaseNumber, cfo, purchaseInitiator,
-                name, costType, contractType, purchaseRequestId);
+                name, costType, contractType, purchaseRequestId, status);
         
         return ResponseEntity.ok(purchases);
     }

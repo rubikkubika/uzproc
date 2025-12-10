@@ -32,8 +32,10 @@ ChartJS.register(
 export default function PurchaseRequestsYearlyChart() {
   const [data, setData] = useState<any>(null);
   const [monthlyData, setMonthlyData] = useState<any>(null);
+  const [cfoData, setCfoData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
+  const [cfoLoading, setCfoLoading] = useState(false);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [allYears, setAllYears] = useState<number[]>([]);
   const [yearsLoaded, setYearsLoaded] = useState(false);
@@ -99,15 +101,15 @@ export default function PurchaseRequestsYearlyChart() {
       let purchasesData: any = null;
 
       // Определяем, какие данные нужно загрузить
-      // Для столбчатой диаграммы: "Закупка", "Заказ", "Не согласована / Не утверждена / Проект"
-      // Для линейной диаграммы: "Заявки на закупку", "Заказы", "Закупочная процедура", "Не согласована / Не утверждена / Проект"
+      // Для столбчатой диаграммы: "Закупка", "Заказ", "Не согласована / Проект"
+      // Для линейной диаграммы: "Заявки на закупку", "Заказы", "Закупочная процедура", "Не согласована / Проект"
       const shouldLoadPurchaseRequests = datasetLabel === 'Заявки на закупку' || 
                                         datasetLabel === 'Заказы' || 
                                         datasetLabel === 'Закупка' ||
                                         datasetLabel === 'Заказ' ||
-                                        datasetLabel === 'Не согласована / Не утверждена / Проект';
+                                        datasetLabel === 'Не согласована / Проект';
       const shouldLoadPurchases = datasetLabel === 'Закупочная процедура' || 
-                                  datasetLabel === 'Не согласована / Не утверждена / Проект';
+                                  datasetLabel === 'Не согласована / Проект';
 
       if (shouldLoadPurchaseRequests) {
         // Загружаем заявки на закупку
@@ -141,13 +143,50 @@ export default function PurchaseRequestsYearlyChart() {
           params.append('name', filters.name.trim());
         }
         
-        if (datasetLabel === 'Заказы' || datasetLabel === 'Заказ') {
-          params.append('requiresPurchase', 'false');
+        // Применяем фильтры в зависимости от datasetLabel
+        // Для столбчатой диаграммы: "Закупка", "Заказ", "Не согласована / Проект"
+        // Для линейной диаграммы: "Заявки на закупку", "Заказы", "Закупочная процедура", "Не согласована / Проект"
+        
+        // ВАЖНО: Фильтры должны применяться всегда, когда есть datasetLabel
+        // Если datasetLabel пустой или не распознан, не загружаем данные (это предотвратит показ всех данных)
+        if (!datasetLabel || datasetLabel.trim() === '') {
+          console.warn('Empty datasetLabel, skipping data fetch');
+          setTableData({ purchaseRequests: null, purchases: null });
+          setTableLoading(false);
+          return;
         }
         
-        // Для "Закупка" из столбчатой диаграммы фильтруем только заявки, где требуется закупка
-        if (datasetLabel === 'Закупка') {
+        if (datasetLabel === 'Не согласована / Проект') {
+          // Для "Не согласована / Проект" фильтруем по статусам (не применяем requiresPurchase)
+          // ВАЖНО: Добавляем все три статуса как отдельные параметры для множественного фильтра
+          params.append('status', 'Не согласована');
+          params.append('status', 'Не утверждена');
+          params.append('status', 'Проект');
+          // Явно не добавляем requiresPurchase, чтобы показать все заявки с этими статусами
+        } else if (datasetLabel === 'Заказы' || datasetLabel === 'Заказ') {
+          // Для "Заказы" фильтруем только заявки, где не требуется закупка
+          // ВАЖНО: Исключаем заявки со статусами "Не согласована", "Не утверждена", "Проект"
+          // так как они учитываются отдельно в "Не согласована / Проект"
+          params.append('requiresPurchase', 'false');
+          // НЕ добавляем фильтр по статусам, но на бэкенде нужно исключить эти статусы
+          // Для этого нужно добавить отрицательный фильтр по статусам, но Spring Data JPA Specification
+          // не поддерживает отрицательные фильтры напрямую, поэтому нужно использовать другой подход
+          // Пока оставляем как есть, но нужно будет добавить логику на бэкенде
+        } else if (datasetLabel === 'Закупка') {
+          // Для "Закупка" из столбчатой диаграммы фильтруем только заявки, где требуется закупка
+          // ВАЖНО: Исключаем заявки со статусами "Не согласована", "Не утверждена", "Проект"
+          // так как они учитываются отдельно в "Не согласована / Проект"
           params.append('requiresPurchase', 'true');
+          // НЕ добавляем фильтр по статусам, но на бэкенде нужно исключить эти статусы
+        } else if (datasetLabel === 'Заявки на закупку') {
+          // Для "Заявки на закупку" из линейной диаграммы - не применяем фильтр requiresPurchase (показываем все)
+          // Не добавляем фильтр requiresPurchase
+        } else {
+          // Если datasetLabel не распознан, не загружаем данные (это предотвратит показ всех данных)
+          console.warn('Unknown datasetLabel:', datasetLabel, '- skipping data fetch');
+          setTableData({ purchaseRequests: null, purchases: null });
+          setTableLoading(false);
+          return;
         }
         
         const url = `${backendUrl}/api/purchase-requests?${params.toString()}`;
@@ -187,6 +226,13 @@ export default function PurchaseRequestsYearlyChart() {
         
         if (filters.name && filters.name.trim() !== '') {
           params.append('name', filters.name.trim());
+        }
+        
+        // Для "Не согласована / Проект" фильтруем по статусам для закупок
+        // Для Purchase поддерживается только статус "Проект"
+        if (datasetLabel === 'Не согласована / Проект') {
+          // Для закупок фильтруем только по статусу "Проект", так как другие статусы не применимы для Purchase
+          params.append('status', 'Проект');
         }
         
         const url = `${backendUrl}/api/purchases?${params.toString()}`;
@@ -252,7 +298,10 @@ export default function PurchaseRequestsYearlyChart() {
       const year = selectedBarData ? parseInt(selectedBarData.year) : (selectedYear || new Date().getFullYear());
       const month = selectedLineData ? selectedLineData.month : null;
       const datasetLabel = selectedBarData ? selectedBarData.dataset : (selectedLineData ? selectedLineData.dataset : '');
-      fetchTableData(year, month, datasetLabel, currentPage, pageSize, sortField, sortDirection, filters);
+      // Убеждаемся, что datasetLabel не пустой перед вызовом fetchTableData
+      if (datasetLabel) {
+        fetchTableData(year, month, datasetLabel, currentPage, pageSize, sortField, sortDirection, filters);
+      }
     }
   }, [currentPage, pageSize, sortField, sortDirection, filters, cfoFilter, selectedBarData, selectedLineData, selectedYear]);
 
@@ -371,7 +420,7 @@ export default function PurchaseRequestsYearlyChart() {
           labels: years,
           datasets: [
             {
-              label: 'Не согласована / Не утверждена / Проект',
+              label: 'Не согласована / Проект',
               data: pendingStatus,
               backgroundColor: 'rgba(239, 68, 68, 0.8)',
               borderColor: 'rgba(239, 68, 68, 1)',
@@ -380,15 +429,15 @@ export default function PurchaseRequestsYearlyChart() {
             {
               label: 'Закупка',
               data: purchases,
-              backgroundColor: 'rgba(59, 130, 246, 0.8)',
-              borderColor: 'rgba(59, 130, 246, 1)',
+              backgroundColor: 'rgba(168, 85, 247, 0.8)',
+              borderColor: 'rgba(168, 85, 247, 1)',
               borderWidth: 1,
             },
             {
               label: 'Заказ',
               data: orders,
-              backgroundColor: 'rgba(34, 197, 94, 0.8)',
-              borderColor: 'rgba(34, 197, 94, 1)',
+              backgroundColor: 'rgba(96, 165, 250, 0.8)',
+              borderColor: 'rgba(96, 165, 250, 1)',
               borderWidth: 1,
             },
           ],
@@ -462,26 +511,26 @@ export default function PurchaseRequestsYearlyChart() {
             {
               label: 'Заявки на закупку',
               data: allPurchaseRequestsData,
-              borderColor: 'rgba(75, 85, 99, 0.5)',
-              backgroundColor: 'rgba(75, 85, 99, 0.05)',
+              borderColor: 'rgba(75, 85, 99, 1)',
+              backgroundColor: 'rgba(75, 85, 99, 0.1)',
               fill: true,
               tension: 0.4,
               pointRadius: 3,
               pointHoverRadius: 5,
-              pointBackgroundColor: 'rgba(75, 85, 99, 0.5)',
+              pointBackgroundColor: 'rgba(75, 85, 99, 1)',
               pointBorderColor: '#fff',
               pointBorderWidth: 1,
             },
             {
               label: 'Заказы',
               data: ordersData,
-              borderColor: 'rgba(34, 197, 94, 1)',
-              backgroundColor: 'rgba(34, 197, 94, 0.1)',
+              borderColor: 'rgba(96, 165, 250, 1)',
+              backgroundColor: 'rgba(96, 165, 250, 0.1)',
               fill: true,
               tension: 0.4,
               pointRadius: 4,
               pointHoverRadius: 6,
-              pointBackgroundColor: 'rgba(34, 197, 94, 1)',
+              pointBackgroundColor: 'rgba(96, 165, 250, 1)',
               pointBorderColor: '#fff',
               pointBorderWidth: 2,
             },
@@ -499,7 +548,7 @@ export default function PurchaseRequestsYearlyChart() {
               pointBorderWidth: 2,
             },
             {
-              label: 'Не согласована / Не утверждена / Проект',
+              label: 'Не согласована / Проект',
               data: pendingStatusData,
               borderColor: 'rgba(156, 163, 175, 0.5)',
               backgroundColor: 'rgba(156, 163, 175, 0.05)',
@@ -510,6 +559,7 @@ export default function PurchaseRequestsYearlyChart() {
               pointBackgroundColor: 'rgba(156, 163, 175, 0.5)',
               pointBorderColor: '#fff',
               pointBorderWidth: 1,
+              hidden: true, // Скрыта по умолчанию
             },
           ],
         };
@@ -523,6 +573,65 @@ export default function PurchaseRequestsYearlyChart() {
     };
     
     fetchMonthlyData();
+  }, [selectedYear, yearsLoaded]);
+
+  // Загружаем данные по ЦФО для выбранного года
+  useEffect(() => {
+    if (!yearsLoaded || selectedYear === null) {
+      return;
+    }
+
+    const fetchCfoData = async () => {
+      try {
+        setCfoLoading(true);
+        const backendUrl = getBackendUrl();
+        
+        // Загружаем данные по ЦФО
+        const cfoStatsUrl = `${backendUrl}/api/purchase-requests/cfo-stats?year=${selectedYear}`;
+        const cfoStatsResponse = await fetch(cfoStatsUrl);
+        const cfoStatsResult = await cfoStatsResponse.json();
+        
+        const cfoLabels = cfoStatsResult.cfoLabels || [];
+        const purchases = cfoStatsResult.purchases || [];
+        const orders = cfoStatsResult.orders || [];
+        const pendingStatus = cfoStatsResult.pendingStatus || [];
+        
+        const cfoChartData = {
+          labels: cfoLabels,
+          datasets: [
+            {
+              label: 'Закупка',
+              data: purchases,
+              backgroundColor: 'rgba(168, 85, 247, 0.8)',
+              borderColor: 'rgba(168, 85, 247, 1)',
+              borderWidth: 1,
+            },
+            {
+              label: 'Заказ',
+              data: orders,
+              backgroundColor: 'rgba(96, 165, 250, 0.8)',
+              borderColor: 'rgba(96, 165, 250, 1)',
+              borderWidth: 1,
+            },
+            {
+              label: 'Не согласована / Проект',
+              data: pendingStatus,
+              backgroundColor: 'rgba(239, 68, 68, 0.8)',
+              borderColor: 'rgba(239, 68, 68, 1)',
+              borderWidth: 1,
+            },
+          ],
+        };
+        
+        setCfoData(cfoChartData);
+      } catch (err) {
+        console.error('Error fetching CFO stats:', err);
+      } finally {
+        setCfoLoading(false);
+      }
+    };
+    
+    fetchCfoData();
   }, [selectedYear, yearsLoaded]);
 
   const options = {
@@ -674,15 +783,16 @@ export default function PurchaseRequestsYearlyChart() {
       },
       datalabels: {
         display: (context: any) => {
-          // Показываем подписи только для "Заказы" (индекс 1) и "Закупочная процедура" (индекс 2)
-          // Скрываем для "Заявки на закупку" (индекс 0) и "Не согласована / Не утверждена / Проект" (индекс 3)
-          return context.datasetIndex === 1 || context.datasetIndex === 2;
+          // Показываем подписи для "Заявки на закупку" (индекс 0), "Заказы" (индекс 1) и "Закупочная процедура" (индекс 2)
+          // Скрываем для "Не согласована / Проект" (индекс 3)
+          return context.datasetIndex === 0 || context.datasetIndex === 1 || context.datasetIndex === 2;
         },
         anchor: 'center' as const,
         align: (context: any) => {
           const datasetIndex = context.datasetIndex;
           // Размещаем подписи внутри области диаграммы
-          return datasetIndex === 1 ? 'bottom' : 'top';
+          // Для "Заявки на закупку" (индекс 0) и "Заказы" (индекс 1) - снизу, для "Закупочная процедура" (индекс 2) - сверху
+          return datasetIndex === 2 ? 'top' : 'bottom';
         },
         formatter: (value: number) => {
           return value > 0 ? value : '';
@@ -742,17 +852,145 @@ export default function PurchaseRequestsYearlyChart() {
     },
   };
 
+  // Опции для горизонтальной столбчатой диаграммы
+  const horizontalBarOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    onClick: async (event: any, elements: any[]) => {
+      if (elements.length > 0 && cfoData && selectedYear) {
+        const element = elements[0];
+        const datasetIndex = element.datasetIndex;
+        const index = element.index;
+        const cfo = cfoData.labels[index];
+        const dataset = cfoData.datasets[datasetIndex];
+        const value = dataset.data[index];
+        // Для ЦФО устанавливаем selectedBarData с годом и datasetLabel, и добавляем фильтр по ЦФО
+        setSelectedBarData({
+          year: String(selectedYear),
+          dataset: dataset.label,
+          value: value
+        });
+        // Устанавливаем фильтр по ЦФО
+        setCfoFilter(new Set([cfo]));
+        setSelectedLineData(null); // Сбрасываем выбор линейной диаграммы
+        setCurrentPage(0); // Сбрасываем на первую страницу
+      }
+    },
+    indexAxis: 'y' as const,
+    layout: {
+      padding: {
+        top: 0,
+        right: 10,
+        bottom: 0,
+        left: 10,
+      },
+    },
+    plugins: {
+      legend: {
+        position: 'top' as const,
+        align: 'start' as const,
+        labels: {
+          boxWidth: 12,
+          padding: 6,
+          font: {
+            size: 10
+          },
+          usePointStyle: false,
+        },
+        display: true,
+        fullSize: false,
+      },
+      title: {
+        display: false,
+      },
+      datalabels: {
+        display: (context: any) => {
+          return context.datasetIndex === 1 || context.datasetIndex === 2;
+        },
+        anchor: 'center' as const,
+        align: (context: any) => {
+          const datasetIndex = context.datasetIndex;
+          return datasetIndex === 1 ? 'right' : 'left';
+        },
+        formatter: (value: number) => {
+          return value > 0 ? value : '';
+        },
+        font: {
+          size: 10,
+          weight: 'bold' as const,
+        },
+        color: '#ffffff',
+        backgroundColor: (context: any) => {
+          const dataset = context.dataset;
+          return dataset.borderColor;
+        },
+        borderRadius: 4,
+        padding: {
+          top: 4,
+          bottom: 4,
+          left: 6,
+          right: 6,
+        },
+        offset: -8,
+        clamp: true,
+        clip: true,
+        overflow: 'hidden' as const,
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context: any) {
+            return `${context.dataset.label}: ${context.parsed.x}`;
+          },
+        },
+      },
+    },
+    scales: {
+      x: {
+        beginAtZero: true,
+        ticks: {
+          precision: 0,
+          display: true,
+        },
+        grid: {
+          display: true,
+        },
+      },
+      y: {
+        offset: true,
+        grid: {
+          display: false,
+        },
+        ticks: {
+          padding: 10,
+        },
+      },
+    },
+  };
+
   return (
     <div className="bg-white p-2 sm:p-3 rounded-lg shadow-md space-y-2 sm:space-y-3 w-full">
-      {/* Название диаграммы - над диаграммами */}
-      <div className="mb-1.5">
-        <h3 className="text-xs sm:text-sm font-bold text-gray-900">Заявки на закупку по годам</h3>
-      </div>
       {/* Диаграммы на одном уровне */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 sm:gap-3 w-full items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-1 sm:gap-2 w-full items-start">
         {/* Столбчатая диаграмма по годам */}
-        <div className="lg:col-span-1 w-full flex flex-col">
-          {/* Пустой заголовок для выравнивания с линейной диаграммой */}
+        <div className="lg:col-span-3 w-full flex flex-col">
+          {allYears.length > 0 && (
+            <div className="mb-1 flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <span className="text-xs font-medium text-gray-700">Год:</span>
+              {allYears.map((year) => (
+                <button
+                  key={year}
+                  onClick={() => setSelectedYear(year)}
+                  className={`px-2 py-1 text-xs rounded-md transition-colors ${
+                    selectedYear === year
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {year}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="mb-1 h-[32px] sm:h-[36px] flex items-center">
             <h3 className="text-xs sm:text-sm font-bold text-gray-900">По годам</h3>
           </div>
@@ -763,29 +1001,13 @@ export default function PurchaseRequestsYearlyChart() {
         
         {/* Линейная диаграмма по месяцам */}
         {selectedYear !== null && (
-          <div className="lg:col-span-2 w-full flex flex-col">
-            <div className="mb-1 h-[32px] sm:h-[36px] flex flex-wrap items-center gap-1.5 sm:gap-2 justify-between">
+          <div className="lg:col-span-5 w-full flex flex-col">
+            {/* Пустое место для выравнивания с кнопками фильтра года */}
+            <div className="mb-1 h-[28px] sm:h-[32px]"></div>
+            <div className="mb-1 h-[32px] sm:h-[36px] flex items-center">
               <h3 className="text-xs sm:text-sm font-bold text-gray-900">
                 {selectedYear ? `По месяцам (${selectedYear})` : 'По месяцам'}
               </h3>
-              {allYears.length > 0 && (
-                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                  <span className="text-xs font-medium text-gray-700">Год:</span>
-                  {allYears.map((year) => (
-                    <button
-                      key={year}
-                      onClick={() => setSelectedYear(year)}
-                      className={`px-2 py-1 text-xs rounded-md transition-colors ${
-                        selectedYear === year
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      {year}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
             <div className="h-[250px] sm:h-[280px] w-full">
               {monthlyLoading ? (
@@ -797,6 +1019,38 @@ export default function PurchaseRequestsYearlyChart() {
                 </div>
               ) : monthlyData ? (
                 <Line data={monthlyData} options={monthlyOptions} />
+              ) : (
+                <div className="h-full w-full flex items-center justify-center">
+                  <p className="text-xs sm:text-sm text-gray-500">Нет данных для отображения</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        
+        {/* Горизонтальная столбчатая диаграмма по ЦФО */}
+        {selectedYear !== null && (
+          <div className="lg:col-span-4 w-full flex flex-col">
+            {/* Пустое место для выравнивания с кнопками фильтра года */}
+            <div className="mb-1 h-[28px] sm:h-[32px]"></div>
+            <div className="mb-1 h-[32px] sm:h-[36px] flex items-center">
+              <h3 className="text-xs sm:text-sm font-bold text-gray-900">
+                {selectedYear ? `По ЦФО (${selectedYear})` : 'По ЦФО'}
+              </h3>
+            </div>
+            <div className="h-[250px] sm:h-[280px] w-full">
+              {cfoLoading ? (
+                <div className="h-full w-full flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                    <p className="mt-2 text-xs sm:text-sm text-gray-500">Загрузка данных...</p>
+                  </div>
+                </div>
+              ) : cfoData ? (
+                <Bar 
+                  data={cfoData} 
+                  options={horizontalBarOptions} 
+                />
               ) : (
                 <div className="h-full w-full flex items-center justify-center">
                   <p className="text-xs sm:text-sm text-gray-500">Нет данных для отображения</p>
