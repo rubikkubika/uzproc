@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Bar, Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -15,6 +15,7 @@ import {
 } from 'chart.js';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { getBackendUrl } from '@/utils/api';
+import { ArrowUp, ArrowDown, ArrowUpDown, Search } from 'lucide-react';
 
 ChartJS.register(
   CategoryScale,
@@ -38,6 +39,313 @@ export default function PurchaseRequestsYearlyChart() {
   const [yearsLoaded, setYearsLoaded] = useState(false);
   const [selectedBarData, setSelectedBarData] = useState<{year: string, dataset: string, value: number} | null>(null);
   const [selectedLineData, setSelectedLineData] = useState<{month: string, dataset: string, value: number} | null>(null);
+  
+  // Состояния для таблицы
+  const [tableData, setTableData] = useState<{purchaseRequests: any, purchases: any} | null>(null);
+  const [tableLoading, setTableLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
+  const [sortField, setSortField] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>(null);
+  const [filters, setFilters] = useState<Record<string, string>>({
+    cfo: '',
+    name: '',
+  });
+  const [localFilters, setLocalFilters] = useState<Record<string, string>>({
+    cfo: '',
+    name: '',
+  });
+  const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
+  const [isCfoFilterOpen, setIsCfoFilterOpen] = useState(false);
+  const [cfoSearchQuery, setCfoSearchQuery] = useState('');
+  const [cfoFilterPosition, setCfoFilterPosition] = useState<{ top: number; left: number } | null>(null);
+  const cfoFilterButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Функция для расчета позиции выпадающего списка
+  const calculateFilterPosition = useCallback((buttonRef: React.RefObject<HTMLButtonElement | null>) => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      return {
+        top: rect.bottom + window.scrollY + 4,
+        left: rect.left + window.scrollX,
+      };
+    }
+    return null;
+  }, []);
+
+  // Обновляем позицию при открытии фильтра ЦФО
+  useEffect(() => {
+    if (isCfoFilterOpen && cfoFilterButtonRef.current) {
+      const position = calculateFilterPosition(cfoFilterButtonRef);
+      setCfoFilterPosition(position);
+    }
+  }, [isCfoFilterOpen, calculateFilterPosition]);
+
+  // Функция для загрузки данных таблицы с пагинацией
+  const fetchTableData = async (
+    year: number, 
+    month: string | null, 
+    datasetLabel: string,
+    page: number = 0,
+    size: number = 25,
+    sortBy: string | null = null,
+    sortDir: 'asc' | 'desc' | null = null,
+    filters: Record<string, string> = {}
+  ) => {
+    setTableLoading(true);
+    try {
+      const backendUrl = getBackendUrl();
+      let purchaseRequestsData: any = null;
+      let purchasesData: any = null;
+
+      // Определяем, какие данные нужно загрузить
+      const shouldLoadPurchaseRequests = datasetLabel === 'Заявки на закупку' || 
+                                        datasetLabel === 'Заказы' || 
+                                        datasetLabel === 'Не согласована / Не утверждена / Проект';
+      const shouldLoadPurchases = datasetLabel === 'Закупочная процедура' || 
+                                  datasetLabel === 'Не согласована / Не утверждена / Проект';
+
+      if (shouldLoadPurchaseRequests) {
+        // Загружаем заявки на закупку
+        // Если указан месяц, загружаем все данные за год для корректной фильтрации по месяцу
+        const params = new URLSearchParams();
+        params.append('page', month ? '0' : String(page));
+        params.append('size', month ? '10000' : String(size)); // Загружаем все данные, если фильтруем по месяцу
+        params.append('year', String(year));
+        
+        if (sortBy && sortDir) {
+          params.append('sortBy', sortBy);
+          params.append('sortDir', sortDir);
+        }
+        
+        // Фильтр по ЦФО - только множественный фильтр (чекбоксы), как в таблице заявок на закупку
+        if (cfoFilter.size > 0) {
+          cfoFilter.forEach(cfo => {
+            params.append('cfo', cfo);
+          });
+        }
+        
+        if (filters.name && filters.name.trim() !== '') {
+          params.append('name', filters.name.trim());
+        }
+        
+        if (datasetLabel === 'Заказы') {
+          params.append('requiresPurchase', 'false');
+        }
+        
+        const url = `${backendUrl}/api/purchase-requests?${params.toString()}`;
+        const response = await fetch(url);
+        if (response.ok) {
+          purchaseRequestsData = await response.json();
+          
+          // Фильтрация по месяцу на клиенте, если указан месяц
+          if (month && purchaseRequestsData.content) {
+            const monthIndex = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'].indexOf(month);
+            if (monthIndex !== -1) {
+              const monthNumber = monthIndex + 1; // 1-12
+              const filteredContent = purchaseRequestsData.content.filter((item: any) => {
+                if (!item.purchaseRequestCreationDate) return false;
+                const date = new Date(item.purchaseRequestCreationDate);
+                return date.getMonth() + 1 === monthNumber && date.getFullYear() === year;
+              });
+              
+              // Применяем пагинацию к отфильтрованным данным
+              const startIndex = page * size;
+              const endIndex = startIndex + size;
+              const paginatedContent = filteredContent.slice(startIndex, endIndex);
+              
+              purchaseRequestsData = {
+                ...purchaseRequestsData,
+                content: paginatedContent,
+                totalElements: filteredContent.length,
+                totalPages: Math.ceil(filteredContent.length / size),
+                number: page,
+                size: size,
+              };
+            }
+          }
+        }
+      }
+
+      if (shouldLoadPurchases) {
+        // Загружаем закупки
+        // Если указан месяц, загружаем все данные за год для корректной фильтрации по месяцу
+        const params = new URLSearchParams();
+        params.append('page', month ? '0' : String(page));
+        params.append('size', month ? '10000' : String(size)); // Загружаем все данные, если фильтруем по месяцу
+        params.append('year', String(year));
+        
+        if (sortBy && sortDir) {
+          params.append('sortBy', sortBy);
+          params.append('sortDir', sortDir);
+        }
+        
+        // Фильтр по ЦФО - только множественный фильтр (чекбоксы)
+        if (cfoFilter.size > 0) {
+          cfoFilter.forEach(cfo => {
+            params.append('cfo', cfo);
+          });
+        }
+        
+        if (filters.name && filters.name.trim() !== '') {
+          params.append('name', filters.name.trim());
+        }
+        
+        const url = `${backendUrl}/api/purchases?${params.toString()}`;
+        const response = await fetch(url);
+        if (response.ok) {
+          purchasesData = await response.json();
+          
+          // Фильтрация по месяцу на клиенте, если указан месяц
+          if (month && purchasesData.content) {
+            const monthIndex = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'].indexOf(month);
+            if (monthIndex !== -1) {
+              const monthNumber = monthIndex + 1; // 1-12
+              const filteredContent = purchasesData.content.filter((item: any) => {
+                if (!item.purchaseCreationDate) return false;
+                const date = new Date(item.purchaseCreationDate);
+                return date.getMonth() + 1 === monthNumber && date.getFullYear() === year;
+              });
+              
+              // Применяем пагинацию к отфильтрованным данным
+              const startIndex = page * size;
+              const endIndex = startIndex + size;
+              const paginatedContent = filteredContent.slice(startIndex, endIndex);
+              
+              purchasesData = {
+                ...purchasesData,
+                content: paginatedContent,
+                totalElements: filteredContent.length,
+                totalPages: Math.ceil(filteredContent.length / size),
+                number: page,
+                size: size,
+              };
+            }
+          }
+        }
+      }
+
+      setTableData({ purchaseRequests: purchaseRequestsData, purchases: purchasesData });
+    } catch (error) {
+      console.error('Error fetching table data:', error);
+    } finally {
+      setTableLoading(false);
+    }
+  };
+
+  // Debounce для текстовых фильтров
+  useEffect(() => {
+    const hasTextChanges = localFilters.name !== filters.name;
+    if (hasTextChanges) {
+      const timer = setTimeout(() => {
+        setFilters(prev => ({
+          ...prev,
+          name: localFilters.name,
+        }));
+        setCurrentPage(0);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [localFilters]);
+
+  // Состояние для уникальных значений ЦФО
+  const [uniqueCfoValues, setUniqueCfoValues] = useState<string[]>([]);
+
+  // Загружаем уникальные значения ЦФО
+  useEffect(() => {
+    if (selectedBarData || selectedLineData) {
+      const fetchUniqueCfo = async () => {
+        try {
+          const backendUrl = getBackendUrl();
+          const year = selectedBarData ? parseInt(selectedBarData.year) : (selectedYear || new Date().getFullYear());
+          const response = await fetch(`${backendUrl}/api/purchase-requests?year=${year}&page=0&size=10000`);
+          if (response.ok) {
+            const result = await response.json();
+            const cfoSet = new Set<string>();
+            result.content.forEach((pr: any) => {
+              if (pr.cfo) cfoSet.add(pr.cfo);
+            });
+            setUniqueCfoValues(Array.from(cfoSet).sort());
+          }
+        } catch (error) {
+          console.error('Error fetching unique CFO values:', error);
+        }
+      };
+      fetchUniqueCfo();
+    }
+  }, [selectedBarData, selectedLineData, selectedYear]);
+
+  // Загружаем данные при изменении параметров
+  useEffect(() => {
+    if (selectedBarData || selectedLineData) {
+      const year = selectedBarData ? parseInt(selectedBarData.year) : (selectedYear || new Date().getFullYear());
+      const month = selectedLineData ? selectedLineData.month : null;
+      const datasetLabel = selectedBarData ? selectedBarData.dataset : (selectedLineData ? selectedLineData.dataset : '');
+      fetchTableData(year, month, datasetLabel, currentPage, pageSize, sortField, sortDirection, filters);
+    }
+  }, [currentPage, pageSize, sortField, sortDirection, filters, cfoFilter, selectedBarData, selectedLineData, selectedYear]);
+
+  // Обработка сортировки
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      if (sortDirection === 'asc') {
+        setSortDirection('desc');
+      } else if (sortDirection === 'desc') {
+        setSortField(null);
+        setSortDirection(null);
+      } else {
+        setSortDirection('asc');
+      }
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  // Обработчики для фильтров
+  const handleCfoToggle = (cfo: string) => {
+    const newSet = new Set(cfoFilter);
+    if (newSet.has(cfo)) {
+      newSet.delete(cfo);
+    } else {
+      newSet.add(cfo);
+    }
+    setCfoFilter(newSet);
+    setCurrentPage(0);
+  };
+
+  const handleCfoSelectAll = () => {
+    const newSet = new Set(uniqueCfoValues);
+    setCfoFilter(newSet);
+    setCurrentPage(0);
+  };
+
+  const handleCfoDeselectAll = () => {
+    setCfoFilter(new Set());
+    setCurrentPage(0);
+  };
+
+  // Закрываем выпадающие списки при клике вне их
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (isCfoFilterOpen && !target.closest('.cfo-filter-container')) {
+        setIsCfoFilterOpen(false);
+      }
+    };
+
+    if (isCfoFilterOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isCfoFilterOpen]);
+
+  // Фильтруем опции по поисковому запросу
+  const getFilteredCfoOptions = uniqueCfoValues.filter(cfo =>
+    cfo.toLowerCase().includes(cfoSearchQuery.toLowerCase())
+  );
 
   // Загружаем список доступных годов при первой загрузке
   useEffect(() => {
@@ -254,7 +562,7 @@ export default function PurchaseRequestsYearlyChart() {
         bottom: 0,
       },
     },
-    onClick: (event: any, elements: any[]) => {
+    onClick: async (event: any, elements: any[]) => {
       if (elements.length > 0) {
         const element = elements[0];
         const datasetIndex = element.datasetIndex;
@@ -268,6 +576,7 @@ export default function PurchaseRequestsYearlyChart() {
           value: value
         });
         setSelectedLineData(null); // Сбрасываем выбор линейной диаграммы
+        setCurrentPage(0); // Сбрасываем на первую страницу
       }
     },
     plugins: {
@@ -347,12 +656,29 @@ export default function PurchaseRequestsYearlyChart() {
   const monthlyOptions = {
     responsive: true,
     maintainAspectRatio: false,
+    onClick: async (event: any, elements: any[]) => {
+      if (elements.length > 0 && monthlyData && selectedYear) {
+        const element = elements[0];
+        const datasetIndex = element.datasetIndex;
+        const index = element.index;
+        const month = monthlyData.labels[index];
+        const dataset = monthlyData.datasets[datasetIndex];
+        const value = dataset.data[index];
+        setSelectedLineData({
+          month: month,
+          dataset: dataset.label,
+          value: value
+        });
+        setSelectedBarData(null); // Сбрасываем выбор столбчатой диаграммы
+        setCurrentPage(0); // Сбрасываем на первую страницу
+      }
+    },
     layout: {
       padding: {
-        top: 20,
-        right: 10,
+        top: 0,
+        right: 30,
         bottom: 0,
-        left: 10,
+        left: 30,
       },
     },
     plugins: {
@@ -422,8 +748,12 @@ export default function PurchaseRequestsYearlyChart() {
     },
     scales: {
       x: {
+        offset: true, // Смещаем ось X для расширения области
         grid: {
           display: false, // Убираем сетку по оси X
+        },
+        ticks: {
+          padding: 10, // Отступ для подписей
         },
         min: -0.25, // Расширяем на четверть деления до первой точки
         max: 11.25, // Расширяем на четверть деления после последней точки (12 месяцев, индексы 0-11)
@@ -506,35 +836,334 @@ export default function PurchaseRequestsYearlyChart() {
         )}
       </div>
 
-      {/* Блок для отображения деталей */}
-      <div className="mt-2 sm:mt-3 bg-gray-50 rounded-lg p-3 sm:p-4 border border-gray-200">
-        {selectedBarData || selectedLineData ? (
-          <div className="space-y-2">
-            <h4 className="text-xs sm:text-sm font-semibold text-gray-900">Детали выбранного элемента:</h4>
-            {selectedBarData && (
-              <div className="text-xs sm:text-sm text-gray-700 space-y-1">
-                <p><span className="font-medium">Год:</span> {selectedBarData.year}</p>
-                <p><span className="font-medium">Тип:</span> {selectedBarData.dataset}</p>
-                <p><span className="font-medium">Количество:</span> {selectedBarData.value}</p>
+      {/* Таблица с данными */}
+      {selectedBarData || selectedLineData ? (
+        <div className="mt-2 sm:mt-3 bg-white rounded-lg shadow-md">
+          {/* Пагинация сверху */}
+          {tableData && (tableData.purchaseRequests || tableData.purchases) && (
+            <div className="px-3 py-2 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                <div className="text-sm text-gray-700">
+                  Показано {(tableData.purchaseRequests?.content?.length || 0) + (tableData.purchases?.content?.length || 0)} из {(tableData.purchaseRequests?.totalElements || 0) + (tableData.purchases?.totalElements || 0)} записей
+                </div>
+                <div className="flex items-center gap-2">
+                  <label htmlFor="pageSize" className="text-sm text-gray-700">
+                    Элементов на странице:
+                  </label>
+                  <select
+                    id="pageSize"
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(0);
+                    }}
+                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
               </div>
-            )}
-            {selectedLineData && (
-              <div className="text-xs sm:text-sm text-gray-700 space-y-1">
-                <p><span className="font-medium">Месяц:</span> {selectedLineData.month}</p>
-                <p><span className="font-medium">Тип:</span> {selectedLineData.dataset}</p>
-                <p><span className="font-medium">Количество:</span> {selectedLineData.value}</p>
-                {selectedYear && <p><span className="font-medium">Год:</span> {selectedYear}</p>}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setCurrentPage(0)}
+                  disabled={currentPage === 0}
+                  className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Первая
+                </button>
+                <button
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage === 0}
+                  className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Назад
+                </button>
+                <span className="px-4 py-2 text-sm font-medium text-gray-700">
+                  Страница {currentPage + 1} из {Math.max(tableData.purchaseRequests?.totalPages || 0, tableData.purchases?.totalPages || 0)}
+                </span>
+                <button
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={currentPage >= Math.max((tableData.purchaseRequests?.totalPages || 0) - 1, (tableData.purchases?.totalPages || 0) - 1)}
+                  className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Вперед
+                </button>
+                <button
+                  onClick={() => setCurrentPage(Math.max((tableData.purchaseRequests?.totalPages || 0) - 1, (tableData.purchases?.totalPages || 0) - 1))}
+                  disabled={currentPage >= Math.max((tableData.purchaseRequests?.totalPages || 0) - 1, (tableData.purchases?.totalPages || 0) - 1)}
+                  className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Последняя
+                </button>
               </div>
-            )}
-          </div>
-        ) : (
-          <div className="text-center py-4">
-            <p className="text-xs sm:text-sm text-gray-500">
-              Выберите данные на диаграмме, чтобы посмотреть детали
-            </p>
-          </div>
-        )}
-      </div>
+            </div>
+          )}
+
+          {/* Таблицы с данными */}
+          {tableLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              <span className="ml-2 text-sm text-gray-500">Загрузка данных...</span>
+            </div>
+          ) : tableData ? (
+            <div className="space-y-4 p-3">
+              {tableData.purchaseRequests && tableData.purchaseRequests.content && tableData.purchaseRequests.content.length > 0 && (
+                <div>
+                  <h5 className="text-xs sm:text-sm font-semibold text-gray-900 mb-2">Заявки на закупку:</h5>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200 text-xs border border-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-3 py-2 text-left border-r border-gray-200 relative">
+                            <div className="flex flex-col gap-1">
+                              <div className="h-[24px] flex items-center gap-1">
+                                <div className="relative cfo-filter-container w-full h-full">
+                                  <button
+                                    ref={cfoFilterButtonRef}
+                                    type="button"
+                                    onClick={() => setIsCfoFilterOpen(!isCfoFilterOpen)}
+                                    className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded bg-white text-left focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center gap-1 hover:bg-gray-50"
+                                    style={{ height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
+                                  >
+                                    <span className="text-gray-600 truncate flex-1 min-w-0 text-left">
+                                      {cfoFilter.size === 0 
+                                        ? 'Все' 
+                                        : cfoFilter.size === 1
+                                        ? (Array.from(cfoFilter)[0] || 'Все')
+                                        : `${cfoFilter.size} выбрано`}
+                                    </span>
+                                    <svg className={`w-3 h-3 transition-transform flex-shrink-0 ${isCfoFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                  </button>
+                                  {isCfoFilterOpen && cfoFilterPosition && (
+                                    <div 
+                                      className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden"
+                                      style={{
+                                        top: `${cfoFilterPosition.top}px`,
+                                        left: `${cfoFilterPosition.left}px`,
+                                      }}
+                                    >
+                                      <div className="p-2 border-b border-gray-200">
+                                        <div className="relative">
+                                          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
+                                          <input
+                                            type="text"
+                                            value={cfoSearchQuery}
+                                            onChange={(e) => {
+                                              e.stopPropagation();
+                                              setCfoSearchQuery(e.target.value);
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                            onFocus={(e) => e.stopPropagation()}
+                                            className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                            placeholder="Поиск..."
+                                          />
+                                        </div>
+                                      </div>
+                                      <div className="p-2 border-b border-gray-200 flex gap-2">
+                                        <button
+                                          onClick={() => handleCfoSelectAll()}
+                                          className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                                        >
+                                          Все
+                                        </button>
+                                        <button
+                                          onClick={() => handleCfoDeselectAll()}
+                                          className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                                        >
+                                          Снять
+                                        </button>
+                                      </div>
+                                      <div className="max-h-48 overflow-y-auto">
+                                        {getFilteredCfoOptions.length === 0 ? (
+                                          <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
+                                        ) : (
+                                          getFilteredCfoOptions.map((cfo) => (
+                                            <label
+                                              key={cfo}
+                                              className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                                            >
+                                              <input
+                                                type="checkbox"
+                                                checked={cfoFilter.has(cfo)}
+                                                onChange={() => handleCfoToggle(cfo)}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="mr-2"
+                                              />
+                                              <span className="text-xs text-gray-700">{cfo}</span>
+                                            </label>
+                                          ))
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1 min-h-[20px]">
+                                <button
+                                  onClick={() => handleSort('cfo')}
+                                  className="flex items-center justify-center hover:text-gray-700 transition-colors text-gray-700"
+                                  style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                                >
+                                  {sortField === 'cfo' ? (
+                                    sortDirection === 'asc' ? (
+                                      <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                                    ) : (
+                                      <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                                    )
+                                  ) : (
+                                    <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                                  )}
+                                </button>
+                                <span className="text-xs font-medium text-gray-700 tracking-wider uppercase">ЦФО</span>
+                              </div>
+                            </div>
+                          </th>
+                          <th className="px-3 py-2 text-left border-r border-gray-200 relative">
+                            <div className="flex flex-col gap-1">
+                              <div className="h-[24px] flex items-center gap-1">
+                                <input
+                                  type="text"
+                                  value={localFilters.name}
+                                  onChange={(e) => {
+                                    setLocalFilters(prev => ({ ...prev, name: e.target.value }));
+                                  }}
+                                  className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-700"
+                                  placeholder="Фильтр"
+                                  style={{ height: '24px', minHeight: '24px', maxHeight: '24px' }}
+                                />
+                              </div>
+                              <div className="flex items-center gap-1 min-h-[20px]">
+                                <button
+                                  onClick={() => handleSort('name')}
+                                  className="flex items-center justify-center hover:text-gray-700 transition-colors text-gray-700"
+                                  style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                                >
+                                  {sortField === 'name' ? (
+                                    sortDirection === 'asc' ? (
+                                      <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                                    ) : (
+                                      <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                                    )
+                                  ) : (
+                                    <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                                  )}
+                                </button>
+                                <span className="text-xs font-medium text-gray-700 tracking-wider">Наименование</span>
+                              </div>
+                            </div>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {tableData.purchaseRequests.content.map((item: any, index: number) => (
+                          <tr key={index}>
+                            <td className="px-3 py-2 text-gray-900 border-r border-gray-200">{item.cfo || '-'}</td>
+                            <td className="px-3 py-2 text-gray-900">{item.name || item.title || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+              {tableData.purchases && tableData.purchases.content && tableData.purchases.content.length > 0 && (
+                <div>
+                  <h5 className="text-xs sm:text-sm font-semibold text-gray-900 mb-2">Закупки:</h5>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200 text-xs border border-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-3 py-2 text-left border-r border-gray-200 relative">
+                            <div className="flex flex-col gap-1">
+                              <div className="h-[24px] flex items-center gap-1">
+                                {/* Текстовое поле для ЦФО не используется, только множественный фильтр через выпадающий список */}
+                              </div>
+                              <div className="flex items-center gap-1 min-h-[20px]">
+                                <button
+                                  onClick={() => handleSort('cfo')}
+                                  className="flex items-center justify-center hover:text-gray-700 transition-colors text-gray-700"
+                                  style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                                >
+                                  {sortField === 'cfo' ? (
+                                    sortDirection === 'asc' ? (
+                                      <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                                    ) : (
+                                      <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                                    )
+                                  ) : (
+                                    <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                                  )}
+                                </button>
+                                <span className="text-xs font-medium text-gray-700 tracking-wider uppercase">ЦФО</span>
+                              </div>
+                            </div>
+                          </th>
+                          <th className="px-3 py-2 text-left border-r border-gray-200 relative">
+                            <div className="flex flex-col gap-1">
+                              <div className="h-[24px] flex items-center gap-1">
+                                <input
+                                  type="text"
+                                  value={localFilters.name}
+                                  onChange={(e) => {
+                                    setLocalFilters(prev => ({ ...prev, name: e.target.value }));
+                                  }}
+                                  className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-700"
+                                  placeholder="Фильтр"
+                                  style={{ height: '24px', minHeight: '24px', maxHeight: '24px' }}
+                                />
+                              </div>
+                              <div className="flex items-center gap-1 min-h-[20px]">
+                                <button
+                                  onClick={() => handleSort('name')}
+                                  className="flex items-center justify-center hover:text-gray-700 transition-colors text-gray-700"
+                                  style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                                >
+                                  {sortField === 'name' ? (
+                                    sortDirection === 'asc' ? (
+                                      <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                                    ) : (
+                                      <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                                    )
+                                  ) : (
+                                    <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                                  )}
+                                </button>
+                                <span className="text-xs font-medium text-gray-700 tracking-wider">Наименование</span>
+                              </div>
+                            </div>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {tableData.purchases.content.map((item: any, index: number) => (
+                          <tr key={index}>
+                            <td className="px-3 py-2 text-gray-900 border-r border-gray-200">{item.cfo || '-'}</td>
+                            <td className="px-3 py-2 text-gray-900">{item.name || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+              {(!tableData.purchaseRequests || !tableData.purchaseRequests.content || tableData.purchaseRequests.content.length === 0) && 
+               (!tableData.purchases || !tableData.purchases.content || tableData.purchases.content.length === 0) && (
+                <p className="text-xs sm:text-sm text-gray-500 text-center py-4">Нет данных для отображения</p>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-4">
+              <p className="text-xs sm:text-sm text-gray-500">
+                Выберите данные на диаграмме, чтобы посмотреть детали
+              </p>
+            </div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
