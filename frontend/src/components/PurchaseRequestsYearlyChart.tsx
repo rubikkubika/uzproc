@@ -180,7 +180,11 @@ export default function PurchaseRequestsYearlyChart() {
           // НЕ добавляем фильтр по статусам, но на бэкенде нужно исключить эти статусы
         } else if (datasetLabel === 'Заявки на закупку') {
           // Для "Заявки на закупку" из линейной диаграммы - не применяем фильтр requiresPurchase (показываем все)
-          // Не добавляем фильтр requiresPurchase
+          // НО исключаем заявки со статусами "Не согласована", "Не утверждена", "Проект"
+          // так как они учитываются отдельно в "Не согласована / Проект"
+          // На диаграмме "Заявки на закупку" = сумма (requiresPurchase=true БЕЗ этих статусов) + (requiresPurchase=false БЕЗ этих статусов)
+          // Поэтому в таблице тоже нужно исключить эти статусы
+          params.append('excludePendingStatuses', 'true');
         } else {
           // Если datasetLabel не распознан, не загружаем данные (это предотвратит показ всех данных)
           console.warn('Unknown datasetLabel:', datasetLabel, '- skipping data fetch');
@@ -619,6 +623,7 @@ export default function PurchaseRequestsYearlyChart() {
               backgroundColor: 'rgba(239, 68, 68, 0.8)',
               borderColor: 'rgba(239, 68, 68, 1)',
               borderWidth: 1,
+              hidden: true, // Скрыта по умолчанию
             },
           ],
         };
@@ -785,7 +790,17 @@ export default function PurchaseRequestsYearlyChart() {
         display: (context: any) => {
           // Показываем подписи для "Заявки на закупку" (индекс 0), "Заказы" (индекс 1) и "Закупочная процедура" (индекс 2)
           // Скрываем для "Не согласована / Проект" (индекс 3)
-          return context.datasetIndex === 0 || context.datasetIndex === 1 || context.datasetIndex === 2;
+          const datasetIndex = context.datasetIndex;
+          if (datasetIndex === 3) return false; // Скрываем для "Не согласована / Проект"
+          
+          // Получаем значение из данных
+          const value = context.dataset.data[context.dataIndex];
+          
+          // Скрываем только для нулевых значений или если значение отсутствует
+          if (value === 0 || value === null || value === undefined) return false;
+          
+          // Показываем подписи для всех ненулевых значений
+          return datasetIndex === 0 || datasetIndex === 1 || datasetIndex === 2;
         },
         anchor: 'center' as const,
         align: (context: any) => {
@@ -890,15 +905,17 @@ export default function PurchaseRequestsYearlyChart() {
         position: 'top' as const,
         align: 'start' as const,
         labels: {
-          boxWidth: 12,
-          padding: 6,
+          boxWidth: 10,
+          padding: 3,
           font: {
-            size: 10
+            size: 9
           },
           usePointStyle: false,
         },
         display: true,
         fullSize: false,
+        maxWidth: undefined, // Не ограничиваем ширину
+        maxHeight: undefined, // Не ограничиваем высоту
       },
       title: {
         display: false,
@@ -907,11 +924,8 @@ export default function PurchaseRequestsYearlyChart() {
         display: (context: any) => {
           return context.datasetIndex === 1 || context.datasetIndex === 2;
         },
-        anchor: 'center' as const,
-        align: (context: any) => {
-          const datasetIndex = context.datasetIndex;
-          return datasetIndex === 1 ? 'right' : 'left';
-        },
+        anchor: 'end' as const,
+        align: 'end' as const,
         formatter: (value: number) => {
           return value > 0 ? value : '';
         },
@@ -939,20 +953,41 @@ export default function PurchaseRequestsYearlyChart() {
       tooltip: {
         callbacks: {
           label: function(context: any) {
-            return `${context.dataset.label}: ${context.parsed.x}`;
+            return `${context.dataset.label}: ${context.parsed.y}`;
           },
         },
       },
     },
     scales: {
       x: {
-        beginAtZero: true,
+        beginAtZero: false,
         ticks: {
           precision: 0,
-          display: true,
+          display: false,
         },
         grid: {
-          display: true,
+          display: false,
+        },
+        afterDataLimits: (scale: any) => {
+          const max = scale.max;
+          const min = scale.min;
+          // Устанавливаем минимальное значение шкалы так, чтобы визуально минимальное значение данных
+          // занимало четверть от максимального значения
+          // Если max = 310, min = 2, то нужно чтобы 2 визуально было на уровне 77.5 (1/4 от 310)
+          // Формула: scale.min = (min * max - max * max * 0.25) / (max * 0.25 - min)
+          if (max !== undefined && min !== undefined && max > min && min > 0) {
+            const targetMinVisual = max * 0.25; // Визуальная позиция минимального значения (1/4 от max)
+            // Вычисляем scale.min так, чтобы min отображалось на позиции targetMinVisual
+            // (min - scale.min) / (max - scale.min) = targetMinVisual / max
+            // min - scale.min = (targetMinVisual / max) * (max - scale.min)
+            // min - scale.min = targetMinVisual - (targetMinVisual / max) * scale.min
+            // min - targetMinVisual = scale.min - (targetMinVisual / max) * scale.min
+            // min - targetMinVisual = scale.min * (1 - targetMinVisual / max)
+            // scale.min = (min - targetMinVisual) / (1 - targetMinVisual / max)
+            const scaleMin = (min - targetMinVisual) / (1 - targetMinVisual / max);
+            // Устанавливаем scale.min, но не меньше 0
+            scale.min = Math.max(0, scaleMin);
+          }
         },
       },
       y: {

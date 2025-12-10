@@ -64,14 +64,15 @@ public class PurchaseRequestService {
             String contractType,
             Boolean isPlanned,
             Boolean requiresPurchase,
-            List<String> status) {
+            List<String> status,
+            Boolean excludePendingStatuses) {
         
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, month: {}, idPurchaseRequest: {}, cfo: {}, purchaseRequestInitiator: '{}', name: '{}', costType: '{}', contractType: '{}', isPlanned: {}, requiresPurchase: {}, status: {}",
-                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, name, costType, contractType, isPlanned, requiresPurchase, status);
+        logger.info("Filter parameters - year: {}, month: {}, idPurchaseRequest: {}, cfo: {}, purchaseRequestInitiator: '{}', name: '{}', costType: '{}', contractType: '{}', isPlanned: {}, requiresPurchase: {}, status: {}, excludePendingStatuses: {}",
+                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, name, costType, contractType, isPlanned, requiresPurchase, status, excludePendingStatuses);
         
         Specification<PurchaseRequest> spec = buildSpecification(
-                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, name, costType, contractType, isPlanned, requiresPurchase, status);
+                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, name, costType, contractType, isPlanned, requiresPurchase, status, excludePendingStatuses);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -161,7 +162,8 @@ public class PurchaseRequestService {
             String contractType,
             Boolean isPlanned,
             Boolean requiresPurchase,
-            List<String> status) {
+            List<String> status,
+            Boolean excludePendingStatuses) {
         
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -272,6 +274,7 @@ public class PurchaseRequestService {
                 
                 // ВАЖНО: Если фильтруем по requiresPurchase и НЕ указан явный фильтр по статусам,
                 // исключаем заявки со статусами "Не согласована", "Не утверждена", "Проект"
+                // НО включаем заявки с null статусом (они тоже показываются в диаграмме)
                 // Это соответствует логике getYearlyStats, где эти статусы учитываются отдельно
                 if (status == null || status.isEmpty()) {
                     List<PurchaseRequestStatus> excludedStatuses = List.of(
@@ -279,10 +282,32 @@ public class PurchaseRequestService {
                         PurchaseRequestStatus.NOT_APPROVED,
                         PurchaseRequestStatus.PROJECT
                     );
-                    predicates.add(cb.not(root.get("status").in(excludedStatuses)));
+                    // Исключаем только те записи, у которых статус явно равен одному из исключаемых
+                    // Записи с null статусом не исключаются
+                    predicates.add(cb.or(
+                        cb.isNull(root.get("status")),
+                        cb.not(root.get("status").in(excludedStatuses))
+                    ));
                     predicateCount++;
-                    logger.info("Excluded pending statuses (NOT_COORDINATED, NOT_APPROVED, PROJECT) from requiresPurchase filter");
+                    logger.info("Excluded pending statuses (NOT_COORDINATED, NOT_APPROVED, PROJECT) from requiresPurchase filter, but included null statuses");
                 }
+            } else if (excludePendingStatuses != null && excludePendingStatuses && (status == null || status.isEmpty())) {
+                // Если requiresPurchase не указан, но excludePendingStatuses = true, исключаем статусы
+                // Это используется для "Заявки на закупку", где нужно показать все заявки, но без статусов "Не согласована", "Не утверждена", "Проект"
+                // НО включаем заявки с null статусом (они тоже показываются в диаграмме)
+                List<PurchaseRequestStatus> excludedStatuses = List.of(
+                    PurchaseRequestStatus.NOT_COORDINATED,
+                    PurchaseRequestStatus.NOT_APPROVED,
+                    PurchaseRequestStatus.PROJECT
+                );
+                // Исключаем только те записи, у которых статус явно равен одному из исключаемых
+                // Записи с null статусом не исключаются
+                predicates.add(cb.or(
+                    cb.isNull(root.get("status")),
+                    cb.not(root.get("status").in(excludedStatuses))
+                ));
+                predicateCount++;
+                logger.info("Excluded pending statuses (NOT_COORDINATED, NOT_APPROVED, PROJECT) due to excludePendingStatuses=true, but included null statuses");
             }
             
             // Фильтр по статусу (множественный выбор)
@@ -809,6 +834,22 @@ public class PurchaseRequestService {
                 
                 if (requiresPurchase != null) {
                     predicates.add(cb.equal(root.get("requiresPurchase"), requiresPurchase));
+                    
+                    // ВАЖНО: Исключаем заявки со статусами "Не согласована", "Не утверждена", "Проект"
+                    // НО включаем заявки с null статусом (они тоже показываются в диаграмме)
+                    // Это соответствует логике buildSpecification и getYearlyStats
+                    // Для не согласованных заказов есть отдельная категория "Не согласована / Проект"
+                    List<PurchaseRequestStatus> excludedStatuses = List.of(
+                        PurchaseRequestStatus.NOT_COORDINATED,
+                        PurchaseRequestStatus.NOT_APPROVED,
+                        PurchaseRequestStatus.PROJECT
+                    );
+                    // Исключаем только те записи, у которых статус явно равен одному из исключаемых
+                    // Записи с null статусом не исключаются
+                    predicates.add(cb.or(
+                        cb.isNull(root.get("status")),
+                        cb.not(root.get("status").in(excludedStatuses))
+                    ));
                 }
                 
                 // Календарный год: январь-декабрь выбранного года

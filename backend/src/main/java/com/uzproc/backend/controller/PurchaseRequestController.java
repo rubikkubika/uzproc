@@ -46,11 +46,12 @@ public class PurchaseRequestController {
             @RequestParam(required = false) String contractType,
             @RequestParam(required = false) Boolean isPlanned,
             @RequestParam(required = false) Boolean requiresPurchase,
-            @RequestParam(required = false) List<String> status) {
+            @RequestParam(required = false) List<String> status,
+            @RequestParam(required = false, defaultValue = "false") Boolean excludePendingStatuses) {
         
         Page<PurchaseRequestDto> purchaseRequests = purchaseRequestService.findAll(
                 page, size, year, month, sortBy, sortDir, idPurchaseRequest, cfo, purchaseRequestInitiator,
-                name, costType, contractType, isPlanned, requiresPurchase, status);
+                name, costType, contractType, isPlanned, requiresPurchase, status, excludePendingStatuses);
         
         return ResponseEntity.ok(purchaseRequests);
     }
