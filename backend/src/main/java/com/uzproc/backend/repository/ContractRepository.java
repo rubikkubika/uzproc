@@ -16,5 +16,7 @@ public interface ContractRepository extends JpaRepository<Contract, Long>, JpaSp
     Optional<Contract> findByInnerId(String innerId);
     boolean existsByInnerId(String innerId);
     List<Contract> findByPurchaseRequestId(Long purchaseRequestId);
+    Optional<Contract> findByName(String name);
+    List<Contract> findByParentContractId(Long parentContractId);
 }
 

@@ -328,9 +328,9 @@ public class PurchasePlanExcelLoadService {
                             PurchasePlanItem existing = existingItem.get();
                             boolean wasUpdated = updatePurchasePlanItemFields(existing, item);
                             if (wasUpdated) {
-                                purchasePlanItemRepository.save(existing);
+                            purchasePlanItemRepository.save(existing);
                                 updatedCount++;
-                                logger.debug("Updated existing purchase plan item with subject: {}", item.getPurchaseSubject());
+                            logger.debug("Updated existing purchase plan item with subject: {}", item.getPurchaseSubject());
                             }
                         } else {
                             // Создаем новую запись

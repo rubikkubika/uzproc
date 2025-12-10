@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -73,6 +74,13 @@ public class ContractService {
         return toDto(contract);
     }
 
+    public List<ContractDto> findByParentContractId(Long parentContractId) {
+        List<Contract> contracts = contractRepository.findByParentContractId(parentContractId);
+        return contracts.stream()
+                .map(this::toDto)
+                .collect(java.util.stream.Collectors.toList());
+    }
+
     /**
      * Конвертирует Contract entity в ContractDto
      */
@@ -94,6 +102,20 @@ public class ContractService {
         dto.setStatus(entity.getStatus());
         dto.setState(entity.getState());
         dto.setPurchaseRequestId(entity.getPurchaseRequestId());
+        dto.setParentContractId(entity.getParentContractId());
+        
+        // Загружаем основной договор, если есть parentContractId
+        if (entity.getParentContractId() != null) {
+            // Пробуем получить из LAZY связи, если доступно
+            if (entity.getParentContract() != null) {
+                dto.setParentContract(toDto(entity.getParentContract()));
+            } else {
+                // Если LAZY не загружен, загружаем по ID
+                contractRepository.findById(entity.getParentContractId())
+                    .ifPresent(parentContract -> dto.setParentContract(toDto(parentContract)));
+            }
+        }
+        
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
         return dto;

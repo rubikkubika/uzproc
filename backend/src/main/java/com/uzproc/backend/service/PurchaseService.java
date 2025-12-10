@@ -140,11 +140,11 @@ public class PurchaseService {
                         year, month, startOfMonth, endOfMonth);
                 } else {
                     // Фильтр только по году
-                    java.time.LocalDateTime startOfYear = java.time.LocalDateTime.of(year, 1, 1, 0, 0);
-                    java.time.LocalDateTime endOfYear = java.time.LocalDateTime.of(year, 12, 31, 23, 59, 59);
-                    predicates.add(cb.between(root.get("purchaseCreationDate"), startOfYear, endOfYear));
-                    predicateCount++;
-                    logger.info("Added year filter: {}", year);
+                java.time.LocalDateTime startOfYear = java.time.LocalDateTime.of(year, 1, 1, 0, 0);
+                java.time.LocalDateTime endOfYear = java.time.LocalDateTime.of(year, 12, 31, 23, 59, 59);
+                predicates.add(cb.between(root.get("purchaseCreationDate"), startOfYear, endOfYear));
+                predicateCount++;
+                logger.info("Added year filter: {}", year);
                 }
             }
             

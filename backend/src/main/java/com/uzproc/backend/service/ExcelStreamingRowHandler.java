@@ -79,6 +79,8 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private static final String DOCUMENT_FORM_COLUMN = "Форма документа";
     private static final String STATUS_COLUMN = "Состояние";
     private static final String AMOUNT_COLUMN = "Сумма";
+    private static final String MAIN_CONTRACT_COLUMN = "Основной договор";
+    private static final String SPECIFICATION_FORM = "Спецификация";
     
     // Оптимизация: статические DateTimeFormatter для парсинга дат (создаются один раз)
     private static final DateTimeFormatter[] DATE_TIME_FORMATTERS = {
@@ -708,6 +710,54 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 }
             }
             
+            // Основной договор (опционально) - парсим только если Вид Документа = "Договор" и Форма Документа = "Спецификация"
+            Integer documentTypeCol = columnIndices.get(DOCUMENT_TYPE_COLUMN);
+            if (documentTypeCol == null) {
+                documentTypeCol = findColumnIndex(DOCUMENT_TYPE_COLUMN);
+            }
+            Integer documentFormColForCheck = columnIndices.get(DOCUMENT_FORM_COLUMN);
+            if (documentFormColForCheck == null) {
+                documentFormColForCheck = findColumnIndex(DOCUMENT_FORM_COLUMN);
+            }
+            
+            String documentType = null;
+            if (documentTypeCol != null) {
+                documentType = currentRowData.get(documentTypeCol);
+            }
+            String documentForm = null;
+            if (documentFormColForCheck != null) {
+                documentForm = currentRowData.get(documentFormColForCheck);
+            }
+            
+            // Проверяем условия: Вид Документа = "Договор" и Форма Документа = "Спецификация"
+            if (CONTRACT_TYPE.equals(documentType) && SPECIFICATION_FORM.equals(documentForm)) {
+                Integer mainContractCol = columnIndices.get(MAIN_CONTRACT_COLUMN);
+                if (mainContractCol == null) {
+                    mainContractCol = findColumnIndex(MAIN_CONTRACT_COLUMN);
+                }
+                if (mainContractCol != null) {
+                    String mainContractName = currentRowData.get(mainContractCol);
+                    if (mainContractName != null && !mainContractName.trim().isEmpty()) {
+                        String trimmedMainContractName = mainContractName.trim();
+                        Optional<Contract> mainContract = contractRepository.findByName(trimmedMainContractName);
+                        if (mainContract.isPresent()) {
+                            contract.setParentContractId(mainContract.get().getId());
+                            logger.info("Row {}: Set parentContractId {} for contract {} (specification) from main contract name '{}'", 
+                                currentRowNum + 1, mainContract.get().getId(), contract.getInnerId(), trimmedMainContractName);
+                        } else {
+                            logger.warn("Row {}: Main contract with name '{}' not found for contract {} (specification)", 
+                                currentRowNum + 1, trimmedMainContractName, contract.getInnerId());
+                        }
+                    } else {
+                        logger.debug("Row {}: Main contract cell is empty or null for contract {} (specification)", 
+                            currentRowNum + 1, contract.getInnerId());
+                    }
+                } else {
+                    logger.debug("Row {}: Main contract column not found for contract {} (specification)", 
+                        currentRowNum + 1, contract.getInnerId());
+                }
+            }
+            
             // Состояние (опционально) - парсим поле "Состояние" в поле state
             Integer statusCol = columnIndices.get(STATUS_COLUMN);
             if (statusCol == null) {
@@ -1256,6 +1306,27 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 existing.setStatus(newData.getStatus());
                 updated = true;
                 logger.debug("Updated status for contract {}: {}", existing.getInnerId(), newData.getStatus());
+            }
+        }
+        
+        // Обновляем parentContractId
+        // ВАЖНО: Всегда обновляем parentContractId, если в новых данных он есть, даже если значения совпадают
+        // Это нужно для случаев, когда parentContractId был установлен в кеше Hibernate, но не сохранен в БД
+        if (newData.getParentContractId() != null) {
+            Long existingParentId = existing.getParentContractId();
+            Long newParentId = newData.getParentContractId();
+            if (existingParentId == null || !existingParentId.equals(newParentId)) {
+                existing.setParentContractId(newParentId);
+                updated = true;
+                logger.info("Updated parentContractId for contract {}: {} -> {}", 
+                    existing.getInnerId(), existingParentId, newParentId);
+            } else {
+                // Значения совпадают, но принудительно обновляем для гарантии сохранения в БД
+                // Это нужно, если parentContractId был установлен в кеше, но не сохранен в БД
+                existing.setParentContractId(newParentId);
+                updated = true;
+                logger.info("Force updated parentContractId for contract {}: {} (values match, ensuring DB save)", 
+                    existing.getInnerId(), newParentId);
             }
         }
         

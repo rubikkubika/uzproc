@@ -3,7 +3,7 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
-import { ArrowLeft, Clock, Check, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Clock, Check, X } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 
 interface PurchaseRequest {
@@ -50,6 +50,8 @@ interface Contract {
   contractCreationDate: string | null;
   budgetAmount: number | null;
   purchaseRequestId: number | null;
+  parentContractId: number | null;
+  parentContract: Contract | null;
 }
 
 interface Approval {
@@ -83,6 +85,22 @@ export default function PurchaseRequestDetailPage() {
   const [purchaseApprovals, setPurchaseApprovals] = useState<Approval[]>([]);
   const [contractApprovals, setContractApprovals] = useState<Approval[]>([]);
   const [specificationApprovals, setSpecificationApprovals] = useState<Approval[]>([]);
+  const [specifications, setSpecifications] = useState<Contract[]>([]);
+  const [navigationData, setNavigationData] = useState<{
+    currentIndex: number;
+    page: number;
+    pageSize: number;
+    filters: Record<string, string>;
+    localFilters: Record<string, string>;
+    cfoFilter: string[];
+    statusFilter: string[];
+    selectedYear: number | null;
+    sortField: string | null;
+    sortDirection: string | null;
+    totalElements: number;
+  } | null>(null);
+  const [filteredRequests, setFilteredRequests] = useState<PurchaseRequest[]>([]);
+  const [currentRequestIndex, setCurrentRequestIndex] = useState<number>(-1);
   
   // Защита от дублирующих запросов
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -207,6 +225,27 @@ export default function PurchaseRequestDetailPage() {
               fetchSpecificationApprovals(data.idPurchaseRequest);
             }
           }
+          
+          // Загружаем спецификации для заказов (если есть основной договор)
+          if (data && data.requiresPurchase === false && data.contracts && data.contracts.length > 0) {
+            const contractWithParent = data.contracts.find((c: Contract) => c.parentContract);
+            if (contractWithParent && contractWithParent.parentContract) {
+              // Используем ID основного договора из parentContract
+              const parentContractId = contractWithParent.parentContract.id;
+              if (parentContractId) {
+                fetchSpecifications(parentContractId);
+              }
+            }
+          }
+          
+          // Обновляем индекс текущей заявки в списке для навигации
+          if (filteredRequests.length > 0) {
+            const currentId = parseInt(id || '0');
+            const index = filteredRequests.findIndex((req: PurchaseRequest) => req.id === currentId);
+            if (index !== currentRequestIndex) {
+              setCurrentRequestIndex(index);
+            }
+          }
         }
       } catch (err) {
         // Игнорируем ошибку отмены запроса
@@ -229,6 +268,25 @@ export default function PurchaseRequestDetailPage() {
     };
 
     fetchPurchaseRequest();
+    
+    // Сбрасываем спецификации при изменении заявки
+    setSpecifications([]);
+    
+    // Загружаем данные навигации из localStorage
+    try {
+      const savedNavData = localStorage.getItem('purchaseRequestNavigation');
+      if (savedNavData) {
+        const navData = JSON.parse(savedNavData);
+        console.log('Loading navigation data:', navData);
+        setNavigationData(navData);
+        // Загружаем список заявок с теми же фильтрами
+        fetchFilteredRequests(navData);
+      } else {
+        console.log('No navigation data found in localStorage');
+      }
+    } catch (err) {
+      console.error('Error loading navigation data:', err);
+    }
 
     // Cleanup функция для отмены запроса при размонтировании или изменении id
     return () => {
@@ -243,6 +301,57 @@ export default function PurchaseRequestDetailPage() {
       }
     };
   }, [id]);
+
+  // Обновляем индекс текущей заявки при изменении id или списка заявок
+  useEffect(() => {
+    if (filteredRequests.length > 0 && id) {
+      const currentId = parseInt(id || '0');
+      const index = filteredRequests.findIndex((req: PurchaseRequest) => req.id === currentId);
+      if (index !== currentRequestIndex) {
+        setCurrentRequestIndex(index >= 0 ? index : -1);
+      }
+    }
+  }, [id, filteredRequests, currentRequestIndex]);
+
+  // Обработка клавиш-стрелок для навигации
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Проверяем, что не в поле ввода
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+
+      // Стрелка влево - предыдущая заявка
+      if (e.key === 'ArrowLeft') {
+        if (navigationData && filteredRequests.length > 0 && currentRequestIndex > 0) {
+          e.preventDefault();
+          const prevRequest = filteredRequests[currentRequestIndex - 1];
+          if (prevRequest) {
+            console.log('Navigating to previous request:', prevRequest.id);
+            router.push(`/purchase-request/${prevRequest.id}`);
+          }
+        }
+      }
+      
+      // Стрелка вправо - следующая заявка
+      if (e.key === 'ArrowRight') {
+        if (navigationData && filteredRequests.length > 0 && currentRequestIndex >= 0 && currentRequestIndex < filteredRequests.length - 1) {
+          e.preventDefault();
+          const nextRequest = filteredRequests[currentRequestIndex + 1];
+          if (nextRequest) {
+            console.log('Navigating to next request:', nextRequest.id);
+            router.push(`/purchase-request/${nextRequest.id}`);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [navigationData, filteredRequests, currentRequestIndex, router]);
 
   // Функция для загрузки связанной закупки
   const fetchPurchase = async (purchaseRequestId: number) => {
@@ -292,6 +401,103 @@ export default function PurchaseRequestDetailPage() {
   const fetchSpecificationApprovals = async (purchaseRequestId: number) => {
     // TODO: Реализовать на бэкенде
     setSpecificationApprovals([]);
+  };
+
+  // Функция для загрузки спецификаций по parentContractId
+  const fetchSpecifications = async (parentContractId: number) => {
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/contracts/by-parent/${parentContractId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setSpecifications(data);
+      } else {
+        setSpecifications([]);
+      }
+    } catch (err) {
+      console.error('Error fetching specifications:', err);
+      setSpecifications([]);
+    }
+  };
+
+  // Функция для загрузки списка заявок с фильтрами для навигации
+  const fetchFilteredRequests = async (navData: typeof navigationData) => {
+    if (!navData) return;
+    
+    try {
+      const params = new URLSearchParams();
+      params.append('page', '0');
+      params.append('size', '10000'); // Загружаем много заявок для навигации
+      
+      if (navData.selectedYear !== null && navData.selectedYear !== undefined) {
+        params.append('year', String(navData.selectedYear));
+      }
+      
+      if (navData.sortField && navData.sortDirection) {
+        params.append('sortBy', navData.sortField);
+        params.append('sortDir', navData.sortDirection);
+      }
+      
+      // Добавляем текстовые фильтры
+      Object.entries(navData.filters).forEach(([key, value]) => {
+        if (value && value.trim() !== '') {
+          params.append(key, value);
+        }
+      });
+      
+      // Добавляем множественные фильтры
+      if (navData.cfoFilter && navData.cfoFilter.length > 0) {
+        navData.cfoFilter.forEach(cfo => {
+          params.append('cfo', cfo);
+        });
+      }
+      
+      if (navData.statusFilter && navData.statusFilter.length > 0) {
+        navData.statusFilter.forEach(status => {
+          params.append('status', status);
+        });
+      }
+      
+      const response = await fetch(`${getBackendUrl()}/api/purchase-requests?${params.toString()}`);
+      if (response.ok) {
+        const data = await response.json();
+        const requests = data.content || [];
+        setFilteredRequests(requests);
+        
+        // Находим текущую заявку в списке
+        const currentId = parseInt(id || '0');
+        const index = requests.findIndex((req: PurchaseRequest) => req.id === currentId);
+        setCurrentRequestIndex(index >= 0 ? index : -1);
+        
+        console.log('Filtered requests loaded:', {
+          total: requests.length,
+          currentId,
+          currentIndex: index
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching filtered requests:', err);
+      setFilteredRequests([]);
+    }
+  };
+
+  // Функция для перехода к следующей заявке
+  const goToNext = () => {
+    if (currentRequestIndex >= 0 && currentRequestIndex < filteredRequests.length - 1) {
+      const nextRequest = filteredRequests[currentRequestIndex + 1];
+      if (nextRequest) {
+        router.push(`/purchase-request/${nextRequest.id}`);
+      }
+    }
+  };
+
+  // Функция для перехода к предыдущей заявке
+  const goToPrevious = () => {
+    if (currentRequestIndex > 0) {
+      const prevRequest = filteredRequests[currentRequestIndex - 1];
+      if (prevRequest) {
+        router.push(`/purchase-request/${prevRequest.id}`);
+      }
+    }
   };
 
   // Функция для загрузки согласований по idPurchaseRequest
@@ -593,13 +799,46 @@ export default function PurchaseRequestDetailPage() {
             {/* Верхняя панель с кнопкой назад и трекером статусов */}
             <div className="space-y-2">
               {/* Кнопка назад */}
-              <button
-                onClick={() => router.back()}
-                className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 transition-colors"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Назад к списку</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => router.back()}
+                  className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 transition-colors"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Назад к списку</span>
+                </button>
+                
+                {/* Кнопки навигации */}
+                {navigationData ? (
+                  filteredRequests.length > 0 && currentRequestIndex >= 0 ? (
+                    <div className="flex items-center gap-1 border-l border-gray-300 pl-2">
+                      <button
+                        onClick={goToPrevious}
+                        disabled={currentRequestIndex <= 0}
+                        className="flex items-center justify-center w-7 h-7 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Предыдущая заявка (←)"
+                      >
+                        <ArrowLeft className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="text-xs text-gray-500 px-1 min-w-[60px] text-center">
+                        {currentRequestIndex + 1} / {filteredRequests.length}
+                      </span>
+                      <button
+                        onClick={goToNext}
+                        disabled={currentRequestIndex >= filteredRequests.length - 1}
+                        className="flex items-center justify-center w-7 h-7 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Следующая заявка (→)"
+                      >
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1 border-l border-gray-300 pl-2 text-xs text-gray-400">
+                      Загрузка...
+                    </div>
+                  )
+                ) : null}
+              </div>
 
               {/* Трекер статусов и даты */}
               <div className="flex items-end gap-3 flex-wrap">
@@ -1480,9 +1719,9 @@ export default function PurchaseRequestDetailPage() {
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-2 text-xs text-gray-500">
+                  <div className="text-center py-2 text-xs text-gray-500">
                       <p>Нет данных о договоре</p>
-                    </div>
+                  </div>
                   )}
                 </div>
 
@@ -1755,63 +1994,269 @@ export default function PurchaseRequestDetailPage() {
                 <div className="flex flex-col lg:flex-row gap-4 items-start">
                   {/* Левая часть с полями договора */}
                   <div className={purchaseRequest.requiresPurchase === false ? "flex-1 lg:flex-[0_0_50%]" : "flex-1"}>
-                    {/* Для заказов договоры показываются в блоке "Спецификация", здесь показываем только если это закупка */}
-                    {purchaseRequest.requiresPurchase !== false && purchaseRequest.contracts && purchaseRequest.contracts.length > 0 ? (
+                    {/* Для заказов показываем основной договор, если договор является спецификацией */}
+                    {purchaseRequest.requiresPurchase === false && purchaseRequest.contracts && purchaseRequest.contracts.length > 0 && purchaseRequest.contracts.some(c => c.parentContract) ? (
+                      <div className="flex flex-col lg:flex-row gap-4">
+                        {/* Основной договор слева */}
+                        <div className="flex-1">
+                          {purchaseRequest.contracts
+                            .filter(contract => contract.parentContract)
+                            .map((contract) => (
+                              <div key={contract.id} className="border border-gray-200 rounded p-2">
+                                <div className="mb-2">
+                                  <label className="block text-xs font-semibold text-gray-600 mb-1">
+                                    Основной договор
+                                  </label>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                      Внутренний ID
+                                    </label>
+                                    <p className="text-xs text-gray-900">
+                                      {contract.parentContract!.innerId || '-'}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                      Наименование
+                                    </label>
+                                    <p className="text-xs text-gray-900">
+                                      {contract.parentContract!.name || '-'}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                      Заголовок
+                                    </label>
+                                    <p className="text-xs text-gray-900">
+                                      {contract.parentContract!.title || '-'}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                      ЦФО
+                                    </label>
+                                    <p className="text-xs text-gray-900">
+                                      {contract.parentContract!.cfo || '-'}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                      Дата создания
+                                    </label>
+                                    <p className="text-xs text-gray-900">
+                                      {contract.parentContract!.contractCreationDate ? new Date(contract.parentContract!.contractCreationDate).toLocaleDateString('ru-RU') : '-'}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                      Сумма договора
+                                    </label>
+                                    <p className="text-xs text-gray-900">
+                                      {contract.parentContract!.budgetAmount ? new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(contract.parentContract!.budgetAmount) : '-'}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+                        
+                        {/* Спецификации справа */}
+                        <div className="flex-1">
+                          <div className="mb-2">
+                            <label className="block text-xs font-semibold text-gray-600 mb-1">
+                              Спецификации
+                            </label>
+                          </div>
+                          {specifications.length > 0 ? (
+                            <div className="space-y-2">
+                              {specifications.map((spec) => (
+                                <div key={spec.id} className="border border-gray-200 rounded p-2">
+                                  <div className="grid grid-cols-1 gap-1.5">
+                                    <div>
+                                      <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                        Внутренний ID
+                                      </label>
+                                      <p className="text-xs text-gray-900">
+                                        {spec.innerId || '-'}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                        Наименование
+                                      </label>
+                                      <p className="text-xs text-gray-900">
+                                        {spec.name || '-'}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                        Заголовок
+                                      </label>
+                                      <p className="text-xs text-gray-900">
+                                        {spec.title || '-'}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                        ЦФО
+                                      </label>
+                                      <p className="text-xs text-gray-900">
+                                        {spec.cfo || '-'}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                        Дата создания
+                                      </label>
+                                      <p className="text-xs text-gray-900">
+                                        {spec.contractCreationDate ? new Date(spec.contractCreationDate).toLocaleDateString('ru-RU') : '-'}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                        Сумма договора
+                                      </label>
+                                      <p className="text-xs text-gray-900">
+                                        {spec.budgetAmount ? new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(spec.budgetAmount) : '-'}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-center py-2 text-xs text-gray-500">
+                              <p>Нет спецификаций</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (purchaseRequest.requiresPurchase === true || purchaseRequest.requiresPurchase === null) && purchaseRequest.contracts && purchaseRequest.contracts.length > 0 ? (
+                      // Для закупок показываем договоры (если договор является спецификацией, показываем основной договор)
                       <div className="space-y-3">
                         {purchaseRequest.contracts.map((contract) => (
                           <div key={contract.id} className="border border-gray-200 rounded p-2">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
-                              <div>
-                                <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                  Внутренний ID
-                                </label>
-                                <p className="text-xs text-gray-900">
-                                  {contract.innerId || '-'}
-                                </p>
+                            {contract.parentContract ? (
+                              // Если договор является спецификацией, показываем основной договор
+                              <>
+                                <div className="mb-2">
+                                  <label className="block text-xs font-semibold text-gray-600 mb-1">
+                                    Основной договор
+                                  </label>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                      Внутренний ID
+                                    </label>
+                                    <p className="text-xs text-gray-900">
+                                      {contract.parentContract.innerId || '-'}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                      Наименование
+                                    </label>
+                                    <p className="text-xs text-gray-900">
+                                      {contract.parentContract.name || '-'}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                      Заголовок
+                                    </label>
+                                    <p className="text-xs text-gray-900">
+                                      {contract.parentContract.title || '-'}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                      ЦФО
+                                    </label>
+                                    <p className="text-xs text-gray-900">
+                                      {contract.parentContract.cfo || '-'}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                      Дата создания
+                                    </label>
+                                    <p className="text-xs text-gray-900">
+                                      {contract.parentContract.contractCreationDate ? new Date(contract.parentContract.contractCreationDate).toLocaleDateString('ru-RU') : '-'}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                      Сумма договора
+                                    </label>
+                                    <p className="text-xs text-gray-900">
+                                      {contract.parentContract.budgetAmount ? new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(contract.parentContract.budgetAmount) : '-'}
+                                    </p>
+                                  </div>
+                                </div>
+                              </>
+                            ) : (
+                              // Если договор не является спецификацией, показываем сам договор
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                                <div>
+                                  <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                    Внутренний ID
+                                  </label>
+                                  <p className="text-xs text-gray-900">
+                                    {contract.innerId || '-'}
+                                  </p>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                    Наименование
+                                  </label>
+                                  <p className="text-xs text-gray-900">
+                                    {contract.name || '-'}
+                                  </p>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                    Заголовок
+                                  </label>
+                                  <p className="text-xs text-gray-900">
+                                    {contract.title || '-'}
+                                  </p>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                    ЦФО
+                                  </label>
+                                  <p className="text-xs text-gray-900">
+                                    {contract.cfo || '-'}
+                                  </p>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                    Дата создания
+                                  </label>
+                                  <p className="text-xs text-gray-900">
+                                    {contract.contractCreationDate ? new Date(contract.contractCreationDate).toLocaleDateString('ru-RU') : '-'}
+                                  </p>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                    Сумма договора
+                                  </label>
+                                  <p className="text-xs text-gray-900">
+                                    {contract.budgetAmount ? new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(contract.budgetAmount) : '-'}
+                                  </p>
+                                </div>
                               </div>
-                              <div>
-                                <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                  Наименование
-                                </label>
-                                <p className="text-xs text-gray-900">
-                                  {contract.name || '-'}
-                                </p>
-                              </div>
-                              <div>
-                                <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                  Заголовок
-                                </label>
-                                <p className="text-xs text-gray-900">
-                                  {contract.title || '-'}
-                                </p>
-                              </div>
-                              <div>
-                                <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                  ЦФО
-                                </label>
-                                <p className="text-xs text-gray-900">
-                                  {contract.cfo || '-'}
-                                </p>
-                              </div>
-                              <div>
-                                <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                  Дата создания
-                                </label>
-                                <p className="text-xs text-gray-900">
-                                  {contract.contractCreationDate ? new Date(contract.contractCreationDate).toLocaleDateString('ru-RU') : '-'}
-                                </p>
-                              </div>
-                              <div>
-                                <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                  Сумма договора
-                                </label>
-                                <p className="text-xs text-gray-900">
-                                  {contract.budgetAmount ? new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(contract.budgetAmount) : '-'}
-                                </p>
-                              </div>
-                            </div>
+                            )}
                           </div>
                         ))}
+                      </div>
+                    ) : (purchaseRequest.requiresPurchase === true || purchaseRequest.requiresPurchase === null) ? (
+                      // Для закупок показываем сообщение, если нет договоров
+                      <div className="text-center py-2 text-xs text-gray-500">
+                        <p>Нет данных о договоре</p>
                       </div>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">

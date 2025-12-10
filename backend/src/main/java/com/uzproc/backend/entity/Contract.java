@@ -70,6 +70,17 @@ public class Contract {
     @Column(name = "purchase_request_id")
     private Long purchaseRequestId;
 
+    // Связь с основным договором (для спецификаций)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_contract_id", 
+                referencedColumnName = "id", 
+                insertable = false, 
+                updatable = false)
+    private Contract parentContract;
+
+    @Column(name = "parent_contract_id")
+    private Long parentContractId;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -246,6 +257,22 @@ public class Contract {
 
     public void setPurchaseRequestId(Long purchaseRequestId) {
         this.purchaseRequestId = purchaseRequestId;
+    }
+
+    public Contract getParentContract() {
+        return parentContract;
+    }
+
+    public void setParentContract(Contract parentContract) {
+        this.parentContract = parentContract;
+    }
+
+    public Long getParentContractId() {
+        return parentContractId;
+    }
+
+    public void setParentContractId(Long parentContractId) {
+        this.parentContractId = parentContractId;
     }
 }
 

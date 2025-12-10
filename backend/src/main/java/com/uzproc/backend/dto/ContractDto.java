@@ -22,6 +22,8 @@ public class ContractDto {
     private ContractStatus status;
     private String state;
     private Long purchaseRequestId;
+    private Long parentContractId;
+    private ContractDto parentContract;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -172,6 +174,22 @@ public class ContractDto {
 
     public void setPurchaseRequestId(Long purchaseRequestId) {
         this.purchaseRequestId = purchaseRequestId;
+    }
+
+    public Long getParentContractId() {
+        return parentContractId;
+    }
+
+    public void setParentContractId(Long parentContractId) {
+        this.parentContractId = parentContractId;
+    }
+
+    public ContractDto getParentContract() {
+        return parentContract;
+    }
+
+    public void setParentContract(ContractDto parentContract) {
+        this.parentContract = parentContract;
     }
 }
 
