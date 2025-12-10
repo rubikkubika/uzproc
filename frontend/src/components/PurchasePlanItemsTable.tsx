@@ -1327,6 +1327,28 @@ export default function PurchasePlanItemsTable() {
     }
   }, [localFilters, focusedField]);
 
+  // Восстановление фокуса после завершения загрузки данных с сервера
+  useEffect(() => {
+    if (focusedField && !loading && data) {
+      // Небольшая задержка, чтобы дать React время отрендерить обновленные данные
+      const timer = setTimeout(() => {
+        const input = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
+        if (input) {
+          const currentValue = localFilters[focusedField] || '';
+          // Проверяем, что значение в поле соответствует локальному состоянию
+          if (input.value === currentValue) {
+            input.focus();
+            // Устанавливаем курсор в конец текста
+            const length = input.value.length;
+            input.setSelectionRange(length, length);
+          }
+        }
+      }, 50);
+
+      return () => clearTimeout(timer);
+    }
+  }, [data, loading, focusedField, localFilters]);
+
   const handlePageSizeChange = (newSize: number) => {
     setPageSize(newSize);
     setCurrentPage(0);

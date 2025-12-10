@@ -102,6 +102,9 @@ export default function ContractsTable() {
     contractType: '',
   });
 
+  // Состояние для отслеживания поля с фокусом
+  const [focusedField, setFocusedField] = useState<string | null>(null);
+
   // Получение уникальных значений ЦФО
   const [cfoOptions, setCfoOptions] = useState<string[]>([]);
   
@@ -271,6 +274,51 @@ export default function ContractsTable() {
   useEffect(() => {
     fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters);
   }, [currentPage, pageSize, selectedYear, sortField, sortDirection, filters, cfoFilter]);
+
+  // Восстановление фокуса после обновления localFilters
+  useEffect(() => {
+    if (focusedField) {
+      const input = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
+      if (input) {
+        // Сохраняем позицию курсора
+        const cursorPosition = input.selectionStart || 0;
+        const currentValue = input.value;
+        
+        // Восстанавливаем фокус в следующем тике, чтобы не мешать текущему вводу
+        requestAnimationFrame(() => {
+          const inputAfterRender = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
+          if (inputAfterRender && inputAfterRender.value === currentValue) {
+            inputAfterRender.focus();
+            // Восстанавливаем позицию курсора
+            const newPosition = Math.min(cursorPosition, inputAfterRender.value.length);
+            inputAfterRender.setSelectionRange(newPosition, newPosition);
+          }
+        });
+      }
+    }
+  }, [localFilters, focusedField]);
+
+  // Восстановление фокуса после завершения загрузки данных с сервера
+  useEffect(() => {
+    if (focusedField && !loading && data) {
+      // Небольшая задержка, чтобы дать React время отрендерить обновленные данные
+      const timer = setTimeout(() => {
+        const input = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
+        if (input) {
+          const currentValue = localFilters[focusedField] || '';
+          // Проверяем, что значение в поле соответствует локальному состоянию
+          if (input.value === currentValue) {
+            input.focus();
+            // Устанавливаем курсор в конец текста
+            const length = input.value.length;
+            input.setSelectionRange(length, length);
+          }
+        }
+      }, 50);
+
+      return () => clearTimeout(timer);
+    }
+  }, [data, loading, focusedField, localFilters]);
 
   // Получаем список уникальных годов из данных
   const getAvailableYears = (): number[] => {
@@ -455,8 +503,38 @@ export default function ContractsTable() {
                         type="text"
                         value={localFilters.innerId}
                         onChange={(e) => {
-                          setLocalFilters(prev => ({ ...prev, innerId: e.target.value }));
+                          const newValue = e.target.value;
+                          const cursorPos = e.target.selectionStart || 0;
+                          setLocalFilters(prev => ({ ...prev, innerId: newValue }));
+                          // Сохраняем позицию курсора после обновления
+                          requestAnimationFrame(() => {
+                            const input = e.target as HTMLInputElement;
+                            if (input && document.activeElement === input) {
+                              const newPos = Math.min(cursorPos, newValue.length);
+                              input.setSelectionRange(newPos, newPos);
+                            }
+                          });
                         }}
+                        onFocus={(e) => {
+                          e.stopPropagation();
+                          setFocusedField('innerId');
+                        }}
+                        onBlur={(e) => {
+                          setTimeout(() => {
+                            const activeElement = document.activeElement as HTMLElement;
+                            if (activeElement && 
+                                activeElement !== e.target && 
+                                !activeElement.closest('input[data-filter-field]') &&
+                                !activeElement.closest('select')) {
+                              setFocusedField(null);
+                            }
+                          }, 200);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                          e.stopPropagation();
+                        }}
+                        data-filter-field="innerId"
                         className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         placeholder="Фильтр"
                         style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
@@ -595,8 +673,38 @@ export default function ContractsTable() {
                         type="text"
                         value={localFilters.name}
                         onChange={(e) => {
-                          setLocalFilters(prev => ({ ...prev, name: e.target.value }));
+                          const newValue = e.target.value;
+                          const cursorPos = e.target.selectionStart || 0;
+                          setLocalFilters(prev => ({ ...prev, name: newValue }));
+                          // Сохраняем позицию курсора после обновления
+                          requestAnimationFrame(() => {
+                            const input = e.target as HTMLInputElement;
+                            if (input && document.activeElement === input) {
+                              const newPos = Math.min(cursorPos, newValue.length);
+                              input.setSelectionRange(newPos, newPos);
+                            }
+                          });
                         }}
+                        onFocus={(e) => {
+                          e.stopPropagation();
+                          setFocusedField('name');
+                        }}
+                        onBlur={(e) => {
+                          setTimeout(() => {
+                            const activeElement = document.activeElement as HTMLElement;
+                            if (activeElement && 
+                                activeElement !== e.target && 
+                                !activeElement.closest('input[data-filter-field]') &&
+                                !activeElement.closest('select')) {
+                              setFocusedField(null);
+                            }
+                          }, 200);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                          e.stopPropagation();
+                        }}
+                        data-filter-field="name"
                         className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         placeholder="Фильтр"
                         style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
@@ -629,8 +737,38 @@ export default function ContractsTable() {
                         type="text"
                         value={localFilters.documentForm}
                         onChange={(e) => {
-                          setLocalFilters(prev => ({ ...prev, documentForm: e.target.value }));
+                          const newValue = e.target.value;
+                          const cursorPos = e.target.selectionStart || 0;
+                          setLocalFilters(prev => ({ ...prev, documentForm: newValue }));
+                          // Сохраняем позицию курсора после обновления
+                          requestAnimationFrame(() => {
+                            const input = e.target as HTMLInputElement;
+                            if (input && document.activeElement === input) {
+                              const newPos = Math.min(cursorPos, newValue.length);
+                              input.setSelectionRange(newPos, newPos);
+                            }
+                          });
                         }}
+                        onFocus={(e) => {
+                          e.stopPropagation();
+                          setFocusedField('documentForm');
+                        }}
+                        onBlur={(e) => {
+                          setTimeout(() => {
+                            const activeElement = document.activeElement as HTMLElement;
+                            if (activeElement && 
+                                activeElement !== e.target && 
+                                !activeElement.closest('input[data-filter-field]') &&
+                                !activeElement.closest('select')) {
+                              setFocusedField(null);
+                            }
+                          }, 200);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                          e.stopPropagation();
+                        }}
+                        data-filter-field="documentForm"
                         className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         placeholder="Фильтр"
                         style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
