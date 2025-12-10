@@ -35,6 +35,7 @@ export default function PurchaseRequestsYearlyChart() {
   const [cfoData, setCfoData] = useState<CfoTableRow[] | null>(null);
   const [cfoSortField, setCfoSortField] = useState<keyof CfoTableRow | null>(null);
   const [cfoSortDirection, setCfoSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [cfoShowAll, setCfoShowAll] = useState(false);
   const [loading, setLoading] = useState(true);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
   const [cfoLoading, setCfoLoading] = useState(false);
@@ -623,9 +624,10 @@ export default function PurchaseRequestsYearlyChart() {
         }));
         
         setCfoData(cfoTableData);
-        // Сбрасываем сортировку при загрузке новых данных
+        // Сбрасываем сортировку и показ всех при загрузке новых данных
         setCfoSortField(null);
         setCfoSortDirection('asc');
+        setCfoShowAll(false);
       } catch (err) {
         console.error('Error fetching CFO stats:', err);
       } finally {
@@ -638,31 +640,45 @@ export default function PurchaseRequestsYearlyChart() {
 
   // Сортированные данные для таблицы ЦФО
   const sortedCfoData = useMemo(() => {
-    if (!cfoData || !cfoSortField) {
+    if (!cfoData) {
       return cfoData;
     }
     
-    const sorted = [...cfoData].sort((a, b) => {
-      const aValue = a[cfoSortField];
-      const bValue = b[cfoSortField];
-      
-      if (aValue === bValue) return 0;
-      
-      if (typeof aValue === 'string' && typeof bValue === 'string') {
-        return cfoSortDirection === 'asc' 
-          ? aValue.localeCompare(bValue, 'ru')
-          : bValue.localeCompare(aValue, 'ru');
-      }
-      
-      if (typeof aValue === 'number' && typeof bValue === 'number') {
-        return cfoSortDirection === 'asc' ? aValue - bValue : bValue - aValue;
-      }
-      
-      return 0;
-    });
+    // Фильтруем: не показываем строки, где и заказы, и закупочные процедуры равны 0
+    const filtered = cfoData.filter(row => row.ordersCount > 0 || row.purchaseProceduresCount > 0);
+    
+    // Если нет явной сортировки, сортируем по сумме закупочных процедур по убыванию (топ-7)
+    let sorted: CfoTableRow[];
+    if (!cfoSortField) {
+      sorted = [...filtered].sort((a, b) => b.purchaseProceduresAmount - a.purchaseProceduresAmount);
+    } else {
+      sorted = [...filtered].sort((a, b) => {
+        const aValue = a[cfoSortField];
+        const bValue = b[cfoSortField];
+        
+        if (aValue === bValue) return 0;
+        
+        if (typeof aValue === 'string' && typeof bValue === 'string') {
+          return cfoSortDirection === 'asc' 
+            ? aValue.localeCompare(bValue, 'ru')
+            : bValue.localeCompare(aValue, 'ru');
+        }
+        
+        if (typeof aValue === 'number' && typeof bValue === 'number') {
+          return cfoSortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+        }
+        
+        return 0;
+      });
+    }
+    
+    // Если не показываем все и нет явной сортировки, ограничиваем топ-7
+    if (!cfoShowAll && !cfoSortField) {
+      return sorted.slice(0, 7);
+    }
     
     return sorted;
-  }, [cfoData, cfoSortField, cfoSortDirection]);
+  }, [cfoData, cfoSortField, cfoSortDirection, cfoShowAll]);
 
   // Обработчик сортировки для таблицы ЦФО
   const handleCfoSort = useCallback((field: keyof CfoTableRow) => {
@@ -907,26 +923,26 @@ export default function PurchaseRequestsYearlyChart() {
     <div className="bg-white p-2 sm:p-3 rounded-lg shadow-md space-y-2 sm:space-y-3 w-full">
       {/* Диаграммы на одном уровне */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-1 sm:gap-2 w-full items-start">
-        {/* Столбчатая диаграмма по годам */}
+      {/* Столбчатая диаграмма по годам */}
         <div className="lg:col-span-3 w-full flex flex-col">
-          {allYears.length > 0 && (
+            {allYears.length > 0 && (
             <div className="mb-1 flex flex-wrap items-center gap-1.5 sm:gap-2">
               <span className="text-xs font-medium text-gray-700">Год:</span>
-              {allYears.map((year) => (
-                <button
-                  key={year}
-                  onClick={() => setSelectedYear(year)}
-                  className={`px-2 py-1 text-xs rounded-md transition-colors ${
-                    selectedYear === year
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {year}
-                </button>
-              ))}
-            </div>
-          )}
+                {allYears.map((year) => (
+                  <button
+                    key={year}
+                    onClick={() => setSelectedYear(year)}
+                    className={`px-2 py-1 text-xs rounded-md transition-colors ${
+                      selectedYear === year
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {year}
+                  </button>
+                ))}
+              </div>
+            )}
           <div className="mb-1 h-[32px] sm:h-[36px] flex items-center">
             <h3 className="text-xs sm:text-sm font-bold text-gray-900">По годам</h3>
           </div>
@@ -946,19 +962,19 @@ export default function PurchaseRequestsYearlyChart() {
               </h3>
             </div>
             <div className="h-[250px] sm:h-[280px] w-full">
-              {monthlyLoading ? (
+          {monthlyLoading ? (
                 <div className="h-full w-full flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                    <p className="mt-2 text-xs sm:text-sm text-gray-500">Загрузка данных...</p>
-                  </div>
-                </div>
-              ) : monthlyData ? (
-                <Line data={monthlyData} options={monthlyOptions} />
+              <div className="text-center">
+                <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                <p className="mt-2 text-xs sm:text-sm text-gray-500">Загрузка данных...</p>
+              </div>
+            </div>
+          ) : monthlyData ? (
+              <Line data={monthlyData} options={monthlyOptions} />
               ) : (
                 <div className="h-full w-full flex items-center justify-center">
                   <p className="text-xs sm:text-sm text-gray-500">Нет данных для отображения</p>
-                </div>
+            </div>
               )}
             </div>
           </div>
@@ -1119,15 +1135,39 @@ export default function PurchaseRequestsYearlyChart() {
                       ))}
                     </tbody>
                   </table>
+                  {!cfoShowAll && cfoData && cfoData.filter(row => row.ordersCount > 0 || row.purchaseProceduresCount > 0).length > 7 && !cfoSortField && (
+                    <div className="px-2 py-2 border-t border-gray-200 flex justify-end bg-gray-50">
+                      <button
+                        onClick={() => setCfoShowAll(true)}
+                        className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        Раскрыть таблицу
+                      </button>
+                    </div>
+                  )}
+                  {cfoShowAll && (
+                    <div className="px-2 py-2 border-t border-gray-200 flex justify-end bg-gray-50">
+                      <button
+                        onClick={() => {
+                          setCfoShowAll(false);
+                          setCfoSortField(null);
+                          setCfoSortDirection('asc');
+                        }}
+                        className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        Свернуть таблицу
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="h-[250px] sm:h-[280px] w-full flex items-center justify-center">
-                  <p className="text-xs sm:text-sm text-gray-500">Нет данных для отображения</p>
-                </div>
-              )}
+              <p className="text-xs sm:text-sm text-gray-500">Нет данных для отображения</p>
             </div>
-          </div>
-        )}
+          )}
+            </div>
+        </div>
+      )}
       </div>
 
       {/* Таблица с данными */}
