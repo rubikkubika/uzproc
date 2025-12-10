@@ -1,0 +1,3 @@
+ALTER TABLE purchases
+ADD COLUMN state VARCHAR(255);
+

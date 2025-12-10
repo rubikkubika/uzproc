@@ -142,6 +142,8 @@ public class PurchasePlanItemService {
         dto.setComplexity(entity.getComplexity());
         dto.setHolding(entity.getHolding());
         dto.setCategory(entity.getCategory());
+        dto.setStatus(entity.getStatus());
+        dto.setState(entity.getState());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
         return dto;

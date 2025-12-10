@@ -1,9 +1,11 @@
 package com.uzproc.backend.service;
 
 import com.uzproc.backend.entity.Contract;
+import com.uzproc.backend.entity.ContractStatus;
 import com.uzproc.backend.entity.Purchase;
 import com.uzproc.backend.entity.PurchaseRequest;
 import com.uzproc.backend.entity.PurchaseRequestStatus;
+import com.uzproc.backend.entity.PurchaseStatus;
 import com.uzproc.backend.entity.User;
 import com.uzproc.backend.repository.ContractRepository;
 import com.uzproc.backend.repository.PurchaseRepository;
@@ -408,7 +410,7 @@ public class EntityExcelLoadService {
                     // Обработка закупки
                     if (purchaseInnerIdColumnIndex != null) {
                         try {
-                            Purchase purchase = parsePurchaseRow(row, purchaseInnerIdColumnIndex, purchaseCreationDateColumnIndex, cfoColumnIndex, purchaseLinkColumnIndex);
+                            Purchase purchase = parsePurchaseRow(row, purchaseInnerIdColumnIndex, purchaseCreationDateColumnIndex, cfoColumnIndex, purchaseLinkColumnIndex, statusColumnIndex);
                             if (purchase != null && purchase.getInnerId() != null && !purchase.getInnerId().trim().isEmpty()) {
                                 // Используем кэш вместо запроса к БД
                                 String innerId = purchase.getInnerId().trim();
@@ -447,7 +449,7 @@ public class EntityExcelLoadService {
                     if (contractInnerIdColumnIndex != null) {
                         try {
                             Contract contract = parseContractRow(row, contractInnerIdColumnIndex, contractCreationDateColumnIndex, 
-                                    contractCfoColumnIndex, contractNameColumnIndex, contractTitleColumnIndex, contractDocumentFormColumnIndex);
+                                    contractCfoColumnIndex, contractNameColumnIndex, contractTitleColumnIndex, contractDocumentFormColumnIndex, statusColumnIndex);
                             if (contract != null && contract.getInnerId() != null && !contract.getInnerId().trim().isEmpty()) {
                                 // Используем кэш вместо запроса к БД
                                 String innerId = contract.getInnerId().trim();
@@ -645,10 +647,10 @@ public class EntityExcelLoadService {
      * Обрабатывает одну строку закупки
      */
     private boolean processContractRow(Row row, Integer innerIdColumnIndex, Integer creationDateColumnIndex, 
-            Integer cfoColumnIndex, Integer nameColumnIndex, Integer titleColumnIndex, Integer documentFormColumnIndex) {
+            Integer cfoColumnIndex, Integer nameColumnIndex, Integer titleColumnIndex, Integer documentFormColumnIndex, Integer statusColumnIndex) {
         try {
             Contract contract = parseContractRow(row, innerIdColumnIndex, creationDateColumnIndex, cfoColumnIndex, 
-                    nameColumnIndex, titleColumnIndex, documentFormColumnIndex);
+                    nameColumnIndex, titleColumnIndex, documentFormColumnIndex, statusColumnIndex);
             if (contract == null) {
                 logger.warn("parseContractRow returned null for row {}", row.getRowNum() + 1);
                 return false;
@@ -678,9 +680,9 @@ public class EntityExcelLoadService {
         }
     }
 
-    private boolean processPurchaseRow(Row row, Integer innerIdColumnIndex, Integer creationDateColumnIndex, Integer cfoColumnIndex, Integer linkColumnIndex) {
+    private boolean processPurchaseRow(Row row, Integer innerIdColumnIndex, Integer creationDateColumnIndex, Integer cfoColumnIndex, Integer linkColumnIndex, Integer statusColumnIndex) {
         try {
-            Purchase purchase = parsePurchaseRow(row, innerIdColumnIndex, creationDateColumnIndex, cfoColumnIndex, linkColumnIndex);
+            Purchase purchase = parsePurchaseRow(row, innerIdColumnIndex, creationDateColumnIndex, cfoColumnIndex, linkColumnIndex, statusColumnIndex);
             if (purchase == null) {
                 return false;
             }
@@ -1244,24 +1246,27 @@ public class EntityExcelLoadService {
                 logger.debug("Row {}: purchaserColumnIndex is null, skipping purchaser field", row.getRowNum() + 1);
             }
             
-            // Состояние (опционально) - парсим поле "Состояние"
+            // Состояние (опционально) - парсим поле "Состояние" в поле state
             if (statusColumnIndex != null) {
                 Cell statusCell = row.getCell(statusColumnIndex);
                 String statusValue = getCellValueAsString(statusCell);
                 if (statusValue != null && !statusValue.trim().isEmpty()) {
                     String trimmedStatus = statusValue.trim();
-                    // Если "Состояние" = "Проект", то устанавливаем статус = PROJECT
-                    if ("Проект".equals(trimmedStatus)) {
+                    // Сохраняем значение из колонки "Состояние" в поле state
+                    pr.setState(trimmedStatus);
+                    logger.debug("Row {}: parsed state value: '{}' and saved to state field for request {}", row.getRowNum() + 1, trimmedStatus, pr.getIdPurchaseRequest());
+                    // Если "Состояние" = "Проект" (case-insensitive), то устанавливаем статус = PROJECT
+                    if ("Проект".equalsIgnoreCase(trimmedStatus)) {
                         pr.setStatus(PurchaseRequestStatus.PROJECT);
-                        logger.info("Row {}: parsed status 'Проект', set status to PROJECT for request {}", row.getRowNum() + 1, pr.getIdPurchaseRequest());
+                        logger.info("Row {}: parsed state '{}', set status to PROJECT for request {}", row.getRowNum() + 1, trimmedStatus, pr.getIdPurchaseRequest());
                     } else {
-                        logger.debug("Row {}: status value '{}' is not 'Проект', skipping status update", row.getRowNum() + 1, trimmedStatus);
+                        logger.debug("Row {}: state value '{}' is not 'Проект' (case-insensitive), skipping status update", row.getRowNum() + 1, trimmedStatus);
                     }
                 } else {
                     logger.debug("Row {}: status cell is empty or null", row.getRowNum() + 1);
                 }
             } else {
-                logger.debug("Row {}: statusColumnIndex is null, skipping status field", row.getRowNum() + 1);
+                logger.debug("Row {}: statusColumnIndex is null, skipping state field", row.getRowNum() + 1);
             }
             
             return pr;
@@ -2172,6 +2177,12 @@ public class EntityExcelLoadService {
             Integer creationDateColumnIndex = findColumnIndexInHeader(headerRow, CREATION_DATE_COLUMN);
             Integer cfoColumnIndex = findColumnIndexInHeader(headerRow, CFO_COLUMN);
             Integer linkColumnIndex = findColumnIndexInHeader(headerRow, LINK_COLUMN);
+            Integer statusColumnIndex = findColumnIndexInHeader(headerRow, STATUS_COLUMN);
+            if (statusColumnIndex != null) {
+                logger.info("Found status column '{}' at index {} for purchases", STATUS_COLUMN, statusColumnIndex);
+            } else {
+                logger.warn("Status column '{}' not found in Excel file for purchases. Available columns: {}", STATUS_COLUMN, columnIndexMap.keySet());
+            }
             
             if (innerIdColumnIndex == null) {
                 logger.warn("Column '{}' not found in file {} for purchases", INNER_ID_COLUMN, excelFile.getName());
@@ -2222,7 +2233,7 @@ public class EntityExcelLoadService {
                     purchaseTypeRowsFound++;
                     logger.debug("Found purchase type row {}: documentType='{}'", row.getRowNum() + 1, documentType);
                     try {
-                        Purchase purchase = parsePurchaseRow(row, innerIdColumnIndex, creationDateColumnIndex, cfoColumnIndex, linkColumnIndex);
+                        Purchase purchase = parsePurchaseRow(row, innerIdColumnIndex, creationDateColumnIndex, cfoColumnIndex, linkColumnIndex, statusColumnIndex);
                         if (purchase == null) {
                             logger.warn("parsePurchaseRow returned null for row {}", row.getRowNum() + 1);
                             parseErrors++;
@@ -2293,7 +2304,7 @@ public class EntityExcelLoadService {
      * Парсит строку Excel в Purchase для типа "Закупочная процедура"
      * Заполняет innerId из колонки "Внутренний номер" и дату создания из колонки "Дата создания"
      */
-    private Purchase parsePurchaseRow(Row row, Integer innerIdColumnIndex, Integer creationDateColumnIndex, Integer cfoColumnIndex, Integer linkColumnIndex) {
+    private Purchase parsePurchaseRow(Row row, Integer innerIdColumnIndex, Integer creationDateColumnIndex, Integer cfoColumnIndex, Integer linkColumnIndex, Integer statusColumnIndex) {
         Purchase purchase = new Purchase();
         
         try {
@@ -2364,6 +2375,29 @@ public class EntityExcelLoadService {
                 logger.debug("Column '{}' not found for purchase row {}", LINK_COLUMN, row.getRowNum() + 1);
             }
             
+            // Состояние (опционально) - парсим поле "Состояние" в поле state
+            if (statusColumnIndex != null) {
+                Cell statusCell = row.getCell(statusColumnIndex);
+                String statusValue = getCellValueAsString(statusCell);
+                if (statusValue != null && !statusValue.trim().isEmpty()) {
+                    String trimmedStatus = statusValue.trim();
+                    // Сохраняем значение из колонки "Состояние" в поле state
+                    purchase.setState(trimmedStatus);
+                    logger.debug("Row {}: parsed state value: '{}' and saved to state field for purchase {}", row.getRowNum() + 1, trimmedStatus, purchase.getInnerId());
+                    // Если "Состояние" = "Проект" (case-insensitive), то устанавливаем статус = PROJECT
+                    if ("Проект".equalsIgnoreCase(trimmedStatus)) {
+                        purchase.setStatus(PurchaseStatus.PROJECT);
+                        logger.info("Row {}: parsed state '{}', set status to PROJECT for purchase {}", row.getRowNum() + 1, trimmedStatus, purchase.getInnerId());
+                    } else {
+                        logger.debug("Row {}: state value '{}' is not 'Проект' (case-insensitive), skipping status update", row.getRowNum() + 1, trimmedStatus);
+                    }
+                } else {
+                    logger.debug("Row {}: status cell is empty or null", row.getRowNum() + 1);
+                }
+            } else {
+                logger.debug("Row {}: statusColumnIndex is null, skipping state field", row.getRowNum() + 1);
+            }
+            
             return purchase;
         } catch (Exception e) {
             logger.error("Error parsing Purchase row {}: {}", row.getRowNum() + 1, e.getMessage(), e);
@@ -2411,6 +2445,24 @@ public class EntityExcelLoadService {
                 existing.setPurchaseRequestId(newData.getPurchaseRequestId());
                 updated = true;
                 logger.debug("Updated purchaseRequestId for purchase {}: {}", existing.getId(), newData.getPurchaseRequestId());
+            }
+        }
+        
+        // Обновляем state
+        if (newData.getState() != null && !newData.getState().trim().isEmpty()) {
+            if (existing.getState() == null || !existing.getState().equals(newData.getState())) {
+                existing.setState(newData.getState());
+                updated = true;
+                logger.debug("Updated state for purchase {}: {}", existing.getId(), newData.getState());
+            }
+        }
+        
+        // Обновляем status (если state = "Проект")
+        if (newData.getStatus() != null) {
+            if (existing.getStatus() == null || !existing.getStatus().equals(newData.getStatus())) {
+                existing.setStatus(newData.getStatus());
+                updated = true;
+                logger.debug("Updated status for purchase {}: {}", existing.getId(), newData.getStatus());
             }
         }
         
@@ -2495,6 +2547,12 @@ public class EntityExcelLoadService {
             Integer nameColumnIndex = findColumnIndexInHeader(headerRow, NAME_COLUMN);
             Integer titleColumnIndex = findColumnIndexInHeader(headerRow, TITLE_COLUMN);
             Integer documentFormColumnIndex = findColumnIndexInHeader(headerRow, DOCUMENT_FORM_COLUMN);
+            Integer statusColumnIndex = findColumnIndexInHeader(headerRow, STATUS_COLUMN);
+            if (statusColumnIndex != null) {
+                logger.info("Found status column '{}' at index {} for contracts", STATUS_COLUMN, statusColumnIndex);
+            } else {
+                logger.warn("Status column '{}' not found in Excel file for contracts. Available columns: {}", STATUS_COLUMN, columnIndexMap.keySet());
+            }
             
             if (innerIdColumnIndex == null) {
                 logger.warn("Column '{}' not found in file {} for contracts", INNER_ID_COLUMN, excelFile.getName());
@@ -2545,7 +2603,7 @@ public class EntityExcelLoadService {
                     logger.info("Found contract type row {}: documentType='{}'", row.getRowNum() + 1, documentType);
                     try {
                         Contract contract = parseContractRow(row, innerIdColumnIndex, creationDateColumnIndex, cfoColumnIndex, 
-                                nameColumnIndex, titleColumnIndex, documentFormColumnIndex);
+                                nameColumnIndex, titleColumnIndex, documentFormColumnIndex, statusColumnIndex);
                         if (contract == null) {
                             logger.warn("parseContractRow returned null for row {}", row.getRowNum() + 1);
                             parseErrors++;
@@ -2596,7 +2654,7 @@ public class EntityExcelLoadService {
      * форму документа из колонки "Форма документа" и другие поля
      */
     private Contract parseContractRow(Row row, Integer innerIdColumnIndex, Integer creationDateColumnIndex, 
-            Integer cfoColumnIndex, Integer nameColumnIndex, Integer titleColumnIndex, Integer documentFormColumnIndex) {
+            Integer cfoColumnIndex, Integer nameColumnIndex, Integer titleColumnIndex, Integer documentFormColumnIndex, Integer statusColumnIndex) {
         Contract contract = new Contract();
         
         try {
@@ -2672,6 +2730,29 @@ public class EntityExcelLoadService {
                 logger.debug("Column '{}' not found for contract row {}", DOCUMENT_FORM_COLUMN, row.getRowNum() + 1);
             }
             
+            // Состояние (опционально) - парсим поле "Состояние" в поле state
+            if (statusColumnIndex != null) {
+                Cell statusCell = row.getCell(statusColumnIndex);
+                String statusValue = getCellValueAsString(statusCell);
+                if (statusValue != null && !statusValue.trim().isEmpty()) {
+                    String trimmedStatus = statusValue.trim();
+                    // Сохраняем значение из колонки "Состояние" в поле state
+                    contract.setState(trimmedStatus);
+                    logger.debug("Row {}: parsed state value: '{}' and saved to state field for contract {}", row.getRowNum() + 1, trimmedStatus, contract.getInnerId());
+                    // Если "Состояние" = "Проект" (case-insensitive), то устанавливаем статус = PROJECT
+                    if ("Проект".equalsIgnoreCase(trimmedStatus)) {
+                        contract.setStatus(ContractStatus.PROJECT);
+                        logger.info("Row {}: parsed state '{}', set status to PROJECT for contract {}", row.getRowNum() + 1, trimmedStatus, contract.getInnerId());
+                    } else {
+                        logger.debug("Row {}: state value '{}' is not 'Проект' (case-insensitive), skipping status update", row.getRowNum() + 1, trimmedStatus);
+                    }
+                } else {
+                    logger.debug("Row {}: status cell is empty or null", row.getRowNum() + 1);
+                }
+            } else {
+                logger.debug("Row {}: statusColumnIndex is null, skipping state field", row.getRowNum() + 1);
+            }
+            
             return contract;
         } catch (Exception e) {
             logger.error("Error parsing Contract row {}: {}", row.getRowNum() + 1, e.getMessage(), e);
@@ -2737,6 +2818,24 @@ public class EntityExcelLoadService {
                 existing.setDocumentForm(newData.getDocumentForm());
                 updated = true;
                 logger.debug("Updated documentForm for contract {}: {}", existing.getId(), newData.getDocumentForm());
+            }
+        }
+        
+        // Обновляем state
+        if (newData.getState() != null && !newData.getState().trim().isEmpty()) {
+            if (existing.getState() == null || !existing.getState().equals(newData.getState())) {
+                existing.setState(newData.getState());
+                updated = true;
+                logger.debug("Updated state for contract {}: {}", existing.getId(), newData.getState());
+            }
+        }
+        
+        // Обновляем status (если state = "Проект")
+        if (newData.getStatus() != null) {
+            if (existing.getStatus() == null || !existing.getStatus().equals(newData.getStatus())) {
+                existing.setStatus(newData.getStatus());
+                updated = true;
+                logger.debug("Updated status for contract {}: {}", existing.getId(), newData.getStatus());
             }
         }
         

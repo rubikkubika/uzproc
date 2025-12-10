@@ -50,6 +50,7 @@ public class PurchasePlanExcelLoadService {
     private static final String COMPLEXITY_COLUMN = "Сложность";
     private static final String HOLDING_COLUMN = "Холдинг";
     private static final String CATEGORY_COLUMN = "Категория";
+    private static final String STATUS_COLUMN = "Состояние";
     
     // Оптимизация: статические DateTimeFormatter для парсинга дат (создаются один раз)
     private static final java.time.format.DateTimeFormatter[] DATE_FORMATTERS = {
@@ -268,6 +269,12 @@ public class PurchasePlanExcelLoadService {
             Integer complexityColumnIndex = findColumnIndex(columnIndexMap, COMPLEXITY_COLUMN);
             Integer holdingColumnIndex = findColumnIndex(columnIndexMap, HOLDING_COLUMN);
             Integer categoryColumnIndex = findColumnIndex(columnIndexMap, CATEGORY_COLUMN);
+            Integer statusColumnIndex = findColumnIndex(columnIndexMap, STATUS_COLUMN);
+            if (statusColumnIndex != null) {
+                logger.info("Found status column '{}' at index {} for purchase plan items", STATUS_COLUMN, statusColumnIndex);
+            } else {
+                logger.warn("Status column '{}' not found in Excel file for purchase plan items. Available columns: {}", STATUS_COLUMN, columnIndexMap.keySet());
+            }
             
             // Логируем все найденные колонки
             logger.info("All columns in Excel file:");
@@ -303,7 +310,7 @@ public class PurchasePlanExcelLoadService {
                             contractEndDateColumnIndex, requestDateColumnIndex, newContractDateColumnIndex, purchaserColumnIndex,
                             productColumnIndex, hasContractColumnIndex, currentKaColumnIndex, currentAmountColumnIndex,
                             currentContractAmountColumnIndex, currentContractBalanceColumnIndex, currentContractEndDateColumnIndex,
-                            autoRenewalColumnIndex, complexityColumnIndex, holdingColumnIndex, categoryColumnIndex);
+                            autoRenewalColumnIndex, complexityColumnIndex, holdingColumnIndex, categoryColumnIndex, statusColumnIndex);
                     
                     if (item != null && item.getPurchaseSubject() != null && !item.getPurchaseSubject().trim().isEmpty()) {
                         // Проверяем, существует ли уже запись с таким же purchase_subject (без учета регистра)
@@ -348,7 +355,7 @@ public class PurchasePlanExcelLoadService {
             Integer contractEndDateColumnIndex, Integer requestDateColumnIndex, Integer newContractDateColumnIndex, Integer purchaserColumnIndex,
             Integer productColumnIndex, Integer hasContractColumnIndex, Integer currentKaColumnIndex, Integer currentAmountColumnIndex,
             Integer currentContractAmountColumnIndex, Integer currentContractBalanceColumnIndex, Integer currentContractEndDateColumnIndex,
-            Integer autoRenewalColumnIndex, Integer complexityColumnIndex, Integer holdingColumnIndex, Integer categoryColumnIndex) {
+            Integer autoRenewalColumnIndex, Integer complexityColumnIndex, Integer holdingColumnIndex, Integer categoryColumnIndex, Integer statusColumnIndex) {
         PurchasePlanItem item = new PurchasePlanItem();
         
         try {
@@ -557,6 +564,29 @@ public class PurchasePlanExcelLoadService {
                 if (category != null && !category.trim().isEmpty()) {
                     item.setCategory(category.trim());
                 }
+            }
+            
+            // Состояние (опционально) - парсим поле "Состояние" в поле state
+            if (statusColumnIndex != null) {
+                Cell statusCell = row.getCell(statusColumnIndex);
+                String statusValue = getCellValueAsString(statusCell);
+                if (statusValue != null && !statusValue.trim().isEmpty()) {
+                    String trimmedStatus = statusValue.trim();
+                    // Сохраняем значение из колонки "Состояние" в поле state
+                    item.setState(trimmedStatus);
+                    logger.debug("Row {}: parsed state value: '{}' and saved to state field for purchase plan item", row.getRowNum() + 1, trimmedStatus);
+                    // Если "Состояние" = "Проект" (case-insensitive), то устанавливаем статус = PROJECT
+                    if ("Проект".equalsIgnoreCase(trimmedStatus)) {
+                        item.setStatus(com.uzproc.backend.entity.PurchasePlanItemStatus.PROJECT);
+                        logger.info("Row {}: parsed state '{}', set status to PROJECT for purchase plan item", row.getRowNum() + 1, trimmedStatus);
+                    } else {
+                        logger.debug("Row {}: state value '{}' is not 'Проект' (case-insensitive), skipping status update", row.getRowNum() + 1, trimmedStatus);
+                    }
+                } else {
+                    logger.debug("Row {}: status cell is empty or null", row.getRowNum() + 1);
+                }
+            } else {
+                logger.debug("Row {}: statusColumnIndex is null, skipping state field", row.getRowNum() + 1);
             }
             
             return item;
@@ -1130,6 +1160,24 @@ public class PurchasePlanExcelLoadService {
             existing.setCategory(newData.getCategory());
             updated = true;
             logger.debug("Updated category for purchase plan item {}: {}", existing.getId(), newData.getCategory());
+        }
+        
+        // Обновляем state
+        if (newData.getState() != null && !newData.getState().trim().isEmpty()) {
+            if (existing.getState() == null || !existing.getState().equals(newData.getState())) {
+                existing.setState(newData.getState());
+                updated = true;
+                logger.debug("Updated state for purchase plan item {}: {}", existing.getId(), newData.getState());
+            }
+        }
+        
+        // Обновляем status (если state = "Проект")
+        if (newData.getStatus() != null) {
+            if (existing.getStatus() == null || !existing.getStatus().equals(newData.getStatus())) {
+                existing.setStatus(newData.getStatus());
+                updated = true;
+                logger.debug("Updated status for purchase plan item {}: {}", existing.getId(), newData.getStatus());
+            }
         }
         
         if (updated) {

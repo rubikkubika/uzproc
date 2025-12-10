@@ -1,0 +1,3 @@
+ALTER TABLE contracts
+ADD COLUMN state VARCHAR(255);
+

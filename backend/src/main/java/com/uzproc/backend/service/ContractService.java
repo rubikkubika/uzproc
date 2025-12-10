@@ -91,6 +91,8 @@ public class ContractService {
         dto.setCostType(entity.getCostType());
         dto.setContractType(entity.getContractType());
         dto.setContractDurationMonths(entity.getContractDurationMonths());
+        dto.setStatus(entity.getStatus());
+        dto.setState(entity.getState());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
         return dto;

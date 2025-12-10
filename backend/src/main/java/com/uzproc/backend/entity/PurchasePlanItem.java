@@ -80,6 +80,13 @@ public class PurchasePlanItem {
     @Column(name = "category", length = 255)
     private String category;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", length = 50)
+    private PurchasePlanItemStatus status;
+
+    @Column(name = "state", length = 255)
+    private String state;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -296,6 +303,22 @@ public class PurchasePlanItem {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getState() {
+        return state;
+    }
+
+    public void setState(String state) {
+        this.state = state;
+    }
+
+    public PurchasePlanItemStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(PurchasePlanItemStatus status) {
+        this.status = status;
     }
 }
 

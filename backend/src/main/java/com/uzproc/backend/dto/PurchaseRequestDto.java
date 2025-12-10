@@ -28,6 +28,7 @@ public class PurchaseRequestDto {
     private Boolean isPlanned;
     private Boolean requiresPurchase;
     private PurchaseRequestStatus status;
+    private String state;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     // Список ID связанных закупок
@@ -204,6 +205,14 @@ public class PurchaseRequestDto {
 
     public void setStatus(PurchaseRequestStatus status) {
         this.status = status;
+    }
+
+    public String getState() {
+        return state;
+    }
+
+    public void setState(String state) {
+        this.state = state;
     }
 
     public LocalDateTime getCreatedAt() {

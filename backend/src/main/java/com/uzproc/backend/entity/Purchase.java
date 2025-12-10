@@ -58,6 +58,13 @@ public class Purchase {
     @Column(name = "contract_duration_months")
     private Integer contractDurationMonths;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", length = 50)
+    private PurchaseStatus status;
+
+    @Column(name = "state", length = 255)
+    private String state;
+
     // Связь с PurchaseRequest по полю idPurchaseRequest
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "purchase_request_id", 
@@ -260,6 +267,22 @@ public class Purchase {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getState() {
+        return state;
+    }
+
+    public void setState(String state) {
+        this.state = state;
+    }
+
+    public PurchaseStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(PurchaseStatus status) {
+        this.status = status;
     }
 }
 

@@ -1,5 +1,6 @@
 package com.uzproc.backend.dto;
 
+import com.uzproc.backend.entity.PurchasePlanItemStatus;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -28,6 +29,8 @@ public class PurchasePlanItemDto {
     private String complexity;
     private String holding;
     private String category;
+    private PurchasePlanItemStatus status;
+    private String state;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -226,6 +229,22 @@ public class PurchasePlanItemDto {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public PurchasePlanItemStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(PurchasePlanItemStatus status) {
+        this.status = status;
+    }
+
+    public String getState() {
+        return state;
+    }
+
+    public void setState(String state) {
+        this.state = state;
     }
 }
 

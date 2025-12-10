@@ -1,5 +1,6 @@
 package com.uzproc.backend.dto;
 
+import com.uzproc.backend.entity.ContractStatus;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -18,6 +19,8 @@ public class ContractDto {
     private String costType;
     private String contractType;
     private Integer contractDurationMonths;
+    private ContractStatus status;
+    private String state;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -144,6 +147,22 @@ public class ContractDto {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public ContractStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(ContractStatus status) {
+        this.status = status;
+    }
+
+    public String getState() {
+        return state;
+    }
+
+    public void setState(String state) {
+        this.state = state;
     }
 }
 

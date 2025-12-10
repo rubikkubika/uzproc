@@ -131,6 +131,7 @@ public class PurchaseRequestService {
         dto.setIsPlanned(entity.getIsPlanned());
         dto.setRequiresPurchase(entity.getRequiresPurchase());
         dto.setStatus(entity.getStatus());
+        dto.setState(entity.getState());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
         

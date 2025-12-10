@@ -96,6 +96,8 @@ public class PurchaseService {
         dto.setContractType(entity.getContractType());
         dto.setContractDurationMonths(entity.getContractDurationMonths());
         dto.setPurchaseRequestId(entity.getPurchaseRequestId());
+        dto.setStatus(entity.getStatus());
+        dto.setState(entity.getState());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
         return dto;

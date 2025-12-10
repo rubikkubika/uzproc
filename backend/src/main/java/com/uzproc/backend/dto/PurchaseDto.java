@@ -1,5 +1,6 @@
 package com.uzproc.backend.dto;
 
+import com.uzproc.backend.entity.PurchaseStatus;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -21,6 +22,8 @@ public class PurchaseDto {
     private String contractType;
     private Integer contractDurationMonths;
     private Long purchaseRequestId;
+    private PurchaseStatus status;
+    private String state;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -155,6 +158,22 @@ public class PurchaseDto {
 
     public void setPurchaseRequestId(Long purchaseRequestId) {
         this.purchaseRequestId = purchaseRequestId;
+    }
+
+    public PurchaseStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(PurchaseStatus status) {
+        this.status = status;
+    }
+
+    public String getState() {
+        return state;
+    }
+
+    public void setState(String state) {
+        this.state = state;
     }
 
     public LocalDateTime getCreatedAt() {

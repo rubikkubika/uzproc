@@ -52,6 +52,13 @@ public class Contract {
     @Column(name = "contract_duration_months")
     private Integer contractDurationMonths;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", length = 50)
+    private ContractStatus status;
+
+    @Column(name = "state", length = 255)
+    private String state;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -196,6 +203,22 @@ public class Contract {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getState() {
+        return state;
+    }
+
+    public void setState(String state) {
+        this.state = state;
+    }
+
+    public ContractStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(ContractStatus status) {
+        this.status = status;
     }
 }
 
