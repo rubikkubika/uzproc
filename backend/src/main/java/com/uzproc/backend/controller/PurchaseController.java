@@ -25,6 +25,7 @@ public class PurchaseController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month,
             @RequestParam(required = false) String sortBy,
             @RequestParam(required = false) String sortDir,
             @RequestParam(required = false) String innerId,
@@ -37,7 +38,7 @@ public class PurchaseController {
             @RequestParam(required = false) Long purchaseRequestId) {
         
         Page<PurchaseDto> purchases = purchaseService.findAll(
-                page, size, year, sortBy, sortDir, innerId, purchaseNumber, cfo, purchaseInitiator,
+                page, size, year, month, sortBy, sortDir, innerId, purchaseNumber, cfo, purchaseInitiator,
                 name, costType, contractType, purchaseRequestId);
         
         return ResponseEntity.ok(purchases);

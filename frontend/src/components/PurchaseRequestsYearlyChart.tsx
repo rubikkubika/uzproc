@@ -99,19 +99,31 @@ export default function PurchaseRequestsYearlyChart() {
       let purchasesData: any = null;
 
       // Определяем, какие данные нужно загрузить
+      // Для столбчатой диаграммы: "Закупка", "Заказ", "Не согласована / Не утверждена / Проект"
+      // Для линейной диаграммы: "Заявки на закупку", "Заказы", "Закупочная процедура", "Не согласована / Не утверждена / Проект"
       const shouldLoadPurchaseRequests = datasetLabel === 'Заявки на закупку' || 
                                         datasetLabel === 'Заказы' || 
+                                        datasetLabel === 'Закупка' ||
+                                        datasetLabel === 'Заказ' ||
                                         datasetLabel === 'Не согласована / Не утверждена / Проект';
       const shouldLoadPurchases = datasetLabel === 'Закупочная процедура' || 
                                   datasetLabel === 'Не согласована / Не утверждена / Проект';
 
       if (shouldLoadPurchaseRequests) {
         // Загружаем заявки на закупку
-        // Если указан месяц, загружаем все данные за год для корректной фильтрации по месяцу
         const params = new URLSearchParams();
-        params.append('page', month ? '0' : String(page));
-        params.append('size', month ? '10000' : String(size)); // Загружаем все данные, если фильтруем по месяцу
+        params.append('page', String(page));
+        params.append('size', String(size));
         params.append('year', String(year));
+        
+        // Фильтрация по месяцу на бэкенде
+        if (month) {
+          const monthIndex = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'].indexOf(month);
+          if (monthIndex !== -1) {
+            const monthNumber = monthIndex + 1; // 1-12
+            params.append('month', String(monthNumber));
+          }
+        }
         
         if (sortBy && sortDir) {
           params.append('sortBy', sortBy);
@@ -129,51 +141,37 @@ export default function PurchaseRequestsYearlyChart() {
           params.append('name', filters.name.trim());
         }
         
-        if (datasetLabel === 'Заказы') {
+        if (datasetLabel === 'Заказы' || datasetLabel === 'Заказ') {
           params.append('requiresPurchase', 'false');
+        }
+        
+        // Для "Закупка" из столбчатой диаграммы фильтруем только заявки, где требуется закупка
+        if (datasetLabel === 'Закупка') {
+          params.append('requiresPurchase', 'true');
         }
         
         const url = `${backendUrl}/api/purchase-requests?${params.toString()}`;
         const response = await fetch(url);
         if (response.ok) {
           purchaseRequestsData = await response.json();
-          
-          // Фильтрация по месяцу на клиенте, если указан месяц
-          if (month && purchaseRequestsData.content) {
-            const monthIndex = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'].indexOf(month);
-            if (monthIndex !== -1) {
-              const monthNumber = monthIndex + 1; // 1-12
-              const filteredContent = purchaseRequestsData.content.filter((item: any) => {
-                if (!item.purchaseRequestCreationDate) return false;
-                const date = new Date(item.purchaseRequestCreationDate);
-                return date.getMonth() + 1 === monthNumber && date.getFullYear() === year;
-              });
-              
-              // Применяем пагинацию к отфильтрованным данным
-              const startIndex = page * size;
-              const endIndex = startIndex + size;
-              const paginatedContent = filteredContent.slice(startIndex, endIndex);
-              
-              purchaseRequestsData = {
-                ...purchaseRequestsData,
-                content: paginatedContent,
-                totalElements: filteredContent.length,
-                totalPages: Math.ceil(filteredContent.length / size),
-                number: page,
-                size: size,
-              };
-            }
-          }
         }
       }
 
       if (shouldLoadPurchases) {
         // Загружаем закупки
-        // Если указан месяц, загружаем все данные за год для корректной фильтрации по месяцу
         const params = new URLSearchParams();
-        params.append('page', month ? '0' : String(page));
-        params.append('size', month ? '10000' : String(size)); // Загружаем все данные, если фильтруем по месяцу
+        params.append('page', String(page));
+        params.append('size', String(size));
         params.append('year', String(year));
+        
+        // Фильтрация по месяцу на бэкенде
+        if (month) {
+          const monthIndex = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'].indexOf(month);
+          if (monthIndex !== -1) {
+            const monthNumber = monthIndex + 1; // 1-12
+            params.append('month', String(monthNumber));
+          }
+        }
         
         if (sortBy && sortDir) {
           params.append('sortBy', sortBy);
@@ -195,33 +193,6 @@ export default function PurchaseRequestsYearlyChart() {
         const response = await fetch(url);
         if (response.ok) {
           purchasesData = await response.json();
-          
-          // Фильтрация по месяцу на клиенте, если указан месяц
-          if (month && purchasesData.content) {
-            const monthIndex = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'].indexOf(month);
-            if (monthIndex !== -1) {
-              const monthNumber = monthIndex + 1; // 1-12
-              const filteredContent = purchasesData.content.filter((item: any) => {
-                if (!item.purchaseCreationDate) return false;
-                const date = new Date(item.purchaseCreationDate);
-                return date.getMonth() + 1 === monthNumber && date.getFullYear() === year;
-              });
-              
-              // Применяем пагинацию к отфильтрованным данным
-              const startIndex = page * size;
-              const endIndex = startIndex + size;
-              const paginatedContent = filteredContent.slice(startIndex, endIndex);
-              
-              purchasesData = {
-                ...purchasesData,
-                content: paginatedContent,
-                totalElements: filteredContent.length,
-                totalPages: Math.ceil(filteredContent.length / size),
-                number: page,
-                size: size,
-              };
-            }
-          }
         }
       }
 
@@ -837,12 +808,13 @@ export default function PurchaseRequestsYearlyChart() {
       </div>
 
       {/* Таблица с данными */}
-      {selectedBarData || selectedLineData ? (
-        <div className="mt-2 sm:mt-3 bg-white rounded-lg shadow-md">
-          {/* Пагинация сверху */}
-          {tableData && (tableData.purchaseRequests || tableData.purchases) && (
-            <div className="px-3 py-2 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+      <div className="mt-2 sm:mt-3 bg-white rounded-lg shadow-lg overflow-hidden">
+        {selectedBarData || selectedLineData ? (
+          <>
+            {/* Пагинация сверху */}
+            {tableData && (tableData.purchaseRequests || tableData.purchases) && (
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
+              <div className="flex items-center gap-4">
                 <div className="text-sm text-gray-700">
                   Показано {(tableData.purchaseRequests?.content?.length || 0) + (tableData.purchases?.content?.length || 0)} из {(tableData.purchaseRequests?.totalElements || 0) + (tableData.purchases?.totalElements || 0)} записей
                 </div>
@@ -912,13 +884,13 @@ export default function PurchaseRequestsYearlyChart() {
               {tableData.purchaseRequests && tableData.purchaseRequests.content && tableData.purchaseRequests.content.length > 0 && (
                 <div>
                   <h5 className="text-xs sm:text-sm font-semibold text-gray-900 mb-2">Заявки на закупку:</h5>
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200 text-xs border border-gray-200">
+                  <div className="overflow-x-auto relative">
+                    <table className="w-full border-collapse">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-3 py-2 text-left border-r border-gray-200 relative">
+                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative">
                             <div className="flex flex-col gap-1">
-                              <div className="h-[24px] flex items-center gap-1">
+                              <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}>
                                 <div className="relative cfo-filter-container w-full h-full">
                                   <button
                                     ref={cfoFilterButtonRef}
@@ -1022,24 +994,24 @@ export default function PurchaseRequestsYearlyChart() {
                               </div>
                             </div>
                           </th>
-                          <th className="px-3 py-2 text-left border-r border-gray-200 relative">
-                            <div className="flex flex-col gap-1">
-                              <div className="h-[24px] flex items-center gap-1">
+                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative">
+                            <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                              <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                                 <input
                                   type="text"
                                   value={localFilters.name}
                                   onChange={(e) => {
                                     setLocalFilters(prev => ({ ...prev, name: e.target.value }));
                                   }}
-                                  className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-700"
+                                  className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                   placeholder="Фильтр"
-                                  style={{ height: '24px', minHeight: '24px', maxHeight: '24px' }}
+                                  style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
                                 />
                               </div>
                               <div className="flex items-center gap-1 min-h-[20px]">
                                 <button
                                   onClick={() => handleSort('name')}
-                                  className="flex items-center justify-center hover:text-gray-700 transition-colors text-gray-700"
+                                  className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
                                   style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
                                 >
                                   {sortField === 'name' ? (
@@ -1052,7 +1024,7 @@ export default function PurchaseRequestsYearlyChart() {
                                     <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
                                   )}
                                 </button>
-                                <span className="text-xs font-medium text-gray-700 tracking-wider">Наименование</span>
+                                <span className="text-xs font-medium text-gray-500 tracking-wider">Наименование</span>
                               </div>
                             </div>
                           </th>
@@ -1061,8 +1033,8 @@ export default function PurchaseRequestsYearlyChart() {
                       <tbody className="bg-white divide-y divide-gray-200">
                         {tableData.purchaseRequests.content.map((item: any, index: number) => (
                           <tr key={index}>
-                            <td className="px-3 py-2 text-gray-900 border-r border-gray-200">{item.cfo || '-'}</td>
-                            <td className="px-3 py-2 text-gray-900">{item.name || item.title || '-'}</td>
+                            <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-300">{item.cfo || '-'}</td>
+                            <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300">{item.name || item.title || '-'}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1073,19 +1045,20 @@ export default function PurchaseRequestsYearlyChart() {
               {tableData.purchases && tableData.purchases.content && tableData.purchases.content.length > 0 && (
                 <div>
                   <h5 className="text-xs sm:text-sm font-semibold text-gray-900 mb-2">Закупки:</h5>
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200 text-xs border border-gray-200">
+                  <div className="overflow-x-auto relative">
+                    <table className="w-full border-collapse">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-3 py-2 text-left border-r border-gray-200 relative">
+                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative">
                             <div className="flex flex-col gap-1">
-                              <div className="h-[24px] flex items-center gap-1">
+                              <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}>
                                 {/* Текстовое поле для ЦФО не используется, только множественный фильтр через выпадающий список */}
+                                <div className="flex-1" style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0 }}></div>
                               </div>
                               <div className="flex items-center gap-1 min-h-[20px]">
                                 <button
                                   onClick={() => handleSort('cfo')}
-                                  className="flex items-center justify-center hover:text-gray-700 transition-colors text-gray-700"
+                                  className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
                                   style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
                                 >
                                   {sortField === 'cfo' ? (
@@ -1098,28 +1071,28 @@ export default function PurchaseRequestsYearlyChart() {
                                     <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
                                   )}
                                 </button>
-                                <span className="text-xs font-medium text-gray-700 tracking-wider uppercase">ЦФО</span>
+                                <span className="uppercase text-xs font-medium text-gray-500 tracking-wider">ЦФО</span>
                               </div>
                             </div>
                           </th>
-                          <th className="px-3 py-2 text-left border-r border-gray-200 relative">
-                            <div className="flex flex-col gap-1">
-                              <div className="h-[24px] flex items-center gap-1">
+                          <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative">
+                            <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                              <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                                 <input
                                   type="text"
                                   value={localFilters.name}
                                   onChange={(e) => {
                                     setLocalFilters(prev => ({ ...prev, name: e.target.value }));
                                   }}
-                                  className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-gray-700"
+                                  className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                   placeholder="Фильтр"
-                                  style={{ height: '24px', minHeight: '24px', maxHeight: '24px' }}
+                                  style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
                                 />
                               </div>
                               <div className="flex items-center gap-1 min-h-[20px]">
                                 <button
                                   onClick={() => handleSort('name')}
-                                  className="flex items-center justify-center hover:text-gray-700 transition-colors text-gray-700"
+                                  className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
                                   style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
                                 >
                                   {sortField === 'name' ? (
@@ -1132,7 +1105,7 @@ export default function PurchaseRequestsYearlyChart() {
                                     <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
                                   )}
                                 </button>
-                                <span className="text-xs font-medium text-gray-700 tracking-wider">Наименование</span>
+                                <span className="text-xs font-medium text-gray-500 tracking-wider">Наименование</span>
                               </div>
                             </div>
                           </th>
@@ -1141,8 +1114,8 @@ export default function PurchaseRequestsYearlyChart() {
                       <tbody className="bg-white divide-y divide-gray-200">
                         {tableData.purchases.content.map((item: any, index: number) => (
                           <tr key={index}>
-                            <td className="px-3 py-2 text-gray-900 border-r border-gray-200">{item.cfo || '-'}</td>
-                            <td className="px-3 py-2 text-gray-900">{item.name || '-'}</td>
+                            <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-300">{item.cfo || '-'}</td>
+                            <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300">{item.name || '-'}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1162,8 +1135,15 @@ export default function PurchaseRequestsYearlyChart() {
               </p>
             </div>
           )}
-        </div>
-      ) : null}
+          </>
+        ) : (
+          <div className="text-center py-4">
+            <p className="text-xs sm:text-sm text-gray-500">
+              Выберите элемент диаграммы, чтобы посмотреть детали
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

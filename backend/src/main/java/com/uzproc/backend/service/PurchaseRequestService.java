@@ -53,6 +53,7 @@ public class PurchaseRequestService {
             int page,
             int size,
             Integer year,
+            Integer month,
             String sortBy,
             String sortDir,
             Long idPurchaseRequest,
@@ -66,11 +67,11 @@ public class PurchaseRequestService {
             List<String> status) {
         
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, idPurchaseRequest: {}, cfo: {}, purchaseRequestInitiator: '{}', name: '{}', costType: '{}', contractType: '{}', isPlanned: {}, requiresPurchase: {}, status: {}",
-                year, idPurchaseRequest, cfo, purchaseRequestInitiator, name, costType, contractType, isPlanned, requiresPurchase, status);
+        logger.info("Filter parameters - year: {}, month: {}, idPurchaseRequest: {}, cfo: {}, purchaseRequestInitiator: '{}', name: '{}', costType: '{}', contractType: '{}', isPlanned: {}, requiresPurchase: {}, status: {}",
+                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, name, costType, contractType, isPlanned, requiresPurchase, status);
         
         Specification<PurchaseRequest> spec = buildSpecification(
-                year, idPurchaseRequest, cfo, purchaseRequestInitiator, name, costType, contractType, isPlanned, requiresPurchase, status);
+                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, name, costType, contractType, isPlanned, requiresPurchase, status);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -151,6 +152,7 @@ public class PurchaseRequestService {
 
     private Specification<PurchaseRequest> buildSpecification(
             Integer year,
+            Integer month,
             Long idPurchaseRequest,
             List<String> cfo,
             String purchaseRequestInitiator,
@@ -165,18 +167,33 @@ public class PurchaseRequestService {
             List<Predicate> predicates = new ArrayList<>();
             int predicateCount = 0;
             
-            // Фильтр по году (по дате создания заявки - purchaseRequestCreationDate)
+            // Фильтр по году и месяцу (по дате создания заявки - purchaseRequestCreationDate)
             if (year != null) {
-                java.time.LocalDateTime startOfYear = java.time.LocalDateTime.of(year, 1, 1, 0, 0);
-                java.time.LocalDateTime endOfYear = java.time.LocalDateTime.of(year, 12, 31, 23, 59, 59, 999999999);
-                // Используем greaterThanOrEqualTo и lessThanOrEqualTo для более точной фильтрации
-                predicates.add(cb.and(
-                    cb.isNotNull(root.get("purchaseRequestCreationDate")),
-                    cb.greaterThanOrEqualTo(root.get("purchaseRequestCreationDate"), startOfYear),
-                    cb.lessThanOrEqualTo(root.get("purchaseRequestCreationDate"), endOfYear)
-                ));
-                predicateCount++;
-                logger.info("Added year filter (by purchaseRequestCreationDate): {} (January - December), excluding null dates", year);
+                if (month != null && month >= 1 && month <= 12) {
+                    // Фильтр по конкретному месяцу
+                    java.time.LocalDateTime startOfMonth = java.time.LocalDateTime.of(year, month, 1, 0, 0);
+                    java.time.LocalDateTime endOfMonth = java.time.LocalDateTime.of(year, month, 
+                        java.time.YearMonth.of(year, month).lengthOfMonth(), 23, 59, 59, 999999999);
+                    predicates.add(cb.and(
+                        cb.isNotNull(root.get("purchaseRequestCreationDate")),
+                        cb.greaterThanOrEqualTo(root.get("purchaseRequestCreationDate"), startOfMonth),
+                        cb.lessThanOrEqualTo(root.get("purchaseRequestCreationDate"), endOfMonth)
+                    ));
+                    predicateCount++;
+                    logger.info("Added year and month filter (by purchaseRequestCreationDate): {} year, {} month ({} - {})", 
+                        year, month, startOfMonth, endOfMonth);
+                } else {
+                    // Фильтр только по году
+                    java.time.LocalDateTime startOfYear = java.time.LocalDateTime.of(year, 1, 1, 0, 0);
+                    java.time.LocalDateTime endOfYear = java.time.LocalDateTime.of(year, 12, 31, 23, 59, 59, 999999999);
+                    predicates.add(cb.and(
+                        cb.isNotNull(root.get("purchaseRequestCreationDate")),
+                        cb.greaterThanOrEqualTo(root.get("purchaseRequestCreationDate"), startOfYear),
+                        cb.lessThanOrEqualTo(root.get("purchaseRequestCreationDate"), endOfYear)
+                    ));
+                    predicateCount++;
+                    logger.info("Added year filter (by purchaseRequestCreationDate): {} (January - December), excluding null dates", year);
+                }
             }
             
             // Фильтр по номеру заявки

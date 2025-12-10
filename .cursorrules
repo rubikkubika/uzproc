@@ -714,3 +714,94 @@ public class EntityService {
 
 **ВАЖНО:** Не добавлять столбцы без фильтров. Каждый столбец с данными должен иметь возможность фильтрации.
 
+## Стандартизация таблиц
+
+**КРИТИЧЕСКИ ВАЖНО:** При создании новой таблицы или обновлении существующей таблицы на фронтенде **ОБЯЗАТЕЛЬНО** нужно использовать те же стили, структуру и функциональность, что и в таблице "Заявка на закупку" (`PurchaseRequestsTable.tsx`), если не задано другое.
+
+### Правила:
+
+1. **Структура таблицы:**
+   - Использовать `w-full border-collapse` для элемента `<table>`
+   - Использовать `bg-gray-50` для `<thead>`
+   - Использовать `bg-white divide-y divide-gray-200` для `<tbody>`
+   - Использовать `overflow-x-auto relative` для контейнера таблицы
+
+2. **Заголовки таблицы (`<th>`):**
+   - Отступы: `px-2 py-2`
+   - Классы: `text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative`
+   - Структура заголовка: `flex flex-col gap-1` с двумя уровнями:
+     - Верхний уровень (24px высота): фильтры (`h-[24px] flex items-center flex-shrink-0`)
+     - Нижний уровень (20px высота): сортировка и название (`flex items-center gap-1 min-h-[20px]`)
+
+3. **Фильтры:**
+   - Текстовые фильтры: `flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500`
+   - Высота фильтров: `height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box'`
+   - Множественные фильтры (чекбоксы): использовать выпадающие списки с поиском, как в фильтре ЦФО
+
+4. **Сортировка:**
+   - Кнопка сортировки: `flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0`
+   - Размер кнопки: `width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0`
+   - Иконки: `ArrowUp`, `ArrowDown`, `ArrowUpDown` из `lucide-react`
+   - Название колонки: `text-xs font-medium text-gray-500 tracking-wider` (для ЦФО добавить `uppercase`)
+
+5. **Ячейки таблицы (`<td>`):**
+   - Отступы: `px-2 py-2`
+   - Классы: `text-xs text-gray-900 border-r border-gray-300`
+   - Для ячеек с текстом, который не должен переноситься: добавить `whitespace-nowrap`
+
+6. **Пагинация:**
+   - Контейнер: `px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50`
+   - Кнопки пагинации: `px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed`
+   - Селект размера страницы: `px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500`
+
+7. **Общий контейнер таблицы:**
+   - Внешний контейнер: `bg-white rounded-lg shadow-lg overflow-hidden`
+   - Пагинация размещается в отдельном блоке с `border-b border-gray-200`
+
+8. **Расширение столбцов:**
+   - Если требуется расширение столбцов, использовать тот же механизм, что и в `PurchaseRequestsTable` (drag-and-drop для изменения порядка, resize для изменения ширины)
+
+9. **Перенос строк:**
+   - По умолчанию использовать `whitespace-nowrap` для ячеек, чтобы текст не переносился
+   - Если требуется перенос, убрать `whitespace-nowrap` и добавить соответствующие стили
+
+### Пример правильной структуры заголовка:
+
+```typescript
+<th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative">
+  <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+    {/* Верхний уровень - фильтр */}
+    <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+      <input
+        type="text"
+        className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        placeholder="Фильтр"
+        style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+      />
+    </div>
+    {/* Нижний уровень - сортировка и название */}
+    <div className="flex items-center gap-1 min-h-[20px]">
+      <button
+        onClick={() => handleSort('field')}
+        className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+        style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+      >
+        {/* Иконка сортировки */}
+      </button>
+      <span className="text-xs font-medium text-gray-500 tracking-wider">Название колонки</span>
+    </div>
+  </div>
+</th>
+```
+
+### Проверка:
+
+При создании или обновлении таблицы всегда проверять:
+- Соответствуют ли стили заголовков таблице "Заявка на закупку"?
+- Правильно ли структурированы фильтры и сортировка?
+- Соответствует ли пагинация стандарту?
+- Правильно ли оформлены ячейки таблицы?
+- Используются ли правильные цвета и отступы?
+
+**ВАЖНО:** Если пользователь явно просит использовать другие стили или структуру, следовать указаниям пользователя. В остальных случаях использовать стандарт таблицы "Заявка на закупку".
+

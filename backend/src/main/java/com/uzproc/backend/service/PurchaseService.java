@@ -37,6 +37,7 @@ public class PurchaseService {
             int page,
             int size,
             Integer year,
+            Integer month,
             String sortBy,
             String sortDir,
             String innerId,
@@ -49,11 +50,11 @@ public class PurchaseService {
             Long purchaseRequestId) {
         
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, innerId: '{}', purchaseNumber: {}, cfo: {}, purchaseInitiator: '{}', name: '{}', costType: '{}', contractType: '{}', purchaseRequestId: {}",
-                year, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType, purchaseRequestId);
+        logger.info("Filter parameters - year: {}, month: {}, innerId: '{}', purchaseNumber: {}, cfo: {}, purchaseInitiator: '{}', name: '{}', costType: '{}', contractType: '{}', purchaseRequestId: {}",
+                year, month, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType, purchaseRequestId);
         
         Specification<Purchase> spec = buildSpecification(
-                year, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType, purchaseRequestId);
+                year, month, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType, purchaseRequestId);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -109,6 +110,7 @@ public class PurchaseService {
 
     private Specification<Purchase> buildSpecification(
             Integer year,
+            Integer month,
             String innerId,
             Long purchaseNumber,
             List<String> cfo,
@@ -122,13 +124,25 @@ public class PurchaseService {
             List<Predicate> predicates = new ArrayList<>();
             int predicateCount = 0;
             
-            // Фильтр по году
+            // Фильтр по году и месяцу
             if (year != null) {
-                java.time.LocalDateTime startOfYear = java.time.LocalDateTime.of(year, 1, 1, 0, 0);
-                java.time.LocalDateTime endOfYear = java.time.LocalDateTime.of(year, 12, 31, 23, 59, 59);
-                predicates.add(cb.between(root.get("purchaseCreationDate"), startOfYear, endOfYear));
-                predicateCount++;
-                logger.info("Added year filter: {}", year);
+                if (month != null && month >= 1 && month <= 12) {
+                    // Фильтр по конкретному месяцу
+                    java.time.LocalDateTime startOfMonth = java.time.LocalDateTime.of(year, month, 1, 0, 0);
+                    java.time.LocalDateTime endOfMonth = java.time.LocalDateTime.of(year, month, 
+                        java.time.YearMonth.of(year, month).lengthOfMonth(), 23, 59, 59, 999999999);
+                    predicates.add(cb.between(root.get("purchaseCreationDate"), startOfMonth, endOfMonth));
+                    predicateCount++;
+                    logger.info("Added year and month filter: {} year, {} month ({} - {})", 
+                        year, month, startOfMonth, endOfMonth);
+                } else {
+                    // Фильтр только по году
+                    java.time.LocalDateTime startOfYear = java.time.LocalDateTime.of(year, 1, 1, 0, 0);
+                    java.time.LocalDateTime endOfYear = java.time.LocalDateTime.of(year, 12, 31, 23, 59, 59);
+                    predicates.add(cb.between(root.get("purchaseCreationDate"), startOfYear, endOfYear));
+                    predicateCount++;
+                    logger.info("Added year filter: {}", year);
+                }
             }
             
             // Фильтр по внутреннему номеру (частичное совпадение, case-insensitive)
