@@ -14,8 +14,12 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.uzproc.backend.entity.PurchaseStatus;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @Transactional(readOnly = true)
@@ -221,6 +225,98 @@ public class PurchaseService {
             return Sort.by(direction, sortBy);
         }
         return Sort.unsorted();
+    }
+
+    /**
+     * Получить агрегированные данные по месяцам для закупочных процедур
+     * @param year год создания закупки
+     * @param useCalendarYear если true, то используется календарный год (январь-декабрь), иначе старая логика
+     * @return Map с ключами: monthCounts (количество по месяцам), pendingStatusMonthCounts (количество со статусами "Не согласована", "Не утверждена", "Проект")
+     */
+    public Map<String, Object> getMonthlyStats(Integer year, Boolean useCalendarYear) {
+        // Если useCalendarYear = true, используем новую логику (январь-декабрь выбранного года)
+        if (useCalendarYear != null && useCalendarYear && year != null) {
+            Specification<Purchase> specForYear = (root, query, cb) -> {
+                List<Predicate> predicates = new ArrayList<>();
+                
+                // Календарный год: январь-декабрь выбранного года
+                LocalDateTime startOfYear = LocalDateTime.of(year, 1, 1, 0, 0);
+                LocalDateTime endOfYear = LocalDateTime.of(year, 12, 31, 23, 59, 59, 999999999);
+                
+                predicates.add(cb.and(
+                    cb.isNotNull(root.get("purchaseCreationDate")),
+                    cb.greaterThanOrEqualTo(root.get("purchaseCreationDate"), startOfYear),
+                    cb.lessThanOrEqualTo(root.get("purchaseCreationDate"), endOfYear)
+                ));
+                
+                return cb.and(predicates.toArray(new Predicate[0]));
+            };
+            
+            List<Purchase> purchases = purchaseRepository.findAll(specForYear);
+            
+            // Группируем по месяцам (январь-декабрь)
+            Map<String, Integer> monthCounts = new HashMap<>();
+            String[] monthNames = {"Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"};
+            for (String monthName : monthNames) {
+                monthCounts.put(monthName, 0);
+            }
+            
+            for (Purchase purchase : purchases) {
+                if (purchase.getPurchaseCreationDate() != null) {
+                    LocalDateTime date = purchase.getPurchaseCreationDate();
+                    int monthIndex = date.getMonthValue() - 1; // 0-11
+                    monthCounts.put(monthNames[monthIndex], monthCounts.get(monthNames[monthIndex]) + 1);
+                }
+            }
+            
+            // Загружаем данные для закупок со статусами "Не согласована", "Не утверждена", "Проект"
+            // Для Purchase статусы: PROJECT
+            Specification<Purchase> specForPendingStatus = (root, query, cb) -> {
+                List<Predicate> predicates = new ArrayList<>();
+                
+                // Фильтр по статусу PROJECT
+                predicates.add(cb.equal(root.get("status"), PurchaseStatus.PROJECT));
+                
+                // Календарный год: январь-декабрь выбранного года
+                LocalDateTime startOfYear = LocalDateTime.of(year, 1, 1, 0, 0);
+                LocalDateTime endOfYear = LocalDateTime.of(year, 12, 31, 23, 59, 59, 999999999);
+                
+                predicates.add(cb.and(
+                    cb.isNotNull(root.get("purchaseCreationDate")),
+                    cb.greaterThanOrEqualTo(root.get("purchaseCreationDate"), startOfYear),
+                    cb.lessThanOrEqualTo(root.get("purchaseCreationDate"), endOfYear)
+                ));
+                
+                return cb.and(predicates.toArray(new Predicate[0]));
+            };
+            
+            List<Purchase> pendingStatusPurchases = purchaseRepository.findAll(specForPendingStatus);
+            
+            // Группируем по месяцам для закупок со статусами
+            Map<String, Integer> pendingStatusMonthCounts = new HashMap<>();
+            for (String monthName : monthNames) {
+                pendingStatusMonthCounts.put(monthName, 0);
+            }
+            
+            for (Purchase purchase : pendingStatusPurchases) {
+                if (purchase.getPurchaseCreationDate() != null) {
+                    LocalDateTime date = purchase.getPurchaseCreationDate();
+                    int monthIndex = date.getMonthValue() - 1; // 0-11
+                    pendingStatusMonthCounts.put(monthNames[monthIndex], pendingStatusMonthCounts.get(monthNames[monthIndex]) + 1);
+                }
+            }
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("monthCounts", monthCounts);
+            result.put("pendingStatusMonthCounts", pendingStatusMonthCounts);
+            return result;
+        }
+        
+        // Старая логика для обратной совместимости
+        Map<String, Object> result = new HashMap<>();
+        result.put("monthCounts", new HashMap<String, Integer>());
+        result.put("pendingStatusMonthCounts", new HashMap<String, Integer>());
+        return result;
     }
 }
 

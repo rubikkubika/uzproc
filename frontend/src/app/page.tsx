@@ -26,6 +26,7 @@ function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState('overview');
+  const [overviewSubTab, setOverviewSubTab] = useState('purchase-requests');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isTelegramModalOpen, setIsTelegramModalOpen] = useState(false);
@@ -128,15 +129,60 @@ function DashboardContent() {
       case 'overview':
         return (
           <div className="space-y-2 sm:space-y-3">
-            {/* Диаграммы на одном уровне */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-3">
-              <div className="lg:col-span-1">
-                <PurchaseRequestsYearlyChart />
-              </div>
-              <div className="lg:col-span-1">
-                <PurchasePlanItemsMonthlyChart />
+            {/* Закладки */}
+            <div className="bg-white rounded-lg shadow-md">
+              <div className="flex flex-wrap gap-1 border-b border-gray-200 px-2 sm:px-3 pt-2 sm:pt-3">
+                <button
+                  onClick={() => setOverviewSubTab('purchase-requests')}
+                  className={`px-4 py-2 text-xs sm:text-sm font-medium rounded-t-lg transition-all ${
+                    overviewSubTab === 'purchase-requests'
+                      ? 'bg-blue-600 text-white border-b-2 border-blue-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  Заявка на ЗП
+                </button>
+                <button
+                  onClick={() => setOverviewSubTab('purchase-plan')}
+                  className={`px-4 py-2 text-xs sm:text-sm font-medium rounded-t-lg transition-all ${
+                    overviewSubTab === 'purchase-plan'
+                      ? 'bg-blue-600 text-white border-b-2 border-blue-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  План закупок
+                </button>
+                <button
+                  onClick={() => setOverviewSubTab('contracts')}
+                  className={`px-4 py-2 text-xs sm:text-sm font-medium rounded-t-lg transition-all ${
+                    overviewSubTab === 'contracts'
+                      ? 'bg-blue-600 text-white border-b-2 border-blue-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  Договоры
+                </button>
               </div>
             </div>
+
+            {/* Контент в зависимости от выбранной закладки */}
+            {overviewSubTab === 'purchase-requests' && (
+              <div className="space-y-2 sm:space-y-3 w-full">
+                <PurchaseRequestsYearlyChart />
+              </div>
+            )}
+
+            {overviewSubTab === 'purchase-plan' && (
+              <div className="space-y-2 sm:space-y-3">
+                <PurchasePlanItemsMonthlyChart />
+              </div>
+            )}
+
+            {overviewSubTab === 'contracts' && (
+              <div className="space-y-2 sm:space-y-3">
+                {/* Пока пусто */}
+              </div>
+            )}
           </div>
         );
 

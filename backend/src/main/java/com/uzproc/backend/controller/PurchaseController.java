@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/purchases")
@@ -49,6 +50,14 @@ public class PurchaseController {
             return ResponseEntity.ok(purchase);
         }
         return ResponseEntity.notFound().build();
+    }
+
+    @GetMapping("/monthly-stats")
+    public ResponseEntity<Map<String, Object>> getMonthlyStats(
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false, defaultValue = "false") Boolean useCalendarYear) {
+        Map<String, Object> stats = purchaseService.getMonthlyStats(year, useCalendarYear);
+        return ResponseEntity.ok(stats);
     }
 }
 

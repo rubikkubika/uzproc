@@ -595,7 +595,7 @@ public class PurchaseRequestService {
 
     /**
      * Получить статистику по годам: количество закупок и заказов по каждому году
-     * @return Map с ключами: years (список годов), purchases (список количеств закупок), orders (список количеств заказов)
+     * @return Map с ключами: years (список годов), purchases (список количеств закупок), orders (список количеств заказов), pendingStatus (список количеств заявок со статусами "Не согласована", "Не утверждена", "Проект")
      */
     public Map<String, Object> getYearlyStats() {
         List<PurchaseRequest> allRequests = purchaseRequestRepository.findAll();
@@ -603,6 +603,7 @@ public class PurchaseRequestService {
         // Группируем по годам
         Map<Integer, Long> purchasesByYear = new HashMap<>();
         Map<Integer, Long> ordersByYear = new HashMap<>();
+        Map<Integer, Long> pendingStatusByYear = new HashMap<>();
         
         for (PurchaseRequest request : allRequests) {
             if (request.getPurchaseRequestCreationDate() == null) {
@@ -611,7 +612,17 @@ public class PurchaseRequestService {
             
             int year = request.getPurchaseRequestCreationDate().getYear();
             
-            if (request.getRequiresPurchase() != null && request.getRequiresPurchase()) {
+            // Проверяем статусы: "Не согласована", "Не утверждена", "Проект"
+            boolean isPendingStatus = request.getStatus() != null && (
+                request.getStatus() == PurchaseRequestStatus.NOT_COORDINATED ||
+                request.getStatus() == PurchaseRequestStatus.NOT_APPROVED ||
+                request.getStatus() == PurchaseRequestStatus.PROJECT
+            );
+            
+            if (isPendingStatus) {
+                // Заявки со статусами "Не согласована", "Не утверждена", "Проект"
+                pendingStatusByYear.put(year, pendingStatusByYear.getOrDefault(year, 0L) + 1);
+            } else if (request.getRequiresPurchase() != null && request.getRequiresPurchase()) {
                 // Закупка
                 purchasesByYear.put(year, purchasesByYear.getOrDefault(year, 0L) + 1);
             } else {
@@ -624,6 +635,7 @@ public class PurchaseRequestService {
         Set<Integer> allYearsSet = new HashSet<>();
         allYearsSet.addAll(purchasesByYear.keySet());
         allYearsSet.addAll(ordersByYear.keySet());
+        allYearsSet.addAll(pendingStatusByYear.keySet());
         List<Integer> years = allYearsSet.stream()
             .sorted()
             .collect(Collectors.toList());
@@ -637,15 +649,21 @@ public class PurchaseRequestService {
             .map(year -> ordersByYear.getOrDefault(year, 0L))
             .collect(Collectors.toList());
         
+        List<Long> pendingStatus = years.stream()
+            .map(year -> pendingStatusByYear.getOrDefault(year, 0L))
+            .collect(Collectors.toList());
+        
         Map<String, Object> result = new HashMap<>();
         result.put("years", years);
         result.put("purchases", purchases);
         result.put("orders", orders);
+        result.put("pendingStatus", pendingStatus);
         
-        logger.info("Yearly stats: {} years, total purchases: {}, total orders: {}", 
+        logger.info("Yearly stats: {} years, total purchases: {}, total orders: {}, total pending status: {}", 
             years.size(), 
             purchases.stream().mapToLong(Long::longValue).sum(),
-            orders.stream().mapToLong(Long::longValue).sum());
+            orders.stream().mapToLong(Long::longValue).sum(),
+            pendingStatus.stream().mapToLong(Long::longValue).sum());
         
         return result;
     }
@@ -704,8 +722,50 @@ public class PurchaseRequestService {
                 }
             }
             
+            // Загружаем данные для заявок со статусами "Не согласована", "Не утверждена", "Проект"
+            // Эти данные загружаем независимо от requiresPurchase, так как статусы могут быть у любых заявок
+            Specification<PurchaseRequest> specForPendingStatus = (root, query, cb) -> {
+                List<Predicate> predicates = new ArrayList<>();
+                
+                // Фильтр по статусам
+                predicates.add(cb.or(
+                    cb.equal(root.get("status"), PurchaseRequestStatus.NOT_COORDINATED),
+                    cb.equal(root.get("status"), PurchaseRequestStatus.NOT_APPROVED),
+                    cb.equal(root.get("status"), PurchaseRequestStatus.PROJECT)
+                ));
+                
+                // Календарный год: январь-декабрь выбранного года
+                LocalDateTime startOfYear = LocalDateTime.of(year, 1, 1, 0, 0);
+                LocalDateTime endOfYear = LocalDateTime.of(year, 12, 31, 23, 59, 59, 999999999);
+                
+                predicates.add(cb.and(
+                    cb.isNotNull(root.get("purchaseRequestCreationDate")),
+                    cb.greaterThanOrEqualTo(root.get("purchaseRequestCreationDate"), startOfYear),
+                    cb.lessThanOrEqualTo(root.get("purchaseRequestCreationDate"), endOfYear)
+                ));
+                
+                return cb.and(predicates.toArray(new Predicate[0]));
+            };
+            
+            List<PurchaseRequest> pendingStatusRequests = purchaseRequestRepository.findAll(specForPendingStatus);
+            
+            // Группируем по месяцам для заявок со статусами
+            Map<String, Integer> pendingStatusMonthCounts = new HashMap<>();
+            for (String monthName : monthNames) {
+                pendingStatusMonthCounts.put(monthName, 0);
+            }
+            
+            for (PurchaseRequest request : pendingStatusRequests) {
+                if (request.getPurchaseRequestCreationDate() != null) {
+                    LocalDateTime date = request.getPurchaseRequestCreationDate();
+                    int monthIndex = date.getMonthValue() - 1; // 0-11
+                    pendingStatusMonthCounts.put(monthNames[monthIndex], pendingStatusMonthCounts.get(monthNames[monthIndex]) + 1);
+                }
+            }
+            
             Map<String, Object> result = new HashMap<>();
             result.put("monthCounts", monthCounts);
+            result.put("pendingStatusMonthCounts", pendingStatusMonthCounts);
             return result;
         }
         
