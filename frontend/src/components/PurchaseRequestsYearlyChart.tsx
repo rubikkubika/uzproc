@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { Bar, Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -32,7 +32,7 @@ ChartJS.register(
 export default function PurchaseRequestsYearlyChart() {
   const [data, setData] = useState<any>(null);
   const [monthlyData, setMonthlyData] = useState<any>(null);
-  const [cfoData, setCfoData] = useState<any>(null);
+  const [cfoData, setCfoData] = useState<CfoTableRow[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [monthlyLoading, setMonthlyLoading] = useState(false);
   const [cfoLoading, setCfoLoading] = useState(false);
@@ -61,6 +61,16 @@ export default function PurchaseRequestsYearlyChart() {
   const [isCfoFilterOpen, setIsCfoFilterOpen] = useState(false);
   const [cfoSearchQuery, setCfoSearchQuery] = useState('');
   const [cfoFilterPosition, setCfoFilterPosition] = useState<{ top: number; left: number } | null>(null);
+  
+  // Тип данных для таблицы ЦФО
+  interface CfoTableRow {
+    cfo: string;
+    ordersCount: number;
+    ordersAmount: number;
+    purchaseProceduresCount: number;
+    purchaseProceduresAmount: number;
+  }
+  
   const cfoFilterButtonRef = useRef<HTMLButtonElement>(null);
 
   // Функция для расчета позиции выпадающего списка
@@ -433,15 +443,15 @@ export default function PurchaseRequestsYearlyChart() {
             {
               label: 'Закупка',
               data: purchases,
-              backgroundColor: 'rgba(168, 85, 247, 0.8)',
-              borderColor: 'rgba(168, 85, 247, 1)',
+              backgroundColor: 'rgba(34, 197, 94, 0.8)',
+              borderColor: 'rgba(34, 197, 94, 1)',
               borderWidth: 1,
             },
             {
               label: 'Заказ',
               data: orders,
-              backgroundColor: 'rgba(96, 165, 250, 0.8)',
-              borderColor: 'rgba(96, 165, 250, 1)',
+              backgroundColor: 'rgba(37, 99, 235, 0.8)',
+              borderColor: 'rgba(37, 99, 235, 1)',
               borderWidth: 1,
             },
           ],
@@ -528,26 +538,26 @@ export default function PurchaseRequestsYearlyChart() {
             {
               label: 'Заказы',
               data: ordersData,
-              borderColor: 'rgba(96, 165, 250, 1)',
-              backgroundColor: 'rgba(96, 165, 250, 0.1)',
+              borderColor: 'rgba(37, 99, 235, 1)',
+              backgroundColor: 'rgba(37, 99, 235, 0.1)',
               fill: true,
               tension: 0.4,
               pointRadius: 4,
               pointHoverRadius: 6,
-              pointBackgroundColor: 'rgba(96, 165, 250, 1)',
+              pointBackgroundColor: 'rgba(37, 99, 235, 1)',
               pointBorderColor: '#fff',
               pointBorderWidth: 2,
             },
             {
               label: 'Закупочная процедура',
               data: purchasesData,
-              borderColor: 'rgba(168, 85, 247, 1)',
-              backgroundColor: 'rgba(168, 85, 247, 0.1)',
+              borderColor: 'rgba(34, 197, 94, 1)',
+              backgroundColor: 'rgba(34, 197, 94, 0.1)',
               fill: true,
               tension: 0.4,
               pointRadius: 4,
               pointHoverRadius: 6,
-              pointBackgroundColor: 'rgba(168, 85, 247, 1)',
+              pointBackgroundColor: 'rgba(34, 197, 94, 1)',
               pointBorderColor: '#fff',
               pointBorderWidth: 2,
             },
@@ -596,39 +606,21 @@ export default function PurchaseRequestsYearlyChart() {
         const cfoStatsResult = await cfoStatsResponse.json();
         
         const cfoLabels = cfoStatsResult.cfoLabels || [];
-        const purchases = cfoStatsResult.purchases || [];
-        const orders = cfoStatsResult.orders || [];
-        const pendingStatus = cfoStatsResult.pendingStatus || [];
+        const ordersCount = cfoStatsResult.ordersCount || [];
+        const ordersAmount = cfoStatsResult.ordersAmount || [];
+        const purchaseProceduresCount = cfoStatsResult.purchaseProceduresCount || [];
+        const purchaseProceduresAmount = cfoStatsResult.purchaseProceduresAmount || [];
         
-        const cfoChartData = {
-          labels: cfoLabels,
-          datasets: [
-            {
-              label: 'Закупка',
-              data: purchases,
-              backgroundColor: 'rgba(168, 85, 247, 0.8)',
-              borderColor: 'rgba(168, 85, 247, 1)',
-              borderWidth: 1,
-            },
-            {
-              label: 'Заказ',
-              data: orders,
-              backgroundColor: 'rgba(96, 165, 250, 0.8)',
-              borderColor: 'rgba(96, 165, 250, 1)',
-              borderWidth: 1,
-            },
-            {
-              label: 'Не согласована / Проект',
-              data: pendingStatus,
-              backgroundColor: 'rgba(239, 68, 68, 0.8)',
-              borderColor: 'rgba(239, 68, 68, 1)',
-              borderWidth: 1,
-              hidden: true, // Скрыта по умолчанию
-            },
-          ],
-        };
+        // Формируем данные для таблицы
+        const cfoTableData = cfoLabels.map((cfo: string, index: number) => ({
+          cfo,
+          ordersCount: ordersCount[index] || 0,
+          ordersAmount: typeof ordersAmount[index] === 'number' ? ordersAmount[index] : (typeof ordersAmount[index] === 'string' ? parseFloat(ordersAmount[index]) : 0),
+          purchaseProceduresCount: purchaseProceduresCount[index] || 0,
+          purchaseProceduresAmount: typeof purchaseProceduresAmount[index] === 'number' ? purchaseProceduresAmount[index] : (typeof purchaseProceduresAmount[index] === 'string' ? parseFloat(purchaseProceduresAmount[index]) : 0),
+        }));
         
-        setCfoData(cfoChartData);
+        setCfoData(cfoTableData);
       } catch (err) {
         console.error('Error fetching CFO stats:', err);
       } finally {
@@ -867,140 +859,6 @@ export default function PurchaseRequestsYearlyChart() {
     },
   };
 
-  // Опции для горизонтальной столбчатой диаграммы
-  const horizontalBarOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    onClick: async (event: any, elements: any[]) => {
-      if (elements.length > 0 && cfoData && selectedYear) {
-        const element = elements[0];
-        const datasetIndex = element.datasetIndex;
-        const index = element.index;
-        const cfo = cfoData.labels[index];
-        const dataset = cfoData.datasets[datasetIndex];
-        const value = dataset.data[index];
-        // Для ЦФО устанавливаем selectedBarData с годом и datasetLabel, и добавляем фильтр по ЦФО
-        setSelectedBarData({
-          year: String(selectedYear),
-          dataset: dataset.label,
-          value: value
-        });
-        // Устанавливаем фильтр по ЦФО
-        setCfoFilter(new Set([cfo]));
-        setSelectedLineData(null); // Сбрасываем выбор линейной диаграммы
-        setCurrentPage(0); // Сбрасываем на первую страницу
-      }
-    },
-    indexAxis: 'y' as const,
-    layout: {
-      padding: {
-        top: 0,
-        right: 10,
-        bottom: 0,
-        left: 10,
-      },
-    },
-    plugins: {
-      legend: {
-        position: 'top' as const,
-        align: 'start' as const,
-        labels: {
-          boxWidth: 10,
-          padding: 3,
-          font: {
-            size: 9
-          },
-          usePointStyle: false,
-        },
-        display: true,
-        fullSize: false,
-        maxWidth: undefined, // Не ограничиваем ширину
-        maxHeight: undefined, // Не ограничиваем высоту
-      },
-      title: {
-        display: false,
-      },
-      datalabels: {
-        display: (context: any) => {
-          return context.datasetIndex === 1 || context.datasetIndex === 2;
-        },
-        anchor: 'end' as const,
-        align: 'end' as const,
-        formatter: (value: number) => {
-          return value > 0 ? value : '';
-        },
-        font: {
-          size: 10,
-          weight: 'bold' as const,
-        },
-        color: '#ffffff',
-        backgroundColor: (context: any) => {
-          const dataset = context.dataset;
-          return dataset.borderColor;
-        },
-        borderRadius: 4,
-        padding: {
-          top: 4,
-          bottom: 4,
-          left: 6,
-          right: 6,
-        },
-        offset: -8,
-        clamp: true,
-        clip: true,
-        overflow: 'hidden' as const,
-      },
-      tooltip: {
-        callbacks: {
-          label: function(context: any) {
-            return `${context.dataset.label}: ${context.parsed.y}`;
-          },
-        },
-      },
-    },
-    scales: {
-      x: {
-        beginAtZero: false,
-        ticks: {
-          precision: 0,
-          display: false,
-        },
-        grid: {
-          display: false,
-        },
-        afterDataLimits: (scale: any) => {
-          const max = scale.max;
-          const min = scale.min;
-          // Устанавливаем минимальное значение шкалы так, чтобы визуально минимальное значение данных
-          // занимало четверть от максимального значения
-          // Если max = 310, min = 2, то нужно чтобы 2 визуально было на уровне 77.5 (1/4 от 310)
-          // Формула: scale.min = (min * max - max * max * 0.25) / (max * 0.25 - min)
-          if (max !== undefined && min !== undefined && max > min && min > 0) {
-            const targetMinVisual = max * 0.25; // Визуальная позиция минимального значения (1/4 от max)
-            // Вычисляем scale.min так, чтобы min отображалось на позиции targetMinVisual
-            // (min - scale.min) / (max - scale.min) = targetMinVisual / max
-            // min - scale.min = (targetMinVisual / max) * (max - scale.min)
-            // min - scale.min = targetMinVisual - (targetMinVisual / max) * scale.min
-            // min - targetMinVisual = scale.min - (targetMinVisual / max) * scale.min
-            // min - targetMinVisual = scale.min * (1 - targetMinVisual / max)
-            // scale.min = (min - targetMinVisual) / (1 - targetMinVisual / max)
-            const scaleMin = (min - targetMinVisual) / (1 - targetMinVisual / max);
-            // Устанавливаем scale.min, но не меньше 0
-            scale.min = Math.max(0, scaleMin);
-          }
-        },
-      },
-      y: {
-        offset: true,
-        grid: {
-          display: false,
-        },
-        ticks: {
-          padding: 10,
-        },
-      },
-    },
-  };
 
   return (
     <div className="bg-white p-2 sm:p-3 rounded-lg shadow-md space-y-2 sm:space-y-3 w-full">
@@ -1063,7 +921,7 @@ export default function PurchaseRequestsYearlyChart() {
           </div>
         )}
         
-        {/* Горизонтальная столбчатая диаграмма по ЦФО */}
+        {/* Таблица по ЦФО */}
         {selectedYear !== null && (
           <div className="lg:col-span-4 w-full flex flex-col">
             {/* Пустое место для выравнивания с кнопками фильтра года */}
@@ -1073,21 +931,59 @@ export default function PurchaseRequestsYearlyChart() {
                 {selectedYear ? `По ЦФО (${selectedYear})` : 'По ЦФО'}
               </h3>
             </div>
-            <div className="h-[250px] sm:h-[280px] w-full">
+            <div className="bg-white rounded-lg shadow-md overflow-hidden">
               {cfoLoading ? (
-                <div className="h-full w-full flex items-center justify-center">
+                <div className="h-[250px] sm:h-[280px] w-full flex items-center justify-center">
                   <div className="text-center">
                     <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                     <p className="mt-2 text-xs sm:text-sm text-gray-500">Загрузка данных...</p>
                   </div>
                 </div>
-              ) : cfoData ? (
-                <Bar 
-                  data={cfoData} 
-                  options={horizontalBarOptions} 
-                />
+              ) : cfoData && cfoData.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300">ЦФО</th>
+                        <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300">Кол-во заказов</th>
+                        <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300">Сумма заказов</th>
+                        <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300">Кол-во закупочных процедур</th>
+                        <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider">Сумма закупочных процедур</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {cfoData.map((row: CfoTableRow, index: number) => (
+                        <tr 
+                          key={index} 
+                          className="hover:bg-gray-50 cursor-pointer"
+                          onClick={() => {
+                            // Устанавливаем фильтр по ЦФО при клике на строку
+                            setCfoFilter(new Set([row.cfo]));
+                            setSelectedBarData({
+                              year: String(selectedYear),
+                              dataset: 'ЦФО',
+                              value: row.ordersCount + row.purchaseProceduresCount
+                            });
+                            setSelectedLineData(null);
+                            setCurrentPage(0);
+                          }}
+                        >
+                          <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200">{row.cfo}</td>
+                          <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-right">{row.ordersCount}</td>
+                          <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-right">
+                            {row.ordersAmount ? new Intl.NumberFormat('ru-RU').format(row.ordersAmount) : '-'}
+                          </td>
+                          <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-right">{row.purchaseProceduresCount}</td>
+                          <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 text-right">
+                            {row.purchaseProceduresAmount ? new Intl.NumberFormat('ru-RU').format(row.purchaseProceduresAmount) : '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               ) : (
-                <div className="h-full w-full flex items-center justify-center">
+                <div className="h-[250px] sm:h-[280px] w-full flex items-center justify-center">
                   <p className="text-xs sm:text-sm text-gray-500">Нет данных для отображения</p>
                 </div>
               )}
@@ -1178,8 +1074,8 @@ export default function PurchaseRequestsYearlyChart() {
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative">
-                            <div className="flex flex-col gap-1">
-                              <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}>
+                            <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                              <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                                 <div className="relative cfo-filter-container w-full h-full">
                                   <button
                                     ref={cfoFilterButtonRef}
@@ -1266,7 +1162,7 @@ export default function PurchaseRequestsYearlyChart() {
                               <div className="flex items-center gap-1 min-h-[20px]">
                                 <button
                                   onClick={() => handleSort('cfo')}
-                                  className="flex items-center justify-center hover:text-gray-700 transition-colors text-gray-700"
+                                  className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
                                   style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
                                 >
                                   {sortField === 'cfo' ? (
@@ -1279,7 +1175,7 @@ export default function PurchaseRequestsYearlyChart() {
                                     <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
                                   )}
                                 </button>
-                                <span className="text-xs font-medium text-gray-700 tracking-wider uppercase">ЦФО</span>
+                                <span className="text-xs font-medium text-gray-500 tracking-wider uppercase">ЦФО</span>
                               </div>
                             </div>
                           </th>
@@ -1339,8 +1235,8 @@ export default function PurchaseRequestsYearlyChart() {
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative">
-                            <div className="flex flex-col gap-1">
-                              <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}>
+                            <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                              <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                                 {/* Текстовое поле для ЦФО не используется, только множественный фильтр через выпадающий список */}
                                 <div className="flex-1" style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0 }}></div>
                               </div>
@@ -1360,7 +1256,7 @@ export default function PurchaseRequestsYearlyChart() {
                                     <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
                                   )}
                                 </button>
-                                <span className="uppercase text-xs font-medium text-gray-500 tracking-wider">ЦФО</span>
+                                <span className="text-xs font-medium text-gray-500 tracking-wider uppercase">ЦФО</span>
                               </div>
                             </div>
                           </th>

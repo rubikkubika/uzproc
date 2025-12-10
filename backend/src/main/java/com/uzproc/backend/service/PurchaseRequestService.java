@@ -2,6 +2,7 @@ package com.uzproc.backend.service;
 
 import com.uzproc.backend.dto.PurchaseRequestDto;
 import com.uzproc.backend.dto.PurchaserStatsDto;
+import com.uzproc.backend.entity.Purchase;
 import com.uzproc.backend.entity.PurchaseRequest;
 import com.uzproc.backend.entity.PurchaseRequestApproval;
 import com.uzproc.backend.entity.PurchaseRequestStatus;
@@ -744,7 +745,9 @@ public class PurchaseRequestService {
         
         // Группируем по ЦФО
         Map<String, Long> purchasesByCfo = new HashMap<>();
+        Map<String, BigDecimal> purchasesAmountByCfo = new HashMap<>();
         Map<String, Long> ordersByCfo = new HashMap<>();
+        Map<String, BigDecimal> ordersAmountByCfo = new HashMap<>();
         Map<String, Long> pendingStatusByCfo = new HashMap<>();
         
         for (PurchaseRequest request : allRequests) {
@@ -762,16 +765,50 @@ public class PurchaseRequestService {
                 request.getStatus() == PurchaseRequestStatus.PROJECT
             );
             
+            BigDecimal budgetAmount = request.getBudgetAmount() != null ? request.getBudgetAmount() : BigDecimal.ZERO;
+            
             if (isPendingStatus) {
                 // Заявки со статусами "Не согласована", "Не утверждена", "Проект"
                 pendingStatusByCfo.put(cfo, pendingStatusByCfo.getOrDefault(cfo, 0L) + 1);
             } else if (request.getRequiresPurchase() != null && request.getRequiresPurchase()) {
                 // Закупка
                 purchasesByCfo.put(cfo, purchasesByCfo.getOrDefault(cfo, 0L) + 1);
+                purchasesAmountByCfo.put(cfo, purchasesAmountByCfo.getOrDefault(cfo, BigDecimal.ZERO).add(budgetAmount));
             } else {
                 // Заказ
                 ordersByCfo.put(cfo, ordersByCfo.getOrDefault(cfo, 0L) + 1);
+                ordersAmountByCfo.put(cfo, ordersAmountByCfo.getOrDefault(cfo, BigDecimal.ZERO).add(budgetAmount));
             }
+        }
+        
+        // Получаем данные о закупочных процедурах (Purchase entities) по ЦФО
+        Specification<Purchase> purchaseYearSpec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            if (year != null) {
+                LocalDateTime startOfYear = LocalDateTime.of(year, 1, 1, 0, 0);
+                LocalDateTime endOfYear = LocalDateTime.of(year, 12, 31, 23, 59, 59);
+                predicates.add(cb.between(root.get("purchaseCreationDate"), startOfYear, endOfYear));
+            }
+            return predicates.isEmpty() ? cb.conjunction() : cb.and(predicates.toArray(new Predicate[0]));
+        };
+        
+        List<Purchase> allPurchases = purchaseRepository.findAll(purchaseYearSpec);
+        
+        // Группируем Purchase entities по ЦФО
+        Map<String, Long> purchaseProceduresByCfo = new HashMap<>();
+        Map<String, BigDecimal> purchaseProceduresAmountByCfo = new HashMap<>();
+        
+        for (Purchase purchase : allPurchases) {
+            String cfo = purchase.getCfo();
+            if (cfo == null || cfo.trim().isEmpty()) {
+                cfo = "Без ЦФО";
+            } else {
+                cfo = cfo.trim();
+            }
+            
+            purchaseProceduresByCfo.put(cfo, purchaseProceduresByCfo.getOrDefault(cfo, 0L) + 1);
+            BigDecimal purchaseAmount = purchase.getBudgetAmount() != null ? purchase.getBudgetAmount() : BigDecimal.ZERO;
+            purchaseProceduresAmountByCfo.put(cfo, purchaseProceduresAmountByCfo.getOrDefault(cfo, BigDecimal.ZERO).add(purchaseAmount));
         }
         
         // Получаем все ЦФО и сортируем их
@@ -779,35 +816,40 @@ public class PurchaseRequestService {
         allCfoSet.addAll(purchasesByCfo.keySet());
         allCfoSet.addAll(ordersByCfo.keySet());
         allCfoSet.addAll(pendingStatusByCfo.keySet());
+        allCfoSet.addAll(purchaseProceduresByCfo.keySet());
         List<String> cfoLabels = allCfoSet.stream()
             .sorted()
             .collect(Collectors.toList());
         
         // Формируем списки данных для каждого ЦФО
-        List<Long> purchases = cfoLabels.stream()
-            .map(cfo -> purchasesByCfo.getOrDefault(cfo, 0L))
-            .collect(Collectors.toList());
-        
-        List<Long> orders = cfoLabels.stream()
+        List<Long> ordersCount = cfoLabels.stream()
             .map(cfo -> ordersByCfo.getOrDefault(cfo, 0L))
             .collect(Collectors.toList());
         
-        List<Long> pendingStatus = cfoLabels.stream()
-            .map(cfo -> pendingStatusByCfo.getOrDefault(cfo, 0L))
+        List<BigDecimal> ordersAmount = cfoLabels.stream()
+            .map(cfo -> ordersAmountByCfo.getOrDefault(cfo, BigDecimal.ZERO))
+            .collect(Collectors.toList());
+        
+        List<Long> purchaseProceduresCount = cfoLabels.stream()
+            .map(cfo -> purchaseProceduresByCfo.getOrDefault(cfo, 0L))
+            .collect(Collectors.toList());
+        
+        List<BigDecimal> purchaseProceduresAmount = cfoLabels.stream()
+            .map(cfo -> purchaseProceduresAmountByCfo.getOrDefault(cfo, BigDecimal.ZERO))
             .collect(Collectors.toList());
         
         Map<String, Object> result = new HashMap<>();
         result.put("cfoLabels", cfoLabels);
-        result.put("purchases", purchases);
-        result.put("orders", orders);
-        result.put("pendingStatus", pendingStatus);
+        result.put("ordersCount", ordersCount);
+        result.put("ordersAmount", ordersAmount);
+        result.put("purchaseProceduresCount", purchaseProceduresCount);
+        result.put("purchaseProceduresAmount", purchaseProceduresAmount);
         
-        logger.info("Cfo stats for year {}: {} CFOs, total purchases: {}, total orders: {}, total pending status: {}", 
+        logger.info("Cfo stats for year {}: {} CFOs, total orders: {}, total purchase procedures: {}", 
             year, 
             cfoLabels.size(), 
-            purchases.stream().mapToLong(Long::longValue).sum(),
-            orders.stream().mapToLong(Long::longValue).sum(),
-            pendingStatus.stream().mapToLong(Long::longValue).sum());
+            ordersCount.stream().mapToLong(Long::longValue).sum(),
+            purchaseProceduresCount.stream().mapToLong(Long::longValue).sum());
         
         return result;
     }
