@@ -96,6 +96,21 @@ export default function PurchaseRequestsTable() {
   // Флаг для отслеживания загрузки фильтров из localStorage
   const filtersLoadedRef = useRef(false);
   
+  // Ref для хранения актуальных значений фильтров (для cleanup-функции)
+  const filtersStateRef = useRef({
+    filters: {} as Record<string, string>,
+    localFilters: {} as Record<string, string>,
+    cfoFilter: new Set<string>(),
+    statusFilter: new Set<string>(),
+    selectedYear: null as number | null,
+    sortField: null as SortField,
+    sortDirection: null as SortDirection,
+    currentPage: 0,
+    pageSize: 100,
+    cfoSearchQuery: '',
+    statusSearchQuery: '',
+  });
+  
   // Функция для расчета позиции выпадающего списка
   const calculateFilterPosition = useCallback((buttonRef: React.RefObject<HTMLButtonElement | null>) => {
     if (buttonRef.current) {
@@ -237,7 +252,9 @@ export default function PurchaseRequestsTable() {
 
   // Функция для сохранения всех фильтров в localStorage
   const saveFiltersToLocalStorage = useCallback(() => {
+    // Не сохраняем, если фильтры еще не загружены из localStorage (чтобы не перезаписать при первой загрузке)
     if (!filtersLoadedRef.current) {
+      console.log('Skipping save - filters not loaded yet');
       return;
     }
     
@@ -256,10 +273,34 @@ export default function PurchaseRequestsTable() {
         statusSearchQuery,
       };
       localStorage.setItem('purchaseRequestsTableFilters', JSON.stringify(filtersToSave));
-      console.log('Filters saved to localStorage:', filtersToSave);
+      console.log('Filters saved to localStorage:', {
+        filtersCount: Object.keys(filters).length,
+        cfoFilterSize: cfoFilter.size,
+        statusFilterSize: statusFilter.size,
+        selectedYear,
+        currentPage,
+        pageSize
+      });
     } catch (err) {
       console.error('Error saving filters to localStorage:', err);
     }
+  }, [filters, localFilters, cfoFilter, statusFilter, selectedYear, sortField, sortDirection, currentPage, pageSize, cfoSearchQuery, statusSearchQuery]);
+
+  // Обновляем ref с актуальными значениями фильтров при каждом изменении
+  useEffect(() => {
+    filtersStateRef.current = {
+      filters,
+      localFilters,
+      cfoFilter,
+      statusFilter,
+      selectedYear,
+      sortField,
+      sortDirection,
+      currentPage,
+      pageSize,
+      cfoSearchQuery,
+      statusSearchQuery,
+    };
   }, [filters, localFilters, cfoFilter, statusFilter, selectedYear, sortField, sortDirection, currentPage, pageSize, cfoSearchQuery, statusSearchQuery]);
 
   // Сохраняем фильтры в localStorage при их изменении (только после загрузки)
@@ -279,6 +320,64 @@ export default function PurchaseRequestsTable() {
     
     return () => clearTimeout(timer);
   }, [localFilters, saveFiltersToLocalStorage]);
+
+  // Сохраняем фильтры при размонтировании компонента (перед переходом на другую страницу)
+  useEffect(() => {
+    return () => {
+      // Используем ref для получения актуальных значений
+      const state = filtersStateRef.current;
+      try {
+        const filtersToSave = {
+          filters: state.filters,
+          localFilters: state.localFilters,
+          cfoFilter: Array.from(state.cfoFilter),
+          statusFilter: Array.from(state.statusFilter),
+          selectedYear: state.selectedYear,
+          sortField: state.sortField,
+          sortDirection: state.sortDirection,
+          currentPage: state.currentPage,
+          pageSize: state.pageSize,
+          cfoSearchQuery: state.cfoSearchQuery,
+          statusSearchQuery: state.statusSearchQuery,
+        };
+        localStorage.setItem('purchaseRequestsTableFilters', JSON.stringify(filtersToSave));
+        console.log('Filters saved on unmount:', filtersToSave);
+      } catch (err) {
+        console.error('Error saving filters on unmount:', err);
+      }
+    };
+  }, []); // Пустой массив зависимостей - эффект создается один раз
+
+  // Сохраняем фильтры при уходе со страницы (beforeunload)
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Используем ref для получения актуальных значений
+      const state = filtersStateRef.current;
+      try {
+        const filtersToSave = {
+          filters: state.filters,
+          localFilters: state.localFilters,
+          cfoFilter: Array.from(state.cfoFilter),
+          statusFilter: Array.from(state.statusFilter),
+          selectedYear: state.selectedYear,
+          sortField: state.sortField,
+          sortDirection: state.sortDirection,
+          currentPage: state.currentPage,
+          pageSize: state.pageSize,
+          cfoSearchQuery: state.cfoSearchQuery,
+          statusSearchQuery: state.statusSearchQuery,
+        };
+        localStorage.setItem('purchaseRequestsTableFilters', JSON.stringify(filtersToSave));
+      } catch (err) {
+        console.error('Error saving filters on beforeunload:', err);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []); // Пустой массив зависимостей
 
   // Сохраняем порядок колонок в localStorage
   const saveColumnOrder = useCallback((order: string[]) => {
@@ -1658,6 +1757,23 @@ export default function PurchaseRequestsTable() {
                     // Вычисляем глобальный индекс: индекс на текущей странице + смещение страницы
                     const globalIndex = currentPage * pageSize + index;
                     try {
+                      // Сохраняем фильтры перед переходом
+                      const filtersToSave = {
+                        filters,
+                        localFilters,
+                        cfoFilter: Array.from(cfoFilter),
+                        statusFilter: Array.from(statusFilter),
+                        selectedYear,
+                        sortField,
+                        sortDirection,
+                        currentPage,
+                        pageSize,
+                        cfoSearchQuery,
+                        statusSearchQuery,
+                      };
+                      localStorage.setItem('purchaseRequestsTableFilters', JSON.stringify(filtersToSave));
+                      
+                      // Сохраняем данные навигации
                       const navigationData = {
                         currentIndex: globalIndex,
                         page: currentPage,
