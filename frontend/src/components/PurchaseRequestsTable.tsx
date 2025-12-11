@@ -217,6 +217,14 @@ export default function PurchaseRequestsTable() {
         if (savedFilters.pageSize !== undefined) {
           setPageSize(savedFilters.pageSize);
         }
+        
+        // Восстанавливаем поисковые запросы в фильтрах
+        if (savedFilters.cfoSearchQuery !== undefined) {
+          setCfoSearchQuery(savedFilters.cfoSearchQuery);
+        }
+        if (savedFilters.statusSearchQuery !== undefined) {
+          setStatusSearchQuery(savedFilters.statusSearchQuery);
+        }
       }
       
       // Помечаем, что загрузка завершена
@@ -227,9 +235,8 @@ export default function PurchaseRequestsTable() {
     }
   }, []);
 
-  // Сохраняем фильтры в localStorage при их изменении (только после загрузки)
-  useEffect(() => {
-    // Не сохраняем, если фильтры еще не загружены из localStorage
+  // Функция для сохранения всех фильтров в localStorage
+  const saveFiltersToLocalStorage = useCallback(() => {
     if (!filtersLoadedRef.current) {
       return;
     }
@@ -245,12 +252,20 @@ export default function PurchaseRequestsTable() {
         sortDirection,
         currentPage,
         pageSize,
+        cfoSearchQuery, // Сохраняем поисковые запросы
+        statusSearchQuery,
       };
       localStorage.setItem('purchaseRequestsTableFilters', JSON.stringify(filtersToSave));
+      console.log('Filters saved to localStorage:', filtersToSave);
     } catch (err) {
       console.error('Error saving filters to localStorage:', err);
     }
-  }, [filters, localFilters, cfoFilter, statusFilter, selectedYear, sortField, sortDirection, currentPage, pageSize]);
+  }, [filters, localFilters, cfoFilter, statusFilter, selectedYear, sortField, sortDirection, currentPage, pageSize, cfoSearchQuery, statusSearchQuery]);
+
+  // Сохраняем фильтры в localStorage при их изменении (только после загрузки)
+  useEffect(() => {
+    saveFiltersToLocalStorage();
+  }, [filters, cfoFilter, statusFilter, selectedYear, sortField, sortDirection, currentPage, pageSize, cfoSearchQuery, statusSearchQuery, saveFiltersToLocalStorage]);
 
   // Сохраняем localFilters с debounce для текстовых полей (чтобы сохранять промежуточные значения)
   useEffect(() => {
@@ -259,20 +274,11 @@ export default function PurchaseRequestsTable() {
     }
     
     const timer = setTimeout(() => {
-      try {
-        const saved = localStorage.getItem('purchaseRequestsTableFilters');
-        if (saved) {
-          const savedFilters = JSON.parse(saved);
-          savedFilters.localFilters = localFilters;
-          localStorage.setItem('purchaseRequestsTableFilters', JSON.stringify(savedFilters));
-        }
-      } catch (err) {
-        console.error('Error saving localFilters to localStorage:', err);
-      }
+      saveFiltersToLocalStorage();
     }, 300); // Небольшая задержка для текстовых полей
     
     return () => clearTimeout(timer);
-  }, [localFilters]);
+  }, [localFilters, saveFiltersToLocalStorage]);
 
   // Сохраняем порядок колонок в localStorage
   const saveColumnOrder = useCallback((order: string[]) => {
