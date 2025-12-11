@@ -194,14 +194,35 @@ export default function PurchaseRequestsTable() {
       if (saved) {
         const savedFilters = JSON.parse(saved);
         
-        // Восстанавливаем текстовые фильтры
+        // Инициализируем дефолтные значения для всех полей фильтров
+        const defaultFilters: Record<string, string> = {
+          idPurchaseRequest: '',
+          cfo: '',
+          purchaseRequestInitiator: '',
+          name: '',
+          budgetAmount: '',
+          costType: '',
+          contractType: '',
+          contractDurationMonths: '',
+          isPlanned: '',
+          requiresPurchase: '',
+          status: '',
+        };
+        
+        // Восстанавливаем текстовые фильтры, объединяя с дефолтными значениями
         if (savedFilters.filters) {
-          setFilters(savedFilters.filters);
-          setLocalFilters(savedFilters.filters);
+          const mergedFilters = { ...defaultFilters, ...savedFilters.filters };
+          setFilters(mergedFilters);
+          setLocalFilters(mergedFilters);
         } else if (savedFilters.localFilters) {
           // Если filters нет, но есть localFilters, используем их
-          setFilters(savedFilters.localFilters);
-          setLocalFilters(savedFilters.localFilters);
+          const mergedFilters = { ...defaultFilters, ...savedFilters.localFilters };
+          setFilters(mergedFilters);
+          setLocalFilters(mergedFilters);
+        } else {
+          // Если ничего нет, используем дефолтные значения
+          setFilters(defaultFilters);
+          setLocalFilters(defaultFilters);
         }
         
         // Восстанавливаем множественные фильтры (Set нужно преобразовать из массива)
@@ -213,7 +234,7 @@ export default function PurchaseRequestsTable() {
         }
         
         // Восстанавливаем год
-        if (savedFilters.selectedYear !== undefined) {
+        if (savedFilters.selectedYear !== undefined && savedFilters.selectedYear !== null) {
           setSelectedYear(savedFilters.selectedYear);
         }
         
@@ -240,6 +261,13 @@ export default function PurchaseRequestsTable() {
         if (savedFilters.statusSearchQuery !== undefined) {
           setStatusSearchQuery(savedFilters.statusSearchQuery);
         }
+        
+        console.log('Filters loaded from localStorage:', {
+          filters: savedFilters.filters || savedFilters.localFilters,
+          requiresPurchase: savedFilters.filters?.requiresPurchase || savedFilters.localFilters?.requiresPurchase,
+        });
+      } else {
+        console.log('No saved filters found in localStorage');
       }
       
       // Помечаем, что загрузка завершена
@@ -259,9 +287,19 @@ export default function PurchaseRequestsTable() {
     }
     
     try {
+      // Для select-типа фильтров (requiresPurchase, isPlanned) используем filters, для текстовых - localFilters
+      const mergedFilters = { ...filters };
+      // Объединяем с localFilters для текстовых полей, но приоритет у filters для select-полей
+      Object.keys(localFilters).forEach(key => {
+        // Если в filters есть значение для select-поля, используем его, иначе localFilters
+        if (mergedFilters[key] === undefined || mergedFilters[key] === '') {
+          mergedFilters[key] = localFilters[key];
+        }
+      });
+      
       const filtersToSave = {
-        filters,
-        localFilters, // Сохраняем также localFilters для текстовых полей с debounce
+        filters: mergedFilters, // Сохраняем объединенные фильтры
+        localFilters: localFilters, // Сохраняем также localFilters для текстовых полей с debounce
         cfoFilter: Array.from(cfoFilter),
         statusFilter: Array.from(statusFilter),
         selectedYear,
@@ -274,7 +312,9 @@ export default function PurchaseRequestsTable() {
       };
       localStorage.setItem('purchaseRequestsTableFilters', JSON.stringify(filtersToSave));
       console.log('Filters saved to localStorage:', {
-        filtersCount: Object.keys(filters).length,
+        filtersCount: Object.keys(mergedFilters).length,
+        requiresPurchase: mergedFilters.requiresPurchase,
+        isPlanned: mergedFilters.isPlanned,
         cfoFilterSize: cfoFilter.size,
         statusFilterSize: statusFilter.size,
         selectedYear,
@@ -288,8 +328,17 @@ export default function PurchaseRequestsTable() {
 
   // Обновляем ref с актуальными значениями фильтров при каждом изменении
   useEffect(() => {
+    // Объединяем filters и localFilters для сохранения актуальных значений
+    const mergedFilters = { ...filters };
+    Object.keys(localFilters).forEach(key => {
+      // Если в filters есть значение для select-поля, используем его, иначе localFilters
+      if (mergedFilters[key] === undefined || mergedFilters[key] === '') {
+        mergedFilters[key] = localFilters[key];
+      }
+    });
+    
     filtersStateRef.current = {
-      filters,
+      filters: mergedFilters,
       localFilters,
       cfoFilter,
       statusFilter,
