@@ -23,8 +23,9 @@ public class PurchasePlanItem {
     @Column(name = "year")
     private Integer year;
 
-    @Column(name = "company", length = 255)
-    private String company;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "company", length = 50)
+    private Company company;
 
     @Column(name = "cfo", length = 255)
     private String cfo;
@@ -137,11 +138,11 @@ public class PurchasePlanItem {
         this.year = year;
     }
 
-    public String getCompany() {
+    public Company getCompany() {
         return company;
     }
 
-    public void setCompany(String company) {
+    public void setCompany(Company company) {
         this.company = company;
     }
 

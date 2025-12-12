@@ -30,7 +30,7 @@ public class PurchasePlanItemController {
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false) String sortBy,
             @RequestParam(required = false) String sortDir,
-            @RequestParam(required = false) String company,
+            @RequestParam(required = false) List<String> company,
             @RequestParam(required = false) List<String> cfo,
             @RequestParam(required = false) String purchaseSubject,
             @RequestParam(required = false) List<String> purchaser,
@@ -83,8 +83,9 @@ public class PurchasePlanItemController {
 
     @GetMapping("/monthly-stats")
     public ResponseEntity<Map<String, Object>> getMonthlyStats(
-            @RequestParam(required = false) Integer year) {
-        Map<String, Object> stats = purchasePlanItemService.getMonthlyStats(year);
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) List<String> company) {
+        Map<String, Object> stats = purchasePlanItemService.getMonthlyStats(year, company);
         return ResponseEntity.ok(stats);
     }
 
@@ -147,6 +148,48 @@ public class PurchasePlanItemController {
             // holding может быть null или пустой строкой
             
             PurchasePlanItemDto updatedItem = purchasePlanItemService.updateHolding(id, holding);
+            if (updatedItem != null) {
+                return ResponseEntity.ok(updatedItem);
+            }
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Ошибка сервера: " + e.getMessage());
+        }
+    }
+
+    @PatchMapping("/{id}/company")
+    public ResponseEntity<?> updatePurchasePlanItemCompany(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> requestBody) {
+        try {
+            String companyStr = requestBody.get("company");
+            if (companyStr == null || companyStr.trim().isEmpty()) {
+                PurchasePlanItemDto updatedItem = purchasePlanItemService.updateCompany(id, null);
+                if (updatedItem != null) {
+                    return ResponseEntity.ok(updatedItem);
+                }
+                return ResponseEntity.notFound().build();
+            }
+
+            com.uzproc.backend.entity.Company company;
+            try {
+                // Пробуем найти по displayName
+                company = null;
+                for (com.uzproc.backend.entity.Company c : com.uzproc.backend.entity.Company.values()) {
+                    if (c.getDisplayName().equalsIgnoreCase(companyStr.trim())) {
+                        company = c;
+                        break;
+                    }
+                }
+                // Если не найдено по displayName, пробуем по имени enum
+                if (company == null) {
+                    company = com.uzproc.backend.entity.Company.valueOf(companyStr.toUpperCase().replace(" ", "_"));
+                }
+            } catch (IllegalArgumentException e) {
+                return ResponseEntity.badRequest().body("Invalid company: " + companyStr);
+            }
+
+            PurchasePlanItemDto updatedItem = purchasePlanItemService.updateCompany(id, company);
             if (updatedItem != null) {
                 return ResponseEntity.ok(updatedItem);
             }

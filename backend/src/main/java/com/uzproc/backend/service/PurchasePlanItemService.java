@@ -1,6 +1,7 @@
 package com.uzproc.backend.service;
 
 import com.uzproc.backend.dto.PurchasePlanItemDto;
+import com.uzproc.backend.entity.Company;
 import com.uzproc.backend.entity.PurchasePlanItem;
 import com.uzproc.backend.entity.PurchasePlanItemStatus;
 import com.uzproc.backend.repository.PurchasePlanItemRepository;
@@ -41,7 +42,7 @@ public class PurchasePlanItemService {
             Integer year,
             String sortBy,
             String sortDir,
-            String company,
+            List<String> company,
             List<String> cfo,
             String purchaseSubject,
             List<String> purchaser,
@@ -52,7 +53,7 @@ public class PurchasePlanItemService {
             List<String> status) {
         
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, company: '{}', cfo: {}, purchaseSubject: '{}', purchaser: {}, category: {}, requestMonth: {}, requestYear: {}, currentContractEndDate: '{}', status: {}",
+        logger.info("Filter parameters - year: {}, company: {}, cfo: {}, purchaseSubject: '{}', purchaser: {}, category: {}, requestMonth: {}, requestYear: {}, currentContractEndDate: '{}', status: {}",
                 year, company, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear, currentContractEndDate, status);
         
         Specification<PurchasePlanItem> spec = buildSpecification(year, company, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear, currentContractEndDate, status);
@@ -216,6 +217,29 @@ public class PurchasePlanItemService {
                 .orElse(null);
     }
 
+    @Transactional
+    public PurchasePlanItemDto updateCompany(Long id, Company company) {
+        return purchasePlanItemRepository.findById(id)
+                .map(item -> {
+                    Company oldCompany = item.getCompany();
+                    if (company != null && !company.equals(oldCompany)) {
+                        purchasePlanItemChangeService.logChange(
+                            item.getId(),
+                            item.getGuid(),
+                            "company",
+                            oldCompany != null ? oldCompany.getDisplayName() : null,
+                            company != null ? company.getDisplayName() : null
+                        );
+                    }
+                    item.setCompany(company);
+                    PurchasePlanItem saved = purchasePlanItemRepository.save(item);
+                    logger.info("Updated company for purchase plan item {}: company={}",
+                            id, company);
+                    return toDto(saved);
+                })
+                .orElse(null);
+    }
+
     /**
      * Конвертирует PurchasePlanItem entity в PurchasePlanItemDto
      */
@@ -252,7 +276,7 @@ public class PurchasePlanItemService {
 
     private Specification<PurchasePlanItem> buildSpecification(
             Integer year,
-            String company,
+            List<String> company,
             List<String> cfo,
             String purchaseSubject,
             List<String> purchaser,
@@ -273,11 +297,56 @@ public class PurchasePlanItemService {
                 logger.info("Added year filter: {}", year);
             }
             
-            // Фильтр по компании (частичное совпадение, case-insensitive)
-            if (company != null && !company.trim().isEmpty()) {
-                predicates.add(cb.like(cb.lower(root.get("company")), "%" + company.toLowerCase() + "%"));
-                predicateCount++;
-                logger.info("Added company filter: '{}'", company);
+            // Фильтр по компании (поддержка множественного выбора - поиск по displayName enum)
+            if (company != null && !company.isEmpty()) {
+                // Убираем пустые значения и тримим
+                List<String> validCompanyValues = company.stream()
+                    .filter(s -> s != null && !s.trim().isEmpty())
+                    .map(String::trim)
+                    .toList();
+                
+                if (!validCompanyValues.isEmpty()) {
+                    // Конвертируем строковые значения в enum
+                    List<Company> companyEnums = new ArrayList<>();
+                    for (String companyStr : validCompanyValues) {
+                        String companyLower = companyStr.toLowerCase();
+                        // Пробуем найти соответствующий enum по displayName
+                        Company companyEnum = null;
+                        for (Company c : Company.values()) {
+                            if (c.getDisplayName().toLowerCase().equals(companyLower) || 
+                                c.getDisplayName().toLowerCase().contains(companyLower) ||
+                                companyLower.contains(c.getDisplayName().toLowerCase())) {
+                                companyEnum = c;
+                                break;
+                            }
+                        }
+                        // Также пробуем найти по имени enum (UZUM_MARKET, UZUM_TECHNOLOGIES)
+                        if (companyEnum == null) {
+                            try {
+                                companyEnum = Company.valueOf(companyStr.toUpperCase().replace(" ", "_"));
+                            } catch (IllegalArgumentException e) {
+                                // Игнорируем, если не найден
+                            }
+                        }
+                        if (companyEnum != null) {
+                            companyEnums.add(companyEnum);
+                        }
+                    }
+                    
+                    if (!companyEnums.isEmpty()) {
+                        if (companyEnums.size() == 1) {
+                            predicates.add(cb.equal(root.get("company"), companyEnums.get(0)));
+                            predicateCount++;
+                            logger.info("Added single company filter: '{}' (enum: {})", validCompanyValues.get(0), companyEnums.get(0));
+                        } else {
+                            predicates.add(root.get("company").in(companyEnums));
+                            predicateCount++;
+                            logger.info("Added multiple company filter: {} (enums: {})", validCompanyValues, companyEnums);
+                        }
+                    } else {
+                        logger.warn("No valid company enums found for values: {}", validCompanyValues);
+                    }
+                }
             }
             
             // Фильтр по ЦФО (поддержка множественного выбора - точное совпадение)
@@ -485,7 +554,7 @@ public class PurchasePlanItemService {
      * "Дек (пред. год)" = декабрь selectedYear = декабрь (year - 1)
      * Январь-декабрь = year (selectedYear + 1)
      */
-    public Map<String, Object> getMonthlyStats(Integer year) {
+    public Map<String, Object> getMonthlyStats(Integer year, List<String> company) {
         // Загружаем данные с годом планирования = year
         // requestDate может быть в декабре (year - 1) или в year
         Specification<PurchasePlanItem> spec = (root, query, cb) -> {
@@ -493,6 +562,52 @@ public class PurchasePlanItemService {
             if (year != null) {
                 predicates.add(cb.equal(root.get("year"), year));
             }
+            
+            // Фильтр по компании (поддержка множественного выбора)
+            if (company != null && !company.isEmpty()) {
+                List<String> validCompanyValues = company.stream()
+                    .filter(s -> s != null && !s.trim().isEmpty())
+                    .map(String::trim)
+                    .toList();
+                
+                if (!validCompanyValues.isEmpty()) {
+                    // Конвертируем строковые значения в enum
+                    List<Company> companyEnums = new ArrayList<>();
+                    for (String companyStr : validCompanyValues) {
+                        String companyLower = companyStr.toLowerCase();
+                        // Пробуем найти соответствующий enum по displayName
+                        Company companyEnum = null;
+                        for (Company c : Company.values()) {
+                            if (c.getDisplayName().toLowerCase().equals(companyLower) || 
+                                c.getDisplayName().toLowerCase().contains(companyLower) ||
+                                companyLower.contains(c.getDisplayName().toLowerCase())) {
+                                companyEnum = c;
+                                break;
+                            }
+                        }
+                        // Также пробуем найти по имени enum (UZUM_MARKET, UZUM_TECHNOLOGIES)
+                        if (companyEnum == null) {
+                            try {
+                                companyEnum = Company.valueOf(companyStr.toUpperCase().replace(" ", "_"));
+                            } catch (IllegalArgumentException e) {
+                                // Игнорируем, если не найден
+                            }
+                        }
+                        if (companyEnum != null) {
+                            companyEnums.add(companyEnum);
+                        }
+                    }
+                    
+                    if (!companyEnums.isEmpty()) {
+                        if (companyEnums.size() == 1) {
+                            predicates.add(cb.equal(root.get("company"), companyEnums.get(0)));
+                        } else {
+                            predicates.add(root.get("company").in(companyEnums));
+                        }
+                    }
+                }
+            }
+            
             return predicates.isEmpty() ? cb.conjunction() : cb.and(predicates.toArray(new Predicate[0]));
         };
         

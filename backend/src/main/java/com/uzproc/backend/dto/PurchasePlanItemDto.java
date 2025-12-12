@@ -1,5 +1,6 @@
 package com.uzproc.backend.dto;
 
+import com.uzproc.backend.entity.Company;
 import com.uzproc.backend.entity.PurchasePlanItemStatus;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -10,7 +11,7 @@ public class PurchasePlanItemDto {
     private Long id;
     private UUID guid;
     private Integer year;
-    private String company;
+    private Company company;
     private String cfo;
     private String purchaseSubject;
     private BigDecimal budgetAmount;
@@ -63,11 +64,11 @@ public class PurchasePlanItemDto {
         this.year = year;
     }
 
-    public String getCompany() {
+    public Company getCompany() {
         return company;
     }
 
-    public void setCompany(String company) {
+    public void setCompany(Company company) {
         this.company = company;
     }
 

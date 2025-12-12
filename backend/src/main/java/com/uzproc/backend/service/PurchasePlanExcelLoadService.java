@@ -1,5 +1,6 @@
 package com.uzproc.backend.service;
 
+import com.uzproc.backend.entity.Company;
 import com.uzproc.backend.entity.PurchasePlanItem;
 import com.uzproc.backend.repository.PurchasePlanItemRepository;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
@@ -416,9 +417,12 @@ public class PurchasePlanExcelLoadService {
             // Компания
             if (companyColumnIndex != null) {
                 Cell companyCell = row.getCell(companyColumnIndex);
-                String company = getCellValueAsString(companyCell);
-                if (company != null && !company.trim().isEmpty()) {
-                    item.setCompany(company.trim());
+                String companyStr = getCellValueAsString(companyCell);
+                if (companyStr != null && !companyStr.trim().isEmpty()) {
+                    Company company = parseCompany(companyStr.trim());
+                    if (company != null) {
+                        item.setCompany(company);
+                    }
                 }
             }
             
@@ -606,21 +610,12 @@ public class PurchasePlanExcelLoadService {
                     // Сохраняем значение из колонки "Состояние" в поле state
                     item.setState(trimmedStatus);
                     logger.debug("Row {}: parsed state value: '{}' and saved to state field for purchase plan item", row.getRowNum() + 1, trimmedStatus);
-                    // Устанавливаем статус на основе значения "Состояние"
+                    // Если "Состояние" = "Проект" (case-insensitive), то устанавливаем статус = PROJECT
                     if ("Проект".equalsIgnoreCase(trimmedStatus)) {
                         item.setStatus(com.uzproc.backend.entity.PurchasePlanItemStatus.PROJECT);
                         logger.info("Row {}: parsed state '{}', set status to PROJECT for purchase plan item", row.getRowNum() + 1, trimmedStatus);
-                    } else if ("Актуальная".equalsIgnoreCase(trimmedStatus)) {
-                        item.setStatus(com.uzproc.backend.entity.PurchasePlanItemStatus.ACTUAL);
-                        logger.info("Row {}: parsed state '{}', set status to ACTUAL for purchase plan item", row.getRowNum() + 1, trimmedStatus);
-                    } else if ("не Актуальная".equalsIgnoreCase(trimmedStatus) || "Не Актуальная".equalsIgnoreCase(trimmedStatus)) {
-                        item.setStatus(com.uzproc.backend.entity.PurchasePlanItemStatus.NOT_ACTUAL);
-                        logger.info("Row {}: parsed state '{}', set status to NOT_ACTUAL for purchase plan item", row.getRowNum() + 1, trimmedStatus);
-                    } else if ("Корректировка".equalsIgnoreCase(trimmedStatus)) {
-                        item.setStatus(com.uzproc.backend.entity.PurchasePlanItemStatus.CORRECTION);
-                        logger.info("Row {}: parsed state '{}', set status to CORRECTION for purchase plan item", row.getRowNum() + 1, trimmedStatus);
                     } else {
-                        logger.debug("Row {}: state value '{}' does not match any known status, skipping status update", row.getRowNum() + 1, trimmedStatus);
+                        logger.debug("Row {}: state value '{}' is not 'Проект' (case-insensitive), skipping status update", row.getRowNum() + 1, trimmedStatus);
                     }
                 } else {
                     logger.debug("Row {}: status cell is empty or null", row.getRowNum() + 1);
@@ -1010,6 +1005,44 @@ public class PurchasePlanExcelLoadService {
     }
 
     /**
+     * Парсит строку в enum Company
+     */
+    private Company parseCompany(String companyStr) {
+        if (companyStr == null || companyStr.trim().isEmpty()) {
+            return null;
+        }
+        
+        String normalized = companyStr.trim();
+        
+        // Пробуем найти по displayName (точное совпадение, case-insensitive)
+        for (Company company : Company.values()) {
+            if (company.getDisplayName().equalsIgnoreCase(normalized)) {
+                return company;
+            }
+        }
+        
+        // Пробуем найти по частичному совпадению
+        String normalizedLower = normalized.toLowerCase();
+        for (Company company : Company.values()) {
+            String displayNameLower = company.getDisplayName().toLowerCase();
+            if (displayNameLower.contains(normalizedLower) || normalizedLower.contains(displayNameLower)) {
+                return company;
+            }
+        }
+        
+        // Специальная обработка для "Узум маркет" -> "Uzum Market"
+        if (normalizedLower.contains("узум") && normalizedLower.contains("маркет")) {
+            return Company.UZUM_MARKET;
+        }
+        if (normalizedLower.contains("узум") && normalizedLower.contains("технологи")) {
+            return Company.UZUM_TECHNOLOGIES;
+        }
+        
+        logger.debug("Cannot parse company string: '{}', returning null", companyStr);
+        return null;
+    }
+
+    /**
      * Парсит ячейку в Boolean
      */
     private Boolean parseBooleanCell(Cell cell) {
@@ -1103,10 +1136,10 @@ public class PurchasePlanExcelLoadService {
             updated = true;
         }
         
-        if (newData.getCompany() != null && !newData.getCompany().trim().isEmpty() && 
-            !newData.getCompany().equals(existing.getCompany())) {
+        if (newData.getCompany() != null && !newData.getCompany().equals(existing.getCompany())) {
             existing.setCompany(newData.getCompany());
             updated = true;
+            logger.debug("Updated company for purchase plan item {}: {}", existing.getId(), newData.getCompany());
         }
         
         if (newData.getCfo() != null && !newData.getCfo().trim().isEmpty() && 

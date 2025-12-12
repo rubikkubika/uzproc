@@ -81,6 +81,7 @@ const ALL_COLUMNS = [
 // Колонки, которые отображаются по умолчанию
 const DEFAULT_VISIBLE_COLUMNS = [
   'cfo',
+  'company',
   'purchaseSubject',
   'purchaser',
   'budgetAmount',
@@ -116,7 +117,7 @@ export default function PurchasePlanItemsTable() {
 
   // Состояние для множественных фильтров (чекбоксы)
   const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
-  const [companyFilter, setCompanyFilter] = useState<Set<string>>(new Set());
+  const [companyFilter, setCompanyFilter] = useState<Set<string>>(new Set(['Uzum Market']));
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set());
   const [purchaserFilter, setPurchaserFilter] = useState<Set<string>>(() => {
@@ -329,6 +330,8 @@ export default function PurchasePlanItemsTable() {
   const statusSelectRef = useRef<HTMLSelectElement | null>(null);
   const [editingHolding, setEditingHolding] = useState<number | null>(null);
   const holdingSelectRef = useRef<HTMLSelectElement | null>(null);
+  const [editingCompany, setEditingCompany] = useState<number | null>(null);
+  const companySelectRef = useRef<HTMLSelectElement | null>(null);
   
   // Состояние для раскрытых строк
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
@@ -714,6 +717,42 @@ export default function PurchasePlanItemsTable() {
     } catch (error) {
       console.error('Error updating holding:', error);
     } finally {
+    }
+  };
+
+  const handleCompanyUpdate = async (itemId: number, newCompany: string) => {
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/company`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ company: newCompany || null }),
+      });
+
+      if (response.ok) {
+        const updatedItem = await response.json();
+        setEditingCompany(null);
+        
+        // Перезагружаем данные таблицы, чтобы применить фильтры и показать актуальные данные
+        await fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters, selectedMonth);
+        
+        // Отправляем событие для обновления столбчатой диаграммы (как при изменении дат)
+        window.dispatchEvent(new CustomEvent('purchasePlanItemDatesUpdated', {
+          detail: { itemId, field: 'company', newValue: newCompany }
+        }));
+        
+        // Также отправляем событие с актуальным фильтром компании, чтобы диаграмма использовала правильный фильтр
+        window.dispatchEvent(new CustomEvent('purchasePlanItemCompanyFilterUpdated', {
+          detail: { companyFilter: Array.from(companyFilter) }
+        }));
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to update company:', response.status, errorText);
+      }
+    } catch (error) {
+      console.error('Error updating company:', error);
+    } finally {
       setEditingHolding(null);
     }
   };
@@ -829,11 +868,27 @@ export default function PurchasePlanItemsTable() {
           }
         }
         if (savedFilters.companyFilter !== undefined) {
-          if (Array.isArray(savedFilters.companyFilter)) {
-            setCompanyFilter(new Set(savedFilters.companyFilter));
+          if (Array.isArray(savedFilters.companyFilter) && savedFilters.companyFilter.length > 0) {
+            // Нормализуем сохраненные значения компании
+            const normalizedCompanyFilter = savedFilters.companyFilter.map((c: string) => normalizeCompany(c)).filter((c: string | null) => c !== null) as string[];
+            setCompanyFilter(new Set(normalizedCompanyFilter));
+            // Отправляем начальное значение фильтра компании в диаграмму
+            window.dispatchEvent(new CustomEvent('purchasePlanItemCompanyFilterUpdated', {
+              detail: { companyFilter: normalizedCompanyFilter }
+            }));
           } else {
-            setCompanyFilter(new Set());
+            // Если сохраненный фильтр пустой, устанавливаем фильтр по умолчанию на "Uzum Market"
+            setCompanyFilter(new Set(['Uzum Market']));
+            window.dispatchEvent(new CustomEvent('purchasePlanItemCompanyFilterUpdated', {
+              detail: { companyFilter: ['Uzum Market'] }
+            }));
           }
+        } else {
+          // Если фильтр не сохранен, устанавливаем фильтр по умолчанию на "Uzum Market"
+          setCompanyFilter(new Set(['Uzum Market']));
+          window.dispatchEvent(new CustomEvent('purchasePlanItemCompanyFilterUpdated', {
+            detail: { companyFilter: ['Uzum Market'] }
+          }));
         }
         if (savedFilters.categoryFilter !== undefined) {
           if (Array.isArray(savedFilters.categoryFilter)) {
@@ -865,6 +920,10 @@ export default function PurchasePlanItemsTable() {
       } else {
         // Если нет сохраненных фильтров, помечаем, что загрузка завершена
         filtersLoadedRef.current = true;
+        // Отправляем значение по умолчанию фильтра компании в диаграмму
+        window.dispatchEvent(new CustomEvent('purchasePlanItemCompanyFilterUpdated', {
+          detail: { companyFilter: ['Uzum Market'] }
+        }));
       }
     } catch (err) {
       console.error('Error loading saved filters:', err);
@@ -1338,6 +1397,36 @@ export default function PurchasePlanItemsTable() {
     fetchTotalRecords();
   }, []);
 
+  // Функция для нормализации названия компании
+  const normalizeCompany = useCallback((company: string | null): string | null => {
+    if (!company) return null;
+    const normalized = company.trim().toLowerCase();
+    
+    // Проверяем на "Узум маркет" и варианты
+    if (normalized.includes('узум') && normalized.includes('маркет')) {
+      return 'Uzum Market';
+    }
+    // Проверяем на "Uzum Market" и варианты
+    if (normalized.includes('uzum') && normalized.includes('market')) {
+      return 'Uzum Market';
+    }
+    // Проверяем на "Uzum Technologies" и варианты
+    if (normalized.includes('узум') && normalized.includes('технологи')) {
+      return 'Uzum Technologies';
+    }
+    if (normalized.includes('uzum') && normalized.includes('technolog')) {
+      return 'Uzum Technologies';
+    }
+    
+    // Если это уже правильное значение, возвращаем как есть
+    if (company === 'Uzum Market' || company === 'Uzum Technologies') {
+      return company;
+    }
+    
+    // Если не распознали, возвращаем как есть (на случай других значений)
+    return company;
+  }, []);
+
   // Получаем все годы и уникальные значения из данных
   useEffect(() => {
     const fetchMetadata = async () => {
@@ -1361,7 +1450,13 @@ export default function PurchasePlanItemsTable() {
             }
             // Собираем уникальные значения
             if (item.cfo) values.cfo.add(item.cfo);
-            if (item.company) values.company.add(item.company);
+            if (item.company) {
+              // Нормализуем значение компании: если это старое название, заменяем на новое
+              const normalizedCompany = normalizeCompany(item.company);
+              if (normalizedCompany) {
+                values.company.add(normalizedCompany);
+              }
+            }
             if (item.purchaser) values.purchaser.add(item.purchaser);
             if (item.category) values.category.add(item.category);
             if (item.status) values.status.add(item.status);
@@ -1377,6 +1472,7 @@ export default function PurchasePlanItemsTable() {
           };
           
           setAllYears(yearsArray);
+          setUniqueValues(uniqueValuesData);
           
           // Устанавливаем по умолчанию последний год планирования только если:
           // 1. Есть годы в данных
@@ -1391,8 +1487,7 @@ export default function PurchasePlanItemsTable() {
       }
     };
     fetchMetadata();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [normalizeCompany]);
 
   const fetchData = async (
     page: number, 
@@ -1623,7 +1718,13 @@ export default function PurchasePlanItemsTable() {
           
           result.content.forEach((item: PurchasePlanItem) => {
             if (item.cfo) values.cfo.add(item.cfo);
-            if (item.company) values.company.add(item.company);
+            if (item.company) {
+              // Нормализуем значение компании: если это старое название, заменяем на новое
+              const normalizedCompany = normalizeCompany(item.company);
+              if (normalizedCompany) {
+                values.company.add(normalizedCompany);
+              }
+            }
             if (item.purchaser) values.purchaser.add(item.purchaser);
           });
           
@@ -1638,7 +1739,7 @@ export default function PurchasePlanItemsTable() {
       }
     };
     fetchUniqueValues();
-  }, []);
+  }, [normalizeCompany]);
 
   const getUniqueValues = (field: keyof PurchasePlanItem): string[] => {
     const fieldMap: Record<string, keyof typeof uniqueValues> = {
@@ -1685,6 +1786,11 @@ export default function PurchasePlanItemsTable() {
     }
     setCompanyFilter(newSet);
     setCurrentPage(0);
+    
+    // Отправляем событие для обновления фильтра компании в диаграмме
+    window.dispatchEvent(new CustomEvent('purchasePlanItemCompanyFilterUpdated', {
+      detail: { companyFilter: Array.from(newSet) }
+    }));
   };
 
   const handleCompanySelectAll = () => {
@@ -1692,11 +1798,21 @@ export default function PurchasePlanItemsTable() {
     const newSet = new Set(allCompanies);
     setCompanyFilter(newSet);
     setCurrentPage(0);
+    
+    // Отправляем событие для обновления фильтра компании в диаграмме
+    window.dispatchEvent(new CustomEvent('purchasePlanItemCompanyFilterUpdated', {
+      detail: { companyFilter: Array.from(newSet) }
+    }));
   };
 
   const handleCompanyDeselectAll = () => {
     setCompanyFilter(new Set());
     setCurrentPage(0);
+    
+    // Отправляем событие для обновления фильтра компании в диаграмме
+    window.dispatchEvent(new CustomEvent('purchasePlanItemCompanyFilterUpdated', {
+      detail: { companyFilter: [] }
+    }));
   };
 
   // Обработчики для фильтра по категории
@@ -2782,9 +2898,6 @@ export default function PurchasePlanItemsTable() {
               {visibleColumns.has('complexity') && (
               <SortableHeader field="complexity" label="Сложность" columnKey="complexity" />
               )}
-              {visibleColumns.has('holding') && (
-              <SortableHeader field="holding" label="Холдинг" columnKey="holding" />
-              )}
               {visibleColumns.has('category') && (
               <th 
                 className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" 
@@ -3323,8 +3436,60 @@ export default function PurchasePlanItemsTable() {
                   </td>
                   )}
                   {visibleColumns.has('company') && (
-                  <td className={`px-2 py-2 text-xs truncate border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} title={item.company || ''} style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px` }}>
-                    {item.company || '-'}
+                  <td className={`px-2 py-2 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px` }}>
+                    <select
+                      ref={editingCompany === item.id ? companySelectRef : null}
+                      data-editing-company={item.id}
+                      value={item.company || ''}
+                      disabled={isInactive}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        if (e.target.value !== item.company) {
+                          handleCompanyUpdate(item.id, e.target.value);
+                        }
+                      }}
+                      onFocus={(e) => {
+                        e.stopPropagation();
+                        setEditingCompany(item.id);
+                      }}
+                      onBlur={() => {
+                        setTimeout(() => {
+                          setEditingCompany(null);
+                        }, 200);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          setEditingCompany(null);
+                        }
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingCompany(item.id);
+                      }}
+                      className={`text-xs rounded px-2 py-0.5 font-medium cursor-pointer transition-all w-full ${
+                        isInactive
+                          ? 'bg-gray-100 text-gray-500 border-0 cursor-not-allowed'
+                          : editingCompany === item.id
+                          ? 'border border-blue-500 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500'
+                          : 'bg-gray-100 text-gray-800 border-0'
+                      }`}
+                      style={{
+                        ...(isInactive || editingCompany === item.id ? {} : {
+                          appearance: 'none',
+                          WebkitAppearance: 'none',
+                          MozAppearance: 'none',
+                          paddingRight: '20px',
+                          backgroundImage: item.company ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 9L1 4h10z'/%3E%3C/svg%3E")` : 'none',
+                          backgroundRepeat: 'no-repeat',
+                          backgroundPosition: 'right 4px center',
+                          backgroundSize: '12px',
+                        })
+                      }}
+                    >
+                      <option value="">-</option>
+                      <option value="Uzum Market">Uzum Market</option>
+                      <option value="Uzum Technologies">Uzum Technologies</option>
+                    </select>
                   </td>
                   )}
                   {visibleColumns.has('product') && (
@@ -3369,82 +3534,6 @@ export default function PurchasePlanItemsTable() {
                   {visibleColumns.has('complexity') && (
                   <td className={`px-2 py-2 text-xs truncate border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} title={item.complexity || ''} style={{ width: `${getColumnWidth('complexity')}px`, minWidth: `${getColumnWidth('complexity')}px`, maxWidth: `${getColumnWidth('complexity')}px` }}>
                     {item.complexity || '-'}
-                  </td>
-                  )}
-                  {visibleColumns.has('holding') && (
-                  <td className={`px-2 py-2 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('holding')}px`, minWidth: `${getColumnWidth('holding')}px`, maxWidth: `${getColumnWidth('holding')}px` }}>
-                    {(() => {
-                      // Нормализуем значение из БД для сравнения (trim и case-insensitive)
-                      const normalizedHolding = item.holding ? item.holding.trim() : '';
-                      const isYes = normalizedHolding.toLowerCase() === 'да';
-                      const isNo = normalizedHolding.toLowerCase() === 'нет';
-                      // Определяем значение для select: если это "Да" или "Нет" (в любом регистре), используем нормализованное значение, иначе пустое
-                      const selectValue = isYes ? 'Да' : isNo ? 'Нет' : '';
-                      
-                      return (
-                        <select
-                          ref={editingHolding === item.id ? holdingSelectRef : null}
-                          data-editing-holding={item.id}
-                          value={selectValue}
-                          disabled={isInactive}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            const newValue = e.target.value;
-                            // Сравниваем нормализованные значения
-                            const currentNormalized = normalizedHolding.toLowerCase();
-                            const newNormalized = newValue.toLowerCase();
-                            if (currentNormalized !== newNormalized) {
-                              handleHoldingUpdate(item.id, newValue || '');
-                            }
-                          }}
-                          onFocus={(e) => {
-                            e.stopPropagation();
-                            if (!isInactive) {
-                              setEditingHolding(item.id);
-                            }
-                          }}
-                          onBlur={() => {
-                            setTimeout(() => {
-                              setEditingHolding(null);
-                            }, 200);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Escape') {
-                              setEditingHolding(null);
-                            }
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (!isInactive) {
-                              setEditingHolding(item.id);
-                            }
-                          }}
-                          className={`text-xs rounded px-2 py-0.5 font-medium transition-all ${
-                            isInactive
-                              ? 'bg-gray-100 text-gray-500 border-0 cursor-not-allowed'
-                              : editingHolding === item.id 
-                              ? 'border border-blue-500 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer' 
-                              : 'bg-gray-100 text-gray-800 border-0 cursor-pointer'
-                          }`}
-                          style={{
-                            ...(isInactive || editingHolding === item.id ? {} : {
-                              appearance: 'none',
-                              WebkitAppearance: 'none',
-                              MozAppearance: 'none',
-                              paddingRight: '20px',
-                              backgroundImage: selectValue ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 9L1 4h10z'/%3E%3C/svg%3E")` : 'none',
-                              backgroundRepeat: 'no-repeat',
-                              backgroundPosition: 'right 4px center',
-                              backgroundSize: '12px',
-                            })
-                          }}
-                        >
-                          <option value="">-</option>
-                          <option value="Да">Да</option>
-                          <option value="Нет">Нет</option>
-                        </select>
-                      );
-                    })()}
                   </td>
                   )}
                   {visibleColumns.has('category') && (
