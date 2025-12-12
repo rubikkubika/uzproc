@@ -2,6 +2,7 @@ package com.uzproc.backend.service;
 
 import com.uzproc.backend.dto.PurchasePlanItemDto;
 import com.uzproc.backend.entity.PurchasePlanItem;
+import com.uzproc.backend.entity.PurchasePlanItemStatus;
 import com.uzproc.backend.repository.PurchasePlanItemRepository;
 import jakarta.persistence.criteria.Predicate;
 import org.slf4j.Logger;
@@ -27,9 +28,11 @@ public class PurchasePlanItemService {
     private static final Logger logger = LoggerFactory.getLogger(PurchasePlanItemService.class);
     
     private final PurchasePlanItemRepository purchasePlanItemRepository;
+    private final PurchasePlanItemChangeService purchasePlanItemChangeService;
 
-    public PurchasePlanItemService(PurchasePlanItemRepository purchasePlanItemRepository) {
+    public PurchasePlanItemService(PurchasePlanItemRepository purchasePlanItemRepository, PurchasePlanItemChangeService purchasePlanItemChangeService) {
         this.purchasePlanItemRepository = purchasePlanItemRepository;
+        this.purchasePlanItemChangeService = purchasePlanItemChangeService;
     }
 
     public Page<PurchasePlanItemDto> findAll(
@@ -45,13 +48,14 @@ public class PurchasePlanItemService {
             List<String> category,
             Integer requestMonth,
             Integer requestYear,
-            String currentContractEndDate) {
+            String currentContractEndDate,
+            List<String> status) {
         
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, company: '{}', cfo: {}, purchaseSubject: '{}', purchaser: {}, category: {}, requestMonth: {}, requestYear: {}, currentContractEndDate: '{}'",
-                year, company, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear, currentContractEndDate);
+        logger.info("Filter parameters - year: {}, company: '{}', cfo: {}, purchaseSubject: '{}', purchaser: {}, category: {}, requestMonth: {}, requestYear: {}, currentContractEndDate: '{}', status: {}",
+                year, company, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear, currentContractEndDate, status);
         
-        Specification<PurchasePlanItem> spec = buildSpecification(year, company, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear, currentContractEndDate);
+        Specification<PurchasePlanItem> spec = buildSpecification(year, company, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear, currentContractEndDate, status);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -92,6 +96,31 @@ public class PurchasePlanItemService {
                         }
                     }
                     
+                    // Сохраняем старые значения для логирования изменений
+                    LocalDate oldRequestDate = item.getRequestDate();
+                    LocalDate oldNewContractDate = item.getNewContractDate();
+                    
+                    // Логируем изменения перед обновлением
+                    if (requestDate != null && !requestDate.equals(oldRequestDate)) {
+                        purchasePlanItemChangeService.logChange(
+                            item.getId(),
+                            item.getGuid(),
+                            "requestDate",
+                            oldRequestDate,
+                            requestDate
+                        );
+                    }
+                    
+                    if (newContractDate != null && !newContractDate.equals(oldNewContractDate)) {
+                        purchasePlanItemChangeService.logChange(
+                            item.getId(),
+                            item.getGuid(),
+                            "newContractDate",
+                            oldNewContractDate,
+                            newContractDate
+                        );
+                    }
+                    
                     item.setRequestDate(requestDate);
                     item.setNewContractDate(newContractDate);
                     PurchasePlanItem saved = purchasePlanItemRepository.save(item);
@@ -106,10 +135,82 @@ public class PurchasePlanItemService {
     public PurchasePlanItemDto updateContractEndDate(Long id, LocalDate contractEndDate) {
         return purchasePlanItemRepository.findById(id)
                 .map(item -> {
+                    // Сохраняем старое значение для логирования изменений
+                    LocalDate oldContractEndDate = item.getContractEndDate();
+                    
+                    // Логируем изменение перед обновлением
+                    if (contractEndDate != null && !contractEndDate.equals(oldContractEndDate)) {
+                        purchasePlanItemChangeService.logChange(
+                            item.getId(),
+                            item.getGuid(),
+                            "contractEndDate",
+                            oldContractEndDate,
+                            contractEndDate
+                        );
+                    }
+                    
                     item.setContractEndDate(contractEndDate);
                     PurchasePlanItem saved = purchasePlanItemRepository.save(item);
                     logger.info("Updated contract end date for purchase plan item {}: contractEndDate={}", 
                             id, contractEndDate);
+                    return toDto(saved);
+                })
+                .orElse(null);
+    }
+
+    @Transactional
+    public PurchasePlanItemDto updateStatus(Long id, PurchasePlanItemStatus status) {
+        return purchasePlanItemRepository.findById(id)
+                .map(item -> {
+                    // Сохраняем старое значение для логирования изменений
+                    PurchasePlanItemStatus oldStatus = item.getStatus();
+                    
+                    // Логируем изменение перед обновлением
+                    if (status != null && !status.equals(oldStatus)) {
+                        purchasePlanItemChangeService.logChange(
+                            item.getId(),
+                            item.getGuid(),
+                            "status",
+                            oldStatus != null ? oldStatus.getDisplayName() : null,
+                            status != null ? status.getDisplayName() : null
+                        );
+                    }
+                    
+                    item.setStatus(status);
+                    PurchasePlanItem saved = purchasePlanItemRepository.save(item);
+                    logger.info("Updated status for purchase plan item {}: status={}", 
+                            id, status);
+                    return toDto(saved);
+                })
+                .orElse(null);
+    }
+
+    @Transactional
+    public PurchasePlanItemDto updateHolding(Long id, String holding) {
+        return purchasePlanItemRepository.findById(id)
+                .map(item -> {
+                    // Сохраняем старое значение для логирования изменений
+                    String oldHolding = item.getHolding();
+                    
+                    // Нормализуем новое значение (trim и null если пусто)
+                    String newHolding = holding != null && !holding.trim().isEmpty() ? holding.trim() : null;
+                    
+                    // Логируем изменение перед обновлением
+                    if ((oldHolding == null && newHolding != null) || 
+                        (oldHolding != null && !oldHolding.equals(newHolding))) {
+                        purchasePlanItemChangeService.logChange(
+                            item.getId(),
+                            item.getGuid(),
+                            "holding",
+                            oldHolding,
+                            newHolding
+                        );
+                    }
+                    
+                    item.setHolding(newHolding);
+                    PurchasePlanItem saved = purchasePlanItemRepository.save(item);
+                    logger.info("Updated holding for purchase plan item {}: holding={}", 
+                            id, newHolding);
                     return toDto(saved);
                 })
                 .orElse(null);
@@ -158,7 +259,8 @@ public class PurchasePlanItemService {
             List<String> category,
             Integer requestMonth,
             Integer requestYear,
-            String currentContractEndDate) {
+            String currentContractEndDate,
+            List<String> status) {
         
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -302,6 +404,54 @@ public class PurchasePlanItemService {
                         logger.info("Added currentContractEndDate filter: {}", filterDate);
                     } catch (Exception e) {
                         logger.warn("Invalid currentContractEndDate filter value: '{}', error: {}", currentContractEndDate, e.getMessage());
+                    }
+                }
+            }
+            
+            // Фильтр по статусу (поддержка множественного выбора)
+            if (status != null && !status.isEmpty()) {
+                // Убираем пустые значения и тримим
+                List<String> validStatusValues = status.stream()
+                    .filter(s -> s != null && !s.trim().isEmpty())
+                    .map(String::trim)
+                    .toList();
+                
+                if (!validStatusValues.isEmpty()) {
+                    try {
+                        // Преобразуем строковые значения (displayName) в enum
+                        List<com.uzproc.backend.entity.PurchasePlanItemStatus> statusEnums = validStatusValues.stream()
+                            .map(statusValue -> {
+                                // Ищем по displayName (отображаемое имя)
+                                for (com.uzproc.backend.entity.PurchasePlanItemStatus statusEnum : com.uzproc.backend.entity.PurchasePlanItemStatus.values()) {
+                                    if (statusEnum.getDisplayName().equalsIgnoreCase(statusValue)) {
+                                        return statusEnum;
+                                    }
+                                }
+                                // Если не найдено по displayName, пробуем по имени enum
+                                try {
+                                    return com.uzproc.backend.entity.PurchasePlanItemStatus.valueOf(statusValue.toUpperCase().replace(" ", "_").replace("НЕ_", "NOT_"));
+                                } catch (IllegalArgumentException e) {
+                                    return null;
+                                }
+                            })
+                            .filter(java.util.Objects::nonNull)
+                            .toList();
+                        
+                        if (!statusEnums.isEmpty()) {
+                            if (statusEnums.size() == 1) {
+                                // Одно значение - точное совпадение
+                                predicates.add(cb.equal(root.get("status"), statusEnums.get(0)));
+                                predicateCount++;
+                                logger.info("Added single status filter: '{}'", statusEnums.get(0));
+                            } else {
+                                // Несколько значений - IN запрос
+                                predicates.add(root.get("status").in(statusEnums));
+                                predicateCount++;
+                                logger.info("Added multiple status filter: {}", statusEnums);
+                            }
+                        }
+                    } catch (Exception e) {
+                        logger.warn("Error processing status filter: {}", e.getMessage());
                     }
                 }
             }

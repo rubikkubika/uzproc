@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { getBackendUrl } from '@/utils/api';
 import { ArrowUp, ArrowDown, ArrowUpDown, Search, Download, Settings } from 'lucide-react';
 import GanttChart from './GanttChart';
@@ -30,6 +30,7 @@ interface PurchasePlanItem {
   complexity: string | null;
   holding: string | null;
   category: string | null;
+  status: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -72,6 +73,7 @@ const ALL_COLUMNS = [
   { key: 'complexity', label: 'Сложность' },
   { key: 'holding', label: 'Холдинг' },
   { key: 'category', label: 'Категория' },
+  { key: 'status', label: 'Статус' },
   { key: 'createdAt', label: 'Дата создания' },
   { key: 'updatedAt', label: 'Дата обновления' },
 ] as const;
@@ -81,11 +83,10 @@ const DEFAULT_VISIBLE_COLUMNS = [
   'cfo',
   'purchaseSubject',
   'purchaser',
-  'hasContract',
-  'autoRenewal',
   'budgetAmount',
   'requestDate',
   'newContractDate',
+  'status',
 ];
 
 export default function PurchasePlanItemsTable() {
@@ -117,6 +118,7 @@ export default function PurchasePlanItemsTable() {
   const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
   const [companyFilter, setCompanyFilter] = useState<Set<string>>(new Set());
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
+  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set());
   const [purchaserFilter, setPurchaserFilter] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') {
       return new Set<string>();
@@ -143,23 +145,27 @@ export default function PurchasePlanItemsTable() {
   const [isCompanyFilterOpen, setIsCompanyFilterOpen] = useState(false);
   const [isCategoryFilterOpen, setIsCategoryFilterOpen] = useState(false);
   const [isPurchaserFilterOpen, setIsPurchaserFilterOpen] = useState(false);
+  const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
   
   // Поиск внутри фильтров
   const [cfoSearchQuery, setCfoSearchQuery] = useState('');
   const [companySearchQuery, setCompanySearchQuery] = useState('');
   const [categorySearchQuery, setCategorySearchQuery] = useState('');
   const [purchaserSearchQuery, setPurchaserSearchQuery] = useState('');
+  const [statusSearchQuery, setStatusSearchQuery] = useState('');
   
   // Позиции для выпадающих списков
   const [cfoFilterPosition, setCfoFilterPosition] = useState<{ top: number; left: number } | null>(null);
   const [companyFilterPosition, setCompanyFilterPosition] = useState<{ top: number; left: number } | null>(null);
   const [categoryFilterPosition, setCategoryFilterPosition] = useState<{ top: number; left: number } | null>(null);
   const [purchaserFilterPosition, setPurchaserFilterPosition] = useState<{ top: number; left: number } | null>(null);
+  const [statusFilterPosition, setStatusFilterPosition] = useState<{ top: number; left: number } | null>(null);
   
   const cfoFilterButtonRef = useRef<HTMLButtonElement>(null);
   const companyFilterButtonRef = useRef<HTMLButtonElement>(null);
   const categoryFilterButtonRef = useRef<HTMLButtonElement>(null);
   const purchaserFilterButtonRef = useRef<HTMLButtonElement>(null);
+  const statusFilterButtonRef = useRef<HTMLButtonElement>(null);
   
   // Состояние для видимости колонок (объявлено до использования в useEffect)
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
@@ -228,6 +234,14 @@ export default function PurchasePlanItemsTable() {
       setPurchaserFilterPosition(position);
     }
   }, [isPurchaserFilterOpen, calculateFilterPosition]);
+
+  // Обновляем позицию при открытии фильтра статуса
+  useEffect(() => {
+    if (isStatusFilterOpen && statusFilterButtonRef.current) {
+      const position = calculateFilterPosition(statusFilterButtonRef);
+      setStatusFilterPosition(position);
+    }
+  }, [isStatusFilterOpen, calculateFilterPosition]);
 
   // Обновляем позицию при открытии меню выбора колонок
   useEffect(() => {
@@ -311,6 +325,86 @@ export default function PurchasePlanItemsTable() {
   
   // Состояние для редактирования дат
   const [editingDate, setEditingDate] = useState<{ itemId: number; field: 'requestDate' | 'newContractDate' } | null>(null);
+  const [editingStatus, setEditingStatus] = useState<number | null>(null);
+  const statusSelectRef = useRef<HTMLSelectElement | null>(null);
+  const [editingHolding, setEditingHolding] = useState<number | null>(null);
+  const holdingSelectRef = useRef<HTMLSelectElement | null>(null);
+  
+  // Состояние для раскрытых строк
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  
+  // Состояние для активной вкладки в раскрытых строках
+  const [activeTab, setActiveTab] = useState<Record<number, 'data' | 'changes'>>({});
+  
+  // Состояние для изменений
+  const [changesData, setChangesData] = useState<Record<number, {
+    content: any[];
+    totalElements: number;
+    totalPages: number;
+    currentPage: number;
+    loading: boolean;
+  }>>({});
+  
+  // Функция для загрузки изменений
+  const fetchChanges = useCallback(async (itemId: number, page: number) => {
+    setChangesData(prev => ({
+      ...prev,
+      [itemId]: { ...prev[itemId], loading: true }
+    }));
+    
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/changes?page=${page}&size=10`);
+      if (response.ok) {
+        const data = await response.json();
+        setChangesData(prev => ({
+          ...prev,
+          [itemId]: {
+            content: data.content || [],
+            totalElements: data.totalElements || 0,
+            totalPages: data.totalPages || 0,
+            currentPage: page,
+            loading: false
+          }
+        }));
+      } else {
+        setChangesData(prev => ({
+          ...prev,
+          [itemId]: { ...prev[itemId], loading: false }
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching changes:', error);
+      setChangesData(prev => ({
+        ...prev,
+        [itemId]: { ...prev[itemId], loading: false }
+      }));
+    }
+  }, []);
+  
+  // Обработчик клика на строку для раскрытия/сворачивания
+  const handleRowClick = useCallback((itemId: number, e: React.MouseEvent) => {
+    // Не раскрываем, если клик был на интерактивном элементе (input, button, ссылка, область Ганта, select и т.д.)
+    const target = e.target as HTMLElement;
+    if (target.closest('input, button, a, [role="button"], [data-gantt-chart], select, [data-editing-status], [data-editing-holding]')) {
+      return;
+    }
+    
+    // Проверяем, не кликнули ли на область Ганта (по классу или родительскому элементу)
+    const ganttContainer = target.closest('.gantt-container, [class*="GanttChart"]');
+    if (ganttContainer) {
+      return;
+    }
+    
+    setExpandedRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(itemId)) {
+        newSet.delete(itemId);
+      } else {
+        newSet.add(itemId);
+      }
+      return newSet;
+    });
+  }, []);
 
   // Состояние для подтверждения изменений (повторный ввод логина/пароля)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -395,6 +489,19 @@ export default function PurchasePlanItemsTable() {
           );
           setData({ ...data, content: updatedContent });
         }
+        // Обновляем данные для диаграммы в таблице
+        setChartData(prev => {
+          if (!prev) return prev;
+          return prev.map(i => 
+            i.id === itemId 
+              ? { ...i, requestDate: updatedItem.requestDate, newContractDate: updatedItem.newContractDate }
+              : i
+          );
+        });
+        // Отправляем событие для обновления диаграммы
+        window.dispatchEvent(new CustomEvent('purchasePlanItemDatesUpdated', {
+          detail: { itemId, requestDate: updatedItem.requestDate, newContractDate: updatedItem.newContractDate }
+        }));
         // Убираем временные даты
         setTempDates(prev => {
           const newTemp = { ...prev };
@@ -487,6 +594,19 @@ export default function PurchasePlanItemsTable() {
           );
           setData({ ...data, content: updatedContent });
         }
+        // Обновляем данные для диаграммы в таблице
+        setChartData(prev => {
+          if (!prev) return prev;
+          return prev.map(i => 
+            i.id === itemId 
+              ? { ...i, requestDate: updatedItem.requestDate, newContractDate: updatedItem.newContractDate }
+              : i
+          );
+        });
+        // Отправляем событие для обновления диаграммы
+        window.dispatchEvent(new CustomEvent('purchasePlanItemDatesUpdated', {
+          detail: { itemId, requestDate: updatedItem.requestDate, newContractDate: updatedItem.newContractDate }
+        }));
         // Запускаем анимацию
         setAnimatingDates(prev => ({
           ...prev,
@@ -515,6 +635,87 @@ export default function PurchasePlanItemsTable() {
     if (!newDate || newDate.trim() === '') return;
     // Сразу сохраняем изменения без проверки пароля
     performDateUpdate(itemId, field, newDate);
+  };
+
+  // Функция для обновления статуса
+  const handleStatusUpdate = async (itemId: number, newStatus: string) => {
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: newStatus,
+        }),
+      });
+
+      if (response.ok) {
+        const updatedItem = await response.json();
+        console.log('Status updated successfully:', updatedItem);
+        // Обновляем данные в таблице
+        if (data) {
+          const updatedContent = data.content.map(i => 
+            i.id === itemId 
+              ? { ...i, status: updatedItem.status }
+              : i
+          );
+          setData({ ...data, content: updatedContent });
+        }
+        // Обновляем данные для диаграммы в таблице
+        setChartData(prev => {
+          if (!prev) return prev;
+          return prev.map(i => 
+            i.id === itemId 
+              ? { ...i, status: updatedItem.status }
+              : i
+          );
+        });
+        setEditingStatus(null);
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to update status:', response.status, errorText);
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+    }
+  };
+
+  // Функция для обновления холдинга
+  const handleHoldingUpdate = async (itemId: number, newHolding: string) => {
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/holding`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          holding: newHolding || null,
+        }),
+      });
+
+      if (response.ok) {
+        const updatedItem = await response.json();
+        console.log('Holding updated successfully:', updatedItem);
+        // Обновляем данные в таблице
+        if (data) {
+          const updatedContent = data.content.map(i => 
+            i.id === itemId 
+              ? { ...i, holding: updatedItem.holding }
+              : i
+          );
+          setData({ ...data, content: updatedContent });
+        }
+        setEditingHolding(null);
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to update holding:', response.status, errorText);
+      }
+    } catch (error) {
+      console.error('Error updating holding:', error);
+    } finally {
+      setEditingHolding(null);
+    }
   };
 
   const handleAuthConfirm = async () => {
@@ -1150,6 +1351,7 @@ export default function PurchasePlanItemsTable() {
             company: new Set(),
             purchaser: new Set(),
             category: new Set(),
+            status: new Set(),
           };
           
           result.content.forEach((item: PurchasePlanItem) => {
@@ -1162,6 +1364,7 @@ export default function PurchasePlanItemsTable() {
             if (item.company) values.company.add(item.company);
             if (item.purchaser) values.purchaser.add(item.purchaser);
             if (item.category) values.category.add(item.category);
+            if (item.status) values.status.add(item.status);
           });
           
           const yearsArray = Array.from(years).sort((a, b) => b - a);
@@ -1170,6 +1373,7 @@ export default function PurchasePlanItemsTable() {
             company: Array.from(values.company).sort(),
             purchaser: Array.from(values.purchaser).sort(),
             category: Array.from(values.category).sort(),
+            status: Array.from(values.status).sort(),
           };
           
           setAllYears(yearsArray);
@@ -1256,6 +1460,12 @@ export default function PurchasePlanItemsTable() {
           params.append('category', category);
         });
       }
+      // Фильтр по статусу - передаем все выбранные значения на бэкенд
+      if (statusFilter.size > 0) {
+        statusFilter.forEach(status => {
+          params.append('status', status);
+        });
+      }
       if (month !== null) {
         params.append('requestMonth', String(month));
         // Если выбран месяц из другого года (например, декабрь предыдущего года), передаем год для фильтрации по дате заявки
@@ -1305,7 +1515,7 @@ export default function PurchasePlanItemsTable() {
       return;
     }
     fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters, selectedMonth);
-  }, [currentPage, pageSize, selectedYear, selectedMonthYear, sortField, sortDirection, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter, selectedMonth]);
+  }, [currentPage, pageSize, selectedYear, selectedMonthYear, sortField, sortDirection, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter, statusFilter, selectedMonth]);
 
   // Восстановление фокуса после обновления localFilters
   useEffect(() => {
@@ -1436,6 +1646,7 @@ export default function PurchasePlanItemsTable() {
       company: 'company',
       purchaser: 'purchaser',
       category: 'category',
+      status: 'status',
     };
     return uniqueValues[fieldMap[field] || 'cfo'] || [];
   };
@@ -1509,6 +1720,30 @@ export default function PurchasePlanItemsTable() {
 
   const handleCategoryDeselectAll = () => {
     setCategoryFilter(new Set());
+    setCurrentPage(0);
+  };
+
+  // Обработчики для фильтра по статусу
+  const handleStatusToggle = (status: string) => {
+    const newSet = new Set(statusFilter);
+    if (newSet.has(status)) {
+      newSet.delete(status);
+    } else {
+      newSet.add(status);
+    }
+    setStatusFilter(newSet);
+    setCurrentPage(0);
+  };
+
+  const handleStatusSelectAll = () => {
+    const allStatuses = getUniqueValues('status');
+    const newSet = new Set(allStatuses);
+    setStatusFilter(newSet);
+    setCurrentPage(0);
+  };
+
+  const handleStatusDeselectAll = () => {
+    setStatusFilter(new Set());
     setCurrentPage(0);
   };
 
@@ -1670,6 +1905,18 @@ export default function PurchasePlanItemsTable() {
       return purchaser.toLowerCase().includes(searchLower);
     });
   }, [purchaserSearchQuery, uniqueValues.purchaser]);
+
+  const getFilteredStatusOptions = useMemo(() => {
+    const allStatuses = uniqueValues.status || [];
+    if (!statusSearchQuery || !statusSearchQuery.trim()) {
+      return allStatuses;
+    }
+    const searchLower = statusSearchQuery.toLowerCase().trim();
+    return allStatuses.filter(status => {
+      if (!status) return false;
+      return status.toLowerCase().includes(searchLower);
+    });
+  }, [statusSearchQuery, uniqueValues.status]);
 
   if (loading) {
     return (
@@ -2493,12 +2740,6 @@ export default function PurchasePlanItemsTable() {
                 />
               </th>
               )}
-              {visibleColumns.has('hasContract') && (
-              <SortableHeader field="hasContract" label="Есть договор" columnKey="hasContract" />
-              )}
-              {visibleColumns.has('autoRenewal') && (
-              <SortableHeader field="autoRenewal" label="Автопролонгация" columnKey="autoRenewal" />
-              )}
               {visibleColumns.has('budgetAmount') && (
               <SortableHeader field="budgetAmount" label="Бюджет (UZS)" columnKey="budgetAmount" />
               )}
@@ -2659,6 +2900,121 @@ export default function PurchasePlanItemsTable() {
                 />
               </th>
               )}
+              {visibleColumns.has('status') && (
+              <th 
+                className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" 
+                style={{ width: `${getColumnWidth('status')}px`, minWidth: `${getColumnWidth('status')}px`, maxWidth: `${getColumnWidth('status')}px`, verticalAlign: 'top', overflow: 'hidden' }}
+              >
+                <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                  <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                    <div className="relative status-filter-container flex-1">
+                      <button
+                        ref={statusFilterButtonRef}
+                        type="button"
+                        onClick={() => setIsStatusFilterOpen(!isStatusFilterOpen)}
+                        className="w-full text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-left focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center gap-1 hover:bg-gray-50"
+                        style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+                      >
+                      <span className="text-gray-600 truncate flex-1 min-w-0 text-left">
+                        {statusFilter.size === 0 
+                          ? 'Все' 
+                          : statusFilter.size === 1
+                          ? (Array.from(statusFilter)[0] || 'Все')
+                          : `${statusFilter.size} выбрано`}
+                      </span>
+                      <svg className={`w-3 h-3 transition-transform flex-shrink-0 ${isStatusFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    {isStatusFilterOpen && statusFilterPosition && (
+                      <div 
+                        className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden"
+                        style={{
+                          top: `${statusFilterPosition.top}px`,
+                          left: `${statusFilterPosition.left}px`,
+                        }}
+                      >
+                        <div className="p-2 border-b border-gray-200">
+                          <div className="relative">
+                            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
+                            <input
+                              type="text"
+                              value={statusSearchQuery}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                setStatusSearchQuery(e.target.value);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              onFocus={(e) => e.stopPropagation()}
+                              className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              placeholder="Поиск..."
+                            />
+                          </div>
+                        </div>
+                        <div className="p-2 border-b border-gray-200 flex gap-2">
+                          <button
+                            onClick={() => handleStatusSelectAll()}
+                            className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                          >
+                            Все
+                          </button>
+                          <button
+                            onClick={() => handleStatusDeselectAll()}
+                            className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                          >
+                            Снять
+                          </button>
+                        </div>
+                        <div className="max-h-48 overflow-y-auto">
+                          {getFilteredStatusOptions.length === 0 ? (
+                            <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
+                          ) : (
+                            getFilteredStatusOptions.map((status) => (
+                              <label
+                                key={status}
+                                className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={statusFilter.has(status)}
+                                  onChange={() => handleStatusToggle(status)}
+                                  className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                                />
+                                <span className="ml-2 text-xs text-gray-700 flex-1">{status}</span>
+                              </label>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 min-h-[20px]">
+                  <button
+                    onClick={() => handleSort('status')}
+                      className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                      style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                  >
+                    {sortField === 'status' ? (
+                      sortDirection === 'asc' ? (
+                        <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                      ) : (
+                        <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                    )}
+                  </button>
+                    <span className="text-xs font-medium text-gray-500 tracking-wider">Статус</span>
+                  </div>
+                </div>
+                <div
+                  className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+                  onMouseDown={(e) => handleResizeStart(e, 'status')}
+                  style={{ zIndex: 10 }}
+                />
+              </th>
+              )}
               {visibleColumns.has('createdAt') && (
               <SortableHeader field="createdAt" label="Дата создания" columnKey="createdAt" />
               )}
@@ -2805,14 +3161,18 @@ export default function PurchasePlanItemsTable() {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200 border-t-2 border-gray-400">
             {hasData ? (
-              data?.content.map((item) => (
+              data?.content.map((item) => {
+                const isExpanded = expandedRows.has(item.id);
+                const isInactive = item.status === 'Не Актуальная';
+                return (
+                  <React.Fragment key={item.id}>
                 <tr 
-                  key={item.id} 
-                  className="hover:bg-gray-50"
+                      className={`${isInactive ? 'bg-gray-100 opacity-60' : 'hover:bg-gray-50'} cursor-pointer`}
+                      onClick={(e) => handleRowClick(item.id, e)}
                 >
                         {visibleColumns.has('cfo') && (
                         <td 
-                          className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" 
+                          className={`px-2 py-2 text-xs truncate border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
                           title={item.cfo || ''}
                           style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px` }}
                         >
@@ -2821,7 +3181,7 @@ export default function PurchasePlanItemsTable() {
                         )}
                         {visibleColumns.has('purchaseSubject') && (
                         <td 
-                          className="px-2 py-2 text-xs text-gray-900 break-words border-r border-gray-200"
+                          className={`px-2 py-2 text-xs break-words border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
                           style={{ width: `${getColumnWidth('purchaseSubject')}px`, minWidth: `${getColumnWidth('purchaseSubject')}px`, maxWidth: `${getColumnWidth('purchaseSubject')}px` }}
                         >
                           {item.purchaseSubject || '-'}
@@ -2829,48 +3189,32 @@ export default function PurchasePlanItemsTable() {
                         )}
                         {visibleColumns.has('purchaser') && (
                         <td 
-                          className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200"
+                          className={`px-2 py-2 text-xs truncate border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
                           title={item.purchaser || ''}
                           style={{ width: `${getColumnWidth('purchaser')}px`, minWidth: `${getColumnWidth('purchaser')}px`, maxWidth: `${getColumnWidth('purchaser')}px` }}
                         >
                           {item.purchaser || '-'}
                         </td>
                         )}
-                        {visibleColumns.has('hasContract') && (
-                        <td 
-                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center"
-                          style={{ width: `${getColumnWidth('hasContract')}px`, minWidth: `${getColumnWidth('hasContract')}px`, maxWidth: `${getColumnWidth('hasContract')}px` }}
-                        >
-                          {item.hasContract === true ? 'Да' : item.hasContract === false ? 'Нет' : '-'}
-                        </td>
-                        )}
-                        {visibleColumns.has('autoRenewal') && (
-                        <td 
-                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center"
-                          style={{ width: `${getColumnWidth('autoRenewal')}px`, minWidth: `${getColumnWidth('autoRenewal')}px`, maxWidth: `${getColumnWidth('autoRenewal')}px` }}
-                        >
-                          {item.autoRenewal === true ? 'Да' : item.autoRenewal === false ? 'Нет' : '-'}
-                        </td>
-                        )}
                         {visibleColumns.has('budgetAmount') && (
                         <td 
-                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
+                          className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
                           style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px` }}
                         >
                           {item.budgetAmount ? new Intl.NumberFormat('ru-RU', { 
                             notation: 'compact',
                             maximumFractionDigits: 1 
                           }).format(item.budgetAmount) : '-'}
-                        </td>
-                        )}
-                        {visibleColumns.has('requestDate') && (
+                  </td>
+                  )}
+                  {visibleColumns.has('requestDate') && (
                   <td 
                     className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${
-                      animatingDates[item.id] ? 'animate-pulse bg-blue-50 text-blue-700 font-semibold' : 'text-gray-900'
+                      animatingDates[item.id] ? 'animate-pulse bg-blue-50 text-blue-700 font-semibold' : isInactive ? 'text-gray-500' : 'text-gray-900'
                     }`}
                           style={{ width: `${getColumnWidth('requestDate')}px`, minWidth: `${getColumnWidth('requestDate')}px`, maxWidth: `${getColumnWidth('requestDate')}px` }}
                         >
-                    {editingDate?.itemId === item.id && editingDate?.field === 'requestDate' ? (
+                    {!isInactive && editingDate?.itemId === item.id && editingDate?.field === 'requestDate' ? (
                       <input
                         type="date"
                         data-editing-date={`${item.id}-requestDate`}
@@ -2897,9 +3241,14 @@ export default function PurchasePlanItemsTable() {
                       />
                     ) : (
                       <div
-                        onClick={() => setEditingDate({ itemId: item.id, field: 'requestDate' })}
-                        className="cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors"
-                        title="Нажмите для редактирования"
+                        onClick={(e) => {
+                          if (!isInactive) {
+                            e.stopPropagation();
+                            setEditingDate({ itemId: item.id, field: 'requestDate' });
+                          }
+                        }}
+                        className={isInactive ? '' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors'}
+                        title={isInactive ? '' : 'Нажмите для редактирования'}
                       >
                         {tempDates[item.id]?.requestDate 
                           ? new Date(tempDates[item.id]!.requestDate!).toLocaleDateString('ru-RU')
@@ -2911,11 +3260,11 @@ export default function PurchasePlanItemsTable() {
                   {visibleColumns.has('newContractDate') && (
                   <td 
                     className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${
-                      animatingDates[item.id] ? 'animate-pulse bg-blue-50 text-blue-700 font-semibold' : 'text-gray-900'
+                      animatingDates[item.id] ? 'animate-pulse bg-blue-50 text-blue-700 font-semibold' : isInactive ? 'text-gray-500' : 'text-gray-900'
                     }`}
                           style={{ width: `${getColumnWidth('newContractDate')}px`, minWidth: `${getColumnWidth('newContractDate')}px`, maxWidth: `${getColumnWidth('newContractDate')}px` }}
                         >
-                    {editingDate?.itemId === item.id && editingDate?.field === 'newContractDate' ? (
+                    {!isInactive && editingDate?.itemId === item.id && editingDate?.field === 'newContractDate' ? (
                       <input
                         type="date"
                         data-editing-date={`${item.id}-newContractDate`}
@@ -2942,9 +3291,14 @@ export default function PurchasePlanItemsTable() {
                       />
                     ) : (
                       <div
-                        onClick={() => setEditingDate({ itemId: item.id, field: 'newContractDate' })}
-                        className="cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors"
-                        title="Нажмите для редактирования"
+                        onClick={(e) => {
+                          if (!isInactive) {
+                            e.stopPropagation();
+                            setEditingDate({ itemId: item.id, field: 'newContractDate' });
+                          }
+                        }}
+                        className={isInactive ? '' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors'}
+                        title={isInactive ? '' : 'Нажмите для редактирования'}
                       >
                         {tempDates[item.id]?.newContractDate 
                           ? new Date(tempDates[item.id]!.newContractDate!).toLocaleDateString('ru-RU')
@@ -2954,37 +3308,37 @@ export default function PurchasePlanItemsTable() {
                         </td>
                   )}
                   {visibleColumns.has('id') && (
-                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center" style={{ width: `${getColumnWidth('id')}px`, minWidth: `${getColumnWidth('id')}px`, maxWidth: `${getColumnWidth('id')}px` }}>
+                  <td className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 text-center ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('id')}px`, minWidth: `${getColumnWidth('id')}px`, maxWidth: `${getColumnWidth('id')}px` }}>
                     {item.id}
                   </td>
                   )}
                   {visibleColumns.has('guid') && (
-                  <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={item.guid} style={{ width: `${getColumnWidth('guid')}px`, minWidth: `${getColumnWidth('guid')}px`, maxWidth: `${getColumnWidth('guid')}px` }}>
+                  <td className={`px-2 py-2 text-xs truncate border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} title={item.guid} style={{ width: `${getColumnWidth('guid')}px`, minWidth: `${getColumnWidth('guid')}px`, maxWidth: `${getColumnWidth('guid')}px` }}>
                     {item.guid || '-'}
                   </td>
                   )}
                   {visibleColumns.has('year') && (
-                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center" style={{ width: `${getColumnWidth('year')}px`, minWidth: `${getColumnWidth('year')}px`, maxWidth: `${getColumnWidth('year')}px` }}>
+                  <td className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 text-center ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('year')}px`, minWidth: `${getColumnWidth('year')}px`, maxWidth: `${getColumnWidth('year')}px` }}>
                     {item.year || '-'}
                   </td>
                   )}
                   {visibleColumns.has('company') && (
-                  <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={item.company || ''} style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px` }}>
+                  <td className={`px-2 py-2 text-xs truncate border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} title={item.company || ''} style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px` }}>
                     {item.company || '-'}
                   </td>
                   )}
                   {visibleColumns.has('product') && (
-                  <td className="px-2 py-2 text-xs text-gray-900 break-words border-r border-gray-200" style={{ width: `${getColumnWidth('product')}px`, minWidth: `${getColumnWidth('product')}px`, maxWidth: `${getColumnWidth('product')}px` }}>
+                  <td className={`px-2 py-2 text-xs break-words border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('product')}px`, minWidth: `${getColumnWidth('product')}px`, maxWidth: `${getColumnWidth('product')}px` }}>
                     {item.product || '-'}
                   </td>
                   )}
                   {visibleColumns.has('currentKa') && (
-                  <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={item.currentKa || ''} style={{ width: `${getColumnWidth('currentKa')}px`, minWidth: `${getColumnWidth('currentKa')}px`, maxWidth: `${getColumnWidth('currentKa')}px` }}>
+                  <td className={`px-2 py-2 text-xs truncate border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} title={item.currentKa || ''} style={{ width: `${getColumnWidth('currentKa')}px`, minWidth: `${getColumnWidth('currentKa')}px`, maxWidth: `${getColumnWidth('currentKa')}px` }}>
                     {item.currentKa || '-'}
                   </td>
                   )}
                   {visibleColumns.has('currentAmount') && (
-                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" style={{ width: `${getColumnWidth('currentAmount')}px`, minWidth: `${getColumnWidth('currentAmount')}px`, maxWidth: `${getColumnWidth('currentAmount')}px` }}>
+                  <td className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('currentAmount')}px`, minWidth: `${getColumnWidth('currentAmount')}px`, maxWidth: `${getColumnWidth('currentAmount')}px` }}>
                     {item.currentAmount ? new Intl.NumberFormat('ru-RU', { 
                       notation: 'compact',
                       maximumFractionDigits: 1 
@@ -2992,7 +3346,7 @@ export default function PurchasePlanItemsTable() {
                   </td>
                   )}
                   {visibleColumns.has('currentContractAmount') && (
-                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" style={{ width: `${getColumnWidth('currentContractAmount')}px`, minWidth: `${getColumnWidth('currentContractAmount')}px`, maxWidth: `${getColumnWidth('currentContractAmount')}px` }}>
+                  <td className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('currentContractAmount')}px`, minWidth: `${getColumnWidth('currentContractAmount')}px`, maxWidth: `${getColumnWidth('currentContractAmount')}px` }}>
                     {item.currentContractAmount ? new Intl.NumberFormat('ru-RU', { 
                       notation: 'compact',
                       maximumFractionDigits: 1 
@@ -3000,7 +3354,7 @@ export default function PurchasePlanItemsTable() {
                   </td>
                   )}
                   {visibleColumns.has('currentContractBalance') && (
-                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" style={{ width: `${getColumnWidth('currentContractBalance')}px`, minWidth: `${getColumnWidth('currentContractBalance')}px`, maxWidth: `${getColumnWidth('currentContractBalance')}px` }}>
+                  <td className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('currentContractBalance')}px`, minWidth: `${getColumnWidth('currentContractBalance')}px`, maxWidth: `${getColumnWidth('currentContractBalance')}px` }}>
                     {item.currentContractBalance ? new Intl.NumberFormat('ru-RU', { 
                       notation: 'compact',
                       maximumFractionDigits: 1 
@@ -3008,36 +3362,176 @@ export default function PurchasePlanItemsTable() {
                   </td>
                   )}
                   {visibleColumns.has('currentContractEndDate') && (
-                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" style={{ width: `${getColumnWidth('currentContractEndDate')}px`, minWidth: `${getColumnWidth('currentContractEndDate')}px`, maxWidth: `${getColumnWidth('currentContractEndDate')}px` }}>
+                  <td className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('currentContractEndDate')}px`, minWidth: `${getColumnWidth('currentContractEndDate')}px`, maxWidth: `${getColumnWidth('currentContractEndDate')}px` }}>
                     {item.currentContractEndDate ? new Date(item.currentContractEndDate).toLocaleDateString('ru-RU') : '-'}
                   </td>
                   )}
                   {visibleColumns.has('complexity') && (
-                  <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={item.complexity || ''} style={{ width: `${getColumnWidth('complexity')}px`, minWidth: `${getColumnWidth('complexity')}px`, maxWidth: `${getColumnWidth('complexity')}px` }}>
+                  <td className={`px-2 py-2 text-xs truncate border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} title={item.complexity || ''} style={{ width: `${getColumnWidth('complexity')}px`, minWidth: `${getColumnWidth('complexity')}px`, maxWidth: `${getColumnWidth('complexity')}px` }}>
                     {item.complexity || '-'}
                   </td>
                   )}
                   {visibleColumns.has('holding') && (
-                  <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={item.holding || ''} style={{ width: `${getColumnWidth('holding')}px`, minWidth: `${getColumnWidth('holding')}px`, maxWidth: `${getColumnWidth('holding')}px` }}>
-                    {item.holding || '-'}
+                  <td className={`px-2 py-2 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('holding')}px`, minWidth: `${getColumnWidth('holding')}px`, maxWidth: `${getColumnWidth('holding')}px` }}>
+                    {(() => {
+                      // Нормализуем значение из БД для сравнения (trim и case-insensitive)
+                      const normalizedHolding = item.holding ? item.holding.trim() : '';
+                      const isYes = normalizedHolding.toLowerCase() === 'да';
+                      const isNo = normalizedHolding.toLowerCase() === 'нет';
+                      // Определяем значение для select: если это "Да" или "Нет" (в любом регистре), используем нормализованное значение, иначе пустое
+                      const selectValue = isYes ? 'Да' : isNo ? 'Нет' : '';
+                      
+                      return (
+                        <select
+                          ref={editingHolding === item.id ? holdingSelectRef : null}
+                          data-editing-holding={item.id}
+                          value={selectValue}
+                          disabled={isInactive}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            const newValue = e.target.value;
+                            // Сравниваем нормализованные значения
+                            const currentNormalized = normalizedHolding.toLowerCase();
+                            const newNormalized = newValue.toLowerCase();
+                            if (currentNormalized !== newNormalized) {
+                              handleHoldingUpdate(item.id, newValue || '');
+                            }
+                          }}
+                          onFocus={(e) => {
+                            e.stopPropagation();
+                            if (!isInactive) {
+                              setEditingHolding(item.id);
+                            }
+                          }}
+                          onBlur={() => {
+                            setTimeout(() => {
+                              setEditingHolding(null);
+                            }, 200);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') {
+                              setEditingHolding(null);
+                            }
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!isInactive) {
+                              setEditingHolding(item.id);
+                            }
+                          }}
+                          className={`text-xs rounded px-2 py-0.5 font-medium transition-all ${
+                            isInactive
+                              ? 'bg-gray-100 text-gray-500 border-0 cursor-not-allowed'
+                              : editingHolding === item.id 
+                              ? 'border border-blue-500 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer' 
+                              : 'bg-gray-100 text-gray-800 border-0 cursor-pointer'
+                          }`}
+                          style={{
+                            ...(isInactive || editingHolding === item.id ? {} : {
+                              appearance: 'none',
+                              WebkitAppearance: 'none',
+                              MozAppearance: 'none',
+                              paddingRight: '20px',
+                              backgroundImage: selectValue ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 9L1 4h10z'/%3E%3C/svg%3E")` : 'none',
+                              backgroundRepeat: 'no-repeat',
+                              backgroundPosition: 'right 4px center',
+                              backgroundSize: '12px',
+                            })
+                          }}
+                        >
+                          <option value="">-</option>
+                          <option value="Да">Да</option>
+                          <option value="Нет">Нет</option>
+                        </select>
+                      );
+                    })()}
                   </td>
                   )}
                   {visibleColumns.has('category') && (
-                  <td className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" title={item.category || ''} style={{ width: `${getColumnWidth('category')}px`, minWidth: `${getColumnWidth('category')}px`, maxWidth: `${getColumnWidth('category')}px` }}>
+                  <td className={`px-2 py-2 text-xs truncate border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} title={item.category || ''} style={{ width: `${getColumnWidth('category')}px`, minWidth: `${getColumnWidth('category')}px`, maxWidth: `${getColumnWidth('category')}px` }}>
                     {item.category || '-'}
                   </td>
                   )}
+                  {visibleColumns.has('status') && (
+                  <td className="px-2 py-2 text-xs border-r border-gray-200 relative" style={{ width: `${getColumnWidth('status')}px`, minWidth: `${getColumnWidth('status')}px`, maxWidth: `${getColumnWidth('status')}px` }}>
+                    <select
+                      ref={editingStatus === item.id ? statusSelectRef : null}
+                      data-editing-status={item.id}
+                      value={item.status || ''}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        if (e.target.value !== item.status) {
+                          handleStatusUpdate(item.id, e.target.value);
+                        }
+                      }}
+                      onFocus={(e) => {
+                        e.stopPropagation();
+                        setEditingStatus(item.id);
+                      }}
+                      onBlur={() => {
+                        setTimeout(() => {
+                          setEditingStatus(null);
+                        }, 200);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          setEditingStatus(null);
+                        }
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingStatus(item.id);
+                      }}
+                      className={`text-xs rounded px-2 py-0.5 font-medium cursor-pointer transition-all ${
+                        editingStatus === item.id 
+                          ? 'border border-blue-500 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500' 
+                          : item.status === 'Актуальная'
+                          ? 'bg-green-100 text-green-800 border-0'
+                          : item.status === 'Не Актуальная'
+                          ? 'bg-red-100 text-red-800 border-0'
+                          : item.status === 'Корректировка'
+                          ? 'bg-yellow-100 text-yellow-800 border-0'
+                          : item.status === 'Проект'
+                          ? 'bg-blue-100 text-blue-800 border-0'
+                          : 'bg-gray-100 text-gray-800 border-0'
+                      }`}
+                      style={{
+                        ...(editingStatus === item.id ? {} : {
+                          appearance: 'none',
+                          WebkitAppearance: 'none',
+                          MozAppearance: 'none',
+                          paddingRight: '20px',
+                          backgroundImage: item.status ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 9L1 4h10z'/%3E%3C/svg%3E")` : 'none',
+                          backgroundRepeat: 'no-repeat',
+                          backgroundPosition: 'right 4px center',
+                          backgroundSize: '12px',
+                        })
+                      }}
+                    >
+                      <option value="">-</option>
+                      <option value="Проект">Проект</option>
+                      <option value="Актуальная">Актуальная</option>
+                      <option value="Не Актуальная">Не Актуальная</option>
+                      <option value="Корректировка">Корректировка</option>
+                    </select>
+                  </td>
+                  )}
                   {visibleColumns.has('createdAt') && (
-                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" style={{ width: `${getColumnWidth('createdAt')}px`, minWidth: `${getColumnWidth('createdAt')}px`, maxWidth: `${getColumnWidth('createdAt')}px` }}>
+                  <td className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('createdAt')}px`, minWidth: `${getColumnWidth('createdAt')}px`, maxWidth: `${getColumnWidth('createdAt')}px` }}>
                     {item.createdAt ? new Date(item.createdAt).toLocaleDateString('ru-RU') : '-'}
                   </td>
                   )}
                   {visibleColumns.has('updatedAt') && (
-                  <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" style={{ width: `${getColumnWidth('updatedAt')}px`, minWidth: `${getColumnWidth('updatedAt')}px`, maxWidth: `${getColumnWidth('updatedAt')}px` }}>
+                  <td className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('updatedAt')}px`, minWidth: `${getColumnWidth('updatedAt')}px`, maxWidth: `${getColumnWidth('updatedAt')}px` }}>
                     {item.updatedAt ? new Date(item.updatedAt).toLocaleDateString('ru-RU') : '-'}
                   </td>
                   )}
-                  <td className="px-1 py-1 border-r border-gray-200" style={{ width: '350px', minWidth: '350px' }}>
+                  <td 
+                    className="px-1 py-1 border-r border-gray-200" 
+                    style={{ width: '350px', minWidth: '350px' }}
+                    data-gantt-chart="true"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <GanttChart
                       itemId={item.id}
                       year={item.year}
@@ -3045,6 +3539,7 @@ export default function PurchasePlanItemsTable() {
                       newContractDate={item.newContractDate}
                       contractEndDate={item.contractEndDate}
                       currentContractEndDate={item.currentContractEndDate}
+                      disabled={isInactive}
                       onDragStart={() => {
                         // Закрываем режим редактирования даты при начале перетаскивания Ганта
                         if (editingDate?.itemId === item.id) {
@@ -3080,7 +3575,167 @@ export default function PurchasePlanItemsTable() {
                     />
                   </td>
                 </tr>
-              ))
+                    {/* Подстрока при раскрытии */}
+                    {isExpanded && (
+                      <tr className="bg-blue-50 border-t-2 border-blue-300">
+                        <td colSpan={visibleColumns.size + 1} className="px-4 py-3">
+                          {/* Вкладки */}
+                          <div className="mb-4 border-b border-blue-200">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => setActiveTab(prev => ({ ...prev, [item.id]: 'data' }))}
+                                className={`px-4 py-2 text-xs font-medium rounded-t-lg transition-colors ${
+                                  activeTab[item.id] === 'data' || !activeTab[item.id]
+                                    ? 'bg-white text-blue-700 border-b-2 border-blue-500'
+                                    : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                                }`}
+                              >
+                                Данные
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setActiveTab(prev => ({ ...prev, [item.id]: 'changes' }));
+                                  if (!changesData[item.id] || changesData[item.id].content.length === 0) {
+                                    fetchChanges(item.id, 0);
+                                  }
+                                }}
+                                className={`px-4 py-2 text-xs font-medium rounded-t-lg transition-colors ${
+                                  activeTab[item.id] === 'changes'
+                                    ? 'bg-white text-blue-700 border-b-2 border-blue-500'
+                                    : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                                }`}
+                              >
+                                Изменения
+                              </button>
+                            </div>
+                          </div>
+                          
+                          {/* Содержимое вкладки "Данные" */}
+                          {(activeTab[item.id] === 'data' || !activeTab[item.id]) && (
+                            <div className="text-xs text-gray-700">
+                              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                              <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                <span className="font-semibold text-blue-700">ID:</span> <span className="text-gray-900">{item.id}</span>
+                              </div>
+                              {item.guid && (
+                                <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                  <span className="font-semibold text-blue-700">GUID:</span> <span className="text-gray-900 break-all">{item.guid}</span>
+                                </div>
+                              )}
+                              {item.company && (
+                                <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                  <span className="font-semibold text-blue-700">Компания:</span> <span className="text-gray-900">{item.company}</span>
+                                </div>
+                              )}
+                              {item.purchaseSubject && (
+                                <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                  <span className="font-semibold text-blue-700">Предмет закупки:</span> <span className="text-gray-900">{item.purchaseSubject}</span>
+                                </div>
+                              )}
+                              {item.purchaser && (
+                                <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                  <span className="font-semibold text-blue-700">Закупщик:</span> <span className="text-gray-900">{item.purchaser}</span>
+                                </div>
+                              )}
+                              {item.product && (
+                                <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                  <span className="font-semibold text-blue-700">Продукт:</span> <span className="text-gray-900">{item.product}</span>
+                                </div>
+                              )}
+                              {item.budgetAmount && (
+                                <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                  <span className="font-semibold text-blue-700">Бюджет:</span> <span className="text-gray-900">{new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(item.budgetAmount)}</span>
+                                </div>
+                              )}
+                              {item.complexity && (
+                                <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                  <span className="font-semibold text-blue-700">Сложность:</span> <span className="text-gray-900">{item.complexity}</span>
+                                </div>
+                              )}
+                              {item.category && (
+                                <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                  <span className="font-semibold text-blue-700">Категория:</span> <span className="text-gray-900">{item.category}</span>
+                                </div>
+                              )}
+                              <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                <span className="font-semibold text-blue-700">Есть договор:</span> <span className="text-gray-900">{item.hasContract === true ? 'Да' : item.hasContract === false ? 'Нет' : '-'}</span>
+                              </div>
+                              <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                <span className="font-semibold text-blue-700">Автопролонгация:</span> <span className="text-gray-900">{item.autoRenewal === true ? 'Да' : item.autoRenewal === false ? 'Нет' : '-'}</span>
+                              </div>
+                            </div>
+                          </div>
+                          )}
+                          
+                          {/* Содержимое вкладки "Изменения" */}
+                          {activeTab[item.id] === 'changes' && (
+                            <div className="text-xs text-gray-700">
+                              {changesData[item.id]?.loading ? (
+                                <div className="text-center py-4 text-gray-500">Загрузка...</div>
+                              ) : changesData[item.id]?.content && changesData[item.id].content.length > 0 ? (
+                                <>
+                                  <div className="space-y-2 mb-4">
+                                    {changesData[item.id].content.map((change: any) => (
+                                      <div key={change.id} className="bg-white px-3 py-2 rounded border border-blue-200">
+                                        <div className="flex items-center justify-between mb-1">
+                                          <span className="font-semibold text-blue-700">{change.fieldName}</span>
+                                          <span className="text-gray-500 text-[10px]">
+                                            {new Date(change.changeDate).toLocaleString('ru-RU')}
+                                          </span>
+                                        </div>
+                                        <div className="flex gap-2 text-[10px]">
+                                          <div className="flex-1">
+                                            <span className="text-gray-500">Было:</span>
+                                            <span className="ml-1 text-red-600">{change.valueBefore || '-'}</span>
+                                          </div>
+                                          <div className="flex-1">
+                                            <span className="text-gray-500">Стало:</span>
+                                            <span className="ml-1 text-green-600">{change.valueAfter || '-'}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  
+                                  {/* Пагинация */}
+                                  {changesData[item.id].totalPages > 1 && (
+                                    <div className="flex items-center justify-between border-t border-blue-200 pt-2">
+                                      <div className="text-[10px] text-gray-500">
+                                        Показано {changesData[item.id].content.length} из {changesData[item.id].totalElements}
+                                      </div>
+                                      <div className="flex gap-1">
+                                        <button
+                                          onClick={() => fetchChanges(item.id, changesData[item.id].currentPage - 1)}
+                                          disabled={changesData[item.id].currentPage === 0}
+                                          className="px-2 py-1 text-[10px] bg-white border border-blue-300 rounded hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                          Назад
+                                        </button>
+                                        <span className="px-2 py-1 text-[10px] text-gray-600">
+                                          {changesData[item.id].currentPage + 1} / {changesData[item.id].totalPages}
+                                        </span>
+                                        <button
+                                          onClick={() => fetchChanges(item.id, changesData[item.id].currentPage + 1)}
+                                          disabled={changesData[item.id].currentPage >= changesData[item.id].totalPages - 1}
+                                          className="px-2 py-1 text-[10px] bg-white border border-blue-300 rounded hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                          Вперед
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </>
+                              ) : (
+                                <div className="text-center py-4 text-gray-500">Нет изменений</div>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })
             ) : (
               <tr>
                 <td colSpan={9} className="px-6 py-8 text-center text-gray-500">

@@ -606,12 +606,21 @@ public class PurchasePlanExcelLoadService {
                     // Сохраняем значение из колонки "Состояние" в поле state
                     item.setState(trimmedStatus);
                     logger.debug("Row {}: parsed state value: '{}' and saved to state field for purchase plan item", row.getRowNum() + 1, trimmedStatus);
-                    // Если "Состояние" = "Проект" (case-insensitive), то устанавливаем статус = PROJECT
+                    // Устанавливаем статус на основе значения "Состояние"
                     if ("Проект".equalsIgnoreCase(trimmedStatus)) {
                         item.setStatus(com.uzproc.backend.entity.PurchasePlanItemStatus.PROJECT);
                         logger.info("Row {}: parsed state '{}', set status to PROJECT for purchase plan item", row.getRowNum() + 1, trimmedStatus);
+                    } else if ("Актуальная".equalsIgnoreCase(trimmedStatus)) {
+                        item.setStatus(com.uzproc.backend.entity.PurchasePlanItemStatus.ACTUAL);
+                        logger.info("Row {}: parsed state '{}', set status to ACTUAL for purchase plan item", row.getRowNum() + 1, trimmedStatus);
+                    } else if ("не Актуальная".equalsIgnoreCase(trimmedStatus) || "Не Актуальная".equalsIgnoreCase(trimmedStatus)) {
+                        item.setStatus(com.uzproc.backend.entity.PurchasePlanItemStatus.NOT_ACTUAL);
+                        logger.info("Row {}: parsed state '{}', set status to NOT_ACTUAL for purchase plan item", row.getRowNum() + 1, trimmedStatus);
+                    } else if ("Корректировка".equalsIgnoreCase(trimmedStatus)) {
+                        item.setStatus(com.uzproc.backend.entity.PurchasePlanItemStatus.CORRECTION);
+                        logger.info("Row {}: parsed state '{}', set status to CORRECTION for purchase plan item", row.getRowNum() + 1, trimmedStatus);
                     } else {
-                        logger.debug("Row {}: state value '{}' is not 'Проект' (case-insensitive), skipping status update", row.getRowNum() + 1, trimmedStatus);
+                        logger.debug("Row {}: state value '{}' does not match any known status, skipping status update", row.getRowNum() + 1, trimmedStatus);
                     }
                 } else {
                     logger.debug("Row {}: status cell is empty or null", row.getRowNum() + 1);

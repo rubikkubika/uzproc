@@ -13,6 +13,7 @@ interface GanttChartProps {
   onDatesUpdate?: (requestDate: string, newContractDate: string) => void;
   onDatesChange?: (requestDate: string, newContractDate: string) => void; // Для временных изменений во время перетаскивания
   onDragStart?: () => void; // Вызывается при начале перетаскивания
+  disabled?: boolean; // Отключить интерактивность
 }
 
 // Функция для получения массива месяцев для отображения
@@ -46,7 +47,8 @@ export default function GanttChart({
   currentContractEndDate,
   onDatesUpdate,
   onDatesChange,
-  onDragStart
+  onDragStart,
+  disabled = false
 }: GanttChartProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStartX, setDragStartX] = useState(0);
@@ -166,7 +168,7 @@ export default function GanttChart({
 
   // Обработчик начала перетаскивания
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (!startDate || !endDate || !containerRef.current) return;
+    if (disabled || !startDate || !endDate || !containerRef.current) return;
     
     e.preventDefault();
     
@@ -479,7 +481,7 @@ export default function GanttChart({
   }
 
   return (
-    <div className="relative h-8 w-full border border-gray-300 rounded" ref={containerRef}>
+    <div className={`relative h-8 w-full border rounded ${disabled ? 'border-gray-400 bg-gray-100 opacity-60' : 'border-gray-300'}`} ref={containerRef}>
       {/* Месяцы */}
       <div className="absolute top-0 left-0 right-0 h-4 flex border-b border-gray-300 relative">
         {months.map((monthData, index) => {
@@ -541,8 +543,10 @@ export default function GanttChart({
         />
         
         <div
-          className={`absolute h-full bg-blue-500 rounded cursor-move hover:bg-blue-600 transition-all duration-200 ease-out ${
-            isDragging ? 'bg-blue-600 shadow-lg scale-105' : ''
+          className={`absolute h-full rounded transition-all duration-200 ease-out ${
+            disabled 
+              ? 'bg-gray-400 cursor-not-allowed opacity-60' 
+              : `bg-blue-500 cursor-move hover:bg-blue-600 ${isDragging ? 'bg-blue-600 shadow-lg scale-105' : ''}`
           } ${isUpdating ? 'opacity-50' : ''}`}
           style={{
             left: `${Math.max(0, Math.min(100, adjustedLeft))}%`,

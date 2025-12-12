@@ -3,7 +3,10 @@ package com.uzproc.backend.entity;
 import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum PurchasePlanItemStatus {
-    PROJECT("Проект");
+    PROJECT("Проект"),
+    ACTUAL("Актуальная"),
+    NOT_ACTUAL("Не Актуальная"),
+    CORRECTION("Корректировка");
 
     private final String displayName;
 

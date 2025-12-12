@@ -61,6 +61,7 @@ export default function PurchasePlanItemsMonthlyChart() {
     fetchAvailableYears();
   }, []);
 
+  // Загрузка данных диаграммы
   useEffect(() => {
     // Не загружаем данные, пока годы не загружены
     if (!yearsLoaded) {
@@ -103,11 +104,11 @@ export default function PurchasePlanItemsMonthlyChart() {
         }
         console.log('Fetching purchase requests monthly stats from:', purchaseRequestsUrl);
             
-            const purchaseRequestsResponse = await fetch(purchaseRequestsUrl);
-            if (!purchaseRequestsResponse.ok) {
-              throw new Error(`Ошибка загрузки данных заявок: ${purchaseRequestsResponse.status} ${purchaseRequestsResponse.statusText}`);
-            }
-            const purchaseRequestsResult = await purchaseRequestsResponse.json();
+        const purchaseRequestsResponse = await fetch(purchaseRequestsUrl);
+        if (!purchaseRequestsResponse.ok) {
+          throw new Error(`Ошибка загрузки данных заявок: ${purchaseRequestsResponse.status} ${purchaseRequestsResponse.statusText}`);
+        }
+        const purchaseRequestsResult = await purchaseRequestsResponse.json();
         const purchaseRequestsMonthCounts = purchaseRequestsResult.monthCounts || {};
         
         console.log('Loaded purchase requests monthly stats:', purchaseRequestsMonthCounts);
@@ -187,6 +188,116 @@ export default function PurchasePlanItemsMonthlyChart() {
     };
     
     fetchData();
+  }, [selectedYear, yearsLoaded, allYears.length]);
+
+  // Обработчик события обновления дат
+  useEffect(() => {
+    const handleDatesUpdated = () => {
+      // Перезагружаем данные диаграммы при изменении дат
+      if (yearsLoaded && (selectedYear !== null || allYears.length === 0)) {
+        const fetchData = async () => {
+          try {
+            setLoading(true);
+            const backendUrl = getBackendUrl();
+            
+            // Загружаем позиции плана закупок для года = selectedYear + 1 (оптимизированный endpoint)
+            const planItemsYear = selectedYear !== null ? selectedYear + 1 : null;
+            let planItemsUrl = `${backendUrl}/api/purchase-plan-items/monthly-stats`;
+            if (planItemsYear !== null) {
+              planItemsUrl += `?year=${planItemsYear}`;
+            }
+            
+            const planItemsResponse = await fetch(planItemsUrl);
+            if (!planItemsResponse.ok) {
+              throw new Error(`Ошибка загрузки данных плана закупок: ${planItemsResponse.status} ${planItemsResponse.statusText}`);
+            }
+            const planItemsResult = await planItemsResponse.json();
+            const planItemsMonthCounts = planItemsResult.monthCounts || {};
+            
+            // Загружаем заявки на закупку с requiresPurchase = true (оптимизированный endpoint)
+            let purchaseRequestsUrl = `${backendUrl}/api/purchase-requests/monthly-stats?requiresPurchase=true`;
+            if (selectedYear !== null) {
+              purchaseRequestsUrl += `&year=${selectedYear}`;
+            }
+            
+            const purchaseRequestsResponse = await fetch(purchaseRequestsUrl);
+            if (!purchaseRequestsResponse.ok) {
+              throw new Error(`Ошибка загрузки данных заявок: ${purchaseRequestsResponse.status} ${purchaseRequestsResponse.statusText}`);
+            }
+            const purchaseRequestsResult = await purchaseRequestsResponse.json();
+            const purchaseRequestsMonthCounts = purchaseRequestsResult.monthCounts || {};
+            
+            // Месяцы с декабрем выбранного года в начале
+            const decemberLabel = selectedYear ? `Дек ${selectedYear}` : 'Дек (пред. год)';
+            const monthLabels = [decemberLabel, 'Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+            
+            // Ключи для получения данных из бэкенда
+            const backendMonthKeys = ['Дек (пред. год)', 'Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+            
+            // Собираем все значения для вычисления максимума
+            const allPlanItemsValues = backendMonthKeys.map(month => planItemsMonthCounts[month] || 0).filter(v => v > 0);
+            const allPurchaseRequestsValues = backendMonthKeys.map(month => purchaseRequestsMonthCounts[month] || 0).filter(v => v > 0);
+            const maxPlanItems = allPlanItemsValues.length > 0 ? Math.max(...allPlanItemsValues) : 1;
+            const maxPurchaseRequests = allPurchaseRequestsValues.length > 0 ? Math.max(...allPurchaseRequestsValues) : 1;
+            const globalMax = Math.max(maxPlanItems, maxPurchaseRequests);
+            
+            // Функция для применения нелинейного масштабирования
+            const applyNonLinearScaling = (value: number, maxValue: number): number => {
+              if (value <= 0 || maxValue <= 0) return 0;
+              const ratio = value / maxValue;
+              const scaledRatio = Math.pow(ratio, 0.4);
+              return Math.round(scaledRatio * maxValue);
+            };
+            
+            const chartData = {
+              labels: monthLabels,
+              datasets: [
+                {
+                  label: planItemsYear ? `Позиции плана закупок (${planItemsYear} год)` : 'Позиции плана закупок',
+                  data: backendMonthKeys.map(month => {
+                    const originalValue = planItemsMonthCounts[month] || 0;
+                    if (originalValue <= 0) return null;
+                    return applyNonLinearScaling(originalValue, globalMax);
+                  }),
+                  _originalValues: backendMonthKeys.map(month => planItemsMonthCounts[month] || 0),
+                  backgroundColor: 'rgba(34, 197, 94, 1)',
+                  borderColor: 'rgba(34, 197, 94, 1)',
+                  borderWidth: 0,
+                  borderRadius: 6,
+                },
+                {
+                  label: `Заявки на закупку (требуется закупка)${selectedYear ? ` (${selectedYear} год)` : ''}`,
+                  data: backendMonthKeys.map(month => {
+                    const originalValue = purchaseRequestsMonthCounts[month] || 0;
+                    if (originalValue <= 0) return null;
+                    return applyNonLinearScaling(originalValue, globalMax);
+                  }),
+                  _originalValues: backendMonthKeys.map(month => purchaseRequestsMonthCounts[month] || 0),
+                  backgroundColor: 'rgba(59, 130, 246, 1)',
+                  borderColor: 'rgba(59, 130, 246, 1)',
+                  borderWidth: 0,
+                  borderRadius: 6,
+                },
+              ],
+            };
+            
+            setData(chartData);
+          } catch (err) {
+            console.error('Error fetching data:', err);
+          } finally {
+            setLoading(false);
+          }
+        };
+        
+        fetchData();
+      }
+    };
+
+    window.addEventListener('purchasePlanItemDatesUpdated', handleDatesUpdated);
+    
+    return () => {
+      window.removeEventListener('purchasePlanItemDatesUpdated', handleDatesUpdated);
+    };
   }, [selectedYear, yearsLoaded, allYears.length]);
 
   if (loading) {
