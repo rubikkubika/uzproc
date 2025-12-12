@@ -315,23 +315,12 @@ export default function PurchaseRequestsTable() {
         filtersCount: Object.keys(mergedFilters).length,
         requiresPurchase: mergedFilters.requiresPurchase,
         isPlanned: mergedFilters.isPlanned,
-        allFilters: mergedFilters,
         cfoFilterSize: cfoFilter.size,
         statusFilterSize: statusFilter.size,
         selectedYear,
         currentPage,
         pageSize
       });
-      
-      // Проверяем, что данные действительно сохранились
-      const saved = localStorage.getItem('purchaseRequestsTableFilters');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        console.log('Verification - saved filters:', {
-          requiresPurchase: parsed.filters?.requiresPurchase,
-          isPlanned: parsed.filters?.isPlanned,
-        });
-      }
     } catch (err) {
       console.error('Error saving filters to localStorage:', err);
     }
@@ -365,45 +354,8 @@ export default function PurchaseRequestsTable() {
 
   // Сохраняем фильтры в localStorage при их изменении (только после загрузки)
   useEffect(() => {
-    if (!filtersLoadedRef.current) {
-      return;
-    }
-    
-    // Сохраняем напрямую, без вызова функции, чтобы избежать проблем с зависимостями
-    try {
-      // Для select-типа фильтров (requiresPurchase, isPlanned) используем filters, для текстовых - localFilters
-      const mergedFilters = { ...filters };
-      // Объединяем с localFilters для текстовых полей, но приоритет у filters для select-полей
-      Object.keys(localFilters).forEach(key => {
-        // Если в filters есть значение для select-поля, используем его, иначе localFilters
-        if (mergedFilters[key] === undefined || mergedFilters[key] === '') {
-          mergedFilters[key] = localFilters[key];
-        }
-      });
-      
-      const filtersToSave = {
-        filters: mergedFilters,
-        localFilters: localFilters,
-        cfoFilter: Array.from(cfoFilter),
-        statusFilter: Array.from(statusFilter),
-        selectedYear,
-        sortField,
-        sortDirection,
-        currentPage,
-        pageSize,
-        cfoSearchQuery,
-        statusSearchQuery,
-      };
-      localStorage.setItem('purchaseRequestsTableFilters', JSON.stringify(filtersToSave));
-      console.log('Filters saved in useEffect:', {
-        requiresPurchase: mergedFilters.requiresPurchase,
-        isPlanned: mergedFilters.isPlanned,
-        field: Object.keys(mergedFilters).find(k => mergedFilters[k] !== ''),
-      });
-    } catch (err) {
-      console.error('Error saving filters in useEffect:', err);
-    }
-  }, [filters, localFilters, cfoFilter, statusFilter, selectedYear, sortField, sortDirection, currentPage, pageSize, cfoSearchQuery, statusSearchQuery]);
+    saveFiltersToLocalStorage();
+  }, [filters, cfoFilter, statusFilter, selectedYear, sortField, sortDirection, currentPage, pageSize, cfoSearchQuery, statusSearchQuery, saveFiltersToLocalStorage]);
 
   // Сохраняем localFilters с debounce для текстовых полей (чтобы сохранять промежуточные значения)
   useEffect(() => {
@@ -922,7 +874,6 @@ export default function PurchaseRequestsTable() {
       // Не сбрасываем страницу сразу для текстовых фильтров (сделаем это через debounce)
     } else {
       // Для select фильтров обновляем оба состояния сразу
-      // useEffect автоматически сохранит изменения в localStorage
       setFilters(prev => ({
         ...prev,
         [field]: value,

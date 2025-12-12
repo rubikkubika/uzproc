@@ -57,141 +57,12 @@ export default function GanttChart({
   const [isUpdating, setIsUpdating] = useState(false);
   const [tempDates, setTempDates] = useState<{ requestDate: string | null; newContractDate: string | null } | null>(null);
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // Состояние для модального окна с паролем
-  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
-  const [password, setPassword] = useState('');
-  const [passwordError, setPasswordError] = useState('');
-  const [pendingUpdate, setPendingUpdate] = useState<{ requestDate: string; newContractDate: string } | null>(null);
-  
-  // Ключ для сохранения пароля в localStorage (на 2 дня)
-  const PASSWORD_STORAGE_KEY = 'gantt_edit_password';
-  const PASSWORD_EXPIRY_DAYS = 2;
 
   // Получаем год для расчетов
   const currentYear = year || new Date().getFullYear();
   
   // Получаем массив месяцев для отображения
   const months = getMonthsForYear(currentYear);
-  
-  // Функция для получения сохраненного пароля из localStorage
-  const getSavedPassword = (): string | null => {
-    try {
-      const saved = localStorage.getItem(PASSWORD_STORAGE_KEY);
-      if (!saved) return null;
-      
-      const data = JSON.parse(saved);
-      const savedTime = new Date(data.timestamp);
-      const now = new Date();
-      const daysDiff = (now.getTime() - savedTime.getTime()) / (1000 * 60 * 60 * 24);
-      
-      // Проверяем, не истек ли срок (2 дня)
-      if (daysDiff > PASSWORD_EXPIRY_DAYS) {
-        localStorage.removeItem(PASSWORD_STORAGE_KEY);
-        return null;
-      }
-      
-      return data.password;
-    } catch (err) {
-      console.error('Error reading saved password:', err);
-      return null;
-    }
-  };
-  
-  // Функция для сохранения пароля в localStorage
-  const savePassword = (pwd: string) => {
-    try {
-      const data = {
-        password: pwd,
-        timestamp: new Date().toISOString()
-      };
-      localStorage.setItem(PASSWORD_STORAGE_KEY, JSON.stringify(data));
-    } catch (err) {
-      console.error('Error saving password:', err);
-    }
-  };
-  
-  // Функция для выполнения обновления с паролем
-  const performUpdate = async (requestDate: string, newContractDate: string, pwd: string) => {
-    try {
-      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/dates`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          requestDate,
-          newContractDate,
-          password: pwd,
-        }),
-      });
-
-      if (response.ok) {
-        const updatedData = await response.json();
-        console.log('Dates updated successfully on backend:', updatedData);
-        // Сохраняем пароль на 2 дня
-        savePassword(pwd);
-        if (onDatesUpdate) {
-          onDatesUpdate(requestDate, newContractDate);
-        }
-        return true;
-      } else {
-        const errorText = await response.text();
-        console.error('Failed to update dates on backend:', response.status, errorText);
-        if (response.status === 401) {
-          setPasswordError('Неверный пароль');
-          return false;
-        }
-        return false;
-      }
-    } catch (error) {
-      console.error('Error updating dates on backend:', error);
-      return false;
-    }
-  };
-  
-  // Функция для проверки пароля и выполнения обновления
-  const checkPasswordAndUpdate = async (requestDate: string, newContractDate: string) => {
-    // Проверяем сохраненный пароль
-    const savedPassword = getSavedPassword();
-    
-    if (savedPassword) {
-      // Используем сохраненный пароль
-      const success = await performUpdate(requestDate, newContractDate, savedPassword);
-      if (success) {
-        setIsPasswordModalOpen(false);
-        setPassword('');
-        setPasswordError('');
-        return;
-      }
-      // Если пароль не подошел, запрашиваем новый
-    }
-    
-    // Показываем модальное окно для ввода пароля
-    setPendingUpdate({ requestDate, newContractDate });
-    setIsPasswordModalOpen(true);
-    setPassword('');
-    setPasswordError('');
-  };
-  
-  // Обработчик подтверждения пароля
-  const handlePasswordConfirm = async () => {
-    if (!password.trim()) {
-      setPasswordError('Введите пароль');
-      return;
-    }
-    
-    if (!pendingUpdate) return;
-    
-    setPasswordError('');
-    const success = await performUpdate(pendingUpdate.requestDate, pendingUpdate.newContractDate, password);
-    
-    if (success) {
-      setIsPasswordModalOpen(false);
-      setPassword('');
-      setPendingUpdate(null);
-    }
-  };
 
   // Парсим даты (используем временные даты во время перетаскивания)
   const startDate = tempDates?.requestDate 
@@ -265,6 +136,33 @@ export default function GanttChart({
   };
 
   const contractEndPosition = getContractEndDatePosition();
+
+  // Вычисляем позицию красной черты для даты окончания действующего договора
+  const getCurrentContractEndDatePosition = () => {
+    if (!currentContractEndDate) return null;
+    
+    const currentContractEnd = new Date(currentContractEndDate);
+    const periodStart = new Date(currentYear - 1, 11, 1, 0, 0, 0, 0); // Декабрь предыдущего года
+    const periodEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999); // Декабрь текущего года
+    
+    // Если дата выходит за рамки периода, не показываем черту
+    if (currentContractEnd < periodStart || currentContractEnd > periodEnd) {
+      return null;
+    }
+    
+    const periodStartTime = periodStart.getTime();
+    const periodEndTime = periodEnd.getTime();
+    const currentContractEndTime = currentContractEnd.getTime();
+    
+    const totalTime = periodEndTime - periodStartTime;
+    const currentContractEndOffset = currentContractEndTime - periodStartTime;
+    
+    const positionPercent = (currentContractEndOffset / totalTime) * 100;
+    
+    return positionPercent;
+  };
+
+  const currentContractEndPosition = getCurrentContractEndDatePosition();
 
   // Обработчик начала перетаскивания
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -380,8 +278,37 @@ export default function GanttChart({
         clearTimeout(updateTimeoutRef.current);
       }
       
-      // Не отправляем промежуточные обновления на бэкенд - только визуальные изменения
-      // Финальное обновление будет отправлено в handleMouseUp
+      updateTimeoutRef.current = setTimeout(async () => {
+        setIsUpdating(true);
+        try {
+          console.log('Updating dates on backend:', { itemId, tempRequestDate, tempNewContractDate });
+          const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/dates`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              requestDate: tempRequestDate,
+              newContractDate: tempNewContractDate,
+            }),
+          });
+
+          if (response.ok) {
+            const updatedData = await response.json();
+            console.log('Dates updated successfully on backend:', updatedData);
+            if (onDatesUpdate) {
+              onDatesUpdate(tempRequestDate, tempNewContractDate);
+            }
+          } else {
+            const errorText = await response.text();
+            console.error('Failed to update dates on backend:', response.status, errorText);
+          }
+        } catch (error) {
+          console.error('Error updating dates on backend:', error);
+        } finally {
+          setIsUpdating(false);
+        }
+      }, 300);
 
       setDragOffset(deltaX);
     };
@@ -455,7 +382,26 @@ export default function GanttChart({
         }
       }
 
-      // Ограничение по окончанию срока действующего договора убрано
+      // Ограничиваем даты сроком окончания действующего договора, если он установлен
+      // Дата нового договора не может быть позже даты окончания действующего договора
+      if (currentContractEndDate) {
+        const currentContractEnd = new Date(currentContractEndDate);
+        currentContractEnd.setHours(23, 59, 59, 999); // Устанавливаем конец дня
+        
+        // Конец полоски (newContractDate) не должен быть позже срока окончания действующего договора
+        if (newEndDate > currentContractEnd) {
+          const diff = newEndDate.getTime() - currentContractEnd.getTime();
+          newEndDate.setTime(currentContractEnd.getTime());
+          newStartDate.setTime(newStartDate.getTime() - diff);
+        }
+        
+        // Начало полоски тоже не должно быть позже срока окончания действующего договора
+        if (newStartDate > currentContractEnd) {
+          const diff = newStartDate.getTime() - currentContractEnd.getTime();
+          newStartDate.setTime(currentContractEnd.getTime());
+          newEndDate.setTime(newEndDate.getTime() - diff);
+        }
+      }
 
       // Форматируем даты для отправки
       const formatDate = (date: Date) => {
@@ -474,10 +420,36 @@ export default function GanttChart({
         updateTimeoutRef.current = null;
       }
 
-      // Проверяем пароль и отправляем финальное обновление на бэкенд
+      // Отправляем финальное обновление на бэкенд
       setIsUpdating(true);
-      await checkPasswordAndUpdate(newRequestDate, newContractDate);
-      setIsUpdating(false);
+      try {
+        console.log('Final update dates on backend:', { itemId, newRequestDate, newContractDate });
+        const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/dates`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            requestDate: newRequestDate,
+            newContractDate: newContractDate,
+          }),
+        });
+
+        if (response.ok) {
+          const updatedData = await response.json();
+          console.log('Final dates updated successfully on backend:', updatedData);
+          if (onDatesUpdate) {
+            onDatesUpdate(newRequestDate, newContractDate);
+          }
+        } else {
+          const errorText = await response.text();
+          console.error('Failed to update final dates on backend:', response.status, errorText);
+        }
+      } catch (error) {
+        console.error('Error updating final dates on backend:', error);
+      } finally {
+        setIsUpdating(false);
+      }
 
       // Сбрасываем временные даты после завершения перетаскивания
       setTempDates(null);
@@ -496,7 +468,7 @@ export default function GanttChart({
         clearTimeout(updateTimeoutRef.current);
       }
     };
-  }, [isDragging, dragStartX, initialStartDate, initialEndDate, currentYear, itemId, onDatesUpdate, onDatesChange, contractEndDate]);
+  }, [isDragging, dragStartX, initialStartDate, initialEndDate, currentYear, itemId, onDatesUpdate, onDatesChange, contractEndDate, currentContractEndDate]);
 
   if (!startDate || !endDate) {
     return (
@@ -597,63 +569,17 @@ export default function GanttChart({
           />
         )}
         
+        {/* Красная черта для даты окончания действующего договора */}
+        {currentContractEndPosition !== null && (
+          <div
+            className="absolute top-0 bottom-0 w-0.5 bg-red-600 z-10"
+            style={{
+              left: `${Math.max(0, Math.min(100, currentContractEndPosition))}%`,
+            }}
+            title={`Дата окончания действующего договора: ${currentContractEndDate ? new Date(currentContractEndDate).toLocaleDateString('ru-RU') : ''}`}
+          />
+        )}
       </div>
-      
-      {/* Модальное окно для ввода пароля */}
-      {isPasswordModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Введите пароль для сохранения изменений
-            </h3>
-            <div className="mb-4">
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                Пароль
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  setPasswordError('');
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handlePasswordConfirm();
-                  }
-                }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                placeholder="Введите пароль"
-                autoFocus
-              />
-              {passwordError && (
-                <p className="mt-2 text-sm text-red-600">{passwordError}</p>
-              )}
-            </div>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => {
-                  setIsPasswordModalOpen(false);
-                  setPassword('');
-                  setPasswordError('');
-                  setPendingUpdate(null);
-                }}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                Отмена
-              </button>
-              <button
-                onClick={handlePasswordConfirm}
-                disabled={isUpdating}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isUpdating ? 'Сохранение...' : 'Сохранить'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

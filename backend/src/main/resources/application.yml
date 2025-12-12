@@ -71,8 +71,3 @@ logging:
   pattern:
     file: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
     console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
-
-# Пароль для изменения дат в плане закупок (такой же как пароль для входа)
-plan:
-  edit:
-    password: ${PLAN_EDIT_PASSWORD:1988}
