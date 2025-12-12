@@ -912,6 +912,30 @@ export default function PurchaseRequestDetailPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1.5">
                   <div>
                     <label className="block text-xs font-semibold text-gray-600 mb-0">
+                      Статус
+                    </label>
+                    <div className="text-xs">
+                      {purchaseRequest.status ? (
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          purchaseRequest.status === 'Утверждена' || purchaseRequest.status === 'Согласована'
+                            ? 'bg-green-100 text-green-800'
+                            : purchaseRequest.status === 'Не согласована' || purchaseRequest.status === 'Не утверждена'
+                            ? 'bg-red-100 text-red-800'
+                            : purchaseRequest.status === 'На согласовании' || purchaseRequest.status === 'На утверждении'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {purchaseRequest.status}
+                        </span>
+                      ) : (
+                        <span className="px-2 py-1 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
+                          -
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-0">
                       Номер заявки
                     </label>
                     <p className="text-xs text-gray-900">
@@ -2070,61 +2094,55 @@ export default function PurchaseRequestDetailPage() {
                             </label>
                           </div>
                           {specifications.length > 0 ? (
-                            <div className="space-y-2">
-                              {specifications.map((spec) => (
-                                <div key={spec.id} className="border border-gray-200 rounded p-2">
-                                  <div className="grid grid-cols-1 gap-1.5">
-                                    <div>
-                                      <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                        Внутренний ID
-                                      </label>
-                                      <p className="text-xs text-gray-900">
+                            <div className="overflow-x-auto">
+                              <table className="w-full border-collapse">
+                                <thead className="bg-gray-50">
+                                  <tr>
+                                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300">
+                                      Внутренний ID
+                                    </th>
+                                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300">
+                                      Наименование
+                                    </th>
+                                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300">
+                                      Заголовок
+                                    </th>
+                                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300">
+                                      ЦФО
+                                    </th>
+                                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300">
+                                      Дата создания
+                                    </th>
+                                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider">
+                                      Сумма договора
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                  {specifications.map((spec) => (
+                                    <tr key={spec.id} className="hover:bg-gray-50">
+                                      <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200">
                                         {spec.innerId || '-'}
-                                      </p>
-                                    </div>
-                                    <div>
-                                      <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                        Наименование
-                                      </label>
-                                      <p className="text-xs text-gray-900">
+                                      </td>
+                                      <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-200">
                                         {spec.name || '-'}
-                                      </p>
-                                    </div>
-                                    <div>
-                                      <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                        Заголовок
-                                      </label>
-                                      <p className="text-xs text-gray-900">
+                                      </td>
+                                      <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-200">
                                         {spec.title || '-'}
-                                      </p>
-                                    </div>
-                                    <div>
-                                      <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                        ЦФО
-                                      </label>
-                                      <p className="text-xs text-gray-900">
+                                      </td>
+                                      <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200">
                                         {spec.cfo || '-'}
-                                      </p>
-                                    </div>
-                                    <div>
-                                      <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                        Дата создания
-                                      </label>
-                                      <p className="text-xs text-gray-900">
+                                      </td>
+                                      <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200">
                                         {spec.contractCreationDate ? new Date(spec.contractCreationDate).toLocaleDateString('ru-RU') : '-'}
-                                      </p>
-                                    </div>
-                                    <div>
-                                      <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                        Сумма договора
-                                      </label>
-                                      <p className="text-xs text-gray-900">
+                                      </td>
+                                      <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
                                         {spec.budgetAmount ? new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(spec.budgetAmount) : '-'}
-                                      </p>
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
                             </div>
                           ) : (
                             <div className="text-center py-2 text-xs text-gray-500">

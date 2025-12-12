@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { getBackendUrl } from '@/utils/api';
 import { ArrowUp, ArrowDown, ArrowUpDown, Search, Download, Settings } from 'lucide-react';
 import GanttChart from './GanttChart';
@@ -81,8 +81,6 @@ const DEFAULT_VISIBLE_COLUMNS = [
   'cfo',
   'purchaseSubject',
   'purchaser',
-  'hasContract',
-  'autoRenewal',
   'budgetAmount',
   'requestDate',
   'newContractDate',
@@ -311,6 +309,82 @@ export default function PurchasePlanItemsTable() {
   
   // Состояние для редактирования дат
   const [editingDate, setEditingDate] = useState<{ itemId: number; field: 'requestDate' | 'newContractDate' } | null>(null);
+  
+  // Состояние для раскрытых строк
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  
+  // Состояние для активной вкладки в раскрытых строках
+  const [activeTab, setActiveTab] = useState<Record<number, 'data' | 'changes'>>({});
+  
+  // Состояние для изменений
+  const [changesData, setChangesData] = useState<Record<number, {
+    content: any[];
+    totalElements: number;
+    totalPages: number;
+    currentPage: number;
+    loading: boolean;
+  }>>({});
+  
+  // Функция для загрузки изменений
+  const fetchChanges = async (itemId: number, page: number) => {
+    setChangesData(prev => ({
+      ...prev,
+      [itemId]: { ...prev[itemId], loading: true }
+    }));
+    
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/changes?page=${page}&size=10`);
+      if (response.ok) {
+        const data = await response.json();
+        setChangesData(prev => ({
+          ...prev,
+          [itemId]: {
+            content: data.content || [],
+            totalElements: data.totalElements || 0,
+            totalPages: data.totalPages || 0,
+            currentPage: page,
+            loading: false
+          }
+        }));
+      } else {
+        setChangesData(prev => ({
+          ...prev,
+          [itemId]: { ...prev[itemId], loading: false }
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching changes:', error);
+      setChangesData(prev => ({
+        ...prev,
+        [itemId]: { ...prev[itemId], loading: false }
+      }));
+    }
+  };
+  
+  // Обработчик клика на строку для раскрытия/сворачивания
+  const handleRowClick = (itemId: number, e: React.MouseEvent) => {
+    // Не раскрываем, если клик был на интерактивном элементе (input, button, ссылка, область Ганта и т.д.)
+    const target = e.target as HTMLElement;
+    if (target.closest('input, button, a, [role="button"], [data-gantt-chart]')) {
+      return;
+    }
+    
+    // Проверяем, не кликнули ли на область Ганта (по классу или родительскому элементу)
+    const ganttContainer = target.closest('.gantt-container, [class*="GanttChart"]');
+    if (ganttContainer) {
+      return;
+    }
+    
+    setExpandedRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(itemId)) {
+        newSet.delete(itemId);
+      } else {
+        newSet.add(itemId);
+      }
+      return newSet;
+    });
+  };
 
   // Состояние для подтверждения изменений (повторный ввод логина/пароля)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -357,8 +431,49 @@ export default function PurchasePlanItemsTable() {
     }
   }, [editingDate]);
   
+  // Ключ для сохранения пароля в localStorage (на 2 дня)
+  const PASSWORD_STORAGE_KEY = 'gantt_edit_password';
+  const PASSWORD_EXPIRY_DAYS = 2;
+  
+  // Функция для получения сохраненного пароля из localStorage
+  const getSavedPassword = (): string | null => {
+    try {
+      const saved = localStorage.getItem(PASSWORD_STORAGE_KEY);
+      if (!saved) return null;
+      
+      const data = JSON.parse(saved);
+      const savedTime = new Date(data.timestamp);
+      const now = new Date();
+      const daysDiff = (now.getTime() - savedTime.getTime()) / (1000 * 60 * 60 * 24);
+      
+      // Проверяем, не истек ли срок (2 дня)
+      if (daysDiff > PASSWORD_EXPIRY_DAYS) {
+        localStorage.removeItem(PASSWORD_STORAGE_KEY);
+        return null;
+      }
+      
+      return data.password;
+    } catch (err) {
+      console.error('Error reading saved password:', err);
+      return null;
+    }
+  };
+  
+  // Функция для сохранения пароля в localStorage
+  const savePassword = (pwd: string) => {
+    try {
+      const data = {
+        password: pwd,
+        timestamp: new Date().toISOString()
+      };
+      localStorage.setItem(PASSWORD_STORAGE_KEY, JSON.stringify(data));
+    } catch (err) {
+      console.error('Error saving password:', err);
+    }
+  };
+  
   // Функция для обновления дат через перетаскивание Ганта
-  const performGanttDateUpdate = async (itemId: number, requestDate: string | null, newContractDate: string | null) => {
+  const performGanttDateUpdate = async (itemId: number, requestDate: string | null, newContractDate: string | null, password?: string) => {
     const item = data?.content.find(i => i.id === itemId);
     if (!item) return;
     
@@ -372,6 +487,21 @@ export default function PurchasePlanItemsTable() {
       const normalizedRequestDate = requestDate ? requestDate.split('T')[0] : null;
       const normalizedNewContractDate = newContractDate ? newContractDate.split('T')[0] : null;
       
+      // Получаем пароль (используем переданный или сохраненный)
+      const pwd = password || getSavedPassword();
+      if (!pwd) {
+        // Если пароля нет, запрашиваем через модальное окно
+        setPendingDateChange({
+          itemId,
+          field: 'requestDate', // Не используется для Ганта, но нужно для совместимости
+          newDate: normalizedRequestDate || '',
+          newRequestDate: normalizedRequestDate,
+          newNewContractDate: normalizedNewContractDate,
+        });
+        setIsAuthModalOpen(true);
+        return;
+      }
+      
       const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/dates`, {
         method: 'PATCH',
         headers: {
@@ -380,12 +510,15 @@ export default function PurchasePlanItemsTable() {
         body: JSON.stringify({
           requestDate: normalizedRequestDate,
           newContractDate: normalizedNewContractDate,
+          password: pwd,
         }),
       });
 
       if (response.ok) {
         const updatedItem = await response.json();
         console.log('Gantt dates updated successfully:', updatedItem);
+        // Сохраняем пароль на 2 дня
+        savePassword(pwd);
         // Обновляем данные в таблице
         if (data) {
           const updatedContent = data.content.map(i => 
@@ -412,6 +545,20 @@ export default function PurchasePlanItemsTable() {
       } else {
         const errorText = await response.text();
         console.error('Failed to update gantt dates:', response.status, errorText);
+        
+        // Если ошибка 401 (неверный пароль), запрашиваем пароль через модальное окно
+        if (response.status === 401) {
+          setPendingDateChange({
+            itemId,
+            field: 'requestDate',
+            newDate: normalizedRequestDate || '',
+            newRequestDate: normalizedRequestDate,
+            newNewContractDate: normalizedNewContractDate,
+          });
+          setIsAuthModalOpen(true);
+          return;
+        }
+        
         // Откатываем изменения при ошибке
         if (data) {
           const updatedContent = data.content.map(i => 
@@ -445,7 +592,7 @@ export default function PurchasePlanItemsTable() {
   };
 
   // Низкоуровневая функция обновления даты на бэкенде (вызывается после успешной повторной аутентификации)
-  const performDateUpdate = async (itemId: number, field: 'requestDate' | 'newContractDate', newDate: string) => {
+  const performDateUpdate = async (itemId: number, field: 'requestDate' | 'newContractDate', newDate: string, password?: string) => {
     if (!newDate || newDate.trim() === '') return;
     
     try {
@@ -464,6 +611,19 @@ export default function PurchasePlanItemsTable() {
       
       console.log('Updating date:', { itemId, field, newDate, normalizedDate, requestDate, newContractDate });
       
+      // Получаем пароль (используем переданный или сохраненный)
+      const pwd = password || getSavedPassword();
+      if (!pwd) {
+        // Если пароля нет, запрашиваем через модальное окно
+        setPendingDateChange({
+          itemId,
+          field,
+          newDate: normalizedDate,
+        });
+        setIsAuthModalOpen(true);
+        return;
+      }
+      
       const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/dates`, {
         method: 'PATCH',
         headers: {
@@ -472,12 +632,15 @@ export default function PurchasePlanItemsTable() {
         body: JSON.stringify({
           requestDate,
           newContractDate,
+          password: pwd,
         }),
       });
 
       if (response.ok) {
         const updatedItem = await response.json();
         console.log('Date updated successfully:', updatedItem);
+        // Сохраняем пароль на 2 дня
+        savePassword(pwd);
         // Обновляем данные в таблице
         if (data) {
           const updatedContent = data.content.map(i => 
@@ -523,35 +686,30 @@ export default function PurchasePlanItemsTable() {
     setAuthError(null);
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username: authUsername, password: authPassword }),
-      });
-
-      const dataResp = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        setAuthError(dataResp.error || 'Неверный логин или пароль');
+      // Проверяем пароль (должен быть "1988", как для входа)
+      if (authPassword !== '1988') {
+        setAuthError('Неверный пароль');
         setAuthLoading(false);
         return;
       }
 
-      // Успешная повторная аутентификация — выполняем изменение
+      // Сохраняем пароль на 2 дня
+      savePassword(authPassword);
+
+      // Успешная проверка пароля — выполняем изменение
       if (pendingDateChange.newRequestDate !== undefined && pendingDateChange.newNewContractDate !== undefined) {
         // Это изменение через перетаскивание Ганта - обновляем оба поля
-        await performGanttDateUpdate(pendingDateChange.itemId, pendingDateChange.newRequestDate, pendingDateChange.newNewContractDate);
+        await performGanttDateUpdate(pendingDateChange.itemId, pendingDateChange.newRequestDate, pendingDateChange.newNewContractDate, authPassword);
       } else {
         // Это изменение через клик по полю даты
-        await performDateUpdate(pendingDateChange.itemId, pendingDateChange.field, pendingDateChange.newDate);
+        await performDateUpdate(pendingDateChange.itemId, pendingDateChange.field, pendingDateChange.newDate, authPassword);
       }
       setIsAuthModalOpen(false);
       setPendingDateChange(null);
       setAuthPassword('');
+      setAuthUsername('');
     } catch (err) {
-      console.error('Error during re-auth:', err);
+      console.error('Error during password check:', err);
       setAuthError('Ошибка при проверке пароля');
     } finally {
       setAuthLoading(false);
@@ -1045,6 +1203,12 @@ export default function PurchasePlanItemsTable() {
     
     // Месяцы: [Дек пред.года, Янв, Фев, Мар, Апр, Май, Июн, Июл, Авг, Сен, Окт, Ноя, Дек, Без даты]
     chartData.forEach((item) => {
+      // Если у закупки холдинг = "Да", она учитывается только в столбце "Без даты"
+      if (item.holding && item.holding.trim().toLowerCase() === 'да') {
+        monthCounts[13]++;
+        return;
+      }
+      
       if (!item.requestDate) {
         // Записи без даты - индекс 13
         monthCounts[13]++;
@@ -1818,28 +1982,28 @@ export default function PurchasePlanItemsTable() {
       {isAuthModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Подтверждение изменения</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Введите пароль для сохранения изменений</h2>
             <p className="text-sm text-gray-600 mb-4">
-              Для сохранения изменения необходимо повторно ввести логин и пароль, как при входе в систему.
+              Для сохранения изменения необходимо ввести пароль.
             </p>
             <div className="space-y-3 mb-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Логин</label>
-                <input
-                  type="text"
-                  value={authUsername}
-                  onChange={(e) => setAuthUsername(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  autoFocus
-                />
-              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Пароль</label>
                 <input
                   type="password"
                   value={authPassword}
-                  onChange={(e) => setAuthPassword(e.target.value)}
+                  onChange={(e) => {
+                    setAuthPassword(e.target.value);
+                    setAuthError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleAuthConfirm();
+                    }
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  autoFocus
+                  placeholder="Введите пароль"
                 />
               </div>
               {authError && (
@@ -1894,7 +2058,7 @@ export default function PurchasePlanItemsTable() {
                 type="button"
                 className="px-3 py-1.5 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={handleAuthConfirm}
-                disabled={authLoading || !authUsername || !authPassword}
+                disabled={authLoading || !authPassword}
               >
                 {authLoading ? 'Проверка...' : 'Подтвердить и сохранить'}
               </button>
@@ -2493,12 +2657,6 @@ export default function PurchasePlanItemsTable() {
                 />
               </th>
               )}
-              {visibleColumns.has('hasContract') && (
-              <SortableHeader field="hasContract" label="Есть договор" columnKey="hasContract" />
-              )}
-              {visibleColumns.has('autoRenewal') && (
-              <SortableHeader field="autoRenewal" label="Автопролонгация" columnKey="autoRenewal" />
-              )}
               {visibleColumns.has('budgetAmount') && (
               <SortableHeader field="budgetAmount" label="Бюджет (UZS)" columnKey="budgetAmount" />
               )}
@@ -2805,10 +2963,13 @@ export default function PurchasePlanItemsTable() {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200 border-t-2 border-gray-400">
             {hasData ? (
-              data?.content.map((item) => (
+              data?.content.map((item) => {
+                const isExpanded = expandedRows.has(item.id);
+                return (
+                  <React.Fragment key={item.id}>
                 <tr 
-                  key={item.id} 
-                  className="hover:bg-gray-50"
+                      className="hover:bg-gray-50 cursor-pointer"
+                      onClick={(e) => handleRowClick(item.id, e)}
                 >
                         {visibleColumns.has('cfo') && (
                         <td 
@@ -2836,22 +2997,6 @@ export default function PurchasePlanItemsTable() {
                           {item.purchaser || '-'}
                         </td>
                         )}
-                        {visibleColumns.has('hasContract') && (
-                        <td 
-                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center"
-                          style={{ width: `${getColumnWidth('hasContract')}px`, minWidth: `${getColumnWidth('hasContract')}px`, maxWidth: `${getColumnWidth('hasContract')}px` }}
-                        >
-                          {item.hasContract === true ? 'Да' : item.hasContract === false ? 'Нет' : '-'}
-                        </td>
-                        )}
-                        {visibleColumns.has('autoRenewal') && (
-                        <td 
-                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center"
-                          style={{ width: `${getColumnWidth('autoRenewal')}px`, minWidth: `${getColumnWidth('autoRenewal')}px`, maxWidth: `${getColumnWidth('autoRenewal')}px` }}
-                        >
-                          {item.autoRenewal === true ? 'Да' : item.autoRenewal === false ? 'Нет' : '-'}
-                        </td>
-                        )}
                         {visibleColumns.has('budgetAmount') && (
                         <td 
                           className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
@@ -2861,9 +3006,9 @@ export default function PurchasePlanItemsTable() {
                             notation: 'compact',
                             maximumFractionDigits: 1 
                           }).format(item.budgetAmount) : '-'}
-                        </td>
-                        )}
-                        {visibleColumns.has('requestDate') && (
+                  </td>
+                  )}
+                  {visibleColumns.has('requestDate') && (
                   <td 
                     className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${
                       animatingDates[item.id] ? 'animate-pulse bg-blue-50 text-blue-700 font-semibold' : 'text-gray-900'
@@ -3037,7 +3182,12 @@ export default function PurchasePlanItemsTable() {
                     {item.updatedAt ? new Date(item.updatedAt).toLocaleDateString('ru-RU') : '-'}
                   </td>
                   )}
-                  <td className="px-1 py-1 border-r border-gray-200" style={{ width: '350px', minWidth: '350px' }}>
+                  <td 
+                    className="px-1 py-1 border-r border-gray-200" 
+                    style={{ width: '350px', minWidth: '350px' }}
+                    data-gantt-chart="true"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <GanttChart
                       itemId={item.id}
                       year={item.year}
@@ -3080,7 +3230,167 @@ export default function PurchasePlanItemsTable() {
                     />
                   </td>
                 </tr>
-              ))
+                    {/* Подстрока при раскрытии */}
+                    {isExpanded && (
+                      <tr className="bg-blue-50 border-t-2 border-blue-300">
+                        <td colSpan={visibleColumns.size + 1} className="px-4 py-3">
+                          {/* Вкладки */}
+                          <div className="mb-4 border-b border-blue-200">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => setActiveTab(prev => ({ ...prev, [item.id]: 'data' }))}
+                                className={`px-4 py-2 text-xs font-medium rounded-t-lg transition-colors ${
+                                  activeTab[item.id] === 'data' || !activeTab[item.id]
+                                    ? 'bg-white text-blue-700 border-b-2 border-blue-500'
+                                    : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                                }`}
+                              >
+                                Данные
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setActiveTab(prev => ({ ...prev, [item.id]: 'changes' }));
+                                  if (!changesData[item.id] || changesData[item.id].content.length === 0) {
+                                    fetchChanges(item.id, 0);
+                                  }
+                                }}
+                                className={`px-4 py-2 text-xs font-medium rounded-t-lg transition-colors ${
+                                  activeTab[item.id] === 'changes'
+                                    ? 'bg-white text-blue-700 border-b-2 border-blue-500'
+                                    : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                                }`}
+                              >
+                                Изменения
+                              </button>
+                            </div>
+                          </div>
+                          
+                          {/* Содержимое вкладки "Данные" */}
+                          {(activeTab[item.id] === 'data' || !activeTab[item.id]) && (
+                            <div className="text-xs text-gray-700">
+                              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                              <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                <span className="font-semibold text-blue-700">ID:</span> <span className="text-gray-900">{item.id}</span>
+                              </div>
+                              {item.guid && (
+                                <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                  <span className="font-semibold text-blue-700">GUID:</span> <span className="text-gray-900 break-all">{item.guid}</span>
+                                </div>
+                              )}
+                              {item.company && (
+                                <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                  <span className="font-semibold text-blue-700">Компания:</span> <span className="text-gray-900">{item.company}</span>
+                                </div>
+                              )}
+                              {item.purchaseSubject && (
+                                <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                  <span className="font-semibold text-blue-700">Предмет закупки:</span> <span className="text-gray-900">{item.purchaseSubject}</span>
+                                </div>
+                              )}
+                              {item.purchaser && (
+                                <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                  <span className="font-semibold text-blue-700">Закупщик:</span> <span className="text-gray-900">{item.purchaser}</span>
+                                </div>
+                              )}
+                              {item.product && (
+                                <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                  <span className="font-semibold text-blue-700">Продукт:</span> <span className="text-gray-900">{item.product}</span>
+                                </div>
+                              )}
+                              {item.budgetAmount && (
+                                <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                  <span className="font-semibold text-blue-700">Бюджет:</span> <span className="text-gray-900">{new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(item.budgetAmount)}</span>
+                                </div>
+                              )}
+                              {item.complexity && (
+                                <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                  <span className="font-semibold text-blue-700">Сложность:</span> <span className="text-gray-900">{item.complexity}</span>
+                                </div>
+                              )}
+                              {item.category && (
+                                <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                  <span className="font-semibold text-blue-700">Категория:</span> <span className="text-gray-900">{item.category}</span>
+                                </div>
+                              )}
+                              <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                <span className="font-semibold text-blue-700">Есть договор:</span> <span className="text-gray-900">{item.hasContract === true ? 'Да' : item.hasContract === false ? 'Нет' : '-'}</span>
+                              </div>
+                              <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                <span className="font-semibold text-blue-700">Автопролонгация:</span> <span className="text-gray-900">{item.autoRenewal === true ? 'Да' : item.autoRenewal === false ? 'Нет' : '-'}</span>
+                              </div>
+                            </div>
+                          </div>
+                          )}
+                          
+                          {/* Содержимое вкладки "Изменения" */}
+                          {activeTab[item.id] === 'changes' && (
+                            <div className="text-xs text-gray-700">
+                              {changesData[item.id]?.loading ? (
+                                <div className="text-center py-4 text-gray-500">Загрузка...</div>
+                              ) : changesData[item.id]?.content && changesData[item.id].content.length > 0 ? (
+                                <>
+                                  <div className="space-y-2 mb-4">
+                                    {changesData[item.id].content.map((change: any) => (
+                                      <div key={change.id} className="bg-white px-3 py-2 rounded border border-blue-200">
+                                        <div className="flex items-center justify-between mb-1">
+                                          <span className="font-semibold text-blue-700">{change.fieldName}</span>
+                                          <span className="text-gray-500 text-[10px]">
+                                            {new Date(change.changeDate).toLocaleString('ru-RU')}
+                                          </span>
+                                        </div>
+                                        <div className="flex gap-2 text-[10px]">
+                                          <div className="flex-1">
+                                            <span className="text-gray-500">Было:</span>
+                                            <span className="ml-1 text-red-600">{change.valueBefore || '-'}</span>
+                                          </div>
+                                          <div className="flex-1">
+                                            <span className="text-gray-500">Стало:</span>
+                                            <span className="ml-1 text-green-600">{change.valueAfter || '-'}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  
+                                  {/* Пагинация */}
+                                  {changesData[item.id].totalPages > 1 && (
+                                    <div className="flex items-center justify-between border-t border-blue-200 pt-2">
+                                      <div className="text-[10px] text-gray-500">
+                                        Показано {changesData[item.id].content.length} из {changesData[item.id].totalElements}
+                                      </div>
+                                      <div className="flex gap-1">
+                                        <button
+                                          onClick={() => fetchChanges(item.id, changesData[item.id].currentPage - 1)}
+                                          disabled={changesData[item.id].currentPage === 0}
+                                          className="px-2 py-1 text-[10px] bg-white border border-blue-300 rounded hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                          Назад
+                                        </button>
+                                        <span className="px-2 py-1 text-[10px] text-gray-600">
+                                          {changesData[item.id].currentPage + 1} / {changesData[item.id].totalPages}
+                                        </span>
+                                        <button
+                                          onClick={() => fetchChanges(item.id, changesData[item.id].currentPage + 1)}
+                                          disabled={changesData[item.id].currentPage >= changesData[item.id].totalPages - 1}
+                                          className="px-2 py-1 text-[10px] bg-white border border-blue-300 rounded hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                          Вперед
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </>
+                              ) : (
+                                <div className="text-center py-4 text-gray-500">Нет изменений</div>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })
             ) : (
               <tr>
                 <td colSpan={9} className="px-6 py-8 text-center text-gray-500">

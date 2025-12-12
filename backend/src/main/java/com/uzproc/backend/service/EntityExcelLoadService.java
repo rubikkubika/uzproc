@@ -183,9 +183,9 @@ public class EntityExcelLoadService {
                         } catch (Exception e) {
             logger.error("Streaming mode failed for file {}: {}", excelFile.getName(), e.getMessage(), e);
             throw new IOException("Failed to load Excel file using streaming mode: " + e.getMessage(), e);
-        }
-    }
-    
+                    }
+                }
+                
     // Удален стандартный метод - используем только потоковое чтение
     @Deprecated
     private Map<String, Integer> loadAllFromExcelStandard(File excelFile) throws IOException {
@@ -1480,8 +1480,8 @@ public class EntityExcelLoadService {
             logger.error("Streaming mode failed for file {}: {}", excelFile.getName(), e.getMessage(), e);
             throw new IOException("Failed to load users using streaming mode: " + e.getMessage(), e);
             }
-        }
-        
+                }
+                
     // Удален стандартный метод - используем только потоковое чтение
     @Deprecated
     private int loadUsersFromExcelStandard(File excelFile) throws IOException {
@@ -1732,8 +1732,8 @@ public class EntityExcelLoadService {
             logger.error("Streaming mode failed for file {}: {}", excelFile.getName(), e.getMessage(), e);
             throw new IOException("Failed to load contracts using streaming mode: " + e.getMessage(), e);
             }
-        }
-        
+                }
+
     // Удален стандартный метод - используем только потоковое чтение
     @Deprecated
     private int loadContractsFromExcelStandard(File excelFile) throws IOException {

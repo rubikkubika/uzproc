@@ -27,9 +27,13 @@ public class PurchasePlanItemService {
     private static final Logger logger = LoggerFactory.getLogger(PurchasePlanItemService.class);
     
     private final PurchasePlanItemRepository purchasePlanItemRepository;
+    private final PurchasePlanItemChangeService purchasePlanItemChangeService;
 
-    public PurchasePlanItemService(PurchasePlanItemRepository purchasePlanItemRepository) {
+    public PurchasePlanItemService(
+            PurchasePlanItemRepository purchasePlanItemRepository,
+            PurchasePlanItemChangeService purchasePlanItemChangeService) {
         this.purchasePlanItemRepository = purchasePlanItemRepository;
+        this.purchasePlanItemChangeService = purchasePlanItemChangeService;
     }
 
     public Page<PurchasePlanItemDto> findAll(
@@ -81,20 +85,32 @@ public class PurchasePlanItemService {
     public PurchasePlanItemDto updateDates(Long id, LocalDate requestDate, LocalDate newContractDate) {
         return purchasePlanItemRepository.findById(id)
                 .map(item -> {
-                    // Валидация: дата нового договора не может быть позже даты окончания действующего договора
-                    if (newContractDate != null && item.getCurrentContractEndDate() != null) {
-                        if (newContractDate.isAfter(item.getCurrentContractEndDate())) {
-                            logger.warn("Validation failed for purchase plan item {}: newContractDate ({}) cannot be after currentContractEndDate ({})", 
-                                    id, newContractDate, item.getCurrentContractEndDate());
-                            throw new IllegalArgumentException(
-                                    String.format("Дата нового договора (%s) не может быть позже даты окончания действующего договора (%s)", 
-                                            newContractDate, item.getCurrentContractEndDate()));
-                        }
-                    }
+                    // Валидация по дате окончания действующего договора убрана - разрешаем устанавливать любые даты
+                    
+                    // Сохраняем старые значения для логирования изменений
+                    LocalDate oldRequestDate = item.getRequestDate();
+                    LocalDate oldNewContractDate = item.getNewContractDate();
                     
                     item.setRequestDate(requestDate);
                     item.setNewContractDate(newContractDate);
                     PurchasePlanItem saved = purchasePlanItemRepository.save(item);
+                    
+                    // Записываем изменения в историю
+                    purchasePlanItemChangeService.logChange(
+                        saved.getId(),
+                        saved.getGuid(),
+                        "requestDate",
+                        oldRequestDate,
+                        requestDate
+                    );
+                    purchasePlanItemChangeService.logChange(
+                        saved.getId(),
+                        saved.getGuid(),
+                        "newContractDate",
+                        oldNewContractDate,
+                        newContractDate
+                    );
+                    
                     logger.info("Updated dates for purchase plan item {}: requestDate={}, newContractDate={}", 
                             id, requestDate, newContractDate);
                     return toDto(saved);
@@ -106,8 +122,21 @@ public class PurchasePlanItemService {
     public PurchasePlanItemDto updateContractEndDate(Long id, LocalDate contractEndDate) {
         return purchasePlanItemRepository.findById(id)
                 .map(item -> {
+                    // Сохраняем старое значение для логирования изменений
+                    LocalDate oldContractEndDate = item.getContractEndDate();
+                    
                     item.setContractEndDate(contractEndDate);
                     PurchasePlanItem saved = purchasePlanItemRepository.save(item);
+                    
+                    // Записываем изменение в историю
+                    purchasePlanItemChangeService.logChange(
+                        saved.getId(),
+                        saved.getGuid(),
+                        "contractEndDate",
+                        oldContractEndDate,
+                        contractEndDate
+                    );
+                    
                     logger.info("Updated contract end date for purchase plan item {}: contractEndDate={}", 
                             id, contractEndDate);
                     return toDto(saved);

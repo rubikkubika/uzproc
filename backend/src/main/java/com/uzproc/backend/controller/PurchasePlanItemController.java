@@ -1,7 +1,10 @@
 package com.uzproc.backend.controller;
 
+import com.uzproc.backend.dto.PurchasePlanItemChangeDto;
 import com.uzproc.backend.dto.PurchasePlanItemDto;
+import com.uzproc.backend.service.PurchasePlanItemChangeService;
 import com.uzproc.backend.service.PurchasePlanItemService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,9 +17,16 @@ import java.util.Map;
 public class PurchasePlanItemController {
 
     private final PurchasePlanItemService purchasePlanItemService;
+    private final PurchasePlanItemChangeService purchasePlanItemChangeService;
+    
+    @Value("${plan.edit.password:1988}")
+    private String editPassword;
 
-    public PurchasePlanItemController(PurchasePlanItemService purchasePlanItemService) {
+    public PurchasePlanItemController(
+            PurchasePlanItemService purchasePlanItemService,
+            PurchasePlanItemChangeService purchasePlanItemChangeService) {
         this.purchasePlanItemService = purchasePlanItemService;
+        this.purchasePlanItemChangeService = purchasePlanItemChangeService;
     }
 
     @GetMapping
@@ -53,8 +63,22 @@ public class PurchasePlanItemController {
     @PatchMapping("/{id}/dates")
     public ResponseEntity<?> updatePurchasePlanItemDates(
             @PathVariable Long id,
-            @RequestBody PurchasePlanItemDto dto) {
+            @RequestBody Map<String, Object> requestBody) {
         try {
+            // Проверяем пароль
+            String password = (String) requestBody.get("password");
+            if (password == null || !password.equals(editPassword)) {
+                return ResponseEntity.status(401).body("Неверный пароль");
+            }
+            
+            PurchasePlanItemDto dto = new PurchasePlanItemDto();
+            if (requestBody.get("requestDate") != null) {
+                dto.setRequestDate(java.time.LocalDate.parse((String) requestBody.get("requestDate")));
+            }
+            if (requestBody.get("newContractDate") != null) {
+                dto.setNewContractDate(java.time.LocalDate.parse((String) requestBody.get("newContractDate")));
+            }
+            
             PurchasePlanItemDto updatedItem = purchasePlanItemService.updateDates(id, dto.getRequestDate(), dto.getNewContractDate());
             if (updatedItem != null) {
                 return ResponseEntity.ok(updatedItem);
@@ -62,6 +86,8 @@ public class PurchasePlanItemController {
             return ResponseEntity.notFound().build();
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Ошибка сервера: " + e.getMessage());
         }
     }
 
@@ -81,6 +107,15 @@ public class PurchasePlanItemController {
             @RequestParam(required = false) Integer year) {
         Map<String, Object> stats = purchasePlanItemService.getMonthlyStats(year);
         return ResponseEntity.ok(stats);
+    }
+
+    @GetMapping("/{id}/changes")
+    public ResponseEntity<Page<PurchasePlanItemChangeDto>> getPurchasePlanItemChanges(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        Page<PurchasePlanItemChangeDto> changes = purchasePlanItemChangeService.getChangesByItemIdPaginated(id, page, size);
+        return ResponseEntity.ok(changes);
     }
 }
 
