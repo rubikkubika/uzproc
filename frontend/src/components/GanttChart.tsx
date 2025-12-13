@@ -481,7 +481,11 @@ export default function GanttChart({
   }
 
   return (
-    <div className={`relative h-8 w-full border rounded ${disabled ? 'border-gray-400 bg-gray-100 opacity-60' : 'border-gray-300'}`} ref={containerRef}>
+    <div 
+      className={`relative h-8 w-full border rounded overflow-hidden ${disabled ? 'border-gray-400 bg-gray-100 opacity-60' : 'border-gray-300'}`} 
+      ref={containerRef}
+      style={{ contain: 'layout style paint' }}
+    >
       {/* Месяцы */}
       <div className="absolute top-0 left-0 right-0 h-4 flex border-b border-gray-300 relative">
         {months.map((monthData, index) => {
@@ -516,7 +520,7 @@ export default function GanttChart({
       </div>
 
       {/* Полоса Ганта */}
-      <div className="absolute top-4 left-0 right-0 h-4">
+      <div className="absolute top-4 left-0 right-0 h-4 overflow-hidden" style={{ contain: 'layout style paint' }}>
         {/* Вертикальные разделители для месяцев в области полосы */}
         {months.map((_, index) => {
           if (index === 0) return null; // Пропускаем первый разделитель (он на границе)

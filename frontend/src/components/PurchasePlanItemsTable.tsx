@@ -2321,155 +2321,11 @@ export default function PurchasePlanItemsTable() {
         </div>
       )}
       <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 justify-between flex-wrap">
+          <div className="flex items-center gap-4 flex-wrap">
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-700 font-medium">Год планирования:</span>
-            {allYears.map((year) => (
-              <button
-                key={year}
-                onClick={() => setSelectedYear(year)}
-                  className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                  selectedYear === year
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                {year}
-              </button>
-            ))}
-            <button
-              onClick={() => setSelectedYear(null)}
-                className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                selectedYear === null
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              Все
-            </button>
-          </div>
-            <div className="flex items-center gap-4">
-            <p className="text-sm text-gray-500">
-              Всего записей: {totalRecords}
-            </p>
-              <div className="relative">
-                <button
-                  ref={columnsMenuButtonRef}
-                  onClick={() => setIsColumnsMenuOpen(!isColumnsMenuOpen)}
-                  className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-2"
-                  title="Настройка колонок"
-                >
-                  <Settings className="w-4 h-4" />
-                  Колонки
-                </button>
-                {isColumnsMenuOpen && columnsMenuPosition && (
-                  <div 
-                    className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-96 overflow-hidden"
-                    style={{
-                      top: `${columnsMenuPosition.top}px`,
-                      left: `${columnsMenuPosition.left}px`,
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="p-3 border-b border-gray-200">
-                      <h3 className="text-sm font-semibold text-gray-900">Выбор колонок</h3>
-                    </div>
-                    <div className="p-2 border-b border-gray-200 flex gap-2">
-                      <button
-                        onClick={selectAllColumns}
-                        className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                      >
-                        Все
-                      </button>
-                      <button
-                        onClick={selectDefaultColumns}
-                        className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
-                      >
-                        По умолчанию
-                      </button>
-                    </div>
-                    <div className="max-h-64 overflow-y-auto">
-                      {ALL_COLUMNS.map((column) => (
-                        <label
-                          key={column.key}
-                          className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={visibleColumns.has(column.key)}
-                            onChange={() => toggleColumnVisibility(column.key)}
-                            className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
-                          />
-                          <span className="ml-2 text-xs text-gray-700 flex-1">{column.label}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={exportToPDF}
-                className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-2"
-                title="Экспорт в PDF"
-              >
-                <Download className="w-4 h-4" />
-                Экспорт в PDF
-              </button>
-              <button
-                onClick={handleExportToExcelWithFilters}
-                className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg border border-green-600 hover:bg-green-700 transition-colors flex items-center gap-2"
-                title="Экспорт в Excel с фильтрами"
-                disabled={!data || !data.content || data.content.length === 0}
-              >
-                <Download className="w-4 h-4" />
-                Excel (с фильтрами)
-              </button>
-              <button
-                onClick={handleExportToExcelAll}
-                className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg border border-green-600 hover:bg-green-700 transition-colors flex items-center gap-2"
-                title="Экспорт в Excel всех данных"
-                disabled={loading}
-              >
-                <Download className="w-4 h-4" />
-                Excel (все данные)
-              </button>
-              <button
-                onClick={() => {
-                  const emptyFilters = {
-                    company: '',
-                    cfo: '',
-                    purchaseSubject: '',
-                  };
-                  setFilters(emptyFilters);
-                  setLocalFilters(emptyFilters);
-                  setCfoFilter(new Set());
-                  setCompanyFilter(new Set());
-                  setCategoryFilter(new Set());
-                  setPurchaserFilter(new Set());
-                setSortField('requestDate');
-                setSortDirection('asc');
-                  setFocusedField(null);
-                setSelectedYear(allYears.length > 0 ? allYears[0] : null);
-                setSelectedMonth(null);
-                setSelectedMonthYear(null);
-                setCurrentPage(0);
-                // Очищаем сохраненные фильтры из localStorage
-                try {
-                  localStorage.removeItem(FILTERS_STORAGE_KEY);
-                } catch (err) {
-                  console.error('Error clearing saved filters:', err);
-                }
-                }}
-              className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors"
-              >
-                Сбросить фильтры
-              </button>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-700 font-medium">Компания:</span>
-            <div className="relative company-filter-container">
+              <span className="text-sm text-gray-700 font-medium">Компания:</span>
+              <div className="relative company-filter-container">
               <button
                 ref={companyFilterButtonRef}
                 type="button"
@@ -2548,6 +2404,152 @@ export default function PurchasePlanItemsTable() {
                   </div>
                 </div>
               )}
+            </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <button
+                  ref={columnsMenuButtonRef}
+                  onClick={() => setIsColumnsMenuOpen(!isColumnsMenuOpen)}
+                  className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-2"
+                  title="Настройка колонок"
+                >
+                  <Settings className="w-4 h-4" />
+                  Колонки
+                </button>
+                {isColumnsMenuOpen && columnsMenuPosition && (
+                  <div 
+                    className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-96 overflow-hidden"
+                    style={{
+                      top: `${columnsMenuPosition.top}px`,
+                      left: `${columnsMenuPosition.left}px`,
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="p-3 border-b border-gray-200">
+                      <h3 className="text-sm font-semibold text-gray-900">Выбор колонок</h3>
+                    </div>
+                    <div className="p-2 border-b border-gray-200 flex gap-2">
+                      <button
+                        onClick={selectAllColumns}
+                        className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                      >
+                        Все
+                      </button>
+                      <button
+                        onClick={selectDefaultColumns}
+                        className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                      >
+                        По умолчанию
+                      </button>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto">
+                      {ALL_COLUMNS.map((column) => (
+                        <label
+                          key={column.key}
+                          className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={visibleColumns.has(column.key)}
+                            onChange={() => toggleColumnVisibility(column.key)}
+                            className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                          />
+                          <span className="ml-2 text-xs text-gray-700 flex-1">{column.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-700 font-medium">Год планирования:</span>
+                {allYears.map((year) => (
+                  <button
+                    key={year}
+                    onClick={() => setSelectedYear(year)}
+                      className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                      selectedYear === year
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {year}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setSelectedYear(null)}
+                    className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                    selectedYear === null
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  Все
+                </button>
+              </div>
+              <p className="text-sm text-gray-500">
+                Всего записей: {totalRecords}
+              </p>
+              <button
+                onClick={exportToPDF}
+                className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-2"
+                title="Экспорт в PDF"
+              >
+                <Download className="w-4 h-4" />
+                Экспорт в PDF
+              </button>
+              <button
+                onClick={handleExportToExcelWithFilters}
+                className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg border border-green-600 hover:bg-green-700 transition-colors flex items-center gap-2"
+                title="Экспорт в Excel с фильтрами"
+                disabled={!data || !data.content || data.content.length === 0}
+              >
+                <Download className="w-4 h-4" />
+                Excel (с фильтрами)
+              </button>
+              <button
+                onClick={handleExportToExcelAll}
+                className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg border border-green-600 hover:bg-green-700 transition-colors flex items-center gap-2"
+                title="Экспорт в Excel всех данных"
+                disabled={loading}
+              >
+                <Download className="w-4 h-4" />
+                Excel (все данные)
+              </button>
+              <button
+                onClick={() => {
+                  const emptyFilters = {
+                    company: '',
+                    cfo: '',
+                    purchaseSubject: '',
+                  };
+                  setFilters(emptyFilters);
+                  setLocalFilters(emptyFilters);
+                  setCfoFilter(new Set());
+                  setCompanyFilter(new Set());
+                  setCategoryFilter(new Set());
+                  setPurchaserFilter(new Set());
+                setSortField('requestDate');
+                setSortDirection('asc');
+                  setFocusedField(null);
+                setSelectedYear(allYears.length > 0 ? allYears[0] : null);
+                setSelectedMonth(null);
+                setSelectedMonthYear(null);
+                setCurrentPage(0);
+                // Очищаем сохраненные фильтры из localStorage
+                try {
+                  localStorage.removeItem(FILTERS_STORAGE_KEY);
+                } catch (err) {
+                  console.error('Error clearing saved filters:', err);
+                }
+                }}
+              className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors"
+              >
+                Сбросить фильтры
+              </button>
             </div>
           </div>
         </div>
@@ -3672,11 +3674,12 @@ export default function PurchasePlanItemsTable() {
                   </td>
                   )}
                   <td 
-                    className="px-1 py-1 border-r border-gray-200" 
-                    style={{ width: '350px', minWidth: '350px' }}
+                    className="px-1 py-1 border-r border-gray-200 overflow-hidden relative" 
+                    style={{ width: '350px', minWidth: '350px', contain: 'layout style paint' }}
                     data-gantt-chart="true"
                     onClick={(e) => e.stopPropagation()}
                   >
+                    <div className="relative w-full overflow-hidden" style={{ contain: 'layout style paint' }}>
                     <GanttChart
                       itemId={item.id}
                       year={item.year}
@@ -3718,6 +3721,7 @@ export default function PurchasePlanItemsTable() {
                         performGanttDateUpdate(item.id, requestDate, newContractDate);
                       }}
                     />
+                    </div>
                   </td>
                 </tr>
                     {/* Подстрока при раскрытии */}
