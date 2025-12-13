@@ -734,8 +734,58 @@ export default function PurchasePlanItemsTable() {
         const updatedItem = await response.json();
         setEditingCompany(null);
         
-        // Перезагружаем данные таблицы, чтобы применить фильтры и показать актуальные данные
-        await fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters, selectedMonth);
+        // Обновляем только конкретную строку в локальном состоянии
+        if (data) {
+          // Проверяем, подходит ли обновленная строка под фильтр компании
+          const normalizedNewCompany = newCompany ? newCompany.trim() : null;
+          const shouldShowItem = companyFilter.size === 0 || (normalizedNewCompany && companyFilter.has(normalizedNewCompany));
+          
+          if (shouldShowItem) {
+            // Обновляем строку в таблице
+            const updatedContent = data.content.map(item => 
+              item.id === itemId 
+                ? { ...item, company: updatedItem.company, updatedAt: updatedItem.updatedAt }
+                : item
+            );
+            setData({ ...data, content: updatedContent });
+          } else {
+            // Удаляем строку из отображаемых данных, так как она не подходит под фильтр
+            const updatedContent = data.content.filter(item => item.id !== itemId);
+            const newTotalElements = Math.max(0, (data.totalElements || 0) - 1);
+            const newTotalPages = Math.ceil(newTotalElements / pageSize);
+            setData({ 
+              ...data, 
+              content: updatedContent,
+              totalElements: newTotalElements,
+              totalPages: newTotalPages
+            });
+            
+            // Если удалили последний элемент на странице и это не первая страница, переходим на предыдущую
+            if (updatedContent.length === 0 && currentPage > 0) {
+              setCurrentPage(currentPage - 1);
+            }
+          }
+        }
+        
+        // Обновляем данные для диаграммы в таблице
+        const normalizedNewCompany = newCompany ? newCompany.trim() : null;
+        const shouldShowInChart = companyFilter.size === 0 || (normalizedNewCompany && companyFilter.has(normalizedNewCompany));
+        
+        setChartData(prev => {
+          if (!prev) return prev;
+          
+          if (shouldShowInChart) {
+            // Обновляем строку в chartData
+            return prev.map(item => 
+              item.id === itemId 
+                ? { ...item, company: updatedItem.company, updatedAt: updatedItem.updatedAt }
+                : item
+            );
+          } else {
+            // Удаляем строку из chartData, так как она не подходит под фильтр
+            return prev.filter(item => item.id !== itemId);
+          }
+        });
         
         // Отправляем событие для обновления столбчатой диаграммы (как при изменении дат)
         window.dispatchEvent(new CustomEvent('purchasePlanItemDatesUpdated', {
@@ -1305,6 +1355,11 @@ export default function PurchasePlanItemsTable() {
     
     // Месяцы: [Дек пред.года, Янв, Фев, Мар, Апр, Май, Июн, Июл, Авг, Сен, Окт, Ноя, Дек, Без даты]
     chartData.forEach((item) => {
+      // Исключаем неактуальные строки из расчета диаграммы
+      if (item.status === 'Не Актуальная') {
+        return;
+      }
+      
       if (!item.requestDate) {
         // Записи без даты - индекс 13
         monthCounts[13]++;
