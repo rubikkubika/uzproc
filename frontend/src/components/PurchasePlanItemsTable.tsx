@@ -1892,24 +1892,46 @@ export default function PurchasePlanItemsTable() {
     }
   };
 
-  // Debounce для текстовых фильтров
+  // Debounce для текстовых фильтров (как в PurchaseRequestsTable)
+  // Используем useRef для отслеживания предыдущих значений, чтобы избежать лишних обновлений
+  const prevLocalFiltersRef = useRef<Record<string, string>>(localFilters);
+  
   useEffect(() => {
+    // Проверяем, изменились ли текстовые фильтры
     const textFields = ['company', 'purchaseSubject', 'currentContractEndDate'];
-    const hasTextChanges = textFields.some(field => localFilters[field] !== filters[field]);
+    const hasTextChanges = textFields.some(field => {
+      const prevValue = prevLocalFiltersRef.current[field] || '';
+      const currentValue = localFilters[field] || '';
+      return prevValue !== currentValue;
+    });
     
     if (hasTextChanges) {
       const timer = setTimeout(() => {
         setFilters(prev => {
+          // Обновляем только измененные текстовые поля
           const updated = { ...prev };
+          let hasRealChanges = false;
           textFields.forEach(field => {
-            updated[field] = localFilters[field];
+            const prevValue = prev[field] || '';
+            const currentValue = localFilters[field] || '';
+            if (prevValue !== currentValue) {
+              updated[field] = currentValue;
+              hasRealChanges = true;
+            }
           });
-          return updated;
+          // Возвращаем новый объект только если есть реальные изменения
+          return hasRealChanges ? updated : prev;
         });
+        // Сбрасываем страницу только если фильтры действительно изменились
         setCurrentPage(0);
-      }, 500);
+        // Обновляем ref с новыми значениями
+        prevLocalFiltersRef.current = { ...localFilters };
+      }, 500); // Задержка 500мс
 
       return () => clearTimeout(timer);
+    } else {
+      // Обновляем ref даже если нет изменений, чтобы синхронизировать
+      prevLocalFiltersRef.current = { ...localFilters };
     }
   }, [localFilters]);
 
@@ -1922,38 +1944,67 @@ export default function PurchasePlanItemsTable() {
   }, [currentPage, pageSize, selectedYear, selectedMonthYear, sortField, sortDirection, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter, statusFilter, selectedMonth]);
 
   // Восстановление фокуса после обновления localFilters
-  useEffect(() => {
-    if (focusedField) {
-      const input = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
-      if (input) {
-        const cursorPosition = input.selectionStart || 0;
-        const currentValue = input.value;
-        
-        requestAnimationFrame(() => {
-          const inputAfterRender = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
-          if (inputAfterRender && inputAfterRender.value === currentValue) {
-            inputAfterRender.focus();
-            const newPosition = Math.min(cursorPosition, inputAfterRender.value.length);
-            inputAfterRender.setSelectionRange(newPosition, newPosition);
-          }
-        });
-      }
-    }
-  }, [localFilters, focusedField]);
+  // Отключено, чтобы не прерывать ввод текста - React сам правильно обрабатывает фокус
+  // useEffect(() => {
+  //   if (focusedField) {
+  //     const input = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
+  //     if (input) {
+  //       // Сохраняем позицию курсора
+  //       const cursorPosition = input.selectionStart || 0;
+  //       const currentValue = input.value;
+  //       
+  //       // Восстанавливаем фокус в следующем тике, чтобы не мешать текущему вводу
+  //       requestAnimationFrame(() => {
+  //         const inputAfterRender = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
+  //         if (inputAfterRender && inputAfterRender.value === currentValue) {
+  //           inputAfterRender.focus();
+  //           // Восстанавливаем позицию курсора
+  //           const newPosition = Math.min(cursorPosition, inputAfterRender.value.length);
+  //           inputAfterRender.setSelectionRange(newPosition, newPosition);
+  //         }
+  //       });
+  //     }
+  //   }
+  // }, [localFilters, focusedField]);
 
-  // Восстановление фокуса после завершения загрузки данных с сервера
+  // Восстановление фокуса после обновления localFilters
+  // Отключено, чтобы не мешать вводу текста - React сам правильно обрабатывает фокус и курсор
+  // useEffect(() => {
+  //   if (focusedField) {
+  //     const input = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
+  //     if (input) {
+  //       const cursorPosition = input.selectionStart || 0;
+  //       const currentValue = input.value;
+  //       
+  //       requestAnimationFrame(() => {
+  //         const inputAfterRender = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
+  //         if (inputAfterRender && inputAfterRender.value === currentValue) {
+  //           inputAfterRender.focus();
+  //           const newPosition = Math.min(cursorPosition, inputAfterRender.value.length);
+  //           inputAfterRender.setSelectionRange(newPosition, newPosition);
+  //         }
+  //       });
+  //     }
+  //   }
+  // }, [localFilters, focusedField]);
+
+  // Восстановление фокуса после завершения загрузки данных с сервера (как в PurchaseRequestsTable)
+  // Используем useRef для отслеживания предыдущего состояния загрузки
+  const prevLoadingRef = useRef<boolean>(true);
+  
   useEffect(() => {
-    if (focusedField && !loading && data) {
+    // Восстанавливаем фокус только при переходе из состояния загрузки в загружено
+    if (focusedField && prevLoadingRef.current && !loading && data) {
       // Небольшая задержка, чтобы дать React время отрендерить обновленные данные
       const timer = setTimeout(() => {
         const input = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
         if (input) {
-          const currentValue = localFilters[focusedField] || '';
-          // Проверяем, что значение в поле соответствует локальному состоянию
-          if (input.value === currentValue) {
+          // Используем значение из input, а не из localFilters, чтобы не зависеть от изменений localFilters
+          const inputValue = input.value;
+          if (inputValue !== undefined) {
             input.focus();
             // Устанавливаем курсор в конец текста
-            const length = input.value.length;
+            const length = inputValue.length;
             input.setSelectionRange(length, length);
           }
         }
@@ -1961,7 +2012,10 @@ export default function PurchasePlanItemsTable() {
 
       return () => clearTimeout(timer);
     }
-  }, [data, loading, focusedField, localFilters]);
+    
+    // Обновляем ref с текущим состоянием загрузки
+    prevLoadingRef.current = loading;
+  }, [data, loading, focusedField]);
 
   const handlePageSizeChange = (newSize: number) => {
     setPageSize(newSize);
@@ -1988,11 +2042,14 @@ export default function PurchasePlanItemsTable() {
   // Обработка фильтров
   const handleFilterChange = (field: string, value: string, isTextFilter: boolean = false) => {
     if (isTextFilter) {
+      // Для текстовых фильтров обновляем только локальное состояние
+      // fetchData будет вызван через debounce в useEffect
       setLocalFilters(prev => ({
         ...prev,
         [field]: value,
       }));
     } else {
+      // Для не-текстовых фильтров сразу обновляем оба состояния и загружаем данные
       setFilters(prev => ({
         ...prev,
         [field]: value,
@@ -2405,12 +2462,18 @@ export default function PurchasePlanItemsTable() {
                 onChange={(e) => {
                   const newValue = e.target.value;
                   const cursorPos = e.target.selectionStart || 0;
-                  setLocalFilters(prev => ({
-                    ...prev,
-                    [fieldKey]: newValue,
-                  }));
-                  handleFilterChange(fieldKey, newValue, true);
-                  // Сохраняем позицию курсора после обновления
+                  // Используем функциональное обновление, чтобы избежать лишних перерисовок
+                  setLocalFilters(prev => {
+                    // Обновляем только если значение действительно изменилось
+                    if (prev[fieldKey] === newValue) {
+                      return prev;
+                    }
+                    return {
+                      ...prev,
+                      [fieldKey]: newValue,
+                    };
+                  });
+                  // Сохраняем позицию курсора после обновления (как в PurchaseRequestsTable)
                   requestAnimationFrame(() => {
                     const input = e.target as HTMLInputElement;
                     if (input && document.activeElement === input) {
@@ -2425,6 +2488,7 @@ export default function PurchasePlanItemsTable() {
                 }}
                 onBlur={(e) => {
                   // Снимаем фокус только если пользователь явно кликнул в другое место
+                  // Но не сразу, чтобы не потерять фокус при обновлении данных
                   setTimeout(() => {
                     const activeElement = document.activeElement as HTMLElement;
                     if (activeElement && 
@@ -2494,25 +2558,25 @@ export default function PurchasePlanItemsTable() {
             {/* Сводная таблица */}
             {purchaserSummary.length > 0 && (
               <div className="bg-white rounded shadow-sm border border-gray-200 overflow-hidden flex-shrink-0">
-              <div className="overflow-x-auto">
+          <div className="overflow-x-auto">
                 <table className="border-collapse table-auto">
-                  <thead className="bg-gray-50">
-                    <tr>
+            <thead className="bg-gray-50">
+              <tr>
                       <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 whitespace-nowrap">
-                        Закупщик
-                      </th>
+                  Закупщик
+                </th>
                       <th className="px-2 py-1 text-right text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 whitespace-nowrap">
-                        Количество
-                      </th>
+                  Количество
+                </th>
                       <th className="px-2 py-1 text-right text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 whitespace-nowrap">
-                        Сумма бюджета
-                      </th>
+                  Сумма бюджета
+                </th>
                       <th className="px-2 py-1 text-right text-xs font-medium text-gray-500 tracking-wider whitespace-nowrap">
                         Сложность
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
                     {purchaserSummary.map((item, index) => {
                       const isSelected = purchaserFilter.size === 1 && purchaserFilter.has(item.purchaser);
                       return (
@@ -2536,16 +2600,16 @@ export default function PurchasePlanItemsTable() {
                         >
                           <td className="px-2 py-1 text-xs text-gray-900 border-r border-gray-200 whitespace-nowrap">
                             {item.purchaser}
-                          </td>
+                  </td>
                           <td className="px-2 py-1 text-xs text-gray-900 text-right border-r border-gray-200 whitespace-nowrap">
                             {item.count}
-                          </td>
+                    </td>
                           <td className="px-2 py-1 text-xs text-gray-900 text-right border-r border-gray-200 whitespace-nowrap">
                             {item.totalBudget.toLocaleString('ru-RU', { 
                               minimumFractionDigits: 0, 
                               maximumFractionDigits: 0 
                             })}
-                          </td>
+                    </td>
                           <td className="px-2 py-1 text-xs text-gray-900 text-right whitespace-nowrap">
                             {item.totalComplexity > 0 
                               ? item.totalComplexity.toLocaleString('ru-RU', { 
@@ -2553,8 +2617,8 @@ export default function PurchasePlanItemsTable() {
                                   maximumFractionDigits: 2 
                                 })
                               : '-'}
-                          </td>
-                        </tr>
+                    </td>
+                  </tr>
                       );
                     })}
                   </tbody>
@@ -2568,11 +2632,11 @@ export default function PurchasePlanItemsTable() {
                     }}
                   >
                     <td className="px-2 py-1 text-xs font-semibold text-gray-700 border-r border-gray-200 whitespace-nowrap">
-                      Итого
-                    </td>
+                    Итого
+                  </td>
                     <td className="px-2 py-1 text-xs font-semibold text-gray-700 text-right border-r border-gray-200 whitespace-nowrap">
                       {purchaserSummary.reduce((sum, item) => sum + item.count, 0)}
-                    </td>
+                  </td>
                     <td className="px-2 py-1 text-xs font-semibold text-gray-700 text-right border-r border-gray-200 whitespace-nowrap">
                       {purchaserSummary.reduce((sum, item) => sum + item.totalBudget, 0).toLocaleString('ru-RU', { 
                         minimumFractionDigits: 0, 
@@ -2589,22 +2653,22 @@ export default function PurchasePlanItemsTable() {
                             })
                           : '-';
                       })()}
-                    </td>
-                  </tr>
+                  </td>
+                </tr>
                 </tfoot>
-                </table>
-              </div>
-            </div>
+          </table>
+        </div>
+      </div>
             )}
             
             {/* Элементы управления справа от сводной таблицы */}
             <div className="flex items-start gap-2 flex-shrink-0 ml-2">
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-1">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-700 font-medium">Компания:</span>
                   <div className="relative company-filter-container">
-                  <button
+                <button
                     ref={companyFilterButtonRef}
                     type="button"
                     onClick={() => setIsCompanyFilterOpen(!isCompanyFilterOpen)}
@@ -2620,7 +2684,7 @@ export default function PurchasePlanItemsTable() {
                     <svg className={`w-4 h-4 transition-transform flex-shrink-0 ${isCompanyFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
-                  </button>
+                </button>
                   {isCompanyFilterOpen && companyFilterPosition && (
                     <div 
                       className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden"
@@ -2647,19 +2711,19 @@ export default function PurchasePlanItemsTable() {
                         </div>
                       </div>
                       <div className="p-2 border-b border-gray-200 flex gap-2">
-                        <button
+              <button
                           onClick={() => handleCompanySelectAll()}
                           className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                        >
-                          Все
-                        </button>
+              >
+                Все
+              </button>
                         <button
                           onClick={() => handleCompanyDeselectAll()}
                           className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
                         >
                           Снять
-                        </button>
-                      </div>
+              </button>
+            </div>
                       <div className="max-h-48 overflow-y-auto">
                         {getFilteredCompanyOptions.length === 0 ? (
                           <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
@@ -2685,61 +2749,61 @@ export default function PurchasePlanItemsTable() {
                 </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  <div className="relative">
-                    <button
-                      ref={columnsMenuButtonRef}
-                      onClick={() => setIsColumnsMenuOpen(!isColumnsMenuOpen)}
-                      className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-2"
-                      title="Настройка колонок"
+                <div className="relative">
+                  <button
+                    ref={columnsMenuButtonRef}
+                    onClick={() => setIsColumnsMenuOpen(!isColumnsMenuOpen)}
+                    className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-2"
+                    title="Настройка колонок"
+                  >
+                    <Settings className="w-4 h-4" />
+                    Колонки
+                  </button>
+                  {isColumnsMenuOpen && columnsMenuPosition && (
+                    <div 
+                      className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-96 overflow-hidden"
+                      style={{
+                        top: `${columnsMenuPosition.top}px`,
+                        left: `${columnsMenuPosition.left}px`,
+                      }}
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      <Settings className="w-4 h-4" />
-                      Колонки
-                    </button>
-                    {isColumnsMenuOpen && columnsMenuPosition && (
-                      <div 
-                        className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-96 overflow-hidden"
-                        style={{
-                          top: `${columnsMenuPosition.top}px`,
-                          left: `${columnsMenuPosition.left}px`,
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div className="p-3 border-b border-gray-200">
-                          <h3 className="text-sm font-semibold text-gray-900">Выбор колонок</h3>
-                        </div>
-                        <div className="p-2 border-b border-gray-200 flex gap-2">
-                          <button
-                            onClick={selectAllColumns}
-                            className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                          >
-                            Все
-                          </button>
-                          <button
-                            onClick={selectDefaultColumns}
-                            className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
-                          >
-                            По умолчанию
-                          </button>
-                        </div>
-                        <div className="max-h-64 overflow-y-auto">
-                          {ALL_COLUMNS.map((column) => (
-                            <label
-                              key={column.key}
-                              className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={visibleColumns.has(column.key)}
-                                onChange={() => toggleColumnVisibility(column.key)}
-                                className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
-                              />
-                              <span className="ml-2 text-xs text-gray-700 flex-1">{column.label}</span>
-                            </label>
-                          ))}
-                        </div>
+                      <div className="p-3 border-b border-gray-200">
+                        <h3 className="text-sm font-semibold text-gray-900">Выбор колонок</h3>
                       </div>
-                    )}
-                  </div>
+                      <div className="p-2 border-b border-gray-200 flex gap-2">
+                        <button
+                          onClick={selectAllColumns}
+                          className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                        >
+                          Все
+                        </button>
+                        <button
+                          onClick={selectDefaultColumns}
+                          className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                        >
+                          По умолчанию
+                        </button>
+                      </div>
+                      <div className="max-h-64 overflow-y-auto">
+                        {ALL_COLUMNS.map((column) => (
+                          <label
+                            key={column.key}
+                            className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={visibleColumns.has(column.key)}
+                              onChange={() => toggleColumnVisibility(column.key)}
+                              className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                            />
+                            <span className="ml-2 text-xs text-gray-700 flex-1">{column.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="text-sm text-gray-700 font-medium">Год планирования:</span>
@@ -2823,22 +2887,22 @@ export default function PurchasePlanItemsTable() {
                   }
                   }}
                 className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors"
-                >
-                  Сбросить фильтры
-                </button>
-              </div>
+              >
+                Сбросить фильтры
+              </button>
             </div>
+          </div>
             <div className="relative flex items-center">
               <div className="absolute -top-6 left-0">
                 <p className="text-sm text-gray-500">
                   Всего записей: {totalRecords}
                 </p>
-              </div>
+                    </div>
+                  </div>
+                  </div>
+                  </div>
+                </div>
             </div>
-          </div>
-          </div>
-        </div>
-      </div>
       {/* Модальное окно подтверждения паролем перед изменением данных */}
       {/* Модальное окно для ошибок */}
       {errorModal.isOpen && (
@@ -2846,26 +2910,26 @@ export default function PurchasePlanItemsTable() {
           <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between mb-4">
               <h2 className="text-lg font-semibold text-gray-900">Ошибка</h2>
-              <button
+            <button
                 onClick={() => setErrorModal({ isOpen: false, message: '' })}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
+            >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
-              </button>
+            </button>
             </div>
             <p className="text-sm text-gray-700 mb-4">{errorModal.message}</p>
             <div className="flex justify-end">
-              <button
+            <button
                 onClick={() => setErrorModal({ isOpen: false, message: '' })}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
               >
                 OK
-              </button>
-            </div>
+            </button>
           </div>
         </div>
+      </div>
       )}
 
       {isAuthModalOpen && (
@@ -4391,7 +4455,7 @@ export default function PurchasePlanItemsTable() {
                               ) : (
                                 <div className="text-center py-4 text-gray-500">Заявка не найдена</div>
                               )}
-                            </div>
+                          </div>
                           )}
                           
                           {/* Содержимое вкладки "Изменения" */}
@@ -4478,4 +4542,5 @@ export default function PurchasePlanItemsTable() {
     </div>
   );
 }
+
 
