@@ -2231,7 +2231,7 @@ export default function PurchasePlanItemsTable() {
   const hasData = data && data.content && data.content.length > 0;
 
   return (
-    <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+    <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
       {/* Модальное окно подтверждения паролем перед изменением данных */}
       {isAuthModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -2320,7 +2320,7 @@ export default function PurchasePlanItemsTable() {
           </div>
         </div>
       )}
-      <div className="px-6 py-4 border-b border-gray-200">
+      <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
@@ -2612,9 +2612,9 @@ export default function PurchasePlanItemsTable() {
         </div>
       )}
       
-      <div className="overflow-x-auto relative">
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
         {/* Контейнер для печати */}
-        <div ref={printRef} className="print-container">
+        <div ref={printRef} className="print-container h-full flex flex-col overflow-hidden">
           <style>{`
             @media print {
               .print-container {
@@ -2675,8 +2675,9 @@ export default function PurchasePlanItemsTable() {
             <h1>План закупок</h1>
             {selectedYear !== null && <p>Год: {selectedYear}</p>}
           </div>
+          <div className="flex-1 min-h-0 overflow-auto">
         <table className="w-full border-collapse">
-          <thead className="bg-gray-50">
+          <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
               {visibleColumns.has('cfo') && (
               <th 
@@ -3889,6 +3890,7 @@ export default function PurchasePlanItemsTable() {
             )}
           </tbody>
         </table>
+        </div>
         </div>
       </div>
     </div>
