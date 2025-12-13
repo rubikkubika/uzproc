@@ -1892,48 +1892,44 @@ export default function PurchasePlanItemsTable() {
     }
   };
 
-  // Debounce для текстовых фильтров (как в PurchaseRequestsTable)
-  // Используем useRef для отслеживания предыдущих значений, чтобы избежать лишних обновлений
-  const prevLocalFiltersRef = useRef<Record<string, string>>(localFilters);
+  // Debounce для текстовых фильтров
+  // Используем useRef для хранения таймера, чтобы явно видеть, что задержка обновляется при каждом вводе символа
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   useEffect(() => {
     // Проверяем, изменились ли текстовые фильтры
     const textFields = ['company', 'purchaseSubject', 'currentContractEndDate'];
-    const hasTextChanges = textFields.some(field => {
-      const prevValue = prevLocalFiltersRef.current[field] || '';
-      const currentValue = localFilters[field] || '';
-      return prevValue !== currentValue;
-    });
+    const hasTextChanges = textFields.some(field => localFilters[field] !== filters[field]);
     
     if (hasTextChanges) {
-      const timer = setTimeout(() => {
+      // Очищаем предыдущий таймер, если он существует (это и есть обновление задержки при каждом вводе символа)
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      
+      // Создаем новый таймер - задержка обновляется при каждом вводе символа
+      debounceTimerRef.current = setTimeout(() => {
         setFilters(prev => {
           // Обновляем только измененные текстовые поля
           const updated = { ...prev };
-          let hasRealChanges = false;
           textFields.forEach(field => {
-            const prevValue = prev[field] || '';
-            const currentValue = localFilters[field] || '';
-            if (prevValue !== currentValue) {
-              updated[field] = currentValue;
-              hasRealChanges = true;
-            }
+            updated[field] = localFilters[field];
           });
-          // Возвращаем новый объект только если есть реальные изменения
-          return hasRealChanges ? updated : prev;
+          return updated;
         });
-        // Сбрасываем страницу только если фильтры действительно изменились
-        setCurrentPage(0);
-        // Обновляем ref с новыми значениями
-        prevLocalFiltersRef.current = { ...localFilters };
-      }, 500); // Задержка 500мс
-
-      return () => clearTimeout(timer);
-    } else {
-      // Обновляем ref даже если нет изменений, чтобы синхронизировать
-      prevLocalFiltersRef.current = { ...localFilters };
+        setCurrentPage(0); // Сбрасываем на первую страницу после применения фильтра
+        debounceTimerRef.current = null; // Очищаем ссылку на таймер после выполнения
+      }, 500); // Задержка 500мс - обновляется при каждом вводе символа
     }
-  }, [localFilters]);
+    
+    // Cleanup функция - очищаем таймер при размонтировании компонента
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
+      }
+    };
+  }, [localFilters, filters]);
 
   useEffect(() => {
     // Не вызываем fetchData до тех пор, пока фильтры не загружены из localStorage
@@ -1943,29 +1939,39 @@ export default function PurchasePlanItemsTable() {
     fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters, selectedMonth);
   }, [currentPage, pageSize, selectedYear, selectedMonthYear, sortField, sortDirection, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter, statusFilter, selectedMonth]);
 
-  // Восстановление фокуса после обновления localFilters
-  // Отключено, чтобы не прерывать ввод текста - React сам правильно обрабатывает фокус
-  // useEffect(() => {
-  //   if (focusedField) {
-  //     const input = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
-  //     if (input) {
-  //       // Сохраняем позицию курсора
-  //       const cursorPosition = input.selectionStart || 0;
-  //       const currentValue = input.value;
-  //       
-  //       // Восстанавливаем фокус в следующем тике, чтобы не мешать текущему вводу
-  //       requestAnimationFrame(() => {
-  //         const inputAfterRender = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
-  //         if (inputAfterRender && inputAfterRender.value === currentValue) {
-  //           inputAfterRender.focus();
-  //           // Восстанавливаем позицию курсора
-  //           const newPosition = Math.min(cursorPosition, inputAfterRender.value.length);
-  //           inputAfterRender.setSelectionRange(newPosition, newPosition);
-  //         }
-  //       });
-  //     }
-  //   }
-  // }, [localFilters, focusedField]);
+  // Восстановление фокуса после обновления localFilters (как в PurchaseRequestsTable)
+  // Используем useRef для отслеживания предыдущего значения, чтобы не восстанавливать фокус без необходимости
+  const prevLocalFiltersValueRef = useRef<string>('');
+  
+  useEffect(() => {
+    if (focusedField) {
+      const currentValue = localFilters[focusedField] || '';
+      const prevValue = prevLocalFiltersValueRef.current;
+      
+      // Восстанавливаем фокус только если значение действительно изменилось
+      if (currentValue !== prevValue) {
+        prevLocalFiltersValueRef.current = currentValue;
+        
+        const input = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
+        if (input) {
+          // Сохраняем позицию курсора
+          const cursorPosition = input.selectionStart || 0;
+          const inputValue = input.value;
+          
+          // Восстанавливаем фокус в следующем тике, чтобы не мешать текущему вводу
+          requestAnimationFrame(() => {
+            const inputAfterRender = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
+            if (inputAfterRender && inputAfterRender.value === inputValue) {
+              inputAfterRender.focus();
+              // Восстанавливаем позицию курсора
+              const newPosition = Math.min(cursorPosition, inputAfterRender.value.length);
+              inputAfterRender.setSelectionRange(newPosition, newPosition);
+            }
+          });
+        }
+      }
+    }
+  }, [localFilters, focusedField]);
 
   // Восстановление фокуса после обновления localFilters
   // Отключено, чтобы не мешать вводу текста - React сам правильно обрабатывает фокус и курсор
@@ -1989,22 +1995,18 @@ export default function PurchasePlanItemsTable() {
   // }, [localFilters, focusedField]);
 
   // Восстановление фокуса после завершения загрузки данных с сервера (как в PurchaseRequestsTable)
-  // Используем useRef для отслеживания предыдущего состояния загрузки
-  const prevLoadingRef = useRef<boolean>(true);
-  
   useEffect(() => {
-    // Восстанавливаем фокус только при переходе из состояния загрузки в загружено
-    if (focusedField && prevLoadingRef.current && !loading && data) {
+    if (focusedField && !loading && data) {
       // Небольшая задержка, чтобы дать React время отрендерить обновленные данные
       const timer = setTimeout(() => {
         const input = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
         if (input) {
-          // Используем значение из input, а не из localFilters, чтобы не зависеть от изменений localFilters
-          const inputValue = input.value;
-          if (inputValue !== undefined) {
+          const currentValue = localFilters[focusedField] || '';
+          // Проверяем, что значение в поле соответствует локальному состоянию
+          if (input.value === currentValue) {
             input.focus();
             // Устанавливаем курсор в конец текста
-            const length = inputValue.length;
+            const length = input.value.length;
             input.setSelectionRange(length, length);
           }
         }
@@ -2012,10 +2014,7 @@ export default function PurchasePlanItemsTable() {
 
       return () => clearTimeout(timer);
     }
-    
-    // Обновляем ref с текущим состоянием загрузки
-    prevLoadingRef.current = loading;
-  }, [data, loading, focusedField]);
+  }, [data, loading, focusedField, localFilters]);
 
   const handlePageSizeChange = (newSize: number) => {
     setPageSize(newSize);
@@ -2462,17 +2461,10 @@ export default function PurchasePlanItemsTable() {
                 onChange={(e) => {
                   const newValue = e.target.value;
                   const cursorPos = e.target.selectionStart || 0;
-                  // Используем функциональное обновление, чтобы избежать лишних перерисовок
-                  setLocalFilters(prev => {
-                    // Обновляем только если значение действительно изменилось
-                    if (prev[fieldKey] === newValue) {
-                      return prev;
-                    }
-                    return {
-                      ...prev,
-                      [fieldKey]: newValue,
-                    };
-                  });
+                  setLocalFilters(prev => ({
+                    ...prev,
+                    [fieldKey]: newValue,
+                  }));
                   // Сохраняем позицию курсора после обновления (как в PurchaseRequestsTable)
                   requestAnimationFrame(() => {
                     const input = e.target as HTMLInputElement;
