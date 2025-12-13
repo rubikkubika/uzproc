@@ -501,6 +501,15 @@ export default function PurchasePlanItemsTable() {
               : i
           );
         });
+        // Обновляем данные для сводной таблицы
+        setSummaryData(prev => {
+          if (!prev) return prev;
+          return prev.map(i => 
+            i.id === itemId 
+              ? { ...i, requestDate: updatedItem.requestDate, newContractDate: updatedItem.newContractDate }
+              : i
+          );
+        });
         // Отправляем событие для обновления диаграммы
         window.dispatchEvent(new CustomEvent('purchasePlanItemDatesUpdated', {
           detail: { itemId, requestDate: updatedItem.requestDate, newContractDate: updatedItem.newContractDate }
@@ -606,6 +615,15 @@ export default function PurchasePlanItemsTable() {
               : i
           );
         });
+        // Обновляем данные для сводной таблицы
+        setSummaryData(prev => {
+          if (!prev) return prev;
+          return prev.map(i => 
+            i.id === itemId 
+              ? { ...i, requestDate: updatedItem.requestDate, newContractDate: updatedItem.newContractDate }
+              : i
+          );
+        });
         // Отправляем событие для обновления диаграммы
         window.dispatchEvent(new CustomEvent('purchasePlanItemDatesUpdated', {
           detail: { itemId, requestDate: updatedItem.requestDate, newContractDate: updatedItem.newContractDate }
@@ -667,6 +685,15 @@ export default function PurchasePlanItemsTable() {
         }
         // Обновляем данные для диаграммы в таблице
         setChartData(prev => {
+          if (!prev) return prev;
+          return prev.map(i => 
+            i.id === itemId 
+              ? { ...i, status: updatedItem.status }
+              : i
+          );
+        });
+        // Обновляем данные для сводной таблицы
+        setSummaryData(prev => {
           if (!prev) return prev;
           return prev.map(i => 
             i.id === itemId 
@@ -783,6 +810,42 @@ export default function PurchasePlanItemsTable() {
             );
           } else {
             // Удаляем строку из chartData, так как она не подходит под фильтр
+            return prev.filter(item => item.id !== itemId);
+          }
+        });
+        
+        // Обновляем данные для сводной таблицы с учетом фильтра по компании
+        const normalizedNewCompanyForSummary = newCompany ? newCompany.trim() : null;
+        const shouldShowInSummary = companyFilter.size === 0 || (normalizedNewCompanyForSummary && companyFilter.has(normalizedNewCompanyForSummary));
+        
+        setSummaryData(prev => {
+          if (!prev) return prev;
+          
+          // Проверяем, есть ли запись в summaryData
+          const existingItem = prev.find(item => item.id === itemId);
+          
+          if (shouldShowInSummary) {
+            // Если запись должна быть в сводной таблице
+            if (existingItem) {
+              // Обновляем существующую запись
+              return prev.map(item => 
+                item.id === itemId 
+                  ? { ...item, company: updatedItem.company, updatedAt: updatedItem.updatedAt }
+                  : item
+              );
+            } else {
+              // Добавляем новую запись (если её не было, но теперь она соответствует фильтру)
+              // Используем данные из data или chartData, если они есть
+              const fullItem = data?.content.find(i => i.id === itemId) || chartData.find(i => i.id === itemId);
+              if (fullItem) {
+                // Используем полные данные из data или chartData и обновляем компанию
+                return [...prev, { ...fullItem, company: updatedItem.company, updatedAt: updatedItem.updatedAt }];
+              }
+              // Если полных данных нет, возвращаем prev (запись будет добавлена при следующей загрузке)
+              return prev;
+            }
+          } else {
+            // Если запись больше не должна быть в сводной таблице, удаляем её
             return prev.filter(item => item.id !== itemId);
           }
         });
@@ -1264,6 +1327,8 @@ export default function PurchasePlanItemsTable() {
 
   // Состояние для данных диаграммы (все отфильтрованные данные)
   const [chartData, setChartData] = useState<PurchasePlanItem[]>([]);
+  // Состояние для данных сводной таблицы (без учета фильтра по закупщику)
+  const [summaryData, setSummaryData] = useState<PurchasePlanItem[]>([]);
 
   // Загружаем все отфильтрованные данные для диаграммы
   useEffect(() => {
@@ -1321,6 +1386,56 @@ export default function PurchasePlanItemsTable() {
     
     fetchChartData();
   }, [selectedYear, selectedMonthYear, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter]);
+
+  // Загружаем данные для сводной таблицы (без учета фильтра по закупщику)
+  useEffect(() => {
+    const fetchSummaryData = async () => {
+      try {
+        const params = new URLSearchParams();
+        params.append('page', '0');
+        params.append('size', '10000'); // Загружаем все данные для сводной таблицы
+        
+        // Для сводной таблицы не применяем фильтр по году планирования, если выбран месяц из другого года
+        if (selectedYear !== null && selectedMonthYear === null) {
+          params.append('year', String(selectedYear));
+        }
+        
+        // Добавляем параметры фильтрации (БЕЗ фильтра по закупщику)
+        if (companyFilter.size > 0) {
+          companyFilter.forEach(company => {
+            params.append('company', company);
+          });
+        }
+        if (cfoFilter.size > 0) {
+          cfoFilter.forEach(cfo => {
+            params.append('cfo', cfo);
+          });
+        }
+        if (filters.purchaseSubject && filters.purchaseSubject.trim() !== '') {
+          params.append('purchaseSubject', filters.purchaseSubject.trim());
+        }
+        // НЕ добавляем фильтр по закупщику для сводной таблицы
+        // Фильтр по категории - передаем все выбранные значения на бэкенд
+        if (categoryFilter.size > 0) {
+          categoryFilter.forEach(category => {
+            params.append('category', category);
+          });
+        }
+        
+        const fetchUrl = `${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`;
+        const response = await fetch(fetchUrl);
+        if (response.ok) {
+          const result = await response.json();
+          setSummaryData(result.content || []);
+        }
+      } catch (err) {
+        console.error('Error fetching summary data:', err);
+        setSummaryData([]);
+      }
+    };
+    
+    fetchSummaryData();
+  }, [selectedYear, selectedMonthYear, filters, cfoFilter, companyFilter, categoryFilter]); // НЕ включаем purchaserFilter
 
   // Функция для подсчета количества закупок по месяцам (использует отфильтрованные данные)
   const getMonthlyDistribution = useMemo(() => {
@@ -1395,6 +1510,41 @@ export default function PurchasePlanItemsTable() {
   // Столбец "Без даты" будет равен максимальному, остальные - пропорционально
   const monthlyCounts = getMonthlyDistribution.slice(0, 13); // Первые 13 элементов (месяцы без "Без даты")
   const maxCount = Math.max(...monthlyCounts, 1);
+
+  // Сводная статистика по закупщикам (использует summaryData, который не учитывает фильтр по закупщику)
+  const purchaserSummary = useMemo(() => {
+    if (!summaryData || summaryData.length === 0) {
+      return [];
+    }
+
+    const summaryMap = new Map<string, { count: number; totalBudget: number }>();
+
+    summaryData.forEach((item) => {
+      // Исключаем неактуальные строки из сводной таблицы
+      if (item.status === 'Не Актуальная') {
+        return;
+      }
+
+      const purchaser = item.purchaser || 'Не назначен';
+      const budget = item.budgetAmount || 0;
+
+      if (!summaryMap.has(purchaser)) {
+        summaryMap.set(purchaser, { count: 0, totalBudget: 0 });
+      }
+
+      const stats = summaryMap.get(purchaser)!;
+      stats.count++;
+      stats.totalBudget += budget;
+    });
+
+    return Array.from(summaryMap.entries())
+      .map(([purchaser, stats]) => ({
+        purchaser,
+        count: stats.count,
+        totalBudget: stats.totalBudget,
+      }))
+      .sort((a, b) => b.totalBudget - a.totalBudget); // Сортировка по сумме бюджета по убыванию
+  }, [summaryData]);
   
   // Обработчик начала изменения размера
   const handleResizeStart = useCallback((e: React.MouseEvent, columnKey: string) => {
@@ -2232,97 +2382,88 @@ export default function PurchasePlanItemsTable() {
 
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
-      {/* Модальное окно подтверждения паролем перед изменением данных */}
-      {isAuthModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Подтверждение изменения</h2>
-            <p className="text-sm text-gray-600 mb-4">
-              Для сохранения изменения необходимо повторно ввести логин и пароль, как при входе в систему.
-            </p>
-            <div className="space-y-3 mb-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Логин</label>
-                <input
-                  type="text"
-                  value={authUsername}
-                  onChange={(e) => setAuthUsername(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Пароль</label>
-                <input
-                  type="password"
-                  value={authPassword}
-                  onChange={(e) => setAuthPassword(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              {authError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-xs">
-                  {authError}
-                </div>
-              )}
-            </div>
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
-                onClick={() => {
-                  // Откатываем изменения, если они были применены локально (при перетаскивании Ганта)
-                  if (pendingDateChange && (pendingDateChange.oldRequestDate !== undefined || pendingDateChange.oldNewContractDate !== undefined)) {
-                    // Восстанавливаем исходные данные
-                    if (data) {
-                      const updatedContent = data.content.map(i => 
-                        i.id === pendingDateChange.itemId 
-                          ? { 
-                              ...i, 
-                              requestDate: pendingDateChange.oldRequestDate !== undefined ? pendingDateChange.oldRequestDate : i.requestDate,
-                              newContractDate: pendingDateChange.oldNewContractDate !== undefined ? pendingDateChange.oldNewContractDate : i.newContractDate
-                            }
-                          : i
-                      );
-                      setData({ ...data, content: updatedContent });
-                    }
-                    // Убираем временные даты
-                    setTempDates(prev => {
-                      const newTemp = { ...prev };
-                      delete newTemp[pendingDateChange.itemId];
-                      return newTemp;
-                    });
-                    // Останавливаем анимацию
-                    setAnimatingDates(prev => {
-                      const newAnimating = { ...prev };
-                      delete newAnimating[pendingDateChange.itemId];
-                      return newAnimating;
-                    });
-                  }
-                  setIsAuthModalOpen(false);
-                  setPendingDateChange(null);
-                  setAuthPassword('');
-                  setAuthError(null);
-                }}
-                disabled={authLoading}
-              >
-                Отмена
-              </button>
-              <button
-                type="button"
-                className="px-3 py-1.5 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                onClick={handleAuthConfirm}
-                disabled={authLoading || !authUsername || !authPassword}
-              >
-                {authLoading ? 'Проверка...' : 'Подтвердить и сохранить'}
-              </button>
+      {/* Сводная таблица по закупщикам и элементы управления */}
+      <div className="px-3 py-2 border-b border-gray-200 flex-shrink-0">
+        <div className="flex items-center gap-4 justify-between flex-nowrap">
+          {/* Сводная таблица */}
+          {purchaserSummary.length > 0 && (
+            <div className="bg-white rounded shadow-sm border border-gray-200 overflow-hidden flex-shrink-0">
+            <div className="overflow-x-auto">
+              <table className="border-collapse table-auto">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 whitespace-nowrap">
+                      Закупщик
+                    </th>
+                    <th className="px-2 py-1 text-right text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 whitespace-nowrap">
+                      Количество
+                    </th>
+                    <th className="px-2 py-1 text-right text-xs font-medium text-gray-500 tracking-wider whitespace-nowrap">
+                      Сумма бюджета
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {purchaserSummary.map((item, index) => {
+                    const isSelected = purchaserFilter.size === 1 && purchaserFilter.has(item.purchaser);
+                    return (
+                      <tr 
+                        key={index} 
+                        className={`cursor-pointer transition-colors ${
+                          isSelected 
+                            ? 'bg-blue-100 hover:bg-blue-200' 
+                            : 'hover:bg-gray-50'
+                        }`}
+                        onClick={() => {
+                          if (isSelected) {
+                            // Если уже выбран, сбрасываем фильтр
+                            setPurchaserFilter(new Set());
+                          } else {
+                            // Устанавливаем фильтр только на этого закупщика
+                            setPurchaserFilter(new Set([item.purchaser]));
+                          }
+                          setCurrentPage(0);
+                        }}
+                      >
+                        <td className="px-2 py-1 text-xs text-gray-900 border-r border-gray-200 whitespace-nowrap">
+                          {item.purchaser}
+                        </td>
+                        <td className="px-2 py-1 text-xs text-gray-900 text-right border-r border-gray-200 whitespace-nowrap">
+                          {item.count}
+                        </td>
+                        <td className="px-2 py-1 text-xs text-gray-900 text-right whitespace-nowrap">
+                          {item.totalBudget.toLocaleString('ru-RU', { 
+                            minimumFractionDigits: 0, 
+                            maximumFractionDigits: 0 
+                          })}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot className="bg-gray-50 border-t border-gray-300">
+                  <tr>
+                    <td className="px-2 py-1 text-xs font-semibold text-gray-700 border-r border-gray-200 whitespace-nowrap">
+                      Итого
+                    </td>
+                    <td className="px-2 py-1 text-xs font-semibold text-gray-700 text-right border-r border-gray-200 whitespace-nowrap">
+                      {purchaserSummary.reduce((sum, item) => sum + item.count, 0)}
+                    </td>
+                    <td className="px-2 py-1 text-xs font-semibold text-gray-700 text-right whitespace-nowrap">
+                      {purchaserSummary.reduce((sum, item) => sum + item.totalBudget, 0).toLocaleString('ru-RU', { 
+                        minimumFractionDigits: 0, 
+                        maximumFractionDigits: 0 
+                      })}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
             </div>
           </div>
-        </div>
-      )}
-      <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
-        <div className="flex items-center gap-4 justify-between flex-wrap">
-          <div className="flex items-center gap-4 flex-wrap">
+          )}
+          
+          {/* Элементы управления справа от сводной таблицы */}
+          <div className="flex items-center gap-4 flex-nowrap flex-shrink-0">
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-700 font-medium">Компания:</span>
               <div className="relative company-filter-container">
@@ -2490,9 +2631,6 @@ export default function PurchasePlanItemsTable() {
                   Все
                 </button>
               </div>
-              <p className="text-sm text-gray-500">
-                Всего записей: {totalRecords}
-              </p>
               <button
                 onClick={exportToPDF}
                 className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-2"
@@ -2519,6 +2657,13 @@ export default function PurchasePlanItemsTable() {
                 <Download className="w-4 h-4" />
                 Excel (все данные)
               </button>
+            </div>
+            <div className="relative flex items-center">
+              <div className="absolute -top-6 left-0">
+                <p className="text-sm text-gray-500">
+                  Всего записей: {totalRecords}
+                </p>
+              </div>
               <button
                 onClick={() => {
                   const emptyFilters = {
@@ -2554,6 +2699,94 @@ export default function PurchasePlanItemsTable() {
           </div>
         </div>
       </div>
+      {/* Модальное окно подтверждения паролем перед изменением данных */}
+      {isAuthModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Подтверждение изменения</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Для сохранения изменения необходимо повторно ввести логин и пароль, как при входе в систему.
+            </p>
+            <div className="space-y-3 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Логин</label>
+                <input
+                  type="text"
+                  value={authUsername}
+                  onChange={(e) => setAuthUsername(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Пароль</label>
+                <input
+                  type="password"
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              {authError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-xs">
+                  {authError}
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                className="px-3 py-1.5 text-xs rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100"
+                onClick={() => {
+                  // Откатываем изменения, если они были применены локально (при перетаскивании Ганта)
+                  if (pendingDateChange && (pendingDateChange.oldRequestDate !== undefined || pendingDateChange.oldNewContractDate !== undefined)) {
+                    // Восстанавливаем исходные данные
+                    if (data) {
+                      const updatedContent = data.content.map(i => 
+                        i.id === pendingDateChange.itemId 
+                          ? { 
+                              ...i, 
+                              requestDate: pendingDateChange.oldRequestDate !== undefined ? pendingDateChange.oldRequestDate : i.requestDate,
+                              newContractDate: pendingDateChange.oldNewContractDate !== undefined ? pendingDateChange.oldNewContractDate : i.newContractDate
+                            }
+                          : i
+                      );
+                      setData({ ...data, content: updatedContent });
+                    }
+                    // Убираем временные даты
+                    setTempDates(prev => {
+                      const newTemp = { ...prev };
+                      delete newTemp[pendingDateChange.itemId];
+                      return newTemp;
+                    });
+                    // Останавливаем анимацию
+                    setAnimatingDates(prev => {
+                      const newAnimating = { ...prev };
+                      delete newAnimating[pendingDateChange.itemId];
+                      return newAnimating;
+                    });
+                  }
+                  setIsAuthModalOpen(false);
+                  setPendingDateChange(null);
+                  setAuthPassword('');
+                  setAuthError(null);
+                }}
+                disabled={authLoading}
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                className="px-3 py-1.5 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handleAuthConfirm}
+                disabled={authLoading || !authUsername || !authPassword}
+              >
+                {authLoading ? 'Проверка...' : 'Подтвердить и сохранить'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Пагинация */}
       {data && (
