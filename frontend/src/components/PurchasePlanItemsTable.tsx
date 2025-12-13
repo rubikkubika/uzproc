@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { getBackendUrl } from '@/utils/api';
 import { ArrowUp, ArrowDown, ArrowUpDown, Search, Download, Settings } from 'lucide-react';
 import GanttChart from './GanttChart';
@@ -34,6 +34,22 @@ interface PurchasePlanItem {
   purchaseRequestId: number | null;
   createdAt: string;
   updatedAt: string;
+}
+
+interface PurchaseRequest {
+  idPurchaseRequest: number;
+  name: string | null;
+  budgetAmount: number | null;
+  contractDurationMonths: number | null;
+  cfo: string | null;
+  purchaseRequestInitiator: string | null;
+  costType: string | null;
+  contractType: string | null;
+  requiresPurchase: boolean | null;
+  isPlanned: boolean | null;
+  innerId: string | null;
+  title: string | null;
+  [key: string]: any;
 }
 
 interface PageResponse {
@@ -1207,9 +1223,13 @@ export default function PurchasePlanItemsTable() {
   };
   
   // Функция для получения текущей ширины колонки
-  const getColumnWidth = (columnKey: string): number => {
+  // Обернута в useCallback для стабильности и использования в getSortableHeaderProps
+  const getColumnWidth = useCallback((columnKey: string): number => {
+    if (!columnWidths || typeof columnWidths !== 'object') {
+      return getDefaultColumnWidth(columnKey);
+    }
     return columnWidths[columnKey] || getDefaultColumnWidth(columnKey);
-  };
+  }, [columnWidths]);
   
   // Настройка ReactToPrint для экспорта в PDF
   const handlePrint = useReactToPrint({
@@ -1892,23 +1912,14 @@ export default function PurchasePlanItemsTable() {
     }
   };
 
-  // Debounce для текстовых фильтров
-  // Используем useRef для хранения таймера, чтобы явно видеть, что задержка обновляется при каждом вводе символа
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  
+  // Debounce для текстовых фильтров (как в PurchaseRequestsTable)
   useEffect(() => {
     // Проверяем, изменились ли текстовые фильтры
     const textFields = ['company', 'purchaseSubject', 'currentContractEndDate'];
     const hasTextChanges = textFields.some(field => localFilters[field] !== filters[field]);
     
     if (hasTextChanges) {
-      // Очищаем предыдущий таймер, если он существует (это и есть обновление задержки при каждом вводе символа)
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-      
-      // Создаем новый таймер - задержка обновляется при каждом вводе символа
-      debounceTimerRef.current = setTimeout(() => {
+      const timer = setTimeout(() => {
         setFilters(prev => {
           // Обновляем только измененные текстовые поля
           const updated = { ...prev };
@@ -1918,18 +1929,11 @@ export default function PurchasePlanItemsTable() {
           return updated;
         });
         setCurrentPage(0); // Сбрасываем на первую страницу после применения фильтра
-        debounceTimerRef.current = null; // Очищаем ссылку на таймер после выполнения
-      }, 500); // Задержка 500мс - обновляется при каждом вводе символа
+      }, 500); // Задержка 500мс
+
+      return () => clearTimeout(timer);
     }
-    
-    // Cleanup функция - очищаем таймер при размонтировании компонента
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-        debounceTimerRef.current = null;
-      }
-    };
-  }, [localFilters, filters]);
+  }, [localFilters]);
 
   useEffect(() => {
     // Не вызываем fetchData до тех пор, пока фильтры не загружены из localStorage
@@ -1939,39 +1943,37 @@ export default function PurchasePlanItemsTable() {
     fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters, selectedMonth);
   }, [currentPage, pageSize, selectedYear, selectedMonthYear, sortField, sortDirection, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter, statusFilter, selectedMonth]);
 
-  // Восстановление фокуса после обновления localFilters (как в PurchaseRequestsTable)
-  // Используем useRef для отслеживания предыдущего значения, чтобы не восстанавливать фокус без необходимости
-  const prevLocalFiltersValueRef = useRef<string>('');
-  
-  useEffect(() => {
-    if (focusedField) {
-      const currentValue = localFilters[focusedField] || '';
-      const prevValue = prevLocalFiltersValueRef.current;
-      
-      // Восстанавливаем фокус только если значение действительно изменилось
-      if (currentValue !== prevValue) {
-        prevLocalFiltersValueRef.current = currentValue;
-        
-        const input = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
-        if (input) {
-          // Сохраняем позицию курсора
-          const cursorPosition = input.selectionStart || 0;
-          const inputValue = input.value;
-          
-          // Восстанавливаем фокус в следующем тике, чтобы не мешать текущему вводу
-          requestAnimationFrame(() => {
-            const inputAfterRender = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
-            if (inputAfterRender && inputAfterRender.value === inputValue) {
-              inputAfterRender.focus();
-              // Восстанавливаем позицию курсора
-              const newPosition = Math.min(cursorPosition, inputAfterRender.value.length);
-              inputAfterRender.setSelectionRange(newPosition, newPosition);
-            }
-          });
-        }
-      }
-    }
-  }, [localFilters, focusedField]);
+  // Восстановление фокуса после обновления localFilters
+  // Отключено, чтобы не прерывать ввод текста - React сам правильно обрабатывает фокус и курсор
+  // useEffect(() => {
+  //   if (focusedField) {
+  //     const currentValue = localFilters[focusedField] || '';
+  //     const prevValue = prevLocalFiltersValueRef.current;
+  //     
+  //     // Восстанавливаем фокус только если значение действительно изменилось
+  //     if (currentValue !== prevValue) {
+  //       prevLocalFiltersValueRef.current = currentValue;
+  //       
+  //       const input = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
+  //       if (input) {
+  //         // Сохраняем позицию курсора
+  //         const cursorPosition = input.selectionStart || 0;
+  //         const inputValue = input.value;
+  //         
+  //         // Восстанавливаем фокус в следующем тике, чтобы не мешать текущему вводу
+  //         requestAnimationFrame(() => {
+  //           const inputAfterRender = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
+  //           if (inputAfterRender && inputAfterRender.value === inputValue) {
+  //             inputAfterRender.focus();
+  //             // Восстанавливаем позицию курсора
+  //             const newPosition = Math.min(cursorPosition, inputAfterRender.value.length);
+  //             inputAfterRender.setSelectionRange(newPosition, newPosition);
+  //           }
+  //         });
+  //       }
+  //     }
+  //   }
+  // }, [localFilters, focusedField]);
 
   // Восстановление фокуса после обновления localFilters
   // Отключено, чтобы не мешать вводу текста - React сам правильно обрабатывает фокус и курсор
@@ -2021,8 +2023,8 @@ export default function PurchasePlanItemsTable() {
     setCurrentPage(0);
   };
 
-  // Обработка сортировки
-  const handleSort = (field: SortField) => {
+  // Обработка сортировки (перемещена выше, чтобы использоваться в getSortableHeaderProps)
+  const handleSort = useCallback((field: SortField) => {
     if (sortField === field) {
       if (sortDirection === 'asc') {
         setSortDirection('desc');
@@ -2036,7 +2038,57 @@ export default function PurchasePlanItemsTable() {
       setSortField(field);
       setSortDirection('asc');
     }
-  };
+  }, [sortField, sortDirection]);
+
+  // Создаем useCallback для колбэков, чтобы они были стабильными и не вызывали перерисовку
+  // Эти хуки должны быть перед определением SortableHeader, чтобы соблюдать порядок хуков
+  const handleFilterChangeForHeader = useCallback((fieldKey: string, value: string) => {
+    setLocalFilters(prev => ({
+      ...prev,
+      [fieldKey]: value,
+    }));
+  }, []);
+
+  const handleFocusForHeader = useCallback((fieldKey: string) => {
+    setFocusedField(fieldKey);
+  }, []);
+
+  const handleBlurForHeader = useCallback((e: React.FocusEvent<HTMLInputElement>, fieldKey: string) => {
+    setTimeout(() => {
+      const activeElement = document.activeElement as HTMLElement;
+      if (activeElement && 
+          activeElement !== e.target && 
+          !activeElement.closest('input[data-filter-field]') &&
+          !activeElement.closest('select')) {
+        setFocusedField(null);
+      }
+    }, 200);
+  }, []);
+
+  const handleResizeStartForHeader = useCallback((e: React.MouseEvent<HTMLDivElement>, columnKey: string) => {
+    handleResizeStart(e, columnKey);
+  }, [handleResizeStart]);
+
+  // Создаем стабильные колбэки для каждого поля отдельно, чтобы не перерисовывать заголовки
+  const handlePurchaseSubjectFilterChange = useCallback((value: string) => {
+    handleFilterChangeForHeader('purchaseSubject', value);
+  }, [handleFilterChangeForHeader]);
+
+  const handlePurchaseSubjectFocus = useCallback(() => {
+    handleFocusForHeader('purchaseSubject');
+  }, [handleFocusForHeader]);
+
+  const handlePurchaseSubjectBlur = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
+    handleBlurForHeader(e, 'purchaseSubject');
+  }, [handleBlurForHeader]);
+
+  const handlePurchaseSubjectResizeStart = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    handleResizeStartForHeader(e, 'purchaseSubject');
+  }, [handleResizeStartForHeader]);
+
+  const handlePurchaseSubjectSort = useCallback(() => {
+    handleSort('purchaseSubject');
+  }, [handleSort]);
 
   // Обработка фильтров
   const handleFilterChange = (field: string, value: string, isTextFilter: boolean = false) => {
@@ -2427,7 +2479,8 @@ export default function PurchasePlanItemsTable() {
   }
 
   // Компонент для заголовка с сортировкой и фильтром
-  const SortableHeader = ({ 
+  // Работает как в PurchaseRequestsTable - напрямую использует состояние из родительского компонента
+  const SortableHeader = ({
     field, 
     label, 
     filterType = 'text',
@@ -2440,8 +2493,8 @@ export default function PurchasePlanItemsTable() {
     width?: string;
     columnKey?: string;
   }) => {
-    const isSorted = sortField === field;
     const fieldKey = field || '';
+    const isSorted = sortField === field;
     const filterValue = filterType === 'text' ? (localFilters[fieldKey] || '') : (filters[fieldKey] || '');
     const columnWidth = columnKey ? getColumnWidth(columnKey) : undefined;
     const style: React.CSSProperties = columnWidth 
@@ -2454,25 +2507,17 @@ export default function PurchasePlanItemsTable() {
           <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
             {filterType === 'text' ? (
               <input
-                key={`filter-${fieldKey}`}
                 type="text"
                 data-filter-field={fieldKey}
                 value={filterValue}
+                autoFocus={focusedField === fieldKey}
                 onChange={(e) => {
                   const newValue = e.target.value;
-                  const cursorPos = e.target.selectionStart || 0;
+                  // Напрямую обновляем localFilters, как в PurchaseRequestsTable
                   setLocalFilters(prev => ({
                     ...prev,
                     [fieldKey]: newValue,
                   }));
-                  // Сохраняем позицию курсора после обновления (как в PurchaseRequestsTable)
-                  requestAnimationFrame(() => {
-                    const input = e.target as HTMLInputElement;
-                    if (input && document.activeElement === input) {
-                      const newPos = Math.min(cursorPos, newValue.length);
-                      input.setSelectionRange(newPos, newPos);
-                    }
-                  });
                 }}
                 onFocus={(e) => {
                   e.stopPropagation();
@@ -2480,11 +2525,14 @@ export default function PurchasePlanItemsTable() {
                 }}
                 onBlur={(e) => {
                   // Снимаем фокус только если пользователь явно кликнул в другое место
-                  // Но не сразу, чтобы не потерять фокус при обновлении данных
+                  // Используем setTimeout, чтобы проверить, действительно ли фокус потерян
+                  // Это предотвращает мигание фокуса при перерисовке компонента
+                  const currentTarget = e.currentTarget;
                   setTimeout(() => {
                     const activeElement = document.activeElement as HTMLElement;
+                    // Проверяем, что фокус действительно потерян и не вернулся на тот же элемент
                     if (activeElement && 
-                        activeElement !== e.target && 
+                        activeElement !== currentTarget && 
                         !activeElement.closest('input[data-filter-field]') &&
                         !activeElement.closest('select')) {
                       setFocusedField(null);
@@ -2538,6 +2586,7 @@ export default function PurchasePlanItemsTable() {
     );
   };
 
+  // Создаем useCallback для колбэков, чтобы они были стабильными и не вызывали перерисовку
   const hasData = data && data.content && data.content.length > 0;
 
   return (
@@ -3254,7 +3303,12 @@ export default function PurchasePlanItemsTable() {
               </th>
               )}
               {visibleColumns.has('purchaseSubject') && (
-              <SortableHeader field="purchaseSubject" label="Предмет закупки" filterType="text" columnKey="purchaseSubject" />
+              <SortableHeader 
+                field="purchaseSubject" 
+                label="Предмет закупки" 
+                filterType="text" 
+                columnKey="purchaseSubject"
+              />
               )}
               {visibleColumns.has('purchaser') && (
               <th 
