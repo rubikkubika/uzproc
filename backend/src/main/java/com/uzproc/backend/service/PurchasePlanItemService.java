@@ -5,6 +5,7 @@ import com.uzproc.backend.entity.Company;
 import com.uzproc.backend.entity.PurchasePlanItem;
 import com.uzproc.backend.entity.PurchasePlanItemStatus;
 import com.uzproc.backend.repository.PurchasePlanItemRepository;
+import com.uzproc.backend.repository.PurchaseRequestRepository;
 import jakarta.persistence.criteria.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,10 +31,15 @@ public class PurchasePlanItemService {
     
     private final PurchasePlanItemRepository purchasePlanItemRepository;
     private final PurchasePlanItemChangeService purchasePlanItemChangeService;
+    private final PurchaseRequestRepository purchaseRequestRepository;
 
-    public PurchasePlanItemService(PurchasePlanItemRepository purchasePlanItemRepository, PurchasePlanItemChangeService purchasePlanItemChangeService) {
+    public PurchasePlanItemService(
+            PurchasePlanItemRepository purchasePlanItemRepository, 
+            PurchasePlanItemChangeService purchasePlanItemChangeService,
+            PurchaseRequestRepository purchaseRequestRepository) {
         this.purchasePlanItemRepository = purchasePlanItemRepository;
         this.purchasePlanItemChangeService = purchasePlanItemChangeService;
+        this.purchaseRequestRepository = purchaseRequestRepository;
     }
 
     public Page<PurchasePlanItemDto> findAll(
@@ -240,6 +246,44 @@ public class PurchasePlanItemService {
                 .orElse(null);
     }
 
+    @Transactional
+    public PurchasePlanItemDto updatePurchaseRequestId(Long id, Long purchaseRequestId) {
+        return purchasePlanItemRepository.findById(id)
+                .map(item -> {
+                    // Если purchaseRequestId не null, проверяем существование заявки на закупку
+                    if (purchaseRequestId != null) {
+                        boolean exists = purchaseRequestRepository.existsByIdPurchaseRequest(purchaseRequestId);
+                        if (!exists) {
+                            logger.warn("PurchaseRequest with idPurchaseRequest={} not found for purchase plan item {}", 
+                                    purchaseRequestId, id);
+                            throw new IllegalArgumentException(
+                                    String.format("Заявка на закупку с номером %d не найдена", purchaseRequestId));
+                        }
+                    }
+                    
+                    Long oldPurchaseRequestId = item.getPurchaseRequestId();
+                    
+                    // Логируем изменение перед обновлением
+                    if ((oldPurchaseRequestId == null && purchaseRequestId != null) || 
+                        (oldPurchaseRequestId != null && !oldPurchaseRequestId.equals(purchaseRequestId))) {
+                        purchasePlanItemChangeService.logChange(
+                            item.getId(),
+                            item.getGuid(),
+                            "purchaseRequestId",
+                            oldPurchaseRequestId != null ? oldPurchaseRequestId.toString() : null,
+                            purchaseRequestId != null ? purchaseRequestId.toString() : null
+                        );
+                    }
+                    
+                    item.setPurchaseRequestId(purchaseRequestId);
+                    PurchasePlanItem saved = purchasePlanItemRepository.save(item);
+                    logger.info("Updated purchaseRequestId for purchase plan item {}: purchaseRequestId={}",
+                            id, purchaseRequestId);
+                    return toDto(saved);
+                })
+                .orElse(null);
+    }
+
     /**
      * Конвертирует PurchasePlanItem entity в PurchasePlanItemDto
      */
@@ -269,6 +313,7 @@ public class PurchasePlanItemService {
         dto.setCategory(entity.getCategory());
         dto.setStatus(entity.getStatus());
         dto.setState(entity.getState());
+        dto.setPurchaseRequestId(entity.getPurchaseRequestId());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
         return dto;

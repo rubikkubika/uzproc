@@ -31,6 +31,7 @@ interface PurchasePlanItem {
   holding: string | null;
   category: string | null;
   status: string | null;
+  purchaseRequestId: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -74,6 +75,7 @@ const ALL_COLUMNS = [
   { key: 'holding', label: 'Холдинг' },
   { key: 'category', label: 'Категория' },
   { key: 'status', label: 'Статус' },
+  { key: 'purchaseRequestId', label: 'Заявка на закупку' },
   { key: 'createdAt', label: 'Дата создания' },
   { key: 'updatedAt', label: 'Дата обновления' },
 ] as const;
@@ -332,6 +334,8 @@ export default function PurchasePlanItemsTable() {
   const holdingSelectRef = useRef<HTMLSelectElement | null>(null);
   const [editingCompany, setEditingCompany] = useState<number | null>(null);
   const companySelectRef = useRef<HTMLSelectElement | null>(null);
+  const [editingPurchaseRequestId, setEditingPurchaseRequestId] = useState<number | null>(null);
+  const purchaseRequestIdInputRef = useRef<HTMLInputElement | null>(null);
   
   // Состояние для раскрытых строк
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
@@ -411,6 +415,7 @@ export default function PurchasePlanItemsTable() {
 
   // Состояние для подтверждения изменений (повторный ввод логина/пароля)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [errorModal, setErrorModal] = useState<{ isOpen: boolean; message: string }>({ isOpen: false, message: '' });
   const [authUsername, setAuthUsername] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
@@ -870,6 +875,53 @@ export default function PurchasePlanItemsTable() {
     }
   };
 
+  const handlePurchaseRequestIdUpdate = async (itemId: number, newPurchaseRequestId: string | null) => {
+    try {
+      const purchaseRequestIdValue = newPurchaseRequestId && newPurchaseRequestId.trim() !== '' 
+        ? parseInt(newPurchaseRequestId.trim(), 10) 
+        : null;
+      
+      if (isNaN(purchaseRequestIdValue as any) && purchaseRequestIdValue !== null) {
+        console.error('Invalid purchaseRequestId:', newPurchaseRequestId);
+        return;
+      }
+
+      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/purchase-request-id`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ purchaseRequestId: purchaseRequestIdValue }),
+      });
+
+      if (response.ok) {
+        const updatedItem = await response.json();
+        setEditingPurchaseRequestId(null);
+        
+        // Обновляем только конкретную строку в локальном состоянии
+        if (data) {
+          const updatedContent = data.content.map(item => 
+            item.id === itemId 
+              ? { ...item, purchaseRequestId: updatedItem.purchaseRequestId, updatedAt: updatedItem.updatedAt }
+              : item
+          );
+          setData({ ...data, content: updatedContent });
+        }
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to update purchaseRequestId:', response.status, errorText);
+        // Показываем ошибку пользователю во всплывающем окне
+        setErrorModal({ isOpen: true, message: errorText || 'Ошибка при обновлении номера заявки на закупку' });
+        // Не закрываем режим редактирования, чтобы пользователь мог исправить значение
+        return;
+      }
+    } catch (error) {
+      console.error('Error updating purchaseRequestId:', error);
+    } finally {
+      setEditingPurchaseRequestId(null);
+    }
+  };
+
   const handleAuthConfirm = async () => {
     if (!pendingDateChange) return;
     setAuthLoading(true);
@@ -1107,6 +1159,8 @@ export default function PurchasePlanItemsTable() {
       complexity: 112, // w-28 = 7rem = 112px
       holding: 128, // w-32 = 8rem = 128px
       category: 128, // w-32 = 8rem = 128px
+      status: 128, // w-32 = 8rem = 128px
+      purchaseRequestId: 160, // w-40 = 10rem = 160px
       createdAt: 128, // w-32 = 8rem = 128px
       updatedAt: 128, // w-32 = 8rem = 128px
     };
@@ -2747,6 +2801,34 @@ export default function PurchasePlanItemsTable() {
         </div>
       </div>
       {/* Модальное окно подтверждения паролем перед изменением данных */}
+      {/* Модальное окно для ошибок */}
+      {errorModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setErrorModal({ isOpen: false, message: '' })}>
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Ошибка</h2>
+              <button
+                onClick={() => setErrorModal({ isOpen: false, message: '' })}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <p className="text-sm text-gray-700 mb-4">{errorModal.message}</p>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setErrorModal({ isOpen: false, message: '' })}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {isAuthModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
@@ -3351,6 +3433,9 @@ export default function PurchasePlanItemsTable() {
                 />
               </th>
               )}
+              {visibleColumns.has('purchaseRequestId') && (
+              <SortableHeader field="purchaseRequestId" label="Заявка на закупку" columnKey="purchaseRequestId" />
+              )}
               {visibleColumns.has('status') && (
               <th 
                 className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" 
@@ -3877,6 +3962,53 @@ export default function PurchasePlanItemsTable() {
                   {visibleColumns.has('category') && (
                   <td className={`px-2 py-2 text-xs truncate border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} title={item.category || ''} style={{ width: `${getColumnWidth('category')}px`, minWidth: `${getColumnWidth('category')}px`, maxWidth: `${getColumnWidth('category')}px` }}>
                     {item.category || '-'}
+                  </td>
+                  )}
+                  {visibleColumns.has('purchaseRequestId') && (
+                  <td className={`px-2 py-2 text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('purchaseRequestId')}px`, minWidth: `${getColumnWidth('purchaseRequestId')}px`, maxWidth: `${getColumnWidth('purchaseRequestId')}px` }}>
+                    {editingPurchaseRequestId === item.id ? (
+                      <input
+                        ref={purchaseRequestIdInputRef}
+                        type="number"
+                        defaultValue={item.purchaseRequestId?.toString() || ''}
+                        onBlur={(e) => {
+                          const newValue = e.target.value.trim();
+                          const currentValue = item.purchaseRequestId?.toString() || '';
+                          if (newValue !== currentValue) {
+                            handlePurchaseRequestIdUpdate(item.id, newValue || null);
+                          } else {
+                            setEditingPurchaseRequestId(null);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.currentTarget.blur();
+                          } else if (e.key === 'Escape') {
+                            setEditingPurchaseRequestId(null);
+                          }
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        onFocus={(e) => {
+                          e.stopPropagation();
+                          setEditingPurchaseRequestId(item.id);
+                        }}
+                        className="w-full text-xs border border-blue-500 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        disabled={isInactive}
+                        autoFocus
+                      />
+                    ) : (
+                      <div
+                        onClick={() => {
+                          if (!isInactive) {
+                            setEditingPurchaseRequestId(item.id);
+                          }
+                        }}
+                        className={isInactive ? '' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors'}
+                        title={isInactive ? '' : 'Нажмите для редактирования'}
+                      >
+                        {item.purchaseRequestId || '-'}
+                      </div>
+                    )}
                   </td>
                   )}
                   {visibleColumns.has('status') && (

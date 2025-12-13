@@ -198,5 +198,38 @@ public class PurchasePlanItemController {
             return ResponseEntity.status(500).body("Ошибка сервера: " + e.getMessage());
         }
     }
+
+    @PatchMapping("/{id}/purchase-request-id")
+    public ResponseEntity<?> updatePurchasePlanItemPurchaseRequestId(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> requestBody) {
+        try {
+            Object purchaseRequestIdObj = requestBody.get("purchaseRequestId");
+            Long purchaseRequestId = null;
+            
+            if (purchaseRequestIdObj != null) {
+                if (purchaseRequestIdObj instanceof Number) {
+                    purchaseRequestId = ((Number) purchaseRequestIdObj).longValue();
+                } else if (purchaseRequestIdObj instanceof String) {
+                    String str = ((String) purchaseRequestIdObj).trim();
+                    if (!str.isEmpty() && !str.equalsIgnoreCase("null")) {
+                        try {
+                            purchaseRequestId = Long.parseLong(str);
+                        } catch (NumberFormatException e) {
+                            return ResponseEntity.badRequest().body("Invalid purchaseRequestId: " + str);
+                        }
+                    }
+                }
+            }
+            
+            PurchasePlanItemDto updatedItem = purchasePlanItemService.updatePurchaseRequestId(id, purchaseRequestId);
+            if (updatedItem != null) {
+                return ResponseEntity.ok(updatedItem);
+            }
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Ошибка сервера: " + e.getMessage());
+        }
+    }
 }
 

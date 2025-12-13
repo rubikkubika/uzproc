@@ -88,6 +88,17 @@ public class PurchasePlanItem {
     @Column(name = "state", length = 255)
     private String state;
 
+    // Связь с PurchaseRequest по полю idPurchaseRequest
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "purchase_request_id", 
+                referencedColumnName = "id_purchase_request", 
+                insertable = false, 
+                updatable = false)
+    private PurchaseRequest purchaseRequest;
+
+    @Column(name = "purchase_request_id")
+    private Long purchaseRequestId;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -320,6 +331,25 @@ public class PurchasePlanItem {
 
     public void setStatus(PurchasePlanItemStatus status) {
         this.status = status;
+    }
+
+    public PurchaseRequest getPurchaseRequest() {
+        return purchaseRequest;
+    }
+
+    public void setPurchaseRequest(PurchaseRequest purchaseRequest) {
+        this.purchaseRequest = purchaseRequest;
+        if (purchaseRequest != null && purchaseRequest.getIdPurchaseRequest() != null) {
+            this.purchaseRequestId = purchaseRequest.getIdPurchaseRequest();
+        }
+    }
+
+    public Long getPurchaseRequestId() {
+        return purchaseRequestId;
+    }
+
+    public void setPurchaseRequestId(Long purchaseRequestId) {
+        this.purchaseRequestId = purchaseRequestId;
     }
 }
 
