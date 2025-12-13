@@ -2597,8 +2597,7 @@ export default function PurchasePlanItemsTable() {
           {/* Сводная таблица и элементы управления в одной строке */}
           <div className="flex items-start">
             {/* Сводная таблица */}
-            {purchaserSummary.length > 0 && (
-              <div className="bg-white rounded shadow-sm border border-gray-200 overflow-hidden flex-shrink-0">
+            <div className="bg-white rounded shadow-sm border border-gray-200 overflow-hidden flex-shrink-0">
           <div className="overflow-x-auto">
                 <table className="border-collapse table-auto">
             <thead className="bg-gray-50">
@@ -2618,50 +2617,58 @@ export default function PurchasePlanItemsTable() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-                    {purchaserSummary.map((item, index) => {
-                      const isSelected = purchaserFilter.size === 1 && purchaserFilter.has(item.purchaser);
-                      return (
-                        <tr 
-                          key={index} 
-                          className={`cursor-pointer transition-colors ${
-                            isSelected 
-                              ? 'bg-blue-100 hover:bg-blue-200' 
-                              : 'hover:bg-gray-50'
-                          }`}
-                          onClick={() => {
-                            if (isSelected) {
-                              // Если уже выбран, сбрасываем фильтр
-                              setPurchaserFilter(new Set());
-                            } else {
-                              // Устанавливаем фильтр только на этого закупщика
-                              setPurchaserFilter(new Set([item.purchaser]));
-                            }
-                            setCurrentPage(0);
-                          }}
-                        >
-                          <td className="px-2 py-1 text-xs text-gray-900 border-r border-gray-200 whitespace-nowrap">
-                            {item.purchaser}
-                  </td>
-                          <td className="px-2 py-1 text-xs text-gray-900 text-right border-r border-gray-200 whitespace-nowrap">
-                            {item.count}
-                    </td>
-                          <td className="px-2 py-1 text-xs text-gray-900 text-right border-r border-gray-200 whitespace-nowrap">
-                            {item.totalBudget.toLocaleString('ru-RU', { 
-                              minimumFractionDigits: 0, 
-                              maximumFractionDigits: 0 
-                            })}
-                    </td>
-                          <td className="px-2 py-1 text-xs text-gray-900 text-right whitespace-nowrap">
-                            {item.totalComplexity > 0 
-                              ? item.totalComplexity.toLocaleString('ru-RU', { 
-                                  minimumFractionDigits: 0, 
-                                  maximumFractionDigits: 2 
-                                })
-                              : '-'}
-                    </td>
-                  </tr>
-                      );
-                    })}
+                    {purchaserSummary.length > 0 ? (
+                      purchaserSummary.map((item, index) => {
+                        const isSelected = purchaserFilter.size === 1 && purchaserFilter.has(item.purchaser);
+                        return (
+                          <tr 
+                            key={index} 
+                            className={`cursor-pointer transition-colors ${
+                              isSelected 
+                                ? 'bg-blue-100 hover:bg-blue-200' 
+                                : 'hover:bg-gray-50'
+                            }`}
+                            onClick={() => {
+                              if (isSelected) {
+                                // Если уже выбран, сбрасываем фильтр
+                                setPurchaserFilter(new Set());
+                              } else {
+                                // Устанавливаем фильтр только на этого закупщика
+                                setPurchaserFilter(new Set([item.purchaser]));
+                              }
+                              setCurrentPage(0);
+                            }}
+                          >
+                            <td className="px-2 py-1 text-xs text-gray-900 border-r border-gray-200 whitespace-nowrap">
+                              {item.purchaser}
+                            </td>
+                            <td className="px-2 py-1 text-xs text-gray-900 text-right border-r border-gray-200 whitespace-nowrap">
+                              {item.count}
+                            </td>
+                            <td className="px-2 py-1 text-xs text-gray-900 text-right border-r border-gray-200 whitespace-nowrap">
+                              {item.totalBudget.toLocaleString('ru-RU', { 
+                                minimumFractionDigits: 0, 
+                                maximumFractionDigits: 0 
+                              })}
+                            </td>
+                            <td className="px-2 py-1 text-xs text-gray-900 text-right whitespace-nowrap">
+                              {item.totalComplexity > 0 
+                                ? item.totalComplexity.toLocaleString('ru-RU', { 
+                                    minimumFractionDigits: 0, 
+                                    maximumFractionDigits: 2 
+                                  })
+                                : '-'}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={4} className="px-2 py-1 text-xs text-gray-500 text-center whitespace-nowrap">
+                          Нет данных
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 <tfoot className="bg-gray-50 border-t border-gray-300">
                   <tr 
@@ -2700,7 +2707,6 @@ export default function PurchasePlanItemsTable() {
           </table>
         </div>
       </div>
-            )}
             
             {/* Элементы управления справа от сводной таблицы */}
             <div className="flex items-start gap-2 flex-shrink-0 ml-2">
