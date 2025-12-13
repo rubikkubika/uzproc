@@ -223,39 +223,6 @@ export default function GanttChart({
       const newStartDate = new Date(newStartTime);
       const newEndDate = new Date(newEndTime);
 
-      // Ограничиваем даты рамками периода перетаскивания (разрешаем выход в следующий год)
-      if (newStartDate < dragPeriodStart) {
-        const diff = dragPeriodStart.getTime() - newStartDate.getTime();
-        newStartDate.setTime(dragPeriodStart.getTime());
-        newEndDate.setTime(newEndDate.getTime() + diff);
-      }
-      
-      if (newEndDate > dragPeriodEnd) {
-        const diff = newEndDate.getTime() - dragPeriodEnd.getTime();
-        newEndDate.setTime(dragPeriodEnd.getTime());
-        newStartDate.setTime(newStartDate.getTime() - diff);
-      }
-
-      // Ограничиваем даты сроком окончания договора, если он установлен
-      if (contractEndDate) {
-        const contractEnd = new Date(contractEndDate);
-        contractEnd.setHours(23, 59, 59, 999); // Устанавливаем конец дня
-        
-        // Конец полоски не должен быть позже срока окончания договора
-        if (newEndDate > contractEnd) {
-          const diff = newEndDate.getTime() - contractEnd.getTime();
-          newEndDate.setTime(contractEnd.getTime());
-          newStartDate.setTime(newStartDate.getTime() - diff);
-        }
-        
-        // Начало полоски тоже не должно быть позже срока окончания договора
-        if (newStartDate > contractEnd) {
-          const diff = newStartDate.getTime() - contractEnd.getTime();
-          newStartDate.setTime(contractEnd.getTime());
-          newEndDate.setTime(newEndDate.getTime() - diff);
-        }
-      }
-
       // Форматируем даты для временного отображения
       const formatDate = (date: Date) => {
         const year = date.getFullYear();
@@ -350,60 +317,6 @@ export default function GanttChart({
       
       const newStartDate = new Date(newStartTime);
       const newEndDate = new Date(newEndTime);
-
-      // Ограничиваем даты рамками периода перетаскивания (разрешаем выход в следующий год)
-      if (newStartDate < dragPeriodStart) {
-        const diff = dragPeriodStart.getTime() - newStartDate.getTime();
-        newStartDate.setTime(dragPeriodStart.getTime());
-        newEndDate.setTime(newEndDate.getTime() + diff);
-      }
-      
-      if (newEndDate > dragPeriodEnd) {
-        const diff = newEndDate.getTime() - dragPeriodEnd.getTime();
-        newEndDate.setTime(dragPeriodEnd.getTime());
-        newStartDate.setTime(newStartDate.getTime() - diff);
-      }
-
-      // Ограничиваем даты сроком окончания договора, если он установлен
-      if (contractEndDate) {
-        const contractEnd = new Date(contractEndDate);
-        contractEnd.setHours(23, 59, 59, 999); // Устанавливаем конец дня
-        
-        // Конец полоски не должен быть позже срока окончания договора
-        if (newEndDate > contractEnd) {
-          const diff = newEndDate.getTime() - contractEnd.getTime();
-          newEndDate.setTime(contractEnd.getTime());
-          newStartDate.setTime(newStartDate.getTime() - diff);
-        }
-        
-        // Начало полоски тоже не должно быть позже срока окончания договора
-        if (newStartDate > contractEnd) {
-          const diff = newStartDate.getTime() - contractEnd.getTime();
-          newStartDate.setTime(contractEnd.getTime());
-          newEndDate.setTime(newEndDate.getTime() - diff);
-        }
-      }
-
-      // Ограничиваем даты сроком окончания действующего договора, если он установлен
-      // Дата нового договора не может быть позже даты окончания действующего договора
-      if (currentContractEndDate) {
-        const currentContractEnd = new Date(currentContractEndDate);
-        currentContractEnd.setHours(23, 59, 59, 999); // Устанавливаем конец дня
-        
-        // Конец полоски (newContractDate) не должен быть позже срока окончания действующего договора
-        if (newEndDate > currentContractEnd) {
-          const diff = newEndDate.getTime() - currentContractEnd.getTime();
-          newEndDate.setTime(currentContractEnd.getTime());
-          newStartDate.setTime(newStartDate.getTime() - diff);
-        }
-        
-        // Начало полоски тоже не должно быть позже срока окончания действующего договора
-        if (newStartDate > currentContractEnd) {
-          const diff = newStartDate.getTime() - currentContractEnd.getTime();
-          newStartDate.setTime(currentContractEnd.getTime());
-          newEndDate.setTime(newEndDate.getTime() - diff);
-        }
-      }
 
       // Форматируем даты для отправки
       const formatDate = (date: Date) => {

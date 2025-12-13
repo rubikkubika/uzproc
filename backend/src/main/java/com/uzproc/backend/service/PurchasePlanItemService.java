@@ -92,17 +92,6 @@ public class PurchasePlanItemService {
     public PurchasePlanItemDto updateDates(Long id, LocalDate requestDate, LocalDate newContractDate) {
         return purchasePlanItemRepository.findById(id)
                 .map(item -> {
-                    // Валидация: дата нового договора не может быть позже даты окончания действующего договора
-                    if (newContractDate != null && item.getCurrentContractEndDate() != null) {
-                        if (newContractDate.isAfter(item.getCurrentContractEndDate())) {
-                            logger.warn("Validation failed for purchase plan item {}: newContractDate ({}) cannot be after currentContractEndDate ({})", 
-                                    id, newContractDate, item.getCurrentContractEndDate());
-                            throw new IllegalArgumentException(
-                                    String.format("Дата нового договора (%s) не может быть позже даты окончания действующего договора (%s)", 
-                                            newContractDate, item.getCurrentContractEndDate()));
-                        }
-                    }
-                    
                     // Сохраняем старые значения для логирования изменений
                     LocalDate oldRequestDate = item.getRequestDate();
                     LocalDate oldNewContractDate = item.getNewContractDate();

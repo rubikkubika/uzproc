@@ -65,6 +65,15 @@ public class PurchaseRequestController {
         return ResponseEntity.notFound().build();
     }
 
+    @GetMapping("/by-id-purchase-request/{idPurchaseRequest}")
+    public ResponseEntity<PurchaseRequestDto> getPurchaseRequestByIdPurchaseRequest(@PathVariable Long idPurchaseRequest) {
+        PurchaseRequestDto purchaseRequest = purchaseRequestService.findByIdPurchaseRequest(idPurchaseRequest);
+        if (purchaseRequest != null) {
+            return ResponseEntity.ok(purchaseRequest);
+        }
+        return ResponseEntity.notFound().build();
+    }
+
     @PostMapping("/upload-from-excel")
     public ResponseEntity<Map<String, Object>> uploadFromExcel(@RequestParam("file") MultipartFile file) {
         logger.info("Received file upload request: filename={}, size={}, contentType={}", 

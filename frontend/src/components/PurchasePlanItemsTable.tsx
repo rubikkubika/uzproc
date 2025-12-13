@@ -341,7 +341,7 @@ export default function PurchasePlanItemsTable() {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   
   // Состояние для активной вкладки в раскрытых строках
-  const [activeTab, setActiveTab] = useState<Record<number, 'data' | 'changes'>>({});
+  const [activeTab, setActiveTab] = useState<Record<number, 'data' | 'changes' | 'purchaseRequest'>>({});
   
   // Состояние для изменений
   const [changesData, setChangesData] = useState<Record<number, {
@@ -349,6 +349,12 @@ export default function PurchasePlanItemsTable() {
     totalElements: number;
     totalPages: number;
     currentPage: number;
+    loading: boolean;
+  }>>({});
+  
+  // Состояние для данных заявок на закупку
+  const [purchaseRequestData, setPurchaseRequestData] = useState<Record<number, {
+    data: PurchaseRequest | null;
     loading: boolean;
   }>>({});
   
@@ -384,6 +390,39 @@ export default function PurchasePlanItemsTable() {
       setChangesData(prev => ({
         ...prev,
         [itemId]: { ...prev[itemId], loading: false }
+      }));
+    }
+  }, []);
+  
+  // Функция для загрузки данных заявки на закупку
+  const fetchPurchaseRequest = useCallback(async (itemId: number, purchaseRequestId: number) => {
+    setPurchaseRequestData(prev => ({
+      ...prev,
+      [itemId]: { ...prev[itemId], loading: true }
+    }));
+    
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/purchase-requests/by-id-purchase-request/${purchaseRequestId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setPurchaseRequestData(prev => ({
+          ...prev,
+          [itemId]: {
+            data: data,
+            loading: false
+          }
+        }));
+      } else {
+        setPurchaseRequestData(prev => ({
+          ...prev,
+          [itemId]: { data: null, loading: false }
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching purchase request:', error);
+      setPurchaseRequestData(prev => ({
+        ...prev,
+        [itemId]: { data: null, loading: false }
       }));
     }
   }, []);
@@ -4168,6 +4207,23 @@ export default function PurchasePlanItemsTable() {
                               >
                                 Изменения
                               </button>
+                              {item.purchaseRequestId && (
+                                <button
+                                  onClick={() => {
+                                    setActiveTab(prev => ({ ...prev, [item.id]: 'purchaseRequest' }));
+                                    if (!purchaseRequestData[item.id] || !purchaseRequestData[item.id].data) {
+                                      fetchPurchaseRequest(item.id, item.purchaseRequestId);
+                                    }
+                                  }}
+                                  className={`px-4 py-2 text-xs font-medium rounded-t-lg transition-colors ${
+                                    activeTab[item.id] === 'purchaseRequest'
+                                      ? 'bg-white text-blue-700 border-b-2 border-blue-500'
+                                      : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                                  }`}
+                                >
+                                  Данные о заявке
+                                </button>
+                              )}
                             </div>
                           </div>
                           
@@ -4226,6 +4282,116 @@ export default function PurchasePlanItemsTable() {
                               </div>
                             </div>
                           </div>
+                          )}
+                          
+                          {/* Содержимое вкладки "Данные о заявке" */}
+                          {activeTab[item.id] === 'purchaseRequest' && item.purchaseRequestId && (
+                            <div className="text-xs text-gray-700">
+                              {purchaseRequestData[item.id]?.loading ? (
+                                <div className="text-center py-4">Загрузка...</div>
+                              ) : purchaseRequestData[item.id]?.data ? (
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                  {purchaseRequestData[item.id]!.data!.idPurchaseRequest && (
+                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                      <span className="font-semibold text-blue-700">Номер заявки:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.idPurchaseRequest}</span>
+                                    </div>
+                                  )}
+                                  {purchaseRequestData[item.id]!.data!.purchaseRequestCreationDate && (
+                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                      <span className="font-semibold text-blue-700">Дата создания:</span> <span className="text-gray-900">{new Date(purchaseRequestData[item.id]!.data!.purchaseRequestCreationDate!).toLocaleDateString('ru-RU')}</span>
+                                    </div>
+                                  )}
+                                  {purchaseRequestData[item.id]!.data!.innerId && (
+                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                      <span className="font-semibold text-blue-700">Внутренний ID:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.innerId}</span>
+                                    </div>
+                                  )}
+                                  {purchaseRequestData[item.id]!.data!.name && (
+                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                      <span className="font-semibold text-blue-700">Наименование:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.name}</span>
+                                    </div>
+                                  )}
+                                  {purchaseRequestData[item.id]!.data!.title && (
+                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                      <span className="font-semibold text-blue-700">Заголовок:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.title}</span>
+                                    </div>
+                                  )}
+                                  {purchaseRequestData[item.id]!.data!.purchaseRequestPlanYear && (
+                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                      <span className="font-semibold text-blue-700">Год планирования:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.purchaseRequestPlanYear}</span>
+                                    </div>
+                                  )}
+                                  {purchaseRequestData[item.id]!.data!.company && (
+                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                      <span className="font-semibold text-blue-700">Компания:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.company}</span>
+                                    </div>
+                                  )}
+                                  {purchaseRequestData[item.id]!.data!.cfo && (
+                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                      <span className="font-semibold text-blue-700">ЦФО:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.cfo}</span>
+                                    </div>
+                                  )}
+                                  {purchaseRequestData[item.id]!.data!.mcc && (
+                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                      <span className="font-semibold text-blue-700">МЦЦ:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.mcc}</span>
+                                    </div>
+                                  )}
+                                  {purchaseRequestData[item.id]!.data!.purchaseRequestInitiator && (
+                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                      <span className="font-semibold text-blue-700">Инициатор:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.purchaseRequestInitiator}</span>
+                                    </div>
+                                  )}
+                                  {purchaseRequestData[item.id]!.data!.purchaser && (
+                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                      <span className="font-semibold text-blue-700">Закупщик:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.purchaser}</span>
+                                    </div>
+                                  )}
+                                  {purchaseRequestData[item.id]!.data!.purchaseRequestSubject && (
+                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                      <span className="font-semibold text-blue-700">Предмет закупки:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.purchaseRequestSubject}</span>
+                                    </div>
+                                  )}
+                                  {purchaseRequestData[item.id]!.data!.budgetAmount && (
+                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                      <span className="font-semibold text-blue-700">Бюджет:</span> <span className="text-gray-900">{new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(purchaseRequestData[item.id]!.data!.budgetAmount!)}</span>
+                                    </div>
+                                  )}
+                                  {purchaseRequestData[item.id]!.data!.costType && (
+                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                      <span className="font-semibold text-blue-700">Тип затрат:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.costType}</span>
+                                    </div>
+                                  )}
+                                  {purchaseRequestData[item.id]!.data!.contractType && (
+                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                      <span className="font-semibold text-blue-700">Тип договора:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.contractType}</span>
+                                    </div>
+                                  )}
+                                  {purchaseRequestData[item.id]!.data!.contractDurationMonths && (
+                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                      <span className="font-semibold text-blue-700">Длительность договора (мес.):</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.contractDurationMonths}</span>
+                                    </div>
+                                  )}
+                                  <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                    <span className="font-semibold text-blue-700">Запланировано:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.isPlanned === true ? 'Да' : purchaseRequestData[item.id]!.data!.isPlanned === false ? 'Нет' : '-'}</span>
+                                  </div>
+                                  <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                    <span className="font-semibold text-blue-700">Требуется закупка:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.requiresPurchase === true ? 'Да' : purchaseRequestData[item.id]!.data!.requiresPurchase === false ? 'Нет' : '-'}</span>
+                                  </div>
+                                  {purchaseRequestData[item.id]!.data!.status && (
+                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                      <span className="font-semibold text-blue-700">Статус:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.status}</span>
+                                    </div>
+                                  )}
+                                  {purchaseRequestData[item.id]!.data!.state && (
+                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
+                                      <span className="font-semibold text-blue-700">Состояние:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.state}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="text-center py-4 text-gray-500">Заявка не найдена</div>
+                              )}
+                            </div>
                           )}
                           
                           {/* Содержимое вкладки "Изменения" */}
