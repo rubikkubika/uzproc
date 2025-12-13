@@ -36,7 +36,7 @@ export default function PurchasesTable() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const currentYear = new Date().getFullYear();
-  const [selectedYear, setSelectedYear] = useState<number | null>(currentYear);
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [allYears, setAllYears] = useState<number[]>([]);
   const [totalRecords, setTotalRecords] = useState<number>(0);
   const [sortField, setSortField] = useState<string | null>(null);
@@ -378,7 +378,7 @@ export default function PurchasesTable() {
 
       return () => clearTimeout(timer);
     }
-  }, [localFilters, filters]);
+  }, [localFilters]);
 
   useEffect(() => {
     fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters);
@@ -982,6 +982,16 @@ export default function PurchasesTable() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-700 font-medium">Фильтр по году создания:</span>
+            <button
+              onClick={() => setSelectedYear(null)}
+              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                selectedYear === null
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              Все
+            </button>
             {allYears.map((year) => (
               <button
                 key={year}
@@ -995,16 +1005,6 @@ export default function PurchasesTable() {
                 {year}
               </button>
             ))}
-            <button
-              onClick={() => setSelectedYear(null)}
-              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                selectedYear === null
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              Все
-            </button>
           </div>
           <div className="flex items-center gap-4">
             <p className="text-sm text-gray-500">

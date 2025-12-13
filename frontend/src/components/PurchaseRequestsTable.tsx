@@ -52,7 +52,7 @@ export default function PurchaseRequestsTable() {
   const [currentPage, setCurrentPage] = useState(0);
   const [pageSize, setPageSize] = useState(100);
   const currentYear = new Date().getFullYear();
-  const [selectedYear, setSelectedYear] = useState<number | null>(currentYear);
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [totalRecords, setTotalRecords] = useState<number>(0);
   
   // Состояние для сортировки (по умолчанию сортировка по номеру по убыванию)
@@ -1370,6 +1370,19 @@ export default function PurchaseRequestsTable() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-700 font-medium">Фильтр по году создания:</span>
+            <button
+              onClick={() => {
+                setSelectedYear(null);
+                setCurrentPage(0); // Сбрасываем на первую страницу при сбросе фильтра
+              }}
+              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                selectedYear === null
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              Все
+            </button>
             {allYears.map((year) => (
               <button
                 key={year}
@@ -1386,19 +1399,6 @@ export default function PurchaseRequestsTable() {
                 {year}
               </button>
             ))}
-            <button
-              onClick={() => {
-                setSelectedYear(null);
-                setCurrentPage(0); // Сбрасываем на первую страницу при сбросе фильтра
-              }}
-              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                selectedYear === null
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              Все
-            </button>
           </div>
           <div className="flex items-center gap-4">
             <p className="text-sm text-gray-500">

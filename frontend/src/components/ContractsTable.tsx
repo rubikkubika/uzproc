@@ -42,7 +42,7 @@ export default function ContractsTable() {
   const [currentPage, setCurrentPage] = useState(0);
   const [pageSize, setPageSize] = useState(100);
   const currentYear = new Date().getFullYear();
-  const [selectedYear, setSelectedYear] = useState<number | null>(currentYear);
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
   
   // Состояние для сортировки
   const [sortField, setSortField] = useState<SortField>('contractCreationDate');
