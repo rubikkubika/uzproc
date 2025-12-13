@@ -1517,7 +1517,7 @@ export default function PurchasePlanItemsTable() {
       return [];
     }
 
-    const summaryMap = new Map<string, { count: number; totalBudget: number }>();
+    const summaryMap = new Map<string, { count: number; totalBudget: number; totalComplexity: number }>();
 
     summaryData.forEach((item) => {
       // Исключаем неактуальные строки из сводной таблицы
@@ -1527,14 +1527,24 @@ export default function PurchasePlanItemsTable() {
 
       const purchaser = item.purchaser || 'Не назначен';
       const budget = item.budgetAmount || 0;
+      
+      // Парсим сложность как число (если это числовое значение)
+      let complexity = 0;
+      if (item.complexity) {
+        const parsed = parseFloat(item.complexity.toString().replace(/,/g, '.').replace(/\s/g, ''));
+        if (!isNaN(parsed)) {
+          complexity = parsed;
+        }
+      }
 
       if (!summaryMap.has(purchaser)) {
-        summaryMap.set(purchaser, { count: 0, totalBudget: 0 });
+        summaryMap.set(purchaser, { count: 0, totalBudget: 0, totalComplexity: 0 });
       }
 
       const stats = summaryMap.get(purchaser)!;
       stats.count++;
       stats.totalBudget += budget;
+      stats.totalComplexity += complexity;
     });
 
     return Array.from(summaryMap.entries())
@@ -1542,6 +1552,7 @@ export default function PurchasePlanItemsTable() {
         purchaser,
         count: stats.count,
         totalBudget: stats.totalBudget,
+        totalComplexity: stats.totalComplexity,
       }))
       .sort((a, b) => b.totalBudget - a.totalBudget); // Сортировка по сумме бюджета по убыванию
   }, [summaryData]);
@@ -2384,279 +2395,345 @@ export default function PurchasePlanItemsTable() {
     <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
       {/* Сводная таблица по закупщикам и элементы управления */}
       <div className="px-3 py-2 border-b border-gray-200 flex-shrink-0">
-        <div className="flex items-center gap-4 justify-between flex-nowrap">
-          {/* Сводная таблица */}
-          {purchaserSummary.length > 0 && (
-            <div className="bg-white rounded shadow-sm border border-gray-200 overflow-hidden flex-shrink-0">
-            <div className="overflow-x-auto">
-              <table className="border-collapse table-auto">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 whitespace-nowrap">
-                      Закупщик
-                    </th>
-                    <th className="px-2 py-1 text-right text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 whitespace-nowrap">
-                      Количество
-                    </th>
-                    <th className="px-2 py-1 text-right text-xs font-medium text-gray-500 tracking-wider whitespace-nowrap">
-                      Сумма бюджета
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {purchaserSummary.map((item, index) => {
-                    const isSelected = purchaserFilter.size === 1 && purchaserFilter.has(item.purchaser);
-                    return (
-                      <tr 
-                        key={index} 
-                        className={`cursor-pointer transition-colors ${
-                          isSelected 
-                            ? 'bg-blue-100 hover:bg-blue-200' 
-                            : 'hover:bg-gray-50'
-                        }`}
-                        onClick={() => {
-                          if (isSelected) {
-                            // Если уже выбран, сбрасываем фильтр
-                            setPurchaserFilter(new Set());
-                          } else {
-                            // Устанавливаем фильтр только на этого закупщика
-                            setPurchaserFilter(new Set([item.purchaser]));
-                          }
-                          setCurrentPage(0);
-                        }}
-                      >
-                        <td className="px-2 py-1 text-xs text-gray-900 border-r border-gray-200 whitespace-nowrap">
-                          {item.purchaser}
-                        </td>
-                        <td className="px-2 py-1 text-xs text-gray-900 text-right border-r border-gray-200 whitespace-nowrap">
-                          {item.count}
-                        </td>
-                        <td className="px-2 py-1 text-xs text-gray-900 text-right whitespace-nowrap">
-                          {item.totalBudget.toLocaleString('ru-RU', { 
-                            minimumFractionDigits: 0, 
-                            maximumFractionDigits: 0 
-                          })}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
+        <div className="flex items-start w-full">
+          {/* Сводная таблица и элементы управления в одной строке */}
+          <div className="flex items-start">
+            {/* Сводная таблица */}
+            {purchaserSummary.length > 0 && (
+              <div className="bg-white rounded shadow-sm border border-gray-200 overflow-hidden flex-shrink-0">
+              <div className="overflow-x-auto">
+                <table className="border-collapse table-auto">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 whitespace-nowrap">
+                        Закупщик
+                      </th>
+                      <th className="px-2 py-1 text-right text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 whitespace-nowrap">
+                        Количество
+                      </th>
+                      <th className="px-2 py-1 text-right text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 whitespace-nowrap">
+                        Сумма бюджета
+                      </th>
+                      <th className="px-2 py-1 text-right text-xs font-medium text-gray-500 tracking-wider whitespace-nowrap">
+                        Сложность
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {purchaserSummary.map((item, index) => {
+                      const isSelected = purchaserFilter.size === 1 && purchaserFilter.has(item.purchaser);
+                      return (
+                        <tr 
+                          key={index} 
+                          className={`cursor-pointer transition-colors ${
+                            isSelected 
+                              ? 'bg-blue-100 hover:bg-blue-200' 
+                              : 'hover:bg-gray-50'
+                          }`}
+                          onClick={() => {
+                            if (isSelected) {
+                              // Если уже выбран, сбрасываем фильтр
+                              setPurchaserFilter(new Set());
+                            } else {
+                              // Устанавливаем фильтр только на этого закупщика
+                              setPurchaserFilter(new Set([item.purchaser]));
+                            }
+                            setCurrentPage(0);
+                          }}
+                        >
+                          <td className="px-2 py-1 text-xs text-gray-900 border-r border-gray-200 whitespace-nowrap">
+                            {item.purchaser}
+                          </td>
+                          <td className="px-2 py-1 text-xs text-gray-900 text-right border-r border-gray-200 whitespace-nowrap">
+                            {item.count}
+                          </td>
+                          <td className="px-2 py-1 text-xs text-gray-900 text-right border-r border-gray-200 whitespace-nowrap">
+                            {item.totalBudget.toLocaleString('ru-RU', { 
+                              minimumFractionDigits: 0, 
+                              maximumFractionDigits: 0 
+                            })}
+                          </td>
+                          <td className="px-2 py-1 text-xs text-gray-900 text-right whitespace-nowrap">
+                            {item.totalComplexity > 0 
+                              ? item.totalComplexity.toLocaleString('ru-RU', { 
+                                  minimumFractionDigits: 0, 
+                                  maximumFractionDigits: 2 
+                                })
+                              : '-'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
                 <tfoot className="bg-gray-50 border-t border-gray-300">
-                  <tr>
+                  <tr 
+                    className="cursor-pointer transition-colors hover:bg-gray-100"
+                    onClick={() => {
+                      // При клике на "Итого" сбрасываем фильтр по закупщику, чтобы показать все записи
+                      setPurchaserFilter(new Set());
+                      setCurrentPage(0);
+                    }}
+                  >
                     <td className="px-2 py-1 text-xs font-semibold text-gray-700 border-r border-gray-200 whitespace-nowrap">
                       Итого
                     </td>
                     <td className="px-2 py-1 text-xs font-semibold text-gray-700 text-right border-r border-gray-200 whitespace-nowrap">
                       {purchaserSummary.reduce((sum, item) => sum + item.count, 0)}
                     </td>
-                    <td className="px-2 py-1 text-xs font-semibold text-gray-700 text-right whitespace-nowrap">
+                    <td className="px-2 py-1 text-xs font-semibold text-gray-700 text-right border-r border-gray-200 whitespace-nowrap">
                       {purchaserSummary.reduce((sum, item) => sum + item.totalBudget, 0).toLocaleString('ru-RU', { 
                         minimumFractionDigits: 0, 
                         maximumFractionDigits: 0 
                       })}
                     </td>
+                    <td className="px-2 py-1 text-xs font-semibold text-gray-700 text-right whitespace-nowrap">
+                      {(() => {
+                        const totalComplexity = purchaserSummary.reduce((sum, item) => sum + item.totalComplexity, 0);
+                        return totalComplexity > 0 
+                          ? totalComplexity.toLocaleString('ru-RU', { 
+                              minimumFractionDigits: 0, 
+                              maximumFractionDigits: 2 
+                            })
+                          : '-';
+                      })()}
+                    </td>
                   </tr>
                 </tfoot>
-              </table>
+                </table>
+              </div>
             </div>
-          </div>
-          )}
-          
-          {/* Элементы управления справа от сводной таблицы */}
-          <div className="flex items-center gap-4 flex-nowrap flex-shrink-0">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-700 font-medium">Компания:</span>
-              <div className="relative company-filter-container">
-              <button
-                ref={companyFilterButtonRef}
-                type="button"
-                onClick={() => setIsCompanyFilterOpen(!isCompanyFilterOpen)}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-left focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center gap-2 hover:bg-gray-50 min-w-[200px]"
-              >
-                <span className="text-gray-700 truncate flex-1 text-left">
-                  {companyFilter.size === 0 
-                    ? 'Все компании' 
-                    : companyFilter.size === 1
-                    ? (Array.from(companyFilter)[0] || 'Все компании')
-                    : `${companyFilter.size} выбрано`}
-                </span>
-                <svg className={`w-4 h-4 transition-transform flex-shrink-0 ${isCompanyFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              {isCompanyFilterOpen && companyFilterPosition && (
-                <div 
-                  className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden"
-                  style={{
-                    top: `${companyFilterPosition.top}px`,
-                    left: `${companyFilterPosition.left}px`,
-                  }}
-                >
-                  <div className="p-2 border-b border-gray-200">
-                    <div className="relative">
-                      <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
-                      <input
-                        type="text"
-                        value={companySearchQuery}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          setCompanySearchQuery(e.target.value);
+            )}
+            
+            {/* Элементы управления справа от сводной таблицы */}
+            <div className="flex items-start gap-2 flex-shrink-0 ml-2">
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-700 font-medium">Компания:</span>
+                  <div className="relative company-filter-container">
+                  <button
+                    ref={companyFilterButtonRef}
+                    type="button"
+                    onClick={() => setIsCompanyFilterOpen(!isCompanyFilterOpen)}
+                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-left focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center gap-2 hover:bg-gray-50 min-w-[200px]"
+                  >
+                    <span className="text-gray-700 truncate flex-1 text-left">
+                      {companyFilter.size === 0 
+                        ? 'Все компании' 
+                        : companyFilter.size === 1
+                        ? (Array.from(companyFilter)[0] || 'Все компании')
+                        : `${companyFilter.size} выбрано`}
+                    </span>
+                    <svg className={`w-4 h-4 transition-transform flex-shrink-0 ${isCompanyFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {isCompanyFilterOpen && companyFilterPosition && (
+                    <div 
+                      className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden"
+                      style={{
+                        top: `${companyFilterPosition.top}px`,
+                        left: `${companyFilterPosition.left}px`,
+                      }}
+                    >
+                      <div className="p-2 border-b border-gray-200">
+                        <div className="relative">
+                          <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
+                          <input
+                            type="text"
+                            value={companySearchQuery}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              setCompanySearchQuery(e.target.value);
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            onFocus={(e) => e.stopPropagation()}
+                            className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            placeholder="Поиск..."
+                          />
+                        </div>
+                      </div>
+                      <div className="p-2 border-b border-gray-200 flex gap-2">
+                        <button
+                          onClick={() => handleCompanySelectAll()}
+                          className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                        >
+                          Все
+                        </button>
+                        <button
+                          onClick={() => handleCompanyDeselectAll()}
+                          className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                        >
+                          Снять
+                        </button>
+                      </div>
+                      <div className="max-h-48 overflow-y-auto">
+                        {getFilteredCompanyOptions.length === 0 ? (
+                          <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
+                        ) : (
+                          getFilteredCompanyOptions.map((company) => (
+                            <label
+                              key={company}
+                              className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={companyFilter.has(company)}
+                                onChange={() => handleCompanyToggle(company)}
+                                className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                              />
+                              <span className="ml-2 text-xs text-gray-700 flex-1">{company}</span>
+                            </label>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="relative">
+                    <button
+                      ref={columnsMenuButtonRef}
+                      onClick={() => setIsColumnsMenuOpen(!isColumnsMenuOpen)}
+                      className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-2"
+                      title="Настройка колонок"
+                    >
+                      <Settings className="w-4 h-4" />
+                      Колонки
+                    </button>
+                    {isColumnsMenuOpen && columnsMenuPosition && (
+                      <div 
+                        className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-96 overflow-hidden"
+                        style={{
+                          top: `${columnsMenuPosition.top}px`,
+                          left: `${columnsMenuPosition.left}px`,
                         }}
                         onClick={(e) => e.stopPropagation()}
-                        onFocus={(e) => e.stopPropagation()}
-                        className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        placeholder="Поиск..."
-                      />
-                    </div>
-                  </div>
-                  <div className="p-2 border-b border-gray-200 flex gap-2">
-                    <button
-                      onClick={() => handleCompanySelectAll()}
-                      className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                    >
-                      Все
-                    </button>
-                    <button
-                      onClick={() => handleCompanyDeselectAll()}
-                      className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
-                    >
-                      Снять
-                    </button>
-                  </div>
-                  <div className="max-h-48 overflow-y-auto">
-                    {getFilteredCompanyOptions.length === 0 ? (
-                      <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
-                    ) : (
-                      getFilteredCompanyOptions.map((company) => (
-                        <label
-                          key={company}
-                          className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={companyFilter.has(company)}
-                            onChange={() => handleCompanyToggle(company)}
-                            className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
-                          />
-                          <span className="ml-2 text-xs text-gray-700 flex-1">{company}</span>
-                        </label>
-                      ))
+                      >
+                        <div className="p-3 border-b border-gray-200">
+                          <h3 className="text-sm font-semibold text-gray-900">Выбор колонок</h3>
+                        </div>
+                        <div className="p-2 border-b border-gray-200 flex gap-2">
+                          <button
+                            onClick={selectAllColumns}
+                            className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                          >
+                            Все
+                          </button>
+                          <button
+                            onClick={selectDefaultColumns}
+                            className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                          >
+                            По умолчанию
+                          </button>
+                        </div>
+                        <div className="max-h-64 overflow-y-auto">
+                          {ALL_COLUMNS.map((column) => (
+                            <label
+                              key={column.key}
+                              className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={visibleColumns.has(column.key)}
+                                onChange={() => toggleColumnVisibility(column.key)}
+                                className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                              />
+                              <span className="ml-2 text-xs text-gray-700 flex-1">{column.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
-              )}
-            </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <button
-                  ref={columnsMenuButtonRef}
-                  onClick={() => setIsColumnsMenuOpen(!isColumnsMenuOpen)}
-                  className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-2"
-                  title="Настройка колонок"
-                >
-                  <Settings className="w-4 h-4" />
-                  Колонки
-                </button>
-                {isColumnsMenuOpen && columnsMenuPosition && (
-                  <div 
-                    className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-96 overflow-hidden"
-                    style={{
-                      top: `${columnsMenuPosition.top}px`,
-                      left: `${columnsMenuPosition.left}px`,
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="p-3 border-b border-gray-200">
-                      <h3 className="text-sm font-semibold text-gray-900">Выбор колонок</h3>
-                    </div>
-                    <div className="p-2 border-b border-gray-200 flex gap-2">
-                      <button
-                        onClick={selectAllColumns}
-                        className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                      >
-                        Все
-                      </button>
-                      <button
-                        onClick={selectDefaultColumns}
-                        className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
-                      >
-                        По умолчанию
-                      </button>
-                    </div>
-                    <div className="max-h-64 overflow-y-auto">
-                      {ALL_COLUMNS.map((column) => (
-                        <label
-                          key={column.key}
-                          className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={visibleColumns.has(column.key)}
-                            onChange={() => toggleColumnVisibility(column.key)}
-                            className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
-                          />
-                          <span className="ml-2 text-xs text-gray-700 flex-1">{column.label}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-700 font-medium">Год планирования:</span>
-                {allYears.map((year) => (
+                <div className="flex items-center gap-1">
+                  <span className="text-sm text-gray-700 font-medium">Год планирования:</span>
+                  {allYears.map((year) => (
+                    <button
+                      key={year}
+                      onClick={() => setSelectedYear(year)}
+                        className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                        selectedYear === year
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      {year}
+                    </button>
+                  ))}
                   <button
-                    key={year}
-                    onClick={() => setSelectedYear(year)}
+                    onClick={() => setSelectedYear(null)}
                       className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                      selectedYear === year
+                      selectedYear === null
                         ? 'bg-blue-600 text-white border-blue-600'
                         : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                     }`}
                   >
-                    {year}
+                    Все
                   </button>
-                ))}
+                </div>
+              </div>
+              <div className="flex items-center gap-1 flex-wrap">
                 <button
-                  onClick={() => setSelectedYear(null)}
-                    className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                    selectedYear === null
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                  }`}
+                  onClick={exportToPDF}
+                  className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-2"
+                  title="Экспорт в PDF"
                 >
-                  Все
+                  <Download className="w-4 h-4" />
+                  Экспорт в PDF
+                </button>
+                <button
+                  onClick={handleExportToExcelWithFilters}
+                  className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg border border-green-600 hover:bg-green-700 transition-colors flex items-center gap-2"
+                  title="Экспорт в Excel с фильтрами"
+                  disabled={!data || !data.content || data.content.length === 0}
+                >
+                  <Download className="w-4 h-4" />
+                  Excel (с фильтрами)
+                </button>
+                <button
+                  onClick={handleExportToExcelAll}
+                  className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg border border-green-600 hover:bg-green-700 transition-colors flex items-center gap-2"
+                  title="Экспорт в Excel всех данных"
+                  disabled={loading}
+                >
+                  <Download className="w-4 h-4" />
+                  Excel (все данные)
+                </button>
+                <button
+                  onClick={() => {
+                    const emptyFilters = {
+                      company: '',
+                      cfo: '',
+                      purchaseSubject: '',
+                    };
+                    setFilters(emptyFilters);
+                    setLocalFilters(emptyFilters);
+                    setCfoFilter(new Set());
+                    setCompanyFilter(new Set());
+                    setCategoryFilter(new Set());
+                    setPurchaserFilter(new Set());
+                  setSortField('requestDate');
+                  setSortDirection('asc');
+                    setFocusedField(null);
+                  setSelectedYear(allYears.length > 0 ? allYears[0] : null);
+                  setSelectedMonth(null);
+                  setSelectedMonthYear(null);
+                  setCurrentPage(0);
+                  // Очищаем сохраненные фильтры из localStorage
+                  try {
+                    localStorage.removeItem(FILTERS_STORAGE_KEY);
+                  } catch (err) {
+                    console.error('Error clearing saved filters:', err);
+                  }
+                  }}
+                className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors"
+                >
+                  Сбросить фильтры
                 </button>
               </div>
-              <button
-                onClick={exportToPDF}
-                className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-2"
-                title="Экспорт в PDF"
-              >
-                <Download className="w-4 h-4" />
-                Экспорт в PDF
-              </button>
-              <button
-                onClick={handleExportToExcelWithFilters}
-                className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg border border-green-600 hover:bg-green-700 transition-colors flex items-center gap-2"
-                title="Экспорт в Excel с фильтрами"
-                disabled={!data || !data.content || data.content.length === 0}
-              >
-                <Download className="w-4 h-4" />
-                Excel (с фильтрами)
-              </button>
-              <button
-                onClick={handleExportToExcelAll}
-                className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg border border-green-600 hover:bg-green-700 transition-colors flex items-center gap-2"
-                title="Экспорт в Excel всех данных"
-                disabled={loading}
-              >
-                <Download className="w-4 h-4" />
-                Excel (все данные)
-              </button>
             </div>
             <div className="relative flex items-center">
               <div className="absolute -top-6 left-0">
@@ -2664,38 +2741,8 @@ export default function PurchasePlanItemsTable() {
                   Всего записей: {totalRecords}
                 </p>
               </div>
-              <button
-                onClick={() => {
-                  const emptyFilters = {
-                    company: '',
-                    cfo: '',
-                    purchaseSubject: '',
-                  };
-                  setFilters(emptyFilters);
-                  setLocalFilters(emptyFilters);
-                  setCfoFilter(new Set());
-                  setCompanyFilter(new Set());
-                  setCategoryFilter(new Set());
-                  setPurchaserFilter(new Set());
-                setSortField('requestDate');
-                setSortDirection('asc');
-                  setFocusedField(null);
-                setSelectedYear(allYears.length > 0 ? allYears[0] : null);
-                setSelectedMonth(null);
-                setSelectedMonthYear(null);
-                setCurrentPage(0);
-                // Очищаем сохраненные фильтры из localStorage
-                try {
-                  localStorage.removeItem(FILTERS_STORAGE_KEY);
-                } catch (err) {
-                  console.error('Error clearing saved filters:', err);
-                }
-                }}
-              className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors"
-              >
-                Сбросить фильтры
-              </button>
             </div>
+          </div>
           </div>
         </div>
       </div>
@@ -2790,20 +2837,20 @@ export default function PurchasePlanItemsTable() {
 
       {/* Пагинация */}
       {data && (
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
-          <div className="flex items-center gap-4">
-            <div className="text-sm text-gray-700">
+        <div className="px-3 py-2 border-b border-gray-200 flex items-center justify-between bg-gray-50">
+          <div className="flex items-center gap-3">
+            <div className="text-xs text-gray-700">
               Показано {data?.content.length || 0} из {data?.totalElements || 0} записей
             </div>
             <div className="flex items-center gap-2">
-              <label htmlFor="pageSize" className="text-sm text-gray-700">
+              <label htmlFor="pageSize" className="text-xs text-gray-700">
                 Элементов на странице:
               </label>
               <select
                 id="pageSize"
                 value={pageSize}
                 onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="px-2 py-1 text-xs border border-gray-300 rounded bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value={25}>25</option>
                 <option value={50}>50</option>
@@ -2811,35 +2858,35 @@ export default function PurchasePlanItemsTable() {
               </select>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-1">
             <button
               onClick={() => setCurrentPage(0)}
               disabled={currentPage === 0}
-              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-2 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Первая
             </button>
             <button
               onClick={() => setCurrentPage(currentPage - 1)}
               disabled={currentPage === 0}
-              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-2 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Назад
             </button>
-            <span className="px-4 py-2 text-sm font-medium text-gray-700">
+            <span className="px-2 py-1 text-xs font-medium text-gray-700">
               Страница {currentPage + 1} из {data?.totalPages || 0}
             </span>
             <button
               onClick={() => setCurrentPage(currentPage + 1)}
               disabled={currentPage >= (data?.totalPages || 0) - 1}
-              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-2 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Вперед
             </button>
             <button
               onClick={() => setCurrentPage((data?.totalPages || 0) - 1)}
               disabled={currentPage >= (data?.totalPages || 0) - 1}
-              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-2 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Последняя
             </button>
