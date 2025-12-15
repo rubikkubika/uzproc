@@ -346,10 +346,18 @@ public class PurchaseRequestService {
                                     return statusEnum;
                                 }
                             }
+                            logger.warn("Status '{}' not found in PurchaseRequestStatus enum. Available statuses: {}", 
+                                statusStr, 
+                                java.util.Arrays.stream(PurchaseRequestStatus.values())
+                                    .map(PurchaseRequestStatus::getDisplayName)
+                                    .collect(Collectors.toList()));
                             return null;
                         })
                         .filter(s -> s != null)
                         .collect(Collectors.toList());
+                    
+                    logger.info("Status filter: received {} status values, found {} matching enum values", 
+                        validStatusValues.size(), statusEnums.size());
                     
                     if (!statusEnums.isEmpty()) {
                         if (statusEnums.size() == 1) {
@@ -365,8 +373,25 @@ public class PurchaseRequestService {
                                 .map(PurchaseRequestStatus::getDisplayName)
                                 .collect(Collectors.toList()));
                         }
+                    } else {
+                        // Если ни один статус не найден в enum, но статусы были переданы,
+                        // возможно они хранятся в поле state - исключаем "Не Актуальная"
+                        logger.warn("No matching status enums found, but status filter was provided. Excluding 'Не Актуальная' from state field.");
+                        predicates.add(cb.or(
+                            cb.isNull(root.get("state")),
+                            cb.not(cb.like(cb.lower(root.get("state")), "%неактуальн%"))
+                        ));
+                        predicateCount++;
                     }
                 }
+            } else {
+                // Если статус фильтр не указан, исключаем записи с state содержащим "Не Актуальная" по умолчанию
+                predicates.add(cb.or(
+                    cb.isNull(root.get("state")),
+                    cb.not(cb.like(cb.lower(root.get("state")), "%неактуальн%"))
+                ));
+                predicateCount++;
+                logger.info("No status filter provided - excluding records with state containing 'Не Актуальная' or 'Неактуальна' by default");
             }
             
             logger.info("Total predicates added: {}", predicateCount);

@@ -45,8 +45,8 @@ const CACHE_KEY = 'purchaseRequests_metadata';
 const CACHE_TTL = 5 * 60 * 1000; // 5 минут
 
 // Константы для статусов
-const ALL_STATUSES = ['На согласовании', 'На утверждении', 'Утверждена', 'Согласована', 'Не согласована', 'Не утверждена', 'Неактуальна'];
-const DEFAULT_STATUSES = ALL_STATUSES.filter(s => s !== 'Неактуальна');
+const ALL_STATUSES = ['На согласовании', 'На утверждении', 'Утверждена', 'Согласована', 'Не согласована', 'Не утверждена', 'Неактуальна', 'Не Актуальная'];
+const DEFAULT_STATUSES = ALL_STATUSES.filter(s => s !== 'Неактуальна' && s !== 'Не Актуальная');
 
 export default function PurchaseRequestsTable() {
   const router = useRouter();
@@ -237,8 +237,8 @@ export default function PurchaseRequestsTable() {
           console.log('Loading statusFilter from localStorage:', savedFilters.statusFilter);
           setStatusFilter(new Set(savedFilters.statusFilter));
         } else {
-          // Если статус фильтр не найден или пустой, устанавливаем значения по умолчанию (все кроме Неактуальна)
-          console.log('Setting default statusFilter (all except Неактуальна):', DEFAULT_STATUSES);
+          // Если статус фильтр не найден или пустой, устанавливаем значения по умолчанию (все кроме Неактуальна и Не Актуальная)
+          console.log('Setting default statusFilter (all except Неактуальна and Не Актуальная):', DEFAULT_STATUSES);
           setStatusFilter(new Set(DEFAULT_STATUSES));
         }
         
@@ -278,7 +278,7 @@ export default function PurchaseRequestsTable() {
       } else {
         console.log('No saved filters found in localStorage');
         // При первой загрузке устанавливаем значения по умолчанию для statusFilter
-        console.log('Setting default statusFilter (all except Неактуальна) on first load:', DEFAULT_STATUSES);
+        console.log('Setting default statusFilter (all except Неактуальна and Не Актуальная) on first load:', DEFAULT_STATUSES);
         setStatusFilter(new Set(DEFAULT_STATUSES));
       }
       
@@ -647,7 +647,7 @@ export default function PurchaseRequestsTable() {
       }
       
       // Фильтр по статусу - передаем все выбранные значения на бэкенд
-      // Если фильтр пустой, используем значения по умолчанию (все кроме Неактуальна)
+      // Если фильтр пустой, используем значения по умолчанию (все кроме Неактуальна и Не Актуальная)
       const statusesToFilter = statusFilter.size > 0 ? statusFilter : new Set(DEFAULT_STATUSES);
       console.log('Status filter in fetchData:', {
         statusFilterSize: statusFilter.size,

@@ -67,6 +67,10 @@ type SortDirection = 'asc' | 'desc' | null;
 const FILTERS_STORAGE_KEY = 'purchasePlanItems_filters';
 const COLUMNS_VISIBILITY_STORAGE_KEY = 'purchasePlanItems_columnsVisibility';
 
+// Константы для статусов
+const ALL_STATUSES = ['Проект', 'Актуальная', 'Не Актуальная', 'Корректировка', 'Заявка'];
+const DEFAULT_STATUSES = ALL_STATUSES.filter(s => s !== 'Не Актуальная');
+
 // Определение всех возможных колонок (все поля сущности PurchasePlanItem)
 const ALL_COLUMNS = [
   { key: 'id', label: 'ID' },
@@ -139,7 +143,7 @@ export default function PurchasePlanItemsTable() {
   const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
   const [companyFilter, setCompanyFilter] = useState<Set<string>>(new Set(['Uzum Market']));
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
-  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set());
+  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set(DEFAULT_STATUSES));
   const [purchaserFilter, setPurchaserFilter] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') {
       return new Set<string>();
@@ -1146,11 +1150,15 @@ export default function PurchasePlanItemsTable() {
           }
         }
         if (savedFilters.statusFilter !== undefined) {
-          if (Array.isArray(savedFilters.statusFilter)) {
+          if (Array.isArray(savedFilters.statusFilter) && savedFilters.statusFilter.length > 0) {
             setStatusFilter(new Set(savedFilters.statusFilter));
           } else {
-            setStatusFilter(new Set());
+            // Если статус фильтр пустой, устанавливаем значения по умолчанию (все кроме Не Актуальная)
+            setStatusFilter(new Set(DEFAULT_STATUSES));
           }
+        } else {
+          // Если статус фильтр не найден, устанавливаем значения по умолчанию (все кроме Не Актуальная)
+          setStatusFilter(new Set(DEFAULT_STATUSES));
         }
         
         // Восстанавливаем сортировку
@@ -1925,11 +1933,11 @@ export default function PurchasePlanItemsTable() {
         });
       }
       // Фильтр по статусу - передаем все выбранные значения на бэкенд
-      if (statusFilter.size > 0) {
-        statusFilter.forEach(status => {
-          params.append('status', status);
-        });
-      }
+      // Если фильтр пустой, используем значения по умолчанию (все кроме Не Актуальная)
+      const statusesToFilter = statusFilter.size > 0 ? statusFilter : new Set(DEFAULT_STATUSES);
+      statusesToFilter.forEach(status => {
+        params.append('status', status);
+      });
       if (month !== null) {
         params.append('requestMonth', String(month));
         // Если выбран месяц из другого года (например, декабрь предыдущего года), передаем год для фильтрации по дате заявки
@@ -2327,8 +2335,7 @@ export default function PurchasePlanItemsTable() {
   };
 
   const handleStatusSelectAll = () => {
-    const allStatuses = getUniqueValues('status');
-    const newSet = new Set(allStatuses);
+    const newSet = new Set(ALL_STATUSES);
     setStatusFilter(newSet);
     setCurrentPage(0);
   };
@@ -2996,7 +3003,7 @@ export default function PurchasePlanItemsTable() {
                       companyFilter: ['Uzum Market'], // При сбросе устанавливаем фильтр по умолчанию на "Uzum Market"
                       categoryFilter: [],
                       purchaserFilter: [],
-                      statusFilter: [],
+                      statusFilter: DEFAULT_STATUSES, // При сбросе устанавливаем фильтр по умолчанию (все кроме Не Актуальная)
                       sortField: 'requestDate',
                       sortDirection: 'asc',
                       pageSize: pageSize,
