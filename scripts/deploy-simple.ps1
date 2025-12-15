@@ -36,7 +36,10 @@ Write-Host "Frontend image saved: uzproc-frontend.tar ($([math]::Round($frontend
 Write-Host "Backend image saved: uzproc-backend.tar ($([math]::Round($backendSize, 2)) MB)" -ForegroundColor Green
 
 Write-Host "`nStep 3: Copying files to server..." -ForegroundColor Yellow
+# Создаем директорию docker на сервере, если её нет
+ssh $SERVER "mkdir -p ${REMOTE_PATH}/docker"
 scp uzproc-frontend.tar uzproc-backend.tar docker-compose.yml "${SERVER}:${REMOTE_PATH}/"
+scp docker/nginx.conf "${SERVER}:${REMOTE_PATH}/docker/"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Error copying files to server!" -ForegroundColor Red
     exit 1
@@ -59,8 +62,9 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host "`nDeployment completed successfully!" -ForegroundColor Green
 Write-Host "Services available at:" -ForegroundColor Cyan
-Write-Host "  Frontend: http://10.123.48.62:3000" -ForegroundColor Cyan
-Write-Host "  Backend: http://10.123.48.62:8080" -ForegroundColor Cyan
+Write-Host "  Application: http://uzproc.uzum.io (or http://10.123.48.62)" -ForegroundColor Cyan
+Write-Host "  Frontend (direct): http://10.123.48.62:3000" -ForegroundColor Cyan
+Write-Host "  Backend (direct): http://10.123.48.62:8080" -ForegroundColor Cyan
 
 
 
