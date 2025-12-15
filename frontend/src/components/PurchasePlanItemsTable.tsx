@@ -4400,9 +4400,9 @@ export default function PurchasePlanItemsTable() {
                     {/* Подстрока при раскрытии */}
                     {isExpanded && (
                       <tr className="bg-blue-50 border-t-2 border-blue-300">
-                        <td colSpan={visibleColumns.size + 1} className="px-2 py-1.5">
+                        <td colSpan={visibleColumns.size + 1} className="px-2 py-1">
                           {/* Вкладки */}
-                          <div className="mb-2 border-b border-blue-200">
+                          <div className="mb-1 border-b border-blue-200">
                             <div className="flex gap-1">
                               <button
                                 onClick={() => setActiveTab(prev => ({ ...prev, [item.id]: 'data' }))}
@@ -4454,7 +4454,7 @@ export default function PurchasePlanItemsTable() {
                           {/* Содержимое вкладки "Данные" */}
                           {(activeTab[item.id] === 'data' || !activeTab[item.id]) && (
                             <div className="text-xs text-gray-700">
-                              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1 gap-y-0.5">
                               <div>
                                 <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">ID:</span> <span className="text-gray-900">{item.id}</span></span>
                               </div>
@@ -4514,7 +4514,7 @@ export default function PurchasePlanItemsTable() {
                               {purchaseRequestData[item.id]?.loading ? (
                                 <div className="text-center py-2">Загрузка...</div>
                               ) : purchaseRequestData[item.id]?.data ? (
-                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1 gap-y-0.5">
                                   {purchaseRequestData[item.id]!.data!.idPurchaseRequest && (
                                     <div>
                                       <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Номер заявки:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.idPurchaseRequest}</span></span>
@@ -4625,28 +4625,26 @@ export default function PurchasePlanItemsTable() {
                                 <div className="text-center py-1 text-gray-500">Загрузка...</div>
                               ) : changesData[item.id]?.content && changesData[item.id].content.length > 0 ? (
                                 <>
-                                  <div className="space-y-0.5 mb-1.5">
-                                    {changesData[item.id].content.map((change: any) => (
-                                      <div key={change.id} className="bg-white px-1.5 py-0.5 rounded border border-blue-200">
-                                        <div className="flex items-center justify-between mb-0">
-                                          <span className="font-semibold text-blue-700 text-[10px]">{change.fieldName}</span>
-                                          <span className="text-gray-500 text-[9px]">
-                                            {new Date(change.changeDate).toLocaleString('ru-RU')}
-                                          </span>
-                                        </div>
-                                        <div className="flex gap-1 text-[9px]">
-                                          <div className="flex-1">
-                                            <span className="text-gray-500">Было:</span>
-                                            <span className="ml-0.5 text-red-600">{change.valueBefore || '-'}</span>
-                                          </div>
-                                          <div className="flex-1">
-                                            <span className="text-gray-500">Стало:</span>
-                                            <span className="ml-0.5 text-green-600">{change.valueAfter || '-'}</span>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
+                                  <table className="w-full border-collapse">
+                                    <thead>
+                                      <tr className="bg-blue-50 border-b border-blue-200">
+                                        <th className="text-left px-1.5 py-0.5 text-[9px] font-semibold text-blue-700 border-r border-blue-200">Поле</th>
+                                        <th className="text-left px-1.5 py-0.5 text-[9px] font-semibold text-blue-700 border-r border-blue-200">Было</th>
+                                        <th className="text-left px-1.5 py-0.5 text-[9px] font-semibold text-blue-700 border-r border-blue-200">Стало</th>
+                                        <th className="text-left px-1.5 py-0.5 text-[9px] font-semibold text-blue-700">Дата</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {changesData[item.id].content.map((change: any) => (
+                                        <tr key={change.id} className="bg-white border-b border-blue-100 hover:bg-blue-50">
+                                          <td className="px-1.5 py-0.5 text-[9px] text-gray-900 border-r border-blue-100">{change.fieldName}</td>
+                                          <td className="px-1.5 py-0.5 text-[9px] text-red-600 border-r border-blue-100">{change.valueBefore || '-'}</td>
+                                          <td className="px-1.5 py-0.5 text-[9px] text-green-600 border-r border-blue-100">{change.valueAfter || '-'}</td>
+                                          <td className="px-1.5 py-0.5 text-[9px] text-gray-500">{new Date(change.changeDate).toLocaleString('ru-RU')}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
                                   
                                   {/* Пагинация */}
                                   {changesData[item.id].totalPages > 1 && (
