@@ -56,13 +56,14 @@ public class PurchasePlanItemService {
             Integer requestMonth,
             Integer requestYear,
             String currentContractEndDate,
-            List<String> status) {
+            List<String> status,
+            String purchaseRequestId) {
         
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, company: {}, cfo: {}, purchaseSubject: '{}', purchaser: {}, category: {}, requestMonth: {}, requestYear: {}, currentContractEndDate: '{}', status: {}",
-                year, company, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear, currentContractEndDate, status);
+        logger.info("Filter parameters - year: {}, company: {}, cfo: {}, purchaseSubject: '{}', purchaser: {}, category: {}, requestMonth: {}, requestYear: {}, currentContractEndDate: '{}', status: {}, purchaseRequestId: '{}'",
+                year, company, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear, currentContractEndDate, status, purchaseRequestId);
         
-        Specification<PurchasePlanItem> spec = buildSpecification(year, company, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear, currentContractEndDate, status);
+        Specification<PurchasePlanItem> spec = buildSpecification(year, company, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear, currentContractEndDate, status, purchaseRequestId);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -318,7 +319,8 @@ public class PurchasePlanItemService {
             Integer requestMonth,
             Integer requestYear,
             String currentContractEndDate,
-            List<String> status) {
+            List<String> status,
+            String purchaseRequestId) {
         
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -556,6 +558,18 @@ public class PurchasePlanItemService {
                     } catch (Exception e) {
                         logger.warn("Error processing status filter: {}", e.getMessage());
                     }
+                }
+            }
+            
+            // Фильтр по номеру заявки на закупку
+            if (purchaseRequestId != null && !purchaseRequestId.trim().isEmpty()) {
+                try {
+                    Long purchaseRequestIdLong = Long.parseLong(purchaseRequestId.trim());
+                    predicates.add(cb.equal(root.get("purchaseRequestId"), purchaseRequestIdLong));
+                    predicateCount++;
+                    logger.info("Added purchaseRequestId filter: {}", purchaseRequestIdLong);
+                } catch (NumberFormatException e) {
+                    logger.warn("Invalid purchaseRequestId filter value: '{}', error: {}", purchaseRequestId, e.getMessage());
                 }
             }
             

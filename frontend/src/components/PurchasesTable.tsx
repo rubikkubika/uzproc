@@ -982,28 +982,28 @@ export default function PurchasesTable() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-700 font-medium">Фильтр по году создания:</span>
-            <button
-              onClick={() => setSelectedYear(null)}
-              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                selectedYear === null
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              Все
-            </button>
-            {allYears.map((year) => (
               <button
-                key={year}
-                onClick={() => setSelectedYear(year)}
+              onClick={() => setSelectedYear(null)}
                 className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                  selectedYear === year
+                selectedYear === null
                     ? 'bg-blue-600 text-white border-blue-600'
                     : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                 }`}
               >
-                {year}
+              Все
               </button>
+            {allYears.map((year) => (
+            <button
+                key={year}
+                onClick={() => setSelectedYear(year)}
+              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                  selectedYear === year
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+                {year}
+            </button>
             ))}
           </div>
           <div className="flex items-center gap-4">

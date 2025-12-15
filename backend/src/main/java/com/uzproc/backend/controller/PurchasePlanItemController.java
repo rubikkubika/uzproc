@@ -38,10 +38,11 @@ public class PurchasePlanItemController {
             @RequestParam(required = false) Integer requestMonth,
             @RequestParam(required = false) Integer requestYear,
             @RequestParam(required = false) String currentContractEndDate,
-            @RequestParam(required = false) List<String> status) {
+            @RequestParam(required = false) List<String> status,
+            @RequestParam(required = false) String purchaseRequestId) {
         
         Page<PurchasePlanItemDto> items = purchasePlanItemService.findAll(
-                page, size, year, sortBy, sortDir, company, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear, currentContractEndDate, status);
+                page, size, year, sortBy, sortDir, company, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear, currentContractEndDate, status, purchaseRequestId);
         
         return ResponseEntity.ok(items);
     }

@@ -1,5 +1,5 @@
 // Utility to get backend API URL
-// In production (server), use nginx proxy (relative paths)
+// In production (server), use nginx proxy (relative paths without port)
 // In development, use localhost
 export function getBackendUrl(): string {
   // Check if we're on the server (production)
@@ -9,9 +9,10 @@ export function getBackendUrl(): string {
     
     // Если используем домен uzproc.uzum.io или IP 10.123.48.62, бэкенд доступен через nginx
     // nginx проксирует /api на backend:8080/api, который имеет context-path: /api
-    // Поэтому возвращаем пустую строку - запросы будут идти на /api/... относительно текущего домена/IP
+    // Формируем URL без порта, чтобы запросы шли через порт 80 (nginx)
     if (hostname === 'uzproc.uzum.io' || hostname === '10.123.48.62') {
-      return '';
+      // Используем протокол и hostname без порта для гарантии запросов через порт 80
+      return `${window.location.protocol}//${hostname}`;
     }
   }
   

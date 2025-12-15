@@ -98,8 +98,9 @@ const ALL_COLUMNS = [
 
 // Колонки, которые отображаются по умолчанию
 const DEFAULT_VISIBLE_COLUMNS = [
-  'cfo',
   'company',
+  'purchaseRequestId',
+  'cfo',
   'purchaseSubject',
   'purchaser',
   'budgetAmount',
@@ -131,6 +132,7 @@ export default function PurchasePlanItemsTable() {
     cfo: '',
     purchaseSubject: '',
     currentContractEndDate: '',
+    purchaseRequestId: '',
   });
 
   // Состояние для множественных фильтров (чекбоксы)
@@ -262,6 +264,30 @@ export default function PurchasePlanItemsTable() {
     }
   }, [isStatusFilterOpen, calculateFilterPosition]);
 
+  // Закрываем меню фильтра статуса при клике вне его
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isStatusFilterOpen) {
+        const target = event.target as Node;
+        // Проверяем, что клик не по кнопке фильтра
+        if (statusFilterButtonRef.current && !statusFilterButtonRef.current.contains(target)) {
+          // Проверяем, что клик не по самому меню фильтра статуса
+          const statusMenuElement = document.querySelector('[data-status-filter-menu="true"]');
+          if (statusMenuElement && !statusMenuElement.contains(target)) {
+            setIsStatusFilterOpen(false);
+          }
+        }
+      }
+    };
+
+    if (isStatusFilterOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isStatusFilterOpen]);
+
   // Обновляем позицию при открытии меню выбора колонок
   useEffect(() => {
     if (isColumnsMenuOpen && columnsMenuButtonRef.current) {
@@ -326,6 +352,7 @@ export default function PurchasePlanItemsTable() {
     company: '',
     purchaseSubject: '',
     currentContractEndDate: '',
+    purchaseRequestId: '',
   });
 
   // ID активного поля для восстановления фокуса
@@ -1073,6 +1100,7 @@ export default function PurchasePlanItemsTable() {
             cfo: '',
             purchaseSubject: '',
             currentContractEndDate: '',
+            purchaseRequestId: '',
           };
           setFilters(emptyFilters);
           setLocalFilters(emptyFilters);
@@ -1097,14 +1125,14 @@ export default function PurchasePlanItemsTable() {
               detail: { companyFilter: normalizedCompanyFilter }
             }));
           } else {
-            // Если сохраненный фильтр пустой, устанавливаем фильтр по умолчанию на "Uzum Market"
-            setCompanyFilter(new Set(['Uzum Market']));
+            // Если сохраненный фильтр пустой массив, оставляем его пустым (не устанавливаем дефолт)
+            setCompanyFilter(new Set());
             window.dispatchEvent(new CustomEvent('purchasePlanItemCompanyFilterUpdated', {
-              detail: { companyFilter: ['Uzum Market'] }
+              detail: { companyFilter: [] }
             }));
           }
         } else {
-          // Если фильтр не сохранен, устанавливаем фильтр по умолчанию на "Uzum Market"
+          // Если фильтр не сохранен (первая загрузка), устанавливаем фильтр по умолчанию на "Uzum Market"
           setCompanyFilter(new Set(['Uzum Market']));
           window.dispatchEvent(new CustomEvent('purchasePlanItemCompanyFilterUpdated', {
             detail: { companyFilter: ['Uzum Market'] }
@@ -1115,6 +1143,13 @@ export default function PurchasePlanItemsTable() {
             setCategoryFilter(new Set(savedFilters.categoryFilter));
           } else {
             setCategoryFilter(new Set());
+          }
+        }
+        if (savedFilters.statusFilter !== undefined) {
+          if (Array.isArray(savedFilters.statusFilter)) {
+            setStatusFilter(new Set(savedFilters.statusFilter));
+          } else {
+            setStatusFilter(new Set());
           }
         }
         
@@ -1169,6 +1204,7 @@ export default function PurchasePlanItemsTable() {
         companyFilter: Array.from(companyFilter),
         categoryFilter: Array.from(categoryFilter),
         purchaserFilter: Array.from(purchaserFilter),
+        statusFilter: Array.from(statusFilter),
         sortField,
         sortDirection,
         pageSize,
@@ -1178,7 +1214,7 @@ export default function PurchasePlanItemsTable() {
     } catch (err) {
       console.error('Error saving filters:', err);
     }
-  }, [selectedYear, selectedMonth, selectedMonthYear, filters, cfoFilter, companyFilter, purchaserFilter, sortField, sortDirection, pageSize, currentPage]);
+  }, [selectedYear, selectedMonth, selectedMonthYear, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter, statusFilter, sortField, sortDirection, pageSize, currentPage]);
   
   // Сохраняем ширины колонок в localStorage
   const saveColumnWidths = useCallback((widths: Record<string, number>) => {
@@ -1862,6 +1898,10 @@ export default function PurchasePlanItemsTable() {
       if (filters.purchaseSubject && filters.purchaseSubject.trim() !== '') {
         params.append('purchaseSubject', filters.purchaseSubject.trim());
       }
+      // Фильтр по номеру заявки на закупку
+      if (filters.purchaseRequestId && filters.purchaseRequestId.trim() !== '') {
+        params.append('purchaseRequestId', filters.purchaseRequestId.trim());
+      }
       // Фильтр по дате окончания действующего договора
       if (filters.currentContractEndDate && filters.currentContractEndDate.trim() !== '') {
         const dateValue = filters.currentContractEndDate.trim();
@@ -1915,7 +1955,7 @@ export default function PurchasePlanItemsTable() {
   // Debounce для текстовых фильтров (как в PurchaseRequestsTable)
   useEffect(() => {
     // Проверяем, изменились ли текстовые фильтры
-    const textFields = ['company', 'purchaseSubject', 'currentContractEndDate'];
+    const textFields = ['company', 'purchaseSubject', 'currentContractEndDate', 'purchaseRequestId'];
     const hasTextChanges = textFields.some(field => localFilters[field] !== filters[field]);
     
     if (hasTextChanges) {
@@ -2119,6 +2159,7 @@ export default function PurchasePlanItemsTable() {
     company: [],
     purchaser: [],
     category: [],
+    status: [],
   });
 
   useEffect(() => {
@@ -2131,6 +2172,8 @@ export default function PurchasePlanItemsTable() {
             cfo: new Set(),
             company: new Set(),
             purchaser: new Set(),
+            category: new Set(),
+            status: new Set(),
           };
           
           result.content.forEach((item: PurchasePlanItem) => {
@@ -2143,12 +2186,16 @@ export default function PurchasePlanItemsTable() {
               }
             }
             if (item.purchaser) values.purchaser.add(item.purchaser);
+            if (item.category) values.category.add(item.category);
+            if (item.status) values.status.add(item.status);
           });
           
           setUniqueValues({
             cfo: Array.from(values.cfo).sort(),
             company: Array.from(values.company).sort(),
             purchaser: Array.from(values.purchaser).sort(),
+            category: Array.from(values.category).sort(),
+            status: Array.from(values.status).sort(),
           });
         }
       } catch (err) {
@@ -2912,13 +2959,16 @@ export default function PurchasePlanItemsTable() {
                       company: '',
                       cfo: '',
                       purchaseSubject: '',
+                      currentContractEndDate: '',
+                      purchaseRequestId: '',
                     };
                     setFilters(emptyFilters);
                     setLocalFilters(emptyFilters);
                     setCfoFilter(new Set());
-                    setCompanyFilter(new Set());
+                    setCompanyFilter(new Set(['Uzum Market'])); // При сбросе устанавливаем фильтр по умолчанию на "Uzum Market"
                     setCategoryFilter(new Set());
                     setPurchaserFilter(new Set());
+                    setStatusFilter(new Set());
                   setSortField('requestDate');
                   setSortDirection('asc');
                     setFocusedField(null);
@@ -2926,12 +2976,29 @@ export default function PurchasePlanItemsTable() {
                   setSelectedMonth(null);
                   setSelectedMonthYear(null);
                   setCurrentPage(0);
-                  // Очищаем сохраненные фильтры из localStorage
+                  // Сохраняем сброшенные фильтры в localStorage
+                  // Фильтр по компании устанавливается на "Uzum Market" по умолчанию
                   try {
-                    localStorage.removeItem(FILTERS_STORAGE_KEY);
+                    const resetFilters = {
+                      filters: emptyFilters,
+                      cfoFilter: [],
+                      companyFilter: ['Uzum Market'], // При сбросе устанавливаем фильтр по умолчанию на "Uzum Market"
+                      categoryFilter: [],
+                      purchaserFilter: [],
+                      statusFilter: [],
+                      sortField: 'requestDate',
+                      sortDirection: 'asc',
+                      pageSize: pageSize,
+                      currentPage: 0,
+                    };
+                    localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(resetFilters));
                   } catch (err) {
-                    console.error('Error clearing saved filters:', err);
+                    console.error('Error saving reset filters:', err);
                   }
+                  // Отправляем событие для обновления фильтра компании в диаграмме
+                  window.dispatchEvent(new CustomEvent('purchasePlanItemCompanyFilterUpdated', {
+                    detail: { companyFilter: ['Uzum Market'] }
+                  }));
                   }}
                 className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors"
               >
@@ -3193,6 +3260,17 @@ export default function PurchasePlanItemsTable() {
         <table className="w-full border-collapse">
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
+              {visibleColumns.has('company') && (
+              <SortableHeader field="company" label="Компания" columnKey="company" />
+              )}
+              {visibleColumns.has('purchaseRequestId') && (
+              <SortableHeader 
+                field="purchaseRequestId" 
+                label="Заявка на закупку" 
+                filterType="text"
+                columnKey="purchaseRequestId" 
+              />
+              )}
               {visibleColumns.has('cfo') && (
               <th 
                 className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" 
@@ -3449,9 +3527,6 @@ export default function PurchasePlanItemsTable() {
               {visibleColumns.has('year') && (
               <SortableHeader field="year" label="Год" columnKey="year" />
               )}
-              {visibleColumns.has('company') && (
-              <SortableHeader field="company" label="Компания" columnKey="company" />
-              )}
               {visibleColumns.has('product') && (
               <SortableHeader field="product" label="Продукция" columnKey="product" />
               )}
@@ -3588,9 +3663,6 @@ export default function PurchasePlanItemsTable() {
                 />
               </th>
               )}
-              {visibleColumns.has('purchaseRequestId') && (
-              <SortableHeader field="purchaseRequestId" label="Заявка на закупку" columnKey="purchaseRequestId" />
-              )}
               {visibleColumns.has('status') && (
               <th 
                 className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" 
@@ -3620,6 +3692,7 @@ export default function PurchasePlanItemsTable() {
                     {isStatusFilterOpen && statusFilterPosition && (
                       <div 
                         className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden"
+                        data-status-filter-menu="true"
                         style={{
                           top: `${statusFilterPosition.top}px`,
                           left: `${statusFilterPosition.left}px`,
@@ -3861,6 +3934,110 @@ export default function PurchasePlanItemsTable() {
                       className={`${isInactive ? 'bg-gray-100 opacity-60' : 'hover:bg-gray-50'} cursor-pointer`}
                       onClick={(e) => handleRowClick(item.id, e)}
                 >
+                        {visibleColumns.has('company') && (
+                  <td className={`px-2 py-2 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px` }}>
+                    <select
+                      ref={editingCompany === item.id ? companySelectRef : null}
+                      data-editing-company={item.id}
+                      value={item.company || ''}
+                      disabled={isInactive}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        if (e.target.value !== item.company) {
+                          handleCompanyUpdate(item.id, e.target.value);
+                        }
+                      }}
+                      onFocus={(e) => {
+                        e.stopPropagation();
+                        setEditingCompany(item.id);
+                      }}
+                      onBlur={() => {
+                        setTimeout(() => {
+                          setEditingCompany(null);
+                        }, 200);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          setEditingCompany(null);
+                        }
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingCompany(item.id);
+                      }}
+                      className={`text-xs rounded px-2 py-0.5 font-medium cursor-pointer transition-all w-full ${
+                        isInactive
+                          ? 'bg-gray-100 text-gray-500 border-0 cursor-not-allowed'
+                          : editingCompany === item.id
+                          ? 'border border-blue-500 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500'
+                          : 'bg-gray-100 text-gray-800 border-0'
+                      }`}
+                      style={{
+                        ...(isInactive || editingCompany === item.id ? {} : {
+                          appearance: 'none',
+                          WebkitAppearance: 'none',
+                          MozAppearance: 'none',
+                          paddingRight: '20px',
+                          backgroundImage: item.company ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 9L1 4h10z'/%3E%3C/svg%3E")` : 'none',
+                          backgroundRepeat: 'no-repeat',
+                          backgroundPosition: 'right 4px center',
+                          backgroundSize: '12px',
+                        })
+                      }}
+                    >
+                      <option value="">-</option>
+                      <option value="Uzum Market">Uzum Market</option>
+                      <option value="Uzum Technologies">Uzum Technologies</option>
+                    </select>
+                  </td>
+                  )}
+                  {visibleColumns.has('purchaseRequestId') && (
+                  <td className={`px-2 py-2 text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('purchaseRequestId')}px`, minWidth: `${getColumnWidth('purchaseRequestId')}px`, maxWidth: `${getColumnWidth('purchaseRequestId')}px` }}>
+                    {editingPurchaseRequestId === item.id ? (
+                      <input
+                        ref={purchaseRequestIdInputRef}
+                        type="number"
+                        defaultValue={item.purchaseRequestId?.toString() || ''}
+                        onBlur={(e) => {
+                          const newValue = e.target.value.trim();
+                          const currentValue = item.purchaseRequestId?.toString() || '';
+                          if (newValue !== currentValue) {
+                            handlePurchaseRequestIdUpdate(item.id, newValue || null);
+                          } else {
+                            setEditingPurchaseRequestId(null);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.currentTarget.blur();
+                          } else if (e.key === 'Escape') {
+                            setEditingPurchaseRequestId(null);
+                          }
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        onFocus={(e) => {
+                          e.stopPropagation();
+                          setEditingPurchaseRequestId(item.id);
+                        }}
+                        className="w-full text-xs border border-blue-500 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        disabled={isInactive}
+                        autoFocus
+                      />
+                    ) : (
+                      <div
+                        onClick={() => {
+                          if (!isInactive) {
+                            setEditingPurchaseRequestId(item.id);
+                          }
+                        }}
+                        className={isInactive ? '' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors'}
+                        title={isInactive ? '' : 'Нажмите для редактирования'}
+                      >
+                        {item.purchaseRequestId || '-'}
+                      </div>
+                    )}
+                  </td>
+                  )}
                         {visibleColumns.has('cfo') && (
                         <td 
                           className={`px-2 py-2 text-xs truncate border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
@@ -4013,63 +4190,6 @@ export default function PurchasePlanItemsTable() {
                     {item.year || '-'}
                   </td>
                   )}
-                  {visibleColumns.has('company') && (
-                  <td className={`px-2 py-2 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px` }}>
-                    <select
-                      ref={editingCompany === item.id ? companySelectRef : null}
-                      data-editing-company={item.id}
-                      value={item.company || ''}
-                      disabled={isInactive}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        if (e.target.value !== item.company) {
-                          handleCompanyUpdate(item.id, e.target.value);
-                        }
-                      }}
-                      onFocus={(e) => {
-                        e.stopPropagation();
-                        setEditingCompany(item.id);
-                      }}
-                      onBlur={() => {
-                        setTimeout(() => {
-                          setEditingCompany(null);
-                        }, 200);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') {
-                          setEditingCompany(null);
-                        }
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingCompany(item.id);
-                      }}
-                      className={`text-xs rounded px-2 py-0.5 font-medium cursor-pointer transition-all w-full ${
-                        isInactive
-                          ? 'bg-gray-100 text-gray-500 border-0 cursor-not-allowed'
-                          : editingCompany === item.id
-                          ? 'border border-blue-500 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500'
-                          : 'bg-gray-100 text-gray-800 border-0'
-                      }`}
-                      style={{
-                        ...(isInactive || editingCompany === item.id ? {} : {
-                          appearance: 'none',
-                          WebkitAppearance: 'none',
-                          MozAppearance: 'none',
-                          paddingRight: '20px',
-                          backgroundImage: item.company ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 9L1 4h10z'/%3E%3C/svg%3E")` : 'none',
-                          backgroundRepeat: 'no-repeat',
-                          backgroundPosition: 'right 4px center',
-                          backgroundSize: '12px',
-                        })
-                      }}
-                    >
-                      <option value="">-</option>
-                      <option value="Uzum Market">Uzum Market</option>
-                      <option value="Uzum Technologies">Uzum Technologies</option>
-                    </select>
-                  </td>
-                  )}
                   {visibleColumns.has('product') && (
                   <td className={`px-2 py-2 text-xs break-words border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('product')}px`, minWidth: `${getColumnWidth('product')}px`, maxWidth: `${getColumnWidth('product')}px` }}>
                     {item.product || '-'}
@@ -4117,53 +4237,6 @@ export default function PurchasePlanItemsTable() {
                   {visibleColumns.has('category') && (
                   <td className={`px-2 py-2 text-xs truncate border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} title={item.category || ''} style={{ width: `${getColumnWidth('category')}px`, minWidth: `${getColumnWidth('category')}px`, maxWidth: `${getColumnWidth('category')}px` }}>
                     {item.category || '-'}
-                  </td>
-                  )}
-                  {visibleColumns.has('purchaseRequestId') && (
-                  <td className={`px-2 py-2 text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('purchaseRequestId')}px`, minWidth: `${getColumnWidth('purchaseRequestId')}px`, maxWidth: `${getColumnWidth('purchaseRequestId')}px` }}>
-                    {editingPurchaseRequestId === item.id ? (
-                      <input
-                        ref={purchaseRequestIdInputRef}
-                        type="number"
-                        defaultValue={item.purchaseRequestId?.toString() || ''}
-                        onBlur={(e) => {
-                          const newValue = e.target.value.trim();
-                          const currentValue = item.purchaseRequestId?.toString() || '';
-                          if (newValue !== currentValue) {
-                            handlePurchaseRequestIdUpdate(item.id, newValue || null);
-                          } else {
-                            setEditingPurchaseRequestId(null);
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.currentTarget.blur();
-                          } else if (e.key === 'Escape') {
-                            setEditingPurchaseRequestId(null);
-                          }
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                        onFocus={(e) => {
-                          e.stopPropagation();
-                          setEditingPurchaseRequestId(item.id);
-                        }}
-                        className="w-full text-xs border border-blue-500 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        disabled={isInactive}
-                        autoFocus
-                      />
-                    ) : (
-                      <div
-                        onClick={() => {
-                          if (!isInactive) {
-                            setEditingPurchaseRequestId(item.id);
-                          }
-                        }}
-                        className={isInactive ? '' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors'}
-                        title={isInactive ? '' : 'Нажмите для редактирования'}
-                      >
-                        {item.purchaseRequestId || '-'}
-                      </div>
-                    )}
                   </td>
                   )}
                   {visibleColumns.has('status') && (
