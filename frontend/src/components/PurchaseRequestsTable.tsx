@@ -44,6 +44,10 @@ type SortDirection = 'asc' | 'desc' | null;
 const CACHE_KEY = 'purchaseRequests_metadata';
 const CACHE_TTL = 5 * 60 * 1000; // 5 минут
 
+// Константы для статусов
+const ALL_STATUSES = ['На согласовании', 'На утверждении', 'Утверждена', 'Согласована', 'Не согласована', 'Не утверждена', 'Неактуальна'];
+const DEFAULT_STATUSES = ALL_STATUSES.filter(s => s !== 'Неактуальна');
+
 export default function PurchaseRequestsTable() {
   const router = useRouter();
   const [data, setData] = useState<PageResponse | null>(null);
@@ -76,7 +80,7 @@ export default function PurchaseRequestsTable() {
 
   // Состояние для множественных фильтров (чекбоксы)
   const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
-  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set());
+  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set(DEFAULT_STATUSES));
   
   // Состояние для открытия/закрытия выпадающих списков
   const [isCfoFilterOpen, setIsCfoFilterOpen] = useState(false);
@@ -229,8 +233,13 @@ export default function PurchaseRequestsTable() {
         if (savedFilters.cfoFilter && Array.isArray(savedFilters.cfoFilter)) {
           setCfoFilter(new Set(savedFilters.cfoFilter));
         }
-        if (savedFilters.statusFilter && Array.isArray(savedFilters.statusFilter)) {
+        if (savedFilters.statusFilter && Array.isArray(savedFilters.statusFilter) && savedFilters.statusFilter.length > 0) {
+          console.log('Loading statusFilter from localStorage:', savedFilters.statusFilter);
           setStatusFilter(new Set(savedFilters.statusFilter));
+        } else {
+          // Если статус фильтр не найден или пустой, устанавливаем значения по умолчанию (все кроме Неактуальна)
+          console.log('Setting default statusFilter (all except Неактуальна):', DEFAULT_STATUSES);
+          setStatusFilter(new Set(DEFAULT_STATUSES));
         }
         
         // Восстанавливаем год
@@ -268,12 +277,19 @@ export default function PurchaseRequestsTable() {
         });
       } else {
         console.log('No saved filters found in localStorage');
+        // При первой загрузке устанавливаем значения по умолчанию для statusFilter
+        console.log('Setting default statusFilter (all except Неактуальна) on first load:', DEFAULT_STATUSES);
+        setStatusFilter(new Set(DEFAULT_STATUSES));
       }
       
       // Помечаем, что загрузка завершена
       filtersLoadedRef.current = true;
     } catch (err) {
       console.error('Error loading filters from localStorage:', err);
+      // При ошибке загрузки устанавливаем значения по умолчанию для statusFilter
+      if (statusFilter.size === 0) {
+        setStatusFilter(new Set(DEFAULT_STATUSES));
+      }
       filtersLoadedRef.current = true; // Помечаем как загруженное даже при ошибке
     }
   }, []);
@@ -631,11 +647,17 @@ export default function PurchaseRequestsTable() {
       }
       
       // Фильтр по статусу - передаем все выбранные значения на бэкенд
-      if (statusFilter.size > 0) {
-        statusFilter.forEach(status => {
-          params.append('status', status);
-        });
-      }
+      // Если фильтр пустой, используем значения по умолчанию (все кроме Неактуальна)
+      const statusesToFilter = statusFilter.size > 0 ? statusFilter : new Set(DEFAULT_STATUSES);
+      console.log('Status filter in fetchData:', {
+        statusFilterSize: statusFilter.size,
+        statusFilterValues: Array.from(statusFilter),
+        statusesToFilterValues: Array.from(statusesToFilter),
+        defaultStatuses: DEFAULT_STATUSES
+      });
+      statusesToFilter.forEach(status => {
+        params.append('status', status);
+      });
       
       const fetchUrl = `${getBackendUrl()}/api/purchase-requests?${params.toString()}`;
       const response = await fetch(fetchUrl);
@@ -682,7 +704,18 @@ export default function PurchaseRequestsTable() {
     }
   }, [localFilters]);
 
+  // Устанавливаем значения по умолчанию для statusFilter, если он пустой
   useEffect(() => {
+    if (statusFilter.size === 0 && filtersLoadedRef.current) {
+      setStatusFilter(new Set(DEFAULT_STATUSES));
+    }
+  }, [statusFilter.size]);
+
+  useEffect(() => {
+    // Не загружаем данные до тех пор, пока фильтры не загружены из localStorage
+    if (!filtersLoadedRef.current) {
+      return;
+    }
     fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters);
   }, [currentPage, pageSize, selectedYear, sortField, sortDirection, filters, cfoFilter, statusFilter]);
 
@@ -940,8 +973,7 @@ export default function PurchaseRequestsTable() {
   };
 
   const handleStatusSelectAll = () => {
-    const allStatuses = ['На согласовании', 'На утверждении', 'Утверждена', 'Согласована', 'Не согласована', 'Не утверждена'];
-    setStatusFilter(new Set(allStatuses));
+    setStatusFilter(new Set(ALL_STATUSES));
     setCurrentPage(0);
   };
 
@@ -984,9 +1016,8 @@ export default function PurchaseRequestsTable() {
   }, [cfoSearchQuery, uniqueValues.cfo]);
 
   const getFilteredStatusOptions = () => {
-    const allStatuses = ['На согласовании', 'На утверждении', 'Утверждена', 'Согласована', 'Не согласована', 'Не утверждена'];
-    if (!statusSearchQuery.trim()) return allStatuses;
-    return allStatuses.filter(status => 
+    if (!statusSearchQuery.trim()) return ALL_STATUSES;
+    return ALL_STATUSES.filter(status => 
       status.toLowerCase().includes(statusSearchQuery.toLowerCase())
     );
   };
@@ -1422,7 +1453,7 @@ export default function PurchaseRequestsTable() {
                 setFilters(emptyFilters);
                 setLocalFilters(emptyFilters);
                 setCfoFilter(new Set());
-                setStatusFilter(new Set());
+                setStatusFilter(new Set(DEFAULT_STATUSES));
                 setCfoSearchQuery('');
                 setStatusSearchQuery('');
                 setSortField(null);
