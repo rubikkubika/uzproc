@@ -1983,6 +1983,17 @@ export default function PurchasePlanItemsTable() {
     fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters, selectedMonth);
   }, [currentPage, pageSize, selectedYear, selectedMonthYear, sortField, sortDirection, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter, statusFilter, selectedMonth]);
 
+  // Автоматически загружаем данные заявок для позиций с purchaseRequestId
+  useEffect(() => {
+    if (data && data.content) {
+      data.content.forEach((item) => {
+        if (item.purchaseRequestId && !purchaseRequestData[item.id]?.data && !purchaseRequestData[item.id]?.loading) {
+          fetchPurchaseRequest(item.id, item.purchaseRequestId);
+        }
+      });
+    }
+  }, [data, fetchPurchaseRequest]);
+
   // Восстановление фокуса после обновления localFilters
   // Отключено, чтобы не прерывать ввод текста - React сам правильно обрабатывает фокус и курсор
   // useEffect(() => {
@@ -4241,66 +4252,88 @@ export default function PurchasePlanItemsTable() {
                   )}
                   {visibleColumns.has('status') && (
                   <td className="px-2 py-2 text-xs border-r border-gray-200 relative" style={{ width: `${getColumnWidth('status')}px`, minWidth: `${getColumnWidth('status')}px`, maxWidth: `${getColumnWidth('status')}px` }}>
-                    <select
-                      ref={editingStatus === item.id ? statusSelectRef : null}
-                      data-editing-status={item.id}
-                      value={item.status || ''}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        if (e.target.value !== item.status) {
-                          handleStatusUpdate(item.id, e.target.value);
-                        }
-                      }}
-                      onFocus={(e) => {
-                        e.stopPropagation();
-                        setEditingStatus(item.id);
-                      }}
-                      onBlur={() => {
-                        setTimeout(() => {
-                          setEditingStatus(null);
-                        }, 200);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') {
-                          setEditingStatus(null);
-                        }
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingStatus(item.id);
-                      }}
-                      className={`text-xs rounded px-2 py-0.5 font-medium cursor-pointer transition-all ${
-                        editingStatus === item.id 
-                          ? 'border border-blue-500 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500' 
-                          : item.status === 'Актуальная'
-                          ? 'bg-green-100 text-green-800 border-0'
-                          : item.status === 'Не Актуальная'
-                          ? 'bg-red-100 text-red-800 border-0'
-                          : item.status === 'Корректировка'
-                          ? 'bg-yellow-100 text-yellow-800 border-0'
-                          : item.status === 'Проект'
-                          ? 'bg-blue-100 text-blue-800 border-0'
-                          : 'bg-gray-100 text-gray-800 border-0'
-                      }`}
-                      style={{
-                        ...(editingStatus === item.id ? {} : {
-                          appearance: 'none',
-                          WebkitAppearance: 'none',
-                          MozAppearance: 'none',
-                          paddingRight: '20px',
-                          backgroundImage: item.status ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 9L1 4h10z'/%3E%3C/svg%3E")` : 'none',
-                          backgroundRepeat: 'no-repeat',
-                          backgroundPosition: 'right 4px center',
-                          backgroundSize: '12px',
-                        })
-                      }}
-                    >
-                      <option value="">-</option>
-                      <option value="Проект">Проект</option>
-                      <option value="Актуальная">Актуальная</option>
-                      <option value="Не Актуальная">Не Актуальная</option>
-                      <option value="Корректировка">Корректировка</option>
-                    </select>
+                    {(() => {
+                      // Если есть purchaseRequestId, показываем статус "Заявка"
+                      const hasPurchaseRequest = item.purchaseRequestId !== null;
+                      const displayStatus = hasPurchaseRequest ? 'Заявка' : item.status;
+                      const isFromPurchaseRequest = hasPurchaseRequest;
+                      
+                      return (
+                        <select
+                          ref={editingStatus === item.id ? statusSelectRef : null}
+                          data-editing-status={item.id}
+                          value={displayStatus || ''}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            if (e.target.value !== displayStatus) {
+                              handleStatusUpdate(item.id, e.target.value);
+                            }
+                          }}
+                          onFocus={(e) => {
+                            e.stopPropagation();
+                            setEditingStatus(item.id);
+                          }}
+                          onBlur={() => {
+                            setTimeout(() => {
+                              setEditingStatus(null);
+                            }, 200);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') {
+                              setEditingStatus(null);
+                            }
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingStatus(item.id);
+                          }}
+                          className={`text-xs rounded px-2 py-0.5 font-medium cursor-pointer transition-all ${
+                            editingStatus === item.id 
+                              ? 'border border-blue-500 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500' 
+                              : displayStatus === 'Актуальная'
+                              ? 'bg-green-100 text-green-800 border-0'
+                              : displayStatus === 'Не Актуальная'
+                              ? 'bg-red-100 text-red-800 border-0'
+                              : displayStatus === 'Корректировка'
+                              ? 'bg-yellow-100 text-yellow-800 border-0'
+                              : displayStatus === 'Проект'
+                              ? 'bg-blue-100 text-blue-800 border-0'
+                              : displayStatus === 'Заявка'
+                              ? 'bg-purple-100 text-purple-800 border-0'
+                              : 'bg-gray-100 text-gray-800 border-0'
+                          }`}
+                          style={{
+                            ...(editingStatus === item.id ? {} : {
+                              appearance: 'none',
+                              WebkitAppearance: 'none',
+                              MozAppearance: 'none',
+                              paddingRight: '20px',
+                              backgroundImage: displayStatus ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 9L1 4h10z'/%3E%3C/svg%3E")` : 'none',
+                              backgroundRepeat: 'no-repeat',
+                              backgroundPosition: 'right 4px center',
+                              backgroundSize: '12px',
+                            })
+                          }}
+                        >
+                          <option value="">-</option>
+                          {isFromPurchaseRequest ? (
+                            // Если есть заявка, показываем "Заявка" (disabled) и можно выбрать только "Не Актуальная"
+                            <>
+                              <option value="Заявка" disabled>Заявка</option>
+                              <option value="Не Актуальная">Не Актуальная</option>
+                            </>
+                          ) : (
+                            // Если нет заявки, можно выбрать все статусы
+                            <>
+                              <option value="Проект">Проект</option>
+                              <option value="Актуальная">Актуальная</option>
+                              <option value="Не Актуальная">Не Актуальная</option>
+                              <option value="Корректировка">Корректировка</option>
+                            </>
+                          )}
+                        </select>
+                      );
+                    })()}
                   </td>
                   )}
                   {visibleColumns.has('createdAt') && (
@@ -4367,13 +4400,13 @@ export default function PurchasePlanItemsTable() {
                     {/* Подстрока при раскрытии */}
                     {isExpanded && (
                       <tr className="bg-blue-50 border-t-2 border-blue-300">
-                        <td colSpan={visibleColumns.size + 1} className="px-4 py-3">
+                        <td colSpan={visibleColumns.size + 1} className="px-2 py-1.5">
                           {/* Вкладки */}
-                          <div className="mb-4 border-b border-blue-200">
-                            <div className="flex gap-2">
+                          <div className="mb-2 border-b border-blue-200">
+                            <div className="flex gap-1">
                               <button
                                 onClick={() => setActiveTab(prev => ({ ...prev, [item.id]: 'data' }))}
-                                className={`px-4 py-2 text-xs font-medium rounded-t-lg transition-colors ${
+                                className={`px-3 py-1 text-xs font-medium rounded-t-lg transition-colors ${
                                   activeTab[item.id] === 'data' || !activeTab[item.id]
                                     ? 'bg-white text-blue-700 border-b-2 border-blue-500'
                                     : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
@@ -4388,7 +4421,7 @@ export default function PurchasePlanItemsTable() {
                                     fetchChanges(item.id, 0);
                                   }
                                 }}
-                                className={`px-4 py-2 text-xs font-medium rounded-t-lg transition-colors ${
+                                className={`px-3 py-1 text-xs font-medium rounded-t-lg transition-colors ${
                                   activeTab[item.id] === 'changes'
                                     ? 'bg-white text-blue-700 border-b-2 border-blue-500'
                                     : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
@@ -4406,7 +4439,7 @@ export default function PurchasePlanItemsTable() {
                                       }
                                     }
                                   }}
-                                  className={`px-4 py-2 text-xs font-medium rounded-t-lg transition-colors ${
+                                  className={`px-3 py-1 text-xs font-medium rounded-t-lg transition-colors ${
                                     activeTab[item.id] === 'purchaseRequest'
                                       ? 'bg-white text-blue-700 border-b-2 border-blue-500'
                                       : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
@@ -4421,55 +4454,55 @@ export default function PurchasePlanItemsTable() {
                           {/* Содержимое вкладки "Данные" */}
                           {(activeTab[item.id] === 'data' || !activeTab[item.id]) && (
                             <div className="text-xs text-gray-700">
-                              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                              <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                <span className="font-semibold text-blue-700">ID:</span> <span className="text-gray-900">{item.id}</span>
+                              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                              <div>
+                                <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">ID:</span> <span className="text-gray-900">{item.id}</span></span>
                               </div>
                               {item.guid && (
-                                <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                  <span className="font-semibold text-blue-700">GUID:</span> <span className="text-gray-900 break-all">{item.guid}</span>
+                                <div>
+                                  <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200 break-all"><span className="font-semibold text-blue-700">GUID:</span> <span className="text-gray-900">{item.guid}</span></span>
                                 </div>
                               )}
                               {item.company && (
-                                <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                  <span className="font-semibold text-blue-700">Компания:</span> <span className="text-gray-900">{item.company}</span>
+                                <div>
+                                  <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Компания:</span> <span className="text-gray-900">{item.company}</span></span>
                                 </div>
                               )}
                               {item.purchaseSubject && (
-                                <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                  <span className="font-semibold text-blue-700">Предмет закупки:</span> <span className="text-gray-900">{item.purchaseSubject}</span>
+                                <div>
+                                  <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Предмет закупки:</span> <span className="text-gray-900">{item.purchaseSubject}</span></span>
                                 </div>
                               )}
                               {item.purchaser && (
-                                <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                  <span className="font-semibold text-blue-700">Закупщик:</span> <span className="text-gray-900">{item.purchaser}</span>
+                                <div>
+                                  <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Закупщик:</span> <span className="text-gray-900">{item.purchaser}</span></span>
                                 </div>
                               )}
                               {item.product && (
-                                <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                  <span className="font-semibold text-blue-700">Продукт:</span> <span className="text-gray-900">{item.product}</span>
+                                <div>
+                                  <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Продукт:</span> <span className="text-gray-900">{item.product}</span></span>
                                 </div>
                               )}
                               {item.budgetAmount && (
-                                <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                  <span className="font-semibold text-blue-700">Бюджет:</span> <span className="text-gray-900">{new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(item.budgetAmount)}</span>
+                                <div>
+                                  <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Бюджет:</span> <span className="text-gray-900">{new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(item.budgetAmount)}</span></span>
                                 </div>
                               )}
                               {item.complexity && (
-                                <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                  <span className="font-semibold text-blue-700">Сложность:</span> <span className="text-gray-900">{item.complexity}</span>
+                                <div>
+                                  <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Сложность:</span> <span className="text-gray-900">{item.complexity}</span></span>
                                 </div>
                               )}
                               {item.category && (
-                                <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                  <span className="font-semibold text-blue-700">Категория:</span> <span className="text-gray-900">{item.category}</span>
+                                <div>
+                                  <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Категория:</span> <span className="text-gray-900">{item.category}</span></span>
                                 </div>
                               )}
-                              <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                <span className="font-semibold text-blue-700">Есть договор:</span> <span className="text-gray-900">{item.hasContract === true ? 'Да' : item.hasContract === false ? 'Нет' : '-'}</span>
+                              <div>
+                                <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Есть договор:</span> <span className="text-gray-900">{item.hasContract === true ? 'Да' : item.hasContract === false ? 'Нет' : '-'}</span></span>
                               </div>
-                              <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                <span className="font-semibold text-blue-700">Автопролонгация:</span> <span className="text-gray-900">{item.autoRenewal === true ? 'Да' : item.autoRenewal === false ? 'Нет' : '-'}</span>
+                              <div>
+                                <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Автопролонгация:</span> <span className="text-gray-900">{item.autoRenewal === true ? 'Да' : item.autoRenewal === false ? 'Нет' : '-'}</span></span>
                               </div>
                             </div>
                           </div>
@@ -4479,108 +4512,108 @@ export default function PurchasePlanItemsTable() {
                           {activeTab[item.id] === 'purchaseRequest' && item.purchaseRequestId && (
                             <div className="text-xs text-gray-700">
                               {purchaseRequestData[item.id]?.loading ? (
-                                <div className="text-center py-4">Загрузка...</div>
+                                <div className="text-center py-2">Загрузка...</div>
                               ) : purchaseRequestData[item.id]?.data ? (
-                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                                   {purchaseRequestData[item.id]!.data!.idPurchaseRequest && (
-                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                      <span className="font-semibold text-blue-700">Номер заявки:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.idPurchaseRequest}</span>
+                                    <div>
+                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Номер заявки:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.idPurchaseRequest}</span></span>
                                     </div>
                                   )}
                                   {purchaseRequestData[item.id]!.data!.purchaseRequestCreationDate && (
-                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                      <span className="font-semibold text-blue-700">Дата создания:</span> <span className="text-gray-900">{new Date(purchaseRequestData[item.id]!.data!.purchaseRequestCreationDate!).toLocaleDateString('ru-RU')}</span>
+                                    <div>
+                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Дата создания:</span> <span className="text-gray-900">{new Date(purchaseRequestData[item.id]!.data!.purchaseRequestCreationDate!).toLocaleDateString('ru-RU')}</span></span>
                                     </div>
                                   )}
                                   {purchaseRequestData[item.id]!.data!.innerId && (
-                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                      <span className="font-semibold text-blue-700">Внутренний ID:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.innerId}</span>
+                                    <div>
+                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Внутренний ID:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.innerId}</span></span>
                                     </div>
                                   )}
                                   {purchaseRequestData[item.id]!.data!.name && (
-                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                      <span className="font-semibold text-blue-700">Наименование:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.name}</span>
+                                    <div>
+                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Наименование:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.name}</span></span>
                                     </div>
                                   )}
                                   {purchaseRequestData[item.id]!.data!.title && (
-                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                      <span className="font-semibold text-blue-700">Заголовок:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.title}</span>
+                                    <div>
+                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Заголовок:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.title}</span></span>
                                     </div>
                                   )}
                                   {purchaseRequestData[item.id]!.data!.purchaseRequestPlanYear && (
-                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                      <span className="font-semibold text-blue-700">Год планирования:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.purchaseRequestPlanYear}</span>
+                                    <div>
+                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Год планирования:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.purchaseRequestPlanYear}</span></span>
                                     </div>
                                   )}
                                   {purchaseRequestData[item.id]!.data!.company && (
-                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                      <span className="font-semibold text-blue-700">Компания:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.company}</span>
+                                    <div>
+                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Компания:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.company}</span></span>
                                     </div>
                                   )}
                                   {purchaseRequestData[item.id]!.data!.cfo && (
-                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                      <span className="font-semibold text-blue-700">ЦФО:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.cfo}</span>
+                                    <div>
+                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">ЦФО:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.cfo}</span></span>
                                     </div>
                                   )}
                                   {purchaseRequestData[item.id]!.data!.mcc && (
-                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                      <span className="font-semibold text-blue-700">МЦЦ:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.mcc}</span>
+                                    <div>
+                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">МЦЦ:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.mcc}</span></span>
                                     </div>
                                   )}
                                   {purchaseRequestData[item.id]!.data!.purchaseRequestInitiator && (
-                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                      <span className="font-semibold text-blue-700">Инициатор:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.purchaseRequestInitiator}</span>
+                                    <div>
+                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Инициатор:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.purchaseRequestInitiator}</span></span>
                                     </div>
                                   )}
                                   {purchaseRequestData[item.id]!.data!.purchaser && (
-                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                      <span className="font-semibold text-blue-700">Закупщик:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.purchaser}</span>
+                                    <div>
+                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Закупщик:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.purchaser}</span></span>
                                     </div>
                                   )}
                                   {purchaseRequestData[item.id]!.data!.purchaseRequestSubject && (
-                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                      <span className="font-semibold text-blue-700">Предмет закупки:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.purchaseRequestSubject}</span>
+                                    <div>
+                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Предмет закупки:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.purchaseRequestSubject}</span></span>
                                     </div>
                                   )}
                                   {purchaseRequestData[item.id]!.data!.budgetAmount && (
-                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                      <span className="font-semibold text-blue-700">Бюджет:</span> <span className="text-gray-900">{new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(purchaseRequestData[item.id]!.data!.budgetAmount!)}</span>
+                                    <div>
+                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Бюджет:</span> <span className="text-gray-900">{new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(purchaseRequestData[item.id]!.data!.budgetAmount!)}</span></span>
                                     </div>
                                   )}
                                   {purchaseRequestData[item.id]!.data!.costType && (
-                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                      <span className="font-semibold text-blue-700">Тип затрат:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.costType}</span>
+                                    <div>
+                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Тип затрат:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.costType}</span></span>
                                     </div>
                                   )}
                                   {purchaseRequestData[item.id]!.data!.contractType && (
-                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                      <span className="font-semibold text-blue-700">Тип договора:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.contractType}</span>
+                                    <div>
+                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Тип договора:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.contractType}</span></span>
                                     </div>
                                   )}
                                   {purchaseRequestData[item.id]!.data!.contractDurationMonths && (
-                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                      <span className="font-semibold text-blue-700">Длительность договора (мес.):</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.contractDurationMonths}</span>
+                                    <div>
+                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Длительность договора (мес.):</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.contractDurationMonths}</span></span>
                                     </div>
                                   )}
-                                  <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                    <span className="font-semibold text-blue-700">Запланировано:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.isPlanned === true ? 'Да' : purchaseRequestData[item.id]!.data!.isPlanned === false ? 'Нет' : '-'}</span>
+                                  <div>
+                                    <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Запланировано:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.isPlanned === true ? 'Да' : purchaseRequestData[item.id]!.data!.isPlanned === false ? 'Нет' : '-'}</span></span>
                                   </div>
-                                  <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                    <span className="font-semibold text-blue-700">Требуется закупка:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.requiresPurchase === true ? 'Да' : purchaseRequestData[item.id]!.data!.requiresPurchase === false ? 'Нет' : '-'}</span>
+                                  <div>
+                                    <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Требуется закупка:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.requiresPurchase === true ? 'Да' : purchaseRequestData[item.id]!.data!.requiresPurchase === false ? 'Нет' : '-'}</span></span>
                                   </div>
                                   {purchaseRequestData[item.id]!.data!.status && (
-                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                      <span className="font-semibold text-blue-700">Статус:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.status}</span>
+                                    <div>
+                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Статус:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.status}</span></span>
                                     </div>
                                   )}
                                   {purchaseRequestData[item.id]!.data!.state && (
-                                    <div className="bg-white px-2 py-1.5 rounded border border-blue-200">
-                                      <span className="font-semibold text-blue-700">Состояние:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.state}</span>
+                                    <div>
+                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Состояние:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.state}</span></span>
                                     </div>
                                   )}
                                 </div>
                               ) : (
-                                <div className="text-center py-4 text-gray-500">Заявка не найдена</div>
+                                <div className="text-center py-2 text-gray-500">Заявка не найдена</div>
                               )}
                           </div>
                           )}
@@ -4589,26 +4622,26 @@ export default function PurchasePlanItemsTable() {
                           {activeTab[item.id] === 'changes' && (
                             <div className="text-xs text-gray-700">
                               {changesData[item.id]?.loading ? (
-                                <div className="text-center py-4 text-gray-500">Загрузка...</div>
+                                <div className="text-center py-1 text-gray-500">Загрузка...</div>
                               ) : changesData[item.id]?.content && changesData[item.id].content.length > 0 ? (
                                 <>
-                                  <div className="space-y-2 mb-4">
+                                  <div className="space-y-0.5 mb-1.5">
                                     {changesData[item.id].content.map((change: any) => (
-                                      <div key={change.id} className="bg-white px-3 py-2 rounded border border-blue-200">
-                                        <div className="flex items-center justify-between mb-1">
-                                          <span className="font-semibold text-blue-700">{change.fieldName}</span>
-                                          <span className="text-gray-500 text-[10px]">
+                                      <div key={change.id} className="bg-white px-1.5 py-0.5 rounded border border-blue-200">
+                                        <div className="flex items-center justify-between mb-0">
+                                          <span className="font-semibold text-blue-700 text-[10px]">{change.fieldName}</span>
+                                          <span className="text-gray-500 text-[9px]">
                                             {new Date(change.changeDate).toLocaleString('ru-RU')}
                                           </span>
                                         </div>
-                                        <div className="flex gap-2 text-[10px]">
+                                        <div className="flex gap-1 text-[9px]">
                                           <div className="flex-1">
                                             <span className="text-gray-500">Было:</span>
-                                            <span className="ml-1 text-red-600">{change.valueBefore || '-'}</span>
+                                            <span className="ml-0.5 text-red-600">{change.valueBefore || '-'}</span>
                                           </div>
                                           <div className="flex-1">
                                             <span className="text-gray-500">Стало:</span>
-                                            <span className="ml-1 text-green-600">{change.valueAfter || '-'}</span>
+                                            <span className="ml-0.5 text-green-600">{change.valueAfter || '-'}</span>
                                           </div>
                                         </div>
                                       </div>
@@ -4617,25 +4650,25 @@ export default function PurchasePlanItemsTable() {
                                   
                                   {/* Пагинация */}
                                   {changesData[item.id].totalPages > 1 && (
-                                    <div className="flex items-center justify-between border-t border-blue-200 pt-2">
-                                      <div className="text-[10px] text-gray-500">
+                                    <div className="flex items-center justify-between border-t border-blue-200 pt-1">
+                                      <div className="text-[9px] text-gray-500">
                                         Показано {changesData[item.id].content.length} из {changesData[item.id].totalElements}
                                       </div>
-                                      <div className="flex gap-1">
+                                      <div className="flex gap-0.5">
                                         <button
                                           onClick={() => fetchChanges(item.id, changesData[item.id].currentPage - 1)}
                                           disabled={changesData[item.id].currentPage === 0}
-                                          className="px-2 py-1 text-[10px] bg-white border border-blue-300 rounded hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                          className="px-1.5 py-0.5 text-[9px] bg-white border border-blue-300 rounded hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                           Назад
                                         </button>
-                                        <span className="px-2 py-1 text-[10px] text-gray-600">
+                                        <span className="px-1.5 py-0.5 text-[9px] text-gray-600">
                                           {changesData[item.id].currentPage + 1} / {changesData[item.id].totalPages}
                                         </span>
                                         <button
                                           onClick={() => fetchChanges(item.id, changesData[item.id].currentPage + 1)}
                                           disabled={changesData[item.id].currentPage >= changesData[item.id].totalPages - 1}
-                                          className="px-2 py-1 text-[10px] bg-white border border-blue-300 rounded hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                          className="px-1.5 py-0.5 text-[9px] bg-white border border-blue-300 rounded hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                           Вперед
                                         </button>
@@ -4644,7 +4677,7 @@ export default function PurchasePlanItemsTable() {
                                   )}
                                 </>
                               ) : (
-                                <div className="text-center py-4 text-gray-500">Нет изменений</div>
+                                <div className="text-center py-1 text-gray-500">Нет изменений</div>
                               )}
                             </div>
                           )}
