@@ -2655,7 +2655,7 @@ export default function PurchasePlanItemsTable() {
           {/* Сводная таблица и элементы управления в одной строке */}
           <div className="flex items-start">
             {/* Сводная таблица */}
-            <div className="bg-white rounded shadow-sm border border-gray-200 overflow-hidden flex-shrink-0">
+              <div className="bg-white rounded shadow-sm border border-gray-200 overflow-hidden flex-shrink-0">
           <div className="overflow-x-auto">
                 <table className="border-collapse table-auto">
             <thead className="bg-gray-50">
@@ -2677,48 +2677,48 @@ export default function PurchasePlanItemsTable() {
             <tbody className="bg-white divide-y divide-gray-200">
                     {purchaserSummary.length > 0 ? (
                       purchaserSummary.map((item, index) => {
-                        const isSelected = purchaserFilter.size === 1 && purchaserFilter.has(item.purchaser);
-                        return (
-                          <tr 
-                            key={index} 
-                            className={`cursor-pointer transition-colors ${
-                              isSelected 
-                                ? 'bg-blue-100 hover:bg-blue-200' 
-                                : 'hover:bg-gray-50'
-                            }`}
-                            onClick={() => {
-                              if (isSelected) {
-                                // Если уже выбран, сбрасываем фильтр
-                                setPurchaserFilter(new Set());
-                              } else {
-                                // Устанавливаем фильтр только на этого закупщика
-                                setPurchaserFilter(new Set([item.purchaser]));
-                              }
-                              setCurrentPage(0);
-                            }}
-                          >
-                            <td className="px-2 py-1 text-xs text-gray-900 border-r border-gray-200 whitespace-nowrap">
-                              {item.purchaser}
-                            </td>
-                            <td className="px-2 py-1 text-xs text-gray-900 text-right border-r border-gray-200 whitespace-nowrap">
-                              {item.count}
-                            </td>
-                            <td className="px-2 py-1 text-xs text-gray-900 text-right border-r border-gray-200 whitespace-nowrap">
-                              {item.totalBudget.toLocaleString('ru-RU', { 
-                                minimumFractionDigits: 0, 
-                                maximumFractionDigits: 0 
-                              })}
-                            </td>
-                            <td className="px-2 py-1 text-xs text-gray-900 text-right whitespace-nowrap">
-                              {item.totalComplexity > 0 
-                                ? item.totalComplexity.toLocaleString('ru-RU', { 
-                                    minimumFractionDigits: 0, 
-                                    maximumFractionDigits: 2 
-                                  })
-                                : '-'}
-                            </td>
-                          </tr>
-                        );
+                      const isSelected = purchaserFilter.size === 1 && purchaserFilter.has(item.purchaser);
+                      return (
+                        <tr 
+                          key={index} 
+                          className={`cursor-pointer transition-colors ${
+                            isSelected 
+                              ? 'bg-blue-100 hover:bg-blue-200' 
+                              : 'hover:bg-gray-50'
+                          }`}
+                          onClick={() => {
+                            if (isSelected) {
+                              // Если уже выбран, сбрасываем фильтр
+                              setPurchaserFilter(new Set());
+                            } else {
+                              // Устанавливаем фильтр только на этого закупщика
+                              setPurchaserFilter(new Set([item.purchaser]));
+                            }
+                            setCurrentPage(0);
+                          }}
+                        >
+                          <td className="px-2 py-1 text-xs text-gray-900 border-r border-gray-200 whitespace-nowrap">
+                            {item.purchaser}
+                  </td>
+                          <td className="px-2 py-1 text-xs text-gray-900 text-right border-r border-gray-200 whitespace-nowrap">
+                            {item.count}
+                    </td>
+                          <td className="px-2 py-1 text-xs text-gray-900 text-right border-r border-gray-200 whitespace-nowrap">
+                            {item.totalBudget.toLocaleString('ru-RU', { 
+                              minimumFractionDigits: 0, 
+                              maximumFractionDigits: 0 
+                            })}
+                    </td>
+                          <td className="px-2 py-1 text-xs text-gray-900 text-right whitespace-nowrap">
+                            {item.totalComplexity > 0 
+                              ? item.totalComplexity.toLocaleString('ru-RU', { 
+                                  minimumFractionDigits: 0, 
+                                  maximumFractionDigits: 2 
+                                })
+                              : '-'}
+                    </td>
+                  </tr>
+                      );
                       })
                     ) : (
                       <tr>
@@ -4259,63 +4259,63 @@ export default function PurchasePlanItemsTable() {
                       const isFromPurchaseRequest = hasPurchaseRequest;
                       
                       return (
-                        <select
-                          ref={editingStatus === item.id ? statusSelectRef : null}
-                          data-editing-status={item.id}
+                    <select
+                      ref={editingStatus === item.id ? statusSelectRef : null}
+                      data-editing-status={item.id}
                           value={displayStatus || ''}
-                          onChange={(e) => {
-                            e.stopPropagation();
+                      onChange={(e) => {
+                        e.stopPropagation();
                             if (e.target.value !== displayStatus) {
-                              handleStatusUpdate(item.id, e.target.value);
-                            }
-                          }}
-                          onFocus={(e) => {
-                            e.stopPropagation();
-                            setEditingStatus(item.id);
-                          }}
-                          onBlur={() => {
-                            setTimeout(() => {
-                              setEditingStatus(null);
-                            }, 200);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Escape') {
-                              setEditingStatus(null);
-                            }
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingStatus(item.id);
-                          }}
-                          className={`text-xs rounded px-2 py-0.5 font-medium cursor-pointer transition-all ${
-                            editingStatus === item.id 
-                              ? 'border border-blue-500 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500' 
+                          handleStatusUpdate(item.id, e.target.value);
+                        }
+                      }}
+                      onFocus={(e) => {
+                        e.stopPropagation();
+                        setEditingStatus(item.id);
+                      }}
+                      onBlur={() => {
+                        setTimeout(() => {
+                          setEditingStatus(null);
+                        }, 200);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          setEditingStatus(null);
+                        }
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingStatus(item.id);
+                      }}
+                      className={`text-xs rounded px-2 py-0.5 font-medium cursor-pointer transition-all ${
+                        editingStatus === item.id 
+                          ? 'border border-blue-500 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500' 
                               : displayStatus === 'Актуальная'
-                              ? 'bg-green-100 text-green-800 border-0'
+                          ? 'bg-green-100 text-green-800 border-0'
                               : displayStatus === 'Не Актуальная'
-                              ? 'bg-red-100 text-red-800 border-0'
+                          ? 'bg-red-100 text-red-800 border-0'
                               : displayStatus === 'Корректировка'
-                              ? 'bg-yellow-100 text-yellow-800 border-0'
+                          ? 'bg-yellow-100 text-yellow-800 border-0'
                               : displayStatus === 'Проект'
-                              ? 'bg-blue-100 text-blue-800 border-0'
+                          ? 'bg-blue-100 text-blue-800 border-0'
                               : displayStatus === 'Заявка'
                               ? 'bg-purple-100 text-purple-800 border-0'
-                              : 'bg-gray-100 text-gray-800 border-0'
-                          }`}
-                          style={{
-                            ...(editingStatus === item.id ? {} : {
-                              appearance: 'none',
-                              WebkitAppearance: 'none',
-                              MozAppearance: 'none',
-                              paddingRight: '20px',
+                          : 'bg-gray-100 text-gray-800 border-0'
+                      }`}
+                      style={{
+                        ...(editingStatus === item.id ? {} : {
+                          appearance: 'none',
+                          WebkitAppearance: 'none',
+                          MozAppearance: 'none',
+                          paddingRight: '20px',
                               backgroundImage: displayStatus ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 9L1 4h10z'/%3E%3C/svg%3E")` : 'none',
-                              backgroundRepeat: 'no-repeat',
-                              backgroundPosition: 'right 4px center',
-                              backgroundSize: '12px',
-                            })
-                          }}
-                        >
-                          <option value="">-</option>
+                          backgroundRepeat: 'no-repeat',
+                          backgroundPosition: 'right 4px center',
+                          backgroundSize: '12px',
+                        })
+                      }}
+                    >
+                      <option value="">-</option>
                           {isFromPurchaseRequest ? (
                             // Если есть заявка, показываем "Заявка" (disabled) и можно выбрать только "Не Актуальная"
                             <>
@@ -4325,13 +4325,13 @@ export default function PurchasePlanItemsTable() {
                           ) : (
                             // Если нет заявки, можно выбрать все статусы
                             <>
-                              <option value="Проект">Проект</option>
-                              <option value="Актуальная">Актуальная</option>
-                              <option value="Не Актуальная">Не Актуальная</option>
-                              <option value="Корректировка">Корректировка</option>
+                      <option value="Проект">Проект</option>
+                      <option value="Актуальная">Актуальная</option>
+                      <option value="Не Актуальная">Не Актуальная</option>
+                      <option value="Корректировка">Корректировка</option>
                             </>
                           )}
-                        </select>
+                    </select>
                       );
                     })()}
                   </td>
@@ -4435,7 +4435,7 @@ export default function PurchasePlanItemsTable() {
                                     setActiveTab(prev => ({ ...prev, [item.id]: 'purchaseRequest' }));
                                     if (!purchaseRequestData[item.id] || !purchaseRequestData[item.id].data) {
                                       if (item.purchaseRequestId !== null) {
-                                        fetchPurchaseRequest(item.id, item.purchaseRequestId);
+                                      fetchPurchaseRequest(item.id, item.purchaseRequestId);
                                       }
                                     }
                                   }}
@@ -4635,14 +4635,14 @@ export default function PurchasePlanItemsTable() {
                                       </tr>
                                     </thead>
                                     <tbody>
-                                      {changesData[item.id].content.map((change: any) => (
+                                    {changesData[item.id].content.map((change: any) => (
                                         <tr key={change.id} className="bg-white border-b border-blue-100 hover:bg-blue-50">
                                           <td className="px-1.5 py-0.5 text-[9px] text-gray-900 border-r border-blue-100">{change.fieldName}</td>
                                           <td className="px-1.5 py-0.5 text-[9px] text-red-600 border-r border-blue-100">{change.valueBefore || '-'}</td>
                                           <td className="px-1.5 py-0.5 text-[9px] text-green-600 border-r border-blue-100">{change.valueAfter || '-'}</td>
                                           <td className="px-1.5 py-0.5 text-[9px] text-gray-500">{new Date(change.changeDate).toLocaleString('ru-RU')}</td>
                                         </tr>
-                                      ))}
+                                    ))}
                                     </tbody>
                                   </table>
                                   
