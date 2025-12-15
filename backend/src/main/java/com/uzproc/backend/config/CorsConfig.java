@@ -18,6 +18,8 @@ public class CorsConfig {
         config.addAllowedOrigin("http://localhost:3000");
         config.addAllowedOrigin("http://127.0.0.1:3000");
         config.addAllowedOrigin("http://10.123.48.62:3000");
+        config.addAllowedOrigin("http://uzproc.uzum.io");
+        config.addAllowedOrigin("https://uzproc.uzum.io");
         
         // Разрешить все методы HTTP
         config.addAllowedMethod("*");
