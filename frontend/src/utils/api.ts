@@ -6,12 +6,14 @@ export function getBackendUrl(): string {
   if (typeof window !== 'undefined') {
     // Client-side: check if we're on the server IP or domain
     const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+    
     if (hostname === '10.123.48.62') {
       return 'http://10.123.48.62:8080';
     }
-    // Если используем домен uzproc.uzum.io, бэкенд должен быть доступен через тот же домен
-    // Возвращаем пустую строку, так как nginx проксирует запросы с /api на бэкенд,
-    // а бэкенд уже имеет context-path: /api, поэтому в коде добавляется /api к пути
+    // Если используем домен uzproc.uzum.io, бэкенд доступен через nginx
+    // nginx проксирует /api на backend:8080, который имеет context-path: /api
+    // Поэтому возвращаем пустую строку - запросы будут идти на /api/... относительно текущего домена
     if (hostname === 'uzproc.uzum.io') {
       return '';
     }
