@@ -4328,7 +4328,9 @@ export default function PurchasePlanItemsTable() {
                                   onClick={() => {
                                     setActiveTab(prev => ({ ...prev, [item.id]: 'purchaseRequest' }));
                                     if (!purchaseRequestData[item.id] || !purchaseRequestData[item.id].data) {
-                                      fetchPurchaseRequest(item.id, item.purchaseRequestId);
+                                      if (item.purchaseRequestId !== null) {
+                                        fetchPurchaseRequest(item.id, item.purchaseRequestId);
+                                      }
                                     }
                                   }}
                                   className={`px-4 py-2 text-xs font-medium rounded-t-lg transition-colors ${
