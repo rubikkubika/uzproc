@@ -544,15 +544,21 @@ public class PurchasePlanItemService {
                         
                         if (!statusEnums.isEmpty()) {
                             if (statusEnums.size() == 1) {
-                                // Одно значение - точное совпадение
-                                predicates.add(cb.equal(root.get("status"), statusEnums.get(0)));
+                                // Одно значение - точное совпадение ИЛИ null
+                                predicates.add(cb.or(
+                                    cb.equal(root.get("status"), statusEnums.get(0)),
+                                    cb.isNull(root.get("status"))
+                                ));
                                 predicateCount++;
-                                logger.info("Added single status filter: '{}'", statusEnums.get(0));
+                                logger.info("Added single status filter: '{}' (including null)", statusEnums.get(0));
                             } else {
-                                // Несколько значений - IN запрос
-                                predicates.add(root.get("status").in(statusEnums));
+                                // Несколько значений - IN запрос ИЛИ null
+                                predicates.add(cb.or(
+                                    root.get("status").in(statusEnums),
+                                    cb.isNull(root.get("status"))
+                                ));
                                 predicateCount++;
-                                logger.info("Added multiple status filter: {}", statusEnums);
+                                logger.info("Added multiple status filter: {} (including null)", statusEnums);
                             }
                         }
                     } catch (Exception e) {
