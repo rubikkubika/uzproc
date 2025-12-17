@@ -16,7 +16,8 @@ import {
   ChevronRight,
   ChevronDown,
   ChevronUp,
-  Upload
+  Upload,
+  Mail
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -30,13 +31,7 @@ interface SidebarProps {
 }
 
 const menuItems = [
-  { id: 'overview', label: 'Обзор', icon: Home },
-  { id: 'purchases', label: 'Закупки', icon: Package },
-  { id: 'suppliers', label: 'Поставщики', icon: Users },
-  { id: 'analytics', label: 'Аналитика', icon: BarChart3 },
-  { id: 'trends', label: 'Тренды', icon: TrendingUp },
-  { id: 'calendar', label: 'Календарь', icon: Calendar },
-  { id: 'settings', label: 'Настройки', icon: Settings },
+  { id: 'test', label: 'Тест', icon: Mail },
 ];
 
   const purchaserItems = [
@@ -184,6 +179,37 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
 
         {/* Navigation */}
         <nav className="flex-1 pl-2 pr-1.5 py-2 overflow-y-auto">
+          {/* Основное меню */}
+          <div className="mb-4">
+            <ul className="space-y-2">
+              {menuItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                
+                return (
+                  <li key={item.id}>
+                    <button
+                      onClick={() => handleTabChange(item.id)}
+                      className={`w-full flex items-center rounded-lg transition-colors relative text-sm ${
+                        isCollapsed ? 'justify-center px-2 py-1.5' : 'px-2 py-1.5'
+                      } ${
+                        isActive
+                          ? `text-blue-600 bg-blue-50 ${isCollapsed ? '' : 'border-l-4 border-blue-600'}`
+                          : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                      }`}
+                      title={isCollapsed ? item.label : undefined}
+                    >
+                      <span className={`flex items-center justify-center ${isCollapsed ? 'w-6' : 'w-6'} flex-shrink-0`}>
+                        <Icon className="w-6 h-6" />
+                      </span>
+                      {!isCollapsed && <span className="ml-2">{item.label}</span>}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
           {/* Для закупщика */}
           <div className="mb-4">
             {!isCollapsed && (

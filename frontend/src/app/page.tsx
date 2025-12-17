@@ -18,6 +18,98 @@ import SpecificationsTable from '@/components/SpecificationsTable';
 import PurchasePlanItemsMonthlyChart from '@/components/PurchasePlanItemsMonthlyChart';
 import PurchaseRequestsYearlyChart from '@/components/PurchaseRequestsYearlyChart';
 import UploadCSV from '@/components/UploadCSV';
+import { getBackendUrl } from '@/utils/api';
+
+// Компонент для тестирования отправки почты
+function TestEmailForm() {
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handleSendTestEmail = async () => {
+    if (!email || !email.trim()) {
+      setMessage({ type: 'error', text: 'Введите email адрес' });
+      return;
+    }
+
+    // Простая валидация email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setMessage({ type: 'error', text: 'Некорректный формат email адреса' });
+      return;
+    }
+
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      // Используем getBackendUrl() как в других компонентах
+      const backendUrl = getBackendUrl();
+      const url = `${backendUrl}/api/email/test`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage({ type: 'success', text: data.message || 'Тестовое сообщение успешно отправлено!' });
+        setEmail('');
+      } else {
+        setMessage({ type: 'error', text: data.error || 'Ошибка при отправке письма' });
+      }
+    } catch (error) {
+      console.error('Error sending test email:', error);
+      setMessage({ type: 'error', text: 'Ошибка при отправке письма. Проверьте настройки сервера.' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <label htmlFor="test-email" className="block text-sm font-medium text-gray-700 mb-2">
+          Email адрес для тестирования
+        </label>
+        <div className="flex gap-2">
+          <input
+            id="test-email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="example@uzumteam.uz"
+            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            disabled={loading}
+          />
+          <button
+            onClick={handleSendTestEmail}
+            disabled={loading || !email.trim()}
+            className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {loading ? 'Отправка...' : 'Отправить тест'}
+          </button>
+        </div>
+      </div>
+
+      {message && (
+        <div
+          className={`p-4 rounded-lg ${
+            message.type === 'success'
+              ? 'bg-green-50 border border-green-200 text-green-800'
+              : 'bg-red-50 border border-red-200 text-red-800'
+          }`}
+        >
+          {message.text}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const SIDEBAR_COLLAPSED_KEY = 'sidebarCollapsed';
 const ACTIVE_TAB_KEY = 'activeTab';
@@ -226,6 +318,56 @@ function DashboardContent() {
           </div>
         );
       
+      case 'test':
+        return (
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded-lg shadow-lg">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">Тест отправки почты</h2>
+              
+              <p className="text-sm text-gray-600 mb-6">
+                Отправьте тестовое сообщение для проверки настроек почтового сервера
+              </p>
+              
+              <TestEmailForm />
+
+              {/* Настройки почтового сервера */}
+              <div className="mt-8 pt-6 border-t border-gray-200">
+                <h3 className="text-xl font-semibold text-gray-800 mb-4">Настройки почтового сервера</h3>
+                <div className="bg-gray-50 p-4 rounded-lg space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">IMAP/POP3 сервер:</span>
+                    <span className="font-medium">mail.uzumteam.uz</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">SMTP сервер:</span>
+                    <span className="font-medium">mail.uzumteam.uz</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Порт IMAP:</span>
+                    <span className="font-medium">993</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Порт SMTP:</span>
+                    <span className="font-medium">587</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Шифрование IMAP:</span>
+                    <span className="font-medium">SSL</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Шифрование SMTP:</span>
+                    <span className="font-medium">TLS</span>
+                  </div>
+                  <div className="flex justify-between mt-3 pt-3 border-t border-gray-300">
+                    <span className="text-gray-600">Логин:</span>
+                    <span className="font-medium">uzproc@uzumteam.uz</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
       case 'settings':
         return (
           <div className="space-y-6">

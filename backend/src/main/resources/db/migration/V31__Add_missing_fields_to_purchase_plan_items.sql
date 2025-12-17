@@ -41,3 +41,5 @@ CREATE INDEX IF NOT EXISTS idx_purchase_plan_items_has_contract ON purchase_plan
 CREATE INDEX IF NOT EXISTS idx_purchase_plan_items_holding ON purchase_plan_items(holding);
 
 
+
+
