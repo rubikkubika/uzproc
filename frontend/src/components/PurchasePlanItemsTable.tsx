@@ -384,7 +384,7 @@ export default function PurchasePlanItemsTable() {
   const [editingPurchaseRequestId, setEditingPurchaseRequestId] = useState<number | null>(null);
   const purchaseRequestIdInputRef = useRef<HTMLInputElement | null>(null);
   const [editingPurchaseSubject, setEditingPurchaseSubject] = useState<number | null>(null);
-  const purchaseSubjectInputRef = useRef<HTMLInputElement | null>(null);
+  const purchaseSubjectInputRef = useRef<HTMLTextAreaElement | null>(null);
   
   // Состояние для раскрытых строк
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
