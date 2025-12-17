@@ -47,11 +47,21 @@ public class PurchaseRequestController {
             @RequestParam(required = false) Boolean isPlanned,
             @RequestParam(required = false) Boolean requiresPurchase,
             @RequestParam(required = false) List<String> status,
-            @RequestParam(required = false, defaultValue = "false") Boolean excludePendingStatuses) {
+            @RequestParam(required = false, defaultValue = "false") Boolean excludePendingStatuses,
+            @RequestParam(required = false) java.math.BigDecimal budgetAmount,
+            @RequestParam(required = false) String budgetAmountOperator) {
+        
+        logger.info("=== PurchaseRequestController.getAllPurchaseRequests ===");
+        logger.info("Received budget filter parameters: budgetAmount={}, budgetAmountOperator='{}'", 
+                budgetAmount, budgetAmountOperator);
         
         Page<PurchaseRequestDto> purchaseRequests = purchaseRequestService.findAll(
                 page, size, year, month, sortBy, sortDir, idPurchaseRequest, cfo, purchaseRequestInitiator,
-                name, costType, contractType, isPlanned, requiresPurchase, status, excludePendingStatuses);
+                name, costType, contractType, isPlanned, requiresPurchase, status, excludePendingStatuses,
+                budgetAmount, budgetAmountOperator);
+        
+        logger.info("Returned {} purchase requests", purchaseRequests.getTotalElements());
+        logger.info("=== End PurchaseRequestController.getAllPurchaseRequests ===\n");
         
         return ResponseEntity.ok(purchaseRequests);
     }

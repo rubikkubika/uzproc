@@ -206,6 +206,7 @@ export default function PurchaseRequestsTable() {
           purchaseRequestInitiator: '',
           name: '',
           budgetAmount: '',
+          budgetAmountOperator: 'gte', // По умолчанию "больше равно"
           costType: '',
           contractType: '',
           contractDurationMonths: '',
@@ -332,6 +333,8 @@ export default function PurchaseRequestsTable() {
         filtersCount: Object.keys(mergedFilters).length,
         requiresPurchase: mergedFilters.requiresPurchase,
         isPlanned: mergedFilters.isPlanned,
+        budgetAmount: mergedFilters.budgetAmount,
+        budgetAmountOperator: mergedFilters.budgetAmountOperator,
         cfoFilterSize: cfoFilter.size,
         statusFilterSize: statusFilter.size,
         selectedYear,
@@ -623,10 +626,13 @@ export default function PurchaseRequestsTable() {
         params.append('name', filters.name.trim());
       }
       // Фильтр по бюджету (обрабатываем отдельно)
-      if (filters.budgetAmountOperator && filters.budgetAmountOperator.trim() !== '' && filters.budgetAmount && filters.budgetAmount.trim() !== '') {
-        const budgetValue = parseFloat(filters.budgetAmount.replace(/\s/g, '').replace(/,/g, ''));
+      // Используем оператор и значение из localFilters, если они есть, иначе из filters
+      const budgetOperator = localFilters.budgetAmountOperator || filters.budgetAmountOperator;
+      const budgetAmount = localFilters.budgetAmount || filters.budgetAmount;
+      if (budgetOperator && budgetOperator.trim() !== '' && budgetAmount && budgetAmount.trim() !== '') {
+        const budgetValue = parseFloat(budgetAmount.replace(/\s/g, '').replace(/,/g, ''));
         if (!isNaN(budgetValue) && budgetValue >= 0) {
-          params.append('budgetAmountOperator', filters.budgetAmountOperator.trim());
+          params.append('budgetAmountOperator', budgetOperator.trim());
           params.append('budgetAmount', String(budgetValue));
         }
       }
@@ -694,11 +700,15 @@ export default function PurchaseRequestsTable() {
   useEffect(() => {
     // Проверяем, изменились ли текстовые фильтры
     const textFields = ['idPurchaseRequest', 'name', 'contractDurationMonths'];
-    const budgetFields = ['budgetAmount', 'budgetAmountOperator'];
     const hasTextChanges = textFields.some(field => localFilters[field] !== filters[field]);
-    const hasBudgetChanges = budgetFields.some(field => localFilters[field] !== filters[field]);
+    // Для бюджета проверяем изменение значения
+    const hasBudgetValueChange = localFilters.budgetAmount !== filters.budgetAmount;
+    // Проверяем изменение оператора (если значение бюджета уже есть, нужно обновить запрос)
+    const hasBudgetOperatorChange = localFilters.budgetAmountOperator !== filters.budgetAmountOperator;
+    // Проверяем наличие значения бюджета в localFilters (а не в filters), так как оно может еще не попасть в filters из-за debounce
+    const hasBudgetValue = localFilters.budgetAmount && localFilters.budgetAmount.trim() !== '';
     
-    if (hasTextChanges || hasBudgetChanges) {
+    if (hasTextChanges || hasBudgetValueChange || (hasBudgetOperatorChange && hasBudgetValue)) {
       const timer = setTimeout(() => {
         setFilters(prev => {
           // Обновляем только измененные текстовые поля и поля бюджета
@@ -706,13 +716,20 @@ export default function PurchaseRequestsTable() {
           textFields.forEach(field => {
             updated[field] = localFilters[field];
           });
-          budgetFields.forEach(field => {
-            updated[field] = localFilters[field];
-          });
+          // Обновляем значение бюджета и оператор вместе
+          // Сохраняем значение бюджета только если оно не пустое
+          if (localFilters.budgetAmount && localFilters.budgetAmount.trim() !== '') {
+            updated.budgetAmount = localFilters.budgetAmount;
+          } else if (localFilters.budgetAmount === '') {
+            // Если значение явно очищено, сохраняем пустую строку
+            updated.budgetAmount = '';
+          }
+          // Оператор всегда обновляем
+          updated.budgetAmountOperator = localFilters.budgetAmountOperator;
           return updated;
         });
         setCurrentPage(0); // Сбрасываем на первую страницу после применения фильтра
-      }, 500); // Задержка 500мс
+      }, hasBudgetOperatorChange && hasBudgetValue ? 0 : 500); // Для оператора без задержки, для значения с задержкой
 
       return () => clearTimeout(timer);
     }
@@ -769,6 +786,22 @@ export default function PurchaseRequestsTable() {
       }
     }
   }, [localFilters, focusedField]);
+
+  // Синхронизация localFilters.budgetAmount с filters после загрузки данных
+  // НО только если поле не в фокусе, чтобы сохранить форматирование
+  useEffect(() => {
+    if (!loading && data && focusedField !== 'budgetAmount') {
+      // Синхронизируем значение бюджета из filters в localFilters после загрузки данных
+      // Это нужно для сохранения значения после поиска
+      setLocalFilters(prev => {
+        // Если в filters есть значение бюджета, и оно отличается от localFilters, обновляем
+        if (filters.budgetAmount !== undefined && filters.budgetAmount !== prev.budgetAmount) {
+          return { ...prev, budgetAmount: filters.budgetAmount };
+        }
+        return prev;
+      });
+    }
+  }, [loading, data, focusedField, filters.budgetAmount]);
 
   // Восстановление фокуса после завершения загрузки данных с сервера
   useEffect(() => {
@@ -1742,15 +1775,27 @@ export default function PurchaseRequestsTable() {
                             <select
                               value={localFilters.budgetAmountOperator || 'gte'}
                               onChange={(e) => {
+                                e.stopPropagation();
                                 const newValue = e.target.value;
                                 setLocalFilters(prev => ({
                                   ...prev,
                                   budgetAmountOperator: newValue,
                                 }));
                               }}
-                              onClick={(e) => e.stopPropagation()}
-                              onFocus={(e) => e.stopPropagation()}
-                              className="absolute left-0 top-0 h-full text-xs border-0 border-r border-gray-300 rounded-l px-1 py-0 bg-gray-50 focus:outline-none focus:ring-0 appearance-none cursor-pointer z-10 text-gray-700"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                              }}
+                              onFocus={(e) => {
+                                e.stopPropagation();
+                              }}
+                              onMouseDown={(e) => {
+                                e.stopPropagation();
+                              }}
+                              className={`absolute left-0 top-0 h-full text-xs border-0 border-r border-gray-300 rounded-l px-1 py-0 focus:outline-none focus:ring-0 appearance-none cursor-pointer z-10 transition-colors ${
+                                localFilters.budgetAmountOperator && ['gt', 'gte', 'lt', 'lte'].includes(localFilters.budgetAmountOperator)
+                                  ? 'bg-blue-500 text-white font-semibold'
+                                  : 'bg-gray-50 text-gray-700'
+                              }`}
                               style={{ width: '42px', minWidth: '42px', paddingRight: '4px', height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
                             >
                               <option value="gt">&gt;</option>
@@ -1762,10 +1807,11 @@ export default function PurchaseRequestsTable() {
                               type="text"
                               data-filter-field="budgetAmount"
                               value={(() => {
-                                const value = localFilters.budgetAmount || '';
+                                // Используем значение из localFilters, если оно есть, иначе из filters
+                                const value = localFilters.budgetAmount || filters.budgetAmount || '';
                                 if (!value) return '';
                                 // Убираем все нецифровые символы для парсинга
-                                const numValue = value.replace(/\s/g, '').replace(/,/g, '');
+                                const numValue = value.toString().replace(/\s/g, '').replace(/,/g, '');
                                 const num = parseFloat(numValue);
                                 if (isNaN(num)) return value;
                                 // Форматируем с разделителями разрядов

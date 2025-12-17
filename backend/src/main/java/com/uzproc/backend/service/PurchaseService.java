@@ -51,14 +51,16 @@ public class PurchaseService {
             String contractType,
             Long purchaseRequestId,
             String purchaser,
-            List<String> status) {
+            List<String> status,
+            java.math.BigDecimal budgetAmount,
+            String budgetAmountOperator) {
         
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, month: {}, innerId: '{}', purchaseNumber: {}, cfo: {}, purchaseInitiator: '{}', name: '{}', costType: '{}', contractType: '{}', purchaseRequestId: {}, purchaser: '{}', status: {}",
-                year, month, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType, purchaseRequestId, purchaser, status);
+        logger.info("Filter parameters - year: {}, month: {}, innerId: '{}', purchaseNumber: {}, cfo: {}, purchaseInitiator: '{}', name: '{}', costType: '{}', contractType: '{}', purchaseRequestId: {}, purchaser: '{}', status: {}, budgetAmount: {}, budgetAmountOperator: '{}'",
+                year, month, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType, purchaseRequestId, purchaser, status, budgetAmount, budgetAmountOperator);
         
         Specification<Purchase> spec = buildSpecification(
-                year, month, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType, purchaseRequestId, purchaser, status);
+                year, month, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType, purchaseRequestId, purchaser, status, budgetAmount, budgetAmountOperator);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -128,7 +130,9 @@ public class PurchaseService {
             String contractType,
             Long purchaseRequestId,
             String purchaser,
-            List<String> status) {
+            List<String> status,
+            java.math.BigDecimal budgetAmount,
+            String budgetAmountOperator) {
         
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -295,6 +299,48 @@ public class PurchaseService {
                         }
                     }
                 }
+            }
+            
+            // Фильтр по бюджету с оператором
+            if (budgetAmount != null && budgetAmountOperator != null && !budgetAmountOperator.trim().isEmpty()) {
+                String operator = budgetAmountOperator.trim().toLowerCase();
+                logger.info("Processing budgetAmount filter: operator='{}', value={}", operator, budgetAmount);
+                
+                // Исключаем записи с null значениями budgetAmount
+                predicates.add(cb.isNotNull(root.get("budgetAmount")));
+                predicateCount++;
+                
+                switch (operator) {
+                    case "gt":
+                        predicates.add(cb.greaterThan(root.get("budgetAmount"), budgetAmount));
+                        predicateCount++;
+                        logger.info("Added budgetAmount filter: > {} (excluding null values)", budgetAmount);
+                        break;
+                    case "gte":
+                        predicates.add(cb.greaterThanOrEqualTo(root.get("budgetAmount"), budgetAmount));
+                        predicateCount++;
+                        logger.info("Added budgetAmount filter: >= {} (excluding null values)", budgetAmount);
+                        break;
+                    case "lt":
+                        predicates.add(cb.lessThan(root.get("budgetAmount"), budgetAmount));
+                        predicateCount++;
+                        logger.info("Added budgetAmount filter: < {} (excluding null values)", budgetAmount);
+                        break;
+                    case "lte":
+                        predicates.add(cb.lessThanOrEqualTo(root.get("budgetAmount"), budgetAmount));
+                        predicateCount++;
+                        logger.info("Added budgetAmount filter: <= {} (excluding null values)", budgetAmount);
+                        break;
+                    default:
+                        logger.warn("Unknown budgetAmountOperator: '{}', using >= as default", operator);
+                        predicates.add(cb.greaterThanOrEqualTo(root.get("budgetAmount"), budgetAmount));
+                        predicateCount++;
+                        logger.info("Added budgetAmount filter: >= {} (default, excluding null values)", budgetAmount);
+                        break;
+                }
+            } else {
+                logger.info("Budget filter not applied: budgetAmount={}, budgetAmountOperator='{}'", 
+                        budgetAmount, budgetAmountOperator);
             }
             
             logger.info("Total predicates added: {}", predicateCount);
