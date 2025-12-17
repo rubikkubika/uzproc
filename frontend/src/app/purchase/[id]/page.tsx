@@ -101,6 +101,7 @@ export default function PurchaseDetailPage() {
   const [contractApprovals, setContractApprovals] = useState<Approval[]>([]);
   const [specificationApprovals, setSpecificationApprovals] = useState<Approval[]>([]);
   const [specifications, setSpecifications] = useState<Contract[]>([]);
+  const [isSpecificationsExpanded, setIsSpecificationsExpanded] = useState(false);
   const [navigationData, setNavigationData] = useState<{
     currentIndex: number;
     page: number;
@@ -1088,10 +1089,10 @@ export default function PurchaseDetailPage() {
 
                   {/* Правая часть с блоком согласований закупки */}
                   <div className="w-full lg:w-64 flex-shrink-0">
-                    <div className="space-y-1.5">
+                    <div className="bg-white rounded p-2 space-y-1.5">
                       {/* Этап: Согласование результатов ЗП */}
                       {purchaseResultsApprovalApprovals.length > 0 && (
-                      <div className="border border-gray-200 rounded p-1.5">
+                      <div className="rounded p-1.5" style={{ boxShadow: 'inset 0 0 0 2px rgb(59 130 246)', border: 'none' }}>
                         <div className="flex items-start gap-1.5 mb-1">
                           <div className="text-[10px] font-semibold text-gray-900 flex-1 leading-tight">Согласование результатов ЗП</div>
                         </div>
@@ -1175,7 +1176,7 @@ export default function PurchaseDetailPage() {
 
                       {/* Этап: Закупочная комиссия */}
                       {purchaseCommissionApprovals.length > 0 && (
-                      <div className="border border-gray-200 rounded p-1.5">
+                      <div className="rounded p-1.5" style={{ boxShadow: 'inset 0 0 0 2px rgb(59 130 246)', border: 'none' }}>
                         <div className="flex items-start gap-1.5 mb-1">
                           <div className="text-[10px] font-semibold text-gray-900 flex-1 leading-tight">Закупочная комиссия</div>
                         </div>
@@ -1259,7 +1260,7 @@ export default function PurchaseDetailPage() {
 
                       {/* Этап: Проверка результата закупочной комиссии */}
                       {purchaseCommissionResultCheckApprovals.length > 0 && (
-                      <div className="border border-gray-200 rounded p-1.5">
+                      <div className="rounded p-1.5" style={{ boxShadow: 'inset 0 0 0 2px rgb(59 130 246)', border: 'none' }}>
                         <div className="flex items-start gap-1.5 mb-1">
                           <div className="text-[10px] font-semibold text-gray-900 flex-1 leading-tight">Проверка результата закупочной комиссии</div>
                         </div>
@@ -1345,7 +1346,7 @@ export default function PurchaseDetailPage() {
                         {purchaseResultsApprovalApprovals.length === 0 && 
                          purchaseCommissionApprovals.length === 0 && 
                          purchaseCommissionResultCheckApprovals.length === 0 && (
-                          <div className="border border-gray-200 rounded p-1.5 text-center py-2 text-[10px] text-gray-500">
+                          <div className="rounded p-1.5 text-center py-2 text-[10px] text-gray-500" style={{ boxShadow: 'inset 0 0 0 2px rgb(59 130 246)', border: 'none' }}>
                             Нет согласований
                           </div>
                         )}
@@ -1483,10 +1484,10 @@ export default function PurchaseDetailPage() {
 
                   {/* Правая часть с блоком согласований */}
               <div className="w-full lg:w-64 flex-shrink-0">
-                    <div className="space-y-1.5">
+                    <div className="bg-white rounded p-2 space-y-1.5">
                       {/* Этап: Согласование */}
                       {approvalStageApprovals.length > 0 && (
-                      <div className="border border-gray-200 rounded p-1.5">
+                      <div className="rounded p-1.5" style={{ boxShadow: 'inset 0 0 0 2px rgb(59 130 246)', border: 'none' }}>
                         <div className="flex items-start gap-1.5 mb-1">
                           <div className="text-[10px] font-semibold text-gray-900 flex-1 leading-tight">Согласование</div>
                         </div>
@@ -1570,7 +1571,7 @@ export default function PurchaseDetailPage() {
 
                       {/* Этап: Руководитель закупок */}
                       {managerStageApprovals.length > 0 && (
-                      <div className="border border-gray-200 rounded p-1.5">
+                      <div className="rounded p-1.5" style={{ boxShadow: 'inset 0 0 0 2px rgb(59 130 246)', border: 'none' }}>
                         <div className="flex items-start gap-1.5 mb-1">
                           <div className="text-[10px] font-semibold text-gray-900 flex-1 leading-tight">Руководитель закупок</div>
                         </div>
@@ -1646,7 +1647,7 @@ export default function PurchaseDetailPage() {
 
                       {/* Этап: Утверждение */}
                       {finalApprovalStageApprovals.length > 0 && (
-                      <div className="border border-gray-200 rounded p-1.5">
+                      <div className="rounded p-1.5" style={{ boxShadow: 'inset 0 0 0 2px rgb(59 130 246)', border: 'none' }}>
                         <div className="flex items-start gap-1.5 mb-1">
                           <div className="text-[10px] font-semibold text-gray-900 flex-1 leading-tight">Утверждение</div>
                         </div>
@@ -1722,7 +1723,7 @@ export default function PurchaseDetailPage() {
 
                       {/* Этап: Утверждение заявки на ЗП (НЕ требуется ЗП) */}
                       {finalApprovalNoZpStageApprovals.length > 0 && (
-                      <div className="border border-gray-200 rounded p-1.5">
+                      <div className="rounded p-1.5" style={{ boxShadow: 'inset 0 0 0 2px rgb(59 130 246)', border: 'none' }}>
                         <div className="flex items-start gap-1.5 mb-1">
                           <div className="text-[10px] font-semibold text-gray-900 flex-1 leading-tight">Утверждение заявки на ЗП (НЕ требуется ЗП)</div>
                         </div>
@@ -1823,6 +1824,7 @@ export default function PurchaseDetailPage() {
                                   Основной договор
                                 </label>
                               </div>
+                              <div className="rounded p-2" style={{ boxShadow: 'inset 0 0 0 2px rgb(59 130 246)', border: 'none' }}>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
                                 <div>
                                   <label className="block text-xs font-semibold text-gray-600 mb-0">
@@ -1872,6 +1874,7 @@ export default function PurchaseDetailPage() {
                                     {contract.parentContract.budgetAmount ? new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(contract.parentContract.budgetAmount) : '-'}
                                   </p>
                                 </div>
+                              </div>
                               </div>
                             </>
                           ) : (
@@ -1942,7 +1945,7 @@ export default function PurchaseDetailPage() {
                     <div className="space-y-1.5">
                       {/* Этап: Согласование договора */}
                       {contractApprovalStageApprovals.length > 0 && (
-                      <div className="border border-gray-200 rounded p-1.5">
+                      <div className="rounded p-1.5" style={{ boxShadow: 'inset 0 0 0 2px rgb(59 130 246)', border: 'none' }}>
                         <div className="flex items-start gap-1.5 mb-1">
                           <div className="text-[10px] font-semibold text-gray-900 flex-1 leading-tight">Согласование</div>
                         </div>
@@ -2026,7 +2029,7 @@ export default function PurchaseDetailPage() {
 
                       {/* Этап: Руководитель закупщика (договор) */}
                       {contractManagerStageApprovals.length > 0 && (
-                      <div className="border border-gray-200 rounded p-1.5">
+                      <div className="rounded p-1.5" style={{ boxShadow: 'inset 0 0 0 2px rgb(59 130 246)', border: 'none' }}>
                         <div className="flex items-start gap-1.5 mb-1">
                           <div className="text-[10px] font-semibold text-gray-900 flex-1 leading-tight">Руководитель закупок</div>
                         </div>
@@ -2102,7 +2105,7 @@ export default function PurchaseDetailPage() {
 
                       {/* Этап: Утверждение договора */}
                       {contractFinalApprovalStageApprovals.length > 0 && (
-                      <div className="border border-gray-200 rounded p-1.5">
+                      <div className="rounded p-1.5" style={{ boxShadow: 'inset 0 0 0 2px rgb(59 130 246)', border: 'none' }}>
                         <div className="flex items-start gap-1.5 mb-1">
                           <div className="text-[10px] font-semibold text-gray-900 flex-1 leading-tight">Утверждение</div>
                         </div>
