@@ -10,7 +10,23 @@ export async function POST(request: Request) {
   try {
     const { username, password } = await request.json();
 
-    if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+    // Нормализуем входные данные: убираем пробелы и приводим к строке
+    const normalizedUsername = String(username || '').trim();
+    const normalizedPassword = String(password || '').trim();
+
+    // Временное логирование для отладки (удалить после проверки)
+    console.log('Login attempt:', {
+      receivedUsername: username,
+      receivedPassword: password,
+      normalizedUsername,
+      normalizedPassword,
+      expectedUsername: ADMIN_USERNAME,
+      expectedPassword: ADMIN_PASSWORD,
+      usernameMatch: normalizedUsername === ADMIN_USERNAME,
+      passwordMatch: normalizedPassword === ADMIN_PASSWORD,
+    });
+
+    if (normalizedUsername === ADMIN_USERNAME && normalizedPassword === ADMIN_PASSWORD) {
       // Создаем сессию с версией пароля
       const cookieStore = await cookies();
       cookieStore.set('auth-token', `authenticated-${PASSWORD_VERSION}`, {
