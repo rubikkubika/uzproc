@@ -70,6 +70,7 @@ export default function PurchaseRequestsTable() {
     purchaseRequestInitiator: '',
     name: '',
     budgetAmount: '',
+    budgetAmountOperator: 'gte', // По умолчанию "больше равно"
     costType: '',
     contractType: '',
     contractDurationMonths: '',
@@ -621,6 +622,14 @@ export default function PurchaseRequestsTable() {
       if (filters.name && filters.name.trim() !== '') {
         params.append('name', filters.name.trim());
       }
+      // Фильтр по бюджету (обрабатываем отдельно)
+      if (filters.budgetAmountOperator && filters.budgetAmountOperator.trim() !== '' && filters.budgetAmount && filters.budgetAmount.trim() !== '') {
+        const budgetValue = parseFloat(filters.budgetAmount.replace(/\s/g, '').replace(/,/g, ''));
+        if (!isNaN(budgetValue) && budgetValue >= 0) {
+          params.append('budgetAmountOperator', filters.budgetAmountOperator.trim());
+          params.append('budgetAmount', String(budgetValue));
+        }
+      }
       if (filters.costType && filters.costType.trim() !== '') {
         params.append('costType', filters.costType.trim());
       }
@@ -681,18 +690,23 @@ export default function PurchaseRequestsTable() {
     }
   };
 
-  // Debounce для текстовых фильтров
+  // Debounce для текстовых фильтров и фильтра бюджета
   useEffect(() => {
     // Проверяем, изменились ли текстовые фильтры
-    const textFields = ['idPurchaseRequest', 'name', 'budgetAmount', 'contractDurationMonths'];
+    const textFields = ['idPurchaseRequest', 'name', 'contractDurationMonths'];
+    const budgetFields = ['budgetAmount', 'budgetAmountOperator'];
     const hasTextChanges = textFields.some(field => localFilters[field] !== filters[field]);
+    const hasBudgetChanges = budgetFields.some(field => localFilters[field] !== filters[field]);
     
-    if (hasTextChanges) {
+    if (hasTextChanges || hasBudgetChanges) {
       const timer = setTimeout(() => {
         setFilters(prev => {
-          // Обновляем только измененные текстовые поля
+          // Обновляем только измененные текстовые поля и поля бюджета
           const updated = { ...prev };
           textFields.forEach(field => {
+            updated[field] = localFilters[field];
+          });
+          budgetFields.forEach(field => {
             updated[field] = localFilters[field];
           });
           return updated;
@@ -702,7 +716,7 @@ export default function PurchaseRequestsTable() {
 
       return () => clearTimeout(timer);
     }
-  }, [localFilters]);
+  }, [localFilters, filters]);
 
   // Устанавливаем значения по умолчанию для statusFilter, если он пустой
   useEffect(() => {
@@ -724,18 +738,32 @@ export default function PurchaseRequestsTable() {
     if (focusedField) {
       const input = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
       if (input) {
-        // Сохраняем позицию курсора
-        const cursorPosition = input.selectionStart || 0;
+        // Сохраняем позицию курсора (только для текстовых полей)
+        const cursorPosition = input.type === 'number' ? null : (input.selectionStart || 0);
         const currentValue = input.value;
         
         // Восстанавливаем фокус в следующем тике, чтобы не мешать текущему вводу
         requestAnimationFrame(() => {
           const inputAfterRender = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
-          if (inputAfterRender && inputAfterRender.value === currentValue) {
-            inputAfterRender.focus();
-            // Восстанавливаем позицию курсора
-            const newPosition = Math.min(cursorPosition, inputAfterRender.value.length);
-            inputAfterRender.setSelectionRange(newPosition, newPosition);
+          if (inputAfterRender) {
+            // Для фильтра бюджета проверяем, что неотформатированное значение совпадает
+            if (focusedField === 'budgetAmount') {
+              const currentRawValue = currentValue.replace(/\s/g, '').replace(/,/g, '');
+              const afterRenderRawValue = inputAfterRender.value.replace(/\s/g, '').replace(/,/g, '');
+              if (currentRawValue === afterRenderRawValue) {
+                inputAfterRender.focus();
+                // Для бюджета устанавливаем курсор в конец
+                const length = inputAfterRender.value.length;
+                inputAfterRender.setSelectionRange(length, length);
+              }
+            } else if (inputAfterRender.value === currentValue) {
+              inputAfterRender.focus();
+              // Восстанавливаем позицию курсора только для текстовых полей
+              if (inputAfterRender.type !== 'number' && cursorPosition !== null) {
+                const newPosition = Math.min(cursorPosition, inputAfterRender.value.length);
+                inputAfterRender.setSelectionRange(newPosition, newPosition);
+              }
+            }
           }
         });
       }
@@ -750,8 +778,16 @@ export default function PurchaseRequestsTable() {
         const input = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
         if (input) {
           const currentValue = localFilters[focusedField] || '';
-          // Проверяем, что значение в поле соответствует локальному состоянию
-          if (input.value === currentValue) {
+          // Для фильтра бюджета проверяем неотформатированное значение
+          if (focusedField === 'budgetAmount') {
+            const inputRawValue = input.value.replace(/\s/g, '').replace(/,/g, '');
+            if (inputRawValue === currentValue) {
+              input.focus();
+              // Устанавливаем курсор в конец текста
+              const length = input.value.length;
+              input.setSelectionRange(length, length);
+            }
+          } else if (input.value === currentValue) {
             input.focus();
             // Устанавливаем курсор в конец текста
             const length = input.value.length;
@@ -1443,6 +1479,7 @@ export default function PurchaseRequestsTable() {
                   purchaseRequestInitiator: '',
                   name: '',
                   budgetAmount: '',
+                  budgetAmountOperator: 'gte',
                   costType: '',
                   contractType: '',
                   contractDurationMonths: '',
@@ -1456,8 +1493,8 @@ export default function PurchaseRequestsTable() {
                 setStatusFilter(new Set(DEFAULT_STATUSES));
                 setCfoSearchQuery('');
                 setStatusSearchQuery('');
-                setSortField(null);
-                setSortDirection(null);
+                setSortField('idPurchaseRequest');
+                setSortDirection('desc');
                 setFocusedField(null);
               }}
               className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors"
@@ -1688,7 +1725,122 @@ export default function PurchaseRequestsTable() {
                 }
                 
                 if (columnKey === 'budgetAmount') {
-                  return <SortableHeader key={columnKey} field="budgetAmount" label="Бюджет" width="w-28" columnKey="budgetAmount" />;
+                  return (
+                    <th
+                      key={columnKey}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, columnKey)}
+                      onDragOver={(e) => handleDragOver(e, columnKey)}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(e) => handleDrop(e, columnKey)}
+                      className={`px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''} cursor-move`}
+                      style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px`, verticalAlign: 'top' }}
+                    >
+                      <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                        <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                          <div className="relative flex-1" style={{ minWidth: 0 }}>
+                            <select
+                              value={localFilters.budgetAmountOperator || 'gte'}
+                              onChange={(e) => {
+                                const newValue = e.target.value;
+                                setLocalFilters(prev => ({
+                                  ...prev,
+                                  budgetAmountOperator: newValue,
+                                }));
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              onFocus={(e) => e.stopPropagation()}
+                              className="absolute left-0 top-0 h-full text-xs border-0 border-r border-gray-300 rounded-l px-1 py-0 bg-gray-50 focus:outline-none focus:ring-0 appearance-none cursor-pointer z-10 text-gray-700"
+                              style={{ width: '42px', minWidth: '42px', paddingRight: '4px', height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
+                            >
+                              <option value="gt">&gt;</option>
+                              <option value="gte">&gt;=</option>
+                              <option value="lt">&lt;</option>
+                              <option value="lte">&lt;=</option>
+                            </select>
+                            <input
+                              type="text"
+                              data-filter-field="budgetAmount"
+                              value={(() => {
+                                const value = localFilters.budgetAmount || '';
+                                if (!value) return '';
+                                // Убираем все нецифровые символы для парсинга
+                                const numValue = value.replace(/\s/g, '').replace(/,/g, '');
+                                const num = parseFloat(numValue);
+                                if (isNaN(num)) return value;
+                                // Форматируем с разделителями разрядов
+                                return new Intl.NumberFormat('ru-RU', {
+                                  minimumFractionDigits: 0,
+                                  maximumFractionDigits: 0
+                                }).format(num);
+                              })()}
+                              onChange={(e) => {
+                                const newValue = e.target.value.replace(/\s/g, '').replace(/,/g, '');
+                                const cursorPos = e.target.selectionStart || 0;
+                                setLocalFilters(prev => ({
+                                  ...prev,
+                                  budgetAmount: newValue,
+                                }));
+                                // Сохраняем позицию курсора после обновления
+                                requestAnimationFrame(() => {
+                                  const input = e.target as HTMLInputElement;
+                                  if (input && document.activeElement === input) {
+                                    // Для бюджета устанавливаем курсор в конец (так как значение форматируется)
+                                    const length = input.value.length;
+                                    input.setSelectionRange(length, length);
+                                  }
+                                });
+                              }}
+                              onFocus={(e) => {
+                                e.stopPropagation();
+                                setFocusedField('budgetAmount');
+                                // При фокусе показываем число без форматирования для удобства редактирования
+                                const value = localFilters.budgetAmount || '';
+                                if (value) {
+                                  const numValue = value.replace(/\s/g, '').replace(/,/g, '');
+                                  e.target.value = numValue;
+                                }
+                              }}
+                              onBlur={(e) => {
+                                setTimeout(() => {
+                                  const activeElement = document.activeElement as HTMLElement;
+                                  if (activeElement && activeElement !== e.target && !activeElement.closest('th')) {
+                                    setFocusedField(null);
+                                  }
+                                }, 200);
+                              }}
+                              placeholder="Число"
+                              className="w-full text-xs border border-gray-300 rounded px-1 py-0.5 pl-11 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 min-h-[20px]">
+                          <button
+                            onClick={() => handleSort('budgetAmount')}
+                            className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                            style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                          >
+                            {sortField === 'budgetAmount' ? (
+                              sortDirection === 'asc' ? (
+                                <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                              ) : (
+                                <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                              )
+                            ) : (
+                              <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                            )}
+                          </button>
+                          <span className="text-xs font-medium text-gray-500 tracking-wider">Бюджет</span>
+                        </div>
+                      </div>
+                      <div
+                        className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+                        onMouseDown={(e) => handleResizeStart(e, 'budgetAmount')}
+                        style={{ zIndex: 10 }}
+                      />
+                    </th>
+                  );
                 }
                 
                 if (columnKey === 'isPlanned') {

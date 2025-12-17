@@ -280,6 +280,12 @@ public class PurchaseService {
             Sort.Direction direction = (sortDir != null && sortDir.equalsIgnoreCase("desc")) 
                 ? Sort.Direction.DESC 
                 : Sort.Direction.ASC;
+            
+            // Для сортировки по purchaseRequestId записи с null должны быть в конце
+            if ("purchaseRequestId".equals(sortBy)) {
+                return Sort.by(direction, sortBy).nullsLast();
+            }
+            
             return Sort.by(direction, sortBy);
         }
         return Sort.unsorted();

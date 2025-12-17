@@ -52,5 +52,11 @@ public class ContractController {
         List<ContractDto> contracts = contractService.findByParentContractId(parentContractId);
         return ResponseEntity.ok(contracts);
     }
+
+    @GetMapping("/by-purchase-request/{purchaseRequestId}")
+    public ResponseEntity<List<ContractDto>> getContractsByPurchaseRequestId(@PathVariable Long purchaseRequestId) {
+        List<ContractDto> contracts = contractService.findByPurchaseRequestId(purchaseRequestId);
+        return ResponseEntity.ok(contracts);
+    }
 }
 

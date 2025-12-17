@@ -81,6 +81,13 @@ public class ContractService {
                 .collect(java.util.stream.Collectors.toList());
     }
 
+    public List<ContractDto> findByPurchaseRequestId(Long purchaseRequestId) {
+        List<Contract> contracts = contractRepository.findByPurchaseRequestId(purchaseRequestId);
+        return contracts.stream()
+                .map(this::toDto)
+                .collect(java.util.stream.Collectors.toList());
+    }
+
     /**
      * Конвертирует Contract entity в ContractDto
      */

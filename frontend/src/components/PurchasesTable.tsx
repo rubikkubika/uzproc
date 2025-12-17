@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { ArrowUp, ArrowDown, ArrowUpDown, Download, Copy, Search } from 'lucide-react';
 import { getBackendUrl } from '@/utils/api';
 
@@ -17,6 +18,7 @@ interface Purchase {
   costType: string | null;
   contractType: string | null;
   contractDurationMonths: number | null;
+  purchaseRequestId: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -30,6 +32,7 @@ interface PageResponse {
 }
 
 export default function PurchasesTable() {
+  const router = useRouter();
   const [currentPage, setCurrentPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const [data, setData] = useState<PageResponse | null>(null);
@@ -39,16 +42,20 @@ export default function PurchasesTable() {
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [allYears, setAllYears] = useState<number[]>([]);
   const [totalRecords, setTotalRecords] = useState<number>(0);
-  const [sortField, setSortField] = useState<string | null>(null);
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>(null);
+  const [sortField, setSortField] = useState<string | null>('purchaseRequestId');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc' | null>('desc');
   const [filters, setFilters] = useState<Record<string, string>>({
     innerId: '',
     cfo: '',
+    budgetAmount: '',
+    budgetAmountOperator: 'gte', // По умолчанию "больше равно"
   });
 
   // Локальное состояние для текстовых фильтров (для сохранения фокуса)
   const [localFilters, setLocalFilters] = useState<Record<string, string>>({
     innerId: '',
+    budgetAmount: '',
+    budgetAmountOperator: 'gte', // По умолчанию "больше равно"
   });
 
   // ID активного поля для восстановления фокуса
@@ -140,6 +147,7 @@ export default function PurchasesTable() {
   // Функция для получения ширины колонки по умолчанию
   const getDefaultColumnWidth = (columnKey: string): number => {
     const defaults: Record<string, number> = {
+      purchaseRequestId: 100, // Заявка
       innerId: 128, // w-32 = 8rem = 128px
       cfo: 80, // w-20 = 5rem = 80px
       budgetAmount: 150, // Бюджет
@@ -153,7 +161,7 @@ export default function PurchasesTable() {
   };
   
   // Состояние для порядка колонок
-  const [columnOrder, setColumnOrder] = useState<string[]>(['innerId', 'cfo', 'budgetAmount']);
+  const [columnOrder, setColumnOrder] = useState<string[]>(['purchaseRequestId', 'innerId', 'cfo', 'budgetAmount']);
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   
@@ -164,7 +172,7 @@ export default function PurchasesTable() {
       if (saved) {
         const order = JSON.parse(saved);
         // Проверяем, что все колонки присутствуют
-        const defaultOrder = ['innerId', 'cfo', 'budgetAmount'];
+        const defaultOrder = ['purchaseRequestId', 'innerId', 'cfo', 'budgetAmount'];
         const validOrder = order.filter((col: string) => defaultOrder.includes(col));
         const missingCols = defaultOrder.filter(col => !validOrder.includes(col));
         setColumnOrder([...validOrder, ...missingCols]);
@@ -329,12 +337,19 @@ export default function PurchasesTable() {
         params.append('sortDir', sortDirection);
       }
       
-      // Добавляем параметры фильтрации если нужно
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value && value.trim() !== '') {
-          params.append(key, value);
+      // Фильтр по внутреннему ID
+      if (filters.innerId && filters.innerId.trim() !== '') {
+        params.append('innerId', filters.innerId.trim());
+      }
+      
+      // Фильтр по бюджету (обрабатываем отдельно)
+      if (filters.budgetAmountOperator && filters.budgetAmountOperator.trim() !== '' && filters.budgetAmount && filters.budgetAmount.trim() !== '') {
+        const budgetValue = parseFloat(filters.budgetAmount.replace(/\s/g, '').replace(/,/g, ''));
+        if (!isNaN(budgetValue) && budgetValue >= 0) {
+          params.append('budgetAmountOperator', filters.budgetAmountOperator.trim());
+          params.append('budgetAmount', String(budgetValue));
         }
-      });
+      }
       
       // Фильтр по ЦФО - передаем все выбранные значения на бэкенд
       if (cfoFilter.size > 0) {
@@ -357,18 +372,23 @@ export default function PurchasesTable() {
     }
   };
 
-  // Debounce для текстовых фильтров (задержка 500мс)
+  // Debounce для текстовых фильтров и фильтра бюджета (задержка 500мс)
   useEffect(() => {
     // Проверяем, изменились ли текстовые фильтры
     const textFields = ['innerId'];
+    const budgetFields = ['budgetAmount', 'budgetAmountOperator'];
     const hasTextChanges = textFields.some(field => localFilters[field] !== filters[field]);
+    const hasBudgetChanges = budgetFields.some(field => localFilters[field] !== filters[field]);
     
-    if (hasTextChanges) {
+    if (hasTextChanges || hasBudgetChanges) {
       const timer = setTimeout(() => {
         setFilters(prev => {
-          // Обновляем только измененные текстовые поля
+          // Обновляем только измененные текстовые поля и поля бюджета
           const updated = { ...prev };
           textFields.forEach(field => {
+            updated[field] = localFilters[field];
+          });
+          budgetFields.forEach(field => {
             updated[field] = localFilters[field];
           });
           return updated;
@@ -378,7 +398,7 @@ export default function PurchasesTable() {
 
       return () => clearTimeout(timer);
     }
-  }, [localFilters]);
+  }, [localFilters, filters]);
 
   useEffect(() => {
     fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters);
@@ -389,18 +409,32 @@ export default function PurchasesTable() {
     if (focusedField) {
       const input = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
       if (input) {
-        // Сохраняем позицию курсора
-        const cursorPosition = input.selectionStart || 0;
+        // Сохраняем позицию курсора (только для текстовых полей)
+        const cursorPosition = input.type === 'number' ? null : (input.selectionStart || 0);
         const currentValue = input.value;
         
         // Восстанавливаем фокус в следующем тике, чтобы не мешать текущему вводу
         requestAnimationFrame(() => {
           const inputAfterRender = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
-          if (inputAfterRender && inputAfterRender.value === currentValue) {
-            inputAfterRender.focus();
-            // Восстанавливаем позицию курсора
-            const newPosition = Math.min(cursorPosition, inputAfterRender.value.length);
-            inputAfterRender.setSelectionRange(newPosition, newPosition);
+          if (inputAfterRender) {
+            // Для фильтра бюджета проверяем, что неотформатированное значение совпадает
+            if (focusedField === 'budgetAmount') {
+              const currentRawValue = currentValue.replace(/\s/g, '').replace(/,/g, '');
+              const afterRenderRawValue = inputAfterRender.value.replace(/\s/g, '').replace(/,/g, '');
+              if (currentRawValue === afterRenderRawValue) {
+                inputAfterRender.focus();
+                // Для бюджета устанавливаем курсор в конец
+                const length = inputAfterRender.value.length;
+                inputAfterRender.setSelectionRange(length, length);
+              }
+            } else if (inputAfterRender.value === currentValue) {
+              inputAfterRender.focus();
+              // Восстанавливаем позицию курсора только для текстовых полей
+              if (inputAfterRender.type !== 'number' && cursorPosition !== null) {
+                const newPosition = Math.min(cursorPosition, inputAfterRender.value.length);
+                inputAfterRender.setSelectionRange(newPosition, newPosition);
+              }
+            }
           }
         });
       }
@@ -415,8 +449,16 @@ export default function PurchasesTable() {
         const input = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
         if (input) {
           const currentValue = localFilters[focusedField] || '';
-          // Проверяем, что значение в поле соответствует локальному состоянию
-          if (input.value === currentValue) {
+          // Для фильтра бюджета проверяем неотформатированное значение
+          if (focusedField === 'budgetAmount') {
+            const inputRawValue = input.value.replace(/\s/g, '').replace(/,/g, '');
+            if (inputRawValue === currentValue) {
+              input.focus();
+              // Устанавливаем курсор в конец текста
+              const length = input.value.length;
+              input.setSelectionRange(length, length);
+            }
+          } else if (input.value === currentValue) {
             input.focus();
             // Устанавливаем курсор в конец текста
             const length = input.value.length;
@@ -568,6 +610,49 @@ export default function PurchasesTable() {
   const renderColumnHeader = (columnKey: string) => {
     const isDragging = draggedColumn === columnKey;
     const isDragOver = dragOverColumn === columnKey;
+    
+    if (columnKey === 'purchaseRequestId') {
+      return (
+        <th
+          key={columnKey}
+          draggable
+          onDragStart={(e) => handleDragStart(e, columnKey)}
+          onDragOver={(e) => handleDragOver(e, columnKey)}
+          onDragLeave={handleDragLeave}
+          onDrop={(e) => handleDrop(e, columnKey)}
+          className={`px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''} cursor-move`}
+          style={{ width: `${getColumnWidth('purchaseRequestId')}px`, minWidth: `${getColumnWidth('purchaseRequestId')}px`, maxWidth: `${getColumnWidth('purchaseRequestId')}px`, verticalAlign: 'top' }}
+        >
+          <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+            <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+            </div>
+            <div className="flex items-center gap-1 min-h-[20px]">
+              <button
+                onClick={() => handleSort('purchaseRequestId')}
+                className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+              >
+                {sortField === 'purchaseRequestId' ? (
+                  sortDirection === 'asc' ? (
+                    <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                  ) : (
+                    <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                  )
+                ) : (
+                  <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                )}
+              </button>
+              <span className="text-xs font-medium text-gray-500 tracking-wider">Заявка</span>
+            </div>
+          </div>
+          <div
+            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+            onMouseDown={(e) => handleResizeStart(e, 'purchaseRequestId')}
+            style={{ zIndex: 10 }}
+          />
+        </th>
+      );
+    }
     
     if (columnKey === 'innerId') {
       return (
@@ -792,6 +877,82 @@ export default function PurchasesTable() {
         >
           <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
             <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+              <div className="relative flex-1" style={{ minWidth: 0 }}>
+                <select
+                  value={localFilters.budgetAmountOperator || 'gte'}
+                  onChange={(e) => {
+                    const newValue = e.target.value;
+                    setLocalFilters(prev => ({
+                      ...prev,
+                      budgetAmountOperator: newValue,
+                    }));
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  onFocus={(e) => e.stopPropagation()}
+                  className="absolute left-0 top-0 h-full text-xs border-0 border-r border-gray-300 rounded-l px-1 py-0 bg-gray-50 focus:outline-none focus:ring-0 appearance-none cursor-pointer z-10 text-gray-700"
+                  style={{ width: '42px', minWidth: '42px', paddingRight: '4px', height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
+                >
+                  <option value="gt">&gt;</option>
+                  <option value="gte">&gt;=</option>
+                  <option value="lt">&lt;</option>
+                  <option value="lte">&lt;=</option>
+                </select>
+                <input
+                  type="text"
+                  data-filter-field="budgetAmount"
+                  value={(() => {
+                    const value = localFilters.budgetAmount || '';
+                    if (!value) return '';
+                    // Убираем все нецифровые символы для парсинга
+                    const numValue = value.replace(/\s/g, '').replace(/,/g, '');
+                    const num = parseFloat(numValue);
+                    if (isNaN(num)) return value;
+                    // Форматируем с разделителями разрядов
+                    return new Intl.NumberFormat('ru-RU', {
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 0
+                    }).format(num);
+                  })()}
+                  onChange={(e) => {
+                    const newValue = e.target.value.replace(/\s/g, '').replace(/,/g, '');
+                    const cursorPos = e.target.selectionStart || 0;
+                    setLocalFilters(prev => ({
+                      ...prev,
+                      budgetAmount: newValue,
+                    }));
+                    // Сохраняем позицию курсора после обновления
+                    requestAnimationFrame(() => {
+                      const input = e.target as HTMLInputElement;
+                      if (input && document.activeElement === input) {
+                        // Для бюджета устанавливаем курсор в конец (так как значение форматируется)
+                        const length = input.value.length;
+                        input.setSelectionRange(length, length);
+                      }
+                    });
+                  }}
+                  onFocus={(e) => {
+                    e.stopPropagation();
+                    setFocusedField('budgetAmount');
+                    // При фокусе показываем число без форматирования для удобства редактирования
+                    const value = localFilters.budgetAmount || '';
+                    if (value) {
+                      const numValue = value.replace(/\s/g, '').replace(/,/g, '');
+                      e.target.value = numValue;
+                    }
+                  }}
+                  onBlur={(e) => {
+                    setTimeout(() => {
+                      const activeElement = document.activeElement as HTMLElement;
+                      if (activeElement && activeElement !== e.target && !activeElement.closest('th')) {
+                        setFocusedField(null);
+                      }
+                    }, 200);
+                  }}
+                  placeholder="Число"
+                  className="w-full text-xs border border-gray-300 rounded px-1 py-0.5 pl-11 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+                />
+              </div>
             </div>
             <div className="flex items-center gap-1 min-h-[20px]">
               <button
@@ -826,6 +987,18 @@ export default function PurchasesTable() {
   
   // Функция для рендеринга ячейки колонки
   const renderColumnCell = (columnKey: string, item: Purchase) => {
+    if (columnKey === 'purchaseRequestId') {
+      return (
+        <td 
+          key={columnKey} 
+          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
+          style={{ width: `${getColumnWidth('purchaseRequestId')}px`, minWidth: `${getColumnWidth('purchaseRequestId')}px`, maxWidth: `${getColumnWidth('purchaseRequestId')}px` }}
+        >
+          {item.purchaseRequestId || '-'}
+        </td>
+      );
+    }
+    
     if (columnKey === 'innerId') {
       return (
         <td 
@@ -1015,13 +1188,15 @@ export default function PurchasesTable() {
                 const emptyFilters = {
                   innerId: '',
                   cfo: '',
+                  budgetAmount: '',
+                  budgetAmountOperator: 'gte',
                 };
                 setFilters(emptyFilters);
-                setLocalFilters({ innerId: '' });
+                setLocalFilters({ innerId: '', budgetAmount: '', budgetAmountOperator: 'gte' });
                 setCfoFilter(new Set());
                 setCfoSearchQuery('');
-                setSortField(null);
-                setSortDirection(null);
+                setSortField('purchaseRequestId');
+                setSortDirection('desc');
                 setSelectedYear(null);
                 setFocusedField(null);
               }}
@@ -1116,7 +1291,13 @@ export default function PurchasesTable() {
           <tbody className="bg-white divide-y divide-gray-200">
             {hasData ? (
               data?.content.map((item, index) => (
-                <tr key={index} className="hover:bg-gray-50">
+                <tr 
+                  key={index} 
+                  className="hover:bg-gray-50 cursor-pointer"
+                  onClick={() => {
+                    router.push(`/purchase/${item.id}`);
+                  }}
+                >
                   {columnOrder.map(columnKey => renderColumnCell(columnKey, item))}
                 </tr>
               ))
