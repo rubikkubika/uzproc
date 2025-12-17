@@ -2,6 +2,7 @@ package com.uzproc.backend.service;
 
 import com.uzproc.backend.dto.PurchaseDto;
 import com.uzproc.backend.entity.Purchase;
+import com.uzproc.backend.entity.PurchaseRequest;
 import com.uzproc.backend.repository.PurchaseRepository;
 import jakarta.persistence.criteria.Predicate;
 import org.slf4j.Logger;
@@ -49,14 +50,15 @@ public class PurchaseService {
             String costType,
             String contractType,
             Long purchaseRequestId,
+            String purchaser,
             List<String> status) {
         
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, month: {}, innerId: '{}', purchaseNumber: {}, cfo: {}, purchaseInitiator: '{}', name: '{}', costType: '{}', contractType: '{}', purchaseRequestId: {}, status: {}",
-                year, month, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType, purchaseRequestId, status);
+        logger.info("Filter parameters - year: {}, month: {}, innerId: '{}', purchaseNumber: {}, cfo: {}, purchaseInitiator: '{}', name: '{}', costType: '{}', contractType: '{}', purchaseRequestId: {}, purchaser: '{}', status: {}",
+                year, month, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType, purchaseRequestId, purchaser, status);
         
         Specification<Purchase> spec = buildSpecification(
-                year, month, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType, purchaseRequestId, status);
+                year, month, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType, purchaseRequestId, purchaser, status);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -103,6 +105,10 @@ public class PurchaseService {
         dto.setContractType(entity.getContractType());
         dto.setContractDurationMonths(entity.getContractDurationMonths());
         dto.setPurchaseRequestId(entity.getPurchaseRequestId());
+        // Получаем закупщика из связанной заявки
+        if (entity.getPurchaseRequest() != null) {
+            dto.setPurchaser(entity.getPurchaseRequest().getPurchaser());
+        }
         dto.setStatus(entity.getStatus());
         dto.setState(entity.getState());
         dto.setCreatedAt(entity.getCreatedAt());
@@ -121,6 +127,7 @@ public class PurchaseService {
             String costType,
             String contractType,
             Long purchaseRequestId,
+            String purchaser,
             List<String> status) {
         
         return (root, query, cb) -> {
@@ -216,11 +223,37 @@ public class PurchaseService {
                 logger.info("Added contractType filter: '{}'", contractType);
             }
             
-            // Фильтр по purchaseRequestId (точное совпадение)
+            // Фильтр по purchaseRequestId
+            // По умолчанию (если purchaseRequestId не указан) исключаем закупки без заявки (purchaseRequestId = null)
+            // Если purchaseRequestId указан:
+            //   - Конкретное число (> 0) - показываем закупки с этим номером заявки
+            //   - Специальное значение -1 - показываем только закупки без заявки (purchaseRequestId = null)
             if (purchaseRequestId != null) {
-                predicates.add(cb.equal(root.get("purchaseRequestId"), purchaseRequestId));
+                if (purchaseRequestId == -1L) {
+                    // Специальное значение -1 означает показать только закупки без заявки
+                    predicates.add(cb.isNull(root.get("purchaseRequestId")));
+                    predicateCount++;
+                    logger.info("Added purchaseRequestId filter: show only purchases without request (null)");
+                } else if (purchaseRequestId > 0) {
+                    // Конкретное число - показываем закупки с этим номером заявки
+                    predicates.add(cb.equal(root.get("purchaseRequestId"), purchaseRequestId));
+                    predicateCount++;
+                    logger.info("Added purchaseRequestId filter: {}", purchaseRequestId);
+                }
+            } else {
+                // По умолчанию исключаем закупки без заявки
+                predicates.add(cb.isNotNull(root.get("purchaseRequestId")));
                 predicateCount++;
-                logger.info("Added purchaseRequestId filter: {}", purchaseRequestId);
+                logger.info("Added default filter: exclude purchases without request (purchaseRequestId IS NOT NULL)");
+            }
+            
+            // Фильтр по закупщику (частичное совпадение, case-insensitive, через join с PurchaseRequest)
+            if (purchaser != null && !purchaser.trim().isEmpty()) {
+                jakarta.persistence.criteria.Join<Purchase, PurchaseRequest> purchaseRequestJoin = 
+                    root.join("purchaseRequest", jakarta.persistence.criteria.JoinType.LEFT);
+                predicates.add(cb.like(cb.lower(purchaseRequestJoin.get("purchaser")), "%" + purchaser.toLowerCase() + "%"));
+                predicateCount++;
+                logger.info("Added purchaser filter: '{}'", purchaser);
             }
             
             // Фильтр по статусу (множественный выбор)
@@ -276,19 +309,37 @@ public class PurchaseService {
     }
 
     private Sort buildSort(String sortBy, String sortDir) {
-        if (sortBy != null && !sortBy.trim().isEmpty()) {
+        List<Sort.Order> orders = new ArrayList<>();
+        
+        // ВАЖНО: Чтобы закупки без заявок (purchaseRequestId = null) всегда были в конце таблицы,
+        // независимо от основной сортировки, нужно сначала отсортировать по наличию purchaseRequestId,
+        // а затем по основной сортировке. Это гарантирует, что все закупки с purchaseRequestId = null
+        // будут в конце, а внутри группы с purchaseRequestId != null будет применяться основная сортировка.
+        
+        // Сначала сортируем по наличию purchaseRequestId (nullsLast - записи с null будут в конце)
+        // Это гарантирует, что закупки без заявок всегда будут в конце таблицы
+        orders.add(Sort.Order.by("purchaseRequestId").with(Sort.Direction.ASC).nullsLast());
+        
+        // Основная сортировка (если указана и не по purchaseRequestId)
+        if (sortBy != null && !sortBy.trim().isEmpty() && !"purchaseRequestId".equals(sortBy)) {
             Sort.Direction direction = (sortDir != null && sortDir.equalsIgnoreCase("desc")) 
                 ? Sort.Direction.DESC 
                 : Sort.Direction.ASC;
             
-            // Для сортировки по purchaseRequestId записи с null должны быть в конце
-            if ("purchaseRequestId".equals(sortBy)) {
-                return Sort.by(direction, sortBy).nullsLast();
-            }
-            
-            return Sort.by(direction, sortBy);
+            // Добавляем основную сортировку после сортировки по purchaseRequestId
+            // Это означает, что сначала все записи с purchaseRequestId != null будут отсортированы по основной сортировке,
+            // а затем все записи с purchaseRequestId = null будут в конце
+            orders.add(Sort.Order.by(sortBy).with(direction));
+        } else if ("purchaseRequestId".equals(sortBy)) {
+            // Если основная сортировка по purchaseRequestId, используем указанное направление
+            Sort.Direction direction = (sortDir != null && sortDir.equalsIgnoreCase("desc")) 
+                ? Sort.Direction.DESC 
+                : Sort.Direction.ASC;
+            // Заменяем первую сортировку на сортировку с указанным направлением
+            orders.set(0, Sort.Order.by("purchaseRequestId").with(direction).nullsLast());
         }
-        return Sort.unsorted();
+        
+        return orders.isEmpty() ? Sort.unsorted() : Sort.by(orders);
     }
 
     /**

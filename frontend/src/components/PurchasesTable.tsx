@@ -19,6 +19,8 @@ interface Purchase {
   contractType: string | null;
   contractDurationMonths: number | null;
   purchaseRequestId: number | null;
+  purchaser: string | null;
+  status: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -49,6 +51,8 @@ export default function PurchasesTable() {
     cfo: '',
     budgetAmount: '',
     budgetAmountOperator: 'gte', // По умолчанию "больше равно"
+    purchaseRequestId: '', // Фильтр по номеру заявки
+    purchaser: '', // Фильтр по закупщику
   });
 
   // Локальное состояние для текстовых фильтров (для сохранения фокуса)
@@ -56,24 +60,36 @@ export default function PurchasesTable() {
     innerId: '',
     budgetAmount: '',
     budgetAmountOperator: 'gte', // По умолчанию "больше равно"
+    purchaseRequestId: '', // Фильтр по номеру заявки
+    purchaser: '', // Фильтр по закупщику
   });
 
   // ID активного поля для восстановления фокуса
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
+  // Константы для статусов закупок (только Проект)
+  const ALL_STATUSES = ['Проект'];
+  // По умолчанию показываем все закупки (включая без статуса), поэтому пустой фильтр
+  const DEFAULT_STATUSES: string[] = [];
+
   // Состояние для множественных фильтров (чекбоксы)
   const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
+  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set());
   
   // Состояние для открытия/закрытия выпадающих списков
   const [isCfoFilterOpen, setIsCfoFilterOpen] = useState(false);
+  const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
   
   // Поиск внутри фильтров
   const [cfoSearchQuery, setCfoSearchQuery] = useState('');
+  const [statusSearchQuery, setStatusSearchQuery] = useState('');
   
   // Позиции для выпадающих списков
   const [cfoFilterPosition, setCfoFilterPosition] = useState<{ top: number; left: number } | null>(null);
+  const [statusFilterPosition, setStatusFilterPosition] = useState<{ top: number; left: number } | null>(null);
   
   const cfoFilterButtonRef = useRef<HTMLButtonElement>(null);
+  const statusFilterButtonRef = useRef<HTMLButtonElement>(null);
   
   // Состояние для ширин колонок
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
@@ -151,6 +167,8 @@ export default function PurchasesTable() {
       innerId: 128, // w-32 = 8rem = 128px
       cfo: 80, // w-20 = 5rem = 80px
       budgetAmount: 150, // Бюджет
+      status: 120, // Статус
+      purchaser: 150, // Закупщик
     };
     return defaults[columnKey] || 120;
   };
@@ -161,22 +179,22 @@ export default function PurchasesTable() {
   };
   
   // Состояние для порядка колонок
-  const [columnOrder, setColumnOrder] = useState<string[]>(['purchaseRequestId', 'innerId', 'cfo', 'budgetAmount']);
+  const [columnOrder, setColumnOrder] = useState<string[]>(['purchaseRequestId', 'innerId', 'cfo', 'purchaser', 'budgetAmount', 'status']);
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   
   // Загружаем сохраненный порядок колонок из localStorage
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('purchasesTableColumnOrder');
-      if (saved) {
-        const order = JSON.parse(saved);
-        // Проверяем, что все колонки присутствуют
-        const defaultOrder = ['purchaseRequestId', 'innerId', 'cfo', 'budgetAmount'];
-        const validOrder = order.filter((col: string) => defaultOrder.includes(col));
-        const missingCols = defaultOrder.filter(col => !validOrder.includes(col));
-        setColumnOrder([...validOrder, ...missingCols]);
-      }
+        const saved = localStorage.getItem('purchasesTableColumnOrder');
+        if (saved) {
+          const order = JSON.parse(saved);
+          // Проверяем, что все колонки присутствуют
+          const defaultOrder = ['purchaseRequestId', 'innerId', 'cfo', 'purchaser', 'budgetAmount', 'status'];
+          const validOrder = order.filter((col: string) => defaultOrder.includes(col));
+          const missingCols = defaultOrder.filter(col => !validOrder.includes(col));
+          setColumnOrder([...validOrder, ...missingCols]);
+        }
     } catch (err) {
       console.error('Error loading column order:', err);
     }
@@ -250,6 +268,14 @@ export default function PurchasesTable() {
       setCfoFilterPosition(position);
     }
   }, [isCfoFilterOpen, calculateFilterPosition]);
+
+  // Обновляем позицию при открытии фильтра Статус
+  useEffect(() => {
+    if (isStatusFilterOpen && statusFilterButtonRef.current) {
+      const position = calculateFilterPosition(statusFilterButtonRef);
+      setStatusFilterPosition(position);
+    }
+  }, [isStatusFilterOpen, calculateFilterPosition]);
 
   // Получение уникальных значений для фильтров
   const [uniqueValues, setUniqueValues] = useState<Record<string, string[]>>({
@@ -357,7 +383,37 @@ export default function PurchasesTable() {
           params.append('cfo', cfo);
         });
       }
-      
+
+      // Фильтр по статусу - передаем все выбранные значения на бэкенд
+      // Если фильтр пустой, не передаем параметр status, чтобы показать все закупки (включая без статуса)
+      if (statusFilter.size > 0) {
+        statusFilter.forEach(status => {
+          params.append('status', status);
+        });
+      }
+
+      // Фильтр по номеру заявки
+      // Если пусто - не передаем параметр (по умолчанию на бэкенде исключаются закупки без заявки)
+      // Если указано число - передаем это число
+      // Если указано "null" или "-" - передаем -1 (специальное значение для показа закупок без заявки)
+      if (filters.purchaseRequestId && filters.purchaseRequestId.trim() !== '') {
+        const requestIdValue = filters.purchaseRequestId.trim();
+        if (requestIdValue.toLowerCase() === 'null' || requestIdValue === '-') {
+          // Специальное значение для показа закупок без заявки
+          params.append('purchaseRequestId', '-1');
+        } else {
+          const requestIdNumber = parseInt(requestIdValue, 10);
+          if (!isNaN(requestIdNumber) && requestIdNumber > 0) {
+            params.append('purchaseRequestId', String(requestIdNumber));
+          }
+        }
+      }
+
+      // Фильтр по закупщику
+      if (filters.purchaser && filters.purchaser.trim() !== '') {
+        params.append('purchaser', filters.purchaser.trim());
+      }
+
       const url = `${getBackendUrl()}/api/purchases?${params.toString()}`;
       const response = await fetch(url);
       if (!response.ok) {
@@ -375,7 +431,7 @@ export default function PurchasesTable() {
   // Debounce для текстовых фильтров и фильтра бюджета (задержка 500мс)
   useEffect(() => {
     // Проверяем, изменились ли текстовые фильтры
-    const textFields = ['innerId'];
+    const textFields = ['innerId', 'purchaseRequestId', 'purchaser'];
     const budgetFields = ['budgetAmount', 'budgetAmountOperator'];
     const hasTextChanges = textFields.some(field => localFilters[field] !== filters[field]);
     const hasBudgetChanges = budgetFields.some(field => localFilters[field] !== filters[field]);
@@ -402,7 +458,7 @@ export default function PurchasesTable() {
 
   useEffect(() => {
     fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters);
-  }, [currentPage, pageSize, selectedYear, sortField, sortDirection, filters, cfoFilter]);
+  }, [currentPage, pageSize, selectedYear, sortField, sortDirection, filters, cfoFilter, statusFilter]);
 
   // Восстановление фокуса после обновления localFilters
   useEffect(() => {
@@ -541,6 +597,34 @@ export default function PurchasesTable() {
     setCurrentPage(0);
   };
 
+  const handleStatusToggle = (status: string) => {
+    const newSet = new Set(statusFilter);
+    if (newSet.has(status)) {
+      newSet.delete(status);
+    } else {
+      newSet.add(status);
+    }
+    setStatusFilter(newSet);
+    setCurrentPage(0);
+  };
+
+  const handleStatusSelectAll = () => {
+    setStatusFilter(new Set(ALL_STATUSES));
+    setCurrentPage(0);
+  };
+
+  const handleStatusDeselectAll = () => {
+    setStatusFilter(new Set());
+    setCurrentPage(0);
+  };
+
+  const getFilteredStatusOptions = () => {
+    if (!statusSearchQuery.trim()) return ALL_STATUSES;
+    return ALL_STATUSES.filter(status => 
+      status.toLowerCase().includes(statusSearchQuery.toLowerCase())
+    );
+  };
+
   // Закрываем выпадающие списки при клике вне их
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -548,15 +632,18 @@ export default function PurchasesTable() {
       if (isCfoFilterOpen && !target.closest('.cfo-filter-container')) {
         setIsCfoFilterOpen(false);
       }
+      if (isStatusFilterOpen && !target.closest('.status-filter-container')) {
+        setIsStatusFilterOpen(false);
+      }
     };
 
-    if (isCfoFilterOpen) {
+    if (isCfoFilterOpen || isStatusFilterOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
-  }, [isCfoFilterOpen]);
+  }, [isCfoFilterOpen, isStatusFilterOpen]);
 
   // Фильтруем опции по поисковому запросу
   const getFilteredCfoOptions = useMemo(() => {
@@ -625,6 +712,48 @@ export default function PurchasesTable() {
         >
           <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
             <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+              <input
+                type="text"
+                data-filter-field="purchaseRequestId"
+                value={localFilters.purchaseRequestId || ''}
+                onChange={(e) => {
+                  const newValue = e.target.value;
+                  const cursorPos = e.target.selectionStart || 0;
+                  setLocalFilters(prev => ({
+                    ...prev,
+                    purchaseRequestId: newValue,
+                  }));
+                  requestAnimationFrame(() => {
+                    const input = e.target as HTMLInputElement;
+                    if (input && document.activeElement === input) {
+                      const newPos = Math.min(cursorPos, newValue.length);
+                      input.setSelectionRange(newPos, newPos);
+                    }
+                  });
+                }}
+                onFocus={(e) => {
+                  e.stopPropagation();
+                  setFocusedField('purchaseRequestId');
+                }}
+                onBlur={(e) => {
+                  setTimeout(() => {
+                    const activeElement = document.activeElement as HTMLElement;
+                    if (activeElement && 
+                        activeElement !== e.target && 
+                        !activeElement.closest('input[data-filter-field]') &&
+                        !activeElement.closest('select')) {
+                      setFocusedField(null);
+                    }
+                  }, 200);
+                }}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                }}
+                className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                placeholder="Номер или null"
+                style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+              />
             </div>
             <div className="flex items-center gap-1 min-h-[20px]">
               <button
@@ -863,6 +992,109 @@ export default function PurchasesTable() {
       );
     }
     
+    if (columnKey === 'status') {
+      return (
+        <th
+          key={columnKey}
+          draggable
+          onDragStart={(e) => handleDragStart(e, columnKey)}
+          onDragOver={(e) => handleDragOver(e, columnKey)}
+          onDragLeave={handleDragLeave}
+          onDrop={(e) => handleDrop(e, columnKey)}
+          className={`px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+          style={{ width: `${getColumnWidth('status')}px`, minWidth: `${getColumnWidth('status')}px`, maxWidth: `${getColumnWidth('status')}px`, verticalAlign: 'top' }}
+        >
+          <div className="flex flex-col gap-1">
+            <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}>
+              <div className="relative status-filter-container w-full h-full">
+                <button
+                  ref={statusFilterButtonRef}
+                  type="button"
+                  onClick={() => setIsStatusFilterOpen(!isStatusFilterOpen)}
+                  className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded bg-white text-left focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center justify-between hover:bg-gray-50"
+                  style={{ height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
+                >
+                  <span className="text-gray-600 truncate">
+                    {statusFilter.size === 0 
+                      ? 'Все' 
+                      : statusFilter.size === 1
+                      ? Array.from(statusFilter)[0]
+                      : `${statusFilter.size} выбрано`}
+                  </span>
+                  <svg className={`w-3 h-3 transition-transform flex-shrink-0 ${isStatusFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {isStatusFilterOpen && statusFilterPosition && (
+                  <div 
+                    className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden"
+                    style={{
+                      top: `${statusFilterPosition.top}px`,
+                      left: `${statusFilterPosition.left}px`,
+                    }}
+                  >
+                    <div className="p-2 border-b border-gray-200">
+                      <div className="relative">
+                        <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
+                        <input
+                          type="text"
+                          value={statusSearchQuery}
+                          onChange={(e) => setStatusSearchQuery(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          placeholder="Поиск..."
+                        />
+                      </div>
+                    </div>
+                    <div className="p-2 border-b border-gray-200 flex gap-2">
+                      <button
+                        onClick={() => handleStatusSelectAll()}
+                        className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                      >
+                        Все
+                      </button>
+                      <button
+                        onClick={() => handleStatusDeselectAll()}
+                        className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                      >
+                        Снять
+                      </button>
+                    </div>
+                    <div className="max-h-48 overflow-y-auto">
+                      {getFilteredStatusOptions().length === 0 ? (
+                        <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
+                      ) : (
+                        getFilteredStatusOptions().map((status) => (
+                          <label
+                            key={status}
+                            className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={statusFilter.has(status)}
+                              onChange={() => handleStatusToggle(status)}
+                              className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                            />
+                            <span className="ml-2 text-xs text-gray-700 flex-1">{status}</span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            <span className="normal-case min-h-[20px] flex items-center">Статус</span>
+          </div>
+          <div
+            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+            onMouseDown={(e) => handleResizeStart(e, 'status')}
+            style={{ zIndex: 10 }}
+          />
+        </th>
+      );
+    }
+    
     if (columnKey === 'budgetAmount') {
       return (
         <th
@@ -982,6 +1214,91 @@ export default function PurchasesTable() {
       );
     }
     
+    if (columnKey === 'purchaser') {
+      return (
+        <th
+          key={columnKey}
+          draggable
+          onDragStart={(e) => handleDragStart(e, columnKey)}
+          onDragOver={(e) => handleDragOver(e, columnKey)}
+          onDragLeave={handleDragLeave}
+          onDrop={(e) => handleDrop(e, columnKey)}
+          className={`px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''} cursor-move`}
+          style={{ width: `${getColumnWidth('purchaser')}px`, minWidth: `${getColumnWidth('purchaser')}px`, maxWidth: `${getColumnWidth('purchaser')}px`, verticalAlign: 'top' }}
+        >
+          <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+            <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+              <input
+                type="text"
+                data-filter-field="purchaser"
+                value={localFilters.purchaser || ''}
+                onChange={(e) => {
+                  const newValue = e.target.value;
+                  const cursorPos = e.target.selectionStart || 0;
+                  setLocalFilters(prev => ({
+                    ...prev,
+                    purchaser: newValue,
+                  }));
+                  requestAnimationFrame(() => {
+                    const input = e.target as HTMLInputElement;
+                    if (input && document.activeElement === input) {
+                      const newPos = Math.min(cursorPos, newValue.length);
+                      input.setSelectionRange(newPos, newPos);
+                    }
+                  });
+                }}
+                onFocus={(e) => {
+                  e.stopPropagation();
+                  setFocusedField('purchaser');
+                }}
+                onBlur={(e) => {
+                  setTimeout(() => {
+                    const activeElement = document.activeElement as HTMLElement;
+                    if (activeElement && 
+                        activeElement !== e.target && 
+                        !activeElement.closest('input[data-filter-field]') &&
+                        !activeElement.closest('select')) {
+                      setFocusedField(null);
+                    }
+                  }, 200);
+                }}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                }}
+                className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                placeholder="Фильтр"
+                style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+              />
+            </div>
+            <div className="flex items-center gap-1 min-h-[20px]">
+              <button
+                onClick={() => handleSort('purchaser')}
+                className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+              >
+                {sortField === 'purchaser' ? (
+                  sortDirection === 'asc' ? (
+                    <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                  ) : (
+                    <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                  )
+                ) : (
+                  <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                )}
+              </button>
+              <span className="text-xs font-medium text-gray-500 tracking-wider">Закупщик</span>
+            </div>
+          </div>
+          <div
+            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+            onMouseDown={(e) => handleResizeStart(e, 'purchaser')}
+            style={{ zIndex: 10 }}
+          />
+        </th>
+      );
+    }
+    
     return null;
   };
   
@@ -1031,6 +1348,42 @@ export default function PurchasesTable() {
           style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px` }}
         >
           {item.budgetAmount ? new Intl.NumberFormat('ru-RU').format(item.budgetAmount) : '-'}
+        </td>
+      );
+    }
+    
+    if (columnKey === 'purchaser') {
+      return (
+        <td 
+          key={columnKey} 
+          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
+          style={{ width: `${getColumnWidth('purchaser')}px`, minWidth: `${getColumnWidth('purchaser')}px`, maxWidth: `${getColumnWidth('purchaser')}px` }}
+        >
+          {item.purchaser || '-'}
+        </td>
+      );
+    }
+    
+    if (columnKey === 'status') {
+      return (
+        <td 
+          key={columnKey} 
+          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
+          style={{ width: `${getColumnWidth('status')}px`, minWidth: `${getColumnWidth('status')}px`, maxWidth: `${getColumnWidth('status')}px` }}
+        >
+          {item.status ? (
+            <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+              item.status === 'Проект'
+                ? 'bg-gray-100 text-gray-800'
+                : 'bg-gray-100 text-gray-800'
+            }`}>
+              {item.status}
+            </span>
+          ) : (
+            <span className="px-2 py-1 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
+              -
+            </span>
+          )}
         </td>
       );
     }
@@ -1190,9 +1543,11 @@ export default function PurchasesTable() {
                   cfo: '',
                   budgetAmount: '',
                   budgetAmountOperator: 'gte',
+                  purchaseRequestId: '',
+                  purchaser: '',
                 };
                 setFilters(emptyFilters);
-                setLocalFilters({ innerId: '', budgetAmount: '', budgetAmountOperator: 'gte' });
+                setLocalFilters({ innerId: '', budgetAmount: '', budgetAmountOperator: 'gte', purchaseRequestId: '', purchaser: '' });
                 setCfoFilter(new Set());
                 setCfoSearchQuery('');
                 setSortField('purchaseRequestId');

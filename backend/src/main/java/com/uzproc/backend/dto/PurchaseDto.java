@@ -22,6 +22,7 @@ public class PurchaseDto {
     private String contractType;
     private Integer contractDurationMonths;
     private Long purchaseRequestId;
+    private String purchaser;
     private PurchaseStatus status;
     private String state;
     private LocalDateTime createdAt;
@@ -158,6 +159,14 @@ public class PurchaseDto {
 
     public void setPurchaseRequestId(Long purchaseRequestId) {
         this.purchaseRequestId = purchaseRequestId;
+    }
+
+    public String getPurchaser() {
+        return purchaser;
+    }
+
+    public void setPurchaser(String purchaser) {
+        this.purchaser = purchaser;
     }
 
     public PurchaseStatus getStatus() {
