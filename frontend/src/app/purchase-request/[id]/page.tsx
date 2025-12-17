@@ -2016,116 +2016,116 @@ export default function PurchaseRequestDetailPage() {
                         </div>
                         
                         {/* Содержимое: основной договор и спецификации */}
-                        <div className="flex flex-col lg:flex-row gap-4 items-start w-full">
-                          {/* Основной договор слева */}
+                      <div className="flex flex-col lg:flex-row gap-4 items-start w-full">
+                        {/* Основной договор слева */}
                           <div className="flex-shrink-0 w-full lg:w-auto">
-                            {purchaseRequest.contracts
-                              .filter(contract => contract.parentContract)
-                              .map((contract) => (
-                                <div key={contract.id} className="border border-gray-200 rounded p-2">
+                          {purchaseRequest.contracts
+                            .filter(contract => contract.parentContract)
+                            .map((contract) => (
+                              <div key={contract.id} className="border border-gray-200 rounded p-2">
                                   <div className="space-y-2">
-                                    <div>
-                                      <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                        Внутренний ID
-                                      </label>
-                                      <p className="text-xs text-gray-900">
-                                        {contract.parentContract!.innerId || '-'}
-                                      </p>
-                                    </div>
-                                    <div>
-                                      <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                        Наименование
-                                      </label>
-                                      <p className="text-xs text-gray-900">
-                                        {contract.parentContract!.name || '-'}
-                                      </p>
-                                    </div>
-                                    <div>
-                                      <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                        Заголовок
-                                      </label>
-                                      <p className="text-xs text-gray-900">
-                                        {contract.parentContract!.title || '-'}
-                                      </p>
-                                    </div>
-                                    <div>
-                                      <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                        ЦФО
-                                      </label>
-                                      <p className="text-xs text-gray-900">
-                                        {contract.parentContract!.cfo || '-'}
-                                      </p>
-                                    </div>
-                                    <div>
-                                      <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                        Дата создания
-                                      </label>
-                                      <p className="text-xs text-gray-900">
-                                        {contract.parentContract!.contractCreationDate ? new Date(contract.parentContract!.contractCreationDate).toLocaleDateString('ru-RU') : '-'}
-                                      </p>
-                                    </div>
-                                    <div>
-                                      <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                        Сумма договора
-                                      </label>
-                                      <p className="text-xs text-gray-900">
-                                        {contract.parentContract!.budgetAmount ? new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(contract.parentContract!.budgetAmount) : '-'}
-                                      </p>
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
-                          </div>
-                          
-                          {/* Спецификации справа в виде таблицы */}
-                          <div className="flex-1 w-full lg:w-auto">
-                            {(() => {
-                              // Фильтруем пустые спецификации (у которых все поля пустые)
-                              const nonEmptySpecs = specifications.filter((spec) => {
-                                return spec.innerId || spec.name || spec.title || spec.cfo || spec.contractCreationDate || spec.budgetAmount;
-                              });
-                              
-                              // Показываем блок только если есть непустые спецификации
-                              return nonEmptySpecs.length > 0 ? (
-                                <div className="w-full">
-                                  <div className="mb-2">
-                                    <label className="block text-xs font-semibold text-gray-600">
-                                      Спецификации
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                      Внутренний ID
                                     </label>
+                                    <p className="text-xs text-gray-900">
+                                      {contract.parentContract!.innerId || '-'}
+                                    </p>
                                   </div>
-                                  <div className="overflow-x-auto w-full">
-                                    <table className="w-full text-[10px] border-collapse" style={{ tableLayout: 'fixed', width: '100%' }}>
-                                      <thead>
-                                        <tr className="bg-gray-50 border-b border-gray-200">
-                                          <th className="text-left py-1 px-2 font-semibold text-gray-600 border-r border-gray-200" style={{ width: '15%' }}>Внутренний ID</th>
-                                          <th className="text-left py-1 px-2 font-semibold text-gray-600 border-r border-gray-200" style={{ width: '20%' }}>Наименование</th>
-                                          <th className="text-left py-1 px-2 font-semibold text-gray-600 border-r border-gray-200" style={{ width: '20%' }}>Заголовок</th>
-                                          <th className="text-left py-1 px-2 font-semibold text-gray-600 border-r border-gray-200" style={{ width: '10%' }}>ЦФО</th>
-                                          <th className="text-left py-1 px-2 font-semibold text-gray-600 border-r border-gray-200" style={{ width: '15%' }}>Дата создания</th>
-                                          <th className="text-right py-1 px-2 font-semibold text-gray-600" style={{ width: '20%' }}>Сумма</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {nonEmptySpecs.map((spec) => (
-                                          <tr key={spec.id} className="border-b border-gray-100 hover:bg-gray-50">
-                                            <td className="py-1 px-2 text-gray-900 border-r border-gray-100">{spec.innerId || '-'}</td>
-                                            <td className="py-1 px-2 text-gray-900 border-r border-gray-100">{spec.name || '-'}</td>
-                                            <td className="py-1 px-2 text-gray-900 border-r border-gray-100">{spec.title || '-'}</td>
-                                            <td className="py-1 px-2 text-gray-900 border-r border-gray-100">{spec.cfo || '-'}</td>
-                                            <td className="py-1 px-2 text-gray-900 border-r border-gray-100">
-                                              {spec.contractCreationDate ? new Date(spec.contractCreationDate).toLocaleDateString('ru-RU') : '-'}
-                                            </td>
-                                            <td className="py-1 px-2 text-gray-900 text-right">
-                                              {spec.budgetAmount ? new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(spec.budgetAmount) : '-'}
-                                            </td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                      Наименование
+                                    </label>
+                                    <p className="text-xs text-gray-900">
+                                      {contract.parentContract!.name || '-'}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                      Заголовок
+                                    </label>
+                                    <p className="text-xs text-gray-900">
+                                      {contract.parentContract!.title || '-'}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                      ЦФО
+                                    </label>
+                                    <p className="text-xs text-gray-900">
+                                      {contract.parentContract!.cfo || '-'}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                      Дата создания
+                                    </label>
+                                    <p className="text-xs text-gray-900">
+                                      {contract.parentContract!.contractCreationDate ? new Date(contract.parentContract!.contractCreationDate).toLocaleDateString('ru-RU') : '-'}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                      Сумма договора
+                                    </label>
+                                    <p className="text-xs text-gray-900">
+                                      {contract.parentContract!.budgetAmount ? new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(contract.parentContract!.budgetAmount) : '-'}
+                                    </p>
                                   </div>
                                 </div>
-                              ) : null;
-                            })()}
+                              </div>
+                            ))}
+                        </div>
+                        
+                        {/* Спецификации справа в виде таблицы */}
+                        <div className="flex-1 w-full lg:w-auto">
+                          {(() => {
+                            // Фильтруем пустые спецификации (у которых все поля пустые)
+                            const nonEmptySpecs = specifications.filter((spec) => {
+                              return spec.innerId || spec.name || spec.title || spec.cfo || spec.contractCreationDate || spec.budgetAmount;
+                            });
+                            
+                            // Показываем блок только если есть непустые спецификации
+                            return nonEmptySpecs.length > 0 ? (
+                              <div className="w-full">
+                                <div className="mb-2">
+                                    <label className="block text-xs font-semibold text-gray-600">
+                                    Спецификации
+                                  </label>
+                                </div>
+                                <div className="overflow-x-auto w-full">
+                                  <table className="w-full text-[10px] border-collapse" style={{ tableLayout: 'fixed', width: '100%' }}>
+                                    <thead>
+                                      <tr className="bg-gray-50 border-b border-gray-200">
+                                        <th className="text-left py-1 px-2 font-semibold text-gray-600 border-r border-gray-200" style={{ width: '15%' }}>Внутренний ID</th>
+                                        <th className="text-left py-1 px-2 font-semibold text-gray-600 border-r border-gray-200" style={{ width: '20%' }}>Наименование</th>
+                                        <th className="text-left py-1 px-2 font-semibold text-gray-600 border-r border-gray-200" style={{ width: '20%' }}>Заголовок</th>
+                                        <th className="text-left py-1 px-2 font-semibold text-gray-600 border-r border-gray-200" style={{ width: '10%' }}>ЦФО</th>
+                                        <th className="text-left py-1 px-2 font-semibold text-gray-600 border-r border-gray-200" style={{ width: '15%' }}>Дата создания</th>
+                                        <th className="text-right py-1 px-2 font-semibold text-gray-600" style={{ width: '20%' }}>Сумма</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {nonEmptySpecs.map((spec) => (
+                                        <tr key={spec.id} className="border-b border-gray-100 hover:bg-gray-50">
+                                          <td className="py-1 px-2 text-gray-900 border-r border-gray-100">{spec.innerId || '-'}</td>
+                                          <td className="py-1 px-2 text-gray-900 border-r border-gray-100">{spec.name || '-'}</td>
+                                          <td className="py-1 px-2 text-gray-900 border-r border-gray-100">{spec.title || '-'}</td>
+                                          <td className="py-1 px-2 text-gray-900 border-r border-gray-100">{spec.cfo || '-'}</td>
+                                          <td className="py-1 px-2 text-gray-900 border-r border-gray-100">
+                                            {spec.contractCreationDate ? new Date(spec.contractCreationDate).toLocaleDateString('ru-RU') : '-'}
+                                          </td>
+                                          <td className="py-1 px-2 text-gray-900 text-right">
+                                            {spec.budgetAmount ? new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(spec.budgetAmount) : '-'}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            ) : null;
+                          })()}
                           </div>
                         </div>
                       </div>

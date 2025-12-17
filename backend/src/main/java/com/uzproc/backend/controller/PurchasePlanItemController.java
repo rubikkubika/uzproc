@@ -232,5 +232,23 @@ public class PurchasePlanItemController {
             return ResponseEntity.status(500).body("Ошибка сервера: " + e.getMessage());
         }
     }
+
+    @PatchMapping("/{id}/purchase-subject")
+    public ResponseEntity<?> updatePurchasePlanItemPurchaseSubject(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> requestBody) {
+        try {
+            String purchaseSubject = requestBody.get("purchaseSubject");
+            // purchaseSubject может быть null или пустой строкой
+            
+            PurchasePlanItemDto updatedItem = purchasePlanItemService.updatePurchaseSubject(id, purchaseSubject);
+            if (updatedItem != null) {
+                return ResponseEntity.ok(updatedItem);
+            }
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Ошибка сервера: " + e.getMessage());
+        }
+    }
 }
 

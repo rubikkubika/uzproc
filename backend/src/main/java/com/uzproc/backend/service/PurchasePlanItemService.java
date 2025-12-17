@@ -274,6 +274,39 @@ public class PurchasePlanItemService {
                 .orElse(null);
     }
 
+    @Transactional
+    public PurchasePlanItemDto updatePurchaseSubject(Long id, String purchaseSubject) {
+        return purchasePlanItemRepository.findById(id)
+                .map(item -> {
+                    // Сохраняем старое значение для логирования изменений
+                    String oldPurchaseSubject = item.getPurchaseSubject();
+                    
+                    // Нормализуем новое значение (null если пустая строка)
+                    String normalizedPurchaseSubject = (purchaseSubject != null && !purchaseSubject.trim().isEmpty()) 
+                        ? purchaseSubject.trim() 
+                        : null;
+                    
+                    // Логируем изменение перед обновлением
+                    if ((oldPurchaseSubject == null && normalizedPurchaseSubject != null) || 
+                        (oldPurchaseSubject != null && !oldPurchaseSubject.equals(normalizedPurchaseSubject))) {
+                        purchasePlanItemChangeService.logChange(
+                            item.getId(),
+                            item.getGuid(),
+                            "purchaseSubject",
+                            oldPurchaseSubject,
+                            normalizedPurchaseSubject
+                        );
+                    }
+                    
+                    item.setPurchaseSubject(normalizedPurchaseSubject);
+                    PurchasePlanItem saved = purchasePlanItemRepository.save(item);
+                    logger.info("Updated purchaseSubject for purchase plan item {}: purchaseSubject={}",
+                            id, normalizedPurchaseSubject);
+                    return toDto(saved);
+                })
+                .orElse(null);
+    }
+
     /**
      * Конвертирует PurchasePlanItem entity в PurchasePlanItemDto
      */

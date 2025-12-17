@@ -656,8 +656,8 @@ export default function PurchaseRequestsTable() {
         defaultStatuses: DEFAULT_STATUSES
       });
       statusesToFilter.forEach(status => {
-        params.append('status', status);
-      });
+          params.append('status', status);
+        });
       
       const fetchUrl = `${getBackendUrl()}/api/purchase-requests?${params.toString()}`;
       const response = await fetch(fetchUrl);

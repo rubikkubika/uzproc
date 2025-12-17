@@ -383,6 +383,8 @@ export default function PurchasePlanItemsTable() {
   const companySelectRef = useRef<HTMLSelectElement | null>(null);
   const [editingPurchaseRequestId, setEditingPurchaseRequestId] = useState<number | null>(null);
   const purchaseRequestIdInputRef = useRef<HTMLInputElement | null>(null);
+  const [editingPurchaseSubject, setEditingPurchaseSubject] = useState<number | null>(null);
+  const purchaseSubjectInputRef = useRef<HTMLInputElement | null>(null);
   
   // Состояние для раскрытых строк
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
@@ -478,7 +480,7 @@ export default function PurchasePlanItemsTable() {
   const handleRowClick = useCallback((itemId: number, e: React.MouseEvent) => {
     // Не раскрываем, если клик был на интерактивном элементе (input, button, ссылка, область Ганта, select и т.д.)
     const target = e.target as HTMLElement;
-    if (target.closest('input, button, a, [role="button"], [data-gantt-chart], select, [data-editing-status], [data-editing-holding]')) {
+    if (target.closest('input, button, a, [role="button"], [data-gantt-chart], select, [data-editing-status], [data-editing-holding], [data-editing-purchase-subject]')) {
       return;
     }
     
@@ -958,6 +960,38 @@ export default function PurchasePlanItemsTable() {
       console.error('Error updating company:', error);
     } finally {
       setEditingHolding(null);
+    }
+  };
+
+  const handlePurchaseSubjectUpdate = async (itemId: number, newPurchaseSubject: string) => {
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/purchase-subject`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ purchaseSubject: newPurchaseSubject || null }),
+      });
+
+      if (response.ok) {
+        const updatedItem = await response.json();
+        setEditingPurchaseSubject(null);
+        
+        // Обновляем только конкретную строку в локальном состоянии
+        if (data) {
+          const updatedContent = data.content.map(item => 
+            item.id === itemId 
+              ? { ...item, purchaseSubject: updatedItem.purchaseSubject, updatedAt: updatedItem.updatedAt }
+              : item
+          );
+          setData({ ...data, content: updatedContent });
+        }
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to update purchase subject:', response.status, errorText);
+      }
+    } catch (error) {
+      console.error('Error updating purchase subject:', error);
     }
   };
 
@@ -1982,6 +2016,19 @@ export default function PurchasePlanItemsTable() {
       return () => clearTimeout(timer);
     }
   }, [localFilters]);
+
+  // Автоматическая подстройка размера textarea для purchaseSubject
+  useEffect(() => {
+    if (editingPurchaseSubject !== null && purchaseSubjectInputRef.current) {
+      const textarea = purchaseSubjectInputRef.current;
+      // Небольшая задержка для правильного расчета размера
+      setTimeout(() => {
+        textarea.style.height = 'auto';
+        textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+        textarea.focus();
+      }, 0);
+    }
+  }, [editingPurchaseSubject]);
 
   useEffect(() => {
     // Не вызываем fetchData до тех пор, пока фильтры не загружены из localStorage
@@ -3950,7 +3997,7 @@ export default function PurchasePlanItemsTable() {
                   <React.Fragment key={item.id}>
                 <tr 
                       className={`${isInactive ? 'bg-gray-100 opacity-60' : 'hover:bg-gray-50'} cursor-pointer`}
-                      onClick={(e) => handleRowClick(item.id, e)}
+                      onDoubleClick={(e) => handleRowClick(item.id, e)}
                 >
                         {visibleColumns.has('company') && (
                   <td className={`px-2 py-2 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px` }}>
@@ -4067,10 +4114,70 @@ export default function PurchasePlanItemsTable() {
                         )}
                         {visibleColumns.has('purchaseSubject') && (
                         <td 
-                          className={`px-2 py-2 text-xs break-words border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
+                          className={`px-2 py-2 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
                           style={{ width: `${getColumnWidth('purchaseSubject')}px`, minWidth: `${getColumnWidth('purchaseSubject')}px`, maxWidth: `${getColumnWidth('purchaseSubject')}px` }}
                         >
-                          {item.purchaseSubject || '-'}
+                          {editingPurchaseSubject === item.id ? (
+                            <textarea
+                              ref={purchaseSubjectInputRef}
+                              data-editing-purchase-subject={item.id}
+                              defaultValue={item.purchaseSubject || ''}
+                              onBlur={(e) => {
+                                const newValue = e.target.value.trim();
+                                if (newValue !== (item.purchaseSubject || '')) {
+                                  handlePurchaseSubjectUpdate(item.id, newValue);
+                                } else {
+                                  setEditingPurchaseSubject(null);
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                                  e.preventDefault();
+                                  const newValue = e.currentTarget.value.trim();
+                                  if (newValue !== (item.purchaseSubject || '')) {
+                                    handlePurchaseSubjectUpdate(item.id, newValue);
+                                  } else {
+                                    setEditingPurchaseSubject(null);
+                                  }
+                                } else if (e.key === 'Escape') {
+                                  setEditingPurchaseSubject(null);
+                                }
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              onFocus={(e) => {
+                                e.stopPropagation();
+                                setEditingPurchaseSubject(item.id);
+                                // Автоматически подстраиваем размер под содержимое
+                                const textarea = e.target as HTMLTextAreaElement;
+                                textarea.style.height = 'auto';
+                                textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+                              }}
+                              onChange={(e) => {
+                                // Автоматически подстраиваем размер при вводе
+                                const textarea = e.target as HTMLTextAreaElement;
+                                textarea.style.height = 'auto';
+                                textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+                              }}
+                              className="w-full text-xs border border-blue-500 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none overflow-hidden"
+                              disabled={isInactive}
+                              autoFocus
+                              rows={1}
+                              style={{ minHeight: '20px', maxHeight: '200px' }}
+                            />
+                          ) : (
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!isInactive) {
+                                  setEditingPurchaseSubject(item.id);
+                                }
+                              }}
+                              className={isInactive ? 'break-words' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors break-words'}
+                              title={isInactive ? '' : 'Нажмите для редактирования'}
+                            >
+                              {item.purchaseSubject || '-'}
+                            </div>
+                          )}
                         </td>
                         )}
                         {visibleColumns.has('purchaser') && (
