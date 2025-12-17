@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+const PASSWORD_VERSION = 'v2025';
+
 export function middleware(request: NextRequest) {
   const authToken = request.cookies.get('auth-token');
-  const isAuthenticated = authToken && authToken.value === 'authenticated';
+  // Проверяем, что cookie содержит актуальную версию пароля
+  const isAuthenticated = authToken && authToken.value === `authenticated-${PASSWORD_VERSION}`;
   const isLoginPage = request.nextUrl.pathname === '/login';
 
   // Если пользователь не авторизован и пытается зайти не на страницу логина
