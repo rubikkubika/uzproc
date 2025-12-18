@@ -530,14 +530,22 @@ export default function Presentation() {
             </>
           ) : (
             // Остальные слайды - макет
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center">
-                <h2 className="text-4xl font-bold text-gray-800 mb-4">
-                  Слайд {currentSlide + 1}
-                </h2>
-                <p className="text-xl text-gray-600">
-                  Контент слайда будет добавлен позже
-                </p>
+            <div className="flex-1 flex flex-col" style={{ minHeight: 0 }}>
+              <div className="flex items-start justify-between mb-2">
+                <h1 className="text-3xl font-bold text-gray-900">Названия добавим позже</h1>
+                <img src="/images/logo-small.svg" alt="Logo" className="w-10 h-10" />
+              </div>
+
+              <div
+                className="h-1 w-full rounded-full mb-3"
+                style={{
+                  background:
+                    'linear-gradient(90deg, rgba(168, 85, 247, 0.25) 0%, rgba(168, 85, 247, 0.25) 35%, rgba(255,255,255,1) 60%, rgba(255,255,255,1) 100%)',
+                }}
+              />
+
+              <div className="flex-1 flex items-center justify-center text-gray-400" style={{ minHeight: 0 }}>
+                Контент слайда будет добавлен позже
               </div>
             </div>
           )}
