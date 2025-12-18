@@ -52,7 +52,6 @@ export default function PurchasesTable() {
     budgetAmount: '',
     budgetAmountOperator: 'gte', // По умолчанию "больше равно"
     purchaseRequestId: '', // Фильтр по номеру заявки
-    purchaser: '', // Фильтр по закупщику
   });
 
   // Локальное состояние для текстовых фильтров (для сохранения фокуса)
@@ -61,7 +60,6 @@ export default function PurchasesTable() {
     budgetAmount: '',
     budgetAmountOperator: 'gte', // По умолчанию "больше равно"
     purchaseRequestId: '', // Фильтр по номеру заявки
-    purchaser: '', // Фильтр по закупщику
   });
 
   // ID активного поля для восстановления фокуса
@@ -75,21 +73,26 @@ export default function PurchasesTable() {
   // Состояние для множественных фильтров (чекбоксы)
   const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set());
+  const [purchaserFilter, setPurchaserFilter] = useState<Set<string>>(new Set());
   
   // Состояние для открытия/закрытия выпадающих списков
   const [isCfoFilterOpen, setIsCfoFilterOpen] = useState(false);
   const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
+  const [isPurchaserFilterOpen, setIsPurchaserFilterOpen] = useState(false);
   
   // Поиск внутри фильтров
   const [cfoSearchQuery, setCfoSearchQuery] = useState('');
   const [statusSearchQuery, setStatusSearchQuery] = useState('');
+  const [purchaserSearchQuery, setPurchaserSearchQuery] = useState('');
   
   // Позиции для выпадающих списков
   const [cfoFilterPosition, setCfoFilterPosition] = useState<{ top: number; left: number } | null>(null);
   const [statusFilterPosition, setStatusFilterPosition] = useState<{ top: number; left: number } | null>(null);
+  const [purchaserFilterPosition, setPurchaserFilterPosition] = useState<{ top: number; left: number } | null>(null);
   
   const cfoFilterButtonRef = useRef<HTMLButtonElement>(null);
   const statusFilterButtonRef = useRef<HTMLButtonElement>(null);
+  const purchaserFilterButtonRef = useRef<HTMLButtonElement>(null);
   
   // Состояние для ширин колонок
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
@@ -276,10 +279,19 @@ export default function PurchasesTable() {
       setStatusFilterPosition(position);
     }
   }, [isStatusFilterOpen, calculateFilterPosition]);
+  
+  // Обновляем позицию при открытии фильтра Закупщик
+  useEffect(() => {
+    if (isPurchaserFilterOpen && purchaserFilterButtonRef.current) {
+      const position = calculateFilterPosition(purchaserFilterButtonRef);
+      setPurchaserFilterPosition(position);
+    }
+  }, [isPurchaserFilterOpen, calculateFilterPosition]);
 
   // Получение уникальных значений для фильтров
   const [uniqueValues, setUniqueValues] = useState<Record<string, string[]>>({
     cfo: [],
+    purchaser: [],
   });
 
   // Загружаем общее количество записей без фильтров
@@ -308,6 +320,7 @@ export default function PurchasesTable() {
           const years = new Set<number>();
           const values: Record<string, Set<string>> = {
             cfo: new Set(),
+            purchaser: new Set(),
           };
           
           result.content.forEach((purchase: Purchase) => {
@@ -321,11 +334,13 @@ export default function PurchasesTable() {
             }
             // Собираем уникальные значения
             if (purchase.cfo) values.cfo.add(purchase.cfo);
+            if (purchase.purchaser) values.purchaser.add(purchase.purchaser);
           });
           
           const yearsArray = Array.from(years).sort((a, b) => b - a);
           const uniqueValuesData = {
             cfo: Array.from(values.cfo).sort(),
+            purchaser: Array.from(values.purchaser).sort(),
           };
           
           setAllYears(yearsArray);
@@ -386,6 +401,13 @@ export default function PurchasesTable() {
           params.append('cfo', cfo);
         });
       }
+      
+      // Фильтр по закупщику - множественный выбор (как ЦФО)
+      if (purchaserFilter.size > 0) {
+        purchaserFilter.forEach(p => {
+          params.append('purchaser', p);
+        });
+      }
 
       // Фильтр по статусу - передаем все выбранные значения на бэкенд
       // Если фильтр пустой, не передаем параметр status, чтобы показать все закупки (включая без статуса)
@@ -412,11 +434,6 @@ export default function PurchasesTable() {
         }
       }
 
-      // Фильтр по закупщику
-      if (filters.purchaser && filters.purchaser.trim() !== '') {
-        params.append('purchaser', filters.purchaser.trim());
-      }
-
       const url = `${getBackendUrl()}/api/purchases?${params.toString()}`;
       const response = await fetch(url);
       if (!response.ok) {
@@ -434,7 +451,7 @@ export default function PurchasesTable() {
   // Debounce для текстовых фильтров и фильтра бюджета (задержка 500мс)
   useEffect(() => {
     // Проверяем, изменились ли текстовые фильтры
-    const textFields = ['innerId', 'purchaseRequestId', 'purchaser'];
+    const textFields = ['innerId', 'purchaseRequestId'];
     const hasTextChanges = textFields.some(field => localFilters[field] !== filters[field]);
     // Для бюджета проверяем изменение значения
     const hasBudgetValueChange = localFilters.budgetAmount !== filters.budgetAmount;
@@ -472,7 +489,7 @@ export default function PurchasesTable() {
 
   useEffect(() => {
     fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters);
-  }, [currentPage, pageSize, selectedYear, sortField, sortDirection, filters, cfoFilter, statusFilter]);
+  }, [currentPage, pageSize, selectedYear, sortField, sortDirection, filters, cfoFilter, statusFilter, purchaserFilter]);
 
   // Синхронизация localFilters.budgetAmount с filters после загрузки данных
   // НО только если поле не в фокусе, чтобы сохранить форматирование
@@ -591,6 +608,7 @@ export default function PurchasesTable() {
   const getUniqueValues = (field: keyof Purchase): string[] => {
     const fieldMap: Record<string, keyof typeof uniqueValues> = {
       cfo: 'cfo',
+      purchaser: 'purchaser',
     };
     return uniqueValues[fieldMap[field] || 'cfo'] || [];
   };
@@ -624,6 +642,28 @@ export default function PurchasesTable() {
   const handleCfoDeselectAll = () => {
     setCfoFilter(new Set());
     setFilters(prev => ({ ...prev, cfo: '' }));
+    setCurrentPage(0);
+  };
+  
+  const handlePurchaserToggle = (purchaser: string) => {
+    const newSet = new Set(purchaserFilter);
+    if (newSet.has(purchaser)) {
+      newSet.delete(purchaser);
+    } else {
+      newSet.add(purchaser);
+    }
+    setPurchaserFilter(newSet);
+    setCurrentPage(0);
+  };
+  
+  const handlePurchaserSelectAll = () => {
+    const allPurchasers = getUniqueValues('purchaser');
+    setPurchaserFilter(new Set(allPurchasers));
+    setCurrentPage(0);
+  };
+  
+  const handlePurchaserDeselectAll = () => {
+    setPurchaserFilter(new Set());
     setCurrentPage(0);
   };
 
@@ -665,15 +705,18 @@ export default function PurchasesTable() {
       if (isStatusFilterOpen && !target.closest('.status-filter-container')) {
         setIsStatusFilterOpen(false);
       }
+      if (isPurchaserFilterOpen && !target.closest('.purchaser-filter-container')) {
+        setIsPurchaserFilterOpen(false);
+      }
     };
 
-    if (isCfoFilterOpen || isStatusFilterOpen) {
+    if (isCfoFilterOpen || isStatusFilterOpen || isPurchaserFilterOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
-  }, [isCfoFilterOpen, isStatusFilterOpen]);
+  }, [isCfoFilterOpen, isStatusFilterOpen, isPurchaserFilterOpen]);
 
   // Фильтруем опции по поисковому запросу
   const getFilteredCfoOptions = useMemo(() => {
@@ -687,6 +730,18 @@ export default function PurchasesTable() {
       return cfo.toLowerCase().includes(searchLower);
     });
   }, [cfoSearchQuery, uniqueValues.cfo]);
+  
+  const getFilteredPurchaserOptions = useMemo(() => {
+    const allPurchasers = uniqueValues.purchaser || [];
+    if (!purchaserSearchQuery || !purchaserSearchQuery.trim()) {
+      return allPurchasers;
+    }
+    const searchLower = purchaserSearchQuery.toLowerCase().trim();
+    return allPurchasers.filter(p => {
+      if (!p) return false;
+      return p.toLowerCase().includes(searchLower);
+    });
+  }, [purchaserSearchQuery, uniqueValues.purchaser]);
 
   const handleExportToExcel = () => {
     // TODO: Реализовать экспорт в Excel
@@ -1271,48 +1326,87 @@ export default function PurchasesTable() {
         >
           <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
             <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
-              <input
-                type="text"
-                data-filter-field="purchaser"
-                value={localFilters.purchaser || ''}
-                onChange={(e) => {
-                  const newValue = e.target.value;
-                  const cursorPos = e.target.selectionStart || 0;
-                  setLocalFilters(prev => ({
-                    ...prev,
-                    purchaser: newValue,
-                  }));
-                  requestAnimationFrame(() => {
-                    const input = e.target as HTMLInputElement;
-                    if (input && document.activeElement === input) {
-                      const newPos = Math.min(cursorPos, newValue.length);
-                      input.setSelectionRange(newPos, newPos);
-                    }
-                  });
-                }}
-                onFocus={(e) => {
-                  e.stopPropagation();
-                  setFocusedField('purchaser');
-                }}
-                onBlur={(e) => {
-                  setTimeout(() => {
-                    const activeElement = document.activeElement as HTMLElement;
-                    if (activeElement && 
-                        activeElement !== e.target && 
-                        !activeElement.closest('input[data-filter-field]') &&
-                        !activeElement.closest('select')) {
-                      setFocusedField(null);
-                    }
-                  }, 200);
-                }}
-                onClick={(e) => e.stopPropagation()}
-                onKeyDown={(e) => {
-                  e.stopPropagation();
-                }}
-                className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                placeholder="Фильтр"
-                style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
-              />
+              <div className="relative purchaser-filter-container w-full h-full flex-1" style={{ minWidth: 0 }}>
+                <button
+                  ref={purchaserFilterButtonRef}
+                  type="button"
+                  onClick={() => setIsPurchaserFilterOpen(!isPurchaserFilterOpen)}
+                  className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded bg-white text-left focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center gap-1 hover:bg-gray-50"
+                  style={{ height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
+                >
+                  <span className="text-gray-600 truncate flex-1 min-w-0 text-left">
+                    {purchaserFilter.size === 0
+                      ? 'Все'
+                      : purchaserFilter.size === 1
+                      ? (Array.from(purchaserFilter)[0] || 'Все')
+                      : `${purchaserFilter.size} выбрано`}
+                  </span>
+                  <svg className={`w-3 h-3 transition-transform flex-shrink-0 ${isPurchaserFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {isPurchaserFilterOpen && purchaserFilterPosition && (
+                  <div
+                    className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden"
+                    style={{
+                      top: `${purchaserFilterPosition.top}px`,
+                      left: `${purchaserFilterPosition.left}px`,
+                    }}
+                  >
+                    <div className="p-2 border-b border-gray-200">
+                      <div className="relative">
+                        <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
+                        <input
+                          type="text"
+                          value={purchaserSearchQuery}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            setPurchaserSearchQuery(e.target.value);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          onFocus={(e) => e.stopPropagation()}
+                          className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          placeholder="Поиск..."
+                        />
+                      </div>
+                    </div>
+                    <div className="p-2 border-b border-gray-200 flex gap-2">
+                      <button
+                        onClick={() => handlePurchaserSelectAll()}
+                        className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                      >
+                        Все
+                      </button>
+                      <button
+                        onClick={() => handlePurchaserDeselectAll()}
+                        className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                      >
+                        Снять
+                      </button>
+                    </div>
+                    <div className="max-h-48 overflow-y-auto">
+                      {getFilteredPurchaserOptions.length === 0 ? (
+                        <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
+                      ) : (
+                        getFilteredPurchaserOptions.map((p) => (
+                          <label
+                            key={p}
+                            className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={purchaserFilter.has(p)}
+                              onChange={() => handlePurchaserToggle(p)}
+                              className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                            />
+                            <span className="ml-2 text-xs text-gray-700 flex-1">{p}</span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-1 min-h-[20px]">
               <button
@@ -1590,12 +1684,13 @@ export default function PurchasesTable() {
                   budgetAmount: '',
                   budgetAmountOperator: 'gte',
                   purchaseRequestId: '',
-                  purchaser: '',
                 };
                 setFilters(emptyFilters);
-                setLocalFilters({ innerId: '', budgetAmount: '', budgetAmountOperator: 'gte', purchaseRequestId: '', purchaser: '' });
+                setLocalFilters({ innerId: '', budgetAmount: '', budgetAmountOperator: 'gte', purchaseRequestId: '' });
                 setCfoFilter(new Set());
                 setCfoSearchQuery('');
+                setPurchaserFilter(new Set());
+                setPurchaserSearchQuery('');
                 setSortField('purchaseRequestId');
                 setSortDirection('desc');
                 setSelectedYear(null);

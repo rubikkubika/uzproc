@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Bar } from 'react-chartjs-2';
+import { getBackendUrl } from '@/utils/api';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -24,6 +25,16 @@ ChartJS.register(
   ChartDataLabels
 );
 
+type PurchasesByCfo = Record<string, number>;
+
+interface PurchaseForPresentation {
+  cfo: string | null;
+  budgetAmount: number | null;
+  name?: string | null;
+  title?: string | null;
+  purchaseSubject?: string | null;
+}
+
 // Данные для первого слайда - Экономия
 const savingsData = {
   labels: ['План', 'Факт', 'Экономия'],
@@ -44,6 +55,88 @@ const savingsData = {
       borderWidth: 2,
     },
   ],
+};
+
+function buildSumByCfoChartData(valuesByCfo: PurchasesByCfo) {
+  // Берем топ-4 ЦФО по сумме, остальные в "Прочие"
+  const entries = Object.entries(valuesByCfo)
+    .filter(([cfo]) => cfo && cfo.trim())
+    .sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0));
+
+  const top = entries.slice(0, 4);
+  const restSum = entries.slice(4).reduce((acc, [, v]) => acc + (v ?? 0), 0);
+
+  const labels = [
+    ...top.map(([cfo]) => cfo),
+    ...(restSum > 0 ? ['Прочие'] : []),
+  ];
+
+  const data = [
+    ...top.map(([, v]) => v ?? 0),
+    ...(restSum > 0 ? [restSum] : []),
+  ];
+
+  return {
+    labels,
+    datasets: [
+      {
+        label: 'Сумма',
+        data,
+        barThickness: 28,
+        maxBarThickness: 34,
+        backgroundColor: 'rgba(59, 130, 246, 0.85)',
+        borderColor: 'rgba(59, 130, 246, 1)',
+        borderWidth: 2,
+      },
+    ],
+  };
+}
+
+const purchasesPlanFactOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  layout: {
+    padding: { top: 2, bottom: 2, left: 2, right: 2 },
+  },
+  plugins: {
+    legend: {
+      display: false,
+    },
+    datalabels: {
+      display: true,
+      color: '#ffffff',
+      font: { weight: 'bold' as const, size: 16 },
+      // Показываем сумму в млрд (например: 12 или 3.5)
+      formatter: (value: number) => {
+        const billions = value / 1_000_000_000;
+        if (!isFinite(billions)) return '';
+        const formatted =
+          billions >= 10 ? Math.round(billions).toString() : billions.toFixed(1).replace(/\.0$/, '');
+        return formatted;
+      },
+      anchor: 'center' as const,
+      align: 'center' as const,
+      offset: 0,
+    },
+  },
+  scales: {
+    y: {
+      display: false,
+      beginAtZero: true,
+      ticks: { display: false },
+      grid: { display: false },
+      border: { display: false },
+    },
+    x: {
+      display: true,
+      ticks: { display: true, font: { size: 11, weight: 'bold' as const } },
+      grid: { display: false },
+      border: { display: false },
+      // Дополнительно сужаем колонки через проценты
+      categoryPercentage: 0.7,
+      barPercentage: 0.7,
+    },
+  },
 };
 
 const savingsChartOptions = {
@@ -179,6 +272,75 @@ const medianPriceChartOptions = {
 export default function Presentation() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const totalSlides = 5; // Пока 5 слайдов для макета
+  const [purchasesByCfo, setPurchasesByCfo] = useState<PurchasesByCfo>({});
+  const [purchases2025, setPurchases2025] = useState<PurchaseForPresentation[]>([]);
+
+  useEffect(() => {
+    // Для слайда 1 подтягиваем данные закупок по дате создания за 2025 и группируем по ЦФО
+    const load = async () => {
+      try {
+        const backendUrl = getBackendUrl();
+        const url = `${backendUrl}/api/purchases?page=0&size=10000&year=2025`;
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const json = await res.json();
+        const content: PurchaseForPresentation[] = json?.content || [];
+        setPurchases2025(content);
+
+        // Для диаграммы распределения по ЦФО считаем суммы budgetAmount
+        // ВАЖНО: включаем закупки без ЦФО в отдельную корзину, чтобы сумма диаграммы = общей сумме
+        const acc: PurchasesByCfo = {};
+        content.forEach((p) => {
+          const cfo = (p.cfo || '').trim() || 'Без ЦФО';
+          const amount = typeof p.budgetAmount === 'number' ? p.budgetAmount : 0;
+          acc[cfo] = (acc[cfo] || 0) + amount;
+        });
+        setPurchasesByCfo(acc);
+      } catch {
+        // ignore
+      }
+    };
+    load();
+  }, []);
+
+  const purchasesPlanFactData = buildSumByCfoChartData(
+    Object.keys(purchasesByCfo).length > 0
+      ? purchasesByCfo
+      : { 'ЦФО A': 10_000_000_000, 'ЦФО B': 7_000_000_000, 'ЦФО C': 3_000_000_000 } // fallback
+  );
+
+  const etpPurchases = purchases2025.filter((p) => {
+    const hay = `${p.purchaseSubject || ''} ${p.name || ''} ${p.title || ''}`.toLowerCase();
+    // ЭТП / электронная торговая площадка
+    return hay.includes('электронн') || hay.includes('торгов') || hay.includes('этп');
+  });
+  const etpPurchasesCount = etpPurchases.length;
+  const etpExamples = etpPurchases
+    .map((p) => (p.purchaseSubject || p.title || p.name || '').trim())
+    .filter(Boolean)
+    .slice(0, 3);
+  const etpPurchasesAmount = etpPurchases.reduce((acc, p) => {
+    const amount = typeof p.budgetAmount === 'number' ? p.budgetAmount : 0;
+    return acc + amount;
+  }, 0);
+  const etpPurchasesAmountLabel =
+    etpPurchasesAmount > 0
+      ? new Intl.NumberFormat('ru-RU', {
+          notation: 'compact',
+          maximumFractionDigits: 1,
+        }).format(etpPurchasesAmount)
+      : '—';
+  const totalPurchasesAmount2025 = purchases2025.reduce((acc, p) => {
+    const amount = typeof p.budgetAmount === 'number' ? p.budgetAmount : 0;
+    return acc + amount;
+  }, 0);
+  const totalPurchasesAmount2025Label =
+    totalPurchasesAmount2025 > 0
+      ? new Intl.NumberFormat('ru-RU', {
+          notation: 'compact',
+          maximumFractionDigits: 1,
+        }).format(totalPurchasesAmount2025)
+      : '—';
 
   const goToNextSlide = () => {
     setCurrentSlide((prev) => (prev < totalSlides - 1 ? prev + 1 : prev));
@@ -210,6 +372,29 @@ export default function Presentation() {
 
   return (
     <div className="h-full flex flex-col items-center justify-center bg-gray-100 p-6 overflow-auto">
+      {/* Панель управления */}
+      <div className="w-full max-w-[1123px] mb-4 flex items-center justify-between gap-3">
+        <div className="text-sm text-gray-600">
+          Слайд {currentSlide + 1} / {totalSlides}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={goToPreviousSlide}
+            disabled={currentSlide === 0}
+            className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Предыдущий слайд
+          </button>
+          <button
+            onClick={goToNextSlide}
+            disabled={currentSlide === totalSlides - 1}
+            className="px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Следующий слайд
+          </button>
+        </div>
+      </div>
+
       {/* Контейнер слайда - A4 альбомная ориентация (297mm x 210mm) */}
       <div 
         className="relative bg-white shadow-2xl rounded-lg overflow-hidden"
@@ -228,45 +413,117 @@ export default function Presentation() {
           {currentSlide === 0 ? (
             // Первый слайд - Экономия
             <>
-              <div className="flex items-start justify-between mb-1">
-                <h1 className="text-3xl font-bold text-gray-900">Экономия</h1>
-                <div className="bg-green-100 border-2 border-green-500 rounded-lg px-4 py-2">
-                  <div className="text-xs text-gray-600 mb-0.5 text-center">Сэкономлено</div>
-                  <div className="text-xl font-bold text-green-700 text-center">более 300 тыс $</div>
-                </div>
+              <div className="flex items-start justify-between mb-2">
+                <h1 className="text-3xl font-bold text-gray-900">Экономия на закупках 2025</h1>
+                <img
+                  src="/images/logo-small.svg"
+                  alt="Logo"
+                  className="w-10 h-10"
+                />
               </div>
-              <div className="flex-1 flex flex-col gap-1" style={{ minHeight: 0 }}>
-                {/* Верхняя часть: диаграмма экономии и карточки */}
-                <div className="flex items-start gap-3" style={{ height: '50%', minHeight: 0 }}>
-                  <div className="w-2/3 h-full" style={{ minHeight: 0 }}>
-                    <div className="text-sm font-semibold text-gray-700 mb-0.5">Общая экономия</div>
-                    <div style={{ height: 'calc(100% - 1.5rem)' }}>
-                      <Bar data={savingsData} options={savingsChartOptions} />
+
+              {/* Разделитель как у логотипа: градиент, исчезающий справа */}
+              <div
+                className="h-1 w-full rounded-full mb-3"
+                style={{
+                  background:
+                    'linear-gradient(90deg, rgba(168, 85, 247, 0.25) 0%, rgba(168, 85, 247, 0.25) 35%, rgba(255,255,255,1) 60%, rgba(255,255,255,1) 100%)',
+                }}
+              />
+
+              {/* 4 равные части (2x2) */}
+              <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-0 border border-gray-200 rounded-lg overflow-hidden" style={{ minHeight: 0 }}>
+                {/* Верхний левый: Конкурентные закупки */}
+                <div className="p-3 flex flex-col" style={{ minHeight: 0 }}>
+                  <div className="text-xl font-bold text-gray-800">Конкурентные закупки</div>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <div className="bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
+                      <div className="text-lg leading-5 font-semibold text-gray-700 text-center">Сумма закупок 2025</div>
+                      <div className="text-xl font-extrabold text-gray-900 text-center tabular-nums">{totalPurchasesAmount2025Label}</div>
+                    </div>
+                    <div className="bg-orange-50 border border-orange-200 rounded-md px-3 py-2 relative">
+                      <span className="absolute -top-2.5 -right-2.5 bg-orange-600 text-white text-[12px] font-extrabold rounded-full px-2.5 py-1 shadow tabular-nums">
+                        23%
+                      </span>
+                      <div className="text-lg leading-5 font-semibold text-orange-800 text-center">Экономия</div>
+                      <div className="text-xl font-extrabold text-orange-800 text-center tabular-nums">13 млрд сум</div>
                     </div>
                   </div>
-                  <div className="w-1/3 flex flex-col gap-1.5 pt-2">
-                    <div className="bg-blue-50 p-2 rounded-lg border-l-4 border-blue-500">
-                      <div className="text-xs text-gray-600 mb-0.5">План</div>
-                      <div className="text-lg font-bold text-blue-700">100 млн ₽</div>
+                  <div className="mt-3">
+                    <div className="space-y-2">
+                      <div className="w-full flex items-center justify-between rounded-lg transition-colors relative text-sm px-2 py-1.5 text-gray-700 bg-white border-l-4 border-gray-300 border border-gray-200">
+                        <span className="font-semibold text-gray-700">Закупочная экономия</span>
+                        <span className="bg-white border border-gray-300 rounded-full px-3 py-1 text-base font-extrabold text-gray-900 tabular-nums shadow-sm">
+                          7.8 млрд
+                        </span>
+                      </div>
+
+                      <div className="w-full flex items-center justify-between rounded-lg transition-colors relative text-sm px-2 py-1.5 text-gray-700 bg-white border-l-4 border-gray-300 border border-gray-200">
+                        <span className="font-semibold text-gray-700">Экономия от медианных цен</span>
+                        <span className="bg-white border border-gray-300 rounded-full px-3 py-1 text-base font-extrabold text-gray-900 tabular-nums shadow-sm">
+                          3.1 млрд
+                        </span>
+                      </div>
+
+                      <div className="w-full flex items-center justify-between rounded-lg transition-colors relative text-sm px-2 py-1.5 text-gray-700 bg-white border-l-4 border-gray-300 border border-gray-200">
+                        <span className="font-semibold text-gray-700">Бюджетная экономия</span>
+                        <span className="bg-white border border-gray-300 rounded-full px-3 py-1 text-base font-extrabold text-gray-900 tabular-nums shadow-sm">
+                          2.1 млрд
+                        </span>
+                      </div>
                     </div>
-                    <div className="bg-green-50 p-2 rounded-lg border-l-4 border-green-500">
-                      <div className="text-xs text-gray-600 mb-0.5">Факт</div>
-                      <div className="text-lg font-bold text-green-700">85 млн ₽</div>
+                  </div>
+                  <div className="flex-1" style={{ minHeight: 0 }} />
+                </div>
+
+                {/* Верхний правый: placeholder */}
+                <div className="p-3 flex" style={{ minHeight: 0 }}>
+                  {/* Внутренний контейнер меньше блока, с цветом и закруглением */}
+                  <div className="w-full h-full bg-blue-50/50 border border-blue-200 rounded-2xl p-3 flex flex-col justify-between shadow-sm" style={{ minHeight: 0 }}>
+                    <div>
+                      <div className="text-xl font-bold text-gray-800">Закупки на электронной торговой площадке</div>
+                      <div className="mt-2">
+                        {etpExamples.length === 0 ? (
+                          <div className="text-xs text-gray-400">Нет данных</div>
+                        ) : (
+                          <ul className="space-y-1">
+                            {etpExamples.map((text, idx) => (
+                              <li key={idx} className="text-xs text-gray-700 flex gap-1">
+                                <span className="text-gray-400">{idx + 1}.</span>
+                                <span className="truncate" title={text}>
+                                  {text}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
                     </div>
-                    <div className="bg-orange-50 p-2 rounded-lg border-l-4 border-orange-500">
-                      <div className="text-xs text-gray-600 mb-0.5">Экономия</div>
-                      <div className="text-lg font-bold text-orange-700">15 млн ₽</div>
-                      <div className="text-sm font-semibold text-orange-600">15%</div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
+                          <div className="text-lg leading-5 font-semibold text-gray-700 text-center">Кол-во закупок</div>
+                          <div className="text-xl font-extrabold text-gray-900 text-center tabular-nums">{etpPurchasesCount}</div>
+                        </div>
+                        <div className="bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
+                          <div className="text-lg leading-5 font-semibold text-gray-700 text-center">Сумма закупок</div>
+                          <div className="text-xl font-extrabold text-gray-900 text-center tabular-nums">{etpPurchasesAmountLabel}</div>
+                        </div>
+                      </div>
+                      <div className="bg-orange-50 border border-orange-200 rounded-md px-3 py-2">
+                        <div className="text-lg leading-5 font-semibold text-orange-800 text-center">Экономия</div>
+                        <div className="text-xl font-extrabold text-orange-800 text-center tabular-nums">13 млрд сум</div>
+                      </div>
                     </div>
                   </div>
                 </div>
-                {/* Нижняя часть: диаграмма медианных цен */}
-                <div className="flex items-start" style={{ height: '50%', minHeight: 0 }}>
-                  <div className="w-2/3 h-full" style={{ minHeight: 0 }}>
-                    <div className="text-sm font-semibold text-gray-700 mb-0.5">Медианные цены</div>
-                    <div style={{ height: 'calc(100% - 1.5rem)' }}>
-                      <Bar data={medianPriceData} options={medianPriceChartOptions} />
-                    </div>
+
+                {/* Нижняя строка: одна диаграмма на 2 блока (3+4) */}
+                <div className="col-span-2 p-3 flex flex-col relative" style={{ minHeight: 0 }}>
+                  <div className="text-xl font-bold text-gray-800 mb-1">Все закупки</div>
+                  <div className="flex-1" style={{ minHeight: 0 }}>
+                    <Bar data={purchasesPlanFactData} options={purchasesPlanFactOptions} />
                   </div>
                 </div>
               </div>

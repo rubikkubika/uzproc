@@ -17,7 +17,8 @@ import {
   ChevronDown,
   ChevronUp,
   Upload,
-  Mail
+  Mail,
+  FileText
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -42,6 +43,7 @@ const menuItems = [
     { id: 'purchase-plan', label: 'План закупок', icon: Calendar },
     { id: 'contracts', label: 'Договоры', icon: Package },
     { id: 'specifications', label: 'Спецификации', icon: Package },
+    { id: 'presentation', label: 'Презентация', icon: FileText },
   ];
 
   const initiatorItems = [

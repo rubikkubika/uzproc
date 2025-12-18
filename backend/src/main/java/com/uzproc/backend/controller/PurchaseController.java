@@ -36,7 +36,7 @@ public class PurchaseController {
             @RequestParam(required = false) String costType,
             @RequestParam(required = false) String contractType,
             @RequestParam(required = false) Long purchaseRequestId,
-            @RequestParam(required = false) String purchaser,
+            @RequestParam(required = false) List<String> purchaser,
             @RequestParam(required = false) List<String> status,
             @RequestParam(required = false) java.math.BigDecimal budgetAmount,
             @RequestParam(required = false) String budgetAmountOperator) {

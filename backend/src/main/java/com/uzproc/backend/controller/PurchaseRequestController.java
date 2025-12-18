@@ -41,6 +41,7 @@ public class PurchaseRequestController {
             @RequestParam(required = false) Long idPurchaseRequest,
             @RequestParam(required = false) List<String> cfo,
             @RequestParam(required = false) String purchaseRequestInitiator,
+            @RequestParam(required = false) List<String> purchaser,
             @RequestParam(required = false) String name,
             @RequestParam(required = false) String costType,
             @RequestParam(required = false) String contractType,
@@ -56,7 +57,7 @@ public class PurchaseRequestController {
                 budgetAmount, budgetAmountOperator);
         
         Page<PurchaseRequestDto> purchaseRequests = purchaseRequestService.findAll(
-                page, size, year, month, sortBy, sortDir, idPurchaseRequest, cfo, purchaseRequestInitiator,
+                page, size, year, month, sortBy, sortDir, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
                 name, costType, contractType, isPlanned, requiresPurchase, status, excludePendingStatuses,
                 budgetAmount, budgetAmountOperator);
         

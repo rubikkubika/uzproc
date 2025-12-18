@@ -69,6 +69,7 @@ public class PurchaseRequestService {
             Long idPurchaseRequest,
             List<String> cfo,
             String purchaseRequestInitiator,
+            List<String> purchaser,
             String name,
             String costType,
             String contractType,
@@ -80,11 +81,11 @@ public class PurchaseRequestService {
             String budgetAmountOperator) {
         
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, month: {}, idPurchaseRequest: {}, cfo: {}, purchaseRequestInitiator: '{}', name: '{}', costType: '{}', contractType: '{}', isPlanned: {}, requiresPurchase: {}, status: {}, excludePendingStatuses: {}, budgetAmount: {}, budgetAmountOperator: '{}'",
-                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, name, costType, contractType, isPlanned, requiresPurchase, status, excludePendingStatuses, budgetAmount, budgetAmountOperator);
+        logger.info("Filter parameters - year: {}, month: {}, idPurchaseRequest: {}, cfo: {}, purchaseRequestInitiator: '{}', purchaser: {}, name: '{}', costType: '{}', contractType: '{}', isPlanned: {}, requiresPurchase: {}, status: {}, excludePendingStatuses: {}, budgetAmount: {}, budgetAmountOperator: '{}'",
+                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, requiresPurchase, status, excludePendingStatuses, budgetAmount, budgetAmountOperator);
         
         Specification<PurchaseRequest> spec = buildSpecification(
-                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, name, costType, contractType, isPlanned, requiresPurchase, status, excludePendingStatuses, budgetAmount, budgetAmountOperator);
+                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, requiresPurchase, status, excludePendingStatuses, budgetAmount, budgetAmountOperator);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -177,6 +178,7 @@ public class PurchaseRequestService {
             Long idPurchaseRequest,
             List<String> cfo,
             String purchaseRequestInitiator,
+            List<String> purchaser,
             String name,
             String costType,
             String contractType,
@@ -258,6 +260,34 @@ public class PurchaseRequestService {
                 predicates.add(cb.like(cb.lower(root.get("purchaseRequestInitiator")), "%" + purchaseRequestInitiator.toLowerCase() + "%"));
                 predicateCount++;
                 logger.info("Added purchaseRequestInitiator filter: '{}'", purchaseRequestInitiator);
+            }
+            
+            // Фильтр по закупщику (множественный выбор, точное совпадение, case-insensitive)
+            // ВАЖНО: используем trim на стороне БД, т.к. в данных могут быть хвостовые пробелы
+            if (purchaser != null && !purchaser.isEmpty()) {
+                List<String> validPurchaserValues = purchaser.stream()
+                        .filter(s -> s != null && !s.trim().isEmpty())
+                        .map(String::trim)
+                        .toList();
+                
+                if (!validPurchaserValues.isEmpty()) {
+                    var purchaserExpr = cb.lower(cb.function("trim", String.class, root.get("purchaser")));
+                    if (validPurchaserValues.size() == 1) {
+                        predicates.add(cb.equal(
+                                purchaserExpr,
+                                validPurchaserValues.get(0).toLowerCase()
+                        ));
+                        predicateCount++;
+                        logger.info("Added single purchaser filter: '{}'", validPurchaserValues.get(0));
+                    } else {
+                        List<Predicate> purchaserPredicates = validPurchaserValues.stream()
+                                .map(p -> cb.equal(purchaserExpr, p.toLowerCase()))
+                                .toList();
+                        predicates.add(cb.or(purchaserPredicates.toArray(new Predicate[0])));
+                        predicateCount++;
+                        logger.info("Added multiple purchaser filter: {}", validPurchaserValues);
+                    }
+                }
             }
             
             // Фильтр по наименованию (частичное совпадение, case-insensitive)

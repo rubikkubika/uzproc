@@ -50,13 +50,13 @@ public class PurchaseService {
             String costType,
             String contractType,
             Long purchaseRequestId,
-            String purchaser,
+            List<String> purchaser,
             List<String> status,
             java.math.BigDecimal budgetAmount,
             String budgetAmountOperator) {
         
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, month: {}, innerId: '{}', purchaseNumber: {}, cfo: {}, purchaseInitiator: '{}', name: '{}', costType: '{}', contractType: '{}', purchaseRequestId: {}, purchaser: '{}', status: {}, budgetAmount: {}, budgetAmountOperator: '{}'",
+        logger.info("Filter parameters - year: {}, month: {}, innerId: '{}', purchaseNumber: {}, cfo: {}, purchaseInitiator: '{}', name: '{}', costType: '{}', contractType: '{}', purchaseRequestId: {}, purchaser: {}, status: {}, budgetAmount: {}, budgetAmountOperator: '{}'",
                 year, month, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType, purchaseRequestId, purchaser, status, budgetAmount, budgetAmountOperator);
         
         Specification<Purchase> spec = buildSpecification(
@@ -129,7 +129,7 @@ public class PurchaseService {
             String costType,
             String contractType,
             Long purchaseRequestId,
-            String purchaser,
+            List<String> purchaser,
             List<String> status,
             java.math.BigDecimal budgetAmount,
             String budgetAmountOperator) {
@@ -251,13 +251,35 @@ public class PurchaseService {
                 logger.info("Added default filter: exclude purchases without request (purchaseRequestId IS NOT NULL)");
             }
             
-            // Фильтр по закупщику (частичное совпадение, case-insensitive, через join с PurchaseRequest)
-            if (purchaser != null && !purchaser.trim().isEmpty()) {
-                jakarta.persistence.criteria.Join<Purchase, PurchaseRequest> purchaseRequestJoin = 
-                    root.join("purchaseRequest", jakarta.persistence.criteria.JoinType.LEFT);
-                predicates.add(cb.like(cb.lower(purchaseRequestJoin.get("purchaser")), "%" + purchaser.toLowerCase() + "%"));
-                predicateCount++;
-                logger.info("Added purchaser filter: '{}'", purchaser);
+            // Фильтр по закупщику (множественный выбор, точное совпадение, case-insensitive, через join с PurchaseRequest)
+            // ВАЖНО: используем trim на стороне БД, т.к. в данных могут быть хвостовые пробелы
+            if (purchaser != null && !purchaser.isEmpty()) {
+                List<String> validPurchaserValues = purchaser.stream()
+                        .filter(s -> s != null && !s.trim().isEmpty())
+                        .map(String::trim)
+                        .toList();
+
+                if (!validPurchaserValues.isEmpty()) {
+                    jakarta.persistence.criteria.Join<Purchase, PurchaseRequest> purchaseRequestJoin =
+                            root.join("purchaseRequest", jakarta.persistence.criteria.JoinType.LEFT);
+                    var purchaserExpr = cb.lower(cb.function("trim", String.class, purchaseRequestJoin.get("purchaser")));
+
+                    if (validPurchaserValues.size() == 1) {
+                        predicates.add(cb.equal(
+                                purchaserExpr,
+                                validPurchaserValues.get(0).toLowerCase()
+                        ));
+                        predicateCount++;
+                        logger.info("Added single purchaser filter: '{}'", validPurchaserValues.get(0));
+                    } else {
+                        List<Predicate> purchaserPredicates = validPurchaserValues.stream()
+                                .map(p -> cb.equal(purchaserExpr, p.toLowerCase()))
+                                .toList();
+                        predicates.add(cb.or(purchaserPredicates.toArray(new Predicate[0])));
+                        predicateCount++;
+                        logger.info("Added multiple purchaser filter: {}", validPurchaserValues);
+                    }
+                }
             }
             
             // Фильтр по статусу (множественный выбор)

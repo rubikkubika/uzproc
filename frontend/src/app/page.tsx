@@ -19,6 +19,7 @@ import PurchasePlanItemsMonthlyChart from '@/components/PurchasePlanItemsMonthly
 import PurchaseRequestsYearlyChart from '@/components/PurchaseRequestsYearlyChart';
 import UploadCSV from '@/components/UploadCSV';
 import { getBackendUrl } from '@/utils/api';
+import Presentation from '@/components/Presentation';
 
 // Компонент для тестирования отправки почты
 function TestEmailForm() {
@@ -421,6 +422,9 @@ function DashboardContent() {
             <SpecificationsTable />
           </div>
         );
+      
+      case 'presentation':
+        return <Presentation />;
 
       case 'upload':
         return <UploadCSV />;
