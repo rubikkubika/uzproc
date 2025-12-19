@@ -528,6 +528,103 @@ export default function Presentation() {
                 </div>
               </div>
             </>
+          ) : currentSlide === 1 ? (
+            // Второй слайд - Внедрение ЭТП
+            <div className="flex-1 flex flex-col" style={{ minHeight: 0 }}>
+              <div className="flex items-start justify-between mb-2">
+                <h1 className="text-3xl font-bold text-gray-900">Внедрение Электронной торговой площадки</h1>
+                <img src="/images/logo-small.svg" alt="Logo" className="w-10 h-10" />
+              </div>
+
+              <div
+                className="h-1 w-full rounded-full mb-3"
+                style={{
+                  background:
+                    'linear-gradient(90deg, rgba(168, 85, 247, 0.25) 0%, rgba(168, 85, 247, 0.25) 35%, rgba(255,255,255,1) 60%, rgba(255,255,255,1) 100%)',
+                }}
+              />
+
+              <div className="flex-1 grid grid-cols-2 gap-6" style={{ minHeight: 0 }}>
+                {/* Левая колонка: скриншоты в блоках 1 и 3 */}
+                <div className="flex flex-col gap-4" style={{ minHeight: 0 }}>
+                  {/* Блок 1 - скриншот */}
+                  <div className="flex-1 relative" style={{ minHeight: 0 }}>
+                    <div className="absolute inset-0 bg-white rounded-xl border-2 border-gray-300 shadow-lg p-2 z-10 transform rotate-1">
+                      <div className="w-full h-full bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
+                        <span className="text-xs text-gray-400">Скриншот 1</span>
+                      </div>
+                    </div>
+                    <div className="absolute inset-0 bg-white rounded-xl border-2 border-gray-300 shadow-lg p-2 z-0 transform -rotate-1 translate-x-2 translate-y-2 opacity-60">
+                      <div className="w-full h-full bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
+                        <span className="text-xs text-gray-400">Скриншот 1</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Блок 3 - скриншот */}
+                  <div className="flex-1 relative" style={{ minHeight: 0 }}>
+                    <div className="absolute inset-0 bg-white rounded-xl border-2 border-gray-300 shadow-lg p-2 z-10 transform -rotate-1">
+                      <div className="w-full h-full bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
+                        <span className="text-xs text-gray-400">Скриншот 2</span>
+                      </div>
+                    </div>
+                    <div className="absolute inset-0 bg-white rounded-xl border-2 border-gray-300 shadow-lg p-2 z-0 transform rotate-1 -translate-x-2 -translate-y-2 opacity-60">
+                      <div className="w-full h-full bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
+                        <span className="text-xs text-gray-400">Скриншот 2</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Правая колонка: тезисы */}
+                <div className="flex-1 flex flex-col gap-4 overflow-y-auto" style={{ minHeight: 0 }}>
+                  {/* Пилот */}
+                  <div className="bg-blue-50/50 border border-blue-200 rounded-lg p-4">
+                    <p className="text-sm text-gray-800 leading-relaxed">
+                      В конце 3 квартале 2025 проведен пилот по осуществлению закупок через ЭТП
+                    </p>
+                  </div>
+
+                  {/* Цели внедрения ЭТП */}
+                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <h3 className="text-base font-bold text-gray-900 mb-3">Цели внедрения ЭТП</h3>
+                    <ul className="space-y-2 text-sm text-gray-700">
+                      <li className="flex items-start gap-2">
+                        <span className="text-blue-600 mt-1">•</span>
+                        <span>Повышение прозрачности закупочных процедур для внутренних команд и поставщиков</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-blue-600 mt-1">•</span>
+                        <span>Расширение конкурентной среды за счет публичного доступа поставщиков к закупкам</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-blue-600 mt-1">•</span>
+                        <span>Снижение операционной нагрузки за счет автоматизации обработки коммерческих предложений – стандарт закупок во всех крупных компаниях</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  {/* Результаты */}
+                  <div className="bg-orange-50/50 border border-orange-200 rounded-lg p-4">
+                    <h3 className="text-base font-bold text-gray-900 mb-3">Результаты</h3>
+                    <ul className="space-y-2 text-sm text-gray-700">
+                      <li className="flex items-start gap-2">
+                        <span className="text-orange-600 font-bold">&gt;</span>
+                        <span><strong>3,6 млрд. сум</strong> – объем фактически реализованной экономии с октября 2025</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-orange-600 font-bold">&gt;</span>
+                        <span><strong>X млрд сум</strong> – стоимость проведенных закупок через ЭТП, <strong>X</strong> – количество</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-orange-600 font-bold">+</span>
+                        <span>Дополнительные результаты будут добавлены</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
           ) : (
             // Остальные слайды - макет
             <div className="flex-1 flex flex-col" style={{ minHeight: 0 }}>
