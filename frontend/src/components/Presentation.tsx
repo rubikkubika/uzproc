@@ -271,7 +271,7 @@ const medianPriceChartOptions = {
 
 export default function Presentation() {
   const [currentSlide, setCurrentSlide] = useState(0);
-  const totalSlides = 5; // Пока 5 слайдов для макета
+  const totalSlides = 10; // 10 слайдов
   const [purchasesByCfo, setPurchasesByCfo] = useState<PurchasesByCfo>({});
   const [purchases2025, setPurchases2025] = useState<PurchaseForPresentation[]>([]);
   
@@ -921,6 +921,146 @@ export default function Presentation() {
                     <div className="text-xl font-extrabold text-green-600 tabular-nums">—</div>
                   </div>
                 </div>
+              </div>
+            </div>
+          ) : currentSlide === 3 ? (
+            // Четвертый слайд - SLA по закупкам
+            <div className="flex-1 flex flex-col" style={{ minHeight: 0 }}>
+              <div className="flex items-start justify-between mb-2">
+                <h1 className="text-3xl font-bold text-gray-900">SLA по закупкам</h1>
+                <img src="/images/logo-small.svg" alt="Logo" className="w-10 h-10" />
+              </div>
+
+              <div
+                className="h-1 w-full rounded-full mb-3"
+                style={{
+                  background:
+                    'linear-gradient(90deg, rgba(168, 85, 247, 0.25) 0%, rgba(168, 85, 247, 0.25) 35%, rgba(255,255,255,1) 60%, rgba(255,255,255,1) 100%)',
+                }}
+              />
+
+              <div className="flex-1 flex items-center justify-center text-gray-400" style={{ minHeight: 0 }}>
+                Контент слайда будет добавлен позже
+              </div>
+            </div>
+          ) : currentSlide === 4 ? (
+            // Пятый слайд - Закупки у единственного источника - Зона роста
+            <div className="flex-1 flex flex-col" style={{ minHeight: 0 }}>
+              <div className="flex items-start justify-between mb-2">
+                <h1 className="text-3xl font-bold text-gray-900">Закупки у единственного источника - Зона роста</h1>
+                <img src="/images/logo-small.svg" alt="Logo" className="w-10 h-10" />
+              </div>
+
+              <div
+                className="h-1 w-full rounded-full mb-3"
+                style={{
+                  background:
+                    'linear-gradient(90deg, rgba(168, 85, 247, 0.25) 0%, rgba(168, 85, 247, 0.25) 35%, rgba(255,255,255,1) 60%, rgba(255,255,255,1) 100%)',
+                }}
+              />
+
+              <div className="flex-1 flex items-center justify-center text-gray-400" style={{ minHeight: 0 }}>
+                Контент слайда будет добавлен позже
+              </div>
+            </div>
+          ) : currentSlide === 5 ? (
+            // Шестой слайд - Реализованные проекты развития 2025
+            <div className="flex-1 flex flex-col" style={{ minHeight: 0 }}>
+              <div className="flex items-start justify-between mb-2">
+                <h1 className="text-3xl font-bold text-gray-900">Реализованные проекты развития 2025</h1>
+                <img src="/images/logo-small.svg" alt="Logo" className="w-10 h-10" />
+              </div>
+
+              <div
+                className="h-1 w-full rounded-full mb-3"
+                style={{
+                  background:
+                    'linear-gradient(90deg, rgba(168, 85, 247, 0.25) 0%, rgba(168, 85, 247, 0.25) 35%, rgba(255,255,255,1) 60%, rgba(255,255,255,1) 100%)',
+                }}
+              />
+
+              <div className="flex-1 flex items-center justify-center text-gray-400" style={{ minHeight: 0 }}>
+                Контент слайда будет добавлен позже
+              </div>
+            </div>
+          ) : currentSlide === 6 ? (
+            // Седьмой слайд - План закупок 2026
+            <div className="flex-1 flex flex-col" style={{ minHeight: 0 }}>
+              <div className="flex items-start justify-between mb-2">
+                <h1 className="text-3xl font-bold text-gray-900">План закупок 2026</h1>
+                <img src="/images/logo-small.svg" alt="Logo" className="w-10 h-10" />
+              </div>
+
+              <div
+                className="h-1 w-full rounded-full mb-3"
+                style={{
+                  background:
+                    'linear-gradient(90deg, rgba(168, 85, 247, 0.25) 0%, rgba(168, 85, 247, 0.25) 35%, rgba(255,255,255,1) 60%, rgba(255,255,255,1) 100%)',
+                }}
+              />
+
+              <div className="flex-1 flex items-center justify-center text-gray-400" style={{ minHeight: 0 }}>
+                Контент слайда будет добавлен позже
+              </div>
+            </div>
+          ) : currentSlide === 7 ? (
+            // Восьмой слайд - Проекты развития 2026
+            <div className="flex-1 flex flex-col" style={{ minHeight: 0 }}>
+              <div className="flex items-start justify-between mb-2">
+                <h1 className="text-3xl font-bold text-gray-900">Проекты развития 2026</h1>
+                <img src="/images/logo-small.svg" alt="Logo" className="w-10 h-10" />
+              </div>
+
+              <div
+                className="h-1 w-full rounded-full mb-3"
+                style={{
+                  background:
+                    'linear-gradient(90deg, rgba(168, 85, 247, 0.25) 0%, rgba(168, 85, 247, 0.25) 35%, rgba(255,255,255,1) 60%, rgba(255,255,255,1) 100%)',
+                }}
+              />
+
+              <div className="flex-1 flex items-center justify-center text-gray-400" style={{ minHeight: 0 }}>
+                Контент слайда будет добавлен позже
+              </div>
+            </div>
+          ) : currentSlide === 8 ? (
+            // Девятый слайд - uzProc
+            <div className="flex-1 flex flex-col" style={{ minHeight: 0 }}>
+              <div className="flex items-start justify-between mb-2">
+                <h1 className="text-3xl font-bold text-gray-900">uzProc</h1>
+                <img src="/images/logo-small.svg" alt="Logo" className="w-10 h-10" />
+              </div>
+
+              <div
+                className="h-1 w-full rounded-full mb-3"
+                style={{
+                  background:
+                    'linear-gradient(90deg, rgba(168, 85, 247, 0.25) 0%, rgba(168, 85, 247, 0.25) 35%, rgba(255,255,255,1) 60%, rgba(255,255,255,1) 100%)',
+                }}
+              />
+
+              <div className="flex-1 flex items-center justify-center text-gray-400" style={{ minHeight: 0 }}>
+                Контент слайда будет добавлен позже
+              </div>
+            </div>
+          ) : currentSlide === 9 ? (
+            // Десятый слайд - Улучшение пользовательного опыта
+            <div className="flex-1 flex flex-col" style={{ minHeight: 0 }}>
+              <div className="flex items-start justify-between mb-2">
+                <h1 className="text-3xl font-bold text-gray-900">Улучшение пользовательного опыта</h1>
+                <img src="/images/logo-small.svg" alt="Logo" className="w-10 h-10" />
+              </div>
+
+              <div
+                className="h-1 w-full rounded-full mb-3"
+                style={{
+                  background:
+                    'linear-gradient(90deg, rgba(168, 85, 247, 0.25) 0%, rgba(168, 85, 247, 0.25) 35%, rgba(255,255,255,1) 60%, rgba(255,255,255,1) 100%)',
+                }}
+              />
+
+              <div className="flex-1 flex items-center justify-center text-gray-400" style={{ minHeight: 0 }}>
+                Контент слайда будет добавлен позже
               </div>
             </div>
           ) : (
