@@ -1946,7 +1946,7 @@ export default function PurchaseRequestsTable() {
                     </th>
                   );
                 }
-
+                
                 if (columnKey === 'name') {
                   return <SortableHeader key={columnKey} field="name" label="Наименование" width="w-48" columnKey="name" />;
                 }
@@ -2317,7 +2317,7 @@ export default function PurchaseRequestsTable() {
                         </td>
                       );
                     }
-
+                    
                     if (columnKey === 'name') {
                       return (
                         <td 

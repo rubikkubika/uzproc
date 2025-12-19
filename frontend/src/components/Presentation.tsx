@@ -735,6 +735,63 @@ export default function Presentation() {
           print-color-adjust: exact !important;
           color-adjust: exact !important;
         }
+        /* Убираем серый фон только у бейджиков (элементы с абсолютным позиционированием и bg-orange-600) */
+        .absolute.bg-orange-600,
+        span.absolute.bg-orange-600,
+        .absolute[class*="bg-orange-600"],
+        span[class*="absolute"][class*="bg-orange-600"],
+        span[class*="bg-orange-600"][class*="absolute"] {
+          background-color: rgb(234, 88, 12) !important;
+          background: rgb(234, 88, 12) !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
+        /* Убираем серые фоны у родительских элементов бейджиков, если они появились при печати */
+        .relative > .absolute.bg-orange-600,
+        .relative > span.absolute.bg-orange-600,
+        .relative > span[class*="absolute"][class*="bg-orange-600"] {
+          background-color: rgb(234, 88, 12) !important;
+          background: rgb(234, 88, 12) !important;
+        }
+        /* Убираем все возможные серые фоны у бейджиков */
+        span[class*="bg-orange-600"] {
+          background-color: rgb(234, 88, 12) !important;
+          background: rgb(234, 88, 12) !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
+        /* Убираем серые фоны из inline стилей у бейджиков */
+        span[style*="background"][class*="bg-orange-600"],
+        span[class*="bg-orange-600"][style*="background"] {
+          background-color: rgb(234, 88, 12) !important;
+          background: rgb(234, 88, 12) !important;
+        }
+        /* Убираем серый фон у родительских элементов бейджиков */
+        .relative:has(> .absolute.bg-orange-600),
+        .relative:has(> span.absolute.bg-orange-600) {
+          background-color: transparent !important;
+          background: transparent !important;
+        }
+        /* Альтернативный способ - убираем серый фон у всех relative элементов, которые содержат бейджик */
+        div.relative > span.absolute.bg-orange-600,
+        div[class*="relative"] > span[class*="absolute"][class*="bg-orange-600"] {
+          background-color: rgb(234, 88, 12) !important;
+          background: rgb(234, 88, 12) !important;
+        }
+        /* Убираем серый фон у всех элементов с абсолютным позиционированием, которые содержат текст "23%" */
+        span.absolute:contains("23%"),
+        span[class*="absolute"]:contains("23%") {
+          background-color: rgb(234, 88, 12) !important;
+          background: rgb(234, 88, 12) !important;
+        }
+        /* Убираем серые фоны из всех возможных источников у бейджиков */
+        *[class*="bg-orange-600"][class*="absolute"] *,
+        *[class*="absolute"][class*="bg-orange-600"] * {
+          background-color: transparent !important;
+          background: transparent !important;
+        }
       }
     `,
   });
@@ -825,6 +882,63 @@ export default function Presentation() {
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
           color-adjust: exact !important;
+        }
+        /* Убираем серый фон только у бейджиков (элементы с абсолютным позиционированием и bg-orange-600) */
+        .absolute.bg-orange-600,
+        span.absolute.bg-orange-600,
+        .absolute[class*="bg-orange-600"],
+        span[class*="absolute"][class*="bg-orange-600"],
+        span[class*="bg-orange-600"][class*="absolute"] {
+          background-color: rgb(234, 88, 12) !important;
+          background: rgb(234, 88, 12) !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
+        /* Убираем серые фоны у родительских элементов бейджиков, если они появились при печати */
+        .relative > .absolute.bg-orange-600,
+        .relative > span.absolute.bg-orange-600,
+        .relative > span[class*="absolute"][class*="bg-orange-600"] {
+          background-color: rgb(234, 88, 12) !important;
+          background: rgb(234, 88, 12) !important;
+        }
+        /* Убираем все возможные серые фоны у бейджиков */
+        span[class*="bg-orange-600"] {
+          background-color: rgb(234, 88, 12) !important;
+          background: rgb(234, 88, 12) !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
+        /* Убираем серые фоны из inline стилей у бейджиков */
+        span[style*="background"][class*="bg-orange-600"],
+        span[class*="bg-orange-600"][style*="background"] {
+          background-color: rgb(234, 88, 12) !important;
+          background: rgb(234, 88, 12) !important;
+        }
+        /* Убираем серый фон у родительских элементов бейджиков */
+        .relative:has(> .absolute.bg-orange-600),
+        .relative:has(> span.absolute.bg-orange-600) {
+          background-color: transparent !important;
+          background: transparent !important;
+        }
+        /* Альтернативный способ - убираем серый фон у всех relative элементов, которые содержат бейджик */
+        div.relative > span.absolute.bg-orange-600,
+        div[class*="relative"] > span[class*="absolute"][class*="bg-orange-600"] {
+          background-color: rgb(234, 88, 12) !important;
+          background: rgb(234, 88, 12) !important;
+        }
+        /* Убираем серый фон у всех элементов с абсолютным позиционированием, которые содержат текст "23%" */
+        span.absolute:contains("23%"),
+        span[class*="absolute"]:contains("23%") {
+          background-color: rgb(234, 88, 12) !important;
+          background: rgb(234, 88, 12) !important;
+        }
+        /* Убираем серые фоны из всех возможных источников у бейджиков */
+        *[class*="bg-orange-600"][class*="absolute"] *,
+        *[class*="absolute"][class*="bg-orange-600"] * {
+          background-color: transparent !important;
+          background: transparent !important;
         }
       }
     `,

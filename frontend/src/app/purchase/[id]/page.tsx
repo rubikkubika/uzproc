@@ -1379,92 +1379,92 @@ export default function PurchaseDetailPage() {
                               </div>
                               <div className="bg-white rounded-lg shadow-md p-2">
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
-                                <div>
-                                  <label className="block text-xs font-semibold text-gray-600 mb-0">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-0">
                                     Внутренний ID
-                                  </label>
-                                  <p className="text-xs text-gray-900">
+                    </label>
+                    <p className="text-xs text-gray-900">
                                     {contract.parentContract.innerId || '-'}
-                                  </p>
-                                </div>
-                                <div>
-                                  <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                    Наименование
-                                  </label>
-                                  <p className="text-xs text-gray-900">
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                      Наименование
+                    </label>
+                    <p className="text-xs text-gray-900">
                                     {contract.parentContract.name || '-'}
-                                  </p>
-                                </div>
-                                <div>
-                                  <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                    Заголовок
-                                  </label>
-                                  <p className="text-xs text-gray-900">
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                      Заголовок
+                    </label>
+                    <p className="text-xs text-gray-900">
                                     {contract.parentContract.title || '-'}
-                                  </p>
-                                </div>
-                                <div>
-                                  <label className="block text-xs font-semibold text-gray-600 mb-0">
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-0">
                                     ЦФО
-                                  </label>
-                                  <p className="text-xs text-gray-900">
+                    </label>
+                    <p className="text-xs text-gray-900">
                                     {contract.parentContract.cfo || '-'}
-                                  </p>
-                                </div>
-                                <div>
-                                  <label className="block text-xs font-semibold text-gray-600 mb-0">
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-0">
                                     Дата создания
-                                  </label>
-                                  <p className="text-xs text-gray-900">
+                    </label>
+                    <p className="text-xs text-gray-900">
                                     {contract.parentContract.contractCreationDate ? new Date(contract.parentContract.contractCreationDate).toLocaleDateString('ru-RU') : '-'}
-                                  </p>
-                                </div>
-                                <div>
-                                  <label className="block text-xs font-semibold text-gray-600 mb-0">
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-0">
                                     Сумма договора
-                                  </label>
-                                  <p className="text-xs text-gray-900">
+                    </label>
+                    <p className="text-xs text-gray-900">
                                     {contract.parentContract.budgetAmount ? new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(contract.parentContract.budgetAmount) : '-'}
-                                  </p>
-                                </div>
+                    </p>
+                  </div>
                               </div>
                               </div>
                             </>
                           ) : (
                             // Если договор не является спецификацией, показываем сам договор
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
-                              <div>
-                                <label className="block text-xs font-semibold text-gray-600 mb-0">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-0">
                                   Внутренний ID
-                                </label>
-                                <p className="text-xs text-gray-900">
+                    </label>
+                    <p className="text-xs text-gray-900">
                                   {contract.innerId || '-'}
-                                </p>
-                              </div>
-                              <div>
-                                <label className="block text-xs font-semibold text-gray-600 mb-0">
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-0">
                                   Наименование
-                                </label>
-                                <p className="text-xs text-gray-900">
+                    </label>
+                    <p className="text-xs text-gray-900">
                                   {contract.name || '-'}
-                                </p>
-                              </div>
-                              <div>
-                                <label className="block text-xs font-semibold text-gray-600 mb-0">
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-0">
                                   Заголовок
-                                </label>
-                                <p className="text-xs text-gray-900">
+                    </label>
+                    <p className="text-xs text-gray-900">
                                   {contract.title || '-'}
-                                </p>
-                              </div>
-                              <div>
-                                <label className="block text-xs font-semibold text-gray-600 mb-0">
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-0">
                                   ЦФО
-                                </label>
+                    </label>
                                 <p className="text-xs text-gray-900">
                                   {contract.cfo || '-'}
                                 </p>
-                              </div>
+                    </div>
                               <div>
                                 <label className="block text-xs font-semibold text-gray-600 mb-0">
                                   Дата создания
@@ -1472,29 +1472,29 @@ export default function PurchaseDetailPage() {
                                 <p className="text-xs text-gray-900">
                                   {contract.contractCreationDate ? new Date(contract.contractCreationDate).toLocaleDateString('ru-RU') : '-'}
                                 </p>
-                              </div>
-                              <div>
-                                <label className="block text-xs font-semibold text-gray-600 mb-0">
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-0">
                                   Сумма договора
-                                </label>
+                    </label>
                                 <p className="text-xs text-gray-900">
                                   {contract.budgetAmount ? new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(contract.budgetAmount) : '-'}
                                 </p>
                               </div>
                             </div>
-                          )}
-                        </div>
+                      )}
+                    </div>
                         ))}
-                      </div>
+                  </div>
                     ) : (
                       <div className="text-center py-2 text-xs text-gray-500">
                         <p>Нет данных о договоре</p>
-                      </div>
+              </div>
                     )}
-                  </div>
-                  
+              </div>
+
                   {/* Правая часть - согласования договора */}
-                  <div className="w-full lg:w-64 flex-shrink-0">
+              <div className="w-full lg:w-64 flex-shrink-0">
                     <div className="space-y-1.5">
                       {/* Этап: Согласование договора */}
                       {contractApprovalStageApprovals.length > 0 && (
@@ -1682,60 +1682,60 @@ export default function PurchaseDetailPage() {
                         <div className="space-y-1">
                           {contractFinalApprovalStageApprovals.length > 0 ? (
                             contractFinalApprovalStageApprovals.map((approval) => (
-                              <div key={approval.id} className="flex gap-x-1 items-end border-b border-gray-200 pb-1 last:border-b-0 last:pb-0">
-                                <div className="flex-[2] min-w-0">
-                                  <div className="flex items-center gap-1">
-                                    {/* Индикатор статуса */}
-                                    <div className="flex-shrink-0">
-                                      {(() => {
-                                        const statusColor = getApprovalStatusColor(approval);
-                                        if (statusColor === 'green') {
-                                          return (
-                                            <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано'}>
-                                              <Check className="w-2 h-2 text-white" />
-                                            </div>
-                                          );
+                            <div key={approval.id} className="flex gap-x-1 items-end border-b border-gray-200 pb-1 last:border-b-0 last:pb-0">
+                              <div className="flex-[2] min-w-0">
+                                <div className="flex items-center gap-1">
+                                  {/* Индикатор статуса */}
+                                  <div className="flex-shrink-0">
+                                    {(() => {
+                                      const statusColor = getApprovalStatusColor(approval);
+                                      if (statusColor === 'green') {
+                                        return (
+                                          <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано'}>
+                                            <Check className="w-2 h-2 text-white" />
+                                          </div>
+                                        );
                                         } else if (statusColor === 'orange') {
-                                          return (
+                                        return (
                                             <div className="w-3 h-3 rounded-full bg-orange-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано с замечаниями'}>
-                                              <Check className="w-2 h-2 text-white" />
-                                            </div>
-                                          );
-                                        } else if (statusColor === 'yellow') {
-                                          return (
-                                            <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}>
-                                              <Clock className="w-2 h-2 text-white" />
-                                            </div>
-                                          );
-                                        } else {
-                                          return (
-                                            <div className="w-3 h-3 rounded-full bg-red-500 flex items-center justify-center" title={approval.completionResult || 'Не согласовано'}>
-                                              <X className="w-2 h-2 text-white" />
-                                            </div>
-                                          );
-                                        }
-                                      })()}
-                                    </div>
-                                    <p className="text-[10px] text-gray-900 truncate leading-tight">
-                                      {approval.role || '-'}
-                                    </p>
+                                            <Check className="w-2 h-2 text-white" />
+                                          </div>
+                                        );
+                                      } else if (statusColor === 'yellow') {
+                                        return (
+                                          <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}>
+                                            <Clock className="w-2 h-2 text-white" />
+                                          </div>
+                                        );
+                                      } else {
+                                        return (
+                                          <div className="w-3 h-3 rounded-full bg-red-500 flex items-center justify-center" title={approval.completionResult || 'Не согласовано'}>
+                                            <X className="w-2 h-2 text-white" />
+                                          </div>
+                                        );
+                                      }
+                                    })()}
                                   </div>
-                                </div>
-                                <div className="flex-shrink-0" style={{ width: '50px' }}>
                                   <p className="text-[10px] text-gray-900 truncate leading-tight">
-                                    {formatDate(approval.assignmentDate)}
-                                  </p>
-                                </div>
-                                <div className="flex-shrink-0" style={{ width: '35px' }}>
-                                  <p className="text-[10px] text-gray-900 truncate leading-tight">
-                                    {calculateDays(approval.assignmentDate, approval.completionDate, approval.daysInWork)}
+                                    {approval.role || '-'}
                                   </p>
                                 </div>
                               </div>
-                            ))
-                          ) : (
-                            <div className="text-[10px] text-gray-500 text-center py-1">Нет данных</div>
-                          )}
+                              <div className="flex-shrink-0" style={{ width: '50px' }}>
+                                <p className="text-[10px] text-gray-900 truncate leading-tight">
+                                  {formatDate(approval.assignmentDate)}
+                                </p>
+                              </div>
+                              <div className="flex-shrink-0" style={{ width: '35px' }}>
+                                <p className="text-[10px] text-gray-900 truncate leading-tight">
+                                  {calculateDays(approval.assignmentDate, approval.completionDate, approval.daysInWork)}
+                                </p>
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-[10px] text-gray-500 text-center py-1">Нет данных</div>
+                        )}
                         </div>
                       </div>
                       )}
@@ -1744,12 +1744,12 @@ export default function PurchaseDetailPage() {
                       {contractApprovals.length === 0 && (
                         <div className="border border-gray-200 rounded p-1.5 text-center py-2 text-[10px] text-gray-500">
                           Нет согласований
-                        </div>
-                      )}
                     </div>
+                      )}
                   </div>
                 </div>
               </div>
+            </div>
             </div>
 
             {/* Раздел: Заявка на закупку */}
@@ -1763,82 +1763,82 @@ export default function PurchaseDetailPage() {
                   {/* Левая часть с полями заявки */}
                   <div className="flex-1">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1.5">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                <div>
+                                  <label className="block text-xs font-semibold text-gray-600 mb-0">
                       Номер заявки
-                    </label>
-                    <p className="text-xs text-gray-900">
+                                  </label>
+                                  <p className="text-xs text-gray-900">
                       {purchaseRequest.idPurchaseRequest || '-'}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-0">
-                      Наименование
-                    </label>
-                    <p className="text-xs text-gray-900">
+                                  </p>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                    Наименование
+                                  </label>
+                                  <p className="text-xs text-gray-900">
                       {purchaseRequest.name || '-'}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-0">
-                      Заголовок
-                    </label>
-                    <p className="text-xs text-gray-900">
+                                  </p>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                    Заголовок
+                                  </label>
+                                  <p className="text-xs text-gray-900">
                       {purchaseRequest.title || '-'}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                  </p>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-gray-600 mb-0">
                       Дата создания заявки
-                    </label>
-                    <p className="text-xs text-gray-900">
+                                  </label>
+                                  <p className="text-xs text-gray-900">
                       {formatDate(purchaseRequest.purchaseRequestCreationDate)}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                  </p>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-gray-600 mb-0">
                       ЦФО
-                    </label>
-                    <p className="text-xs text-gray-900">
+                                  </label>
+                                  <p className="text-xs text-gray-900">
                       {purchaseRequest.cfo || '-'}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                  </p>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-gray-600 mb-0">
                       МЦЦ
-                    </label>
-                    <p className="text-xs text-gray-900">
+                                  </label>
+                                  <p className="text-xs text-gray-900">
                       {purchaseRequest.mcc || '-'}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                  </p>
+                                </div>
+                              <div>
+                                <label className="block text-xs font-semibold text-gray-600 mb-0">
                       Инициатор закупки
-                    </label>
-                    <p className="text-xs text-gray-900">
+                                </label>
+                                <p className="text-xs text-gray-900">
                       {purchaseRequest.purchaseRequestInitiator || '-'}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                </p>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-semibold text-gray-600 mb-0">
                       Закупщик
-                    </label>
-                    <p className="text-xs text-gray-900">
+                                </label>
+                                <p className="text-xs text-gray-900">
                       {purchaseRequest.purchaser || '-'}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                </p>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-semibold text-gray-600 mb-0">
                       Бюджет
-                    </label>
-                    <p className="text-xs text-gray-900">
+                                </label>
+                                <p className="text-xs text-gray-900">
                       {formatCurrency(purchaseRequest.budgetAmount ? Number(purchaseRequest.budgetAmount) : null)}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                </p>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-semibold text-gray-600 mb-0">
                       Плановая
-                    </label>
+                                </label>
                     <div className="text-xs">
                       {purchaseRequest.isPlanned === true ? (
                         <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">
@@ -1853,12 +1853,12 @@ export default function PurchaseDetailPage() {
                           -
                         </span>
                       )}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                              </div>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-semibold text-gray-600 mb-0">
                       Требуется закупка
-                    </label>
+                                </label>
                     <div className="text-xs">
                       {purchaseRequest.requiresPurchase === true ? (
                         <span className="px-1.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
@@ -1872,14 +1872,14 @@ export default function PurchaseDetailPage() {
                         <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
                           -
                         </span>
-                      )}
-                    </div>
+                          )}
+                        </div>
+                      </div>
+                      </div>
                   </div>
-              </div>
-              </div>
-
+                  
                   {/* Правая часть с блоком согласований */}
-              <div className="w-full lg:w-64 flex-shrink-0">
+                  <div className="w-full lg:w-64 flex-shrink-0">
                     <div className="bg-white rounded p-2 space-y-1.5">
                       {/* Этап: Согласование */}
                       {approvalStageApprovals.length > 0 && (
@@ -2066,21 +2066,21 @@ export default function PurchaseDetailPage() {
                         
                         {finalApprovalStageApprovals.length > 0 ? (
                           finalApprovalStageApprovals.map((approval) => (
-                            <div key={approval.id} className="flex gap-x-1 items-end border-b border-gray-200 pb-1 last:border-b-0 last:pb-0">
-                              <div className="flex-[2] min-w-0">
-                                <div className="flex items-center gap-1">
-                                  {/* Индикатор статуса */}
-                                  <div className="flex-shrink-0">
-                                    {(() => {
-                                      const statusColor = getApprovalStatusColor(approval);
-                                      if (statusColor === 'green') {
-                                        return (
-                                          <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано'}>
-                                            <Check className="w-2 h-2 text-white" />
-                                          </div>
-                                        );
+                              <div key={approval.id} className="flex gap-x-1 items-end border-b border-gray-200 pb-1 last:border-b-0 last:pb-0">
+                                <div className="flex-[2] min-w-0">
+                                  <div className="flex items-center gap-1">
+                                    {/* Индикатор статуса */}
+                                    <div className="flex-shrink-0">
+                                      {(() => {
+                                        const statusColor = getApprovalStatusColor(approval);
+                                        if (statusColor === 'green') {
+                                          return (
+                                            <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано'}>
+                                              <Check className="w-2 h-2 text-white" />
+                                            </div>
+                                          );
                                       } else if (statusColor === 'yellow') {
-                                        return (
+                                          return (
                                           <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}>
                                             <Clock className="w-2 h-2 text-white" />
                                           </div>
@@ -2152,51 +2152,51 @@ export default function PurchaseDetailPage() {
                                       if (statusColor === 'green') {
                                         return (
                                           <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано'}>
-                                            <Check className="w-2 h-2 text-white" />
-                                          </div>
-                                        );
-                                      } else if (statusColor === 'yellow') {
-                                        return (
-                                          <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}>
-                                            <Clock className="w-2 h-2 text-white" />
-                                          </div>
-                                        );
-                                      } else {
-                                        return (
-                                          <div className="w-3 h-3 rounded-full bg-red-500 flex items-center justify-center" title={approval.completionResult || 'Не согласовано'}>
-                                            <X className="w-2 h-2 text-white" />
-                                          </div>
-                                        );
-                                      }
-                                    })()}
+                                              <Check className="w-2 h-2 text-white" />
+                                            </div>
+                                          );
+                                        } else if (statusColor === 'yellow') {
+                                          return (
+                                            <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}>
+                                              <Clock className="w-2 h-2 text-white" />
+                                            </div>
+                                          );
+                                        } else {
+                                          return (
+                                            <div className="w-3 h-3 rounded-full bg-red-500 flex items-center justify-center" title={approval.completionResult || 'Не согласовано'}>
+                                              <X className="w-2 h-2 text-white" />
+                                            </div>
+                                          );
+                                        }
+                                      })()}
+                                    </div>
+                                    <p className="text-[10px] text-gray-900 truncate leading-tight">
+                                      {approval.role || '-'}
+                                    </p>
                                   </div>
+                                </div>
+                                <div className="flex-shrink-0" style={{ width: '50px' }}>
                                   <p className="text-[10px] text-gray-900 truncate leading-tight">
-                                    {approval.role || '-'}
+                                    {formatDate(approval.assignmentDate)}
+                                  </p>
+                                </div>
+                                <div className="flex-shrink-0" style={{ width: '35px' }}>
+                                  <p className="text-[10px] text-gray-900 truncate leading-tight">
+                                    {calculateDays(approval.assignmentDate, approval.completionDate, approval.daysInWork)}
                                   </p>
                                 </div>
                               </div>
-                              <div className="flex-shrink-0" style={{ width: '50px' }}>
-                                <p className="text-[10px] text-gray-900 truncate leading-tight">
-                                  {formatDate(approval.assignmentDate)}
-                                </p>
-                              </div>
-                              <div className="flex-shrink-0" style={{ width: '35px' }}>
-                                <p className="text-[10px] text-gray-900 truncate leading-tight">
-                                  {calculateDays(approval.assignmentDate, approval.completionDate, approval.daysInWork)}
-                                </p>
-                              </div>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="text-[10px] text-gray-500 text-center py-1">Нет данных</div>
-                        )}
+                            ))
+                          ) : (
+                            <div className="text-[10px] text-gray-500 text-center py-1">Нет данных</div>
+                          )}
                       </div>
                       )}
+                        </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
             )}
           </div>
         </main>

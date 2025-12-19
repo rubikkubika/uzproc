@@ -260,8 +260,8 @@ public class PurchaseService {
                         .toList();
 
                 if (!validPurchaserValues.isEmpty()) {
-                    jakarta.persistence.criteria.Join<Purchase, PurchaseRequest> purchaseRequestJoin =
-                            root.join("purchaseRequest", jakarta.persistence.criteria.JoinType.LEFT);
+                jakarta.persistence.criteria.Join<Purchase, PurchaseRequest> purchaseRequestJoin = 
+                    root.join("purchaseRequest", jakarta.persistence.criteria.JoinType.LEFT);
                     var purchaserExpr = cb.lower(cb.function("trim", String.class, purchaseRequestJoin.get("purchaser")));
 
                     if (validPurchaserValues.size() == 1) {
@@ -276,7 +276,7 @@ public class PurchaseService {
                                 .map(p -> cb.equal(purchaserExpr, p.toLowerCase()))
                                 .toList();
                         predicates.add(cb.or(purchaserPredicates.toArray(new Predicate[0])));
-                        predicateCount++;
+                predicateCount++;
                         logger.info("Added multiple purchaser filter: {}", validPurchaserValues);
                     }
                 }
