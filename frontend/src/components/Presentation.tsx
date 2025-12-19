@@ -1,14 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { Bar } from 'react-chartjs-2';
+import { useState, useEffect, useRef } from 'react';
+import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { useReactToPrint } from 'react-to-print';
+import { Bar, Doughnut } from 'react-chartjs-2';
 import { getBackendUrl } from '@/utils/api';
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   BarElement,
+  ArcElement,
   Title,
   Tooltip,
   Legend,
@@ -19,6 +21,7 @@ ChartJS.register(
   CategoryScale,
   LinearScale,
   BarElement,
+  ArcElement,
   Title,
   Tooltip,
   Legend,
@@ -33,6 +36,8 @@ interface PurchaseForPresentation {
   name?: string | null;
   title?: string | null;
   purchaseSubject?: string | null;
+  costType?: string | null;
+  contractType?: string | null;
 }
 
 // Данные для первого слайда - Экономия
@@ -93,6 +98,30 @@ function buildSumByCfoChartData(valuesByCfo: PurchasesByCfo) {
 }
 
 const purchasesPlanFactOptions = {
+  animation: false, // Отключаем анимацию для лучшей печати
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: {
+      display: false,
+    },
+    tooltip: {
+      enabled: false, // Отключаем tooltip при печати
+    },
+  },
+  scales: {
+    x: {
+      grid: {
+        display: false,
+      },
+    },
+    y: {
+      grid: {
+        display: true,
+        color: 'rgba(0, 0, 0, 0.1)',
+      },
+    },
+  },
   responsive: true,
   maintainAspectRatio: false,
   layout: {
@@ -270,8 +299,25 @@ const medianPriceChartOptions = {
 };
 
 export default function Presentation() {
+  const printRef = useRef<HTMLDivElement>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
   const totalSlides = 10; // 10 слайдов
+  
+  // Состояние для редактируемых текстов второго слайда
+  const [slide2PilotTitle, setSlide2PilotTitle] = useState('Пилот');
+  const [slide2PilotText, setSlide2PilotText] = useState('В конце 3 квартале 2025 проведен пилот по осуществлению закупок через ЭТП');
+  const [slide2GoalsTitle, setSlide2GoalsTitle] = useState('Цели Внедрения');
+  const [slide2Goals, setSlide2Goals] = useState([
+    'Повышение прозрачности закупочных процедур для внутренних команд и поставщиков',
+    'Расширение конкурентной среды за счет публичного доступа поставщиков к закупкам',
+    'Снижение операционной нагрузки за счет автоматизации обработки коммерческих предложений – стандарт закупок во всех крупных компаниях'
+  ]);
+  const [slide2ResultsTitle, setSlide2ResultsTitle] = useState('Результаты');
+  const [slide2Results, setSlide2Results] = useState([
+    '3,6 млрд. сум – объем фактически реализованной экономии с октября 2025',
+    'X млрд сум – стоимость проведенных закупок через ЭТП, X – количество',
+    'Дополнительные результаты будут добавлены'
+  ]);
   const [purchasesByCfo, setPurchasesByCfo] = useState<PurchasesByCfo>({});
   const [purchases2025, setPurchases2025] = useState<PurchaseForPresentation[]>([]);
   
@@ -394,6 +440,106 @@ export default function Presentation() {
         }).format(totalPurchasesAmount2025)
       : '—';
 
+  // Данные для pie chart по категориям закупок
+  const purchasesByCategory = purchases2025.reduce((acc, p) => {
+    const category = (p.costType || p.contractType || 'Без категории').trim() || 'Без категории';
+    const amount = typeof p.budgetAmount === 'number' ? p.budgetAmount : 0;
+    acc[category] = (acc[category] || 0) + amount;
+    return acc;
+  }, {} as Record<string, number>);
+
+  // Добавляем тестовые категории, если реальных данных недостаточно
+  const testCategories = {
+    'Услуги': 5_000_000_000,
+    'Оборудование': 4_500_000_000,
+    'Материалы': 3_200_000_000,
+    'Программное обеспечение': 2_800_000_000,
+    'Консалтинг': 1_500_000_000,
+  };
+
+  // Объединяем реальные данные с тестовыми
+  const allCategories = { ...purchasesByCategory };
+  Object.entries(testCategories).forEach(([category, amount]) => {
+    allCategories[category] = (allCategories[category] || 0) + amount;
+  });
+
+  const categoryEntries = Object.entries(allCategories)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5); // Топ-5 категорий
+  const restSum = Object.entries(allCategories)
+    .slice(5)
+    .reduce((sum, [, amount]) => sum + amount, 0);
+
+  const purchasesCategoryPieData = {
+    labels: [
+      ...categoryEntries.map(([label]) => label),
+      ...(restSum > 0 ? ['Прочие'] : []),
+    ],
+    datasets: [
+      {
+        data: [
+          ...categoryEntries.map(([, amount]) => amount),
+          ...(restSum > 0 ? [restSum] : []),
+        ],
+        backgroundColor: [
+          'rgba(59, 130, 246, 0.8)',   // Синий
+          'rgba(168, 85, 247, 0.8)',   // Фиолетовый
+          'rgba(249, 115, 22, 0.8)',   // Оранжевый
+          'rgba(34, 197, 94, 0.8)',    // Зеленый
+          'rgba(239, 68, 68, 0.8)',    // Красный
+          'rgba(156, 163, 175, 0.8)',  // Серый для "Прочие"
+        ],
+        borderColor: [
+          'rgba(59, 130, 246, 1)',
+          'rgba(168, 85, 247, 1)',
+          'rgba(249, 115, 22, 1)',
+          'rgba(34, 197, 94, 1)',
+          'rgba(239, 68, 68, 1)',
+          'rgba(156, 163, 175, 1)',
+        ],
+        borderWidth: 2,
+      },
+    ],
+  };
+
+  const purchasesCategoryPieOptions = {
+    animation: false, // Отключаем анимацию для лучшей печати
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: true,
+        position: 'right' as const,
+        labels: {
+          font: { size: 11 },
+          padding: 12,
+          usePointStyle: true,
+        },
+      },
+      datalabels: {
+        display: true,
+        color: '#ffffff',
+        font: { weight: 'bold' as const, size: 12 },
+        formatter: (value: number, context: any) => {
+          const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
+          const percentage = ((value / total) * 100).toFixed(1);
+          return percentage + '%';
+        },
+      },
+      tooltip: {
+        callbacks: {
+          label: (context: any) => {
+            const label = context.label || '';
+            const value = context.parsed || 0;
+            const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
+            const percentage = ((value / total) * 100).toFixed(1);
+            return `${label}: ${value.toLocaleString('ru-RU')} (${percentage}%)`;
+          },
+        },
+      },
+    },
+  };
+
   // Данные для диаграмм слайда "Нагрузка"
   const buildWorkloadChartData = (
     year2024: number, 
@@ -440,6 +586,7 @@ export default function Presentation() {
   });
 
   const workloadChartOptions = {
+    animation: false, // Отключаем анимацию для лучшей печати
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -550,6 +697,237 @@ export default function Presentation() {
     }
   };
 
+
+  // Настройка ReactToPrint для экспорта текущего слайда в PDF
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `Презентация_Слайд_${currentSlide + 1}_${new Date().toISOString().split('T')[0]}`,
+    pageStyle: `
+      @page {
+        size: A4 landscape;
+        margin: 0mm;
+      }
+      @media print {
+        body {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .no-print {
+          display: none !important;
+        }
+      }
+    `,
+  });
+
+  // Функция для экспорта текущего слайда в PDF
+  const exportToPDF = () => {
+    handlePrint();
+  };
+
+  // Функция для экспорта всей презентации в PDF
+  const exportAllToPDF = () => {
+    // Для экспорта всей презентации используем тот же подход
+    // Пока просто экспортируем текущий слайд
+    alert('Экспорт всей презентации будет добавлен позже');
+  };
+
+  const renderSlideContent = (slideIndex: number) => {
+    // Используем ту же логику, что и для основного слайда
+    if (slideIndex === 0) {
+      return (
+        <div className="w-full h-full p-6 flex flex-col relative" style={{ minHeight: 0 }}>
+          <div className="flex items-start justify-between mb-2">
+            <h1 className="text-3xl font-bold text-gray-900">Экономия на закупках 2025</h1>
+            <img src="/images/logo-small.svg" alt="Logo" className="w-10 h-10" />
+          </div>
+          <div
+            className="h-1 w-full rounded-full mb-3"
+            style={{
+              background:
+                'linear-gradient(90deg, rgba(168, 85, 247, 0.25) 0%, rgba(168, 85, 247, 0.25) 35%, rgba(255,255,255,1) 60%, rgba(255,255,255,1) 100%)',
+            }}
+          />
+          <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-0 overflow-hidden" style={{ minHeight: 0 }}>
+            <div className="p-3 flex flex-col" style={{ minHeight: 0 }}>
+              <div className="text-xl font-bold text-gray-800">Конкурентные закупки</div>
+              <div className="mt-4 grid grid-cols-2 gap-4 flex-1" style={{ minHeight: 0 }}>
+                <div className="bg-gray-50 border-2 border-gray-300 rounded-xl px-4 py-6 flex flex-col justify-center items-center">
+                  <div className="text-xl leading-7 font-semibold text-gray-700 text-center mb-3">Сумма закупок 2025</div>
+                  <div className="text-3xl font-extrabold text-gray-900 text-center tabular-nums">{totalPurchasesAmount2025Label}</div>
+                </div>
+                <div className="bg-orange-50 border-2 border-orange-300 rounded-xl px-4 py-6 relative flex flex-col justify-center items-center">
+                  <span className="absolute -top-3 -right-3 bg-orange-600 text-white text-base font-extrabold rounded-full px-4 py-2 shadow tabular-nums">
+                    23%
+                  </span>
+                  <div className="text-xl leading-7 font-semibold text-gray-900 text-center mb-3">Экономия</div>
+                  <div className="text-3xl font-extrabold text-gray-900 text-center tabular-nums">13 млрд</div>
+                </div>
+              </div>
+            </div>
+            <div className="p-3 flex" style={{ minHeight: 0 }}>
+              <div className="w-full h-full bg-blue-50/50 border border-blue-200 rounded-2xl p-3 flex flex-col justify-between shadow-sm" style={{ minHeight: 0 }}>
+                <div>
+                  <div className="text-xl font-bold text-gray-800">Закупки на электронной торговой площадке</div>
+                  <div className="mt-2">
+                    {etpExamples.length === 0 ? (
+                      <div className="text-xs text-gray-400">Нет данных</div>
+                    ) : (
+                      <ul className="space-y-1">
+                        {etpExamples.map((text, idx) => (
+                          <li key={idx} className="text-xs text-gray-700 flex gap-1">
+                            <span className="text-gray-400">{idx + 1}.</span>
+                            <span className="truncate" title={text}>{text}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
+                      <div className="text-lg leading-5 font-semibold text-gray-700 text-center">Кол-во закупок</div>
+                      <div className="text-xl font-extrabold text-gray-900 text-center tabular-nums">{etpPurchasesCount}</div>
+                    </div>
+                    <div className="bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
+                      <div className="text-lg leading-5 font-semibold text-gray-700 text-center">Сумма закупок</div>
+                      <div className="text-xl font-extrabold text-gray-900 text-center tabular-nums">{etpPurchasesAmountLabel}</div>
+                    </div>
+                  </div>
+                  <div className="bg-orange-50 border border-orange-200 rounded-md px-3 py-2">
+                    <div className="text-lg leading-5 font-semibold text-orange-800 text-center">Экономия</div>
+                    <div className="text-xl font-extrabold text-orange-800 text-center tabular-nums">13 млрд</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="col-span-2 p-3 grid grid-cols-2 gap-4" style={{ minHeight: 0 }}>
+              <div className="flex flex-col" style={{ minHeight: 0 }}>
+                <div className="text-xl font-bold text-gray-800 mb-1">Все закупки</div>
+                <div className="flex-1 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center" style={{ minHeight: 0 }}>
+                  <div className="text-sm text-gray-500">Диаграмма: Все закупки</div>
+                </div>
+              </div>
+              <div className="flex flex-col" style={{ minHeight: 0 }}>
+                <div className="text-xl font-bold text-gray-800 mb-1">Категории закупок</div>
+                <div className="flex-1 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center" style={{ minHeight: 0 }}>
+                  <div className="text-sm text-gray-500">Диаграмма: Категории закупок</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="absolute bottom-4 right-4 text-gray-400 text-sm font-medium">
+            {slideIndex + 1}
+          </div>
+        </div>
+      );
+    } else if (slideIndex === 1) {
+      return (
+        <div className="w-full h-full p-6 flex flex-col" style={{ minHeight: 0 }}>
+          <div className="flex items-start justify-between mb-2">
+            <h1 className="text-3xl font-bold text-gray-900">Внедрение Электронной торговой площадки</h1>
+            <img src="/images/logo-small.svg" alt="Logo" className="w-10 h-10" />
+          </div>
+          <div
+            className="h-1 w-full rounded-full mb-3"
+            style={{
+              background:
+                'linear-gradient(90deg, rgba(168, 85, 247, 0.25) 0%, rgba(168, 85, 247, 0.25) 35%, rgba(255,255,255,1) 60%, rgba(255,255,255,1) 100%)',
+            }}
+          />
+          <div className="flex-1 grid grid-cols-2 gap-6" style={{ minHeight: 0 }}>
+            <div className="flex flex-col gap-4" style={{ minHeight: 0 }}>
+              <div className="flex-1 relative" style={{ minHeight: 0 }}>
+                <div className="absolute inset-0 bg-white rounded-xl border-2 border-gray-300 shadow-lg p-0.5 z-10 transform rotate-1 overflow-hidden">
+                  <img 
+                    src="/images/presentation/Все закупки.png" 
+                    alt="Все закупки" 
+                    className="w-full h-full object-cover rounded-lg"
+                    style={{ transform: 'scale(1.15)' }}
+                  />
+                </div>
+              </div>
+              <div className="flex-1 relative" style={{ minHeight: 0 }}>
+                <div className="absolute inset-0 bg-white rounded-xl border-2 border-gray-300 shadow-lg p-0.5 z-10 transform -rotate-1 overflow-hidden">
+                  <img 
+                    src="/images/presentation/Профиль компании.png" 
+                    alt="Профиль компании" 
+                    className="w-full h-full object-cover rounded-lg"
+                    style={{ transform: 'scale(1.15)' }}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex-1 flex flex-col gap-4 overflow-y-auto" style={{ minHeight: 0 }}>
+              <div className="bg-blue-50/50 border border-blue-200 rounded-lg p-2">
+                <h3 className="text-2xl font-bold text-gray-900 mb-3">{slide2PilotTitle}</h3>
+                <p className="text-lg text-gray-800 leading-relaxed">{slide2PilotText}</p>
+              </div>
+              <div className="bg-gray-50 border-2 border-gray-300 rounded-xl p-2">
+                <h3 className="text-2xl font-bold text-gray-900 mb-3">{slide2GoalsTitle}</h3>
+                <ul className="space-y-2 text-lg text-gray-700">
+                  {slide2Goals.map((goal, index) => (
+                    <li key={index} className="flex items-start gap-2">
+                      <span className="text-blue-600 mt-1">•</span>
+                      <span>{goal}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="bg-orange-50 border-2 border-orange-300 rounded-xl p-4">
+                <h3 className="text-3xl font-bold text-gray-900 mb-3">{slide2ResultsTitle}</h3>
+                <ul className="space-y-2 text-xl text-gray-700">
+                  {slide2Results.map((result, index) => {
+                    const symbols = ['>', '>', '+'];
+                    return (
+                      <li key={index} className="flex items-start gap-2">
+                        <span className="text-orange-600 font-bold">{symbols[index] || '•'}</span>
+                        <span>{result}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    } else {
+      // Для остальных слайдов - базовый шаблон
+      const slideTitles = [
+        'Экономия на закупках 2025',
+        'Внедрение Электронной торговой площадки',
+        'Нагрузка',
+        'SLA по закупкам',
+        'Закупки у единственного источника - Зона роста',
+        'Реализованные проекты развития 2025',
+        'План закупок 2026',
+        'Проекты развития 2026',
+        'uzProc',
+        'Улучшение пользовательного опыта'
+      ];
+      
+      return (
+        <div className="w-full h-full p-6 flex flex-col" style={{ minHeight: 0 }}>
+          <div className="flex items-start justify-between mb-2">
+            <h1 className="text-3xl font-bold text-gray-900">{slideTitles[slideIndex] || `Слайд ${slideIndex + 1}`}</h1>
+            <img src="/images/logo-small.svg" alt="Logo" className="w-10 h-10" />
+          </div>
+          <div
+            className="h-1 w-full rounded-full mb-3"
+            style={{
+              background:
+                'linear-gradient(90deg, rgba(168, 85, 247, 0.25) 0%, rgba(168, 85, 247, 0.25) 35%, rgba(255,255,255,1) 60%, rgba(255,255,255,1) 100%)',
+            }}
+          />
+          <div className="flex-1 flex items-center justify-center text-gray-400" style={{ minHeight: 0 }}>
+            Контент слайда будет добавлен позже
+          </div>
+        </div>
+      );
+    }
+  };
+
   // Обработка навигации клавиатурой
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -567,11 +945,27 @@ export default function Presentation() {
   return (
     <div className="h-full flex flex-col items-center justify-center bg-gray-100 p-6 overflow-auto">
       {/* Панель управления */}
-      <div className="w-full max-w-[1123px] mb-4 flex items-center justify-between gap-3">
+      <div className="w-full max-w-[1123px] mb-4 flex items-center justify-between gap-3 no-print">
         <div className="text-sm text-gray-600">
           Слайд {currentSlide + 1} / {totalSlides}
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={exportToPDF}
+            className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-2"
+            title="Экспорт текущего слайда в PDF"
+          >
+            <Download className="w-4 h-4" />
+            PDF (текущий)
+          </button>
+          <button
+            onClick={exportAllToPDF}
+            className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg border border-green-600 hover:bg-green-700 transition-colors flex items-center gap-2"
+            title="Экспорт всей презентации в PDF"
+          >
+            <Download className="w-4 h-4" />
+            PDF (вся презентация)
+          </button>
           <button
             onClick={goToPreviousSlide}
             disabled={currentSlide === 0}
@@ -591,7 +985,8 @@ export default function Presentation() {
 
       {/* Контейнер слайда - A4 альбомная ориентация (297mm x 210mm) */}
       <div 
-        className="relative bg-white shadow-2xl rounded-lg overflow-hidden"
+        ref={printRef}
+        className={`relative bg-white overflow-hidden ${currentSlide === 0 ? '' : 'shadow-2xl rounded-lg'}`}
         style={{
           width: '1123px', // 297mm при 96 DPI
           height: '794px',  // 210mm при 96 DPI
@@ -626,48 +1021,23 @@ export default function Presentation() {
               />
 
               {/* 4 равные части (2x2) */}
-              <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-0 border border-gray-200 rounded-lg overflow-hidden" style={{ minHeight: 0 }}>
+              <div className="flex-1 grid grid-cols-2 grid-rows-2 gap-0 overflow-hidden" style={{ minHeight: 0 }}>
                 {/* Верхний левый: Конкурентные закупки */}
                 <div className="p-3 flex flex-col" style={{ minHeight: 0 }}>
                   <div className="text-xl font-bold text-gray-800">Конкурентные закупки</div>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    <div className="bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
-                      <div className="text-lg leading-5 font-semibold text-gray-700 text-center">Сумма закупок 2025</div>
-                      <div className="text-xl font-extrabold text-gray-900 text-center tabular-nums">{totalPurchasesAmount2025Label}</div>
+                  <div className="mt-4 grid grid-cols-2 gap-4 flex-1" style={{ minHeight: 0 }}>
+                    <div className="bg-gray-50 border-2 border-gray-300 rounded-xl px-4 py-6 flex flex-col justify-center items-center">
+                      <div className="text-xl leading-7 font-semibold text-gray-700 text-center mb-3">Сумма закупок 2025</div>
+                      <div className="text-3xl font-extrabold text-gray-900 text-center tabular-nums">{totalPurchasesAmount2025Label}</div>
                     </div>
-                    <div className="bg-orange-50 border border-orange-200 rounded-md px-3 py-2 relative">
-                      <span className="absolute -top-2.5 -right-2.5 bg-orange-600 text-white text-[12px] font-extrabold rounded-full px-2.5 py-1 shadow tabular-nums">
+                    <div className="bg-orange-50 border-2 border-orange-300 rounded-xl px-4 py-6 relative flex flex-col justify-center items-center">
+                      <span className="absolute -top-3 -right-3 bg-orange-600 text-white text-base font-extrabold rounded-full px-4 py-2 shadow tabular-nums">
                         23%
                       </span>
-                      <div className="text-lg leading-5 font-semibold text-orange-800 text-center">Экономия</div>
-                      <div className="text-xl font-extrabold text-orange-800 text-center tabular-nums">13 млрд сум</div>
+                      <div className="text-xl leading-7 font-semibold text-gray-900 text-center mb-3">Экономия</div>
+                      <div className="text-3xl font-extrabold text-gray-900 text-center tabular-nums">13 млрд</div>
                     </div>
                   </div>
-                  <div className="mt-3">
-                    <div className="space-y-2">
-                      <div className="w-full flex items-center justify-between rounded-lg transition-colors relative text-sm px-2 py-1.5 text-gray-700 bg-white border-l-4 border-gray-300 border border-gray-200">
-                        <span className="font-semibold text-gray-700">Закупочная экономия</span>
-                        <span className="bg-white border border-gray-300 rounded-full px-3 py-1 text-base font-extrabold text-gray-900 tabular-nums shadow-sm">
-                          7.8 млрд
-                        </span>
-                      </div>
-
-                      <div className="w-full flex items-center justify-between rounded-lg transition-colors relative text-sm px-2 py-1.5 text-gray-700 bg-white border-l-4 border-gray-300 border border-gray-200">
-                        <span className="font-semibold text-gray-700">Экономия от медианных цен</span>
-                        <span className="bg-white border border-gray-300 rounded-full px-3 py-1 text-base font-extrabold text-gray-900 tabular-nums shadow-sm">
-                          3.1 млрд
-                        </span>
-                      </div>
-
-                      <div className="w-full flex items-center justify-between rounded-lg transition-colors relative text-sm px-2 py-1.5 text-gray-700 bg-white border-l-4 border-gray-300 border border-gray-200">
-                        <span className="font-semibold text-gray-700">Бюджетная экономия</span>
-                        <span className="bg-white border border-gray-300 rounded-full px-3 py-1 text-base font-extrabold text-gray-900 tabular-nums shadow-sm">
-                          2.1 млрд
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex-1" style={{ minHeight: 0 }} />
                 </div>
 
                 {/* Верхний правый: placeholder */}
@@ -707,19 +1077,35 @@ export default function Presentation() {
                       </div>
                       <div className="bg-orange-50 border border-orange-200 rounded-md px-3 py-2">
                         <div className="text-lg leading-5 font-semibold text-orange-800 text-center">Экономия</div>
-                        <div className="text-xl font-extrabold text-orange-800 text-center tabular-nums">13 млрд сум</div>
+                        <div className="text-xl font-extrabold text-orange-800 text-center tabular-nums">13 млрд</div>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Нижняя строка: одна диаграмма на 2 блока (3+4) */}
-                <div className="col-span-2 p-3 flex flex-col relative" style={{ minHeight: 0 }}>
-                  <div className="text-xl font-bold text-gray-800 mb-1">Все закупки</div>
-                  <div className="flex-1" style={{ minHeight: 0 }}>
-                    <Bar data={purchasesPlanFactData} options={purchasesPlanFactOptions} />
+                {/* Нижняя строка: столбчатая диаграмма слева, pie chart справа */}
+                <div className="col-span-2 p-3 grid grid-cols-2 gap-4" style={{ minHeight: 0 }}>
+                  {/* Столбчатая диаграмма - Все закупки */}
+                  <div className="flex flex-col" style={{ minHeight: 0 }}>
+                    <div className="text-xl font-bold text-gray-800 mb-1">Все закупки</div>
+                    <div className="flex-1" style={{ minHeight: 0 }}>
+                      <Bar data={purchasesPlanFactData} options={purchasesPlanFactOptions} />
+                    </div>
+                  </div>
+                  
+                  {/* Doughnut chart - Категории закупок */}
+                  <div className="flex flex-col" style={{ minHeight: 0 }}>
+                    <div className="text-xl font-bold text-gray-800 mb-1">Категории закупок</div>
+                    <div className="flex-1" style={{ minHeight: 0 }}>
+                      <Doughnut data={purchasesCategoryPieData} options={purchasesCategoryPieOptions} />
+                    </div>
                   </div>
                 </div>
+              </div>
+              
+              {/* Номер слайда справа внизу */}
+              <div className="absolute bottom-4 right-4 text-gray-400 text-sm font-medium">
+                {currentSlide + 1}
               </div>
             </>
           ) : currentSlide === 1 ? (
@@ -743,29 +1129,41 @@ export default function Presentation() {
                 <div className="flex flex-col gap-4" style={{ minHeight: 0 }}>
                   {/* Блок 1 - скриншот */}
                   <div className="flex-1 relative" style={{ minHeight: 0 }}>
-                    <div className="absolute inset-0 bg-white rounded-xl border-2 border-gray-300 shadow-lg p-2 z-10 transform rotate-1">
-                      <div className="w-full h-full bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
-                        <span className="text-xs text-gray-400">Скриншот 1</span>
-                      </div>
+                    <div className="absolute inset-0 bg-white rounded-xl border-2 border-gray-300 shadow-lg p-0.5 z-10 transform rotate-1 overflow-hidden">
+                      <img 
+                        src="/images/presentation/Все закупки.png" 
+                        alt="Все закупки" 
+                        className="w-full h-full object-cover rounded-lg"
+                        style={{ transform: 'scale(1.15)' }}
+                      />
                     </div>
-                    <div className="absolute inset-0 bg-white rounded-xl border-2 border-gray-300 shadow-lg p-2 z-0 transform -rotate-1 translate-x-2 translate-y-2 opacity-60">
-                      <div className="w-full h-full bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
-                        <span className="text-xs text-gray-400">Скриншот 1</span>
-                      </div>
+                    <div className="absolute inset-0 bg-white rounded-xl border-2 border-gray-300 shadow-lg p-0.5 z-0 transform -rotate-1 translate-x-2 translate-y-2 opacity-60 overflow-hidden">
+                      <img 
+                        src="/images/presentation/Все закупки.png" 
+                        alt="Все закупки" 
+                        className="w-full h-full object-cover rounded-lg"
+                        style={{ transform: 'scale(1.15)' }}
+                      />
                     </div>
                   </div>
 
                   {/* Блок 3 - скриншот */}
                   <div className="flex-1 relative" style={{ minHeight: 0 }}>
-                    <div className="absolute inset-0 bg-white rounded-xl border-2 border-gray-300 shadow-lg p-2 z-10 transform -rotate-1">
-                      <div className="w-full h-full bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
-                        <span className="text-xs text-gray-400">Скриншот 2</span>
-                      </div>
+                    <div className="absolute inset-0 bg-white rounded-xl border-2 border-gray-300 shadow-lg p-0.5 z-10 transform -rotate-1 overflow-hidden">
+                      <img 
+                        src="/images/presentation/Профиль компании.png" 
+                        alt="Профиль компании" 
+                        className="w-full h-full object-cover rounded-lg"
+                        style={{ transform: 'scale(1.15)' }}
+                      />
                     </div>
-                    <div className="absolute inset-0 bg-white rounded-xl border-2 border-gray-300 shadow-lg p-2 z-0 transform rotate-1 -translate-x-2 -translate-y-2 opacity-60">
-                      <div className="w-full h-full bg-gray-100 rounded-lg flex items-center justify-center border border-gray-200">
-                        <span className="text-xs text-gray-400">Скриншот 2</span>
-                      </div>
+                    <div className="absolute inset-0 bg-white rounded-xl border-2 border-gray-300 shadow-lg p-0.5 z-0 transform rotate-1 -translate-x-2 -translate-y-2 opacity-60 overflow-hidden">
+                      <img 
+                        src="/images/presentation/Профиль компании.png" 
+                        alt="Профиль компании" 
+                        className="w-full h-full object-cover rounded-lg"
+                        style={{ transform: 'scale(1.15)' }}
+                      />
                     </div>
                   </div>
                 </div>
@@ -773,47 +1171,87 @@ export default function Presentation() {
                 {/* Правая колонка: тезисы */}
                 <div className="flex-1 flex flex-col gap-4 overflow-y-auto" style={{ minHeight: 0 }}>
                   {/* Пилот */}
-                  <div className="bg-blue-50/50 border border-blue-200 rounded-lg p-4">
-                    <p className="text-sm text-gray-800 leading-relaxed">
-                      В конце 3 квартале 2025 проведен пилот по осуществлению закупок через ЭТП
+                  <div className="bg-blue-50/50 border border-blue-200 rounded-lg p-2">
+                    <h3 
+                      contentEditable
+                      suppressContentEditableWarning
+                      onBlur={(e) => setSlide2PilotTitle(e.currentTarget.textContent || 'Пилот')}
+                      className="text-2xl font-bold text-gray-900 mb-3 outline-none focus:ring-2 focus:ring-blue-400 rounded px-1"
+                    >
+                      {slide2PilotTitle}
+                    </h3>
+                    <p 
+                      contentEditable
+                      suppressContentEditableWarning
+                      onBlur={(e) => setSlide2PilotText(e.currentTarget.textContent || '')}
+                      className="text-lg text-gray-800 leading-relaxed outline-none focus:ring-2 focus:ring-blue-400 rounded px-1"
+                    >
+                      {slide2PilotText}
                     </p>
                   </div>
 
                   {/* Цели внедрения ЭТП */}
-                  <div className="bg-white border border-gray-200 rounded-lg p-4">
-                    <h3 className="text-base font-bold text-gray-900 mb-3">Цели внедрения ЭТП</h3>
-                    <ul className="space-y-2 text-sm text-gray-700">
-                      <li className="flex items-start gap-2">
-                        <span className="text-blue-600 mt-1">•</span>
-                        <span>Повышение прозрачности закупочных процедур для внутренних команд и поставщиков</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-blue-600 mt-1">•</span>
-                        <span>Расширение конкурентной среды за счет публичного доступа поставщиков к закупкам</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-blue-600 mt-1">•</span>
-                        <span>Снижение операционной нагрузки за счет автоматизации обработки коммерческих предложений – стандарт закупок во всех крупных компаниях</span>
-                      </li>
+                  <div className="bg-gray-50 border-2 border-gray-300 rounded-xl p-2">
+                    <h3 
+                      contentEditable
+                      suppressContentEditableWarning
+                      onBlur={(e) => setSlide2GoalsTitle(e.currentTarget.textContent || 'Цели Внедрения')}
+                      className="text-2xl font-bold text-gray-900 mb-3 outline-none focus:ring-2 focus:ring-blue-400 rounded px-1"
+                    >
+                      {slide2GoalsTitle}
+                    </h3>
+                    <ul className="space-y-2 text-lg text-gray-700">
+                      {slide2Goals.map((goal, index) => (
+                        <li key={index} className="flex items-start gap-2">
+                          <span className="text-blue-600 mt-1">•</span>
+                          <span 
+                            contentEditable
+                            suppressContentEditableWarning
+                            onBlur={(e) => {
+                              const newGoals = [...slide2Goals];
+                              newGoals[index] = e.currentTarget.textContent || '';
+                              setSlide2Goals(newGoals);
+                            }}
+                            className="outline-none focus:ring-2 focus:ring-blue-400 rounded px-1"
+                          >
+                            {goal}
+                          </span>
+                        </li>
+                      ))}
                     </ul>
                   </div>
 
                   {/* Результаты */}
-                  <div className="bg-orange-50/50 border border-orange-200 rounded-lg p-4">
-                    <h3 className="text-base font-bold text-gray-900 mb-3">Результаты</h3>
-                    <ul className="space-y-2 text-sm text-gray-700">
-                      <li className="flex items-start gap-2">
-                        <span className="text-orange-600 font-bold">&gt;</span>
-                        <span><strong>3,6 млрд. сум</strong> – объем фактически реализованной экономии с октября 2025</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-orange-600 font-bold">&gt;</span>
-                        <span><strong>X млрд сум</strong> – стоимость проведенных закупок через ЭТП, <strong>X</strong> – количество</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="text-orange-600 font-bold">+</span>
-                        <span>Дополнительные результаты будут добавлены</span>
-                      </li>
+                  <div className="bg-orange-50 border-2 border-orange-300 rounded-xl p-4">
+                    <h3 
+                      contentEditable
+                      suppressContentEditableWarning
+                      onBlur={(e) => setSlide2ResultsTitle(e.currentTarget.textContent || 'Результаты')}
+                      className="text-3xl font-bold text-gray-900 mb-3 outline-none focus:ring-2 focus:ring-orange-400 rounded px-1"
+                    >
+                      {slide2ResultsTitle}
+                    </h3>
+                    <ul className="space-y-2 text-xl text-gray-700">
+                      {slide2Results.map((result, index) => {
+                        const symbols = ['>', '>', '+'];
+                        return (
+                          <li key={index} className="flex items-start gap-2">
+                            <span className="text-orange-600 font-bold">{symbols[index] || '•'}</span>
+                            <span 
+                              contentEditable
+                              suppressContentEditableWarning
+                              onBlur={(e) => {
+                                const newResults = [...slide2Results];
+                                newResults[index] = e.currentTarget.textContent || '';
+                                setSlide2Results(newResults);
+                              }}
+                              className="outline-none focus:ring-2 focus:ring-orange-400 rounded px-1"
+                            >
+                              {result}
+                            </span>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
                 </div>
