@@ -274,6 +274,13 @@ export default function Presentation() {
   const totalSlides = 5; // Пока 5 слайдов для макета
   const [purchasesByCfo, setPurchasesByCfo] = useState<PurchasesByCfo>({});
   const [purchases2025, setPurchases2025] = useState<PurchaseForPresentation[]>([]);
+  
+  // Данные для слайда "Нагрузка" (третий слайд)
+  const [workloadData, setWorkloadData] = useState({
+    purchases: { year2024: 0, year2025: 0 },
+    purchaseRequests: { year2024: 0, year2025: 0 },
+    contracts: { year2024: 0, year2025: 0 },
+  });
 
   useEffect(() => {
     // Для слайда 1 подтягиваем данные закупок по дате создания за 2025 и группируем по ЦФО
@@ -301,6 +308,51 @@ export default function Presentation() {
       }
     };
     load();
+  }, []);
+
+  // Загрузка данных для слайда "Нагрузка" (третий слайд)
+  useEffect(() => {
+    const loadWorkloadData = async () => {
+      try {
+        const backendUrl = getBackendUrl();
+        
+        // Закупки за 2024 и 2025
+        const purchases2024Res = await fetch(`${backendUrl}/api/purchases?page=0&size=1&year=2024`);
+        const purchases2025Res = await fetch(`${backendUrl}/api/purchases?page=0&size=1&year=2025`);
+        
+        // Заявки на закупку за 2024 и 2025
+        const requests2024Res = await fetch(`${backendUrl}/api/purchase-requests?page=0&size=1&year=2024`);
+        const requests2025Res = await fetch(`${backendUrl}/api/purchase-requests?page=0&size=1&year=2025`);
+        
+        // Договоры за 2024 и 2025 (пока используем заглушку, т.к. API может отличаться)
+        // TODO: заменить на реальный API когда будет доступен
+        const contracts2024 = 0;
+        const contracts2025 = 0;
+
+        if (purchases2024Res.ok && purchases2025Res.ok) {
+          const purchases2024Json = await purchases2024Res.json();
+          const purchases2025Json = await purchases2025Res.json();
+          const purchases2024 = purchases2024Json?.totalElements || 0;
+          const purchases2025 = purchases2025Json?.totalElements || 0;
+
+          if (requests2024Res.ok && requests2025Res.ok) {
+            const requests2024Json = await requests2024Res.json();
+            const requests2025Json = await requests2025Res.json();
+            const requests2024 = requests2024Json?.totalElements || 0;
+            const requests2025 = requests2025Json?.totalElements || 0;
+
+            setWorkloadData({
+              purchases: { year2024: purchases2024, year2025: purchases2025 },
+              purchaseRequests: { year2024: requests2024, year2025: requests2025 },
+              contracts: { year2024: contracts2024, year2025: contracts2025 },
+            });
+          }
+        }
+      } catch {
+        // ignore
+      }
+    };
+    loadWorkloadData();
   }, []);
 
   const purchasesPlanFactData = buildSumByCfoChartData(
@@ -341,6 +393,148 @@ export default function Presentation() {
           maximumFractionDigits: 1,
         }).format(totalPurchasesAmount2025)
       : '—';
+
+  // Данные для диаграмм слайда "Нагрузка"
+  const buildWorkloadChartData = (
+    year2024: number, 
+    year2025: number, 
+    label: string,
+    employeesCount: number,
+    color2025: string = 'rgba(59, 130, 246, 0.8)',
+    borderColor2025: string = 'rgba(59, 130, 246, 1)'
+  ) => ({
+    labels: ['2024', '2025'],
+    datasets: [
+      {
+        type: 'bar' as const,
+        label,
+        data: [year2024, year2025],
+        backgroundColor: [
+          'rgba(156, 163, 175, 0.6)', // Серый для 2024
+          color2025,  // Цвет для 2025
+        ],
+        borderColor: [
+          'rgba(156, 163, 175, 1)',
+          borderColor2025,
+        ],
+        borderWidth: 2,
+        barThickness: 40,
+        maxBarThickness: 50,
+      },
+      {
+        type: 'line' as const,
+        label: 'Нагрузка на чел.',
+        data: [year2024 / employeesCount, year2025 / employeesCount],
+        borderColor: 'rgba(239, 68, 68, 0.8)', // Красный для линии
+        borderWidth: 2,
+        borderDash: [5, 5],
+        pointRadius: 4,
+        pointBackgroundColor: 'rgba(239, 68, 68, 1)',
+        pointBorderColor: '#fff',
+        pointBorderWidth: 2,
+        fill: false,
+        tension: 0,
+        yAxisID: 'y',
+      },
+    ],
+  });
+
+  const workloadChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: true,
+        position: 'top' as const,
+        labels: {
+          filter: (item: any) => item.datasetIndex === 1, // Показываем только легенду для линии
+          font: { size: 11 },
+          usePointStyle: true,
+          padding: 8,
+        },
+      },
+      datalabels: {
+        display: true,
+        color: (context: any) => {
+          // Для столбцов - темный цвет, для линии - красный
+          return context.datasetIndex === 0 ? '#1f2937' : 'rgba(239, 68, 68, 1)';
+        },
+        font: { weight: 'bold' as const, size: context => context.datasetIndex === 0 ? 14 : 11 },
+        formatter: (value: number, context: any) => {
+          if (context.datasetIndex === 0) {
+            return value.toLocaleString('ru-RU');
+          } else {
+            return Math.round(value).toLocaleString('ru-RU');
+          }
+        },
+        anchor: (context: any) => context.datasetIndex === 0 ? 'end' as const : 'center' as const,
+        align: (context: any) => context.datasetIndex === 0 ? 'top' as const : 'bottom' as const,
+        offset: (context: any) => context.datasetIndex === 0 ? 5 : -5,
+      },
+      tooltip: {
+        callbacks: {
+          label: (context: any) => {
+            const value = context.parsed.y;
+            if (context.datasetIndex === 0) {
+              const growth = context.dataIndex === 1 && context.dataset.data[0] > 0
+                ? ` (+${Math.round(((value - context.dataset.data[0]) / context.dataset.data[0]) * 100)}%)`
+                : '';
+              return `${context.dataset.label}: ${value.toLocaleString('ru-RU')}${growth}`;
+            } else {
+              return `Нагрузка на чел.: ${Math.round(value).toLocaleString('ru-RU')}`;
+            }
+          },
+        },
+      },
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          font: { size: 11 },
+          callback: (value: any) => value.toLocaleString('ru-RU'),
+        },
+        grid: {
+          display: true,
+          color: 'rgba(0, 0, 0, 0.05)',
+        },
+      },
+      x: {
+        ticks: {
+          font: { size: 12, weight: 'bold' as const },
+        },
+        grid: {
+          display: false,
+        },
+      },
+    },
+  };
+
+  const purchasesWorkloadData = buildWorkloadChartData(
+    workloadData.purchases.year2024,
+    workloadData.purchases.year2025,
+    'Закупки',
+    2, // Количество сотрудников
+    'rgba(59, 130, 246, 0.85)', // Синий
+    'rgba(59, 130, 246, 1)'
+  );
+  
+  // Объединенные данные для заказов и договоров (одно направление)
+  const requestsAndContracts2024 = workloadData.purchaseRequests.year2024 + workloadData.contracts.year2024;
+  const requestsAndContracts2025 = workloadData.purchaseRequests.year2025 + workloadData.contracts.year2025;
+  const requestsAndContractsWorkloadData = buildWorkloadChartData(
+    requestsAndContracts2024,
+    requestsAndContracts2025,
+    'Заказы и Договоры',
+    4, // Количество сотрудников
+    'rgba(168, 85, 247, 0.85)', // Фиолетовый
+    'rgba(168, 85, 247, 1)'
+  );
+
+  const calculateGrowth = (year2024: number, year2025: number) => {
+    if (year2024 === 0) return year2025 > 0 ? 100 : 0;
+    return Math.round(((year2025 - year2024) / year2024) * 100);
+  };
 
   const goToNextSlide = () => {
     setCurrentSlide((prev) => (prev < totalSlides - 1 ? prev + 1 : prev));
@@ -621,6 +815,110 @@ export default function Presentation() {
                         <span>Дополнительные результаты будут добавлены</span>
                       </li>
                     </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : currentSlide === 2 ? (
+            // Третий слайд - Нагрузка
+            <div className="flex-1 flex flex-col" style={{ minHeight: 0 }}>
+              <div className="flex items-start justify-between mb-2">
+                <h1 className="text-3xl font-bold text-gray-900">Нагрузка</h1>
+                <img src="/images/logo-small.svg" alt="Logo" className="w-10 h-10" />
+              </div>
+
+              <div
+                className="h-1 w-full rounded-full mb-3"
+                style={{
+                  background:
+                    'linear-gradient(90deg, rgba(168, 85, 247, 0.25) 0%, rgba(168, 85, 247, 0.25) 35%, rgba(255,255,255,1) 60%, rgba(255,255,255,1) 100%)',
+                }}
+              />
+
+              <div className="flex-1 grid grid-cols-2 gap-6" style={{ minHeight: 0 }}>
+                {/* Диаграмма: Закупки */}
+                <div className="flex flex-col bg-gradient-to-br from-blue-50 to-white border-2 border-blue-200 rounded-xl p-4 shadow-sm" style={{ minHeight: 0 }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-lg font-bold text-gray-800">Закупки</div>
+                    <div className="bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs font-semibold">2 чел.</div>
+                  </div>
+                  <div style={{ height: '70%', minHeight: 0 }}>
+                    <Bar data={purchasesWorkloadData} options={workloadChartOptions} />
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-600">Рост:</span>
+                      <span className="text-sm font-bold text-green-600">
+                        ↑ +{calculateGrowth(workloadData.purchases.year2024, workloadData.purchases.year2025)}%
+                      </span>
+                    </div>
+                    <div className="bg-gray-100 rounded-full h-2 overflow-hidden">
+                      <div 
+                        className="bg-gradient-to-r from-blue-400 to-blue-600 h-full rounded-full transition-all"
+                        style={{ 
+                          width: `${Math.min(100, (workloadData.purchases.year2025 / Math.max(workloadData.purchases.year2024, 1)) * 100)}%` 
+                        }}
+                      />
+                    </div>
+                    <div className="text-xs text-center text-gray-600">
+                      Нагрузка: <span className="font-bold text-gray-800">
+                        {Math.round(workloadData.purchases.year2025 / 2).toLocaleString('ru-RU')} на чел.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Диаграмма: Заказы и Договоры (объединенное направление) */}
+                <div className="flex flex-col bg-gradient-to-br from-purple-50 to-white border-2 border-purple-200 rounded-xl p-4 shadow-sm" style={{ minHeight: 0 }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-lg font-bold text-gray-800">Заказы и Договоры</div>
+                    <div className="bg-purple-100 text-purple-700 px-2 py-1 rounded-full text-xs font-semibold">4 чел.</div>
+                  </div>
+                  <div style={{ height: '70%', minHeight: 0 }}>
+                    <Bar data={requestsAndContractsWorkloadData} options={workloadChartOptions} />
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-600">Рост:</span>
+                      <span className="text-sm font-bold text-green-600">
+                        ↑ +{calculateGrowth(requestsAndContracts2024, requestsAndContracts2025)}%
+                      </span>
+                    </div>
+                    <div className="bg-gray-100 rounded-full h-2 overflow-hidden">
+                      <div 
+                        className="bg-gradient-to-r from-purple-400 to-purple-600 h-full rounded-full transition-all"
+                        style={{ 
+                          width: `${Math.min(100, (requestsAndContracts2025 / Math.max(requestsAndContracts2024, 1)) * 100)}%` 
+                        }}
+                      />
+                    </div>
+                    <div className="text-xs text-center text-gray-600">
+                      Нагрузка: <span className="font-bold text-gray-800">
+                        {Math.round(requestsAndContracts2025 / 4).toLocaleString('ru-RU')} на чел.
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* План 2026 по закупкам */}
+              <div className="mt-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-4 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-bold text-gray-800">План 2026 по закупкам</h3>
+                  <div className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">2026</div>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-white/80 border border-green-200 rounded-lg p-3">
+                    <div className="text-xs text-gray-600 mb-1">Целевой объем</div>
+                    <div className="text-xl font-extrabold text-gray-900 tabular-nums">—</div>
+                  </div>
+                  <div className="bg-white/80 border border-green-200 rounded-lg p-3">
+                    <div className="text-xs text-gray-600 mb-1">Количество закупок</div>
+                    <div className="text-xl font-extrabold text-gray-900 tabular-nums">—</div>
+                  </div>
+                  <div className="bg-white/80 border border-green-200 rounded-lg p-3">
+                    <div className="text-xs text-gray-600 mb-1">Рост к 2025</div>
+                    <div className="text-xl font-extrabold text-green-600 tabular-nums">—</div>
                   </div>
                 </div>
               </div>
