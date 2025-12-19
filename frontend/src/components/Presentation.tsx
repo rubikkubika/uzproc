@@ -300,6 +300,7 @@ const medianPriceChartOptions = {
 
 export default function Presentation() {
   const printRef = useRef<HTMLDivElement>(null);
+  const printAllRef = useRef<HTMLDivElement>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
   const totalSlides = 10; // 10 слайдов
   
@@ -708,12 +709,31 @@ export default function Presentation() {
         margin: 0mm;
       }
       @media print {
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
         body {
-          -webkit-print-color-adjust: exact;
-          print-color-adjust: exact;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+          background: white !important;
         }
         .no-print {
           display: none !important;
+        }
+        /* Сохраняем все цвета при печати */
+        .bg-orange-600, [class*="bg-orange-"], 
+        .bg-blue-50, [class*="bg-blue-"],
+        .bg-orange-50, [class*="bg-orange-50"],
+        .bg-gray-50, [class*="bg-gray-50"],
+        .bg-gray-100, [class*="bg-gray-100"],
+        .bg-purple-50, [class*="bg-purple-"],
+        .bg-green-50, [class*="bg-green-"] {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
         }
       }
     `,
@@ -724,11 +744,95 @@ export default function Presentation() {
     handlePrint();
   };
 
+  // Настройка ReactToPrint для экспорта всей презентации в PDF
+  const handlePrintAll = useReactToPrint({
+    contentRef: printAllRef,
+    documentTitle: `Презентация_Все_слайды_${new Date().toISOString().split('T')[0]}`,
+    onBeforeGetContent: () => {
+      // Убеждаемся, что скрытый контейнер виден для подготовки к печати
+      return new Promise<void>((resolve) => {
+        if (printAllRef.current) {
+          printAllRef.current.style.visibility = 'visible';
+          printAllRef.current.style.position = 'static';
+          printAllRef.current.style.left = 'auto';
+          printAllRef.current.style.top = 'auto';
+          // Даем время Chart.js отрендериться
+          setTimeout(() => {
+            resolve();
+          }, 1000);
+        } else {
+          resolve();
+        }
+      });
+    },
+    pageStyle: `
+      @page {
+        size: A4 landscape;
+        margin: 0mm;
+      }
+      @media print {
+        * {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
+        body {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+          background: white !important;
+        }
+        .no-print {
+          display: none !important;
+        }
+        .print-only {
+          visibility: visible !important;
+          position: static !important;
+          left: auto !important;
+          top: auto !important;
+          display: block !important;
+        }
+        .slide-page {
+          page-break-after: always;
+          page-break-inside: avoid;
+          width: 297mm;
+          height: 210mm;
+          visibility: visible !important;
+          display: block !important;
+        }
+        .slide-page:last-child {
+          page-break-after: auto;
+        }
+        /* Убеждаемся, что все элементы видны при печати */
+        .print-only * {
+          visibility: visible !important;
+        }
+        .print-only canvas {
+          display: block !important;
+          visibility: visible !important;
+        }
+        .print-only img {
+          visibility: visible !important;
+        }
+        /* Сохраняем все цвета при печати */
+        .bg-orange-600, [class*="bg-orange-"], 
+        .bg-blue-50, [class*="bg-blue-"],
+        .bg-orange-50, [class*="bg-orange-50"],
+        .bg-gray-50, [class*="bg-gray-50"],
+        .bg-gray-100, [class*="bg-gray-100"],
+        .bg-purple-50, [class*="bg-purple-"],
+        .bg-green-50, [class*="bg-green-"] {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
+      }
+    `,
+  });
+
   // Функция для экспорта всей презентации в PDF
   const exportAllToPDF = () => {
-    // Для экспорта всей презентации используем тот же подход
-    // Пока просто экспортируем текущий слайд
-    alert('Экспорт всей презентации будет добавлен позже');
+    handlePrintAll();
   };
 
   const renderSlideContent = (slideIndex: number) => {
@@ -804,14 +908,14 @@ export default function Presentation() {
             <div className="col-span-2 p-3 grid grid-cols-2 gap-4" style={{ minHeight: 0 }}>
               <div className="flex flex-col" style={{ minHeight: 0 }}>
                 <div className="text-xl font-bold text-gray-800 mb-1">Все закупки</div>
-                <div className="flex-1 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center" style={{ minHeight: 0 }}>
-                  <div className="text-sm text-gray-500">Диаграмма: Все закупки</div>
+                <div className="flex-1" style={{ minHeight: 0 }}>
+                  <Bar data={purchasesPlanFactData} options={purchasesPlanFactOptions} />
                 </div>
               </div>
               <div className="flex flex-col" style={{ minHeight: 0 }}>
                 <div className="text-xl font-bold text-gray-800 mb-1">Категории закупок</div>
-                <div className="flex-1 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center" style={{ minHeight: 0 }}>
-                  <div className="text-sm text-gray-500">Диаграмма: Категории закупок</div>
+                <div className="flex-1" style={{ minHeight: 0 }}>
+                  <Doughnut data={purchasesCategoryPieData} options={purchasesCategoryPieOptions} />
                 </div>
               </div>
             </div>
@@ -836,7 +940,9 @@ export default function Presentation() {
             }}
           />
           <div className="flex-1 grid grid-cols-2 gap-6" style={{ minHeight: 0 }}>
+            {/* Левая колонка: скриншоты в блоках 1 и 3 */}
             <div className="flex flex-col gap-4" style={{ minHeight: 0 }}>
+              {/* Блок 1 - скриншот */}
               <div className="flex-1 relative" style={{ minHeight: 0 }}>
                 <div className="absolute inset-0 bg-white rounded-xl border-2 border-gray-300 shadow-lg p-0.5 z-10 transform rotate-1 overflow-hidden">
                   <img 
@@ -846,7 +952,17 @@ export default function Presentation() {
                     style={{ transform: 'scale(1.15)' }}
                   />
                 </div>
+                <div className="absolute inset-0 bg-white rounded-xl border-2 border-gray-300 shadow-lg p-0.5 z-0 transform -rotate-1 translate-x-2 translate-y-2 opacity-60 overflow-hidden">
+                  <img 
+                    src="/images/presentation/Все закупки.png" 
+                    alt="Все закупки" 
+                    className="w-full h-full object-cover rounded-lg"
+                    style={{ transform: 'scale(1.15)' }}
+                  />
+                </div>
               </div>
+
+              {/* Блок 3 - скриншот */}
               <div className="flex-1 relative" style={{ minHeight: 0 }}>
                 <div className="absolute inset-0 bg-white rounded-xl border-2 border-gray-300 shadow-lg p-0.5 z-10 transform -rotate-1 overflow-hidden">
                   <img 
@@ -856,8 +972,18 @@ export default function Presentation() {
                     style={{ transform: 'scale(1.15)' }}
                   />
                 </div>
+                <div className="absolute inset-0 bg-white rounded-xl border-2 border-gray-300 shadow-lg p-0.5 z-0 transform rotate-1 -translate-x-2 -translate-y-2 opacity-60 overflow-hidden">
+                  <img 
+                    src="/images/presentation/Профиль компании.png" 
+                    alt="Профиль компании" 
+                    className="w-full h-full object-cover rounded-lg"
+                    style={{ transform: 'scale(1.15)' }}
+                  />
+                </div>
               </div>
             </div>
+
+            {/* Правая колонка: тезисы */}
             <div className="flex-1 flex flex-col gap-4 overflow-y-auto" style={{ minHeight: 0 }}>
               <div className="bg-blue-50/50 border border-blue-200 rounded-lg p-2">
                 <h3 className="text-2xl font-bold text-gray-900 mb-3">{slide2PilotTitle}</h3>
@@ -887,6 +1013,112 @@ export default function Presentation() {
                     );
                   })}
                 </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    } else if (slideIndex === 2) {
+      // Третий слайд - Нагрузка
+      return (
+        <div className="w-full h-full p-6 flex flex-col" style={{ minHeight: 0 }}>
+          <div className="flex items-start justify-between mb-2">
+            <h1 className="text-3xl font-bold text-gray-900">Нагрузка</h1>
+            <img src="/images/logo-small.svg" alt="Logo" className="w-10 h-10" />
+          </div>
+
+          <div
+            className="h-1 w-full rounded-full mb-3"
+            style={{
+              background:
+                'linear-gradient(90deg, rgba(168, 85, 247, 0.25) 0%, rgba(168, 85, 247, 0.25) 35%, rgba(255,255,255,1) 60%, rgba(255,255,255,1) 100%)',
+            }}
+          />
+
+          <div className="flex-1 grid grid-cols-2 gap-6" style={{ minHeight: 0 }}>
+            {/* Диаграмма: Закупки */}
+            <div className="flex flex-col bg-gradient-to-br from-blue-50 to-white border-2 border-blue-200 rounded-xl p-4 shadow-sm" style={{ minHeight: 0 }}>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-lg font-bold text-gray-800">Закупки</div>
+                <div className="bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs font-semibold">2 чел.</div>
+              </div>
+              <div style={{ height: '70%', minHeight: 0 }}>
+                <Bar data={purchasesWorkloadData} options={workloadChartOptions} />
+              </div>
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-600">Рост:</span>
+                  <span className="text-sm font-bold text-green-600">
+                    ↑ +{calculateGrowth(workloadData.purchases.year2024, workloadData.purchases.year2025)}%
+                  </span>
+                </div>
+                <div className="bg-gray-100 rounded-full h-2 overflow-hidden">
+                  <div 
+                    className="bg-gradient-to-r from-blue-400 to-blue-600 h-full rounded-full transition-all"
+                    style={{ 
+                      width: `${Math.min(100, (workloadData.purchases.year2025 / Math.max(workloadData.purchases.year2024, 1)) * 100)}%` 
+                    }}
+                  />
+                </div>
+                <div className="text-xs text-center text-gray-600">
+                  Нагрузка: <span className="font-bold text-gray-800">
+                    {Math.round(workloadData.purchases.year2025 / 2).toLocaleString('ru-RU')} на чел.
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Диаграмма: Заказы и Договоры (объединенное направление) */}
+            <div className="flex flex-col bg-gradient-to-br from-purple-50 to-white border-2 border-purple-200 rounded-xl p-4 shadow-sm" style={{ minHeight: 0 }}>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-lg font-bold text-gray-800">Заказы и Договоры</div>
+                <div className="bg-purple-100 text-purple-700 px-2 py-1 rounded-full text-xs font-semibold">4 чел.</div>
+              </div>
+              <div style={{ height: '70%', minHeight: 0 }}>
+                <Bar data={requestsAndContractsWorkloadData} options={workloadChartOptions} />
+              </div>
+              <div className="mt-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-600">Рост:</span>
+                  <span className="text-sm font-bold text-green-600">
+                    ↑ +{calculateGrowth(requestsAndContracts2024, requestsAndContracts2025)}%
+                  </span>
+                </div>
+                <div className="bg-gray-100 rounded-full h-2 overflow-hidden">
+                  <div 
+                    className="bg-gradient-to-r from-purple-400 to-purple-600 h-full rounded-full transition-all"
+                    style={{ 
+                      width: `${Math.min(100, (requestsAndContracts2025 / Math.max(requestsAndContracts2024, 1)) * 100)}%` 
+                    }}
+                  />
+                </div>
+                <div className="text-xs text-center text-gray-600">
+                  Нагрузка: <span className="font-bold text-gray-800">
+                    {Math.round(requestsAndContracts2025 / 4).toLocaleString('ru-RU')} на чел.
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* План 2026 по закупкам */}
+          <div className="mt-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-4 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-bold text-gray-800">План 2026 по закупкам</h3>
+              <div className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">2026</div>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="bg-white/80 border border-green-200 rounded-lg p-3">
+                <div className="text-xs text-gray-600 mb-1">Целевой объем</div>
+                <div className="text-xl font-extrabold text-gray-900 tabular-nums">—</div>
+              </div>
+              <div className="bg-white/80 border border-green-200 rounded-lg p-3">
+                <div className="text-xs text-gray-600 mb-1">Количество закупок</div>
+                <div className="text-xl font-extrabold text-gray-900 tabular-nums">—</div>
+              </div>
+              <div className="bg-white/80 border border-green-200 rounded-lg p-3">
+                <div className="text-xs text-gray-600 mb-1">Рост к 2025</div>
+                <div className="text-xl font-extrabold text-green-600 tabular-nums">—</div>
               </div>
             </div>
           </div>
@@ -1571,6 +1803,35 @@ export default function Presentation() {
       {/* Счетчик слайдов */}
       <div className="mt-4 text-sm text-gray-600">
         {currentSlide + 1} / {totalSlides}
+      </div>
+
+      {/* Скрытый контейнер для экспорта всей презентации */}
+      <div 
+        ref={printAllRef} 
+        style={{ 
+          position: 'absolute', 
+          left: '-9999px', 
+          top: '-9999px', 
+          width: '1123px',
+          visibility: 'hidden',
+          pointerEvents: 'none'
+        }}
+        className="print-only"
+      >
+        {Array.from({ length: totalSlides }).map((_, slideIndex) => (
+          <div
+            key={slideIndex}
+            className="slide-page bg-white"
+            style={{
+              width: '1123px',
+              height: '794px',
+              pageBreakAfter: slideIndex < totalSlides - 1 ? 'always' : 'auto',
+              marginBottom: '20px',
+            }}
+          >
+            {renderSlideContent(slideIndex)}
+          </div>
+        ))}
       </div>
     </div>
   );
