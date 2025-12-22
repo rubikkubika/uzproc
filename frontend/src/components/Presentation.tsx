@@ -3,14 +3,17 @@
 import { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
-import { Bar, Doughnut } from 'react-chartjs-2';
+import { Bar, Doughnut, Chart } from 'react-chartjs-2';
 import { getBackendUrl } from '@/utils/api';
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
+  LogarithmicScale,
   BarElement,
   ArcElement,
+  LineElement,
+  PointElement,
   Title,
   Tooltip,
   Legend,
@@ -20,8 +23,11 @@ import ChartDataLabels from 'chartjs-plugin-datalabels';
 ChartJS.register(
   CategoryScale,
   LinearScale,
+  LogarithmicScale,
   BarElement,
   ArcElement,
+  LineElement,
+  PointElement,
   Title,
   Tooltip,
   Legend,
@@ -566,6 +572,306 @@ export default function Presentation() {
     ],
   });
 
+  // Данные для столбчатой диаграммы SLA
+  const slaBarChartData = {
+    labels: ['2024', '2025', 'янв 25', 'фев 25', 'мар 25', 'апр 25', 'май 25', 'июн 25', 'июл 25', 'авг 25', 'сен 25', 'окт 25', 'ноя 25', 'дек 25', '2026'],
+    datasets: [
+      {
+        label: 'Количество закупок',
+        data: [120, 150, 8, 10, 12, 11, 9, 13, 14, 12, 10, 11, 9, 13, 180],
+        backgroundColor: [
+          'rgba(59, 130, 246, 0.8)',   // 2024 - синий
+          'rgba(34, 197, 94, 0.8)',     // 2025 - зеленый
+          'rgba(156, 163, 175, 0.6)',  // янв 25 - серый
+          'rgba(156, 163, 175, 0.6)',  // фев 25
+          'rgba(156, 163, 175, 0.6)',  // мар 25
+          'rgba(156, 163, 175, 0.6)',  // апр 25
+          'rgba(156, 163, 175, 0.6)',  // май 25
+          'rgba(156, 163, 175, 0.6)',  // июн 25
+          'rgba(156, 163, 175, 0.6)',  // июл 25
+          'rgba(156, 163, 175, 0.6)',  // авг 25
+          'rgba(156, 163, 175, 0.6)',  // сен 25
+          'rgba(156, 163, 175, 0.6)',  // окт 25
+          'rgba(156, 163, 175, 0.6)',  // ноя 25
+          'rgba(156, 163, 175, 0.6)',  // дек 25
+          'rgba(249, 115, 22, 0.6)',   // 2026 - оранжевый с прозрачностью (план)
+        ],
+        borderColor: [
+          'rgba(59, 130, 246, 1)',
+          'rgba(34, 197, 94, 1)',
+          'rgba(156, 163, 175, 0.8)',
+          'rgba(156, 163, 175, 0.8)',
+          'rgba(156, 163, 175, 0.8)',
+          'rgba(156, 163, 175, 0.8)',
+          'rgba(156, 163, 175, 0.8)',
+          'rgba(156, 163, 175, 0.8)',
+          'rgba(156, 163, 175, 0.8)',
+          'rgba(156, 163, 175, 0.8)',
+          'rgba(156, 163, 175, 0.8)',
+          'rgba(156, 163, 175, 0.8)',
+          'rgba(156, 163, 175, 0.8)',
+          'rgba(156, 163, 175, 0.8)',
+          'rgba(249, 115, 22, 1)',   // 2026 - оранжевый
+        ],
+        borderWidth: (context: any) => {
+          const label = context.chart.data.labels[context.dataIndex];
+          // 2026 - без границы (будет нарисована кастомным плагином)
+          if (label === '2026') {
+            return 0;
+          }
+          return 1;
+        },
+        barThickness: (context: any) => {
+          const label = context.chart.data.labels[context.dataIndex];
+          // Основные столбцы (2024, 2025, 2026) - шире
+          if (label === '2024' || label === '2025' || label === '2026') {
+            return 50; // Увеличили ширину основных столбцов
+          }
+          // Месячные столбцы - шире
+          return 25; // Увеличили ширину месячных столбцов
+        },
+      },
+    ],
+  };
+
+  // Данные для линейной диаграммы SLA (выполнение в процентах)
+  const slaLineChartData = {
+    labels: ['2024', '2025', 'янв 25', 'фев 25', 'мар 25', 'апр 25', 'май 25', 'июн 25', 'июл 25', 'авг 25', 'сен 25', 'окт 25', 'ноя 25', 'дек 25', '2026'],
+    datasets: [
+      {
+        label: 'Выполнение (%)',
+        data: [10, 45, 85, 88, 92, 90, 87, 93, 95, 91, 89, 92, 88, 94, 88],
+        borderColor: 'rgba(168, 85, 247, 1)',
+        backgroundColor: 'rgba(168, 85, 247, 0.1)',
+        borderWidth: 3,
+        fill: true,
+        tension: 0.4,
+        pointRadius: 5,
+        pointBackgroundColor: 'rgba(168, 85, 247, 1)',
+        pointBorderColor: '#fff',
+        pointBorderWidth: 2,
+      },
+    ],
+  };
+
+  // Опции для столбчатой диаграммы SLA
+  const slaBarChartOptions = {
+    animation: false as const,
+    responsive: true,
+    maintainAspectRatio: false,
+    layout: {
+      padding: { top: 10, bottom: 10, left: 10, right: 10 },
+    },
+    plugins: {
+      legend: {
+        display: true,
+        position: 'top' as const,
+        labels: {
+          font: { size: 12 },
+          padding: 15,
+          usePointStyle: true,
+        },
+      },
+      tooltip: {
+        enabled: false,
+      },
+      datalabels: {
+        display: true,
+        color: '#1f2937',
+        font: {
+          size: 10,
+          weight: 'bold' as const,
+        },
+        anchor: 'end' as const,
+        align: 'top' as const,
+        offset: 5,
+        formatter: (value: number) => {
+          return value;
+        },
+      },
+      // Кастомный плагин для пунктирной границы столбца 2026
+      afterDraw: (chart: any) => {
+        const ctx = chart.ctx;
+        const meta = chart.getDatasetMeta(0);
+        const data = chart.data;
+        
+        meta.data.forEach((bar: any, index: number) => {
+          const label = data.labels[index];
+          if (label === '2026') {
+            const { x, y, base, width, height } = bar;
+            ctx.save();
+            ctx.strokeStyle = 'rgba(249, 115, 22, 1)';
+            ctx.lineWidth = 4;
+            ctx.setLineDash([10, 5]);
+            ctx.strokeRect(x - width / 2, y, width, height);
+            ctx.restore();
+          }
+        });
+      },
+    },
+    scales: {
+      x: {
+        grid: {
+          display: true, // Включаем вертикальную сетку
+          color: 'rgba(0, 0, 0, 0.1)',
+          drawBorder: false,
+        },
+        ticks: {
+          font: { size: 11 },
+          maxRotation: 45,
+          minRotation: 45,
+        },
+      },
+      y: {
+        type: 'logarithmic' as const, // Используем логарифмический масштаб для лучшей видимости меньших столбцов
+        display: false, // Убираем вертикальную ось слева
+        position: 'left' as const,
+        grid: {
+          display: false,
+        },
+        min: 1, // Минимум для логарифмической шкалы должен быть > 0
+      },
+    },
+  };
+
+  // Данные для диаграммы ЗУЕИ
+  const zueiChartData = {
+    labels: ['Объем ЗУЕИ в 2025', 'Нереализованная экономия', 'Стратегическая цель'],
+    datasets: [
+      {
+        label: 'Значение',
+        data: [150, 45, 200], // Примерные значения
+        backgroundColor: [
+          'rgba(59, 130, 246, 0.8)',   // Объем - синий
+          'rgba(249, 115, 22, 0.8)',   // Нереализованная экономия - оранжевый
+          'rgba(34, 197, 94, 0.8)',     // Стратегическая цель - зеленый
+        ],
+        borderColor: [
+          'rgba(59, 130, 246, 1)',
+          'rgba(249, 115, 22, 1)',
+          'rgba(34, 197, 94, 1)',
+        ],
+        borderWidth: 2,
+      },
+    ],
+  };
+
+  const zueiChartOptions = {
+    animation: false as const,
+    responsive: true,
+    maintainAspectRatio: false,
+    layout: {
+      padding: { top: 10, bottom: 10, left: 10, right: 10 },
+    },
+    plugins: {
+      legend: {
+        display: false,
+      },
+      tooltip: {
+        enabled: false,
+      },
+      datalabels: {
+        display: true,
+        color: '#1f2937',
+        font: {
+          size: 12,
+          weight: 'bold' as const,
+        },
+        anchor: 'end' as const,
+        align: 'top' as const,
+        offset: 5,
+        formatter: (value: number) => {
+          return value;
+        },
+      },
+    },
+    scales: {
+      x: {
+        grid: {
+          display: false,
+        },
+        ticks: {
+          font: { size: 11 },
+          maxRotation: 45,
+          minRotation: 0,
+        },
+      },
+      y: {
+        type: 'linear' as const,
+        display: true,
+        position: 'left' as const,
+        beginAtZero: true,
+        grid: {
+          color: 'rgba(0, 0, 0, 0.05)',
+        },
+        ticks: {
+          font: { size: 10 },
+        },
+      },
+    },
+  };
+
+  // Опции для линейной диаграммы SLA
+  const slaLineChartOptions = {
+    animation: false as const,
+    responsive: true,
+    maintainAspectRatio: false,
+    layout: {
+      padding: { top: 10, bottom: 10, left: 10, right: 10 },
+    },
+    plugins: {
+      legend: {
+        display: true,
+        position: 'top' as const,
+        labels: {
+          font: { size: 12 },
+          padding: 15,
+          usePointStyle: true,
+        },
+      },
+      tooltip: {
+        enabled: false,
+      },
+      datalabels: {
+        display: true,
+        color: '#1f2937',
+        font: {
+          size: 10,
+          weight: 'bold' as const,
+        },
+        anchor: 'center' as const,
+        align: 'bottom' as const,
+        offset: -15,
+        formatter: (value: number) => {
+          return `${value}%`;
+        },
+      },
+    },
+    scales: {
+      x: {
+        display: false, // Убираем названия горизонтальной оси
+        grid: {
+          display: true, // Включаем вертикальную сетку
+          color: 'rgba(0, 0, 0, 0.1)',
+          drawBorder: false,
+        },
+        ticks: {
+          display: false, // Убираем подписи на оси X
+        },
+      },
+      y: {
+        type: 'linear' as const,
+        display: false, // Убираем вертикальную ось
+        position: 'left' as const,
+        grid: {
+          display: false,
+        },
+        min: 0,
+        max: 100,
+      },
+    },
+  };
+
   const workloadChartOptions = {
     animation: false as const, // Отключаем анимацию для лучшей печати
     responsive: true,
@@ -715,7 +1021,136 @@ export default function Presentation() {
           print-color-adjust: exact !important;
           color-adjust: exact !important;
         }
-        /* Убираем серый фон только у бейджиков (элементы с абсолютным позиционированием и bg-orange-600) */
+        /* Убеждаемся, что фоны блоков сохраняются */
+        .bg-orange-50,
+        [class*="bg-orange-50"],
+        div[class*="bg-orange-50"],
+        .bg-orange-50.border-2,
+        [class*="bg-orange-50"][class*="border-2"] {
+          background-color: rgb(255, 247, 237) !important;
+          background: rgb(255, 247, 237) !important;
+          background-image: none !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
+        .bg-gray-50,
+        [class*="bg-gray-50"],
+        div[class*="bg-gray-50"],
+        .bg-gray-50.border-2,
+        [class*="bg-gray-50"][class*="border-2"] {
+          background-color: rgb(249, 250, 251) !important;
+          background: rgb(249, 250, 251) !important;
+          background-image: none !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
+        /* Убеждаемся, что фоны блоков с relative позиционированием сохраняются */
+        .relative.bg-orange-50,
+        [class*="relative"][class*="bg-orange-50"],
+        div.relative[class*="bg-orange-50"],
+        div[class*="relative"][class*="bg-orange-50"],
+        .flex.bg-orange-50,
+        [class*="flex"][class*="bg-orange-50"],
+        div[class*="flex"][class*="bg-orange-50"] {
+          background-color: rgb(255, 247, 237) !important;
+          background: rgb(255, 247, 237) !important;
+          background-image: none !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
+        /* Убеждаемся, что все div с bg-orange-50 сохраняют фон */
+        div.bg-orange-50,
+        div[class*="bg-orange-50"] {
+          background-color: rgb(255, 247, 237) !important;
+          background: rgb(255, 247, 237) !important;
+          background-image: none !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
+        /* Убираем серые контуры/рамки у всех элементов, кроме нужных границ */
+        .absolute.bg-orange-600,
+        span.absolute.bg-orange-600 {
+          border: none !important;
+          outline: none !important;
+          box-shadow: none !important;
+        }
+        /* Убираем серые контуры у всех элементов с абсолютным позиционированием */
+        .absolute,
+        [class*="absolute"] {
+          outline: none !important;
+          box-shadow: none !important;
+        }
+        /* Убираем серые контуры у бейджиков и декоративных элементов */
+        span[class*="bg-orange-600"],
+        span[class*="rounded-full"],
+        .rounded-full[class*="bg-"],
+        [class*="rounded-full"] {
+          outline: none !important;
+          border: none !important;
+          box-shadow: none !important;
+        }
+        /* Убираем серые контуры у всех элементов с фоновыми цветами, кроме блоков с border-2 */
+        [class*="bg-"]:not([class*="border-2"]):not([class*="border-"]) {
+          outline: none !important;
+          box-shadow: none !important;
+        }
+        /* Убираем серые контуры у всех элементов с rounded */
+        [class*="rounded"] {
+          outline: none !important;
+        }
+        /* Убираем серые контуры у элементов, которые не должны их иметь */
+        *,
+        *::before,
+        *::after {
+          outline: none !important;
+          box-shadow: none !important;
+        }
+        /* Убираем серые контуры у всех типов элементов */
+        div, span, p, h1, h2, h3, h4, h5, h6, img, canvas, svg, button, input, textarea, select, a, ul, ol, li, table, tr, td, th, thead, tbody {
+          outline: none !important;
+          box-shadow: none !important;
+        }
+        /* Сохраняем нужные границы блоков */
+        .border-2,
+        [class*="border-2"],
+        .border,
+        [class*="border"]:not([class*="border-r"]):not([class*="border-l"]):not([class*="border-t"]):not([class*="border-b"]) {
+          /* Границы сохраняются, но убираем outline и box-shadow */
+          outline: none !important;
+          box-shadow: none !important;
+        }
+        /* Убираем серые контуры у всех span элементов */
+        span,
+        span * {
+          outline: none !important;
+          box-shadow: none !important;
+        }
+        /* Убираем серые контуры у div элементов, кроме тех, где границы нужны */
+        div:not([class*="border-2"]):not([class*="border-"]) {
+          outline: none !important;
+          box-shadow: none !important;
+        }
+        /* Убираем серые контуры у всех изображений */
+        img {
+          outline: none !important;
+          border: none !important;
+          box-shadow: none !important;
+        }
+        /* Убираем серые контуры у всех canvas элементов */
+        canvas {
+          outline: none !important;
+          border: none !important;
+          box-shadow: none !important;
+        }
+        /* Убираем серые контуры у всех текстовых элементов */
+        p, h1, h2, h3, h4, h5, h6, div, span {
+          outline: none !important;
+        }
+        /* Убираем серый фон и контуры только у бейджиков (элементы с абсолютным позиционированием и bg-orange-600) */
         .absolute.bg-orange-600,
         span.absolute.bg-orange-600,
         .absolute[class*="bg-orange-600"],
@@ -723,6 +1158,9 @@ export default function Presentation() {
         span[class*="bg-orange-600"][class*="absolute"] {
           background-color: rgb(234, 88, 12) !important;
           background: rgb(234, 88, 12) !important;
+          border: none !important;
+          outline: none !important;
+          box-shadow: none !important;
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
           color-adjust: exact !important;
@@ -748,9 +1186,9 @@ export default function Presentation() {
           background-color: rgb(234, 88, 12) !important;
           background: rgb(234, 88, 12) !important;
         }
-        /* Убираем серый фон у родительских элементов бейджиков */
-        .relative:has(> .absolute.bg-orange-600),
-        .relative:has(> span.absolute.bg-orange-600) {
+        /* Убираем серый фон у родительских элементов бейджиков, НО сохраняем фон у блоков с bg-orange-50 */
+        .relative:has(> .absolute.bg-orange-600):not([class*="bg-orange-50"]):not(.bg-orange-50),
+        .relative:has(> span.absolute.bg-orange-600):not([class*="bg-orange-50"]):not(.bg-orange-50) {
           background-color: transparent !important;
           background: transparent !important;
         }
@@ -766,9 +1204,9 @@ export default function Presentation() {
           background-color: rgb(234, 88, 12) !important;
           background: rgb(234, 88, 12) !important;
         }
-        /* Убираем серые фоны из всех возможных источников у бейджиков */
-        *[class*="bg-orange-600"][class*="absolute"] *,
-        *[class*="absolute"][class*="bg-orange-600"] * {
+        /* Убираем серые фоны из всех возможных источников у бейджиков, НО не у родительских блоков с bg-orange-50 */
+        *[class*="bg-orange-600"][class*="absolute"] *:not([class*="bg-orange-50"]):not(.bg-orange-50),
+        *[class*="absolute"][class*="bg-orange-600"] *:not([class*="bg-orange-50"]):not(.bg-orange-50) {
           background-color: transparent !important;
           background: transparent !important;
         }
@@ -851,6 +1289,66 @@ export default function Presentation() {
         .print-only img {
           visibility: visible !important;
         }
+        /* Убираем серые контуры у всех элементов внутри print-only */
+        .print-only *,
+        .print-only *::before,
+        .print-only *::after {
+          outline: none !important;
+          box-shadow: none !important;
+        }
+        .print-only div, .print-only span, .print-only p, .print-only h1, .print-only h2, .print-only h3, 
+        .print-only h4, .print-only h5, .print-only h6, .print-only img, .print-only canvas, 
+        .print-only svg, .print-only button, .print-only input, .print-only textarea, 
+        .print-only select, .print-only a, .print-only ul, .print-only ol, .print-only li, 
+        .print-only table, .print-only tr, .print-only td, .print-only th, 
+        .print-only thead, .print-only tbody {
+          outline: none !important;
+          box-shadow: none !important;
+        }
+        .print-only img {
+          outline: none !important;
+          border: none !important;
+          box-shadow: none !important;
+        }
+        .print-only canvas {
+          outline: none !important;
+          border: none !important;
+          box-shadow: none !important;
+        }
+        /* Убираем серые контуры у всех элементов с фоновыми цветами внутри print-only */
+        .print-only [class*="bg-"]:not([class*="border-2"]):not([class*="border-"]) {
+          outline: none !important;
+          box-shadow: none !important;
+        }
+        .print-only [class*="rounded"] {
+          outline: none !important;
+        }
+        .print-only .absolute,
+        .print-only [class*="absolute"] {
+          outline: none !important;
+          box-shadow: none !important;
+        }
+        /* КРИТИЧЕСКИ ВАЖНО: Сохраняем фоны блоков перед другими правилами */
+        .print-only .bg-orange-50,
+        .print-only [class*="bg-orange-50"],
+        .print-only div[class*="bg-orange-50"] {
+          background-color: rgb(255, 247, 237) !important;
+          background: rgb(255, 247, 237) !important;
+          background-image: none !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
+        .print-only .bg-gray-50,
+        .print-only [class*="bg-gray-50"],
+        .print-only div[class*="bg-gray-50"] {
+          background-color: rgb(249, 250, 251) !important;
+          background: rgb(249, 250, 251) !important;
+          background-image: none !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
         /* Сохраняем все цвета при печати */
         .bg-orange-600, [class*="bg-orange-"], 
         .bg-blue-50, [class*="bg-blue-"],
@@ -863,7 +1361,136 @@ export default function Presentation() {
           print-color-adjust: exact !important;
           color-adjust: exact !important;
         }
-        /* Убираем серый фон только у бейджиков (элементы с абсолютным позиционированием и bg-orange-600) */
+        /* Убеждаемся, что фоны блоков сохраняются */
+        .bg-orange-50,
+        [class*="bg-orange-50"],
+        div[class*="bg-orange-50"],
+        .bg-orange-50.border-2,
+        [class*="bg-orange-50"][class*="border-2"] {
+          background-color: rgb(255, 247, 237) !important;
+          background: rgb(255, 247, 237) !important;
+          background-image: none !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
+        .bg-gray-50,
+        [class*="bg-gray-50"],
+        div[class*="bg-gray-50"],
+        .bg-gray-50.border-2,
+        [class*="bg-gray-50"][class*="border-2"] {
+          background-color: rgb(249, 250, 251) !important;
+          background: rgb(249, 250, 251) !important;
+          background-image: none !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
+        /* Убеждаемся, что фоны блоков с relative позиционированием сохраняются */
+        .relative.bg-orange-50,
+        [class*="relative"][class*="bg-orange-50"],
+        div.relative[class*="bg-orange-50"],
+        div[class*="relative"][class*="bg-orange-50"],
+        .flex.bg-orange-50,
+        [class*="flex"][class*="bg-orange-50"],
+        div[class*="flex"][class*="bg-orange-50"] {
+          background-color: rgb(255, 247, 237) !important;
+          background: rgb(255, 247, 237) !important;
+          background-image: none !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
+        /* Убеждаемся, что все div с bg-orange-50 сохраняют фон */
+        div.bg-orange-50,
+        div[class*="bg-orange-50"] {
+          background-color: rgb(255, 247, 237) !important;
+          background: rgb(255, 247, 237) !important;
+          background-image: none !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          color-adjust: exact !important;
+        }
+        /* Убираем серые контуры/рамки у всех элементов, кроме нужных границ */
+        .absolute.bg-orange-600,
+        span.absolute.bg-orange-600 {
+          border: none !important;
+          outline: none !important;
+          box-shadow: none !important;
+        }
+        /* Убираем серые контуры у всех элементов с абсолютным позиционированием */
+        .absolute,
+        [class*="absolute"] {
+          outline: none !important;
+          box-shadow: none !important;
+        }
+        /* Убираем серые контуры у бейджиков и декоративных элементов */
+        span[class*="bg-orange-600"],
+        span[class*="rounded-full"],
+        .rounded-full[class*="bg-"],
+        [class*="rounded-full"] {
+          outline: none !important;
+          border: none !important;
+          box-shadow: none !important;
+        }
+        /* Убираем серые контуры у всех элементов с фоновыми цветами, кроме блоков с border-2 */
+        [class*="bg-"]:not([class*="border-2"]):not([class*="border-"]) {
+          outline: none !important;
+          box-shadow: none !important;
+        }
+        /* Убираем серые контуры у всех элементов с rounded */
+        [class*="rounded"] {
+          outline: none !important;
+        }
+        /* Убираем серые контуры у элементов, которые не должны их иметь */
+        *,
+        *::before,
+        *::after {
+          outline: none !important;
+          box-shadow: none !important;
+        }
+        /* Убираем серые контуры у всех типов элементов */
+        div, span, p, h1, h2, h3, h4, h5, h6, img, canvas, svg, button, input, textarea, select, a, ul, ol, li, table, tr, td, th, thead, tbody {
+          outline: none !important;
+          box-shadow: none !important;
+        }
+        /* Сохраняем нужные границы блоков */
+        .border-2,
+        [class*="border-2"],
+        .border,
+        [class*="border"]:not([class*="border-r"]):not([class*="border-l"]):not([class*="border-t"]):not([class*="border-b"]) {
+          /* Границы сохраняются, но убираем outline и box-shadow */
+          outline: none !important;
+          box-shadow: none !important;
+        }
+        /* Убираем серые контуры у всех span элементов */
+        span,
+        span * {
+          outline: none !important;
+          box-shadow: none !important;
+        }
+        /* Убираем серые контуры у div элементов, кроме тех, где границы нужны */
+        div:not([class*="border-2"]):not([class*="border-"]) {
+          outline: none !important;
+          box-shadow: none !important;
+        }
+        /* Убираем серые контуры у всех изображений */
+        img {
+          outline: none !important;
+          border: none !important;
+          box-shadow: none !important;
+        }
+        /* Убираем серые контуры у всех canvas элементов */
+        canvas {
+          outline: none !important;
+          border: none !important;
+          box-shadow: none !important;
+        }
+        /* Убираем серые контуры у всех текстовых элементов */
+        p, h1, h2, h3, h4, h5, h6, div, span {
+          outline: none !important;
+        }
+        /* Убираем серый фон и контуры только у бейджиков (элементы с абсолютным позиционированием и bg-orange-600) */
         .absolute.bg-orange-600,
         span.absolute.bg-orange-600,
         .absolute[class*="bg-orange-600"],
@@ -871,6 +1498,9 @@ export default function Presentation() {
         span[class*="bg-orange-600"][class*="absolute"] {
           background-color: rgb(234, 88, 12) !important;
           background: rgb(234, 88, 12) !important;
+          border: none !important;
+          outline: none !important;
+          box-shadow: none !important;
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
           color-adjust: exact !important;
@@ -896,9 +1526,9 @@ export default function Presentation() {
           background-color: rgb(234, 88, 12) !important;
           background: rgb(234, 88, 12) !important;
         }
-        /* Убираем серый фон у родительских элементов бейджиков */
-        .relative:has(> .absolute.bg-orange-600),
-        .relative:has(> span.absolute.bg-orange-600) {
+        /* Убираем серый фон у родительских элементов бейджиков, НО сохраняем фон у блоков с bg-orange-50 */
+        .relative:has(> .absolute.bg-orange-600):not([class*="bg-orange-50"]):not(.bg-orange-50),
+        .relative:has(> span.absolute.bg-orange-600):not([class*="bg-orange-50"]):not(.bg-orange-50) {
           background-color: transparent !important;
           background: transparent !important;
         }
@@ -914,9 +1544,9 @@ export default function Presentation() {
           background-color: rgb(234, 88, 12) !important;
           background: rgb(234, 88, 12) !important;
         }
-        /* Убираем серые фоны из всех возможных источников у бейджиков */
-        *[class*="bg-orange-600"][class*="absolute"] *,
-        *[class*="absolute"][class*="bg-orange-600"] * {
+        /* Убираем серые фоны из всех возможных источников у бейджиков, НО не у родительских блоков с bg-orange-50 */
+        *[class*="bg-orange-600"][class*="absolute"] *:not([class*="bg-orange-50"]):not(.bg-orange-50),
+        *[class*="absolute"][class*="bg-orange-600"] *:not([class*="bg-orange-50"]):not(.bg-orange-50) {
           background-color: transparent !important;
           background: transparent !important;
         }
@@ -1218,6 +1848,130 @@ export default function Presentation() {
           </div>
         </div>
       );
+    } else if (slideIndex === 3) {
+      // Четвертый слайд - SLA по закупкам
+      return (
+        <div className="w-full h-full p-6 flex flex-col" style={{ minHeight: 0 }}>
+          <div className="flex items-start justify-between mb-2">
+            <h1 className="text-3xl font-bold text-gray-900">SLA по закупкам</h1>
+            <img src="/images/logo-small.svg" alt="Logo" className="w-10 h-10" />
+          </div>
+          <div
+            className="h-1 w-full rounded-full mb-3"
+            style={{
+              background:
+                'linear-gradient(90deg, rgba(168, 85, 247, 0.25) 0%, rgba(168, 85, 247, 0.25) 35%, rgba(255,255,255,1) 60%, rgba(255,255,255,1) 100%)',
+            }}
+          />
+          <div className="flex-1 flex flex-col" style={{ minHeight: 0, gap: 0 }}>
+            {/* Верхняя часть: линейная диаграмма */}
+            <div className="flex-shrink-0" style={{ height: '17.5%', minHeight: '100px', maxHeight: '125px', marginBottom: '-10px' }}>
+              <Chart type="line" data={slaLineChartData} options={slaLineChartOptions} />
+            </div>
+            
+            {/* Нижняя часть: столбчатая диаграмма */}
+            <div className="flex-1 flex items-center justify-center" style={{ minHeight: '300px', maxHeight: '400px', padding: '10px 0' }}>
+              <div className="w-full h-full">
+                <Bar data={slaBarChartData} options={slaBarChartOptions} />
+              </div>
+            </div>
+
+            {/* Нижняя часть: блоки с тезисами */}
+            <div className="flex-shrink-0 grid grid-cols-2 gap-4">
+              {/* Блок "Итоги 2025" */}
+              <div className="bg-blue-50/50 border border-blue-200 rounded-lg p-4">
+                <h3 className="text-2xl font-bold text-gray-900 mb-3">Итоги 2025</h3>
+                <ul className="space-y-2 text-lg text-gray-700">
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-600 mt-1">•</span>
+                    <span>Команда закупок при сохранении численности персонала на реализовала на X% больше закупочных процедур в 2025</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-600 mt-1">•</span>
+                    <span>При этом доля реализованных в срок закупок увеличилась на X% в 2025 году в сравнении с 2024</span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Блок "Точки роста" */}
+              <div className="bg-orange-50 border-2 border-orange-300 rounded-xl p-4">
+                <h3 className="text-2xl font-bold text-gray-900 mb-3">Точки роста</h3>
+                <p className="text-lg text-gray-700 mb-3">
+                  Показатель SLA все еще находится на невысоком уровне и требует внимания. Для максимизации SLA в 2026 будут произведены:
+                </p>
+                <ul className="space-y-2 text-lg text-gray-700">
+                  <li className="flex items-start gap-2">
+                    <span className="text-orange-600 mt-1">•</span>
+                    <span>Оптимизация орг. структуры закупок (см. сл. X)</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-orange-600 mt-1">•</span>
+                    <span>Введен усиленный контроль над планированием и исполнением закупок (см. сл. X)</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    } else if (slideIndex === 4) {
+      // Пятый слайд - Закупки у единственного источника - Зона роста
+      return (
+        <div className="w-full h-full p-6 flex flex-col" style={{ minHeight: 0 }}>
+          <div className="flex items-start justify-between mb-2">
+            <h1 className="text-3xl font-bold text-gray-900">Закупки у единственного источника - Зона роста</h1>
+            <img src="/images/logo-small.svg" alt="Logo" className="w-10 h-10" />
+          </div>
+          <div
+            className="h-1 w-full rounded-full mb-3"
+            style={{
+              background:
+                'linear-gradient(90deg, rgba(168, 85, 247, 0.25) 0%, rgba(168, 85, 247, 0.25) 35%, rgba(255,255,255,1) 60%, rgba(255,255,255,1) 100%)',
+            }}
+          />
+          <div className="flex-1 grid grid-cols-2 gap-6" style={{ minHeight: 0 }}>
+            {/* Левая колонка: диаграмма */}
+            <div className="flex items-center justify-center" style={{ minHeight: 0, padding: '10px 0' }}>
+              <div className="w-full h-full" style={{ maxHeight: '100%' }}>
+                <Bar data={zueiChartData} options={zueiChartOptions} />
+              </div>
+            </div>
+
+            {/* Правая колонка: блоки с тезисами */}
+            <div className="flex flex-col gap-4 overflow-y-auto" style={{ minHeight: 0 }}>
+              {/* Блок "Выводы" */}
+              <div className="bg-orange-50 border-2 border-orange-300 rounded-xl p-4">
+                <h3 className="text-2xl font-bold text-gray-900 mb-3">Выводы</h3>
+                <p className="text-lg text-gray-700">
+                  ЗУЕИ составили <span className="font-bold">21 млрд UZS</span> ~<span className="font-bold">34%</span> от общего объема закупок в 2025 году, что привело к росту стоимости закупок и потерям экономии оценочно на <span className="font-bold">4,6 млрд UZS</span>
+                </p>
+              </div>
+
+              {/* Блок "Цель" */}
+              <div className="bg-blue-50/50 border border-blue-200 rounded-lg p-4">
+                <h3 className="text-2xl font-bold text-gray-900 mb-3">Цель (!)</h3>
+                <p className="text-lg text-gray-700 mb-3">
+                  <span className="font-bold">Цель 2026:</span> Снижение объема ЗУЕИ на <span className="font-bold">30-50%</span> за счет перехода от реактивной модели к плановой. Ключевые запланированные меры:
+                </p>
+                <ul className="space-y-2 text-lg text-gray-700">
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-600 mt-1">ü</span>
+                    <span>Оптимизация орг. структуры закупок для высвобождения ресурса под планирование и контроль сроков (см. сл. X)</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-600 mt-1">ü</span>
+                    <span>Внедрение системы UzProc на предыдущий слайд (см. приложение) для развитие аналитики, прозрачности и управляемости процессов</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-600 mt-1">ü</span>
+                    <span>Структурированное планирование закупок – формирование и соблюдение годового/квартального плана, снижение доли внеплановых закупок</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
     } else {
       // Для остальных слайдов - базовый шаблон
       const slideTitles = [
@@ -1246,8 +2000,10 @@ export default function Presentation() {
                 'linear-gradient(90deg, rgba(168, 85, 247, 0.25) 0%, rgba(168, 85, 247, 0.25) 35%, rgba(255,255,255,1) 60%, rgba(255,255,255,1) 100%)',
             }}
           />
-          <div className="flex-1 flex items-center justify-center text-gray-400" style={{ minHeight: 0 }}>
-            Контент слайда будет добавлен позже
+          <div className="flex-1 flex items-center justify-center" style={{ minHeight: 0, padding: '20px 0' }}>
+            <div className="w-full h-full" style={{ maxHeight: '100%' }}>
+              <Bar data={zueiChartData} options={zueiChartOptions} />
+            </div>
           </div>
         </div>
       );
@@ -1335,7 +2091,7 @@ export default function Presentation() {
                   alt="Logo"
                   className="w-10 h-10"
                 />
-              </div>
+                </div>
 
               {/* Разделитель как у логотипа: градиент, исчезающий справа */}
               <div
@@ -1355,7 +2111,7 @@ export default function Presentation() {
                     <div className="bg-gray-50 border-2 border-gray-300 rounded-xl px-4 py-6 flex flex-col justify-center items-center">
                       <div className="text-xl leading-7 font-semibold text-gray-700 text-center mb-3">Сумма закупок 2025</div>
                       <div className="text-3xl font-extrabold text-gray-900 text-center tabular-nums">{totalPurchasesAmount2025Label}</div>
-                    </div>
+              </div>
                     <div className="bg-orange-50 border-2 border-orange-300 rounded-xl px-4 py-6 relative flex flex-col justify-center items-center">
                       <span className="absolute -top-3 -right-3 bg-orange-600 text-white text-base font-extrabold rounded-full px-4 py-2 shadow tabular-nums">
                         23%
@@ -1364,7 +2120,7 @@ export default function Presentation() {
                       <div className="text-3xl font-extrabold text-gray-900 text-center tabular-nums">13 млрд</div>
                     </div>
                   </div>
-                </div>
+                    </div>
 
                 {/* Верхний правый: placeholder */}
                 <div className="p-3 flex" style={{ minHeight: 0 }}>
@@ -1387,7 +2143,7 @@ export default function Presentation() {
                             ))}
                           </ul>
                         )}
-                      </div>
+                    </div>
                     </div>
 
                     <div className="mt-4 grid grid-cols-2 gap-3">
@@ -1395,17 +2151,17 @@ export default function Presentation() {
                         <div className="bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
                           <div className="text-lg leading-5 font-semibold text-gray-700 text-center">Кол-во закупок</div>
                           <div className="text-xl font-extrabold text-gray-900 text-center tabular-nums">{etpPurchasesCount}</div>
-                        </div>
+                  </div>
                         <div className="bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
                           <div className="text-lg leading-5 font-semibold text-gray-700 text-center">Сумма закупок</div>
                           <div className="text-xl font-extrabold text-gray-900 text-center tabular-nums">{etpPurchasesAmountLabel}</div>
-                        </div>
-                      </div>
+                </div>
+                    </div>
                       <div className="bg-orange-50 border border-orange-200 rounded-md px-3 py-2">
                         <div className="text-lg leading-5 font-semibold text-orange-800 text-center">Экономия</div>
                         <div className="text-xl font-extrabold text-orange-800 text-center tabular-nums">13 млрд</div>
-                      </div>
-                    </div>
+                  </div>
+                </div>
                   </div>
                 </div>
 
@@ -1703,8 +2459,54 @@ export default function Presentation() {
                 }}
               />
 
-              <div className="flex-1 flex items-center justify-center text-gray-400" style={{ minHeight: 0 }}>
-                Контент слайда будет добавлен позже
+              <div className="flex-1 flex flex-col" style={{ minHeight: 0, gap: 0 }}>
+                {/* Верхняя часть: линейная диаграмма */}
+                <div className="flex-shrink-0" style={{ height: '17.5%', minHeight: '100px', maxHeight: '125px', marginBottom: '-10px' }}>
+                  <Chart type="line" data={slaLineChartData} options={slaLineChartOptions} />
+                </div>
+                
+                {/* Нижняя часть: столбчатая диаграмма */}
+                <div className="flex-1 flex items-center justify-center" style={{ minHeight: '300px', maxHeight: '400px', padding: '10px 0' }}>
+                  <div className="w-full h-full">
+                    <Bar data={slaBarChartData} options={slaBarChartOptions} />
+                  </div>
+                </div>
+
+                {/* Нижняя часть: блоки с тезисами */}
+                <div className="flex-shrink-0 grid grid-cols-2 gap-4">
+                  {/* Блок "Итоги 2025" */}
+                  <div className="bg-blue-50/50 border border-blue-200 rounded-lg p-4">
+                    <h3 className="text-2xl font-bold text-gray-900 mb-3">Итоги 2025</h3>
+                    <ul className="space-y-2 text-lg text-gray-700">
+                      <li className="flex items-start gap-2">
+                        <span className="text-blue-600 mt-1">•</span>
+                        <span>Команда закупок при сохранении численности персонала на реализовала на X% больше закупочных процедур в 2025</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-blue-600 mt-1">•</span>
+                        <span>При этом доля реализованных в срок закупок увеличилась на X% в 2025 году в сравнении с 2024</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  {/* Блок "Точки роста" */}
+                  <div className="bg-orange-50 border-2 border-orange-300 rounded-xl p-4">
+                    <h3 className="text-2xl font-bold text-gray-900 mb-3">Точки роста</h3>
+                    <p className="text-lg text-gray-700 mb-3">
+                      Показатель SLA все еще находится на невысоком уровне и требует внимания. Для максимизации SLA в 2026 будут произведены:
+                    </p>
+                    <ul className="space-y-2 text-lg text-gray-700">
+                      <li className="flex items-start gap-2">
+                        <span className="text-orange-600 mt-1">•</span>
+                        <span>Оптимизация орг. структуры закупок (см. сл. X)</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-orange-600 mt-1">•</span>
+                        <span>Введен усиленный контроль над планированием и исполнением закупок (см. сл. X)</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
               </div>
             </div>
           ) : currentSlide === 4 ? (
@@ -1723,8 +2525,46 @@ export default function Presentation() {
                 }}
               />
 
-              <div className="flex-1 flex items-center justify-center text-gray-400" style={{ minHeight: 0 }}>
-                Контент слайда будет добавлен позже
+              <div className="flex-1 grid grid-cols-2 gap-6" style={{ minHeight: 0 }}>
+                {/* Левая колонка: диаграмма */}
+                <div className="flex items-center justify-center" style={{ minHeight: 0, padding: '10px 0' }}>
+                  <div className="w-full h-full" style={{ maxHeight: '100%' }}>
+                    <Bar data={zueiChartData} options={zueiChartOptions} />
+                  </div>
+                </div>
+
+                {/* Правая колонка: блоки с тезисами */}
+                <div className="flex flex-col gap-4 overflow-y-auto" style={{ minHeight: 0 }}>
+                  {/* Блок "Выводы" */}
+                  <div className="bg-orange-50 border-2 border-orange-300 rounded-xl p-4">
+                    <h3 className="text-2xl font-bold text-gray-900 mb-3">Выводы</h3>
+                    <p className="text-lg text-gray-700">
+                      ЗУЕИ составили <span className="font-bold">21 млрд UZS</span> ~<span className="font-bold">34%</span> от общего объема закупок в 2025 году, что привело к росту стоимости закупок и потерям экономии оценочно на <span className="font-bold">4,6 млрд UZS</span>
+                    </p>
+                  </div>
+
+                  {/* Блок "Цель" */}
+                  <div className="bg-blue-50/50 border border-blue-200 rounded-lg p-4">
+                    <h3 className="text-2xl font-bold text-gray-900 mb-3">Цель (!)</h3>
+                    <p className="text-lg text-gray-700 mb-3">
+                      <span className="font-bold">Цель 2026:</span> Снижение объема ЗУЕИ на <span className="font-bold">30-50%</span> за счет перехода от реактивной модели к плановой. Ключевые запланированные меры:
+                    </p>
+                    <ul className="space-y-2 text-lg text-gray-700">
+                      <li className="flex items-start gap-2">
+                        <span className="text-blue-600 mt-1">ü</span>
+                        <span>Оптимизация орг. структуры закупок для высвобождения ресурса под планирование и контроль сроков (см. сл. X)</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-blue-600 mt-1">ü</span>
+                        <span>Внедрение системы UzProc на предыдущий слайд (см. приложение) для развитие аналитики, прозрачности и управляемости процессов</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-blue-600 mt-1">ü</span>
+                        <span>Структурированное планирование закупок – формирование и соблюдение годового/квартального плана, снижение доли внеплановых закупок</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
               </div>
             </div>
           ) : currentSlide === 5 ? (
@@ -1743,8 +2583,38 @@ export default function Presentation() {
                 }}
               />
 
-              <div className="flex-1 flex items-center justify-center text-gray-400" style={{ minHeight: 0 }}>
-                Контент слайда будет добавлен позже
+              <div className="flex-1 grid grid-cols-2 gap-4" style={{ minHeight: 0 }}>
+                {/* Карточка 1: Вторсырье */}
+                <div className="bg-green-50 border-2 border-green-300 rounded-xl p-4 flex flex-col">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-xl font-bold text-gray-900">Вторсырье</h3>
+                    <div className="bg-green-500 text-white text-xs font-semibold px-2 py-1 rounded-full">Выполнено</div>
+                  </div>
+                </div>
+
+                {/* Карточка 2: Оптимизация работы с договорами */}
+                <div className="bg-green-50 border-2 border-green-300 rounded-xl p-4 flex flex-col">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-xl font-bold text-gray-900">Оптимизация работы с договорами</h3>
+                    <div className="bg-green-500 text-white text-xs font-semibold px-2 py-1 rounded-full">Выполнено</div>
+                  </div>
+                </div>
+
+                {/* Карточка 3: Автозаказы */}
+                <div className="bg-green-50 border-2 border-green-300 rounded-xl p-4 flex flex-col">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-xl font-bold text-gray-900">Автозаказы</h3>
+                    <div className="bg-green-500 text-white text-xs font-semibold px-2 py-1 rounded-full">Выполнено</div>
+                  </div>
+                </div>
+
+                {/* Карточка 4: Изменение лимита */}
+                <div className="bg-green-50 border-2 border-green-300 rounded-xl p-4 flex flex-col">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-xl font-bold text-gray-900">Изменение лимита</h3>
+                    <div className="bg-green-500 text-white text-xs font-semibold px-2 py-1 rounded-full">Выполнено</div>
+                  </div>
+                </div>
               </div>
             </div>
           ) : currentSlide === 6 ? (
@@ -1844,7 +2714,7 @@ export default function Presentation() {
               />
 
               <div className="flex-1 flex items-center justify-center text-gray-400" style={{ minHeight: 0 }}>
-                Контент слайда будет добавлен позже
+                  Контент слайда будет добавлен позже
               </div>
             </div>
           )}
