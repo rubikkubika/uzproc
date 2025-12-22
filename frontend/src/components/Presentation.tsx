@@ -98,30 +98,7 @@ function buildSumByCfoChartData(valuesByCfo: PurchasesByCfo) {
 }
 
 const purchasesPlanFactOptions = {
-  animation: false, // Отключаем анимацию для лучшей печати
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: {
-    legend: {
-      display: false,
-    },
-    tooltip: {
-      enabled: false, // Отключаем tooltip при печати
-    },
-  },
-  scales: {
-    x: {
-      grid: {
-        display: false,
-      },
-    },
-    y: {
-      grid: {
-        display: true,
-        color: 'rgba(0, 0, 0, 0.1)',
-      },
-    },
-  },
+  animation: false as const, // Отключаем анимацию для лучшей печати
   responsive: true,
   maintainAspectRatio: false,
   layout: {
@@ -130,6 +107,9 @@ const purchasesPlanFactOptions = {
   plugins: {
     legend: {
       display: false,
+    },
+    tooltip: {
+      enabled: false, // Отключаем tooltip при печати
     },
     datalabels: {
       display: true,
@@ -504,7 +484,7 @@ export default function Presentation() {
   };
 
   const purchasesCategoryPieOptions = {
-    animation: false, // Отключаем анимацию для лучшей печати
+    animation: false as const, // Отключаем анимацию для лучшей печати
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -587,7 +567,7 @@ export default function Presentation() {
   });
 
   const workloadChartOptions = {
-    animation: false, // Отключаем анимацию для лучшей печати
+    animation: false as const, // Отключаем анимацию для лучшей печати
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -607,7 +587,7 @@ export default function Presentation() {
           // Для столбцов - темный цвет, для линии - красный
           return context.datasetIndex === 0 ? '#1f2937' : 'rgba(239, 68, 68, 1)';
         },
-        font: { weight: 'bold' as const, size: context => context.datasetIndex === 0 ? 14 : 11 },
+        font: { weight: 'bold' as const, size: 12 },
         formatter: (value: number, context: any) => {
           if (context.datasetIndex === 0) {
             return value.toLocaleString('ru-RU');
@@ -805,7 +785,7 @@ export default function Presentation() {
   const handlePrintAll = useReactToPrint({
     contentRef: printAllRef,
     documentTitle: `Презентация_Все_слайды_${new Date().toISOString().split('T')[0]}`,
-    onBeforeGetContent: () => {
+    onBeforePrint: () => {
       // Убеждаемся, что скрытый контейнер виден для подготовки к печати
       return new Promise<void>((resolve) => {
         if (printAllRef.current) {
