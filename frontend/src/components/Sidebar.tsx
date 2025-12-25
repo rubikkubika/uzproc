@@ -18,7 +18,8 @@ import {
   ChevronUp,
   Upload,
   Mail,
-  FileText
+  FileText,
+  CheckSquare
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -38,6 +39,7 @@ const menuItems = [
   const purchaserItems = [
     { id: 'overview', label: 'Обзор', icon: Home, disabled: false },
     { id: 'workload', label: 'Нагрузка', icon: BarChart3, disabled: false },
+    { id: 'tasks', label: 'Задачи', icon: CheckSquare },
     { id: 'purchase-requests', label: 'Заявки на закупку', icon: Package },
     { id: 'purchases', label: 'Закупки', icon: Package },
     { id: 'purchase-plan', label: 'План закупок', icon: Calendar },

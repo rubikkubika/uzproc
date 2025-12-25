@@ -2,8 +2,10 @@ package com.uzproc.backend.service;
 
 import com.uzproc.backend.dto.PurchasePlanItemDto;
 import com.uzproc.backend.entity.Company;
+import com.uzproc.backend.entity.Cfo;
 import com.uzproc.backend.entity.PurchasePlanItem;
 import com.uzproc.backend.entity.PurchasePlanItemStatus;
+import com.uzproc.backend.repository.CfoRepository;
 import com.uzproc.backend.repository.PurchasePlanItemRepository;
 import com.uzproc.backend.repository.PurchaseRequestRepository;
 import jakarta.persistence.criteria.Predicate;
@@ -32,14 +34,17 @@ public class PurchasePlanItemService {
     private final PurchasePlanItemRepository purchasePlanItemRepository;
     private final PurchasePlanItemChangeService purchasePlanItemChangeService;
     private final PurchaseRequestRepository purchaseRequestRepository;
+    private final CfoRepository cfoRepository;
 
     public PurchasePlanItemService(
             PurchasePlanItemRepository purchasePlanItemRepository, 
             PurchasePlanItemChangeService purchasePlanItemChangeService,
-            PurchaseRequestRepository purchaseRequestRepository) {
+            PurchaseRequestRepository purchaseRequestRepository,
+            CfoRepository cfoRepository) {
         this.purchasePlanItemRepository = purchasePlanItemRepository;
         this.purchasePlanItemChangeService = purchasePlanItemChangeService;
         this.purchaseRequestRepository = purchaseRequestRepository;
+        this.cfoRepository = cfoRepository;
     }
 
     public Page<PurchasePlanItemDto> findAll(
@@ -297,6 +302,49 @@ public class PurchasePlanItemService {
                     PurchasePlanItem saved = purchasePlanItemRepository.save(item);
                     logger.info("Updated purchaseSubject for purchase plan item {}: purchaseSubject={}",
                             id, trimmedSubject);
+                    return toDto(saved);
+                })
+                .orElse(null);
+    }
+
+    @Transactional
+    public PurchasePlanItemDto updateCfo(Long id, String cfoName) {
+        return purchasePlanItemRepository.findById(id)
+                .map(item -> {
+                    Cfo oldCfo = item.getCfo();
+                    String oldCfoName = oldCfo != null ? oldCfo.getName() : null;
+                    
+                    Cfo newCfo = null;
+                    String trimmedCfoName = cfoName != null ? cfoName.trim() : null;
+                    
+                    if (trimmedCfoName != null && !trimmedCfoName.isEmpty()) {
+                        // Ищем существующий ЦФО по названию (регистронезависимо)
+                        newCfo = cfoRepository.findByNameIgnoreCase(trimmedCfoName).orElse(null);
+                        
+                        if (newCfo == null) {
+                            // Если ЦФО не найден, создаем новый
+                            newCfo = new Cfo(trimmedCfoName);
+                            newCfo = cfoRepository.save(newCfo);
+                            logger.debug("Created new Cfo: {}", trimmedCfoName);
+                        }
+                    }
+                    
+                    // Логируем изменение перед обновлением
+                    if ((oldCfoName == null && trimmedCfoName != null) || 
+                        (oldCfoName != null && !oldCfoName.equals(trimmedCfoName))) {
+                        purchasePlanItemChangeService.logChange(
+                            item.getId(),
+                            item.getGuid(),
+                            "cfo",
+                            oldCfoName,
+                            trimmedCfoName
+                        );
+                    }
+                    
+                    item.setCfo(newCfo);
+                    PurchasePlanItem saved = purchasePlanItemRepository.save(item);
+                    logger.info("Updated cfo for purchase plan item {}: cfo={}",
+                            id, trimmedCfoName);
                     return toDto(saved);
                 })
                 .orElse(null);

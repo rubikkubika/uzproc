@@ -381,6 +381,11 @@ export default function PurchasePlanItemsTable() {
   const holdingSelectRef = useRef<HTMLSelectElement | null>(null);
   const [editingCompany, setEditingCompany] = useState<number | null>(null);
   const companySelectRef = useRef<HTMLSelectElement | null>(null);
+  const [editingCfo, setEditingCfo] = useState<number | null>(null);
+  const [creatingNewCfo, setCreatingNewCfo] = useState<number | null>(null);
+  const cfoSelectRef = useRef<HTMLSelectElement | null>(null);
+  const cfoInputRef = useRef<HTMLInputElement | null>(null);
+  const [cfoInputValue, setCfoInputValue] = useState<Record<number, string>>({});
   const [editingPurchaseRequestId, setEditingPurchaseRequestId] = useState<number | null>(null);
   const purchaseRequestIdInputRef = useRef<HTMLInputElement | null>(null);
   const [editingPurchaseSubject, setEditingPurchaseSubject] = useState<number | null>(null);
@@ -960,6 +965,132 @@ export default function PurchasePlanItemsTable() {
       console.error('Error updating company:', error);
     } finally {
       setEditingHolding(null);
+    }
+  };
+
+  const handleCfoUpdate = async (itemId: number, newCfo: string) => {
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/cfo`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ cfo: newCfo || null }),
+      });
+
+      if (response.ok) {
+        const updatedItem = await response.json();
+        setEditingCfo(null);
+        setCreatingNewCfo(null);
+        // Очищаем значение input
+        setCfoInputValue(prev => {
+          const newValue = { ...prev };
+          delete newValue[itemId];
+          return newValue;
+        });
+        
+        // Обновляем только конкретную строку в локальном состоянии
+        if (data) {
+          // Проверяем, подходит ли обновленная строка под фильтр ЦФО
+          const normalizedNewCfo = newCfo ? newCfo.trim() : null;
+          const shouldShowItem = cfoFilter.size === 0 || (normalizedNewCfo && cfoFilter.has(normalizedNewCfo));
+          
+          if (shouldShowItem) {
+            // Обновляем строку в таблице
+            const updatedContent = data.content.map(item => 
+              item.id === itemId 
+                ? { ...item, cfo: updatedItem.cfo, updatedAt: updatedItem.updatedAt }
+                : item
+            );
+            setData({ ...data, content: updatedContent });
+          } else {
+            // Удаляем строку из отображаемых данных, так как она не подходит под фильтр
+            const updatedContent = data.content.filter(item => item.id !== itemId);
+            const newTotalElements = Math.max(0, (data.totalElements || 0) - 1);
+            const newTotalPages = Math.ceil(newTotalElements / pageSize);
+            setData({ 
+              ...data, 
+              content: updatedContent,
+              totalElements: newTotalElements,
+              totalPages: newTotalPages
+            });
+            
+            // Если удалили последний элемент на странице и это не первая страница, переходим на предыдущую
+            if (updatedContent.length === 0 && currentPage > 0) {
+              setCurrentPage(currentPage - 1);
+            }
+          }
+        }
+        
+        // Обновляем данные для диаграммы в таблице
+        const normalizedNewCfo = newCfo ? newCfo.trim() : null;
+        const shouldShowInChart = cfoFilter.size === 0 || (normalizedNewCfo && cfoFilter.has(normalizedNewCfo));
+        
+        setChartData(prev => {
+          if (!prev) return prev;
+          
+          if (shouldShowInChart) {
+            // Обновляем строку в chartData
+            return prev.map(item => 
+              item.id === itemId 
+                ? { ...item, cfo: updatedItem.cfo, updatedAt: updatedItem.updatedAt }
+                : item
+            );
+          } else {
+            // Удаляем строку из chartData, так как она не подходит под фильтр
+            return prev.filter(item => item.id !== itemId);
+          }
+        });
+        
+        // Обновляем данные для сводной таблицы с учетом фильтра по ЦФО
+        const normalizedNewCfoForSummary = newCfo ? newCfo.trim() : null;
+        const shouldShowInSummary = cfoFilter.size === 0 || (normalizedNewCfoForSummary && cfoFilter.has(normalizedNewCfoForSummary));
+        
+        setSummaryData(prev => {
+          if (!prev) return prev;
+          
+          // Проверяем, есть ли запись в summaryData
+          const existingItem = prev.find(item => item.id === itemId);
+          
+          if (shouldShowInSummary) {
+            // Если запись должна быть в сводной таблице
+            if (existingItem) {
+              // Обновляем существующую запись
+              return prev.map(item => 
+                item.id === itemId 
+                  ? { ...item, cfo: updatedItem.cfo, updatedAt: updatedItem.updatedAt }
+                  : item
+              );
+            } else {
+              // Добавляем новую запись (если её не было, но теперь она соответствует фильтру)
+              // Используем данные из data или chartData, если они есть
+              const fullItem = data?.content.find(i => i.id === itemId) || chartData.find(i => i.id === itemId);
+              if (fullItem) {
+                // Используем полные данные из data или chartData и обновляем ЦФО
+                return [...prev, { ...fullItem, cfo: updatedItem.cfo, updatedAt: updatedItem.updatedAt }];
+              }
+              // Если полных данных нет, возвращаем prev (запись будет добавлена при следующей загрузке)
+              return prev;
+            }
+          } else {
+            // Если запись больше не должна быть в сводной таблице, удаляем её
+            return prev.filter(item => item.id !== itemId);
+          }
+        });
+        
+        // Обновляем уникальные значения для фильтра ЦФО
+        if (normalizedNewCfo && !uniqueValues.cfo.includes(normalizedNewCfo)) {
+          setUniqueValues(prev => ({
+            ...prev,
+            cfo: [...prev.cfo, normalizedNewCfo].sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' }))
+          }));
+        }
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to update cfo:', response.status, errorText);
+      }
+    } catch (error) {
+      console.error('Error updating cfo:', error);
     }
   };
 
@@ -1612,6 +1743,20 @@ export default function PurchasePlanItemsTable() {
             params.append('category', category);
           });
         }
+        // Фильтр по статусу - передаем все выбранные значения на бэкенд
+        // Если фильтр пустой, используем значения по умолчанию (все кроме Не Актуальная)
+        const statusesToFilter = statusFilter.size > 0 ? statusFilter : new Set(DEFAULT_STATUSES);
+        statusesToFilter.forEach(status => {
+          params.append('status', status);
+        });
+        // Фильтр по месяцу (аналогично fetchData)
+        if (selectedMonth !== null) {
+          params.append('requestMonth', String(selectedMonth));
+          // Если выбран месяц из другого года (например, декабрь предыдущего года), передаем год для фильтрации по дате заявки
+          if (selectedMonthYear !== null) {
+            params.append('requestYear', String(selectedMonthYear));
+          }
+        }
         
         const fetchUrl = `${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`;
         const response = await fetch(fetchUrl);
@@ -1626,7 +1771,7 @@ export default function PurchasePlanItemsTable() {
     };
     
     fetchSummaryData();
-  }, [selectedYear, selectedMonthYear, filters, cfoFilter, companyFilter, categoryFilter]); // НЕ включаем purchaserFilter
+  }, [selectedYear, selectedMonthYear, selectedMonth, filters, cfoFilter, companyFilter, categoryFilter, statusFilter]); // НЕ включаем purchaserFilter
 
   // Функция для подсчета количества закупок по месяцам (использует отфильтрованные данные)
   const getMonthlyDistribution = useMemo(() => {
@@ -1871,11 +2016,11 @@ export default function PurchasePlanItemsTable() {
           
           const yearsArray = Array.from(years).sort((a, b) => b - a);
           const uniqueValuesData = {
-            cfo: Array.from(values.cfo).sort(),
-            company: Array.from(values.company).sort(),
-            purchaser: Array.from(values.purchaser).sort(),
-            category: Array.from(values.category).sort(),
-            status: Array.from(values.status).sort(),
+            cfo: Array.from(values.cfo).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
+            company: Array.from(values.company).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
+            purchaser: Array.from(values.purchaser).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
+            category: Array.from(values.category).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
+            status: Array.from(values.status).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
           };
           
           setAllYears(yearsArray);
@@ -2029,6 +2174,7 @@ export default function PurchasePlanItemsTable() {
       }, 0);
     }
   }, [editingPurchaseSubject]);
+
 
   useEffect(() => {
     // Не вызываем fetchData до тех пор, пока фильтры не загружены из localStorage
@@ -2257,11 +2403,11 @@ export default function PurchasePlanItemsTable() {
           });
           
           setUniqueValues({
-            cfo: Array.from(values.cfo).sort(),
-            company: Array.from(values.company).sort(),
-            purchaser: Array.from(values.purchaser).sort(),
-            category: Array.from(values.category).sort(),
-            status: Array.from(values.status).sort(),
+            cfo: Array.from(values.cfo).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
+            company: Array.from(values.company).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
+            purchaser: Array.from(values.purchaser).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
+            category: Array.from(values.category).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
+            status: Array.from(values.status).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
           });
         }
       } catch (err) {
@@ -3364,10 +3510,11 @@ export default function PurchasePlanItemsTable() {
                     </button>
                     {isCfoFilterOpen && cfoFilterPosition && (
                       <div 
-                        className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden"
+                        className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg"
                         style={{
                           top: `${cfoFilterPosition.top}px`,
                           left: `${cfoFilterPosition.left}px`,
+                          maxHeight: '400px',
                         }}
                       >
                         <div className="p-2 border-b border-gray-200">
@@ -3382,9 +3529,23 @@ export default function PurchasePlanItemsTable() {
                               }}
                               onClick={(e) => e.stopPropagation()}
                               onFocus={(e) => e.stopPropagation()}
-                              className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              className="w-full pl-7 pr-7 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                               placeholder="Поиск..."
                             />
+                            {cfoSearchQuery && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setCfoSearchQuery('');
+                                }}
+                                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                                title="Очистить поиск"
+                              >
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
                           </div>
                         </div>
                         <div className="p-2 border-b border-gray-200 flex gap-2">
@@ -3401,7 +3562,7 @@ export default function PurchasePlanItemsTable() {
                             Снять
                           </button>
                         </div>
-                        <div className="max-h-48 overflow-y-auto">
+                        <div className="overflow-y-auto" style={{ maxHeight: '300px' }}>
                           {getFilteredCfoOptions.length === 0 ? (
                             <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
                           ) : (
@@ -4105,11 +4266,145 @@ export default function PurchasePlanItemsTable() {
                   )}
                         {visibleColumns.has('cfo') && (
                         <td 
-                          className={`px-2 py-2 text-xs truncate border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
-                          title={item.cfo || ''}
+                          className={`px-2 py-2 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
                           style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px` }}
                         >
-                          {item.cfo || '-'}
+                          {creatingNewCfo === item.id ? (
+                            <input
+                              ref={cfoInputRef}
+                              type="text"
+                              value={cfoInputValue[item.id] !== undefined ? cfoInputValue[item.id] : ''}
+                              disabled={isInactive}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                setCfoInputValue(prev => ({ ...prev, [item.id]: e.target.value }));
+                              }}
+                              onBlur={(e) => {
+                                const value = e.target.value.trim();
+                                if (value) {
+                                  handleCfoUpdate(item.id, value);
+                                } else {
+                                  setCreatingNewCfo(null);
+                                  setCfoInputValue(prev => {
+                                    const newValue = { ...prev };
+                                    delete newValue[item.id];
+                                    return newValue;
+                                  });
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') {
+                                  setCreatingNewCfo(null);
+                                  setCfoInputValue(prev => {
+                                    const newValue = { ...prev };
+                                    delete newValue[item.id];
+                                    return newValue;
+                                  });
+                                } else if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  const value = cfoInputValue[item.id] !== undefined ? cfoInputValue[item.id] : '';
+                                  if (value.trim()) {
+                                    handleCfoUpdate(item.id, value.trim());
+                                  } else {
+                                    setCreatingNewCfo(null);
+                                    setCfoInputValue(prev => {
+                                      const newValue = { ...prev };
+                                      delete newValue[item.id];
+                                      return newValue;
+                                    });
+                                  }
+                                }
+                              }}
+                              onFocus={(e) => {
+                                e.stopPropagation();
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                              }}
+                              className={`text-xs rounded px-2 py-0.5 font-medium transition-all w-full ${
+                                isInactive
+                                  ? 'bg-gray-100 text-gray-500 border-0 cursor-not-allowed'
+                                  : 'border border-blue-500 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500'
+                              }`}
+                              placeholder="Введите новое ЦФО"
+                              autoFocus
+                            />
+                          ) : (
+                            <select
+                              ref={editingCfo === item.id ? cfoSelectRef : null}
+                              data-editing-cfo={item.id}
+                              value={item.cfo || ''}
+                              disabled={isInactive}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                if (e.target.value === '__CREATE_NEW__') {
+                                  setCreatingNewCfo(item.id);
+                                  setCfoInputValue(prev => ({ ...prev, [item.id]: '' }));
+                                  setEditingCfo(null);
+                                } else if (e.target.value !== item.cfo) {
+                                  handleCfoUpdate(item.id, e.target.value || null);
+                                }
+                              }}
+                              onMouseDown={(e) => {
+                                if (!isInactive) {
+                                  e.stopPropagation();
+                                  setEditingCfo(item.id);
+                                  // Даем возможность браузеру открыть dropdown
+                                  setTimeout(() => {
+                                    if (cfoSelectRef.current) {
+                                      cfoSelectRef.current.focus();
+                                    }
+                                  }, 0);
+                                }
+                              }}
+                              onFocus={(e) => {
+                                e.stopPropagation();
+                                setEditingCfo(item.id);
+                              }}
+                              onBlur={() => {
+                                setTimeout(() => {
+                                  setEditingCfo(null);
+                                }, 200);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') {
+                                  setEditingCfo(null);
+                                }
+                              }}
+                              className={`text-xs rounded px-2 py-0.5 font-medium cursor-pointer transition-all w-full ${
+                                isInactive
+                                  ? 'bg-gray-100 text-gray-500 border-0 cursor-not-allowed'
+                                  : editingCfo === item.id
+                                  ? 'border border-blue-500 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500'
+                                  : 'bg-gray-100 text-gray-800 border-0'
+                              }`}
+                              style={{
+                                ...(isInactive || editingCfo === item.id ? {} : {
+                                  appearance: 'none',
+                                  WebkitAppearance: 'none',
+                                  MozAppearance: 'none',
+                                  paddingRight: '20px',
+                                  backgroundImage: item.cfo ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 9L1 4h10z'/%3E%3C/svg%3E")` : 'none',
+                                  backgroundRepeat: 'no-repeat',
+                                  backgroundPosition: 'right 4px center',
+                                  backgroundSize: '12px',
+                              })
+                              }}
+                            >
+                              <option value="">-</option>
+                              <option value="__CREATE_NEW__" style={{ fontStyle: 'italic', color: '#3b82f6' }}>
+                                + Создать новое ЦФО...
+                              </option>
+                              {getUniqueValues('cfo')
+                                .slice()
+                                .sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' }))
+                                .map((cfo) => (
+                                  <option key={cfo} value={cfo}>
+                                    {cfo}
+                                  </option>
+                                ))}
+                            </select>
+                          )}
                         </td>
                         )}
                         {visibleColumns.has('purchaseSubject') && (

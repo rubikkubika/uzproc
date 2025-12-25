@@ -20,6 +20,7 @@ import PurchaseRequestsYearlyChart from '@/components/PurchaseRequestsYearlyChar
 import UploadCSV from '@/components/UploadCSV';
 import { getBackendUrl } from '@/utils/api';
 import Presentation from '@/components/Presentation';
+import TasksBoard from '@/components/TasksBoard';
 
 // Компонент для тестирования отправки почты
 function TestEmailForm() {
@@ -420,6 +421,13 @@ function DashboardContent() {
         return (
           <div className="space-y-6">
             <SpecificationsTable />
+          </div>
+        );
+      
+      case 'tasks':
+        return (
+          <div className="space-y-6 h-[calc(100vh-8rem)]">
+            <TasksBoard />
           </div>
         );
       
