@@ -27,8 +27,10 @@ public class PurchasePlanItem {
     @Column(name = "company", length = 50)
     private Company company;
 
-    @Column(name = "cfo", length = 255)
-    private String cfo;
+    // Связь с Cfo
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cfo_id")
+    private Cfo cfo;
 
     @Column(name = "purchase_subject", length = 500)
     private String purchaseSubject;
@@ -157,11 +159,11 @@ public class PurchasePlanItem {
         this.company = company;
     }
 
-    public String getCfo() {
+    public Cfo getCfo() {
         return cfo;
     }
 
-    public void setCfo(String cfo) {
+    public void setCfo(Cfo cfo) {
         this.cfo = cfo;
     }
 

@@ -1,5 +1,6 @@
 package com.uzproc.backend.service;
 
+import com.uzproc.backend.entity.Cfo;
 import com.uzproc.backend.entity.Contract;
 import com.uzproc.backend.entity.ContractStatus;
 import com.uzproc.backend.entity.Purchase;
@@ -7,6 +8,7 @@ import com.uzproc.backend.entity.PurchaseRequest;
 import com.uzproc.backend.entity.PurchaseRequestStatus;
 import com.uzproc.backend.entity.PurchaseStatus;
 import com.uzproc.backend.entity.User;
+import com.uzproc.backend.repository.CfoRepository;
 import com.uzproc.backend.repository.ContractRepository;
 import com.uzproc.backend.repository.PurchaseRepository;
 import com.uzproc.backend.repository.PurchaseRequestRepository;
@@ -96,6 +98,7 @@ public class EntityExcelLoadService {
     private final PurchaseRepository purchaseRepository;
     private final ContractRepository contractRepository;
     private final UserRepository userRepository;
+    private final CfoRepository cfoRepository;
     private final DataFormatter dataFormatter = new DataFormatter();
 
     private final FileProcessingStatsService statsService;
@@ -105,12 +108,44 @@ public class EntityExcelLoadService {
             PurchaseRepository purchaseRepository,
             ContractRepository contractRepository,
             UserRepository userRepository,
+            CfoRepository cfoRepository,
             FileProcessingStatsService statsService) {
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.purchaseRepository = purchaseRepository;
         this.contractRepository = contractRepository;
         this.userRepository = userRepository;
+        this.cfoRepository = cfoRepository;
         this.statsService = statsService;
+    }
+    
+    /**
+     * Вспомогательный метод для установки Cfo на основе строкового значения
+     * Если ЦФО не найдено, создает новое и сохраняет в БД
+     */
+    private void setCfoFromString(Object entity, String cfoStr) {
+        if (cfoStr == null || cfoStr.trim().isEmpty()) {
+            return;
+        }
+        String trimmedCfo = cfoStr.trim();
+        
+        // Ищем существующее ЦФО
+        Cfo cfo = cfoRepository.findByNameIgnoreCase(trimmedCfo).orElse(null);
+        
+        // Если не найдено, создаем новое
+        if (cfo == null) {
+            cfo = new Cfo(trimmedCfo);
+            cfo = cfoRepository.save(cfo);
+            logger.debug("Created new Cfo: {}", trimmedCfo);
+        }
+        
+        // Устанавливаем ЦФО в сущность
+        if (entity instanceof PurchaseRequest) {
+            ((PurchaseRequest) entity).setCfo(cfo);
+        } else if (entity instanceof Purchase) {
+            ((Purchase) entity).setCfo(cfo);
+        } else if (entity instanceof Contract) {
+            ((Contract) entity).setCfo(cfo);
+        }
     }
 
     /**
@@ -215,6 +250,7 @@ public class EntityExcelLoadService {
                 purchaseRepository,
                 contractRepository,
                 userRepository,
+                cfoRepository,
                 stylesTable,
                 sharedStringsTable
             );
@@ -439,11 +475,12 @@ public class EntityExcelLoadService {
         }
         
         // Обновляем ЦФО только если оно отличается
-        if (newData.getCfo() != null && !newData.getCfo().trim().isEmpty()) {
-            if (existing.getCfo() == null || !existing.getCfo().equals(newData.getCfo())) {
-                existing.setCfo(newData.getCfo());
+        if (newData.getCfo() != null) {
+            Cfo newCfo = newData.getCfo();
+            if (existing.getCfo() == null || !newCfo.getId().equals(existing.getCfo().getId())) {
+                existing.setCfo(newCfo);
                 updated = true;
-                logger.debug("Updated cfo for request {}: {}", existing.getIdPurchaseRequest(), newData.getCfo());
+                logger.debug("Updated cfo for request {}: {}", existing.getIdPurchaseRequest(), newCfo.getName());
             }
         }
         
@@ -561,9 +598,9 @@ public class EntityExcelLoadService {
             // ЦФО (опционально)
             if (cfoColumnIndex != null) {
                 Cell cfoCell = row.getCell(cfoColumnIndex);
-                String cfo = getCellValueAsString(cfoCell);
-                if (cfo != null && !cfo.trim().isEmpty()) {
-                    pr.setCfo(cfo.trim());
+                String cfoStr = getCellValueAsString(cfoCell);
+                if (cfoStr != null && !cfoStr.trim().isEmpty()) {
+                    setCfoFromString(pr, cfoStr);
                 }
             }
             
@@ -1555,10 +1592,10 @@ public class EntityExcelLoadService {
             // ЦФО (опциональное поле)
             if (cfoColumnIndex != null) {
                 Cell cfoCell = row.getCell(cfoColumnIndex);
-                String cfo = getCellValueAsString(cfoCell);
-                if (cfo != null && !cfo.trim().isEmpty()) {
-                    purchase.setCfo(cfo.trim());
-                    logger.debug("Parsed cfo for purchase row {}: {}", row.getRowNum() + 1, cfo.trim());
+                String cfoStr = getCellValueAsString(cfoCell);
+                if (cfoStr != null && !cfoStr.trim().isEmpty()) {
+                    setCfoFromString(purchase, cfoStr);
+                    logger.debug("Parsed cfo for purchase row {}: {}", row.getRowNum() + 1, cfoStr.trim());
                 }
             }
             
@@ -1645,11 +1682,12 @@ public class EntityExcelLoadService {
         }
         
         // Обновляем ЦФО
-        if (newData.getCfo() != null && !newData.getCfo().trim().isEmpty()) {
-            if (existing.getCfo() == null || !existing.getCfo().equals(newData.getCfo())) {
-                existing.setCfo(newData.getCfo());
+        if (newData.getCfo() != null) {
+            Cfo newCfo = newData.getCfo();
+            if (existing.getCfo() == null || !newCfo.getId().equals(existing.getCfo().getId())) {
+                existing.setCfo(newCfo);
                 updated = true;
-                logger.debug("Updated cfo for purchase {}: {}", existing.getId(), newData.getCfo());
+                logger.debug("Updated cfo for purchase {}: {}", existing.getId(), newCfo.getName());
             }
         }
         
@@ -1783,10 +1821,10 @@ public class EntityExcelLoadService {
             // ЦФО (опциональное поле)
             if (cfoColumnIndex != null) {
                 Cell cfoCell = row.getCell(cfoColumnIndex);
-                String cfo = getCellValueAsString(cfoCell);
-                if (cfo != null && !cfo.trim().isEmpty()) {
-                    contract.setCfo(cfo.trim());
-                    logger.debug("Parsed cfo for contract row {}: {}", row.getRowNum() + 1, cfo.trim());
+                String cfoStr = getCellValueAsString(cfoCell);
+                if (cfoStr != null && !cfoStr.trim().isEmpty()) {
+                    setCfoFromString(contract, cfoStr);
+                    logger.debug("Parsed cfo for contract row {}: {}", row.getRowNum() + 1, cfoStr.trim());
                 }
             }
             
@@ -1878,11 +1916,12 @@ public class EntityExcelLoadService {
         }
         
         // Обновляем ЦФО
-        if (newData.getCfo() != null && !newData.getCfo().trim().isEmpty()) {
-            if (existing.getCfo() == null || !existing.getCfo().equals(newData.getCfo())) {
-                existing.setCfo(newData.getCfo());
+        if (newData.getCfo() != null) {
+            Cfo newCfo = newData.getCfo();
+            if (existing.getCfo() == null || !newCfo.getId().equals(existing.getCfo().getId())) {
+                existing.setCfo(newCfo);
                 updated = true;
-                logger.debug("Updated cfo for contract {}: {}", existing.getId(), newData.getCfo());
+                logger.debug("Updated cfo for contract {}: {}", existing.getId(), newCfo.getName());
             }
         }
         

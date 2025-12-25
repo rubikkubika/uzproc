@@ -311,7 +311,7 @@ public class PurchasePlanItemService {
         dto.setGuid(entity.getGuid());
         dto.setYear(entity.getYear());
         dto.setCompany(entity.getCompany());
-        dto.setCfo(entity.getCfo());
+        dto.setCfo(entity.getCfo() != null ? entity.getCfo().getName() : null);
         dto.setPurchaseSubject(entity.getPurchaseSubject());
         dto.setBudgetAmount(entity.getBudgetAmount());
         dto.setContractEndDate(entity.getContractEndDate());
@@ -422,20 +422,13 @@ public class PurchasePlanItemService {
                     .toList();
                 
                 if (!validCfoValues.isEmpty()) {
-                    if (validCfoValues.size() == 1) {
-                        // Одно значение - точное совпадение
-                        predicates.add(cb.equal(cb.lower(root.get("cfo")), validCfoValues.get(0).toLowerCase()));
-                        predicateCount++;
-                        logger.info("Added single cfo filter: '{}'", validCfoValues.get(0));
-                    } else {
-                        // Несколько значений - IN запрос
-                        List<Predicate> cfoPredicates = validCfoValues.stream()
-                            .map(cfoValue -> cb.equal(cb.lower(root.get("cfo")), cfoValue.toLowerCase()))
-                            .toList();
-                        predicates.add(cb.or(cfoPredicates.toArray(new Predicate[0])));
-                        predicateCount++;
-                        logger.info("Added multiple cfo filter: {}", validCfoValues);
-                    }
+                    // Делаем join к связанной сущности Cfo и фильтруем по name
+                    jakarta.persistence.criteria.Join<PurchasePlanItem, com.uzproc.backend.entity.Cfo> cfoJoin = root.join("cfo", jakarta.persistence.criteria.JoinType.LEFT);
+                    predicates.add(cb.lower(cfoJoin.get("name")).in(
+                        validCfoValues.stream().map(String::toLowerCase).toList()
+                    ));
+                    predicateCount++;
+                    logger.info("Added cfo filter: {}", validCfoValues);
                 }
             }
             

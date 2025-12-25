@@ -1,5 +1,6 @@
 package com.uzproc.backend.service;
 
+import com.uzproc.backend.entity.Cfo;
 import com.uzproc.backend.entity.Contract;
 import com.uzproc.backend.entity.ContractStatus;
 import com.uzproc.backend.entity.Purchase;
@@ -7,6 +8,7 @@ import com.uzproc.backend.entity.PurchaseRequest;
 import com.uzproc.backend.entity.PurchaseRequestStatus;
 import com.uzproc.backend.entity.PurchaseStatus;
 import com.uzproc.backend.entity.User;
+import com.uzproc.backend.repository.CfoRepository;
 import com.uzproc.backend.repository.ContractRepository;
 import com.uzproc.backend.repository.PurchaseRepository;
 import com.uzproc.backend.repository.PurchaseRequestRepository;
@@ -38,6 +40,7 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private final PurchaseRepository purchaseRepository;
     private final ContractRepository contractRepository;
     private final UserRepository userRepository;
+    private final CfoRepository cfoRepository;
     private final DataFormatter dataFormatter;
     
     // Индексы колонок (определяются из заголовка)
@@ -105,6 +108,7 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             PurchaseRepository purchaseRepository,
             ContractRepository contractRepository,
             UserRepository userRepository,
+            CfoRepository cfoRepository,
             StylesTable stylesTable,
             ReadOnlySharedStringsTable sharedStringsTable) {
         this.excelLoadService = excelLoadService;
@@ -112,7 +116,38 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
         this.purchaseRepository = purchaseRepository;
         this.contractRepository = contractRepository;
         this.userRepository = userRepository;
+        this.cfoRepository = cfoRepository;
         this.dataFormatter = new DataFormatter();
+    }
+    
+    /**
+     * Вспомогательный метод для установки Cfo на основе строкового значения
+     * Если ЦФО не найдено, создает новое и сохраняет в БД
+     */
+    private void setCfoFromString(Object entity, String cfoStr) {
+        if (cfoStr == null || cfoStr.trim().isEmpty()) {
+            return;
+        }
+        String trimmedCfo = cfoStr.trim();
+        
+        // Ищем существующее ЦФО
+        Cfo cfo = cfoRepository.findByNameIgnoreCase(trimmedCfo).orElse(null);
+        
+        // Если не найдено, создаем новое
+        if (cfo == null) {
+            cfo = new Cfo(trimmedCfo);
+            cfo = cfoRepository.save(cfo);
+            logger.debug("Created new Cfo: {}", trimmedCfo);
+        }
+        
+        // Устанавливаем ЦФО в сущность
+        if (entity instanceof PurchaseRequest) {
+            ((PurchaseRequest) entity).setCfo(cfo);
+        } else if (entity instanceof Purchase) {
+            ((Purchase) entity).setCfo(cfo);
+        } else if (entity instanceof Contract) {
+            ((Contract) entity).setCfo(cfo);
+        }
     }
     
     @Override
@@ -286,7 +321,7 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             if (cfoCol != null) {
                 String cfo = currentRowData.get(cfoCol);
                 if (cfo != null && !cfo.trim().isEmpty()) {
-                    pr.setCfo(cfo.trim());
+                    setCfoFromString(pr, cfo);
                 }
             }
             
@@ -522,7 +557,7 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             if (cfoCol != null) {
                 String cfo = currentRowData.get(cfoCol);
                 if (cfo != null && !cfo.trim().isEmpty()) {
-                    purchase.setCfo(cfo.trim());
+                    setCfoFromString(purchase, cfo);
                 }
             }
             
@@ -656,7 +691,7 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             if (cfoCol != null) {
                 String cfo = currentRowData.get(cfoCol);
                 if (cfo != null && !cfo.trim().isEmpty()) {
-                    contract.setCfo(cfo.trim());
+                    setCfoFromString(contract, cfo);
                 }
             }
             
@@ -1008,9 +1043,10 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
         }
         
         // Обновляем ЦФО
-        if (newData.getCfo() != null && !newData.getCfo().trim().isEmpty()) {
-            if (existing.getCfo() == null || !existing.getCfo().equals(newData.getCfo())) {
-                existing.setCfo(newData.getCfo());
+        if (newData.getCfo() != null) {
+            Cfo newCfo = newData.getCfo();
+            if (existing.getCfo() == null || !newCfo.getId().equals(existing.getCfo().getId())) {
+                existing.setCfo(newCfo);
                 updated = true;
             }
         }
@@ -1144,9 +1180,10 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
         }
         
         // Обновляем ЦФО
-        if (newData.getCfo() != null && !newData.getCfo().trim().isEmpty()) {
-            if (existing.getCfo() == null || !existing.getCfo().equals(newData.getCfo())) {
-                existing.setCfo(newData.getCfo());
+        if (newData.getCfo() != null) {
+            Cfo newCfo = newData.getCfo();
+            if (existing.getCfo() == null || !newCfo.getId().equals(existing.getCfo().getId())) {
+                existing.setCfo(newCfo);
                 updated = true;
             }
         }
@@ -1230,9 +1267,10 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
         }
         
         // Обновляем ЦФО
-        if (newData.getCfo() != null && !newData.getCfo().trim().isEmpty()) {
-            if (existing.getCfo() == null || !existing.getCfo().equals(newData.getCfo())) {
-                existing.setCfo(newData.getCfo());
+        if (newData.getCfo() != null) {
+            Cfo newCfo = newData.getCfo();
+            if (existing.getCfo() == null || !newCfo.getId().equals(existing.getCfo().getId())) {
+                existing.setCfo(newCfo);
                 updated = true;
             }
         }

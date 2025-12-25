@@ -1,7 +1,9 @@
 package com.uzproc.backend.service;
 
+import com.uzproc.backend.entity.Cfo;
 import com.uzproc.backend.entity.Company;
 import com.uzproc.backend.entity.PurchasePlanItem;
+import com.uzproc.backend.repository.CfoRepository;
 import com.uzproc.backend.repository.PurchasePlanItemRepository;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
@@ -64,13 +66,16 @@ public class PurchasePlanExcelLoadService {
     };
 
     private final PurchasePlanItemRepository purchasePlanItemRepository;
+    private final CfoRepository cfoRepository;
     private final DataFormatter dataFormatter = new DataFormatter();
     private final FileProcessingStatsService statsService;
 
     public PurchasePlanExcelLoadService(
             PurchasePlanItemRepository purchasePlanItemRepository,
+            CfoRepository cfoRepository,
             FileProcessingStatsService statsService) {
         this.purchasePlanItemRepository = purchasePlanItemRepository;
+        this.cfoRepository = cfoRepository;
         this.statsService = statsService;
     }
 
@@ -429,9 +434,21 @@ public class PurchasePlanExcelLoadService {
             // ЦФО
             if (cfoColumnIndex != null) {
                 Cell cfoCell = row.getCell(cfoColumnIndex);
-                String cfo = getCellValueAsString(cfoCell);
-                if (cfo != null && !cfo.trim().isEmpty()) {
-                    item.setCfo(cfo.trim());
+                String cfoStr = getCellValueAsString(cfoCell);
+                if (cfoStr != null && !cfoStr.trim().isEmpty()) {
+                    String trimmedCfo = cfoStr.trim();
+                    
+                    // Ищем существующее ЦФО
+                    Cfo cfo = cfoRepository.findByNameIgnoreCase(trimmedCfo).orElse(null);
+                    
+                    // Если не найдено, создаем новое
+                    if (cfo == null) {
+                        cfo = new Cfo(trimmedCfo);
+                        cfo = cfoRepository.save(cfo);
+                        logger.debug("Created new Cfo: {}", trimmedCfo);
+                    }
+                    
+                    item.setCfo(cfo);
                 }
             }
             
@@ -1142,10 +1159,12 @@ public class PurchasePlanExcelLoadService {
             logger.debug("Updated company for purchase plan item {}: {}", existing.getId(), newData.getCompany());
         }
         
-        if (newData.getCfo() != null && !newData.getCfo().trim().isEmpty() && 
-            !newData.getCfo().equals(existing.getCfo())) {
-            existing.setCfo(newData.getCfo());
-            updated = true;
+        if (newData.getCfo() != null) {
+            Cfo newCfo = newData.getCfo();
+            if (existing.getCfo() == null || !newCfo.getId().equals(existing.getCfo().getId())) {
+                existing.setCfo(newCfo);
+                updated = true;
+            }
         }
         
         if (newData.getBudgetAmount() != null && !newData.getBudgetAmount().equals(existing.getBudgetAmount())) {

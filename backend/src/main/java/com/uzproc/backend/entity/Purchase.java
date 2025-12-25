@@ -34,8 +34,10 @@ public class Purchase {
     @Column(name = "title", length = 500)
     private String title;
 
-    @Column(name = "cfo", length = 255)
-    private String cfo;
+    // Связь с Cfo
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cfo_id")
+    private Cfo cfo;
 
     @Column(name = "mcc", length = 255)
     private String mcc;
@@ -162,11 +164,11 @@ public class Purchase {
         this.title = title;
     }
 
-    public String getCfo() {
+    public Cfo getCfo() {
         return cfo;
     }
 
-    public void setCfo(String cfo) {
+    public void setCfo(Cfo cfo) {
         this.cfo = cfo;
     }
 

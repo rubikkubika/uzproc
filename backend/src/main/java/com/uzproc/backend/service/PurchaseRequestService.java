@@ -134,7 +134,7 @@ public class PurchaseRequestService {
         dto.setTitle(entity.getTitle());
         dto.setPurchaseRequestPlanYear(entity.getPurchaseRequestPlanYear());
         dto.setCompany(entity.getCompany());
-        dto.setCfo(entity.getCfo());
+        dto.setCfo(entity.getCfo() != null ? entity.getCfo().getName() : null);
         dto.setMcc(entity.getMcc());
         dto.setPurchaseRequestInitiator(entity.getPurchaseRequestInitiator());
         dto.setPurchaser(entity.getPurchaser());
@@ -238,20 +238,13 @@ public class PurchaseRequestService {
                     .toList();
                 
                 if (!validCfoValues.isEmpty()) {
-                    if (validCfoValues.size() == 1) {
-                        // Одно значение - точное совпадение
-                        predicates.add(cb.equal(cb.lower(root.get("cfo")), validCfoValues.get(0).toLowerCase()));
-                        predicateCount++;
-                        logger.info("Added single cfo filter: '{}'", validCfoValues.get(0));
-                    } else {
-                        // Несколько значений - IN запрос
-                        List<Predicate> cfoPredicates = validCfoValues.stream()
-                            .map(cfoValue -> cb.equal(cb.lower(root.get("cfo")), cfoValue.toLowerCase()))
-                            .toList();
-                        predicates.add(cb.or(cfoPredicates.toArray(new Predicate[0])));
-                        predicateCount++;
-                        logger.info("Added multiple cfo filter: {}", validCfoValues);
-                    }
+                    // Делаем join к связанной сущности Cfo и фильтруем по name
+                    jakarta.persistence.criteria.Join<PurchaseRequest, com.uzproc.backend.entity.Cfo> cfoJoin = root.join("cfo", jakarta.persistence.criteria.JoinType.LEFT);
+                    predicates.add(cb.lower(cfoJoin.get("name")).in(
+                        validCfoValues.stream().map(String::toLowerCase).toList()
+                    ));
+                    predicateCount++;
+                    logger.info("Added cfo filter: {}", validCfoValues);
                 }
             }
             
@@ -875,7 +868,7 @@ public class PurchaseRequestService {
         Map<String, Long> pendingStatusByCfo = new HashMap<>();
         
         for (PurchaseRequest request : allRequests) {
-            String cfo = request.getCfo();
+            String cfo = request.getCfo() != null ? request.getCfo().getName() : null;
             if (cfo == null || cfo.trim().isEmpty()) {
                 cfo = "Без ЦФО";
             } else {
@@ -923,7 +916,7 @@ public class PurchaseRequestService {
         Map<String, BigDecimal> purchaseProceduresAmountByCfo = new HashMap<>();
         
         for (Purchase purchase : allPurchases) {
-            String cfo = purchase.getCfo();
+            String cfo = purchase.getCfo() != null ? purchase.getCfo().getName() : null;
             if (cfo == null || cfo.trim().isEmpty()) {
                 cfo = "Без ЦФО";
             } else {

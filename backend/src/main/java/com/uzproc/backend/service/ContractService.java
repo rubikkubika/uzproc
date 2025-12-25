@@ -99,7 +99,7 @@ public class ContractService {
         dto.setContractCreationDate(entity.getContractCreationDate());
         dto.setName(entity.getName());
         dto.setTitle(entity.getTitle());
-        dto.setCfo(entity.getCfo());
+        dto.setCfo(entity.getCfo() != null ? entity.getCfo().getName() : null);
         dto.setMcc(entity.getMcc());
         dto.setDocumentForm(entity.getDocumentForm());
         dto.setBudgetAmount(entity.getBudgetAmount());
@@ -165,7 +165,11 @@ public class ContractService {
                     .toList();
                 
                 if (!validCfoValues.isEmpty()) {
-                    predicates.add(root.get("cfo").in(validCfoValues));
+                    // Делаем join к связанной сущности Cfo и фильтруем по name
+                    jakarta.persistence.criteria.Join<Contract, com.uzproc.backend.entity.Cfo> cfoJoin = root.join("cfo", jakarta.persistence.criteria.JoinType.LEFT);
+                    predicates.add(cb.lower(cfoJoin.get("name")).in(
+                        validCfoValues.stream().map(String::toLowerCase).toList()
+                    ));
                     predicateCount++;
                     logger.info("Added cfo filter: {}", validCfoValues);
                 }
