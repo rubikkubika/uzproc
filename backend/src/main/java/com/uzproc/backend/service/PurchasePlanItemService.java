@@ -278,30 +278,25 @@ public class PurchasePlanItemService {
     public PurchasePlanItemDto updatePurchaseSubject(Long id, String purchaseSubject) {
         return purchasePlanItemRepository.findById(id)
                 .map(item -> {
-                    // Сохраняем старое значение для логирования изменений
                     String oldPurchaseSubject = item.getPurchaseSubject();
-                    
-                    // Нормализуем новое значение (null если пустая строка)
-                    String normalizedPurchaseSubject = (purchaseSubject != null && !purchaseSubject.trim().isEmpty()) 
-                        ? purchaseSubject.trim() 
-                        : null;
+                    String trimmedSubject = purchaseSubject != null ? purchaseSubject.trim() : null;
                     
                     // Логируем изменение перед обновлением
-                    if ((oldPurchaseSubject == null && normalizedPurchaseSubject != null) || 
-                        (oldPurchaseSubject != null && !oldPurchaseSubject.equals(normalizedPurchaseSubject))) {
+                    if ((oldPurchaseSubject == null && trimmedSubject != null) || 
+                        (oldPurchaseSubject != null && !oldPurchaseSubject.equals(trimmedSubject))) {
                         purchasePlanItemChangeService.logChange(
                             item.getId(),
                             item.getGuid(),
                             "purchaseSubject",
                             oldPurchaseSubject,
-                            normalizedPurchaseSubject
+                            trimmedSubject
                         );
                     }
                     
-                    item.setPurchaseSubject(normalizedPurchaseSubject);
+                    item.setPurchaseSubject(trimmedSubject);
                     PurchasePlanItem saved = purchasePlanItemRepository.save(item);
                     logger.info("Updated purchaseSubject for purchase plan item {}: purchaseSubject={}",
-                            id, normalizedPurchaseSubject);
+                            id, trimmedSubject);
                     return toDto(saved);
                 })
                 .orElse(null);

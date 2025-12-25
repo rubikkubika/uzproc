@@ -85,7 +85,7 @@ public class ContractService {
         List<Contract> contracts = contractRepository.findByPurchaseRequestId(purchaseRequestId);
         return contracts.stream()
                 .map(this::toDto)
-                .collect(java.util.stream.Collectors.toList());
+                .collect(Collectors.toList());
     }
 
     /**
