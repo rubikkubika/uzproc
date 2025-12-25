@@ -2698,7 +2698,8 @@ export default function PurchasePlanItemsTable() {
   }, [purchaserSearchQuery, uniqueValues.purchaser]);
 
   const getFilteredStatusOptions = useMemo(() => {
-    const allStatuses = uniqueValues.status || [];
+    // Используем все статусы из константы ALL_STATUSES вместо uniqueValues.status
+    const allStatuses = ALL_STATUSES;
     if (!statusSearchQuery || !statusSearchQuery.trim()) {
       return allStatuses;
     }
@@ -2707,7 +2708,7 @@ export default function PurchasePlanItemsTable() {
       if (!status) return false;
       return status.toLowerCase().includes(searchLower);
     });
-  }, [statusSearchQuery, uniqueValues.status]);
+  }, [statusSearchQuery]);
 
   if (loading) {
     return (
