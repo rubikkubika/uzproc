@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
-import { Bar, Doughnut, Chart } from 'react-chartjs-2';
+import { Bar, Doughnut, Line } from 'react-chartjs-2';
 import { getBackendUrl } from '@/utils/api';
 import {
   Chart as ChartJS,
@@ -1866,7 +1866,7 @@ export default function Presentation() {
           <div className="flex-1 flex flex-col" style={{ minHeight: 0, gap: 0 }}>
             {/* Верхняя часть: линейная диаграмма */}
             <div className="flex-shrink-0" style={{ height: '17.5%', minHeight: '100px', maxHeight: '125px', marginBottom: '-10px' }}>
-              <Chart type="line" data={slaLineChartData} options={slaLineChartOptions} />
+              <Line data={slaLineChartData} options={slaLineChartOptions} />
             </div>
             
             {/* Нижняя часть: столбчатая диаграмма */}
@@ -2462,7 +2462,7 @@ export default function Presentation() {
               <div className="flex-1 flex flex-col" style={{ minHeight: 0, gap: 0 }}>
                 {/* Верхняя часть: линейная диаграмма */}
                 <div className="flex-shrink-0" style={{ height: '17.5%', minHeight: '100px', maxHeight: '125px', marginBottom: '-10px' }}>
-                  <Chart type="line" data={slaLineChartData} options={slaLineChartOptions} />
+                  <Line data={slaLineChartData} options={slaLineChartOptions} />
                 </div>
                 
                 {/* Нижняя часть: столбчатая диаграмма */}

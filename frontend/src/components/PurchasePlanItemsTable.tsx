@@ -58,6 +58,19 @@ interface PageResponse {
   totalPages: number;
   size: number;
   number: number;
+  first?: boolean;
+  last?: boolean;
+  numberOfElements?: number;
+  empty?: boolean;
+  pageable?: {
+    pageNumber: number;
+    pageSize: number;
+    sort: { sorted: boolean; unsorted: boolean; empty: boolean };
+    offset: number;
+    paged: boolean;
+    unpaged: boolean;
+  };
+  sort?: { sorted: boolean; unsorted: boolean; empty: boolean };
 }
 
 type SortField = keyof PurchasePlanItem | null;
@@ -1152,7 +1165,7 @@ export default function PurchasePlanItemsTable() {
     }
   };
 
-  const handleCfoUpdate = async (itemId: number, newCfo: string) => {
+  const handleCfoUpdate = async (itemId: number, newCfo: string | null) => {
     try {
       const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/cfo`, {
         method: 'PATCH',
