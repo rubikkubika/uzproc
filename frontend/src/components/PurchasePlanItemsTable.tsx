@@ -137,8 +137,9 @@ export default function PurchasePlanItemsTable() {
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [allYears, setAllYears] = useState<number[]>([]);
   const [totalRecords, setTotalRecords] = useState<number>(0);
-  const [selectedMonth, setSelectedMonth] = useState<number | null>(null); // null = все месяцы, -1 = без даты, 0-11 = месяц (0=январь, 11=декабрь)
+  const [selectedMonths, setSelectedMonths] = useState<Set<number>>(new Set()); // Множество выбранных месяцев: -1 = без даты, 0-11 = месяц (0=январь, 11=декабрь)
   const [selectedMonthYear, setSelectedMonthYear] = useState<number | null>(null); // Год для фильтра по месяцу (если отличается от selectedYear)
+  const [lastSelectedMonthIndex, setLastSelectedMonthIndex] = useState<number | null>(null); // Индекс последнего выбранного месяца для Shift+клик
   
   // Состояние для сортировки
   const [sortField, setSortField] = useState<SortField>('requestDate');
@@ -1154,7 +1155,7 @@ export default function PurchasePlanItemsTable() {
         });
         
         // Обновляем данные таблицы
-        fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters, selectedMonth);
+        fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters, selectedMonths);
       } else {
         const errorText = await response.text();
         setErrorModal({ isOpen: true, message: errorText || 'Ошибка при создании строки плана закупок' });
@@ -1439,9 +1440,12 @@ export default function PurchasePlanItemsTable() {
           setSelectedYear(savedFilters.selectedYear);
         }
         
-        // Восстанавливаем выбранный месяц
-        if (savedFilters.selectedMonth !== undefined) {
-          setSelectedMonth(savedFilters.selectedMonth);
+        // Восстанавливаем выбранные месяцы
+        if (savedFilters.selectedMonths !== undefined) {
+          setSelectedMonths(new Set(savedFilters.selectedMonths));
+        } else if (savedFilters.selectedMonth !== undefined) {
+          // Поддержка старого формата (для обратной совместимости)
+          setSelectedMonths(savedFilters.selectedMonth !== null ? new Set([savedFilters.selectedMonth]) : new Set());
         }
         // Восстанавливаем год для фильтра по месяцу
         if (savedFilters.selectedMonthYear !== undefined) {
@@ -1567,7 +1571,7 @@ export default function PurchasePlanItemsTable() {
     try {
       const filtersToSave = {
         selectedYear,
-        selectedMonth,
+        selectedMonths: Array.from(selectedMonths),
         selectedMonthYear,
         filters,
         cfoFilter: Array.from(cfoFilter),
@@ -1584,7 +1588,7 @@ export default function PurchasePlanItemsTable() {
     } catch (err) {
       console.error('Error saving filters:', err);
     }
-  }, [selectedYear, selectedMonth, selectedMonthYear, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter, statusFilter, sortField, sortDirection, pageSize, currentPage]);
+  }, [selectedYear, selectedMonths, selectedMonthYear, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter, statusFilter, sortField, sortDirection, pageSize, currentPage]);
   
   // Сохраняем ширины колонок в localStorage
   const saveColumnWidths = useCallback((widths: Record<string, number>) => {
@@ -1967,12 +1971,23 @@ export default function PurchasePlanItemsTable() {
           });
         }
         // Фильтр по месяцу (аналогично fetchData)
-        if (selectedMonth !== null) {
-          params.append('requestMonth', String(selectedMonth));
-          // Если выбран месяц из другого года (например, декабрь предыдущего года), передаем год для фильтрации по дате заявки
-          if (selectedMonthYear !== null) {
-            params.append('requestYear', String(selectedMonthYear));
-          }
+        if (selectedMonths.size > 0) {
+          // Отправляем все выбранные месяцы
+          selectedMonths.forEach(monthKey => {
+            if (monthKey === -1) {
+              // Без даты
+              params.append('requestMonth', '-1');
+            } else if (monthKey === -2) {
+              // Декабрь предыдущего года
+              params.append('requestMonth', '11');
+              if (selectedMonthYear !== null) {
+                params.append('requestYear', String(selectedMonthYear));
+              }
+            } else {
+              // Месяцы текущего года (0-11)
+              params.append('requestMonth', String(monthKey));
+            }
+          });
         }
         
         const fetchUrl = `${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`;
@@ -1988,7 +2003,7 @@ export default function PurchasePlanItemsTable() {
     };
     
     fetchSummaryData();
-  }, [selectedYear, selectedMonthYear, selectedMonth, filters, cfoFilter, companyFilter, categoryFilter, statusFilter]); // НЕ включаем purchaserFilter
+  }, [selectedYear, selectedMonthYear, selectedMonths, filters, cfoFilter, companyFilter, categoryFilter, statusFilter]); // НЕ включаем purchaserFilter
 
   // Функция для подсчета количества закупок по месяцам (использует отфильтрованные данные)
   const getMonthlyDistribution = useMemo(() => {
@@ -2265,7 +2280,7 @@ export default function PurchasePlanItemsTable() {
     sortField: SortField = null,
     sortDirection: SortDirection = null,
     filters: Record<string, string> = {},
-    month: number | null = null
+    months: Set<number> = new Set()
   ) => {
     setLoading(true);
     setError(null);
@@ -2341,12 +2356,23 @@ export default function PurchasePlanItemsTable() {
           }
       });
       }
-      if (month !== null) {
-        params.append('requestMonth', String(month));
-        // Если выбран месяц из другого года (например, декабрь предыдущего года), передаем год для фильтрации по дате заявки
-        if (selectedMonthYear !== null) {
-          params.append('requestYear', String(selectedMonthYear));
-        }
+      if (months.size > 0) {
+        // Отправляем все выбранные месяцы
+        months.forEach(monthKey => {
+          if (monthKey === -1) {
+            // Без даты
+            params.append('requestMonth', '-1');
+          } else if (monthKey === -2) {
+            // Декабрь предыдущего года
+            params.append('requestMonth', '11');
+            if (selectedMonthYear !== null) {
+              params.append('requestYear', String(selectedMonthYear));
+            }
+          } else {
+            // Месяцы текущего года (0-11)
+            params.append('requestMonth', String(monthKey));
+          }
+        });
       }
       
       const fetchUrl = `${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`;
@@ -2411,8 +2437,8 @@ export default function PurchasePlanItemsTable() {
     if (!filtersLoadedRef.current) {
       return;
     }
-    fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters, selectedMonth);
-  }, [currentPage, pageSize, selectedYear, selectedMonthYear, sortField, sortDirection, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter, statusFilter, selectedMonth]);
+    fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters, selectedMonths);
+  }, [currentPage, pageSize, selectedYear, selectedMonthYear, sortField, sortDirection, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter, statusFilter, selectedMonths]);
 
   // Автоматически загружаем данные заявок для позиций с purchaseRequestId
   useEffect(() => {
@@ -2784,7 +2810,7 @@ export default function PurchasePlanItemsTable() {
     try {
       const filtersToSave = {
         selectedYear,
-        selectedMonth,
+        selectedMonths: Array.from(selectedMonths),
         filters,
         cfoFilter: Array.from(cfoFilter),
         companyFilter: Array.from(companyFilter),
@@ -2810,7 +2836,7 @@ export default function PurchasePlanItemsTable() {
     try {
       const filtersToSave = {
         selectedYear,
-        selectedMonth,
+        selectedMonths: Array.from(selectedMonths),
         filters,
         cfoFilter: Array.from(cfoFilter),
         companyFilter: Array.from(companyFilter),
@@ -2835,7 +2861,7 @@ export default function PurchasePlanItemsTable() {
     try {
       const filtersToSave = {
         selectedYear,
-        selectedMonth,
+        selectedMonths: Array.from(selectedMonths),
         filters,
         cfoFilter: Array.from(cfoFilter),
         companyFilter: Array.from(companyFilter),
@@ -3283,8 +3309,6 @@ export default function PurchasePlanItemsTable() {
                     </div>
                   )}
                 </div>
-                </div>
-                <div className="flex items-center gap-1">
                 <div className="relative">
                   <button
                     ref={columnsMenuButtonRef}
@@ -3340,6 +3364,72 @@ export default function PurchasePlanItemsTable() {
                     </div>
                   )}
                 </div>
+                <button
+                  onClick={() => {
+                    const emptyFilters = {
+                      company: '',
+                      cfo: '',
+                      purchaseSubject: '',
+                      currentContractEndDate: '',
+                      purchaseRequestId: '',
+                    };
+                    setFilters(emptyFilters);
+                    setLocalFilters(emptyFilters);
+                    setCfoFilter(new Set());
+                    setCompanyFilter(new Set(['Uzum Market'])); // При сбросе устанавливаем фильтр по умолчанию на "Uzum Market"
+                    setCategoryFilter(new Set());
+                    setPurchaserFilter(new Set());
+                    // При сбросе устанавливаем фильтр по статусу на все статусы кроме "Не Актуальная"
+                    const resetStatusFilter = ALL_STATUSES.filter(s => s !== 'Не Актуальная');
+                    setStatusFilter(new Set(resetStatusFilter));
+                  setSortField('requestDate');
+                  setSortDirection('asc');
+                    setFocusedField(null);
+                  setSelectedYear(allYears.length > 0 ? allYears[0] : null);
+                    setSelectedMonth(null);
+                    setSelectedMonthYear(null);
+                    setCurrentPage(0);
+                    // Сохраняем сброшенные фильтры в localStorage
+                    // Фильтр по компании устанавливается на "Uzum Market" по умолчанию
+                    // Фильтр по статусу устанавливается на все статусы кроме "Не Актуальная"
+                    const defaultStatusFilter = ALL_STATUSES.filter(s => s !== 'Не Актуальная');
+                    setStatusFilter(new Set(defaultStatusFilter));
+                    try {
+                      const resetFilters = {
+                        filters: emptyFilters,
+                        cfoFilter: [],
+                        companyFilter: ['Uzum Market'], // При сбросе устанавливаем фильтр по умолчанию на "Uzum Market"
+                        categoryFilter: [],
+                        purchaserFilter: [],
+                        statusFilter: defaultStatusFilter, // При сбросе устанавливаем фильтр по умолчанию (все кроме Не Актуальная)
+                        sortField: 'requestDate',
+                        sortDirection: 'asc',
+                        pageSize: pageSize,
+                        currentPage: 0,
+                      };
+                      localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(resetFilters));
+                    } catch (err) {
+                      console.error('Error saving reset filters:', err);
+                    }
+                    // Отправляем событие для обновления фильтра компании в диаграмме
+                    window.dispatchEvent(new CustomEvent('purchasePlanItemCompanyFilterUpdated', {
+                      detail: { companyFilter: ['Uzum Market'] }
+                    }));
+                    // Устанавливаем просмотр текущей версии
+                    if (selectedYear) {
+                      loadVersions().then(() => {
+                        // После загрузки версий текущая версия будет выбрана автоматически в loadVersions
+                      });
+                    } else {
+                      // Если год не выбран, просто сбрасываем выбранную версию
+                      setSelectedVersionId(null);
+                      setSelectedVersionInfo(null);
+                    }
+                  }}
+                  className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors"
+                >
+                  Сбросить фильтры
+                </button>
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="text-sm text-gray-700 font-medium">Год планирования:</span>
@@ -3384,7 +3474,7 @@ export default function PurchasePlanItemsTable() {
                       onClick={() => {
                         setSelectedVersionId(null);
                         setSelectedVersionInfo(null);
-                        fetchData(0, pageSize, selectedYear, sortField, sortDirection, filters, selectedMonth);
+                        fetchData(0, pageSize, selectedYear, sortField, sortDirection, filters, selectedMonths);
                       }}
                       className={selectedVersionInfo?.isCurrent 
                         ? 'text-green-800 hover:text-green-900' 
@@ -3450,72 +3540,6 @@ export default function PurchasePlanItemsTable() {
                   <Download className="w-4 h-4" />
                   Excel (все данные)
                 </button>
-                <button
-                  onClick={() => {
-                    const emptyFilters = {
-                      company: '',
-                      cfo: '',
-                      purchaseSubject: '',
-                      currentContractEndDate: '',
-                      purchaseRequestId: '',
-                    };
-                    setFilters(emptyFilters);
-                    setLocalFilters(emptyFilters);
-                    setCfoFilter(new Set());
-                    setCompanyFilter(new Set(['Uzum Market'])); // При сбросе устанавливаем фильтр по умолчанию на "Uzum Market"
-                    setCategoryFilter(new Set());
-                    setPurchaserFilter(new Set());
-                    // При сбросе устанавливаем фильтр по статусу на все статусы кроме "Не Актуальная"
-                    const resetStatusFilter = ALL_STATUSES.filter(s => s !== 'Не Актуальная');
-                    setStatusFilter(new Set(resetStatusFilter));
-                  setSortField('requestDate');
-                  setSortDirection('asc');
-                    setFocusedField(null);
-                  setSelectedYear(allYears.length > 0 ? allYears[0] : null);
-                  setSelectedMonth(null);
-                  setSelectedMonthYear(null);
-                  setCurrentPage(0);
-                  // Сохраняем сброшенные фильтры в localStorage
-                  // Фильтр по компании устанавливается на "Uzum Market" по умолчанию
-                  // Фильтр по статусу устанавливается на все статусы кроме "Не Актуальная"
-                  const defaultStatusFilter = ALL_STATUSES.filter(s => s !== 'Не Актуальная');
-                  setStatusFilter(new Set(defaultStatusFilter));
-                  try {
-                    const resetFilters = {
-                      filters: emptyFilters,
-                      cfoFilter: [],
-                      companyFilter: ['Uzum Market'], // При сбросе устанавливаем фильтр по умолчанию на "Uzum Market"
-                      categoryFilter: [],
-                      purchaserFilter: [],
-                      statusFilter: defaultStatusFilter, // При сбросе устанавливаем фильтр по умолчанию (все кроме Не Актуальная)
-                      sortField: 'requestDate',
-                      sortDirection: 'asc',
-                      pageSize: pageSize,
-                      currentPage: 0,
-                    };
-                    localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(resetFilters));
-                  } catch (err) {
-                    console.error('Error saving reset filters:', err);
-                  }
-                  // Отправляем событие для обновления фильтра компании в диаграмме
-                  window.dispatchEvent(new CustomEvent('purchasePlanItemCompanyFilterUpdated', {
-                    detail: { companyFilter: ['Uzum Market'] }
-                  }));
-                  // Устанавливаем просмотр текущей версии
-                  if (selectedYear) {
-                    loadVersions().then(() => {
-                      // После загрузки версий текущая версия будет выбрана автоматически в loadVersions
-                    });
-                  } else {
-                    // Если год не выбран, просто сбрасываем выбранную версию
-                    setSelectedVersionId(null);
-                    setSelectedVersionInfo(null);
-                  }
-                  }}
-                className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors"
-              >
-                Сбросить фильтры
-              </button>
             </div>
           </div>
             <div className="relative flex items-center">
@@ -4529,9 +4553,8 @@ export default function PurchasePlanItemsTable() {
               <th className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300" style={{ width: '350px', minWidth: '350px' }}>
                 <div className="flex flex-col gap-1">
                   <div className="flex items-center gap-1 min-h-[20px]">
-                    <div style={{ width: '10px', minWidth: '10px', flexShrink: 0 }}></div>
                     {/* Столбчатая диаграмма распределения по месяцам */}
-                    <div className="flex-1 flex items-end gap-0.5 h-20 px-1 relative" style={{ minHeight: '80px', height: '80px' }}>
+                    <div className="flex-1 flex items-end h-20 relative" style={{ minHeight: '80px', height: '80px', paddingLeft: '0', paddingRight: '0', gap: '2px', width: '100%' }}>
                       {getMonthlyDistribution.map((count, index) => {
                         const monthLabels = ['Дек', 'Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек', 'Без даты'];
                         const isYearDivider = index === 1; // После декабря предыдущего года
@@ -4589,13 +4612,12 @@ export default function PurchasePlanItemsTable() {
                         }
                         
                         // Проверяем, выбран ли этот месяц и год
-                        // Для декабря предыдущего года проверяем, что selectedMonthYear = prevYear и selectedMonth = 11
-                        // Для месяцев текущего года проверяем, что selectedMonth = monthForFilter и selectedMonthYear = null
-                        const isSelected = selectedMonth === monthForFilter && 
+                        const monthKey = monthForFilter === -1 ? -1 : (index === 0 ? -2 : monthForFilter); // -2 для декабря предыдущего года
+                        const isSelected = selectedMonths.has(monthKey) && 
                           (monthForFilter === -1 || (index === 0 && selectedMonthYear === prevYear) || (index >= 1 && index <= 12 && selectedMonthYear === null));
                         
                   return (
-                          <div key={index} className="flex-1 flex flex-col items-center gap-0.5 relative" style={{ minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                          <div key={index} className="flex flex-col items-center relative" style={{ minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', flex: '0 0 calc((100% - 24px) / 13)' }}>
                             {/* Столбец */}
                             <div 
                               className={`w-full rounded-t transition-colors relative group cursor-pointer ${
@@ -4616,30 +4638,79 @@ export default function PurchasePlanItemsTable() {
                                 flexShrink: 0
                               }}
                               title={`${monthLabels[index]}: ${count} закупок`}
-                              onClick={() => {
+                              onClick={(e) => {
                                 if (monthForFilter !== null) {
-                                  // Переключаем фильтр: если уже выбран этот месяц, снимаем фильтр
                                   const currentDisplayYear = selectedYear || chartData[0]?.year || new Date().getFullYear();
                                   const currentPrevYear = currentDisplayYear - 1;
-                                  const isCurrentlySelected = selectedMonth === monthForFilter && 
+                                  const monthKey = monthForFilter === -1 ? -1 : (index === 0 ? -2 : monthForFilter); // -2 для декабря предыдущего года
+                                  const isCurrentlySelected = selectedMonths.has(monthKey) && 
                                     (monthForFilter === -1 || (index === 0 && selectedMonthYear === currentPrevYear) || (index >= 1 && index <= 12 && selectedMonthYear === null));
                                   
-                                  if (isCurrentlySelected) {
-                                    setSelectedMonth(null);
-                                    setSelectedMonthYear(null);
-                                  } else {
-                                    setSelectedMonth(monthForFilter);
-                                    // Если это декабрь предыдущего года, сохраняем год для фильтрации по месяцу
-                                    if (index === 0 && yearForFilter !== null) {
-                                      setSelectedMonthYear(yearForFilter);
-                                    } else {
-                                      // Для месяцев текущего года сбрасываем selectedMonthYear
-                                      setSelectedMonthYear(null);
-                                      // Для месяцев текущего года устанавливаем текущий год (если он не установлен)
-                                      if (index >= 1 && index <= 12 && yearForFilter !== null && selectedYear === null) {
-                                        setSelectedYear(yearForFilter);
+                                  if (e.shiftKey && lastSelectedMonthIndex !== null && !isCurrentlySelected) {
+                                    // Shift+клик: выбираем диапазон месяцев
+                                    const startIndex = Math.min(lastSelectedMonthIndex, index);
+                                    const endIndex = Math.max(lastSelectedMonthIndex, index);
+                                    const newSelectedMonths = new Set(selectedMonths);
+                                    
+                                    for (let i = startIndex; i <= endIndex; i++) {
+                                      let monthKeyForRange: number;
+                                      let yearForRange: number | null = null;
+                                      
+                                      if (i === 0) {
+                                        // Декабрь предыдущего года
+                                        monthKeyForRange = -2;
+                                        yearForRange = currentPrevYear;
+                                      } else if (i >= 1 && i <= 12) {
+                                        // Месяцы текущего года
+                                        monthKeyForRange = i - 1;
+                                        yearForRange = null;
+                                      } else if (i === 13) {
+                                        // Без даты
+                                        monthKeyForRange = -1;
+                                        yearForRange = null;
+                                      } else {
+                                        continue;
+                                      }
+                                      
+                                      newSelectedMonths.add(monthKeyForRange);
+                                      
+                                      // Устанавливаем selectedMonthYear, если это декабрь предыдущего года
+                                      if (i === 0 && yearForRange !== null) {
+                                        setSelectedMonthYear(yearForRange);
                                       }
                                     }
+                                    
+                                    setSelectedMonths(newSelectedMonths);
+                                    setLastSelectedMonthIndex(index);
+                                  } else {
+                                    // Обычный клик: переключаем выбор месяца
+                                    const newSelectedMonths = new Set(selectedMonths);
+                                    
+                                    if (isCurrentlySelected) {
+                                      newSelectedMonths.delete(monthKey);
+                                      if (newSelectedMonths.size === 0) {
+                                        setSelectedMonthYear(null);
+                                      }
+                                    } else {
+                                      newSelectedMonths.add(monthKey);
+                                      // Если это декабрь предыдущего года, сохраняем год для фильтрации по месяцу
+                                      if (index === 0 && yearForFilter !== null) {
+                                        setSelectedMonthYear(yearForFilter);
+                                      } else if (index >= 1 && index <= 12) {
+                                        // Для месяцев текущего года сбрасываем selectedMonthYear, если все выбранные месяцы текущего года
+                                        const hasPrevYearMonth = Array.from(newSelectedMonths).some(key => key === -2);
+                                        if (!hasPrevYearMonth) {
+                                          setSelectedMonthYear(null);
+                                        }
+                                        // Для месяцев текущего года устанавливаем текущий год (если он не установлен)
+                                        if (yearForFilter !== null && selectedYear === null) {
+                                          setSelectedYear(yearForFilter);
+                                        }
+                                      }
+                                    }
+                                    
+                                    setSelectedMonths(newSelectedMonths);
+                                    setLastSelectedMonthIndex(index);
                                   }
                                 }
                               }}
@@ -4652,7 +4723,7 @@ export default function PurchasePlanItemsTable() {
                               )}
                             </div>
                             {/* Подпись месяца */}
-                            <div className={`text-[8px] text-center ${isYearDivider ? 'font-bold text-gray-800 border-l-2 border-gray-700 pl-0.5' : isSelected ? 'font-bold text-blue-700' : 'text-gray-500'}`} style={{ lineHeight: '1' }}>
+                            <div className={`text-[8px] text-center ${isSelected ? 'font-bold text-blue-700' : 'text-gray-500'}`} style={{ lineHeight: '1' }}>
                               {monthLabels[index]}
                             </div>
                           </div>
@@ -5730,7 +5801,7 @@ export default function PurchasePlanItemsTable() {
                           // setIsVersionsListModalOpen(false);
                           // Если версия текущая, загружаем текущие данные
                           if (version.isCurrent) {
-                            fetchData(0, pageSize, selectedYear, sortField, sortDirection, filters, selectedMonth);
+                            fetchData(0, pageSize, selectedYear, sortField, sortDirection, filters, selectedMonths);
                           } else {
                             // Загружаем данные из выбранной архивной версии
                             try {

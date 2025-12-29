@@ -402,14 +402,10 @@ export default function GanttChart({
       {/* Месяцы */}
       <div className="absolute top-0 left-0 right-0 h-4 flex border-b border-gray-300 relative">
         {months.map((monthData, index) => {
-          // Разделитель между годами (после декабря предыдущего года, перед январем текущего)
-          const isYearDivider = index === 1; // После декабря предыдущего года
           return (
             <div
               key={index}
-              className={`flex-1 text-[8px] text-gray-500 text-center relative ${
-                isYearDivider ? 'bg-gray-50' : ''
-              }`}
+              className="flex-1 text-[8px] text-gray-500 text-center relative"
               style={{ minWidth: 0 }}
             >
               {monthData.label}
@@ -420,12 +416,10 @@ export default function GanttChart({
         {months.map((_, index) => {
           if (index === 0) return null; // Пропускаем первый разделитель (он на границе)
           const monthPercent = (index / months.length) * 100;
-          // Разделитель между годами (после декабря предыдущего года, перед январем текущего)
-          const isYearDivider = index === 1; // После декабря предыдущего года
           return (
             <div
               key={`header-divider-${index}`}
-              className={`absolute top-0 bottom-0 ${isYearDivider ? 'w-0.5 bg-gray-700 z-30' : 'w-px bg-gray-300'}`}
+              className="absolute top-0 bottom-0 w-px bg-gray-300"
               style={{ left: `${monthPercent}%` }}
             />
           );
@@ -438,26 +432,15 @@ export default function GanttChart({
         {months.map((_, index) => {
           if (index === 0) return null; // Пропускаем первый разделитель (он на границе)
           const monthPercent = (index / months.length) * 100;
-          // Разделитель между годами (после декабря предыдущего года, перед январем текущего)
-          const isYearDivider = index === 1; // После декабря предыдущего года
           return (
             <div
               key={index}
-              className={`absolute top-0 bottom-0 ${isYearDivider ? 'w-0.5 bg-gray-700 z-10' : 'w-px bg-gray-300'}`}
+              className="absolute top-0 bottom-0 w-px bg-gray-300"
               style={{ left: `${monthPercent}%` }}
             />
           );
         })}
         
-        {/* Линия разделения между годами сверху полосы (в области заголовков) - точно на той же позиции */}
-        <div
-          className="absolute top-0 w-0.5 bg-gray-700 z-20"
-          style={{
-            left: `${(1 / months.length) * 100}%`, // Позиция после декабря предыдущего года (индекс 1)
-            height: '4px', // Высота области заголовков
-          }}
-          title="Разделение между годами"
-        />
         
         <div
           className={`absolute h-full rounded transition-all duration-200 ease-out ${

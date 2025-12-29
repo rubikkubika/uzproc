@@ -2,8 +2,10 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { getBackendUrl } from '@/utils/api';
-import { ArrowUp, ArrowDown, ArrowUpDown, Search, Settings } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpDown, Search, Settings, Download } from 'lucide-react';
 import GanttChart from './GanttChart';
+import { useReactToPrint } from 'react-to-print';
+import * as XLSX from 'xlsx';
 
 interface PurchasePlanItem {
   id: number;
@@ -126,8 +128,9 @@ export default function PublicPurchasePlanTable() {
   const [currentPage, setCurrentPage] = useState(0);
   const [pageSize, setPageSize] = useState(100);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
-  const [selectedMonth, setSelectedMonth] = useState<number | null>(null); // null = все месяцы, -1 = без даты, 0-11 = месяц (0=январь, 11=декабрь)
+  const [selectedMonths, setSelectedMonths] = useState<Set<number>>(new Set()); // Множество выбранных месяцев: -1 = без даты, 0-11 = месяц (0=январь, 11=декабрь)
   const [selectedMonthYear, setSelectedMonthYear] = useState<number | null>(null); // Год для фильтра по месяцу (если отличается от selectedYear)
+  const [lastSelectedMonthIndex, setLastSelectedMonthIndex] = useState<number | null>(null); // Индекс последнего выбранного месяца для Shift+клик
   const [sortField, setSortField] = useState<SortField>('requestDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [allYears, setAllYears] = useState<number[]>([]);
@@ -140,9 +143,14 @@ export default function PublicPurchasePlanTable() {
     purchaseSubject: '',
     currentContractEndDate: '',
     purchaseRequestId: '',
+    budgetAmount: '',
+    budgetAmountOperator: 'gte', // По умолчанию "больше равно"
   });
 
-  const [localFilters, setLocalFilters] = useState<Record<string, string>>({});
+  const [localFilters, setLocalFilters] = useState<Record<string, string>>({
+    budgetAmount: '',
+    budgetAmountOperator: 'gte', // По умолчанию "больше равно"
+  });
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
@@ -173,6 +181,7 @@ export default function PublicPurchasePlanTable() {
   const companyFilterButtonRef = useRef<HTMLButtonElement>(null);
   const categoryFilterButtonRef = useRef<HTMLButtonElement>(null);
   const purchaserFilterButtonRef = useRef<HTMLButtonElement>(null);
+  const printRef = useRef<HTMLDivElement>(null);
   const statusFilterButtonRef = useRef<HTMLButtonElement>(null);
   
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set(DEFAULT_VISIBLE_COLUMNS));
@@ -472,12 +481,23 @@ export default function PublicPurchasePlanTable() {
         }
         
         // Фильтр по месяцу даты заявки (из столбчатой диаграммы)
-        if (selectedMonth !== null) {
-          params.append('requestMonth', String(selectedMonth));
-          // Если выбран месяц из другого года (например, декабрь предыдущего года), передаем год для фильтрации по дате заявки
-          if (selectedMonthYear !== null) {
-            params.append('requestYear', String(selectedMonthYear));
-          }
+        if (selectedMonths.size > 0) {
+          // Отправляем все выбранные месяцы
+          selectedMonths.forEach(monthKey => {
+            if (monthKey === -1) {
+              // Без даты
+              params.append('requestMonth', '-1');
+            } else if (monthKey === -2) {
+              // Декабрь предыдущего года
+              params.append('requestMonth', '11');
+              if (selectedMonthYear !== null) {
+                params.append('requestYear', String(selectedMonthYear));
+              }
+            } else {
+              // Месяцы текущего года (0-11)
+              params.append('requestMonth', String(monthKey));
+            }
+          });
         }
         
         const fetchUrl = `${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`;
@@ -497,7 +517,7 @@ export default function PublicPurchasePlanTable() {
     if (selectedYear !== null) {
       fetchSummaryData();
     }
-  }, [selectedYear, selectedMonth, selectedMonthYear, filters, cfoFilter, companyFilter, categoryFilter, statusFilter]);
+  }, [selectedYear, selectedMonths, selectedMonthYear, filters, cfoFilter, companyFilter, categoryFilter, statusFilter]);
 
   // Функция для подсчета количества закупок по месяцам
   const getMonthlyDistribution = useMemo(() => {
@@ -638,11 +658,34 @@ export default function PublicPurchasePlanTable() {
       }
       
       // Фильтр по месяцу даты заявки
-      if (selectedMonth !== null) {
-        params.append('requestMonth', String(selectedMonth));
-        // Если выбран месяц из другого года (например, декабрь предыдущего года), передаем год для фильтрации по дате заявки
-        if (selectedMonthYear !== null) {
-          params.append('requestYear', String(selectedMonthYear));
+      if (selectedMonths.size > 0) {
+        // Отправляем все выбранные месяцы
+        selectedMonths.forEach(monthKey => {
+          if (monthKey === -1) {
+            // Без даты
+            params.append('requestMonth', '-1');
+          } else if (monthKey === -2) {
+            // Декабрь предыдущего года
+            params.append('requestMonth', '11');
+            if (selectedMonthYear !== null) {
+              params.append('requestYear', String(selectedMonthYear));
+            }
+          } else {
+            // Месяцы текущего года (0-11)
+            params.append('requestMonth', String(monthKey));
+          }
+        });
+      }
+      
+      // Фильтр по бюджету (обрабатываем отдельно)
+      // Используем оператор и значение из localFilters, если они есть, иначе из filters
+      const budgetOperator = localFilters.budgetAmountOperator || filters.budgetAmountOperator || 'gte';
+      const budgetAmount = localFilters.budgetAmount || filters.budgetAmount;
+      if (budgetOperator && budgetOperator.trim() !== '' && budgetAmount && budgetAmount.trim() !== '') {
+        const budgetValue = parseFloat(budgetAmount.replace(/\s/g, '').replace(/,/g, ''));
+        if (!isNaN(budgetValue) && budgetValue >= 0) {
+          params.append('budgetAmountOperator', budgetOperator.trim());
+          params.append('budgetAmount', String(budgetValue));
         }
       }
       
@@ -669,18 +712,90 @@ export default function PublicPurchasePlanTable() {
     if (selectedYear !== null) {
       fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters, purchaserFilter);
     }
-  }, [currentPage, pageSize, selectedYear, selectedMonth, selectedMonthYear, sortField, sortDirection, filters, companyFilter, cfoFilter, purchaserFilter, categoryFilter, statusFilter]);
+  }, [currentPage, pageSize, selectedYear, selectedMonths, selectedMonthYear, sortField, sortDirection, filters, companyFilter, cfoFilter, purchaserFilter, categoryFilter, statusFilter]);
 
+  // Debounce для текстовых фильтров и фильтра бюджета
+  const prevLocalFiltersRef = useRef<Record<string, string>>({
+    budgetAmount: '',
+    budgetAmountOperator: 'gte',
+  });
+  
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setFilters(prev => ({
-        ...prev,
-        ...localFilters,
-      }));
-    }, 500);
+    // Проверяем, изменились ли текстовые фильтры
+    const textFields = ['purchaseSubject', 'purchaseRequestId'];
+    const hasTextChanges = textFields.some(field => {
+      const current = localFilters[field] || '';
+      const prev = prevLocalFiltersRef.current[field] || '';
+      return current !== prev;
+    });
+    // Для бюджета проверяем изменение значения
+    const hasBudgetValueChange = (localFilters.budgetAmount || '') !== (prevLocalFiltersRef.current.budgetAmount || '');
+    // Проверяем изменение оператора (если значение бюджета уже есть, нужно обновить запрос)
+    const hasBudgetOperatorChange = (localFilters.budgetAmountOperator || 'gte') !== (prevLocalFiltersRef.current.budgetAmountOperator || 'gte');
+    // Проверяем наличие значения бюджета в localFilters
+    const hasBudgetValue = localFilters.budgetAmount && localFilters.budgetAmount.trim() !== '';
+    
+    if (hasTextChanges || hasBudgetValueChange || (hasBudgetOperatorChange && hasBudgetValue)) {
+      // Сохраняем текущие значения для обновления ref после применения
+      const currentLocalFilters = { ...localFilters };
+      
+      const timer = setTimeout(() => {
+        setFilters(prev => {
+          // Обновляем только измененные текстовые поля и поля бюджета
+          const updated = { ...prev };
+          textFields.forEach(field => {
+            if (currentLocalFilters[field] !== undefined) {
+              updated[field] = currentLocalFilters[field] || '';
+            }
+          });
+          // Обновляем значение бюджета и оператор вместе
+          // Сохраняем значение бюджета только если оно не пустое
+          if (currentLocalFilters.budgetAmount && currentLocalFilters.budgetAmount.trim() !== '') {
+            updated.budgetAmount = currentLocalFilters.budgetAmount;
+          } else if (currentLocalFilters.budgetAmount === '') {
+            // Если значение явно очищено, сохраняем пустую строку
+            updated.budgetAmount = '';
+          }
+          // Оператор всегда обновляем
+          if (currentLocalFilters.budgetAmountOperator !== undefined) {
+            updated.budgetAmountOperator = currentLocalFilters.budgetAmountOperator;
+          }
+          return updated;
+        });
+        // Обновляем ref только после применения фильтров
+        prevLocalFiltersRef.current = currentLocalFilters;
+        setCurrentPage(0); // Сбрасываем на первую страницу после применения фильтра
+      }, hasBudgetOperatorChange && hasBudgetValue ? 0 : 500); // Для оператора без задержки, для значения с задержкой
 
-    return () => clearTimeout(timer);
+      return () => clearTimeout(timer);
+    }
   }, [localFilters]);
+
+  // Синхронизация localFilters.budgetAmount с filters после загрузки данных
+  // НО только если поле не в фокусе, чтобы сохранить форматирование
+  // Отключена, чтобы избежать циклов обновлений - localFilters обновляется только пользователем
+
+  // Восстановление фокуса после завершения загрузки данных с сервера
+  const prevLoadingForFocusRef = useRef(loading);
+  useEffect(() => {
+    // Восстанавливаем фокус только когда загрузка завершилась (loading изменился с true на false)
+    if (focusedField && !loading && prevLoadingForFocusRef.current && data) {
+      // Небольшая задержка, чтобы дать React время отрендерить обновленные данные
+      const timer = setTimeout(() => {
+        const input = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
+        if (input && document.activeElement !== input) {
+          input.focus();
+          // Устанавливаем курсор в конец текста
+          const length = input.value.length;
+          input.setSelectionRange(length, length);
+        }
+      }, 100);
+
+      prevLoadingForFocusRef.current = loading;
+      return () => clearTimeout(timer);
+    }
+    prevLoadingForFocusRef.current = loading;
+  }, [loading, data, focusedField]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -712,6 +827,109 @@ export default function PublicPurchasePlanTable() {
       return date.toLocaleDateString('ru-RU');
     } catch {
       return '-';
+    }
+  };
+
+  // Настройка ReactToPrint для экспорта в PDF
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `План_закупок_публичный_${selectedYear || 'Все'}_${new Date().toISOString().split('T')[0]}`,
+    pageStyle: `
+      @page {
+        size: A4 landscape;
+        margin: 10mm;
+      }
+      @media print {
+        body {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .no-print {
+          display: none !important;
+        }
+      }
+    `,
+  });
+
+  // Функция для экспорта плана закупок в PDF
+  const exportToPDF = () => {
+    if (!data?.content || data.content.length === 0) {
+      alert('Нет данных для экспорта');
+      return;
+    }
+    handlePrint();
+  };
+
+  // Функция для подготовки данных для экспорта в Excel
+  const prepareExportData = (items: PurchasePlanItem[]) => {
+    return items.map((item) => ({
+      'ID': item.id || '',
+      'GUID': item.guid || '',
+      'Год': item.year || '',
+      'Компания': item.company || '',
+      'ЦФО': item.cfo || '',
+      'Предмет закупки': item.purchaseSubject || '',
+      'Бюджет (UZS)': item.budgetAmount || '',
+      'Срок окончания договора': item.contractEndDate 
+        ? new Date(item.contractEndDate).toLocaleDateString('ru-RU')
+        : '',
+      'Дата заявки': item.requestDate 
+        ? new Date(item.requestDate).toLocaleDateString('ru-RU')
+        : '',
+      'Дата нового договора': item.newContractDate 
+        ? new Date(item.newContractDate).toLocaleDateString('ru-RU')
+        : '',
+      'Закупщик': item.purchaser || '',
+      'Продукция': item.product || '',
+      'Статус': item.status || '',
+      'Категория': item.category || '',
+    }));
+  };
+
+  // Функция для экспорта в Excel с примененными фильтрами
+  const handleExportToExcelWithFilters = async () => {
+    if (!data || !data.content || data.content.length === 0) {
+      alert('Нет данных для экспорта');
+      return;
+    }
+
+    try {
+      const exportData = prepareExportData(data.content);
+
+      // Создаем рабочую книгу
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+
+      // Устанавливаем ширину колонок
+      const colWidths = [
+        { wch: 8 },  // ID
+        { wch: 40 }, // GUID
+        { wch: 8 },  // Год
+        { wch: 20 }, // Компания
+        { wch: 20 }, // ЦФО
+        { wch: 40 }, // Предмет закупки
+        { wch: 15 }, // Бюджет
+        { wch: 20 }, // Срок окончания договора
+        { wch: 15 }, // Дата заявки
+        { wch: 20 }, // Дата нового договора
+        { wch: 20 }, // Закупщик
+        { wch: 20 }, // Продукция
+        { wch: 15 }, // Статус
+        { wch: 20 }, // Категория
+      ];
+      ws['!cols'] = colWidths;
+
+      // Добавляем лист в книгу
+      XLSX.utils.book_append_sheet(wb, ws, 'План закупок');
+
+      // Генерируем имя файла с датой
+      const fileName = `План_закупок_публичный_с_фильтрами_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+      // Сохраняем файл
+      XLSX.writeFile(wb, fileName);
+    } catch (error) {
+      console.error('Ошибка при экспорте в Excel:', error);
+      alert('Ошибка при экспорте в Excel');
     }
   };
 
@@ -1097,7 +1315,7 @@ export default function PublicPurchasePlanTable() {
                 onKeyDown={(e) => {
                   e.stopPropagation();
                 }}
-                className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                 placeholder="Фильтр"
                 style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
               />
@@ -1273,162 +1491,184 @@ export default function PublicPurchasePlanTable() {
                     </button>
                   ))}
                 </div>
-                <span className="text-sm text-gray-700 font-medium ml-2">Компания:</span>
-                <button
-                  ref={companyFilterButtonRef}
-                  type="button"
-                  onClick={() => setIsCompanyFilterOpen(!isCompanyFilterOpen)}
-                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-left focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center gap-2 hover:bg-gray-50 min-w-[200px]"
-                >
-                  <span className="text-gray-700 truncate flex-1 text-left">
-                    {companyFilter.size === 0 
-                      ? 'Все компании' 
-                      : companyFilter.size === 1
-                      ? (Array.from(companyFilter)[0] || 'Все компании')
-                      : `${companyFilter.size} выбрано`}
-                  </span>
-                  <svg className={`w-4 h-4 transition-transform flex-shrink-0 ${isCompanyFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-                
-                {isCompanyFilterOpen && companyFilterPosition && (
-                  <div 
-                    data-company-filter-menu="true"
-                    className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden"
-                    style={{
-                      top: `${companyFilterPosition.top}px`,
-                      left: `${companyFilterPosition.left}px`,
-                    }}
-                  >
-                    <div className="p-2 border-b border-gray-200">
-                      <div className="relative">
-                        <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
-                        <input
-                          type="text"
-                          value={companySearchQuery}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            setCompanySearchQuery(e.target.value);
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                          onFocus={(e) => e.stopPropagation()}
-                          className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                          placeholder="Поиск..."
-                        />
-                      </div>
-                    </div>
-                    <div className="p-2 border-b border-gray-200 flex gap-2">
-                      <button
-                        onClick={() => handleCompanySelectAll()}
-                        className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-700 font-medium">Компания:</span>
+                  <div className="relative">
+                    <button
+                      ref={companyFilterButtonRef}
+                      type="button"
+                      onClick={() => setIsCompanyFilterOpen(!isCompanyFilterOpen)}
+                      className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-left focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center gap-2 hover:bg-gray-50 min-w-[200px]"
+                    >
+                      <span className="text-gray-700 truncate flex-1 text-left">
+                        {companyFilter.size === 0 
+                          ? 'Все компании' 
+                          : companyFilter.size === 1
+                          ? (Array.from(companyFilter)[0] || 'Все компании')
+                          : `${companyFilter.size} выбрано`}
+                      </span>
+                      <svg className={`w-4 h-4 transition-transform flex-shrink-0 ${isCompanyFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    
+                    {isCompanyFilterOpen && companyFilterPosition && (
+                      <div 
+                        data-company-filter-menu="true"
+                        className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden"
+                        style={{
+                          top: `${companyFilterPosition.top}px`,
+                          left: `${companyFilterPosition.left}px`,
+                        }}
                       >
-                        Все
-                      </button>
-                      <button
-                        onClick={() => handleCompanyDeselectAll()}
-                        className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
-                      >
-                        Снять
-                      </button>
-                    </div>
-                    <div className="max-h-48 overflow-y-auto">
-                      {getFilteredCompanyOptions.length === 0 ? (
-                        <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
-                      ) : (
-                        getFilteredCompanyOptions.map((company) => (
-                          <label
-                            key={company}
-                            className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
-                          >
+                        <div className="p-2 border-b border-gray-200">
+                          <div className="relative">
+                            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
                             <input
-                              type="checkbox"
-                              checked={companyFilter.has(company)}
-                              onChange={() => handleCompanyToggle(company)}
-                              className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                              type="text"
+                              value={companySearchQuery}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                setCompanySearchQuery(e.target.value);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              onFocus={(e) => e.stopPropagation()}
+                              className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              placeholder="Поиск..."
                             />
-                            <span className="ml-2 text-xs text-gray-700 flex-1">{company}</span>
-                          </label>
-                        ))
-                      )}
-                    </div>
+                          </div>
+                        </div>
+                        <div className="p-2 border-b border-gray-200 flex gap-2">
+                          <button
+                            onClick={() => handleCompanySelectAll()}
+                            className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                          >
+                            Все
+                          </button>
+                          <button
+                            onClick={() => handleCompanyDeselectAll()}
+                            className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                          >
+                            Снять
+                          </button>
+                        </div>
+                        <div className="max-h-48 overflow-y-auto">
+                          {getFilteredCompanyOptions.length === 0 ? (
+                            <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
+                          ) : (
+                            getFilteredCompanyOptions.map((company) => (
+                              <label
+                                key={company}
+                                className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={companyFilter.has(company)}
+                                  onChange={() => handleCompanyToggle(company)}
+                                  className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                                />
+                                <span className="ml-2 text-xs text-gray-700 flex-1">{company}</span>
+                              </label>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-              
-              <div className="flex items-center gap-1 ml-4">
-                <button
-                  ref={columnsMenuButtonRef}
-                  type="button"
-                  onClick={() => setIsColumnsMenuOpen(!isColumnsMenuOpen)}
-                  className="px-3 py-1.5 text-xs rounded-lg bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-1"
-                >
-                  <Settings className="w-3 h-3" />
-                  Колонки
-                </button>
-                
-                {isColumnsMenuOpen && columnsMenuPosition && (
-                  <div
-                    data-columns-menu="true"
-                    className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-96 overflow-hidden"
-                    style={{
-                      top: `${columnsMenuPosition.top}px`,
-                      left: `${columnsMenuPosition.left}px`,
+                  <div className="relative">
+                    <button
+                      ref={columnsMenuButtonRef}
+                      type="button"
+                      onClick={() => setIsColumnsMenuOpen(!isColumnsMenuOpen)}
+                      className="px-3 py-1.5 text-xs rounded-lg bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-1"
+                    >
+                      <Settings className="w-3 h-3" />
+                      Колонки
+                    </button>
+                    
+                    {isColumnsMenuOpen && columnsMenuPosition && (
+                      <div
+                        data-columns-menu="true"
+                        className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-96 overflow-hidden"
+                        style={{
+                          top: `${columnsMenuPosition.top}px`,
+                          left: `${columnsMenuPosition.left}px`,
+                        }}
+                      >
+                        <div className="p-2 border-b border-gray-200">
+                          <div className="text-sm font-medium text-gray-700">Выберите колонки</div>
+                        </div>
+                        <div className="max-h-80 overflow-y-auto">
+                          {ALL_COLUMNS.map((column) => (
+                            <label
+                              key={column.key}
+                              className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={visibleColumns.has(column.key)}
+                                onChange={() => toggleColumnVisibility(column.key)}
+                                className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                              />
+                              <span className="ml-2 text-xs text-gray-700 flex-1">{column.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => {
+                      const emptyFilters = {
+                        company: '',
+                        cfo: '',
+                        purchaseSubject: '',
+                        currentContractEndDate: '',
+                        purchaseRequestId: '',
+                        budgetAmount: '',
+                        budgetAmountOperator: 'gte',
+                      };
+                      setFilters(emptyFilters);
+                      setLocalFilters({
+                        budgetAmount: '',
+                        budgetAmountOperator: 'gte',
+                      });
+                      setCfoFilter(new Set());
+                      setCompanyFilter(new Set(['Uzum Market']));
+                      setCategoryFilter(new Set());
+                      setPurchaserFilter(new Set());
+                      const resetStatusFilter = ALL_STATUSES.filter(s => s !== 'Не Актуальная');
+                      setStatusFilter(new Set(resetStatusFilter));
+                      setSortField('requestDate');
+                      setSortDirection('asc');
+                      setFocusedField(null);
+                      setSelectedYear(allYears.length > 0 ? allYears[0] : null);
+                      setSelectedMonths(new Set());
+                      setSelectedMonthYear(null);
+                      setCurrentPage(0);
                     }}
+                    className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors"
                   >
-                    <div className="p-2 border-b border-gray-200">
-                      <div className="text-sm font-medium text-gray-700">Выберите колонки</div>
-                    </div>
-                    <div className="max-h-80 overflow-y-auto">
-                      {ALL_COLUMNS.map((column) => (
-                        <label
-                          key={column.key}
-                          className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={visibleColumns.has(column.key)}
-                            onChange={() => toggleColumnVisibility(column.key)}
-                            className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
-                          />
-                          <span className="ml-2 text-xs text-gray-700 flex-1">{column.label}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-              
-              <div className="flex items-center gap-1 ml-4">
-                <button
-                  onClick={() => {
-                    const emptyFilters = {
-                      company: '',
-                      cfo: '',
-                      purchaseSubject: '',
-                      currentContractEndDate: '',
-                      purchaseRequestId: '',
-                    };
-                    setFilters(emptyFilters);
-                    setLocalFilters(emptyFilters);
-                    setCfoFilter(new Set());
-                    setCompanyFilter(new Set(['Uzum Market']));
-                    setCategoryFilter(new Set());
-                    setPurchaserFilter(new Set());
-                    const resetStatusFilter = ALL_STATUSES.filter(s => s !== 'Не Актуальная');
-                    setStatusFilter(new Set(resetStatusFilter));
-                    setSortField('requestDate');
-                    setSortDirection('asc');
-                    setFocusedField(null);
-                    setSelectedYear(allYears.length > 0 ? allYears[0] : null);
-                    setSelectedMonth(null);
-                    setSelectedMonthYear(null);
-                    setCurrentPage(0);
-                  }}
-                  className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors"
-                >
-                  Сбросить фильтры
-                </button>
+                    Сбросить фильтры
+                  </button>
+                  <button
+                    onClick={exportToPDF}
+                    className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-2"
+                    title="Экспорт в PDF"
+                  >
+                    <Download className="w-4 h-4" />
+                    Экспорт в PDF
+                  </button>
+                  <button
+                    onClick={handleExportToExcelWithFilters}
+                    className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Экспорт в Excel с фильтрами"
+                    disabled={!data || !data.content || data.content.length === 0}
+                  >
+                    <Download className="w-4 h-4" />
+                    Excel (с фильтрами)
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1509,7 +1749,7 @@ export default function PublicPurchasePlanTable() {
             </div>
           </div>
         ) : (
-          <div className="flex-1 overflow-auto">
+          <div ref={printRef} className="flex-1 overflow-auto print-container">
             <table className="w-full border-collapse">
               <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
@@ -1580,7 +1820,7 @@ export default function PublicPurchasePlanTable() {
                                         }}
                                         onClick={(e) => e.stopPropagation()}
                                         onFocus={(e) => e.stopPropagation()}
-                                        className="w-full pl-7 pr-7 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        className="w-full pl-7 pr-7 py-1 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                                         placeholder="Поиск..."
                                       />
                                       {cfoSearchQuery && (
@@ -1668,10 +1908,170 @@ export default function PublicPurchasePlanTable() {
                       return <SortableHeader key={columnKey} field="purchaseSubject" label="Предмет закупки" columnKey="purchaseSubject" filterType="text" />;
                     }
                     if (columnKey === 'budgetAmount') {
-                      return <SortableHeader key={columnKey} field="budgetAmount" label="Бюджет (UZS)" columnKey="budgetAmount" />;
+                      return (
+                        <th
+                          key={columnKey}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, columnKey)}
+                          onDragOver={(e) => handleDragOver(e, columnKey)}
+                          onDragLeave={handleDragLeave}
+                          onDrop={(e) => handleDrop(e, columnKey)}
+                          className={`px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${draggedColumn === columnKey ? 'opacity-50' : ''} ${dragOverColumn === columnKey ? 'border-l-4 border-l-blue-500' : ''} cursor-move`}
+                          style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px`, verticalAlign: 'top' }}
+                        >
+                          <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                            <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                              <div className="relative flex-1" style={{ minWidth: 0 }}>
+                                <select
+                                  value={localFilters.budgetAmountOperator || 'gte'}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    const newValue = e.target.value;
+                                    setLocalFilters(prev => ({
+                                      ...prev,
+                                      budgetAmountOperator: newValue,
+                                    }));
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                  }}
+                                  onFocus={(e) => {
+                                    e.stopPropagation();
+                                  }}
+                                  onMouseDown={(e) => {
+                                    e.stopPropagation();
+                                  }}
+                                  className={`absolute left-0 top-0 h-full text-xs border-0 border-r border-gray-300 rounded-l px-1 py-0 focus:outline-none focus:ring-0 appearance-none cursor-pointer z-10 transition-colors ${
+                                    localFilters.budgetAmountOperator && ['gt', 'gte', 'lt', 'lte'].includes(localFilters.budgetAmountOperator)
+                                      ? 'bg-blue-500 text-white font-semibold'
+                                      : 'bg-gray-50 text-gray-700'
+                                  }`}
+                                  style={{ width: '42px', minWidth: '42px', paddingRight: '4px', height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
+                                >
+                                  <option value="gt">&gt;</option>
+                                  <option value="gte">&gt;=</option>
+                                  <option value="lt">&lt;</option>
+                                  <option value="lte">&lt;=</option>
+                                </select>
+                                <input
+                                  type="text"
+                                  data-filter-field="budgetAmount"
+                                  value={(() => {
+                                    const value = localFilters.budgetAmount || filters.budgetAmount || '';
+                                    if (!value) return '';
+                                    const numValue = value.toString().replace(/\s/g, '').replace(/,/g, '');
+                                    const num = parseFloat(numValue);
+                                    if (isNaN(num)) return value;
+                                    return new Intl.NumberFormat('ru-RU', {
+                                      minimumFractionDigits: 0,
+                                      maximumFractionDigits: 0
+                                    }).format(num);
+                                  })()}
+                                  onChange={(e) => {
+                                    const newValue = e.target.value.replace(/\s/g, '').replace(/,/g, '');
+                                    const cursorPos = e.target.selectionStart || 0;
+                                    setLocalFilters(prev => ({
+                                      ...prev,
+                                      budgetAmount: newValue,
+                                    }));
+                                    requestAnimationFrame(() => {
+                                      const input = e.target as HTMLInputElement;
+                                      if (input && document.activeElement === input) {
+                                        const length = input.value.length;
+                                        input.setSelectionRange(length, length);
+                                      }
+                                    });
+                                  }}
+                                  onFocus={(e) => {
+                                    e.stopPropagation();
+                                    setFocusedField('budgetAmount');
+                                    const value = localFilters.budgetAmount || '';
+                                    if (value) {
+                                      const numValue = value.replace(/\s/g, '').replace(/,/g, '');
+                                      e.target.value = numValue;
+                                    }
+                                  }}
+                                  onBlur={(e) => {
+                                    setTimeout(() => {
+                                      const activeElement = document.activeElement as HTMLElement;
+                                      if (activeElement && activeElement !== e.target && !activeElement.closest('th')) {
+                                        setFocusedField(null);
+                                      }
+                                    }, 200);
+                                  }}
+                                  placeholder="Число"
+                                  className="w-full text-xs border border-gray-300 rounded px-1 py-0.5 pl-11 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+                                />
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 min-h-[20px]">
+                              <button
+                                onClick={() => handleSort('budgetAmount')}
+                                className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                                style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                              >
+                                {sortField === 'budgetAmount' ? (
+                                  sortDirection === 'asc' ? (
+                                    <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                                  ) : (
+                                    <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                                  )
+                                ) : (
+                                  <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                                )}
+                              </button>
+                              <span className="text-xs font-medium text-gray-500 tracking-wider">Бюджет (UZS)</span>
+                            </div>
+                          </div>
+                          <div
+                            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+                            onMouseDown={(e) => handleResizeStart(e, 'budgetAmount')}
+                          />
+                        </th>
+                      );
                     }
                     if (columnKey === 'requestDate') {
-                      return <SortableHeader key={columnKey} field="requestDate" label="Дата заявки" columnKey="requestDate" />;
+                      return (
+                        <th
+                          key={columnKey}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, columnKey)}
+                          onDragOver={(e) => handleDragOver(e, columnKey)}
+                          onDragLeave={handleDragLeave}
+                          onDrop={(e) => handleDrop(e, columnKey)}
+                          className={`px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-t-2 border-l-2 border-r-2 border-red-500 relative ${draggedColumn === columnKey ? 'opacity-50' : ''} ${dragOverColumn === columnKey ? 'border-l-4 border-l-blue-500' : ''} cursor-move`}
+                          style={{ width: `${getColumnWidth('requestDate')}px`, minWidth: `${getColumnWidth('requestDate')}px`, maxWidth: `${getColumnWidth('requestDate')}px`, verticalAlign: 'top' }}
+                        >
+                          <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                            <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                              <div className="flex-1" style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0 }}></div>
+                            </div>
+                            <div className="flex items-center gap-1 min-h-[20px]">
+                              <button
+                                onClick={() => handleSort('requestDate')}
+                                className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                                style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                              >
+                                {sortField === 'requestDate' ? (
+                                  sortDirection === 'asc' ? (
+                                    <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                                  ) : (
+                                    <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                                  )
+                                ) : (
+                                  <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                                )}
+                              </button>
+                              <span className="text-xs font-medium text-gray-500 tracking-wider">Дата заявки</span>
+                            </div>
+                          </div>
+                          <div
+                            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+                            onMouseDown={(e) => handleResizeStart(e, 'requestDate')}
+                          />
+                        </th>
+                      );
                     }
                     if (columnKey === 'newContractDate') {
                       return <SortableHeader key={columnKey} field="newContractDate" label="Дата нового договора" columnKey="newContractDate" />;
@@ -1732,7 +2132,7 @@ export default function PublicPurchasePlanTable() {
                                       }}
                                       onClick={(e) => e.stopPropagation()}
                                       onFocus={(e) => e.stopPropagation()}
-                                      className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                                       placeholder="Поиск..."
                                     />
                                   </div>
@@ -1805,10 +2205,9 @@ export default function PublicPurchasePlanTable() {
                     return null;
                   })}
                   <th className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300" style={{ width: '350px', minWidth: '350px', verticalAlign: 'top', overflow: 'hidden' }}>
-                    <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
-                      <div className="flex items-center gap-1 min-h-[20px]">
-                        <div style={{ width: '10px', minWidth: '10px', flexShrink: 0 }}></div>
-                        <div className="flex-1 flex items-end gap-0.5 h-20 px-1 relative" style={{ minHeight: '80px', height: '80px' }}>
+                    <div className="flex flex-col" style={{ minWidth: 0, width: '100%', gap: '4px' }}>
+                      <div className="flex items-center min-h-[20px]">
+                        <div className="flex-1 flex items-end h-20 relative" style={{ minHeight: '80px', height: '80px', paddingLeft: '0', paddingRight: '0', gap: '2px', width: '100%' }}>
                           {getMonthlyDistribution.map((count, index) => {
                             const monthLabels = ['Дек', 'Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек', 'Без даты'];
                             const isYearDivider = index === 1;
@@ -1854,11 +2253,12 @@ export default function PublicPurchasePlanTable() {
                             }
                             
                             // Проверяем, выбран ли этот месяц и год
-                            const isSelected = selectedMonth === monthForFilter && 
+                            const monthKey = monthForFilter === -1 ? -1 : (index === 0 ? -2 : monthForFilter); // -2 для декабря предыдущего года
+                            const isSelected = selectedMonths.has(monthKey) && 
                               (monthForFilter === -1 || (index === 0 && selectedMonthYear === prevYear) || (index >= 1 && index <= 12 && selectedMonthYear === null));
                             
                             return (
-                              <div key={index} className="flex-1 flex flex-col items-center gap-0.5 relative" style={{ minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                              <div key={index} className="flex flex-col items-center relative" style={{ minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', flex: '0 0 calc((100% - 24px) / 13)' }}>
                                 <div 
                                   className={`w-full rounded-t transition-colors relative group cursor-pointer ${
                                     isNoDate
@@ -1878,31 +2278,81 @@ export default function PublicPurchasePlanTable() {
                                     flexShrink: 0
                                   }}
                                   title={`${monthLabels[index]}: ${count} закупок`}
-                                  onClick={() => {
+                                  onClick={(e) => {
                                     if (monthForFilter !== null) {
-                                      // Переключаем фильтр: если уже выбран этот месяц, снимаем фильтр
                                       const currentDisplayYear = selectedYear || chartData[0]?.year || new Date().getFullYear();
                                       const currentPrevYear = currentDisplayYear - 1;
-                                      const isCurrentlySelected = selectedMonth === monthForFilter && 
+                                      const monthKey = monthForFilter === -1 ? -1 : (index === 0 ? -2 : monthForFilter); // -2 для декабря предыдущего года
+                                      const isCurrentlySelected = selectedMonths.has(monthKey) && 
                                         (monthForFilter === -1 || (index === 0 && selectedMonthYear === currentPrevYear) || (index >= 1 && index <= 12 && selectedMonthYear === null));
                                       
-                                      if (isCurrentlySelected) {
-                                        setSelectedMonth(null);
-                                        setSelectedMonthYear(null);
-                                      } else {
-                                        setSelectedMonth(monthForFilter);
-                                        // Если это декабрь предыдущего года, сохраняем год для фильтрации по месяцу
-                                        if (index === 0 && yearForFilter !== null) {
-                                          setSelectedMonthYear(yearForFilter);
-                                        } else {
-                                          // Для месяцев текущего года сбрасываем selectedMonthYear
-                                          setSelectedMonthYear(null);
-                                          // Для месяцев текущего года устанавливаем текущий год (если он не установлен)
-                                          if (index >= 1 && index <= 12 && yearForFilter !== null && selectedYear === null) {
-                                            setSelectedYear(yearForFilter);
+                                      if (e.shiftKey && lastSelectedMonthIndex !== null && !isCurrentlySelected) {
+                                        // Shift+клик: выбираем диапазон месяцев
+                                        const startIndex = Math.min(lastSelectedMonthIndex, index);
+                                        const endIndex = Math.max(lastSelectedMonthIndex, index);
+                                        const newSelectedMonths = new Set(selectedMonths);
+                                        
+                                        for (let i = startIndex; i <= endIndex; i++) {
+                                          let monthKeyForRange: number;
+                                          let yearForRange: number | null = null;
+                                          
+                                          if (i === 0) {
+                                            // Декабрь предыдущего года
+                                            monthKeyForRange = -2;
+                                            yearForRange = currentPrevYear;
+                                          } else if (i >= 1 && i <= 12) {
+                                            // Месяцы текущего года
+                                            monthKeyForRange = i - 1;
+                                            yearForRange = null;
+                                          } else if (i === 13) {
+                                            // Без даты
+                                            monthKeyForRange = -1;
+                                            yearForRange = null;
+                                          } else {
+                                            continue;
+                                          }
+                                          
+                                          newSelectedMonths.add(monthKeyForRange);
+                                          
+                                          // Устанавливаем selectedMonthYear, если это декабрь предыдущего года
+                                          if (i === 0 && yearForRange !== null) {
+                                            setSelectedMonthYear(yearForRange);
                                           }
                                         }
+                                        
+                                        setSelectedMonths(newSelectedMonths);
+                                        setLastSelectedMonthIndex(index);
+                                      } else {
+                                        // Обычный клик: переключаем выбор месяца
+                                        const newSelectedMonths = new Set(selectedMonths);
+                                        
+                                        if (isCurrentlySelected) {
+                                          newSelectedMonths.delete(monthKey);
+                                          if (newSelectedMonths.size === 0) {
+                                            setSelectedMonthYear(null);
+                                          }
+                                        } else {
+                                          newSelectedMonths.add(monthKey);
+                                          // Если это декабрь предыдущего года, сохраняем год для фильтрации по месяцу
+                                          if (index === 0 && yearForFilter !== null) {
+                                            setSelectedMonthYear(yearForFilter);
+                                          } else if (index >= 1 && index <= 12) {
+                                            // Для месяцев текущего года сбрасываем selectedMonthYear, если все выбранные месяцы текущего года
+                                            const hasPrevYearMonth = Array.from(newSelectedMonths).some(key => key === -2);
+                                            if (!hasPrevYearMonth) {
+                                              setSelectedMonthYear(null);
+                                            }
+                                            // Для месяцев текущего года устанавливаем текущий год (если он не установлен)
+                                            if (yearForFilter !== null && selectedYear === null) {
+                                              setSelectedYear(yearForFilter);
+                                            }
+                                          }
+                                        }
+                                        
+                                        setSelectedMonths(newSelectedMonths);
+                                        setLastSelectedMonthIndex(index);
                                       }
+                                      
                                       setCurrentPage(0);
                                     }
                                   }}
@@ -1913,7 +2363,7 @@ export default function PublicPurchasePlanTable() {
                                     </div>
                                   )}
                                 </div>
-                                <div className={`text-[8px] text-center ${isYearDivider ? 'font-bold text-gray-800 border-l-2 border-gray-700 pl-0.5' : isSelected ? 'font-bold text-blue-700' : 'text-gray-500'}`} style={{ lineHeight: '1' }}>
+                                <div className={`text-[8px] text-center ${isSelected ? 'font-bold text-blue-700' : 'text-gray-500'}`} style={{ lineHeight: '1' }}>
                                   {monthLabels[index]}
                                 </div>
                               </div>
@@ -1926,8 +2376,9 @@ export default function PublicPurchasePlanTable() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200 border-t-2 border-gray-400">
-                {hasData ? data.content.map((item) => {
+                {hasData ? data.content.map((item, rowIndex) => {
                   const isInactive = item.status === 'Не Актуальная';
+                  const isFirstRow = rowIndex === 0;
                   return (
                     <tr key={item.id} className={isInactive ? 'bg-gray-100 opacity-60' : 'hover:bg-gray-50'}>
                       {columnOrder.filter(col => visibleColumns.has(col)).map((columnKey) => {
@@ -1987,7 +2438,7 @@ export default function PublicPurchasePlanTable() {
                         }
                         if (columnKey === 'requestDate') {
                           return (
-                            <td key={columnKey} className={`px-2 py-2 text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('requestDate')}px`, minWidth: `${getColumnWidth('requestDate')}px`, maxWidth: `${getColumnWidth('requestDate')}px` }}>
+                            <td key={columnKey} className={`px-2 py-2 text-xs border-l-2 border-r-2 ${isFirstRow ? 'border-t-2' : ''} border-red-500 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('requestDate')}px`, minWidth: `${getColumnWidth('requestDate')}px`, maxWidth: `${getColumnWidth('requestDate')}px` }}>
                               {formatDate(item.requestDate)}
                             </td>
                           );

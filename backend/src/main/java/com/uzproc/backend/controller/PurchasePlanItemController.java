@@ -39,14 +39,16 @@ public class PurchasePlanItemController {
             @RequestParam(required = false) String purchaseSubject,
             @RequestParam(required = false) List<String> purchaser,
             @RequestParam(required = false) List<String> category,
-            @RequestParam(required = false) Integer requestMonth,
+            @RequestParam(required = false) List<Integer> requestMonth,
             @RequestParam(required = false) Integer requestYear,
             @RequestParam(required = false) String currentContractEndDate,
             @RequestParam(required = false) List<String> status,
-            @RequestParam(required = false) String purchaseRequestId) {
+            @RequestParam(required = false) String purchaseRequestId,
+            @RequestParam(required = false) Double budgetAmount,
+            @RequestParam(required = false) String budgetAmountOperator) {
         
         Page<PurchasePlanItemDto> items = purchasePlanItemService.findAll(
-                page, size, year, sortBy, sortDir, company, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear, currentContractEndDate, status, purchaseRequestId);
+                page, size, year, sortBy, sortDir, company, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear, currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator);
         
         return ResponseEntity.ok(items);
     }

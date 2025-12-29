@@ -58,17 +58,19 @@ public class PurchasePlanItemService {
             String purchaseSubject,
             List<String> purchaser,
             List<String> category,
-            Integer requestMonth,
+            List<Integer> requestMonths,
             Integer requestYear,
             String currentContractEndDate,
             List<String> status,
-            String purchaseRequestId) {
+            String purchaseRequestId,
+            Double budgetAmount,
+            String budgetAmountOperator) {
         
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, company: {}, cfo: {}, purchaseSubject: '{}', purchaser: {}, category: {}, requestMonth: {}, requestYear: {}, currentContractEndDate: '{}', status: {}, purchaseRequestId: '{}'",
-                year, company, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear, currentContractEndDate, status, purchaseRequestId);
+        logger.info("Filter parameters - year: {}, company: {}, cfo: {}, purchaseSubject: '{}', purchaser: {}, category: {}, requestMonths: {}, requestYear: {}, currentContractEndDate: '{}', status: {}, purchaseRequestId: '{}', budgetAmount: {}, budgetAmountOperator: '{}'",
+                year, company, cfo, purchaseSubject, purchaser, category, requestMonths, requestYear, currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator);
         
-        Specification<PurchasePlanItem> spec = buildSpecification(year, company, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear, currentContractEndDate, status, purchaseRequestId);
+        Specification<PurchasePlanItem> spec = buildSpecification(year, company, cfo, purchaseSubject, purchaser, category, requestMonths, requestYear, currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -563,11 +565,13 @@ public class PurchasePlanItemService {
             String purchaseSubject,
             List<String> purchaser,
             List<String> category,
-            Integer requestMonth,
+            List<Integer> requestMonths,
             Integer requestYear,
             String currentContractEndDate,
             List<String> status,
-            String purchaseRequestId) {
+            String purchaseRequestId,
+            Double budgetAmount,
+            String budgetAmountOperator) {
         
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -710,26 +714,35 @@ public class PurchasePlanItemService {
                 }
             }
             
-            // Фильтр по месяцу даты заявки
-            if (requestMonth != null) {
-                if (requestMonth == -1) {
-                    // Фильтр для записей без даты
-                    predicates.add(cb.isNull(root.get("requestDate")));
+            // Фильтр по месяцу даты заявки (поддержка множественного выбора)
+            if (requestMonths != null && !requestMonths.isEmpty()) {
+                List<jakarta.persistence.criteria.Predicate> monthPredicates = new java.util.ArrayList<>();
+                
+                for (Integer requestMonth : requestMonths) {
+                    if (requestMonth == -1) {
+                        // Фильтр для записей без даты
+                        monthPredicates.add(cb.isNull(root.get("requestDate")));
+                        logger.info("Added requestMonth filter: без даты (null)");
+                    } else {
+                        // Фильтр по конкретному месяцу
+                        // Определяем год для фильтрации:
+                        // 1. Если передан requestYear - используем его (для месяцев из другого года, например декабрь предыдущего года)
+                        // 2. Иначе используем year (год планирования)
+                        // 3. Иначе текущий год
+                        Integer filterYear = requestYear != null ? requestYear : (year != null ? year : java.time.Year.now().getValue());
+                        java.time.LocalDate startOfMonth = java.time.LocalDate.of(filterYear, requestMonth + 1, 1);
+                        java.time.LocalDate endOfMonth = startOfMonth.withDayOfMonth(startOfMonth.lengthOfMonth());
+                        
+                        monthPredicates.add(cb.between(root.get("requestDate"), startOfMonth, endOfMonth));
+                        logger.info("Added requestMonth filter: месяц {} года {} ({} - {})", requestMonth, filterYear, startOfMonth, endOfMonth);
+                    }
+                }
+                
+                if (!monthPredicates.isEmpty()) {
+                    // Объединяем все условия месяцев через OR
+                    predicates.add(cb.or(monthPredicates.toArray(new jakarta.persistence.criteria.Predicate[0])));
                     predicateCount++;
-                    logger.info("Added requestMonth filter: без даты (null)");
-                } else {
-                    // Фильтр по конкретному месяцу
-                    // Определяем год для фильтрации:
-                    // 1. Если передан requestYear - используем его (для месяцев из другого года, например декабрь предыдущего года)
-                    // 2. Иначе используем year (год планирования)
-                    // 3. Иначе текущий год
-                    Integer filterYear = requestYear != null ? requestYear : (year != null ? year : java.time.Year.now().getValue());
-                    java.time.LocalDate startOfMonth = java.time.LocalDate.of(filterYear, requestMonth + 1, 1);
-                    java.time.LocalDate endOfMonth = startOfMonth.withDayOfMonth(startOfMonth.lengthOfMonth());
-                    
-                    predicates.add(cb.between(root.get("requestDate"), startOfMonth, endOfMonth));
-                    predicateCount++;
-                    logger.info("Added requestMonth filter: месяц {} года {} ({} - {})", requestMonth, filterYear, startOfMonth, endOfMonth);
+                    logger.info("Added requestMonth filter: {} месяцев выбрано", requestMonths.size());
                 }
             }
             
@@ -873,6 +886,48 @@ public class PurchasePlanItemService {
                 } catch (NumberFormatException e) {
                     logger.warn("Invalid purchaseRequestId filter value: '{}', error: {}", purchaseRequestId, e.getMessage());
                 }
+            }
+            
+            // Фильтр по бюджету с оператором
+            if (budgetAmount != null && budgetAmountOperator != null && !budgetAmountOperator.trim().isEmpty()) {
+                String operator = budgetAmountOperator.trim().toLowerCase();
+                logger.info("Processing budgetAmount filter: operator='{}', value={}", operator, budgetAmount);
+                
+                // Исключаем записи с null значениями budgetAmount
+                predicates.add(cb.isNotNull(root.get("budgetAmount")));
+                predicateCount++;
+                
+                switch (operator) {
+                    case "gt":
+                        predicates.add(cb.greaterThan(root.get("budgetAmount"), budgetAmount));
+                        predicateCount++;
+                        logger.info("Added budgetAmount filter: > {} (excluding null values)", budgetAmount);
+                        break;
+                    case "gte":
+                        predicates.add(cb.greaterThanOrEqualTo(root.get("budgetAmount"), budgetAmount));
+                        predicateCount++;
+                        logger.info("Added budgetAmount filter: >= {} (excluding null values)", budgetAmount);
+                        break;
+                    case "lt":
+                        predicates.add(cb.lessThan(root.get("budgetAmount"), budgetAmount));
+                        predicateCount++;
+                        logger.info("Added budgetAmount filter: < {} (excluding null values)", budgetAmount);
+                        break;
+                    case "lte":
+                        predicates.add(cb.lessThanOrEqualTo(root.get("budgetAmount"), budgetAmount));
+                        predicateCount++;
+                        logger.info("Added budgetAmount filter: <= {} (excluding null values)", budgetAmount);
+                        break;
+                    default:
+                        logger.warn("Unknown budgetAmountOperator '{}', using default 'gte'", operator);
+                        predicates.add(cb.greaterThanOrEqualTo(root.get("budgetAmount"), budgetAmount));
+                        predicateCount++;
+                        logger.info("Added budgetAmount filter: >= {} (default, excluding null values)", budgetAmount);
+                        break;
+                }
+            } else {
+                logger.info("Budget filter not applied: budgetAmount={}, budgetAmountOperator='{}'", 
+                        budgetAmount, budgetAmountOperator);
             }
             
             logger.info("Total predicates added: {}", predicateCount);
