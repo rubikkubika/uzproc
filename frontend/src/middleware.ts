@@ -8,6 +8,12 @@ export function middleware(request: NextRequest) {
   // Проверяем, что cookie содержит актуальную версию пароля
   const isAuthenticated = authToken && authToken.value === `authenticated-${PASSWORD_VERSION}`;
   const isLoginPage = request.nextUrl.pathname === '/login';
+  const isPublicPlanPage = request.nextUrl.pathname.startsWith('/public-plan');
+
+  // Разрешаем доступ к публичной странице плана закупок без аутентификации
+  if (isPublicPlanPage) {
+    return NextResponse.next();
+  }
 
   // Если пользователь не авторизован и пытается зайти не на страницу логина
   if (!isAuthenticated && !isLoginPage) {

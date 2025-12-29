@@ -86,6 +86,12 @@ public class PurchasePlanItemController {
         return ResponseEntity.notFound().build();
     }
 
+    @GetMapping("/years")
+    public ResponseEntity<List<Integer>> getYears() {
+        List<Integer> years = purchasePlanItemService.findDistinctYears();
+        return ResponseEntity.ok(years);
+    }
+
     @GetMapping("/monthly-stats")
     public ResponseEntity<Map<String, Object>> getMonthlyStats(
             @RequestParam(required = false) Integer year,

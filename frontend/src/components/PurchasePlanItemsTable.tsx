@@ -102,6 +102,7 @@ const ALL_COLUMNS = [
 
 // Колонки, которые отображаются по умолчанию
 const DEFAULT_VISIBLE_COLUMNS = [
+  'id',
   'company',
   'purchaseRequestId',
   'cfo',
@@ -202,7 +203,25 @@ export default function PurchasePlanItemsTable() {
       if (saved) {
         const savedColumns = JSON.parse(saved);
         if (Array.isArray(savedColumns)) {
-          return new Set(savedColumns.filter((col: unknown): col is string => typeof col === 'string'));
+          const filteredColumns = savedColumns.filter((col: unknown): col is string => typeof col === 'string');
+          let idAdded = false;
+          // Если 'id' отсутствует в сохраненных колонках, добавляем его перед 'company'
+          if (!filteredColumns.includes('id') && DEFAULT_VISIBLE_COLUMNS.includes('id')) {
+            const companyIndex = filteredColumns.indexOf('company');
+            if (companyIndex >= 0) {
+              filteredColumns.splice(companyIndex, 0, 'id');
+            } else {
+              filteredColumns.unshift('id');
+            }
+            idAdded = true;
+            // Сохраняем обновленный список в localStorage
+            try {
+              localStorage.setItem(COLUMNS_VISIBILITY_STORAGE_KEY, JSON.stringify(filteredColumns));
+            } catch (err) {
+              console.error('Error saving updated column visibility to localStorage:', err);
+            }
+          }
+          return new Set(filteredColumns);
         }
       }
     } catch (err) {
@@ -215,6 +234,36 @@ export default function PurchasePlanItemsTable() {
   const [isColumnsMenuOpen, setIsColumnsMenuOpen] = useState(false);
   const [columnsMenuPosition, setColumnsMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const columnsMenuButtonRef = useRef<HTMLButtonElement>(null);
+  
+  // Функция для загрузки редакций
+  const loadVersions = async () => {
+    if (!selectedYear) {
+      setVersions([]);
+      return;
+    }
+    setLoadingVersions(true);
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-versions/year/${selectedYear}`);
+      if (response.ok) {
+        const data = await response.json();
+        setVersions(data);
+        // Автоматически выбираем текущую версию, если она есть
+        const currentVersion = data.find((v: any) => v.isCurrent);
+        if (currentVersion && !selectedVersionId) {
+          setSelectedVersionId(currentVersion.id);
+          setSelectedVersionInfo(currentVersion);
+        }
+      } else {
+        console.error('Error loading versions');
+        setVersions([]);
+      }
+    } catch (error) {
+      console.error('Error loading versions:', error);
+      setVersions([]);
+    } finally {
+      setLoadingVersions(false);
+    }
+  };
   
   // Функция для расчета позиции выпадающего списка
   const calculateFilterPosition = useCallback((buttonRef: React.RefObject<HTMLButtonElement | null>) => {
@@ -515,6 +564,18 @@ export default function PurchasePlanItemsTable() {
     company: 'Uzum Market',
     status: 'Проект',
   });
+  
+  // Состояния для версий плана закупок
+  const [isCreateVersionModalOpen, setIsCreateVersionModalOpen] = useState(false);
+  const [isVersionsListModalOpen, setIsVersionsListModalOpen] = useState(false);
+  const [versions, setVersions] = useState<any[]>([]);
+  const [versionDescription, setVersionDescription] = useState('');
+  const [loadingVersions, setLoadingVersions] = useState(false);
+  const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null);
+  const [selectedVersionInfo, setSelectedVersionInfo] = useState<any | null>(null);
+  
+  // Проверка, просматривается ли архивная версия (не текущая)
+  const isViewingArchiveVersion = selectedVersionId !== null && selectedVersionInfo !== null && !selectedVersionInfo.isCurrent;
   const [authUsername, setAuthUsername] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
@@ -2263,9 +2324,9 @@ export default function PurchasePlanItemsTable() {
           if (status === 'Пусто') {
             params.append('status', '__NULL__');
           } else {
-            params.append('status', status);
+        params.append('status', status);
           }
-        });
+      });
       }
       if (month !== null) {
         params.append('requestMonth', String(month));
@@ -2325,6 +2386,12 @@ export default function PurchasePlanItemsTable() {
     }
   }, [editingPurchaseSubject]);
 
+  // Автоматически загружаем версии и выбираем текущую при изменении года
+  useEffect(() => {
+    if (selectedYear && filtersLoadedRef.current) {
+      loadVersions();
+    }
+  }, [selectedYear]);
 
   useEffect(() => {
     // Не вызываем fetchData до тех пор, пока фильтры не загружены из localStorage
@@ -3289,17 +3356,64 @@ export default function PurchasePlanItemsTable() {
                 </div>
               </div>
               <div className="flex items-center gap-1 flex-wrap">
+                {selectedVersionId && (
+                  <div className={`px-3 py-1.5 text-xs rounded-lg border flex items-center gap-2 ${
+                    selectedVersionInfo?.isCurrent 
+                      ? 'bg-green-100 text-green-800 border-green-300' 
+                      : 'bg-yellow-100 text-yellow-800 border-yellow-300'
+                  }`}>
+                    <span>
+                      {selectedVersionInfo?.isCurrent 
+                        ? 'Просмотр текущей редакции' 
+                        : `Просмотр редакции #${selectedVersionInfo?.versionNumber}`}
+                    </span>
+                <button
+                      onClick={() => {
+                        setSelectedVersionId(null);
+                        setSelectedVersionInfo(null);
+                        fetchData(0, pageSize, selectedYear, sortField, sortDirection, filters, selectedMonth);
+                      }}
+                      className={selectedVersionInfo?.isCurrent 
+                        ? 'text-green-800 hover:text-green-900' 
+                        : 'text-yellow-800 hover:text-yellow-900'}
+                      title="Вернуться к текущей версии"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
                 <button
                   onClick={() => setIsCreateModalOpen(true)}
-                  className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg border border-green-600 hover:bg-green-700 transition-colors flex items-center gap-2"
+                  className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Создать новую строку плана закупок"
+                  disabled={selectedVersionId !== null && !selectedVersionInfo?.isCurrent}
                 >
                   <Plus className="w-4 h-4" />
                   Создать строку
                 </button>
                 <button
-                  onClick={exportToPDF}
+                  onClick={() => setIsCreateVersionModalOpen(true)}
+                  className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Создать редакцию плана закупок"
+                  disabled={selectedVersionId !== null && !selectedVersionInfo?.isCurrent}
+                >
+                  <Plus className="w-4 h-4" />
+                  Создать редакцию
+                </button>
+                <button
+                  onClick={() => {
+                    setIsVersionsListModalOpen(true);
+                    loadVersions();
+                  }}
                   className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-2"
+                  title="Просмотр редакций плана закупок"
+                >
+                  <Settings className="w-4 h-4" />
+                  Редакции
+                </button>
+                <button
+                  onClick={exportToPDF}
+                  className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-2"
                   title="Экспорт в PDF"
                 >
                   <Download className="w-4 h-4" />
@@ -3307,7 +3421,7 @@ export default function PurchasePlanItemsTable() {
                 </button>
                 <button
                   onClick={handleExportToExcelWithFilters}
-                  className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg border border-green-600 hover:bg-green-700 transition-colors flex items-center gap-2"
+                  className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Экспорт в Excel с фильтрами"
                   disabled={!data || !data.content || data.content.length === 0}
                 >
@@ -3316,7 +3430,7 @@ export default function PurchasePlanItemsTable() {
                 </button>
                 <button
                   onClick={handleExportToExcelAll}
-                  className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg border border-green-600 hover:bg-green-700 transition-colors flex items-center gap-2"
+                  className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Экспорт в Excel всех данных"
                   disabled={loading}
                 >
@@ -3374,6 +3488,16 @@ export default function PurchasePlanItemsTable() {
                   window.dispatchEvent(new CustomEvent('purchasePlanItemCompanyFilterUpdated', {
                     detail: { companyFilter: ['Uzum Market'] }
                   }));
+                  // Устанавливаем просмотр текущей версии
+                  if (selectedYear) {
+                    loadVersions().then(() => {
+                      // После загрузки версий текущая версия будет выбрана автоматически в loadVersions
+                    });
+                  } else {
+                    // Если год не выбран, просто сбрасываем выбранную версию
+                    setSelectedVersionId(null);
+                    setSelectedVersionInfo(null);
+                  }
                   }}
                 className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors"
               >
@@ -3849,6 +3973,9 @@ export default function PurchasePlanItemsTable() {
         <table className="w-full border-collapse">
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
+              {visibleColumns.has('id') && (
+              <SortableHeader field="id" label="ID" columnKey="id" />
+              )}
               {visibleColumns.has('company') && (
               <SortableHeader field="company" label="Компания" columnKey="company" />
               )}
@@ -4121,9 +4248,6 @@ export default function PurchasePlanItemsTable() {
               )}
               {visibleColumns.has('newContractDate') && (
               <SortableHeader field="newContractDate" label="Дата нового договора" columnKey="newContractDate" />
-              )}
-              {visibleColumns.has('id') && (
-              <SortableHeader field="id" label="ID" columnKey="id" />
               )}
               {visibleColumns.has('guid') && (
               <SortableHeader field="guid" label="GUID" columnKey="guid" />
@@ -4538,13 +4662,18 @@ export default function PurchasePlanItemsTable() {
                       className={`${isInactive ? 'bg-gray-100 opacity-60' : 'hover:bg-gray-50'} cursor-pointer`}
                       onDoubleClick={(e) => handleRowClick(item.id, e)}
                 >
+                        {visibleColumns.has('id') && (
+                  <td className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 text-center ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('id')}px`, minWidth: `${getColumnWidth('id')}px`, maxWidth: `${getColumnWidth('id')}px` }}>
+                    {item.id}
+                  </td>
+                  )}
                         {visibleColumns.has('company') && (
                   <td className={`px-2 py-2 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px` }}>
                     <select
                       ref={editingCompany === item.id ? companySelectRef : null}
                       data-editing-company={item.id}
                       value={item.company || ''}
-                      disabled={isInactive}
+                      disabled={isInactive || isViewingArchiveVersion}
                       onChange={(e) => {
                         e.stopPropagation();
                         if (e.target.value !== item.company) {
@@ -4624,18 +4753,18 @@ export default function PurchasePlanItemsTable() {
                           setEditingPurchaseRequestId(item.id);
                         }}
                         className="w-full text-xs border border-blue-500 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        disabled={isInactive}
+                        disabled={isInactive || isViewingArchiveVersion}
                         autoFocus
                       />
                     ) : (
                       <div
                         onClick={() => {
-                          if (!isInactive) {
+                          if (!isInactive && !isViewingArchiveVersion) {
                             setEditingPurchaseRequestId(item.id);
                           }
                         }}
-                        className={isInactive ? '' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors'}
-                        title={isInactive ? '' : 'Нажмите для редактирования'}
+                        className={isInactive || isViewingArchiveVersion ? '' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors'}
+                        title={isInactive || isViewingArchiveVersion ? '' : 'Нажмите для редактирования'}
                       >
                         {item.purchaseRequestId || '-'}
                       </div>
@@ -4652,7 +4781,7 @@ export default function PurchasePlanItemsTable() {
                               ref={cfoInputRef}
                               type="text"
                               value={cfoInputValue[item.id] !== undefined ? cfoInputValue[item.id] : ''}
-                              disabled={isInactive}
+                              disabled={isInactive || isViewingArchiveVersion}
                               onChange={(e) => {
                                 e.stopPropagation();
                                 setCfoInputValue(prev => ({ ...prev, [item.id]: e.target.value }));
@@ -4712,7 +4841,7 @@ export default function PurchasePlanItemsTable() {
                               ref={editingCfo === item.id ? cfoSelectRef : null}
                               data-editing-cfo={item.id}
                               value={item.cfo || ''}
-                              disabled={isInactive}
+                              disabled={isInactive || isViewingArchiveVersion}
                               onChange={(e) => {
                                 e.stopPropagation();
                                 if (e.target.value === '__CREATE_NEW__') {
@@ -4724,7 +4853,7 @@ export default function PurchasePlanItemsTable() {
                                 }
                               }}
                               onMouseDown={(e) => {
-                                if (!isInactive) {
+                                if (!isInactive && !isViewingArchiveVersion) {
                                   e.stopPropagation();
                                   setEditingCfo(item.id);
                                   // Даем возможность браузеру открыть dropdown
@@ -4841,7 +4970,7 @@ export default function PurchasePlanItemsTable() {
                             <div
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (!isInactive) {
+                                if (!isInactive && !isViewingArchiveVersion) {
                                   setEditingPurchaseSubject(item.id);
                                 }
                               }}
@@ -4908,7 +5037,7 @@ export default function PurchasePlanItemsTable() {
                     ) : (
                       <div
                         onClick={(e) => {
-                          if (!isInactive) {
+                          if (!isInactive && !isViewingArchiveVersion) {
                             e.stopPropagation();
                             setEditingDate({ itemId: item.id, field: 'requestDate' });
                           }
@@ -4938,11 +5067,6 @@ export default function PurchasePlanItemsTable() {
                           ? new Date(tempDates[item.id]!.newContractDate!).toLocaleDateString('ru-RU')
                           : (item.newContractDate ? new Date(item.newContractDate).toLocaleDateString('ru-RU') : '-')}
                       </div>
-                        </td>
-                  )}
-                  {visibleColumns.has('id') && (
-                  <td className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 text-center ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('id')}px`, minWidth: `${getColumnWidth('id')}px`, maxWidth: `${getColumnWidth('id')}px` }}>
-                    {item.id}
                   </td>
                   )}
                   {visibleColumns.has('guid') && (
@@ -5114,7 +5238,7 @@ export default function PurchasePlanItemsTable() {
                       newContractDate={item.newContractDate}
                       contractEndDate={item.contractEndDate}
                       currentContractEndDate={item.currentContractEndDate}
-                      disabled={isInactive}
+                      disabled={isInactive || isViewingArchiveVersion}
                       onDragStart={() => {
                         // Закрываем режим редактирования даты при начале перетаскивания Ганта
                         if (editingDate?.itemId === item.id) {
@@ -5460,6 +5584,208 @@ export default function PurchasePlanItemsTable() {
         </div>
         </div>
       </div>
+
+      {/* Модальное окно создания редакции */}
+      {isCreateVersionModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setIsCreateVersionModalOpen(false)}>
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Создать редакцию</h2>
+              <button
+                onClick={() => setIsCreateVersionModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Год</label>
+                <input
+                  type="number"
+                  value={selectedYear || ''}
+                  disabled
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-100 text-gray-600"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Описание редакции</label>
+                <textarea
+                  value={versionDescription}
+                  onChange={(e) => setVersionDescription(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows={3}
+                  placeholder="Введите описание редакции..."
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => {
+                  setIsCreateVersionModalOpen(false);
+                  setVersionDescription('');
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={async () => {
+                  if (!selectedYear) {
+                    alert('Выберите год');
+                    return;
+                  }
+                  try {
+                    const response = await fetch(`${getBackendUrl()}/api/purchase-plan-versions`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify({
+                        year: selectedYear,
+                        description: versionDescription || `Редакция от ${new Date().toLocaleDateString('ru-RU')}`,
+                        createdBy: 'user', // TODO: получить из контекста пользователя
+                      }),
+                    });
+                    if (response.ok) {
+                      setIsCreateVersionModalOpen(false);
+                      setVersionDescription('');
+                      alert('Редакция успешно создана');
+                    } else {
+                      const errorText = await response.text();
+                      alert(`Ошибка создания редакции: ${errorText}`);
+                    }
+                  } catch (error) {
+                    console.error('Error creating version:', error);
+                    alert('Ошибка создания редакции');
+                  }
+                }}
+                className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                Создать
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Модальное окно списка редакций */}
+      {isVersionsListModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setIsVersionsListModalOpen(false)}>
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Редакции плана закупок</h2>
+              <button
+                onClick={() => setIsVersionsListModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="mb-4">
+              <p className="text-sm text-gray-600">Год: <span className="font-medium">{selectedYear || 'Не выбран'}</span></p>
+            </div>
+            {loadingVersions ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-gray-500">Загрузка...</div>
+              </div>
+            ) : versions.length === 0 ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-gray-500">Редакции не найдены</div>
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto">
+                <table className="w-full border-collapse">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 border-b border-gray-200">№</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 border-b border-gray-200">Описание</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 border-b border-gray-200">Создано</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 border-b border-gray-200">Строк</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 border-b border-gray-200">Статус</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {versions.map((version) => (
+                      <tr 
+                        key={version.id} 
+                        className={`hover:bg-gray-50 cursor-pointer ${selectedVersionId === version.id ? 'bg-blue-50' : ''}`}
+                        onClick={async () => {
+                          setSelectedVersionId(version.id);
+                          setSelectedVersionInfo(version);
+                          // Не закрываем модальное окно, чтобы бейджик не пропадал
+                          // setIsVersionsListModalOpen(false);
+                          // Если версия текущая, загружаем текущие данные
+                          if (version.isCurrent) {
+                            fetchData(0, pageSize, selectedYear, sortField, sortDirection, filters, selectedMonth);
+                          } else {
+                            // Загружаем данные из выбранной архивной версии
+                            try {
+                              const response = await fetch(`${getBackendUrl()}/api/purchase-plan-versions/${version.id}/items`);
+                              if (response.ok) {
+                                const versionItems = await response.json();
+                                // Преобразуем в формат PageResponse
+                                setData({
+                                  content: versionItems,
+                                  totalElements: versionItems.length,
+                                  totalPages: 1,
+                                  size: versionItems.length,
+                                  number: 0,
+                                  first: true,
+                                  last: true,
+                                  numberOfElements: versionItems.length,
+                                  empty: versionItems.length === 0,
+                                  pageable: {
+                                    pageNumber: 0,
+                                    pageSize: versionItems.length,
+                                    sort: { sorted: false, unsorted: true, empty: true },
+                                    offset: 0,
+                                    paged: true,
+                                    unpaged: false
+                                  },
+                                  sort: { sorted: false, unsorted: true, empty: true }
+                                });
+                                setTotalRecords(versionItems.length);
+                              } else {
+                                alert('Ошибка загрузки данных версии');
+                              }
+                            } catch (error) {
+                              console.error('Error loading version items:', error);
+                              alert('Ошибка загрузки данных версии');
+                            }
+                          }
+                        }}
+                      >
+                        <td className="px-4 py-2 text-xs text-gray-900">{version.versionNumber}</td>
+                        <td className="px-4 py-2 text-xs text-gray-900">{version.description || '-'}</td>
+                        <td className="px-4 py-2 text-xs text-gray-900">
+                          {version.createdAt ? new Date(version.createdAt).toLocaleString('ru-RU') : '-'}
+                        </td>
+                        <td className="px-4 py-2 text-xs text-gray-900">{version.itemsCount || 0}</td>
+                        <td className="px-4 py-2 text-xs text-gray-900">
+                          {version.isCurrent ? (
+                            <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs font-medium">Текущая</span>
+                          ) : (
+                            <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded text-xs">Архив</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-gray-200">
+              <button
+                onClick={() => setIsVersionsListModalOpen(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Закрыть
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

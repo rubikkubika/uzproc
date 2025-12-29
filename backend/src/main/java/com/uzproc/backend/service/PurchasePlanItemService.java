@@ -904,6 +904,10 @@ public class PurchasePlanItemService {
      * "Дек (пред. год)" = декабрь selectedYear = декабрь (year - 1)
      * Январь-декабрь = year (selectedYear + 1)
      */
+    public List<Integer> findDistinctYears() {
+        return purchasePlanItemRepository.findDistinctYears();
+    }
+
     public Map<String, Object> getMonthlyStats(Integer year, List<String> company) {
         // Загружаем данные с годом планирования = year
         // requestDate может быть в декабре (year - 1) или в year

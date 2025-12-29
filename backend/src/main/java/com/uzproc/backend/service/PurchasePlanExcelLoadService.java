@@ -1185,7 +1185,7 @@ public class PurchasePlanExcelLoadService {
                 LocalDate calculatedDate = calculateNewContractDate(newData.getRequestDate(), existing.getComplexity());
                 if (calculatedDate != null) {
                     existing.setNewContractDate(calculatedDate);
-                    updated = true;
+            updated = true;
                 }
             }
         }
@@ -1194,8 +1194,8 @@ public class PurchasePlanExcelLoadService {
         if (newData.getNewContractDate() != null && !newData.getNewContractDate().equals(existing.getNewContractDate())) {
             // Проверяем, не была ли дата пересчитана автоматически выше
             if (newData.getRequestDate() == null || newData.getRequestDate().equals(existing.getRequestDate())) {
-                existing.setNewContractDate(newData.getNewContractDate());
-                updated = true;
+            existing.setNewContractDate(newData.getNewContractDate());
+            updated = true;
             }
         }
         
@@ -1257,7 +1257,7 @@ public class PurchasePlanExcelLoadService {
                 LocalDate calculatedDate = calculateNewContractDate(existing.getRequestDate(), newData.getComplexity());
                 if (calculatedDate != null) {
                     existing.setNewContractDate(calculatedDate);
-                    updated = true;
+            updated = true;
                 }
             }
         }

@@ -395,7 +395,7 @@ export default function GanttChart({
 
   return (
     <div 
-      className={`relative h-8 w-full border rounded overflow-hidden ${disabled ? 'border-gray-400 bg-gray-100 opacity-60' : 'border-gray-300'}`} 
+      className={`relative h-8 w-full border rounded overflow-hidden ${disabled ? 'border-gray-300' : 'border-gray-300'}`} 
       ref={containerRef}
       style={{ contain: 'layout style paint' }}
     >
@@ -462,7 +462,7 @@ export default function GanttChart({
         <div
           className={`absolute h-full rounded transition-all duration-200 ease-out ${
             disabled 
-              ? 'bg-gray-400 cursor-not-allowed opacity-60' 
+              ? 'bg-blue-500 cursor-not-allowed' 
               : `bg-blue-500 cursor-move hover:bg-blue-600 ${isDragging ? 'bg-blue-600 shadow-lg scale-105' : ''}`
           } ${isUpdating ? 'opacity-50' : ''}`}
           style={{

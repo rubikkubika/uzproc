@@ -46,6 +46,7 @@ const menuItems = [
     { id: 'contracts', label: 'Договоры', icon: Package },
     { id: 'specifications', label: 'Спецификации', icon: Package },
     { id: 'presentation', label: 'Презентация', icon: FileText },
+    { id: 'public-plan', label: 'План закупок (публичный)', icon: FileText, isExternal: true },
   ];
 
   const initiatorItems = [
@@ -235,11 +236,20 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
                 const isDisabled = item.disabled || false;
+                const isExternal = (item as any).isExternal || false;
                 
                 return (
                   <li key={item.id}>
                     <button
-                      onClick={() => !isDisabled && handleTabChange(item.id)}
+                      onClick={() => {
+                        if (isDisabled) return;
+                        if (isExternal) {
+                          router.push('/public-plan');
+                          setIsMobileMenuOpen(false);
+                        } else {
+                          handleTabChange(item.id);
+                        }
+                      }}
                       disabled={isDisabled}
                       className={`w-full flex items-center rounded-lg transition-colors relative text-sm ${
                         isCollapsed ? 'justify-center px-2 py-1.5' : 'px-2 py-1.5'
