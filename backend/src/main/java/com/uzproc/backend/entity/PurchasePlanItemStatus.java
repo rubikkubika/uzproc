@@ -6,7 +6,8 @@ public enum PurchasePlanItemStatus {
     PROJECT("Проект"),
     ACTUAL("Актуальная"),
     NOT_ACTUAL("Не Актуальная"),
-    CORRECTION("Корректировка");
+    CORRECTION("Корректировка"),
+    REQUEST("Заявка");
 
     private final String displayName;
 

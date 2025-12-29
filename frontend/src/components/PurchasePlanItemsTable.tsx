@@ -68,8 +68,8 @@ const FILTERS_STORAGE_KEY = 'purchasePlanItems_filters';
 const COLUMNS_VISIBILITY_STORAGE_KEY = 'purchasePlanItems_columnsVisibility';
 
 // Константы для статусов
-const ALL_STATUSES = ['Проект', 'Актуальная', 'Не Актуальная', 'Корректировка', 'Заявка'];
-const DEFAULT_STATUSES = ALL_STATUSES.filter(s => s !== 'Не Актуальная');
+const ALL_STATUSES = ['Проект', 'Актуальная', 'Не Актуальная', 'Корректировка', 'Заявка', 'Пусто'];
+const DEFAULT_STATUSES = ALL_STATUSES.filter(s => s !== 'Не Актуальная' && s !== 'Пусто');
 
 // Определение всех возможных колонок (все поля сущности PurchasePlanItem)
 const ALL_COLUMNS = [
@@ -1815,6 +1815,19 @@ export default function PurchasePlanItemsTable() {
             params.append('category', category);
           });
         }
+        // Фильтр по статусу - передаем только выбранные значения на бэкенд
+        // Если фильтр пустой, не передаем параметр (показываем все статусы)
+        // Если фильтр не пустой, передаем только выбранные статусы
+        if (statusFilter.size > 0) {
+          statusFilter.forEach(status => {
+            // Если выбран "Пусто", передаем специальное значение для null
+            if (status === 'Пусто') {
+              params.append('status', '__NULL__');
+            } else {
+              params.append('status', status);
+            }
+          });
+        }
         // Для диаграммы не применяем фильтр по месяцу, чтобы показать все месяцы
         
         const fetchUrl = `${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`;
@@ -1830,7 +1843,7 @@ export default function PurchasePlanItemsTable() {
     };
     
     fetchChartData();
-  }, [selectedYear, selectedMonthYear, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter]);
+  }, [selectedYear, selectedMonthYear, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter, statusFilter]);
 
   // Загружаем данные для сводной таблицы (без учета фильтра по закупщику)
   useEffect(() => {
@@ -1866,12 +1879,19 @@ export default function PurchasePlanItemsTable() {
             params.append('category', category);
           });
         }
-        // Фильтр по статусу - передаем все выбранные значения на бэкенд
-        // Если фильтр пустой, используем значения по умолчанию (все кроме Не Актуальная)
-        const statusesToFilter = statusFilter.size > 0 ? statusFilter : new Set(DEFAULT_STATUSES);
-        statusesToFilter.forEach(status => {
-          params.append('status', status);
-        });
+        // Фильтр по статусу - передаем только выбранные значения на бэкенд
+        // Если фильтр пустой, не передаем параметр (показываем все статусы)
+        // Если фильтр не пустой, передаем только выбранные статусы
+        if (statusFilter.size > 0) {
+          statusFilter.forEach(status => {
+            // Если выбран "Пусто", передаем специальное значение для null
+            if (status === 'Пусто') {
+              params.append('status', '__NULL__');
+            } else {
+              params.append('status', status);
+            }
+          });
+        }
         // Фильтр по месяцу (аналогично fetchData)
         if (selectedMonth !== null) {
           params.append('requestMonth', String(selectedMonth));
@@ -2234,12 +2254,19 @@ export default function PurchasePlanItemsTable() {
           params.append('category', category);
         });
       }
-      // Фильтр по статусу - передаем все выбранные значения на бэкенд
-      // Если фильтр пустой, используем значения по умолчанию (все кроме Не Актуальная)
-      const statusesToFilter = statusFilter.size > 0 ? statusFilter : new Set(DEFAULT_STATUSES);
-      statusesToFilter.forEach(status => {
-        params.append('status', status);
-      });
+      // Фильтр по статусу - передаем только выбранные значения на бэкенд
+      // Если фильтр пустой, не передаем параметр (показываем все статусы)
+      // Если фильтр не пустой, передаем только выбранные статусы
+      if (statusFilter.size > 0) {
+        statusFilter.forEach(status => {
+          // Если выбран "Пусто", передаем специальное значение для null
+          if (status === 'Пусто') {
+            params.append('status', '__NULL__');
+          } else {
+            params.append('status', status);
+          }
+        });
+      }
       if (month !== null) {
         params.append('requestMonth', String(month));
         // Если выбран месяц из другого года (например, декабрь предыдущего года), передаем год для фильтрации по дате заявки
@@ -3311,7 +3338,9 @@ export default function PurchasePlanItemsTable() {
                     setCompanyFilter(new Set(['Uzum Market'])); // При сбросе устанавливаем фильтр по умолчанию на "Uzum Market"
                     setCategoryFilter(new Set());
                     setPurchaserFilter(new Set());
-                    setStatusFilter(new Set());
+                    // При сбросе устанавливаем фильтр по статусу на все статусы кроме "Не Актуальная"
+                    const resetStatusFilter = ALL_STATUSES.filter(s => s !== 'Не Актуальная');
+                    setStatusFilter(new Set(resetStatusFilter));
                   setSortField('requestDate');
                   setSortDirection('asc');
                     setFocusedField(null);
@@ -3321,6 +3350,9 @@ export default function PurchasePlanItemsTable() {
                   setCurrentPage(0);
                   // Сохраняем сброшенные фильтры в localStorage
                   // Фильтр по компании устанавливается на "Uzum Market" по умолчанию
+                  // Фильтр по статусу устанавливается на все статусы кроме "Не Актуальная"
+                  const defaultStatusFilter = ALL_STATUSES.filter(s => s !== 'Не Актуальная');
+                  setStatusFilter(new Set(defaultStatusFilter));
                   try {
                     const resetFilters = {
                       filters: emptyFilters,
@@ -3328,7 +3360,7 @@ export default function PurchasePlanItemsTable() {
                       companyFilter: ['Uzum Market'], // При сбросе устанавливаем фильтр по умолчанию на "Uzum Market"
                       categoryFilter: [],
                       purchaserFilter: [],
-                      statusFilter: DEFAULT_STATUSES, // При сбросе устанавливаем фильтр по умолчанию (все кроме Не Актуальная)
+                      statusFilter: defaultStatusFilter, // При сбросе устанавливаем фильтр по умолчанию (все кроме Не Актуальная)
                       sortField: 'requestDate',
                       sortDirection: 'asc',
                       pageSize: pageSize,
