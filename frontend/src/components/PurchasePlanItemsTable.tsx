@@ -4650,7 +4650,7 @@ export default function PurchasePlanItemsTable() {
                         
                         // Проверяем, выбран ли этот месяц и год
                         const monthKey = monthForFilter === -1 ? -1 : (index === 0 ? -2 : monthForFilter); // -2 для декабря предыдущего года
-                        const isSelected = selectedMonths.has(monthKey) && 
+                        const isSelected = monthKey !== null && selectedMonths.has(monthKey) && 
                           (monthForFilter === -1 || (index === 0 && selectedMonthYear === prevYear) || (index >= 1 && index <= 12 && selectedMonthYear === null));
                         
                   return (
