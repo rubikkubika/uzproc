@@ -1607,7 +1607,7 @@ export default function PurchasePlanItemsTable() {
       year: 64, // w-16 = 4rem = 64px
       company: 128, // w-32 = 8rem = 128px
       cfo: 128, // w-32 = 8rem = 128px
-      purchaseSubject: 192, // w-48 = 12rem = 192px
+      purchaseSubject: 96, // w-24 = 6rem = 96px (уменьшено на 50%)
       budgetAmount: 112, // w-28 = 7rem = 112px
       contractEndDate: 128, // w-32 = 8rem = 128px
       requestDate: 112, // w-28 = 7rem = 112px
@@ -1648,7 +1648,7 @@ export default function PurchasePlanItemsTable() {
     pageStyle: `
       @page {
         size: A4 landscape;
-        margin: 10mm;
+        margin: 5mm;
       }
       @media print {
         body {
@@ -1657,6 +1657,24 @@ export default function PurchasePlanItemsTable() {
         }
         .no-print {
           display: none !important;
+        }
+        .print-container {
+          width: 100% !important;
+          max-width: 100% !important;
+          overflow: visible !important;
+        }
+        .print-container table {
+          width: 100% !important;
+          table-layout: fixed !important;
+        }
+        /* Сохраняем оригинальные стили из таблицы - не переопределяем font-size и padding */
+        .print-container table th.purchase-subject-column,
+        .print-container table td.purchase-subject-column,
+        .print-container table th[data-column="purchaseSubject"],
+        .print-container table td[data-column="purchaseSubject"] {
+          white-space: normal !important;
+          word-wrap: break-word !important;
+          overflow-wrap: break-word !important;
         }
       }
     `,
@@ -3000,13 +3018,15 @@ export default function PurchasePlanItemsTable() {
     label, 
     filterType = 'text',
     width,
-    columnKey
+    columnKey,
+    className
   }: { 
     field: string | null; 
     label: string;
     filterType?: 'text' | 'select';
     width?: string;
     columnKey?: string;
+    className?: string;
   }) => {
     const fieldKey = field || '';
     const isSorted = sortField === field;
@@ -3017,7 +3037,11 @@ export default function PurchasePlanItemsTable() {
       : { verticalAlign: 'top', overflow: 'hidden' };
 
     return (
-      <th className={`px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${width || ''}`} style={style}>
+      <th 
+        className={`px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${width || ''} ${className || ''}`} 
+        style={style}
+        data-column={columnKey || undefined}
+      >
       <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
           <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
             {filterType === 'text' ? (
@@ -3980,13 +4004,25 @@ export default function PurchasePlanItemsTable() {
                 font-size: 12px;
                 margin: 0;
               }
-              /* Увеличиваем ширину столбца "Предмет закупки" при печати */
-              /* Столбец "Предмет закупки" - это второй столбец после ЦФО */
-              table thead th:nth-child(2),
-              table tbody td:nth-child(2) {
-                width: 350px !important;
-                min-width: 350px !important;
-                max-width: 350px !important;
+              table {
+                width: 100% !important;
+                table-layout: fixed !important;
+                border-collapse: collapse !important;
+              }
+              table thead th,
+              table tbody td {
+                border: 1px solid #e5e7eb !important;
+              }
+              table thead th.purchase-subject-column,
+              table tbody td.purchase-subject-column,
+              table thead th[data-column="purchaseSubject"],
+              table tbody td[data-column="purchaseSubject"] {
+                white-space: normal !important;
+                word-wrap: break-word !important;
+                overflow-wrap: break-word !important;
+              }
+              table thead th {
+                background-color: #f9fafb !important;
               }
               .no-print {
                 display: none !important;
@@ -4160,6 +4196,7 @@ export default function PurchasePlanItemsTable() {
                 label="Предмет закупки" 
                 filterType="text" 
                 columnKey="purchaseSubject"
+                className="purchase-subject-column"
               />
               )}
               {visibleColumns.has('purchaser') && (
@@ -5000,8 +5037,17 @@ export default function PurchasePlanItemsTable() {
                         )}
                         {visibleColumns.has('purchaseSubject') && (
                         <td 
-                          className={`px-2 py-2 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
-                          style={{ width: `${getColumnWidth('purchaseSubject')}px`, minWidth: `${getColumnWidth('purchaseSubject')}px`, maxWidth: `${getColumnWidth('purchaseSubject')}px` }}
+                          className={`px-2 py-2 text-xs border-r border-gray-200 relative purchase-subject-column ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
+                          data-column="purchaseSubject"
+                          style={{ 
+                            width: `${getColumnWidth('purchaseSubject')}px`, 
+                            minWidth: `${getColumnWidth('purchaseSubject')}px`, 
+                            maxWidth: `${getColumnWidth('purchaseSubject')}px`,
+                            whiteSpace: 'normal',
+                            wordWrap: 'break-word',
+                            overflowWrap: 'break-word'
+                          }}
+                          data-print-width="96"
                         >
                           {editingPurchaseSubject === item.id ? (
                             <textarea
