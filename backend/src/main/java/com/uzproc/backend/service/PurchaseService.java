@@ -187,7 +187,7 @@ public class PurchaseService {
                     predicates.add(cb.lower(cfoJoin.get("name")).in(
                         validCfoValues.stream().map(String::toLowerCase).toList()
                     ));
-                    predicateCount++;
+                        predicateCount++;
                     logger.info("Added cfo filter: {}", validCfoValues);
                 }
             }

@@ -1163,7 +1163,7 @@ public class PurchasePlanExcelLoadService {
             Cfo newCfo = newData.getCfo();
             if (existing.getCfo() == null || !newCfo.getId().equals(existing.getCfo().getId())) {
                 existing.setCfo(newCfo);
-                updated = true;
+            updated = true;
             }
         }
         
@@ -1180,11 +1180,23 @@ public class PurchasePlanExcelLoadService {
         if (newData.getRequestDate() != null && !newData.getRequestDate().equals(existing.getRequestDate())) {
             existing.setRequestDate(newData.getRequestDate());
             updated = true;
+            // Если есть сложность, автоматически пересчитываем дату нового договора
+            if (existing.getComplexity() != null && !existing.getComplexity().trim().isEmpty()) {
+                LocalDate calculatedDate = calculateNewContractDate(newData.getRequestDate(), existing.getComplexity());
+                if (calculatedDate != null) {
+                    existing.setNewContractDate(calculatedDate);
+                    updated = true;
+                }
+            }
         }
         
+        // Обновляем дату нового договора только если она не была пересчитана выше
         if (newData.getNewContractDate() != null && !newData.getNewContractDate().equals(existing.getNewContractDate())) {
-            existing.setNewContractDate(newData.getNewContractDate());
-            updated = true;
+            // Проверяем, не была ли дата пересчитана автоматически выше
+            if (newData.getRequestDate() == null || newData.getRequestDate().equals(existing.getRequestDate())) {
+                existing.setNewContractDate(newData.getNewContractDate());
+                updated = true;
+            }
         }
         
         if (newData.getPurchaser() != null && !newData.getPurchaser().trim().isEmpty() && 
@@ -1240,6 +1252,14 @@ public class PurchasePlanExcelLoadService {
             !newData.getComplexity().equals(existing.getComplexity())) {
             existing.setComplexity(newData.getComplexity());
             updated = true;
+            // Если есть дата заявки, автоматически пересчитываем дату нового договора
+            if (existing.getRequestDate() != null) {
+                LocalDate calculatedDate = calculateNewContractDate(existing.getRequestDate(), newData.getComplexity());
+                if (calculatedDate != null) {
+                    existing.setNewContractDate(calculatedDate);
+                    updated = true;
+                }
+            }
         }
         
         if (newData.getHolding() != null && !newData.getHolding().trim().isEmpty() && 
@@ -1278,6 +1298,62 @@ public class PurchasePlanExcelLoadService {
         }
         
         return updated;
+    }
+
+    /**
+     * Добавляет рабочие дни к дате (исключая выходные: суббота и воскресенье)
+     */
+    private LocalDate addWorkingDays(LocalDate date, int workingDays) {
+        LocalDate result = date;
+        int daysAdded = 0;
+        
+        while (daysAdded < workingDays) {
+            result = result.plusDays(1);
+            int dayOfWeek = result.getDayOfWeek().getValue(); // 1 = понедельник, 7 = воскресенье
+            // Пропускаем выходные (суббота = 6, воскресенье = 7)
+            if (dayOfWeek != 6 && dayOfWeek != 7) {
+                daysAdded++;
+            }
+        }
+        
+        return result;
+    }
+
+    /**
+     * Получает количество рабочих дней на основе сложности
+     */
+    private Integer getWorkingDaysByComplexity(String complexity) {
+        if (complexity == null || complexity.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            int complexityNum = Integer.parseInt(complexity.trim());
+            switch (complexityNum) {
+                case 1: return 7;
+                case 2: return 14;
+                case 3: return 22;
+                case 4: return 50;
+                default: return null;
+            }
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Рассчитывает дату нового договора на основе даты заявки и сложности
+     */
+    private LocalDate calculateNewContractDate(LocalDate requestDate, String complexity) {
+        if (requestDate == null || complexity == null || complexity.trim().isEmpty()) {
+            return null;
+        }
+        
+        Integer workingDays = getWorkingDaysByComplexity(complexity);
+        if (workingDays == null) {
+            return null;
+        }
+        
+        return addWorkingDays(requestDate, workingDays);
     }
 }
 

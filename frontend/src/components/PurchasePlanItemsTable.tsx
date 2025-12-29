@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { getBackendUrl } from '@/utils/api';
-import { ArrowUp, ArrowDown, ArrowUpDown, Search, Download, Settings } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpDown, Search, Download, Settings, Plus, X } from 'lucide-react';
 import GanttChart from './GanttChart';
 import { useReactToPrint } from 'react-to-print';
 import * as XLSX from 'xlsx';
@@ -374,7 +374,7 @@ export default function PurchasePlanItemsTable() {
   const [animatingDates, setAnimatingDates] = useState<Record<number, boolean>>({});
   
   // Состояние для редактирования дат
-  const [editingDate, setEditingDate] = useState<{ itemId: number; field: 'requestDate' | 'newContractDate' } | null>(null);
+  const [editingDate, setEditingDate] = useState<{ itemId: number; field: 'requestDate' } | null>(null);
   const [editingStatus, setEditingStatus] = useState<number | null>(null);
   const statusSelectRef = useRef<HTMLSelectElement | null>(null);
   const [editingHolding, setEditingHolding] = useState<number | null>(null);
@@ -509,6 +509,12 @@ export default function PurchasePlanItemsTable() {
   // Состояние для подтверждения изменений (повторный ввод логина/пароля)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [errorModal, setErrorModal] = useState<{ isOpen: boolean; message: string }>({ isOpen: false, message: '' });
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [newItemData, setNewItemData] = useState<Partial<PurchasePlanItem>>({
+    year: selectedYear || (new Date().getFullYear() + 1),
+    company: 'Uzum Market',
+    status: 'Проект',
+  });
   const [authUsername, setAuthUsername] = useState('');
   const [authPassword, setAuthPassword] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
@@ -564,8 +570,16 @@ export default function PurchasePlanItemsTable() {
     try {
       
       // Нормализуем даты (убираем время, если есть)
-      const normalizedRequestDate = requestDate ? requestDate.split('T')[0] : null;
-      const normalizedNewContractDate = newContractDate ? newContractDate.split('T')[0] : null;
+      let normalizedRequestDate = requestDate ? requestDate.split('T')[0] : null;
+      let normalizedNewContractDate = newContractDate ? newContractDate.split('T')[0] : null;
+      
+      // Если изменяется дата заявки и есть сложность, автоматически пересчитываем дату нового договора
+      if (normalizedRequestDate && item.complexity && requestDate !== item.requestDate) {
+        const calculatedDate = calculateNewContractDate(normalizedRequestDate, item.complexity);
+        if (calculatedDate) {
+          normalizedNewContractDate = calculatedDate;
+        }
+      }
       
       const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/dates`, {
         method: 'PATCH',
@@ -676,8 +690,16 @@ export default function PurchasePlanItemsTable() {
       const currentRequestDate = item.requestDate ? item.requestDate.split('T')[0] : null;
       const currentNewContractDate = item.newContractDate ? item.newContractDate.split('T')[0] : null;
       
-      const requestDate = field === 'requestDate' ? normalizedDate : currentRequestDate;
-      const newContractDate = field === 'newContractDate' ? normalizedDate : currentNewContractDate;
+      let requestDate = field === 'requestDate' ? normalizedDate : currentRequestDate;
+      let newContractDate = field === 'newContractDate' ? normalizedDate : currentNewContractDate;
+      
+      // Если изменяется дата заявки, автоматически пересчитываем дату нового договора на основе сложности
+      if (field === 'requestDate' && item.complexity) {
+        const calculatedDate = calculateNewContractDate(normalizedDate, item.complexity);
+        if (calculatedDate) {
+          newContractDate = calculatedDate;
+        }
+      }
       
       console.log('Updating date:', { itemId, field, newDate, normalizedDate, requestDate, newContractDate });
       
@@ -750,7 +772,7 @@ export default function PurchasePlanItemsTable() {
   };
 
   // Обертка: сразу сохраняем изменения без проверки пароля
-  const handleDateUpdate = (itemId: number, field: 'requestDate' | 'newContractDate', newDate: string) => {
+  const handleDateUpdate = (itemId: number, field: 'requestDate', newDate: string) => {
     if (!newDate || newDate.trim() === '') return;
     // Сразу сохраняем изменения без проверки пароля
     performDateUpdate(itemId, field, newDate);
@@ -965,6 +987,107 @@ export default function PurchasePlanItemsTable() {
       console.error('Error updating company:', error);
     } finally {
       setEditingHolding(null);
+    }
+  };
+
+  // Функция для добавления рабочих дней к дате (исключая выходные: суббота и воскресенье)
+  const addWorkingDays = (date: Date, workingDays: number): Date => {
+    const result = new Date(date);
+    let daysAdded = 0;
+    
+    while (daysAdded < workingDays) {
+      result.setDate(result.getDate() + 1);
+      const dayOfWeek = result.getDay(); // 0 = воскресенье, 6 = суббота
+      // Пропускаем выходные (суббота и воскресенье)
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        daysAdded++;
+      }
+    }
+    
+    return result;
+  };
+
+  // Функция для получения количества рабочих дней на основе сложности
+  const getWorkingDaysByComplexity = (complexity: string | null | undefined): number | null => {
+    if (!complexity) return null;
+    const complexityNum = parseInt(complexity);
+    switch (complexityNum) {
+      case 1: return 7;
+      case 2: return 14;
+      case 3: return 22;
+      case 4: return 50;
+      default: return null;
+    }
+  };
+
+  // Функция для расчета даты нового договора на основе сложности и даты заявки
+  const calculateNewContractDate = (requestDate: string | null, complexity: string | null): string | null => {
+    if (!requestDate || !complexity) return null;
+    
+    const workingDays = getWorkingDaysByComplexity(complexity);
+    if (!workingDays) return null;
+    
+    try {
+      // Парсим дату в формате YYYY-MM-DD (input type="date" возвращает такой формат)
+      const requestDateObj = new Date(requestDate + 'T00:00:00');
+      if (isNaN(requestDateObj.getTime())) return null;
+      
+      const newContractDateObj = addWorkingDays(requestDateObj, workingDays);
+      // Форматируем дату обратно в YYYY-MM-DD
+      const year = newContractDateObj.getFullYear();
+      const month = String(newContractDateObj.getMonth() + 1).padStart(2, '0');
+      const day = String(newContractDateObj.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleCreateItem = async () => {
+    try {
+      // Подготавливаем данные для отправки
+      const dataToSend: any = {
+        year: newItemData.year || (selectedYear || (new Date().getFullYear() + 1)),
+        company: newItemData.company || null,
+        cfo: newItemData.cfo || null,
+        purchaseSubject: newItemData.purchaseSubject || null,
+        budgetAmount: newItemData.budgetAmount || null,
+        requestDate: newItemData.requestDate || null,
+        newContractDate: newItemData.newContractDate || null,
+        purchaser: newItemData.purchaser || null,
+        complexity: newItemData.complexity || null,
+        status: newItemData.status || 'Проект',
+      };
+
+      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(dataToSend),
+      });
+
+      if (response.ok) {
+        const createdItem = await response.json();
+        setIsCreateModalOpen(false);
+        setNewItemData({
+          year: selectedYear || (new Date().getFullYear() + 1),
+          company: 'Uzum Market',
+          status: 'Проект',
+          complexity: null,
+          requestDate: null,
+          newContractDate: null,
+        });
+        
+        // Обновляем данные таблицы
+        fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters, selectedMonth);
+      } else {
+        const errorText = await response.text();
+        setErrorModal({ isOpen: true, message: errorText || 'Ошибка при создании строки плана закупок' });
+      }
+    } catch (error) {
+      console.error('Error creating purchase plan item:', error);
+      setErrorModal({ isOpen: true, message: 'Ошибка при создании строки плана закупок' });
     }
   };
 
@@ -3140,6 +3263,14 @@ export default function PurchasePlanItemsTable() {
               </div>
               <div className="flex items-center gap-1 flex-wrap">
                 <button
+                  onClick={() => setIsCreateModalOpen(true)}
+                  className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg border border-green-600 hover:bg-green-700 transition-colors flex items-center gap-2"
+                  title="Создать новую строку плана закупок"
+                >
+                  <Plus className="w-4 h-4" />
+                  Создать строку
+                </button>
+                <button
                   onClick={exportToPDF}
                   className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-2"
                   title="Экспорт в PDF"
@@ -3340,6 +3471,220 @@ export default function PurchasePlanItemsTable() {
                 disabled={authLoading || !authUsername || !authPassword}
               >
                 {authLoading ? 'Проверка...' : 'Подтвердить и сохранить'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Модальное окно для создания новой строки */}
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setIsCreateModalOpen(false)}>
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Создать новую строку плана закупок</h2>
+              <button
+                onClick={() => setIsCreateModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Год планирования</label>
+                  <input
+                    type="number"
+                    value={newItemData.year || ''}
+                    onChange={(e) => setNewItemData(prev => ({ ...prev, year: e.target.value ? parseInt(e.target.value) : null }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Год"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Компания</label>
+                  <select
+                    value={newItemData.company || ''}
+                    onChange={(e) => setNewItemData(prev => ({ ...prev, company: e.target.value || null }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">-</option>
+                    <option value="Uzum Market">Uzum Market</option>
+                    <option value="Uzum Technologies">Uzum Technologies</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">ЦФО</label>
+                  <input
+                    type="text"
+                    list="cfo-list-create"
+                    value={newItemData.cfo || ''}
+                    onChange={(e) => setNewItemData(prev => ({ ...prev, cfo: e.target.value || null }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Введите или выберите ЦФО"
+                  />
+                  <datalist id="cfo-list-create">
+                    {Array.from(uniqueValues.cfo)
+                      .slice()
+                      .sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' }))
+                      .map((cfo) => (
+                        <option key={cfo} value={cfo} />
+                      ))}
+                  </datalist>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Статус</label>
+                  <select
+                    value={newItemData.status || 'Проект'}
+                    onChange={(e) => setNewItemData(prev => ({ ...prev, status: e.target.value || null }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {ALL_STATUSES.filter(s => s !== 'Заявка').map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Предмет закупки</label>
+                <textarea
+                  value={newItemData.purchaseSubject || ''}
+                  onChange={(e) => setNewItemData(prev => ({ ...prev, purchaseSubject: e.target.value || null }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows={3}
+                  placeholder="Введите предмет закупки"
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Бюджет (UZS)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={newItemData.budgetAmount || ''}
+                    onChange={(e) => setNewItemData(prev => ({ ...prev, budgetAmount: e.target.value ? parseFloat(e.target.value) : null }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="0"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Закупщик</label>
+                  <input
+                    type="text"
+                    value={newItemData.purchaser || ''}
+                    onChange={(e) => setNewItemData(prev => ({ ...prev, purchaser: e.target.value || null }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Введите закупщика"
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Сложность</label>
+                  <select
+                    value={newItemData.complexity || ''}
+                    onChange={(e) => {
+                      const complexity = e.target.value || null;
+                      // Всегда пересчитываем дату нового договора при изменении сложности
+                      const calculatedDate = calculateNewContractDate(newItemData.requestDate || null, complexity);
+                      setNewItemData(prev => ({ 
+                        ...prev, 
+                        complexity,
+                        newContractDate: calculatedDate || null
+                      }));
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">-</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    1 = +7 рабочих дней, 2 = +14, 3 = +22, 4 = +50
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Дата заявки</label>
+                  <input
+                    type="date"
+                    value={newItemData.requestDate ? newItemData.requestDate.split('T')[0] : ''}
+                    onChange={(e) => {
+                      const requestDate = e.target.value || null;
+                      // Всегда пересчитываем дату нового договора при изменении даты заявки
+                      const calculatedDate = calculateNewContractDate(requestDate, newItemData.complexity || null);
+                      setNewItemData(prev => ({ 
+                        ...prev, 
+                        requestDate,
+                        newContractDate: calculatedDate || null
+                      }));
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Дата нового договора</label>
+                  <input
+                    type="date"
+                    value={newItemData.newContractDate ? newItemData.newContractDate.split('T')[0] : ''}
+                    readOnly
+                    disabled
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 bg-gray-100 cursor-not-allowed"
+                    title={newItemData.complexity && newItemData.requestDate ? `Автоматически рассчитано: дата заявки + ${getWorkingDaysByComplexity(newItemData.complexity)} рабочих дней (сложность ${newItemData.complexity})` : 'Укажите сложность и дату заявки для автоматического расчета'}
+                  />
+                  {newItemData.complexity && newItemData.requestDate ? (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Рассчитано автоматически: сложность {newItemData.complexity} = +{getWorkingDaysByComplexity(newItemData.complexity)} рабочих дней
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Укажите сложность и дату заявки для расчета
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCreateModalOpen(false);
+                  setNewItemData({
+                    year: selectedYear || (new Date().getFullYear() + 1),
+                    company: 'Uzum Market',
+                    status: 'Проект',
+                    complexity: null,
+                    requestDate: null,
+                    newContractDate: null,
+                  });
+                }}
+                className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateItem}
+                className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                Создать
               </button>
             </div>
           </div>
@@ -4553,47 +4898,14 @@ export default function PurchasePlanItemsTable() {
                     }`}
                           style={{ width: `${getColumnWidth('newContractDate')}px`, minWidth: `${getColumnWidth('newContractDate')}px`, maxWidth: `${getColumnWidth('newContractDate')}px` }}
                         >
-                    {!isInactive && editingDate?.itemId === item.id && editingDate?.field === 'newContractDate' ? (
-                      <input
-                        type="date"
-                        data-editing-date={`${item.id}-newContractDate`}
-                        autoFocus
-                        min={item.year ? `${item.year}-01-01` : undefined}
-                        max={item.year ? `${item.year}-12-31` : undefined}
-                        defaultValue={item.newContractDate ? item.newContractDate.split('T')[0] : ''}
-                        onChange={(e) => {
-                          if (e.target.value) {
-                            handleDateUpdate(item.id, 'newContractDate', e.target.value);
-                          }
-                        }}
-                        onBlur={(e) => {
-                          if (!e.target.value) {
-                            setEditingDate(null);
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Escape') {
-                            setEditingDate(null);
-                          }
-                        }}
-                        className="w-full text-xs border border-blue-500 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      />
-                    ) : (
                       <div
-                        onClick={(e) => {
-                          if (!isInactive) {
-                            e.stopPropagation();
-                            setEditingDate({ itemId: item.id, field: 'newContractDate' });
-                          }
-                        }}
-                        className={isInactive ? '' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors'}
-                        title={isInactive ? '' : 'Нажмите для редактирования'}
+                        className={isInactive ? 'text-gray-500' : 'text-gray-900 bg-gray-50 rounded px-1 py-0.5'}
+                        title={item.complexity && item.requestDate ? `Рассчитано автоматически: дата заявки + ${getWorkingDaysByComplexity(item.complexity)} рабочих дней (сложность ${item.complexity})` : 'Рассчитывается автоматически на основе даты заявки и сложности'}
                       >
                         {tempDates[item.id]?.newContractDate 
                           ? new Date(tempDates[item.id]!.newContractDate!).toLocaleDateString('ru-RU')
                           : (item.newContractDate ? new Date(item.newContractDate).toLocaleDateString('ru-RU') : '-')}
                       </div>
-                    )}
                         </td>
                   )}
                   {visibleColumns.has('id') && (
@@ -4790,18 +5102,27 @@ export default function PurchasePlanItemsTable() {
                         }));
                       }}
                       onDatesUpdate={(requestDate, newContractDate) => {
+                        // Пересчитываем newContractDate на основе requestDate и сложности
+                        let finalNewContractDate = newContractDate;
+                        if (item.complexity && requestDate) {
+                          const calculatedDate = calculateNewContractDate(requestDate, item.complexity);
+                          if (calculatedDate) {
+                            finalNewContractDate = calculatedDate;
+                          }
+                        }
+                        
                         // Временно обновляем данные в таблице для визуального отображения
                         if (data) {
                           const updatedContent = data.content.map(i => 
                             i.id === item.id 
-                              ? { ...i, requestDate, newContractDate }
+                              ? { ...i, requestDate, newContractDate: finalNewContractDate }
                               : i
                           );
                           setData({ ...data, content: updatedContent });
                         }
                         
                         // Сразу сохраняем изменения без проверки пароля
-                        performGanttDateUpdate(item.id, requestDate, newContractDate);
+                        performGanttDateUpdate(item.id, requestDate, finalNewContractDate);
                       }}
                     />
                     </div>

@@ -4,6 +4,8 @@ import com.uzproc.backend.dto.PurchasePlanItemChangeDto;
 import com.uzproc.backend.dto.PurchasePlanItemDto;
 import com.uzproc.backend.service.PurchasePlanItemChangeService;
 import com.uzproc.backend.service.PurchasePlanItemService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,6 +17,8 @@ import java.util.Map;
 @RequestMapping("/purchase-plan-items")
 public class PurchasePlanItemController {
 
+    private static final Logger logger = LoggerFactory.getLogger(PurchasePlanItemController.class);
+    
     private final PurchasePlanItemService purchasePlanItemService;
     private final PurchasePlanItemChangeService purchasePlanItemChangeService;
 
@@ -265,6 +269,17 @@ public class PurchasePlanItemController {
             }
             return ResponseEntity.notFound().build();
         } catch (Exception e) {
+            return ResponseEntity.status(500).body("Ошибка сервера: " + e.getMessage());
+        }
+    }
+
+    @PostMapping
+    public ResponseEntity<?> createPurchasePlanItem(@RequestBody PurchasePlanItemDto dto) {
+        try {
+            PurchasePlanItemDto createdItem = purchasePlanItemService.create(dto);
+            return ResponseEntity.status(201).body(createdItem);
+        } catch (Exception e) {
+            logger.error("Error creating purchase plan item", e);
             return ResponseEntity.status(500).body("Ошибка сервера: " + e.getMessage());
         }
     }

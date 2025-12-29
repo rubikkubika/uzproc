@@ -94,6 +94,62 @@ public class PurchasePlanItemService {
         return toDto(item);
     }
 
+    /**
+     * Добавляет рабочие дни к дате (исключая выходные: суббота и воскресенье)
+     */
+    private LocalDate addWorkingDays(LocalDate date, int workingDays) {
+        LocalDate result = date;
+        int daysAdded = 0;
+        
+        while (daysAdded < workingDays) {
+            result = result.plusDays(1);
+            int dayOfWeek = result.getDayOfWeek().getValue(); // 1 = понедельник, 7 = воскресенье
+            // Пропускаем выходные (суббота = 6, воскресенье = 7)
+            if (dayOfWeek != 6 && dayOfWeek != 7) {
+                daysAdded++;
+            }
+        }
+        
+        return result;
+    }
+
+    /**
+     * Получает количество рабочих дней на основе сложности
+     */
+    private Integer getWorkingDaysByComplexity(String complexity) {
+        if (complexity == null || complexity.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            int complexityNum = Integer.parseInt(complexity.trim());
+            switch (complexityNum) {
+                case 1: return 7;
+                case 2: return 14;
+                case 3: return 22;
+                case 4: return 50;
+                default: return null;
+            }
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Рассчитывает дату нового договора на основе даты заявки и сложности
+     */
+    private LocalDate calculateNewContractDate(LocalDate requestDate, String complexity) {
+        if (requestDate == null || complexity == null || complexity.trim().isEmpty()) {
+            return null;
+        }
+        
+        Integer workingDays = getWorkingDaysByComplexity(complexity);
+        if (workingDays == null) {
+            return null;
+        }
+        
+        return addWorkingDays(requestDate, workingDays);
+    }
+
     @Transactional
     public PurchasePlanItemDto updateDates(Long id, LocalDate requestDate, LocalDate newContractDate) {
         return purchasePlanItemRepository.findById(id)
@@ -102,32 +158,44 @@ public class PurchasePlanItemService {
                     LocalDate oldRequestDate = item.getRequestDate();
                     LocalDate oldNewContractDate = item.getNewContractDate();
                     
+                    // Создаем финальные копии для использования в лямбда-выражении
+                    LocalDate finalRequestDate = requestDate;
+                    LocalDate finalNewContractDate = newContractDate;
+                    
+                    // Если изменяется дата заявки и есть сложность, автоматически пересчитываем дату нового договора
+                    if (finalRequestDate != null && !finalRequestDate.equals(oldRequestDate) && item.getComplexity() != null) {
+                        LocalDate calculatedDate = calculateNewContractDate(finalRequestDate, item.getComplexity());
+                        if (calculatedDate != null) {
+                            finalNewContractDate = calculatedDate;
+                        }
+                    }
+                    
                     // Логируем изменения перед обновлением
-                    if (requestDate != null && !requestDate.equals(oldRequestDate)) {
+                    if (finalRequestDate != null && !finalRequestDate.equals(oldRequestDate)) {
                         purchasePlanItemChangeService.logChange(
                             item.getId(),
                             item.getGuid(),
                             "requestDate",
                             oldRequestDate,
-                            requestDate
+                            finalRequestDate
                         );
                     }
                     
-                    if (newContractDate != null && !newContractDate.equals(oldNewContractDate)) {
+                    if (finalNewContractDate != null && !finalNewContractDate.equals(oldNewContractDate)) {
                         purchasePlanItemChangeService.logChange(
                             item.getId(),
                             item.getGuid(),
                             "newContractDate",
                             oldNewContractDate,
-                            newContractDate
+                            finalNewContractDate
                         );
                     }
                     
-                    item.setRequestDate(requestDate);
-                    item.setNewContractDate(newContractDate);
+                    item.setRequestDate(finalRequestDate);
+                    item.setNewContractDate(finalNewContractDate);
                     PurchasePlanItem saved = purchasePlanItemRepository.save(item);
                     logger.info("Updated dates for purchase plan item {}: requestDate={}, newContractDate={}", 
-                            id, requestDate, newContractDate);
+                            id, finalRequestDate, finalNewContractDate);
                     return toDto(saved);
                 })
                 .orElse(null);
@@ -348,6 +416,76 @@ public class PurchasePlanItemService {
                     return toDto(saved);
                 })
                 .orElse(null);
+    }
+
+    @Transactional
+    public PurchasePlanItemDto create(PurchasePlanItemDto dto) {
+        PurchasePlanItem item = new PurchasePlanItem();
+        
+        // Устанавливаем год (если не указан, используем текущий год + 1 для планирования)
+        if (dto.getYear() != null) {
+            item.setYear(dto.getYear());
+        } else {
+            // По умолчанию год планирования = текущий год + 1
+            item.setYear(LocalDate.now().getYear() + 1);
+        }
+        
+        // Устанавливаем компанию
+        item.setCompany(dto.getCompany());
+        
+        // Устанавливаем ЦФО
+        if (dto.getCfo() != null && !dto.getCfo().trim().isEmpty()) {
+            String trimmedCfoName = dto.getCfo().trim();
+            Cfo cfo = cfoRepository.findByNameIgnoreCase(trimmedCfoName).orElse(null);
+            if (cfo == null) {
+                // Если ЦФО не найден, создаем новый
+                cfo = new Cfo(trimmedCfoName);
+                cfo = cfoRepository.save(cfo);
+                logger.debug("Created new Cfo: {}", trimmedCfoName);
+            }
+            item.setCfo(cfo);
+        }
+        
+        // Устанавливаем остальные поля
+        item.setPurchaseSubject(dto.getPurchaseSubject());
+        item.setBudgetAmount(dto.getBudgetAmount());
+        item.setContractEndDate(dto.getContractEndDate());
+        item.setRequestDate(dto.getRequestDate());
+        item.setNewContractDate(dto.getNewContractDate());
+        item.setPurchaser(dto.getPurchaser());
+        item.setProduct(dto.getProduct());
+        item.setHasContract(dto.getHasContract());
+        item.setCurrentKa(dto.getCurrentKa());
+        item.setCurrentAmount(dto.getCurrentAmount());
+        item.setCurrentContractAmount(dto.getCurrentContractAmount());
+        item.setCurrentContractBalance(dto.getCurrentContractBalance());
+        item.setCurrentContractEndDate(dto.getCurrentContractEndDate());
+        item.setAutoRenewal(dto.getAutoRenewal());
+        item.setComplexity(dto.getComplexity());
+        item.setHolding(dto.getHolding());
+        item.setCategory(dto.getCategory());
+        
+        // Устанавливаем статус (по умолчанию "Проект")
+        PurchasePlanItemStatus status = PurchasePlanItemStatus.PROJECT;
+        if (dto.getStatus() != null) {
+            // Пробуем найти статус по displayName
+            for (PurchasePlanItemStatus s : PurchasePlanItemStatus.values()) {
+                if (s.getDisplayName().equalsIgnoreCase(dto.getStatus().toString())) {
+                    status = s;
+                    break;
+                }
+            }
+        }
+        item.setStatus(status);
+        
+        item.setState(dto.getState());
+        item.setPurchaseRequestId(dto.getPurchaseRequestId());
+        
+        // GUID будет создан автоматически через @PrePersist
+        PurchasePlanItem saved = purchasePlanItemRepository.save(item);
+        
+        logger.info("Created new purchase plan item with id: {}", saved.getId());
+        return toDto(saved);
     }
 
     /**
