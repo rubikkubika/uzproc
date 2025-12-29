@@ -3410,7 +3410,7 @@ export default function PurchasePlanItemsTable() {
                   setSortDirection('asc');
                     setFocusedField(null);
                   setSelectedYear(allYears.length > 0 ? allYears[0] : null);
-                    setSelectedMonth(null);
+                    setSelectedMonths(new Set());
                     setSelectedMonthYear(null);
                     setCurrentPage(0);
                     // Сохраняем сброшенные фильтры в localStorage
