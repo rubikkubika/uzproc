@@ -140,6 +140,7 @@ export default function PurchasePlanItemsTable() {
   const [selectedMonths, setSelectedMonths] = useState<Set<number>>(new Set()); // Множество выбранных месяцев: -1 = без даты, 0-11 = месяц (0=январь, 11=декабрь)
   const [selectedMonthYear, setSelectedMonthYear] = useState<number | null>(null); // Год для фильтра по месяцу (если отличается от selectedYear)
   const [lastSelectedMonthIndex, setLastSelectedMonthIndex] = useState<number | null>(null); // Индекс последнего выбранного месяца для Shift+клик
+  const [availableCompanies, setAvailableCompanies] = useState<string[]>([]); // Список компаний с бэкенда
   
   // Состояние для сортировки
   const [sortField, setSortField] = useState<SortField>('requestDate');
@@ -2443,6 +2444,30 @@ export default function PurchasePlanItemsTable() {
     }
   }, [editingPurchaseSubject]);
 
+  // Загрузка списка компаний с бэкенда при открытии формы создания строки
+  useEffect(() => {
+    if (isCreateModalOpen && availableCompanies.length === 0) {
+      const loadCompanies = async () => {
+        try {
+          const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/companies`);
+          if (response.ok) {
+            const companies = await response.json();
+            setAvailableCompanies(companies);
+          } else {
+            console.error('Failed to load companies');
+            // Fallback к захардкоженным значениям при ошибке
+            setAvailableCompanies(['Uzum Market', 'Uzum Technologies', 'Uzum Tezkor']);
+          }
+        } catch (error) {
+          console.error('Error loading companies:', error);
+          // Fallback к захардкоженным значениям при ошибке
+          setAvailableCompanies(['Uzum Market', 'Uzum Technologies', 'Uzum Tezkor']);
+        }
+      };
+      loadCompanies();
+    }
+  }, [isCreateModalOpen, availableCompanies.length]);
+
   // Автоматически загружаем версии и выбираем текущую при изменении года
   useEffect(() => {
     if (selectedYear && filtersLoadedRef.current) {
@@ -3729,8 +3754,9 @@ export default function PurchasePlanItemsTable() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">-</option>
-                    <option value="Uzum Market">Uzum Market</option>
-                    <option value="Uzum Technologies">Uzum Technologies</option>
+                    {availableCompanies.map((company) => (
+                      <option key={company} value={company}>{company}</option>
+                    ))}
                   </select>
                 </div>
                 
@@ -4865,8 +4891,9 @@ export default function PurchasePlanItemsTable() {
                       }}
                     >
                       <option value="">-</option>
-                      <option value="Uzum Market">Uzum Market</option>
-                      <option value="Uzum Technologies">Uzum Technologies</option>
+                      {availableCompanies.map((company) => (
+                        <option key={company} value={company}>{company}</option>
+                      ))}
                     </select>
                   </td>
                   )}

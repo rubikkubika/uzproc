@@ -47,7 +47,7 @@ interface PageResponse {
 type SortField = keyof PurchasePlanItem | null;
 type SortDirection = 'asc' | 'desc' | null;
 
-const ALL_COMPANIES = ['Uzum Market', 'Uzum Technologies'];
+// ALL_COMPANIES будет загружаться с бэкенда
 const ALL_STATUSES = ['Проект', 'Актуальная', 'Корректировка', 'Заявка', 'Не Актуальная', 'Пусто'];
 const DEFAULT_STATUSES = ['Проект', 'Актуальная', 'Корректировка', 'Заявка'];
 
@@ -158,6 +158,7 @@ export default function PublicPurchasePlanTable() {
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set(DEFAULT_STATUSES));
   const [purchaserFilter, setPurchaserFilter] = useState<Set<string>>(new Set());
+  const [availableCompanies, setAvailableCompanies] = useState<string[]>(['Uzum Market', 'Uzum Technologies', 'Uzum Tezkor']); // Список компаний с бэкенда
   
   const [isCfoFilterOpen, setIsCfoFilterOpen] = useState(false);
   const [isCompanyFilterOpen, setIsCompanyFilterOpen] = useState(false);
@@ -202,6 +203,28 @@ export default function PublicPurchasePlanTable() {
   });
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
+
+  // Загрузка списка компаний с бэкенда
+  useEffect(() => {
+    const loadCompanies = async () => {
+      try {
+        const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/companies`);
+        if (response.ok) {
+          const companies = await response.json();
+          setAvailableCompanies(companies);
+        } else {
+          console.error('Failed to load companies');
+          // Fallback к захардкоженным значениям при ошибке
+          setAvailableCompanies(['Uzum Market', 'Uzum Technologies', 'Uzum Tezkor']);
+        }
+      } catch (error) {
+        console.error('Error loading companies:', error);
+        // Fallback к захардкоженным значениям при ошибке
+        setAvailableCompanies(['Uzum Market', 'Uzum Technologies', 'Uzum Tezkor']);
+      }
+    };
+    loadCompanies();
+  }, []);
 
   // Загружаем сохраненный порядок колонок из localStorage
   useEffect(() => {
@@ -1076,8 +1099,8 @@ export default function PublicPurchasePlanTable() {
 
   const getFilteredCompanyOptions = useMemo(() => {
     const query = companySearchQuery.toLowerCase();
-    return ALL_COMPANIES.filter((company) => company.toLowerCase().includes(query));
-  }, [companySearchQuery]);
+    return availableCompanies.filter((company) => company.toLowerCase().includes(query));
+  }, [companySearchQuery, availableCompanies]);
 
   const getFilteredCategoryOptions = useMemo(() => {
     const query = categorySearchQuery.toLowerCase();
@@ -1129,7 +1152,7 @@ export default function PublicPurchasePlanTable() {
   };
 
   const handleCompanySelectAll = () => {
-    const newSet = new Set(ALL_COMPANIES);
+    const newSet = new Set(availableCompanies);
     setCompanyFilter(newSet);
     setCurrentPage(0);
   };

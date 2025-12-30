@@ -10,8 +10,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/purchase-plan-items")
@@ -168,6 +170,14 @@ public class PurchasePlanItemController {
         } catch (Exception e) {
             return ResponseEntity.status(500).body("Ошибка сервера: " + e.getMessage());
         }
+    }
+
+    @GetMapping("/companies")
+    public ResponseEntity<List<String>> getCompanies() {
+        List<String> companies = Arrays.stream(com.uzproc.backend.entity.Company.values())
+                .map(com.uzproc.backend.entity.Company::getDisplayName)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(companies);
     }
 
     @PatchMapping("/{id}/company")
