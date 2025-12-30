@@ -4,7 +4,8 @@ import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum Company {
     UZUM_MARKET("Uzum Market"),
-    UZUM_TECHNOLOGIES("Uzum Technologies");
+    UZUM_TECHNOLOGIES("Uzum Technologies"),
+    UZUM_TEZKOR("Uzum Tezkor");
 
     private final String displayName;
 
