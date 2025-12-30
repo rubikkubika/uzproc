@@ -2254,8 +2254,12 @@ export default function PublicPurchasePlanTable() {
                             
                             // Проверяем, выбран ли этот месяц и год
                             const monthKey = monthForFilter === -1 ? -1 : (index === 0 ? -2 : monthForFilter); // -2 для декабря предыдущего года
+                            // Упрощенная проверка: для месяцев текущего года проверяем только наличие в selectedMonths
+                            // Для декабря предыдущего года проверяем также selectedMonthYear
                             const isSelected = monthKey !== null && selectedMonths.has(monthKey) && 
-                              (monthForFilter === -1 || (index === 0 && selectedMonthYear === prevYear) || (index >= 1 && index <= 12 && selectedMonthYear === null));
+                              (monthForFilter === -1 || 
+                               (index === 0 && selectedMonthYear === prevYear) || 
+                               (index >= 1 && index <= 12)); // Для месяцев текущего года достаточно наличия в selectedMonths
                             
                             return (
                               <div key={index} className="flex flex-col items-center relative" style={{ minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', flex: '0 0 calc((100% - 24px) / 13)' }}>
@@ -2279,14 +2283,25 @@ export default function PublicPurchasePlanTable() {
                                   }}
                                   title={`${monthLabels[index]}: ${count} закупок`}
                                   onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    
                                     if (monthForFilter !== null) {
                                       const currentDisplayYear = selectedYear || chartData[0]?.year || new Date().getFullYear();
                                       const currentPrevYear = currentDisplayYear - 1;
                                       const monthKey = monthForFilter === -1 ? -1 : (index === 0 ? -2 : monthForFilter); // -2 для декабря предыдущего года
+                                      // Упрощенная проверка: для месяцев текущего года проверяем только наличие в selectedMonths
+                                      // Для декабря предыдущего года проверяем также selectedMonthYear
                                       const isCurrentlySelected = selectedMonths.has(monthKey) && 
-                                        (monthForFilter === -1 || (index === 0 && selectedMonthYear === currentPrevYear) || (index >= 1 && index <= 12 && selectedMonthYear === null));
+                                        (monthForFilter === -1 || 
+                                         (index === 0 && selectedMonthYear === currentPrevYear) || 
+                                         (index >= 1 && index <= 12)); // Для месяцев текущего года достаточно наличия в selectedMonths
                                       
-                                      if (e.shiftKey && lastSelectedMonthIndex !== null && !isCurrentlySelected) {
+                                      // Явно проверяем, что Shift нажат
+                                      const shiftPressed = Boolean(e.shiftKey);
+                                      
+                                      // Shift+клик: выбираем диапазон месяцев ТОЛЬКО если Shift явно нажат
+                                      if (shiftPressed && lastSelectedMonthIndex !== null && lastSelectedMonthIndex !== index && !isCurrentlySelected) {
                                         // Shift+клик: выбираем диапазон месяцев
                                         const startIndex = Math.min(lastSelectedMonthIndex, index);
                                         const endIndex = Math.max(lastSelectedMonthIndex, index);
@@ -2322,37 +2337,39 @@ export default function PublicPurchasePlanTable() {
                                         
                                         setSelectedMonths(newSelectedMonths);
                                         setLastSelectedMonthIndex(index);
-                                      } else {
-                                        // Обычный клик: переключаем выбор месяца
-                                        const newSelectedMonths = new Set(selectedMonths);
-                                        
-                                        if (isCurrentlySelected) {
-                                          newSelectedMonths.delete(monthKey);
-                                          if (newSelectedMonths.size === 0) {
-                                            setSelectedMonthYear(null);
-                                          }
-                                        } else {
-                                          newSelectedMonths.add(monthKey);
-                                          // Если это декабрь предыдущего года, сохраняем год для фильтрации по месяцу
-                                          if (index === 0 && yearForFilter !== null) {
-                                            setSelectedMonthYear(yearForFilter);
-                                          } else if (index >= 1 && index <= 12) {
-                                            // Для месяцев текущего года сбрасываем selectedMonthYear, если все выбранные месяцы текущего года
-                                            const hasPrevYearMonth = Array.from(newSelectedMonths).some(key => key === -2);
-                                            if (!hasPrevYearMonth) {
-                                              setSelectedMonthYear(null);
-                                            }
-                                            // Для месяцев текущего года устанавливаем текущий год (если он не установлен)
-                                            if (yearForFilter !== null && selectedYear === null) {
-                                              setSelectedYear(yearForFilter);
-                                            }
-                                          }
-                                        }
-                                        
-                                        setSelectedMonths(newSelectedMonths);
-                                        setLastSelectedMonthIndex(index);
+                                        setCurrentPage(0);
+                                        return;
                                       }
                                       
+                                      // Обычный клик (БЕЗ Shift): выбираем только один месяц (сбрасываем предыдущий выбор)
+                                      const newSelectedMonths = new Set<number>();
+                                      
+                                      if (!isCurrentlySelected) {
+                                        // Если месяц не выбран, выбираем только его
+                                        newSelectedMonths.add(monthKey);
+                                        // Если это декабрь предыдущего года, сохраняем год для фильтрации по месяцу
+                                        if (index === 0 && yearForFilter !== null) {
+                                          setSelectedMonthYear(yearForFilter);
+                                        } else if (index >= 1 && index <= 12) {
+                                          // Для месяцев текущего года сбрасываем selectedMonthYear
+                                          setSelectedMonthYear(null);
+                                          // Для месяцев текущего года устанавливаем текущий год (если он не установлен)
+                                          if (yearForFilter !== null && selectedYear === null) {
+                                            setSelectedYear(yearForFilter);
+                                          }
+                                        } else if (monthForFilter === -1) {
+                                          // Без даты
+                                          setSelectedMonthYear(null);
+                                        }
+                                      } else {
+                                        // Если месяц уже выбран, снимаем выбор (оставляем пустым)
+                                        setSelectedMonthYear(null);
+                                      }
+                                      
+                                      setSelectedMonths(newSelectedMonths);
+                                      // Устанавливаем lastSelectedMonthIndex только при обычном клике (без Shift)
+                                      // Это нужно для последующего Shift+клик выбора диапазона
+                                      setLastSelectedMonthIndex(index);
                                       setCurrentPage(0);
                                     }
                                   }}
