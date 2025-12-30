@@ -1880,10 +1880,16 @@ export default function PurchasePlanItemsTable() {
         params.append('page', '0');
         params.append('size', '10000'); // Загружаем все данные для диаграммы
         
-        // Для диаграммы не применяем фильтр по году планирования, если выбран месяц из другого года
-        // Это позволяет показывать все данные, включая записи с датой заявки в другом году
-        if (selectedYear !== null && selectedMonthYear === null) {
-          params.append('year', String(selectedYear));
+        // Для диаграммы не применяем фильтр по году планирования, если выбран только месяц из другого года
+        // Но если выбран и декабрь предыдущего года, и месяцы текущего года, нужно передать year для месяцев текущего года
+        if (selectedYear !== null) {
+          // Если выбран только декабрь предыдущего года (selectedMonthYear !== null и нет других месяцев текущего года)
+          // то не передаем year, чтобы показать все данные
+          // Но если есть месяцы текущего года в selectedMonths, передаем year
+          const hasCurrentYearMonths = Array.from(selectedMonths).some(monthKey => monthKey >= 0 && monthKey <= 11 && monthKey !== -1 && monthKey !== -2);
+          if (selectedMonthYear === null || hasCurrentYearMonths) {
+            params.append('year', String(selectedYear));
+          }
         }
         
         // Добавляем параметры фильтрации
@@ -1950,9 +1956,16 @@ export default function PurchasePlanItemsTable() {
         params.append('page', '0');
         params.append('size', '10000'); // Загружаем все данные для сводной таблицы
         
-        // Для сводной таблицы не применяем фильтр по году планирования, если выбран месяц из другого года
-        if (selectedYear !== null && selectedMonthYear === null) {
-          params.append('year', String(selectedYear));
+        // Для сводной таблицы не применяем фильтр по году планирования, если выбран только месяц из другого года
+        // Но если выбран и декабрь предыдущего года, и месяцы текущего года, нужно передать year для месяцев текущего года
+        if (selectedYear !== null) {
+          // Если выбран только декабрь предыдущего года (selectedMonthYear !== null и нет других месяцев текущего года)
+          // то не передаем year, чтобы показать все данные
+          // Но если есть месяцы текущего года в selectedMonths, передаем year
+          const hasCurrentYearMonths = Array.from(selectedMonths).some(monthKey => monthKey >= 0 && monthKey <= 11 && monthKey !== -1 && monthKey !== -2);
+          if (selectedMonthYear === null || hasCurrentYearMonths) {
+            params.append('year', String(selectedYear));
+          }
         }
         
         // Добавляем параметры фильтрации (БЕЗ фильтра по закупщику)
@@ -2308,11 +2321,16 @@ export default function PurchasePlanItemsTable() {
       params.append('page', String(page));
       params.append('size', String(size));
       
-      // Фильтр по году планирования применяем только если не выбран месяц предыдущего года
-      // Если selectedMonthYear установлен, это означает, что выбран месяц из другого года
-      // и мы не должны фильтровать по году планирования
-      if (year !== null && selectedMonthYear === null) {
-        params.append('year', String(year));
+      // Фильтр по году планирования применяем только если не выбран только месяц предыдущего года
+      // Если selectedMonthYear установлен, но есть и месяцы текущего года, нужно передать year для месяцев текущего года
+      if (year !== null) {
+        // Если выбран только декабрь предыдущего года (selectedMonthYear !== null и нет других месяцев текущего года)
+        // то не передаем year, чтобы показать все данные
+        // Но если есть месяцы текущего года в months, передаем year
+        const hasCurrentYearMonths = Array.from(months).some(monthKey => monthKey >= 0 && monthKey <= 11 && monthKey !== -1 && monthKey !== -2);
+        if (selectedMonthYear === null || hasCurrentYearMonths) {
+          params.append('year', String(year));
+        }
       }
       
       if (sortField && sortDirection) {

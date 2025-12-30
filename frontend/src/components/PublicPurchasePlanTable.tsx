@@ -413,9 +413,16 @@ export default function PublicPurchasePlanTable() {
         params.append('page', '0');
         params.append('size', '10000');
         
-        // Для фильтрации по году планирования: если выбран месяц из другого года, не применяем фильтр по году планирования
-        if (selectedYear !== null && selectedMonthYear === null) {
-          params.append('year', String(selectedYear));
+        // Для фильтрации по году планирования: если выбран только месяц из другого года, не применяем фильтр по году планирования
+        // Но если выбран и декабрь предыдущего года, и месяцы текущего года, нужно передать year для месяцев текущего года
+        if (selectedYear !== null) {
+          // Если выбран только декабрь предыдущего года (selectedMonthYear !== null и нет других месяцев текущего года)
+          // то не передаем year, чтобы показать все данные
+          // Но если есть месяцы текущего года в selectedMonths, передаем year
+          const hasCurrentYearMonths = Array.from(selectedMonths).some(monthKey => monthKey >= 0 && monthKey <= 11 && monthKey !== -1 && monthKey !== -2);
+          if (selectedMonthYear === null || hasCurrentYearMonths) {
+            params.append('year', String(selectedYear));
+          }
         }
         
         if (companyFilter.size > 0) {
@@ -473,9 +480,16 @@ export default function PublicPurchasePlanTable() {
         params.append('page', '0');
         params.append('size', '10000');
         
-        // Для фильтрации по году планирования: если выбран месяц из другого года, не применяем фильтр по году планирования
-        if (selectedYear !== null && selectedMonthYear === null) {
-          params.append('year', String(selectedYear));
+        // Для фильтрации по году планирования: если выбран только месяц из другого года, не применяем фильтр по году планирования
+        // Но если выбран и декабрь предыдущего года, и месяцы текущего года, нужно передать year для месяцев текущего года
+        if (selectedYear !== null) {
+          // Если выбран только декабрь предыдущего года (selectedMonthYear !== null и нет других месяцев текущего года)
+          // то не передаем year, чтобы показать все данные
+          // Но если есть месяцы текущего года в selectedMonths, передаем year
+          const hasCurrentYearMonths = Array.from(selectedMonths).some(monthKey => monthKey >= 0 && monthKey <= 11 && monthKey !== -1 && monthKey !== -2);
+          if (selectedMonthYear === null || hasCurrentYearMonths) {
+            params.append('year', String(selectedYear));
+          }
         }
         
         if (companyFilter.size > 0) {
@@ -647,9 +661,16 @@ export default function PublicPurchasePlanTable() {
       params.append('page', String(page));
       params.append('size', String(size));
       
-      // Для фильтрации по году планирования: если выбран месяц из другого года, не применяем фильтр по году планирования
-      if (year !== null && selectedMonthYear === null) {
-        params.append('year', String(year));
+      // Для фильтрации по году планирования: если выбран только месяц из другого года, не применяем фильтр по году планирования
+      // Но если выбран и декабрь предыдущего года, и месяцы текущего года, нужно передать year для месяцев текущего года
+      if (year !== null) {
+        // Если выбран только декабрь предыдущего года (selectedMonthYear !== null и нет других месяцев текущего года)
+        // то не передаем year, чтобы показать все данные
+        // Но если есть месяцы текущего года в selectedMonths, передаем year
+        const hasCurrentYearMonths = Array.from(selectedMonths).some(monthKey => monthKey >= 0 && monthKey <= 11 && monthKey !== -1 && monthKey !== -2);
+        if (selectedMonthYear === null || hasCurrentYearMonths) {
+          params.append('year', String(year));
+        }
       }
       
       if (companyFilter.size > 0) {

@@ -718,6 +718,9 @@ public class PurchasePlanItemService {
             if (requestMonths != null && !requestMonths.isEmpty()) {
                 List<jakarta.persistence.criteria.Predicate> monthPredicates = new java.util.ArrayList<>();
                 
+                // Определяем, есть ли декабрь (месяц 11) в списке выбранных месяцев
+                boolean hasDecember = requestMonths.contains(11);
+                
                 for (Integer requestMonth : requestMonths) {
                     if (requestMonth == -1) {
                         // Фильтр для записей без даты
@@ -726,10 +729,17 @@ public class PurchasePlanItemService {
                     } else {
                         // Фильтр по конкретному месяцу
                         // Определяем год для фильтрации:
-                        // 1. Если передан requestYear - используем его (для месяцев из другого года, например декабрь предыдущего года)
-                        // 2. Иначе используем year (год планирования)
+                        // 1. Если это декабрь (месяц 11) и передан requestYear - используем requestYear (для декабря предыдущего года)
+                        // 2. Иначе используем year (год планирования) для месяцев текущего года
                         // 3. Иначе текущий год
-                        Integer filterYear = requestYear != null ? requestYear : (year != null ? year : java.time.Year.now().getValue());
+                        Integer filterYear;
+                        if (requestMonth == 11 && requestYear != null) {
+                            // Декабрь предыдущего года
+                            filterYear = requestYear;
+                        } else {
+                            // Месяцы текущего года
+                            filterYear = year != null ? year : java.time.Year.now().getValue();
+                        }
                         java.time.LocalDate startOfMonth = java.time.LocalDate.of(filterYear, requestMonth + 1, 1);
                         java.time.LocalDate endOfMonth = startOfMonth.withDayOfMonth(startOfMonth.lengthOfMonth());
                         
