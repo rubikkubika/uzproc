@@ -465,8 +465,29 @@ public class PurchasePlanItemService {
             item.setYear(LocalDate.now().getYear() + 1);
         }
         
-        // Устанавливаем компанию
-        item.setCompany(dto.getCompany());
+        // Устанавливаем компанию (преобразуем строку из DTO в enum)
+        if (dto.getCompany() != null && !dto.getCompany().trim().isEmpty()) {
+            String companyStr = dto.getCompany().trim();
+            Company companyEnum = null;
+            // Ищем enum по displayName
+            for (Company c : Company.values()) {
+                if (c.getDisplayName().equals(companyStr)) {
+                    companyEnum = c;
+                    break;
+                }
+            }
+            // Если не нашли по displayName, пробуем по имени enum
+            if (companyEnum == null) {
+                try {
+                    companyEnum = Company.valueOf(companyStr.toUpperCase().replace(" ", "_"));
+                } catch (IllegalArgumentException e) {
+                    logger.warn("Unknown company value: {}", companyStr);
+                }
+            }
+            item.setCompany(companyEnum);
+        } else {
+            item.setCompany(null);
+        }
         
         // Устанавливаем ЦФО
         if (dto.getCfo() != null && !dto.getCfo().trim().isEmpty()) {
@@ -531,7 +552,8 @@ public class PurchasePlanItemService {
         dto.setId(entity.getId());
         dto.setGuid(entity.getGuid());
         dto.setYear(entity.getYear());
-        dto.setCompany(entity.getCompany());
+        // Преобразуем Company enum в строку (displayName) для фронтенда
+        dto.setCompany(entity.getCompany() != null ? entity.getCompany().getDisplayName() : null);
         dto.setCfo(entity.getCfo() != null ? entity.getCfo().getName() : null);
         dto.setPurchaseSubject(entity.getPurchaseSubject());
         dto.setBudgetAmount(entity.getBudgetAmount());

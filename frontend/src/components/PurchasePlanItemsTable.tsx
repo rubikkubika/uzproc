@@ -219,7 +219,7 @@ export default function PurchasePlanItemsTable() {
         const savedColumns = JSON.parse(saved);
         if (Array.isArray(savedColumns)) {
           const filteredColumns = savedColumns.filter((col: unknown): col is string => typeof col === 'string');
-          let idAdded = false;
+          let columnsUpdated = false;
           // Если 'id' отсутствует в сохраненных колонках, добавляем его перед 'company'
           if (!filteredColumns.includes('id') && DEFAULT_VISIBLE_COLUMNS.includes('id')) {
             const companyIndex = filteredColumns.indexOf('company');
@@ -228,8 +228,21 @@ export default function PurchasePlanItemsTable() {
             } else {
               filteredColumns.unshift('id');
             }
-            idAdded = true;
-            // Сохраняем обновленный список в localStorage
+            columnsUpdated = true;
+          }
+          // Если 'company' отсутствует в сохраненных колонках, добавляем его после 'id'
+          if (!filteredColumns.includes('company') && DEFAULT_VISIBLE_COLUMNS.includes('company')) {
+            const idIndex = filteredColumns.indexOf('id');
+            if (idIndex >= 0) {
+              filteredColumns.splice(idIndex + 1, 0, 'company');
+            } else {
+              // Если 'id' тоже нет, добавляем 'company' в начало
+              filteredColumns.unshift('company');
+            }
+            columnsUpdated = true;
+          }
+          // Сохраняем обновленный список в localStorage, если были изменения
+          if (columnsUpdated) {
             try {
               localStorage.setItem(COLUMNS_VISIBILITY_STORAGE_KEY, JSON.stringify(filteredColumns));
             } catch (err) {
@@ -2462,9 +2475,9 @@ export default function PurchasePlanItemsTable() {
     }
   }, [editingPurchaseSubject]);
 
-  // Загрузка списка компаний с бэкенда при открытии формы создания строки
+  // Загрузка списка компаний с бэкенда при монтировании компонента
   useEffect(() => {
-    if (isCreateModalOpen && availableCompanies.length === 0) {
+    if (availableCompanies.length === 0) {
       const loadCompanies = async () => {
         try {
           const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/companies`);
@@ -2484,7 +2497,7 @@ export default function PurchasePlanItemsTable() {
       };
       loadCompanies();
     }
-  }, [isCreateModalOpen, availableCompanies.length]);
+  }, [availableCompanies.length]);
 
   // Автоматически загружаем версии и выбираем текущую при изменении года
   useEffect(() => {
@@ -4908,7 +4921,7 @@ export default function PurchasePlanItemsTable() {
                         })
                       }}
                     >
-                      <option value="">-</option>
+                      <option value="">Не выбрано</option>
                       {availableCompanies.map((company) => (
                         <option key={company} value={company}>{company}</option>
                       ))}

@@ -131,7 +131,7 @@ public class PurchasePlanVersionService {
         dto.setId(itemVersion.getPurchasePlanItemId()); // Используем ID оригинальной записи, если есть
         dto.setGuid(itemVersion.getGuid());
         dto.setYear(itemVersion.getYear());
-        dto.setCompany(itemVersion.getCompany());
+        dto.setCompany(itemVersion.getCompany() != null ? itemVersion.getCompany().getDisplayName() : null);
         dto.setCfo(itemVersion.getCfo() != null ? itemVersion.getCfo().getName() : null);
         dto.setPurchaseSubject(itemVersion.getPurchaseSubject());
         dto.setBudgetAmount(itemVersion.getBudgetAmount());
