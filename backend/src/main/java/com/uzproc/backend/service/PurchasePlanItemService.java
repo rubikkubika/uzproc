@@ -289,6 +289,37 @@ public class PurchasePlanItemService {
     }
 
     @Transactional
+    public PurchasePlanItemDto updateComment(Long id, String comment) {
+        return purchasePlanItemRepository.findById(id)
+                .map(item -> {
+                    // Сохраняем старое значение для логирования изменений
+                    String oldComment = item.getComment();
+                    
+                    // Нормализуем новое значение (trim и null если пусто)
+                    String newComment = comment != null && !comment.trim().isEmpty() ? comment.trim() : null;
+                    
+                    // Логируем изменение перед обновлением
+                    if ((oldComment == null && newComment != null) || 
+                        (oldComment != null && !oldComment.equals(newComment))) {
+                        purchasePlanItemChangeService.logChange(
+                            item.getId(),
+                            item.getGuid(),
+                            "comment",
+                            oldComment,
+                            newComment
+                        );
+                    }
+                    
+                    item.setComment(newComment);
+                    PurchasePlanItem saved = purchasePlanItemRepository.save(item);
+                    logger.info("Updated comment for purchase plan item {}: comment={}", 
+                            id, newComment);
+                    return toDto(saved);
+                })
+                .orElse(null);
+    }
+
+    @Transactional
     public PurchasePlanItemDto updateCompany(Long id, Company company) {
         return purchasePlanItemRepository.findById(id)
                 .map(item -> {
@@ -536,6 +567,7 @@ public class PurchasePlanItemService {
         
         item.setState(dto.getState());
         item.setPurchaseRequestId(dto.getPurchaseRequestId());
+        item.setComment(dto.getComment());
         
         // GUID будет создан автоматически через @PrePersist
         PurchasePlanItem saved = purchasePlanItemRepository.save(item);
@@ -575,6 +607,7 @@ public class PurchasePlanItemService {
         dto.setStatus(entity.getStatus());
         dto.setState(entity.getState());
         dto.setPurchaseRequestId(entity.getPurchaseRequestId());
+        dto.setComment(entity.getComment());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
         return dto;

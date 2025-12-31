@@ -101,6 +101,9 @@ public class PurchasePlanItem {
     @Column(name = "purchase_request_id")
     private Long purchaseRequestId;
 
+    @Column(name = "comment", columnDefinition = "TEXT")
+    private String comment;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -352,6 +355,14 @@ public class PurchasePlanItem {
 
     public void setPurchaseRequestId(Long purchaseRequestId) {
         this.purchaseRequestId = purchaseRequestId;
+    }
+
+    public String getComment() {
+        return comment;
+    }
+
+    public void setComment(String comment) {
+        this.comment = comment;
     }
 }
 

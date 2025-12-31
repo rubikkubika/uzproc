@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { getBackendUrl } from '@/utils/api';
-import { ArrowUp, ArrowDown, ArrowUpDown, Search, Settings, Download } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpDown, Search, Settings, Download, Check } from 'lucide-react';
 import GanttChart from './GanttChart';
 import { useReactToPrint } from 'react-to-print';
 import * as XLSX from 'xlsx';
@@ -32,6 +32,7 @@ interface PurchasePlanItem {
   category: string | null;
   status: string | null;
   purchaseRequestId: number | null;
+  comment: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -61,6 +62,7 @@ const DEFAULT_VISIBLE_COLUMNS = [
   'requestDate',
   'newContractDate',
   'status',
+  'comment',
 ];
 
 const ALL_COLUMNS = [
@@ -88,6 +90,7 @@ const ALL_COLUMNS = [
   { key: 'category', label: 'Категория' },
   { key: 'status', label: 'Статус' },
   { key: 'purchaseRequestId', label: 'Заявка на закупку' },
+  { key: 'comment', label: 'Комментарий' },
   { key: 'createdAt', label: 'Дата создания' },
   { key: 'updatedAt', label: 'Дата обновления' },
 ] as const;
@@ -117,6 +120,7 @@ const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   category: 128,
   status: 128,
   purchaseRequestId: 160,
+  comment: 200,
   createdAt: 128,
   updatedAt: 128,
 };
@@ -168,6 +172,16 @@ export default function PublicPurchasePlanTable() {
   
   const [cfoSearchQuery, setCfoSearchQuery] = useState('');
   const [companySearchQuery, setCompanySearchQuery] = useState('');
+  const [editingComment, setEditingComment] = useState<number | null>(null);
+  const commentInputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Фокус на textarea при редактировании комментария
+  useEffect(() => {
+    if (editingComment !== null && commentInputRef.current) {
+      commentInputRef.current.focus();
+      commentInputRef.current.select();
+    }
+  }, [editingComment]);
   const [categorySearchQuery, setCategorySearchQuery] = useState('');
   const [purchaserSearchQuery, setPurchaserSearchQuery] = useState('');
   const [statusSearchQuery, setStatusSearchQuery] = useState('');
@@ -340,6 +354,40 @@ export default function PublicPurchasePlanTable() {
     saveColumnOrder(newOrder);
     setDraggedColumn(null);
     setDragOverColumn(null);
+  };
+
+  const handleCommentUpdate = async (itemId: number, newComment: string) => {
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/comment`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ comment: newComment || null }),
+      });
+
+      if (response.ok) {
+        const updatedItem = await response.json();
+        setEditingComment(null);
+        
+        // Обновляем только конкретную строку в локальном состоянии
+        if (data) {
+          setData({
+            ...data,
+            content: data.content.map(item => 
+              item.id === itemId 
+                ? { ...item, comment: updatedItem.comment }
+                : item
+            ),
+          });
+        }
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to update comment:', response.status, errorText);
+      }
+    } catch (error) {
+      console.error('Error updating comment:', error);
+    }
   };
 
   // Обработчик начала изменения размера
@@ -2120,6 +2168,32 @@ export default function PublicPurchasePlanTable() {
                     if (columnKey === 'newContractDate') {
                       return <SortableHeader key={columnKey} field="newContractDate" label="Дата нового договора" columnKey="newContractDate" />;
                     }
+                    if (columnKey === 'comment') {
+                      const isDragging = draggedColumn === 'comment';
+                      const isDragOver = dragOverColumn === 'comment';
+                      return (
+                        <th 
+                          key={columnKey}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, 'comment')}
+                          onDragOver={(e) => handleDragOver(e, 'comment')}
+                          onDragLeave={handleDragLeave}
+                          onDrop={(e) => handleDrop(e, 'comment')}
+                          className={`px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                          style={{ width: `${getColumnWidth('comment')}px`, minWidth: `${getColumnWidth('comment')}px`, maxWidth: `${getColumnWidth('comment')}px`, verticalAlign: 'top', overflow: 'hidden' }}
+                        >
+                          <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                            <div className="flex items-center gap-1 min-h-[20px]">
+                              <span className="text-xs font-medium text-gray-500 tracking-wider">Комментарий</span>
+                            </div>
+                          </div>
+                          <div
+                            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+                            onMouseDown={(e) => handleResizeStart(e, 'comment')}
+                          />
+                        </th>
+                      );
+                    }
                     if (columnKey === 'status') {
                       const isDragging = draggedColumn === 'status';
                       const isDragOver = dragOverColumn === 'status';
@@ -2537,6 +2611,84 @@ export default function PublicPurchasePlanTable() {
                                   </span>
                                 );
                               })()}
+                            </td>
+                          );
+                        }
+                        if (columnKey === 'comment') {
+                          return (
+                            <td key={columnKey} className={`px-2 py-2 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('comment')}px`, minWidth: `${getColumnWidth('comment')}px`, maxWidth: `${getColumnWidth('comment')}px` }}>
+                              {editingComment === item.id ? (
+                                <div className="relative">
+                                  <textarea
+                                    ref={commentInputRef}
+                                    defaultValue={item.comment || ''}
+                                    onBlur={(e) => {
+                                      const newValue = e.target.value.trim();
+                                      const currentValue = item.comment || '';
+                                      if (newValue !== currentValue) {
+                                        handleCommentUpdate(item.id, newValue);
+                                      } else {
+                                        setEditingComment(null);
+                                      }
+                                    }}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Escape') {
+                                        setEditingComment(null);
+                                      } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                                        e.preventDefault();
+                                        const newValue = e.currentTarget.value.trim();
+                                        const currentValue = item.comment || '';
+                                        if (newValue !== currentValue) {
+                                          handleCommentUpdate(item.id, newValue);
+                                        } else {
+                                          setEditingComment(null);
+                                        }
+                                      }
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="w-full text-xs border border-blue-500 rounded px-2 py-1 pr-8 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                                    rows={3}
+                                    style={{ minHeight: '60px' }}
+                                  />
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      if (commentInputRef.current) {
+                                        const newValue = commentInputRef.current.value.trim();
+                                        const currentValue = item.comment || '';
+                                        if (newValue !== currentValue) {
+                                          handleCommentUpdate(item.id, newValue);
+                                        } else {
+                                          setEditingComment(null);
+                                        }
+                                      }
+                                    }}
+                                    className="absolute bottom-2 right-2 p-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center justify-center"
+                                    style={{ width: '24px', height: '24px' }}
+                                    title="Сохранить (Ctrl+Enter)"
+                                  >
+                                    <Check className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <div
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (!isInactive) {
+                                      setEditingComment(item.id);
+                                    }
+                                  }}
+                                  className={`text-xs rounded px-2 py-1 cursor-pointer min-h-[60px] ${
+                                    isInactive
+                                      ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                                      : 'bg-gray-50 text-gray-800 hover:bg-gray-100'
+                                  }`}
+                                  style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                                >
+                                  {item.comment || '-'}
+                                </div>
+                              )}
                             </td>
                           );
                         }

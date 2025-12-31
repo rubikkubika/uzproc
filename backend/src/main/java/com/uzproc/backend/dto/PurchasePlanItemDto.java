@@ -33,6 +33,7 @@ public class PurchasePlanItemDto {
     private PurchasePlanItemStatus status;
     private String state;
     private Long purchaseRequestId;
+    private String comment;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -255,6 +256,14 @@ public class PurchasePlanItemDto {
 
     public void setPurchaseRequestId(Long purchaseRequestId) {
         this.purchaseRequestId = purchaseRequestId;
+    }
+
+    public String getComment() {
+        return comment;
+    }
+
+    public void setComment(String comment) {
+        this.comment = comment;
     }
 }
 

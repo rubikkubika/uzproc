@@ -180,6 +180,24 @@ public class PurchasePlanItemController {
         return ResponseEntity.ok(companies);
     }
 
+    @PatchMapping("/{id}/comment")
+    public ResponseEntity<?> updatePurchasePlanItemComment(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> requestBody) {
+        try {
+            String comment = requestBody.get("comment");
+            // comment может быть null или пустой строкой
+            
+            PurchasePlanItemDto updatedItem = purchasePlanItemService.updateComment(id, comment);
+            if (updatedItem != null) {
+                return ResponseEntity.ok(updatedItem);
+            }
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Ошибка сервера: " + e.getMessage());
+        }
+    }
+
     @PatchMapping("/{id}/company")
     public ResponseEntity<?> updatePurchasePlanItemCompany(
             @PathVariable Long id,

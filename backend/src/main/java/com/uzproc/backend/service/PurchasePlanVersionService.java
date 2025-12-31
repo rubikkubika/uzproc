@@ -103,6 +103,7 @@ public class PurchasePlanVersionService {
         itemVersion.setStatus(item.getStatus());
         itemVersion.setState(item.getState());
         itemVersion.setPurchaseRequestId(item.getPurchaseRequestId());
+        itemVersion.setComment(item.getComment());
         return itemVersion;
     }
 
@@ -153,6 +154,7 @@ public class PurchasePlanVersionService {
         dto.setStatus(itemVersion.getStatus());
         dto.setState(itemVersion.getState());
         dto.setPurchaseRequestId(itemVersion.getPurchaseRequestId());
+        dto.setComment(itemVersion.getComment());
         dto.setCreatedAt(itemVersion.getCreatedAt());
         dto.setUpdatedAt(itemVersion.getCreatedAt()); // В версии нет updatedAt, используем createdAt
         return dto;
