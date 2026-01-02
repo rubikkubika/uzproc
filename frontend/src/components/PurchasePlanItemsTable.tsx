@@ -94,7 +94,7 @@ const ALL_COLUMNS = [
   { key: 'purchaseSubject', label: 'Предмет закупки' },
   { key: 'budgetAmount', label: 'Бюджет (UZS)' },
   { key: 'requestDate', label: 'Дата заявки' },
-  { key: 'newContractDate', label: 'Дата нового договора' },
+  { key: 'newContractDate', label: 'Дата завершения закупки' },
   { key: 'purchaser', label: 'Закупщик' },
   { key: 'product', label: 'Продукция' },
   { key: 'hasContract', label: 'Есть договор' },
@@ -1719,7 +1719,7 @@ export default function PurchasePlanItemsTable() {
       'Дата заявки': item.requestDate 
         ? new Date(item.requestDate).toLocaleDateString('ru-RU')
         : '',
-      'Дата нового договора': item.newContractDate 
+      'Дата завершения закупки': item.newContractDate 
         ? new Date(item.newContractDate).toLocaleDateString('ru-RU')
         : '',
       'Закупщик': item.purchaser || '',
@@ -1770,7 +1770,7 @@ export default function PurchasePlanItemsTable() {
         { wch: 15 }, // Бюджет
         { wch: 20 }, // Срок окончания договора
         { wch: 15 }, // Дата заявки
-        { wch: 20 }, // Дата нового договора
+        { wch: 20 }, // Дата завершения закупки
         { wch: 20 }, // Закупщик
         { wch: 20 }, // Продукция
         { wch: 15 }, // Есть договор
@@ -1845,7 +1845,7 @@ export default function PurchasePlanItemsTable() {
         { wch: 15 }, // Бюджет
         { wch: 20 }, // Срок окончания договора
         { wch: 15 }, // Дата заявки
-        { wch: 20 }, // Дата нового договора
+        { wch: 20 }, // Дата завершения закупки
         { wch: 20 }, // Закупщик
         { wch: 20 }, // Продукция
         { wch: 15 }, // Есть договор
@@ -3913,7 +3913,7 @@ export default function PurchasePlanItemsTable() {
               
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Дата нового договора</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Дата завершения закупки</label>
                   <input
                     type="date"
                     value={newItemData.newContractDate ? newItemData.newContractDate.split('T')[0] : ''}
@@ -4378,7 +4378,7 @@ export default function PurchasePlanItemsTable() {
               <SortableHeader field="requestDate" label="Дата заявки" columnKey="requestDate" />
               )}
               {visibleColumns.has('newContractDate') && (
-              <SortableHeader field="newContractDate" label="Дата нового договора" columnKey="newContractDate" />
+              <SortableHeader field="newContractDate" label="Дата завершения закупки" columnKey="newContractDate" />
               )}
               {visibleColumns.has('guid') && (
               <SortableHeader field="guid" label="GUID" columnKey="guid" />

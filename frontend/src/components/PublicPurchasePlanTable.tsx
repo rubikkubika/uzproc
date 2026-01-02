@@ -75,7 +75,7 @@ const ALL_COLUMNS = [
   { key: 'budgetAmount', label: 'Бюджет (UZS)' },
   { key: 'contractEndDate', label: 'Дата окончания договора' },
   { key: 'requestDate', label: 'Дата заявки' },
-  { key: 'newContractDate', label: 'Дата нового договора' },
+  { key: 'newContractDate', label: 'Дата завершения закупки' },
   { key: 'purchaser', label: 'Закупщик' },
   { key: 'product', label: 'Продукт' },
   { key: 'hasContract', label: 'Есть договор' },
@@ -968,7 +968,7 @@ export default function PublicPurchasePlanTable() {
       'Дата заявки': item.requestDate 
         ? new Date(item.requestDate).toLocaleDateString('ru-RU')
         : '',
-      'Дата нового договора': item.newContractDate 
+      'Дата завершения закупки': item.newContractDate 
         ? new Date(item.newContractDate).toLocaleDateString('ru-RU')
         : '',
       'Закупщик': item.purchaser || '',
@@ -1003,7 +1003,7 @@ export default function PublicPurchasePlanTable() {
         { wch: 15 }, // Бюджет
         { wch: 20 }, // Срок окончания договора
         { wch: 15 }, // Дата заявки
-        { wch: 20 }, // Дата нового договора
+        { wch: 20 }, // Дата завершения закупки
         { wch: 20 }, // Закупщик
         { wch: 20 }, // Продукция
         { wch: 15 }, // Статус
@@ -2166,7 +2166,7 @@ export default function PublicPurchasePlanTable() {
                       );
                     }
                     if (columnKey === 'newContractDate') {
-                      return <SortableHeader key={columnKey} field="newContractDate" label="Дата нового договора" columnKey="newContractDate" />;
+                      return <SortableHeader key={columnKey} field="newContractDate" label="Дата завершения закупки" columnKey="newContractDate" />;
                     }
                     if (columnKey === 'comment') {
                       const isDragging = draggedColumn === 'comment';
