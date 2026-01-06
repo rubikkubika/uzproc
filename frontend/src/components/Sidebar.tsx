@@ -61,6 +61,7 @@ const SIDEBAR_SECTIONS_KEY = 'sidebarSectionsCollapsed';
 
 export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setIsMobileMenuOpen, isCollapsed = false, setIsCollapsed }: SidebarProps) {
   const router = useRouter();
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   // Состояние сворачивания разделов
   const [sectionsCollapsed, setSectionsCollapsed] = useState({
@@ -82,6 +83,22 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
         }
       }
     }
+  }, []);
+
+  // Загружаем роль пользователя
+  useEffect(() => {
+    const fetchUserRole = async () => {
+      try {
+        const response = await fetch('/api/auth/check');
+        const data = await response.json();
+        if (data.authenticated && data.role) {
+          setUserRole(data.role);
+        }
+      } catch (error) {
+        console.error('Ошибка загрузки роли пользователя:', error);
+      }
+    };
+    fetchUserRole();
   }, []);
 
   // Сохраняем состояние в localStorage при изменении
@@ -407,6 +424,21 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
             </span>
             {!isCollapsed && <span className="ml-2">Выйти</span>}
           </button>
+          {userRole && (
+            <>
+              {isCollapsed ? (
+                <div className="flex justify-center px-2 py-1">
+                  <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white font-semibold text-sm">
+                    {userRole === 'admin' ? 'A' : userRole === 'user' ? 'U' : userRole.charAt(0).toUpperCase()}
+                  </div>
+                </div>
+              ) : (
+                <div className="px-2 py-1.5 text-xs text-gray-700 font-medium text-left bg-gray-50 rounded-lg">
+                  {userRole === 'admin' ? 'Администратор' : userRole === 'user' ? 'Пользователь' : userRole}
+                </div>
+              )}
+            </>
+          )}
         </div>
       </aside>
     </>

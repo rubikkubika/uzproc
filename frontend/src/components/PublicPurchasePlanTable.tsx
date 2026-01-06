@@ -1459,7 +1459,15 @@ export default function PublicPurchasePlanTable() {
           <button
             onClick={() => {
               if (typeof window !== 'undefined') {
-                window.location.href = '/?tab=overview';
+                // Проверяем, авторизован ли пользователь
+                const authToken = document.cookie.split('; ').find(row => row.startsWith('auth-token='));
+                if (authToken) {
+                  // Если авторизован, переходим на главную страницу
+                  window.location.href = '/?tab=overview';
+                } else {
+                  // Если не авторизован, переходим на страницу логина с параметром
+                  window.location.href = '/login?from=public-plan';
+                }
               }
             }}
             className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
