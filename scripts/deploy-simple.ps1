@@ -35,7 +35,16 @@ $backendSize = (Get-Item uzproc-backend.tar).Length / 1MB
 Write-Host "Frontend image saved: uzproc-frontend.tar ($([math]::Round($frontendSize, 2)) MB)" -ForegroundColor Green
 Write-Host "Backend image saved: uzproc-backend.tar ($([math]::Round($backendSize, 2)) MB)" -ForegroundColor Green
 
-Write-Host "`nStep 3: Copying files to server..." -ForegroundColor Yellow
+Write-Host "`nStep 3: Cleaning old Docker images on server..." -ForegroundColor Yellow
+# Очищаем старые неиспользуемые Docker образы на сервере перед копированием новых
+# Это помогает избежать ошибок "No space left on device"
+ssh $SERVER "docker image prune -a -f --filter 'until=24h' 2>&1 > /dev/null; docker system prune -a -f --volumes 2>&1 > /dev/null; echo 'Old images cleaned'"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Warning: Failed to clean old images, continuing anyway..." -ForegroundColor Yellow
+}
+Write-Host "Old Docker images cleaned on server" -ForegroundColor Green
+
+Write-Host "`nStep 4: Copying files to server..." -ForegroundColor Yellow
 # Создаем директорию docker на сервере, если её нет
 ssh $SERVER "mkdir -p ${REMOTE_PATH}/docker"
 scp uzproc-frontend.tar uzproc-backend.tar docker-compose.yml "${SERVER}:${REMOTE_PATH}/"
@@ -51,8 +60,9 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host "Files copied to server" -ForegroundColor Green
 
-Write-Host "`nStep 4: Updating containers on server..." -ForegroundColor Yellow
-$remoteCommands = "cd $REMOTE_PATH; docker compose down; docker load -i uzproc-frontend.tar; docker load -i uzproc-backend.tar; docker compose up -d; docker compose ps"
+Write-Host "`nStep 5: Updating containers on server..." -ForegroundColor Yellow
+# Удаляем старые tar файлы на сервере после загрузки образов, чтобы освободить место
+$remoteCommands = "cd $REMOTE_PATH; docker compose down; docker load -i uzproc-frontend.tar; docker load -i uzproc-backend.tar; rm -f uzproc-frontend.tar uzproc-backend.tar; docker compose up -d; docker compose ps"
 ssh $SERVER $remoteCommands
 
 if ($LASTEXITCODE -ne 0) {
