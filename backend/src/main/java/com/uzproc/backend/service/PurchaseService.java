@@ -129,7 +129,16 @@ public class PurchaseService {
         
         // Дата создания заявки на закупку (связанной)
         if (entity.getPurchaseRequest() != null) {
-            dto.setPurchaseRequestCreatedAt(entity.getPurchaseRequest().getCreatedAt());
+            // Используем purchaseRequestCreationDate из Excel, а не createdAt (дата загрузки в БД)
+            LocalDateTime requestCreationDate = entity.getPurchaseRequest().getPurchaseRequestCreationDate();
+            if (requestCreationDate != null) {
+                dto.setPurchaseRequestCreatedAt(requestCreationDate);
+            } else {
+                // Fallback на createdAt, если purchaseRequestCreationDate не заполнено
+                dto.setPurchaseRequestCreatedAt(entity.getPurchaseRequest().getCreatedAt());
+            }
+            // Предмет заявки на закупку (наименование)
+            dto.setPurchaseRequestSubject(entity.getPurchaseRequest().getName());
         }
         
         // Дата утверждения (последнее completionDate из PurchaseApproval)

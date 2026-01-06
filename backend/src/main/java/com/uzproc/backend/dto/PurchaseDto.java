@@ -33,6 +33,7 @@ public class PurchaseDto {
     private String purchaseMethod; // Способ закупки (mcc)
     private LocalDateTime purchaseRequestCreatedAt; // Дата создания заявки на закупку (связанной)
     private LocalDateTime approvalDate; // Дата утверждения (из блока согласования)
+    private String purchaseRequestSubject; // Предмет заявки на закупку (наименование)
 
     // Constructors
     public PurchaseDto() {
@@ -245,6 +246,14 @@ public class PurchaseDto {
 
     public void setApprovalDate(LocalDateTime approvalDate) {
         this.approvalDate = approvalDate;
+    }
+
+    public String getPurchaseRequestSubject() {
+        return purchaseRequestSubject;
+    }
+
+    public void setPurchaseRequestSubject(String purchaseRequestSubject) {
+        this.purchaseRequestSubject = purchaseRequestSubject;
     }
 }
 
