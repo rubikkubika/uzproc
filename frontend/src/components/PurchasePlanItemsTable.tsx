@@ -2535,8 +2535,8 @@ export default function PurchasePlanItemsTable() {
       if (append) {
         // Добавляем новые элементы к существующим, исключая дубликаты по id
         setAllItems(prev => {
-          const existingIds = new Set(prev.map(item => item.id));
-          const newItems = result.content.filter(item => !existingIds.has(item.id));
+          const existingIds = new Set(prev.map((item: PurchasePlanItem) => item.id));
+          const newItems = result.content.filter((item: PurchasePlanItem) => !existingIds.has(item.id));
           const updated = [...prev, ...newItems];
           // Используем totalElements из первой загрузки (initialTotalElementsRef), если он есть,
           // иначе из текущего ответа. Это гарантирует, что totalElements остается постоянным
