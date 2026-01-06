@@ -751,19 +751,57 @@ public class PurchasePlanItemService {
                     .toList();
                 
                 if (!validPurchaserValues.isEmpty()) {
-                    if (validPurchaserValues.size() == 1) {
-                        // Одно значение - точное совпадение
-                        predicates.add(cb.equal(cb.lower(root.get("purchaser")), validPurchaserValues.get(0).toLowerCase()));
+                    logger.info("Processing purchaser filter values: {}", validPurchaserValues);
+                    
+                    // Проверяем, есть ли в списке закупщиков специальное значение для null (пустых значений)
+                    boolean includeNull = validPurchaserValues.stream()
+                        .anyMatch(s -> s.equalsIgnoreCase("Не назначен") || s.equalsIgnoreCase("__NULL__") || s.trim().isEmpty());
+                    
+                    logger.info("Purchaser filter - includeNull: {}", includeNull);
+                    
+                    // Исключаем специальные значения для null ("Не назначен", "__NULL__", пустые строки)
+                    List<String> nonNullPurchaserValues = validPurchaserValues.stream()
+                        .filter(purchaserValue -> {
+                            boolean isNullValue = purchaserValue.equalsIgnoreCase("Не назначен") 
+                                || purchaserValue.equalsIgnoreCase("__NULL__") 
+                                || purchaserValue.trim().isEmpty();
+                            logger.debug("Purchaser value '{}' is null value: {}", purchaserValue, isNullValue);
+                            return !isNullValue;
+                        })
+                        .toList();
+                    
+                    logger.info("Purchaser filter - nonNullValues: {}", nonNullPurchaserValues);
+                    
+                    List<Predicate> purchaserPredicates = new java.util.ArrayList<>();
+                    
+                    // Добавляем фильтр по конкретным закупщикам (если есть)
+                    if (!nonNullPurchaserValues.isEmpty()) {
+                        for (String purchaserValue : nonNullPurchaserValues) {
+                            purchaserPredicates.add(cb.equal(cb.lower(root.get("purchaser")), purchaserValue.toLowerCase()));
+                            logger.debug("Added purchaser predicate for: '{}'", purchaserValue);
+                        }
+                    }
+                    
+                    // Добавляем фильтр по null (если выбрано "Не назначен" или "__NULL__")
+                    if (includeNull) {
+                        purchaserPredicates.add(cb.isNull(root.get("purchaser")));
+                        logger.info("Added null purchaser predicate (purchaser IS NULL)");
+                    }
+                    
+                    if (!purchaserPredicates.isEmpty()) {
+                        if (purchaserPredicates.size() == 1) {
+                            predicates.add(purchaserPredicates.get(0));
+                            logger.info("Added single purchaser predicate");
+                        } else {
+                            predicates.add(cb.or(purchaserPredicates.toArray(new Predicate[0])));
+                            logger.info("Added OR purchaser predicate with {} conditions", purchaserPredicates.size());
+                        }
                         predicateCount++;
-                        logger.info("Added single purchaser filter: '{}'", validPurchaserValues.get(0));
+                        logger.info("Added purchaser filter: includeNull={}, nonNullValues={}, totalPredicates={}", 
+                            includeNull, nonNullPurchaserValues, purchaserPredicates.size());
                     } else {
-                        // Несколько значений - IN запрос
-                        List<Predicate> purchaserPredicates = validPurchaserValues.stream()
-                            .map(purchaserValue -> cb.equal(cb.lower(root.get("purchaser")), purchaserValue.toLowerCase()))
-                            .toList();
-                        predicates.add(cb.or(purchaserPredicates.toArray(new Predicate[0])));
-                        predicateCount++;
-                        logger.info("Added multiple purchaser filter: {}", validPurchaserValues);
+                        logger.warn("No purchaser predicates created - includeNull={}, nonNullValues={}", 
+                            includeNull, nonNullPurchaserValues);
                     }
                 }
             }

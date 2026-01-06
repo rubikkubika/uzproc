@@ -2176,6 +2176,38 @@ export default function PublicPurchasePlanTable() {
                               </button>
                               <span className="text-xs font-medium text-gray-500 tracking-wider">Бюджет (UZS)</span>
                             </div>
+                            <div className="flex items-center gap-1 mt-1" style={{ minHeight: '20px' }}>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // TODO: Переключить валюту на USD
+                                }}
+                                className="px-1.5 py-0.5 text-xs border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+                                title="USD"
+                              >
+                                USD
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // TODO: Переключить валюту на UZS
+                                }}
+                                className="px-1.5 py-0.5 text-xs border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+                                title="UZS"
+                              >
+                                UZS
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // TODO: Открыть настройки валюты
+                                }}
+                                className="px-1 py-0.5 text-xs border border-gray-300 rounded hover:bg-gray-100 transition-colors flex items-center justify-center"
+                                title="Настройки"
+                              >
+                                <Settings className="w-3 h-3" />
+                              </button>
+                            </div>
                           </div>
                           <div
                             className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"

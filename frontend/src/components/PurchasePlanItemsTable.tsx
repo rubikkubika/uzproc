@@ -130,10 +130,15 @@ const DEFAULT_VISIBLE_COLUMNS = [
 export default function PurchasePlanItemsTable() {
   const printRef = useRef<HTMLDivElement>(null);
   const [data, setData] = useState<PageResponse | null>(null);
+  const [allItems, setAllItems] = useState<PurchasePlanItem[]>([]); // Все загруженные элементы
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false); // Загрузка следующей страницы
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
-  const [pageSize, setPageSize] = useState(100);
+  const [pageSize] = useState(100); // Фиксированный размер страницы
+  const [hasMore, setHasMore] = useState(true); // Есть ли еще данные для загрузки
+  const loadMoreRef = useRef<HTMLDivElement>(null); // Ref для отслеживания прокрутки
+  const initialTotalElementsRef = useRef<number | null>(null); // Сохраняем totalElements из первой загрузки
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [allYears, setAllYears] = useState<number[]>([]);
   const [totalRecords, setTotalRecords] = useState<number>(0);
@@ -705,14 +710,17 @@ export default function PurchasePlanItemsTable() {
         const updatedItem = await response.json();
         console.log('Gantt dates updated successfully:', updatedItem);
         // Обновляем данные в таблице
-        if (data) {
-          const updatedContent = data.content.map(i => 
+        setAllItems(prev => {
+          const updated = prev.map(i => 
             i.id === itemId 
               ? { ...i, requestDate: updatedItem.requestDate, newContractDate: updatedItem.newContractDate }
               : i
           );
-          setData({ ...data, content: updatedContent });
-        }
+          if (data) {
+            setData({ ...data, content: updated });
+          }
+          return updated;
+        });
         // Обновляем данные для диаграммы в таблице
         setChartData(prev => {
           if (!prev) return prev;
@@ -753,8 +761,8 @@ export default function PurchasePlanItemsTable() {
         const errorText = await response.text();
         console.error('Failed to update gantt dates:', response.status, errorText);
         // Откатываем изменения при ошибке
-        if (data) {
-          const updatedContent = data.content.map(i => 
+        setAllItems(prev => {
+          const updated = prev.map(i => 
             i.id === itemId 
               ? { 
                   ...i, 
@@ -763,14 +771,17 @@ export default function PurchasePlanItemsTable() {
                 }
               : i
           );
-          setData({ ...data, content: updatedContent });
-        }
+          if (data) {
+            setData({ ...data, content: updated });
+          }
+          return updated;
+        });
       }
     } catch (error) {
       console.error('Error updating gantt dates:', error);
       // Откатываем изменения при ошибке
-      if (data) {
-        const updatedContent = data.content.map(i => 
+      setAllItems(prev => {
+        const updated = prev.map(i => 
           i.id === itemId 
             ? { 
                 ...i, 
@@ -779,8 +790,11 @@ export default function PurchasePlanItemsTable() {
               }
             : i
         );
-        setData({ ...data, content: updatedContent });
-      }
+        if (data) {
+          setData({ ...data, content: updated });
+        }
+        return updated;
+      });
     }
   };
 
@@ -827,14 +841,17 @@ export default function PurchasePlanItemsTable() {
         const updatedItem = await response.json();
         console.log('Date updated successfully:', updatedItem);
         // Обновляем данные в таблице
-        if (data) {
-          const updatedContent = data.content.map(i => 
+        setAllItems(prev => {
+          const updated = prev.map(i => 
             i.id === itemId 
               ? { ...i, requestDate: updatedItem.requestDate, newContractDate: updatedItem.newContractDate }
               : i
           );
-          setData({ ...data, content: updatedContent });
-        }
+          if (data) {
+            setData({ ...data, content: updated });
+          }
+          return updated;
+        });
         // Обновляем данные для диаграммы в таблице
         setChartData(prev => {
           if (!prev) return prev;
@@ -904,14 +921,17 @@ export default function PurchasePlanItemsTable() {
         const updatedItem = await response.json();
         console.log('Status updated successfully:', updatedItem);
         // Обновляем данные в таблице
-        if (data) {
-          const updatedContent = data.content.map(i => 
+        setAllItems(prev => {
+          const updated = prev.map(i => 
             i.id === itemId 
               ? { ...i, status: updatedItem.status }
               : i
           );
-          setData({ ...data, content: updatedContent });
-        }
+          if (data) {
+            setData({ ...data, content: updated });
+          }
+          return updated;
+        });
         // Обновляем данные для диаграммы в таблице
         setChartData(prev => {
           if (!prev) return prev;
@@ -957,14 +977,17 @@ export default function PurchasePlanItemsTable() {
         const updatedItem = await response.json();
         console.log('Holding updated successfully:', updatedItem);
         // Обновляем данные в таблице
-        if (data) {
-          const updatedContent = data.content.map(i => 
+        setAllItems(prev => {
+          const updated = prev.map(i => 
             i.id === itemId 
               ? { ...i, holding: updatedItem.holding }
               : i
           );
-          setData({ ...data, content: updatedContent });
-        }
+          if (data) {
+            setData({ ...data, content: updated });
+          }
+          return updated;
+        });
         setEditingHolding(null);
       } else {
         const errorText = await response.text();
@@ -998,28 +1021,35 @@ export default function PurchasePlanItemsTable() {
           
           if (shouldShowItem) {
             // Обновляем строку в таблице
-            const updatedContent = data.content.map(item => 
-              item.id === itemId 
-                ? { ...item, company: updatedItem.company, updatedAt: updatedItem.updatedAt }
-                : item
-            );
-            setData({ ...data, content: updatedContent });
+            setAllItems(prev => {
+              const updated = prev.map(item => 
+                item.id === itemId 
+                  ? { ...item, company: updatedItem.company, updatedAt: updatedItem.updatedAt }
+                  : item
+              );
+              if (data) {
+                setData({ ...data, content: updated });
+              }
+              return updated;
+            });
           } else {
             // Удаляем строку из отображаемых данных, так как она не подходит под фильтр
-            const updatedContent = data.content.filter(item => item.id !== itemId);
-            const newTotalElements = Math.max(0, (data.totalElements || 0) - 1);
-            const newTotalPages = Math.ceil(newTotalElements / pageSize);
-            setData({ 
-              ...data, 
-              content: updatedContent,
-              totalElements: newTotalElements,
-              totalPages: newTotalPages
+            setAllItems(prev => {
+              const updated = prev.filter(item => item.id !== itemId);
+              const newTotalElements = Math.max(0, (data?.totalElements || 0) - 1);
+              const newTotalPages = Math.ceil(newTotalElements / pageSize);
+              if (data) {
+                setData({ 
+                  ...data, 
+                  content: updated,
+                  totalElements: newTotalElements,
+                  totalPages: newTotalPages
+                });
+              }
+              return updated;
             });
             
-            // Если удалили последний элемент на странице и это не первая страница, переходим на предыдущую
-            if (updatedContent.length === 0 && currentPage > 0) {
-              setCurrentPage(currentPage - 1);
-            }
+            // При бесконечной прокрутке не нужно переходить на предыдущую страницу
           }
         }
         
@@ -1229,28 +1259,35 @@ export default function PurchasePlanItemsTable() {
           
           if (shouldShowItem) {
             // Обновляем строку в таблице
-            const updatedContent = data.content.map(item => 
-              item.id === itemId 
-                ? { ...item, cfo: updatedItem.cfo, updatedAt: updatedItem.updatedAt }
-                : item
-            );
-            setData({ ...data, content: updatedContent });
+            setAllItems(prev => {
+              const updated = prev.map(item => 
+                item.id === itemId 
+                  ? { ...item, cfo: updatedItem.cfo, updatedAt: updatedItem.updatedAt }
+                  : item
+              );
+              if (data) {
+                setData({ ...data, content: updated });
+              }
+              return updated;
+            });
           } else {
             // Удаляем строку из отображаемых данных, так как она не подходит под фильтр
-            const updatedContent = data.content.filter(item => item.id !== itemId);
-            const newTotalElements = Math.max(0, (data.totalElements || 0) - 1);
-            const newTotalPages = Math.ceil(newTotalElements / pageSize);
-            setData({ 
-              ...data, 
-              content: updatedContent,
-              totalElements: newTotalElements,
-              totalPages: newTotalPages
+            setAllItems(prev => {
+              const updated = prev.filter(item => item.id !== itemId);
+              const newTotalElements = Math.max(0, (data?.totalElements || 0) - 1);
+              const newTotalPages = Math.ceil(newTotalElements / pageSize);
+              if (data) {
+                setData({ 
+                  ...data, 
+                  content: updated,
+                  totalElements: newTotalElements,
+                  totalPages: newTotalPages
+                });
+              }
+              return updated;
             });
             
-            // Если удалили последний элемент на странице и это не первая страница, переходим на предыдущую
-            if (updatedContent.length === 0 && currentPage > 0) {
-              setCurrentPage(currentPage - 1);
-            }
+            // При бесконечной прокрутке не нужно переходить на предыдущую страницу
           }
         }
         
@@ -1341,14 +1378,17 @@ export default function PurchasePlanItemsTable() {
         setEditingPurchaseSubject(null);
         
         // Обновляем только конкретную строку в локальном состоянии
-        if (data) {
-          const updatedContent = data.content.map(item => 
+        setAllItems(prev => {
+          const updated = prev.map(item => 
             item.id === itemId 
               ? { ...item, purchaseSubject: updatedItem.purchaseSubject, updatedAt: updatedItem.updatedAt }
               : item
           );
-          setData({ ...data, content: updatedContent });
-        }
+          if (data) {
+            setData({ ...data, content: updated });
+          }
+          return updated;
+        });
       } else {
         const errorText = await response.text();
         console.error('Failed to update purchase subject:', response.status, errorText);
@@ -1382,14 +1422,17 @@ export default function PurchasePlanItemsTable() {
         setEditingPurchaseRequestId(null);
         
         // Обновляем только конкретную строку в локальном состоянии
-        if (data) {
-          const updatedContent = data.content.map(item => 
+        setAllItems(prev => {
+          const updated = prev.map(item => 
             item.id === itemId 
               ? { ...item, purchaseRequestId: updatedItem.purchaseRequestId, updatedAt: updatedItem.updatedAt }
               : item
           );
-          setData({ ...data, content: updatedContent });
-        }
+          if (data) {
+            setData({ ...data, content: updated });
+          }
+          return updated;
+        });
       } else {
         const errorText = await response.text();
         console.error('Failed to update purchaseRequestId:', response.status, errorText);
@@ -1569,15 +1612,8 @@ export default function PurchasePlanItemsTable() {
           setSortDirection(savedFilters.sortDirection);
         }
         
-        // Восстанавливаем размер страницы
-        if (savedFilters.pageSize) {
-          setPageSize(savedFilters.pageSize);
-        }
-        
-        // Восстанавливаем текущую страницу
-        if (savedFilters.currentPage !== undefined) {
-          setCurrentPage(savedFilters.currentPage);
-        }
+        // При бесконечной прокрутке не восстанавливаем текущую страницу, всегда начинаем с 0
+        setCurrentPage(0);
         
         filtersLoadedRef.current = true;
       } else {
@@ -1615,14 +1651,12 @@ export default function PurchasePlanItemsTable() {
         statusFilter: Array.from(statusFilter),
         sortField,
         sortDirection,
-        pageSize,
-        currentPage,
       };
       localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filtersToSave));
     } catch (err) {
       console.error('Error saving filters:', err);
     }
-  }, [selectedYear, selectedMonths, selectedMonthYear, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter, statusFilter, sortField, sortDirection, pageSize, currentPage]);
+  }, [selectedYear, selectedMonths, selectedMonthYear, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter, statusFilter, sortField, sortDirection]);
   
   // Сохраняем ширины колонок в localStorage
   const saveColumnWidths = useCallback((widths: Record<string, number>) => {
@@ -1947,7 +1981,12 @@ export default function PurchasePlanItemsTable() {
         // Фильтр по закупщику - передаем все выбранные значения на бэкенд
         if (purchaserFilter.size > 0) {
           purchaserFilter.forEach(purchaser => {
-            params.append('purchaser', purchaser);
+            // Если выбрано "Не назначен", передаем специальное значение для null
+            if (purchaser === 'Не назначен') {
+              params.append('purchaser', '__NULL__');
+            } else {
+              params.append('purchaser', purchaser);
+            }
           });
         }
         // Фильтр по категории - передаем все выбранные значения на бэкенд
@@ -2359,9 +2398,15 @@ export default function PurchasePlanItemsTable() {
     sortField: SortField = null,
     sortDirection: SortDirection = null,
     filters: Record<string, string> = {},
-    months: Set<number> = new Set()
+    months: Set<number> = new Set(),
+    append: boolean = false // Если true, добавляем данные к существующим
   ) => {
-    setLoading(true);
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+      setAllItems([]); // Очищаем все элементы при новой загрузке
+    }
     setError(null);
     try {
       const params = new URLSearchParams();
@@ -2423,7 +2468,14 @@ export default function PurchasePlanItemsTable() {
       // Фильтр по закупщику - передаем все выбранные значения на бэкенд
       if (purchaserFilter.size > 0) {
         purchaserFilter.forEach(purchaser => {
-          params.append('purchaser', purchaser);
+          // Если выбрано "Не назначен", передаем специальное значение для null
+          if (purchaser === 'Не назначен' || purchaser === null || purchaser === undefined || purchaser === '') {
+            params.append('purchaser', '__NULL__');
+            console.log('[DEBUG] Sending purchaser filter: __NULL__ for "Не назначен"');
+          } else {
+            params.append('purchaser', purchaser);
+            console.log('[DEBUG] Sending purchaser filter:', purchaser);
+          }
         });
       }
       // Фильтр по категории - передаем все выбранные значения на бэкенд
@@ -2436,14 +2488,20 @@ export default function PurchasePlanItemsTable() {
       // Если фильтр пустой, не передаем параметр (показываем все статусы)
       // Если фильтр не пустой, передаем только выбранные статусы
       if (statusFilter.size > 0) {
+        const statusArray: string[] = [];
         statusFilter.forEach(status => {
           // Если выбран "Пусто", передаем специальное значение для null
           if (status === 'Пусто') {
             params.append('status', '__NULL__');
+            statusArray.push('__NULL__');
           } else {
-        params.append('status', status);
+            params.append('status', status);
+            statusArray.push(status);
           }
-      });
+        });
+        console.log('[DEBUG] Sending status filter:', Array.from(statusFilter), 'as params:', statusArray);
+      } else {
+        console.log('[DEBUG] Status filter is empty, not sending status parameter');
       }
       if (months.size > 0) {
         // Отправляем все выбранные месяцы
@@ -2465,16 +2523,69 @@ export default function PurchasePlanItemsTable() {
       }
       
       const fetchUrl = `${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`;
+      console.log('[DEBUG] Fetching data from:', fetchUrl);
+      console.log('[DEBUG] Status filter values:', Array.from(statusFilter));
       const response = await fetch(fetchUrl);
       if (!response.ok) {
         throw new Error('Ошибка загрузки данных');
       }
       const result = await response.json();
-      setData(result);
+      console.log('[DEBUG] Response: loaded', result.content.length, 'items, totalElements:', result.totalElements);
+      
+      if (append) {
+        // Добавляем новые элементы к существующим, исключая дубликаты по id
+        setAllItems(prev => {
+          const existingIds = new Set(prev.map(item => item.id));
+          const newItems = result.content.filter(item => !existingIds.has(item.id));
+          const updated = [...prev, ...newItems];
+          // Используем totalElements из первой загрузки (initialTotalElementsRef), если он есть,
+          // иначе из текущего ответа. Это гарантирует, что totalElements остается постоянным
+          // для всех страниц при одинаковых фильтрах
+          // ВАЖНО: initialTotalElementsRef должен быть установлен при первой загрузке (append = false)
+          const totalElementsToUse = initialTotalElementsRef.current !== null && initialTotalElementsRef.current !== undefined
+            ? initialTotalElementsRef.current 
+            : result.totalElements;
+          
+          // Проверяем, есть ли еще данные для загрузки
+          // Сравниваем количество загруженных уникальных элементов с totalElements
+          const hasMoreData = updated.length < totalElementsToUse;
+          setHasMore(hasMoreData);
+          
+          // Обновляем data с актуальным totalElements из первой загрузки
+          setData(prevData => ({
+            ...result,
+            content: updated,
+            // Всегда используем totalElements из первой загрузки для консистентности
+            totalElements: totalElementsToUse,
+            totalPages: result.totalPages
+          }));
+          
+          // Отладочное логирование
+          console.log(`[DEBUG] Page ${currentPage + 1}: loaded ${updated.length} items, totalElements: ${totalElementsToUse} (initial: ${initialTotalElementsRef.current}, result: ${result.totalElements}), hasMore: ${hasMoreData}`);
+          return updated;
+        });
+      } else {
+        // Заменяем все данные (первая загрузка)
+        setAllItems(result.content);
+        // Сохраняем totalElements из первой загрузки для использования при последующих загрузках
+        // Это значение должно быть одинаковым для всех страниц при одинаковых фильтрах
+        // ВАЖНО: Сохраняем totalElements ДО обновления data, чтобы оно было доступно при последующих загрузках
+        initialTotalElementsRef.current = result.totalElements;
+        setData({
+          ...result,
+          totalElements: result.totalElements
+        });
+        // Проверяем, есть ли еще данные для загрузки
+        setHasMore(result.content.length < result.totalElements);
+        
+        // Отладочное логирование
+        console.log(`[DEBUG] First load (page 0): loaded ${result.content.length} items, totalElements: ${result.totalElements}, hasMore: ${result.content.length < result.totalElements}, statusFilter:`, Array.from(statusFilter));
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Произошла ошибка');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
@@ -2545,24 +2656,59 @@ export default function PurchasePlanItemsTable() {
     }
   }, [selectedYear]);
 
+  // Загрузка первой страницы при изменении фильтров
   useEffect(() => {
     // Не вызываем fetchData до тех пор, пока фильтры не загружены из localStorage
     if (!filtersLoadedRef.current) {
       return;
     }
-    fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters, selectedMonths);
-  }, [currentPage, pageSize, selectedYear, selectedMonthYear, sortField, sortDirection, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter, statusFilter, selectedMonths]);
+    setCurrentPage(0);
+    setHasMore(true);
+    initialTotalElementsRef.current = null; // Сбрасываем при изменении фильтров
+    fetchData(0, pageSize, selectedYear, sortField, sortDirection, filters, selectedMonths, false);
+  }, [selectedYear, selectedMonthYear, sortField, sortDirection, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter, statusFilter, selectedMonths]);
+
+  // Intersection Observer для бесконечной прокрутки
+  useEffect(() => {
+    // Проверяем, есть ли еще данные для загрузки
+    const hasMoreData = hasMore || (data && allItems.length < data.totalElements);
+    
+    if (!loadMoreRef.current || !hasMoreData || loading || loadingMore) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const stillHasMore = hasMore || (data && allItems.length < (data.totalElements || 0));
+        if (entries[0].isIntersecting && stillHasMore && !loading && !loadingMore) {
+          const nextPage = currentPage + 1;
+          setCurrentPage(nextPage);
+          fetchData(nextPage, pageSize, selectedYear, sortField, sortDirection, filters, selectedMonths, true);
+        }
+      },
+      {
+        threshold: 0.1,
+        rootMargin: '100px', // Начинаем загрузку за 100px до конца
+      }
+    );
+
+    observer.observe(loadMoreRef.current);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasMore, loading, loadingMore, currentPage, pageSize, selectedYear, sortField, sortDirection, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter, statusFilter, selectedMonths, selectedMonthYear, data, allItems]);
 
   // Автоматически загружаем данные заявок для позиций с purchaseRequestId
   useEffect(() => {
-    if (data && data.content) {
-      data.content.forEach((item) => {
+    if (allItems.length > 0) {
+      allItems.forEach((item) => {
         if (item.purchaseRequestId && !purchaseRequestData[item.id]?.data && !purchaseRequestData[item.id]?.loading) {
           fetchPurchaseRequest(item.id, item.purchaseRequestId);
         }
       });
     }
-  }, [data, fetchPurchaseRequest]);
+  }, [allItems, fetchPurchaseRequest]);
 
   // Восстановление фокуса после обновления localFilters
   // Отключено, чтобы не прерывать ввод текста - React сам правильно обрабатывает фокус и курсор
@@ -2639,10 +2785,6 @@ export default function PurchasePlanItemsTable() {
     }
   }, [data, loading, focusedField, localFilters]);
 
-  const handlePageSizeChange = (newSize: number) => {
-    setPageSize(newSize);
-    setCurrentPage(0);
-  };
 
   // Обработка сортировки (перемещена выше, чтобы использоваться в getSortableHeaderProps)
   const handleSort = useCallback((field: SortField) => {
@@ -2951,8 +3093,6 @@ export default function PurchasePlanItemsTable() {
         purchaserFilter: Array.from(newSet),
         sortField,
         sortDirection,
-        pageSize,
-        currentPage: 0,
       };
       localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filtersToSave));
     } catch (err) {
@@ -2977,8 +3117,6 @@ export default function PurchasePlanItemsTable() {
         purchaserFilter: Array.from(newSet),
         sortField,
         sortDirection,
-        pageSize,
-        currentPage: 0,
       };
       localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filtersToSave));
     } catch (err) {
@@ -3228,6 +3366,40 @@ export default function PurchasePlanItemsTable() {
             )}
             <span className={`text-xs font-medium text-gray-500 tracking-wider ${label === 'ЦФО' ? 'uppercase' : ''}`}>{label}</span>
           </div>
+          {columnKey === 'budgetAmount' && (
+            <div className="flex items-center gap-1 mt-1" style={{ minHeight: '20px' }}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // TODO: Переключить валюту на USD
+                }}
+                className="px-1.5 py-0.5 text-xs border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+                title="USD"
+              >
+                USD
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // TODO: Переключить валюту на UZS
+                }}
+                className="px-1.5 py-0.5 text-xs border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+                title="UZS"
+              >
+                UZS
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // TODO: Открыть настройки валюты
+                }}
+                className="px-1 py-0.5 text-xs border border-gray-300 rounded hover:bg-gray-100 transition-colors flex items-center justify-center"
+                title="Настройки"
+              >
+                <Settings className="w-3 h-3" />
+              </button>
+            </div>
+          )}
         </div>
         {columnKey && (
           <div
@@ -3241,7 +3413,7 @@ export default function PurchasePlanItemsTable() {
   };
 
   // Создаем useCallback для колбэков, чтобы они были стабильными и не вызывали перерисовку
-  const hasData = data && data.content && data.content.length > 0;
+  const hasData = allItems.length > 0;
 
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
@@ -3543,8 +3715,6 @@ export default function PurchasePlanItemsTable() {
                         statusFilter: defaultStatusFilter, // При сбросе устанавливаем фильтр по умолчанию (все кроме Исключена)
                         sortField: 'requestDate',
                         sortDirection: 'asc',
-                        pageSize: pageSize,
-                        currentPage: 0,
                       };
                       localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(resetFilters));
                     } catch (err) {
@@ -3624,24 +3794,28 @@ export default function PurchasePlanItemsTable() {
                     </button>
                   </div>
                 )}
-                <button
-                  onClick={() => setIsCreateModalOpen(true)}
-                  className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Создать новую строку плана закупок"
-                  disabled={selectedVersionId !== null && !selectedVersionInfo?.isCurrent}
-                >
-                  <Plus className="w-4 h-4" />
-                  Создать строку
-                </button>
-                <button
-                  onClick={() => setIsCreateVersionModalOpen(true)}
-                  className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Создать редакцию плана закупок"
-                  disabled={selectedVersionId !== null && !selectedVersionInfo?.isCurrent}
-                >
-                  <Plus className="w-4 h-4" />
-                  Создать редакцию
-                </button>
+                {canEdit && (
+                  <button
+                    onClick={() => setIsCreateModalOpen(true)}
+                    className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Создать новую строку плана закупок"
+                    disabled={selectedVersionId !== null && !selectedVersionInfo?.isCurrent}
+                  >
+                    <Plus className="w-4 h-4" />
+                    Создать строку
+                  </button>
+                )}
+                {canEdit && (
+                  <button
+                    onClick={() => setIsCreateVersionModalOpen(true)}
+                    className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Создать редакцию плана закупок"
+                    disabled={selectedVersionId !== null && !selectedVersionInfo?.isCurrent}
+                  >
+                    <Plus className="w-4 h-4" />
+                    Создать редакцию
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     setIsVersionsListModalOpen(true);
@@ -3762,8 +3936,8 @@ export default function PurchasePlanItemsTable() {
                   // Откатываем изменения, если они были применены локально (при перетаскивании Ганта)
                   if (pendingDateChange && (pendingDateChange.oldRequestDate !== undefined || pendingDateChange.oldNewContractDate !== undefined)) {
                     // Восстанавливаем исходные данные
-                    if (data) {
-                      const updatedContent = data.content.map(i => 
+                    setAllItems(prev => {
+                      const updated = prev.map(i => 
                         i.id === pendingDateChange.itemId 
                           ? { 
                               ...i, 
@@ -3772,8 +3946,11 @@ export default function PurchasePlanItemsTable() {
                             }
                           : i
                       );
-                      setData({ ...data, content: updatedContent });
-                    }
+                      if (data) {
+                        setData({ ...data, content: updated });
+                      }
+                      return updated;
+                    });
                     // Убираем временные даты
                     setTempDates(prev => {
                       const newTemp = { ...prev };
@@ -4024,61 +4201,11 @@ export default function PurchasePlanItemsTable() {
         </div>
       )}
 
-      {/* Пагинация */}
+      {/* Информация о количестве записей */}
       {data && (
         <div className="px-3 py-2 border-b border-gray-200 flex items-center justify-between bg-gray-50">
-          <div className="flex items-center gap-3">
-            <div className="text-xs text-gray-700">
-              Показано {data?.content.length || 0} из {data?.totalElements || 0} записей
-            </div>
-            <div className="flex items-center gap-2">
-              <label htmlFor="pageSize" className="text-xs text-gray-700">
-                Элементов на странице:
-              </label>
-              <select
-                id="pageSize"
-                value={pageSize}
-                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                className="px-2 py-1 text-xs border border-gray-300 rounded bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-            </div>
-          </div>
-          <div className="flex gap-1">
-            <button
-              onClick={() => setCurrentPage(0)}
-              disabled={currentPage === 0}
-              className="px-2 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Первая
-            </button>
-            <button
-              onClick={() => setCurrentPage(currentPage - 1)}
-              disabled={currentPage === 0}
-              className="px-2 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Назад
-            </button>
-            <span className="px-2 py-1 text-xs font-medium text-gray-700">
-              Страница {currentPage + 1} из {data?.totalPages || 0}
-            </span>
-            <button
-              onClick={() => setCurrentPage(currentPage + 1)}
-              disabled={currentPage >= (data?.totalPages || 0) - 1}
-              className="px-2 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Вперед
-            </button>
-            <button
-              onClick={() => setCurrentPage((data?.totalPages || 0) - 1)}
-              disabled={currentPage >= (data?.totalPages || 0) - 1}
-              className="px-2 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Последняя
-            </button>
+          <div className="text-xs text-gray-700">
+            Показано {allItems.length} из {initialTotalElementsRef.current ?? data?.totalElements ?? 0} записей
           </div>
         </div>
       )}
@@ -4915,7 +5042,7 @@ export default function PurchasePlanItemsTable() {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200 border-t-2 border-gray-400">
             {hasData ? (
-              data?.content.map((item) => {
+              allItems.map((item) => {
                 const isExpanded = expandedRows.has(item.id);
                 const isInactive = item.status === 'Исключена';
                 return (
@@ -5550,14 +5677,17 @@ export default function PurchasePlanItemsTable() {
                         }
                         
                         // Временно обновляем данные в таблице для визуального отображения
-                        if (data) {
-                          const updatedContent = data.content.map(i => 
+                        setAllItems(prev => {
+                          const updated = prev.map(i => 
                             i.id === item.id 
                               ? { ...i, requestDate, newContractDate: finalNewContractDate }
                               : i
                           );
-                          setData({ ...data, content: updatedContent });
-                        }
+                          if (data) {
+                            setData({ ...data, content: updated });
+                          }
+                          return updated;
+                        });
                         
                         // Сразу сохраняем изменения без проверки пароля
                         performGanttDateUpdate(item.id, requestDate, finalNewContractDate);
@@ -5862,6 +5992,23 @@ export default function PurchasePlanItemsTable() {
               </tr>
             )}
           </tbody>
+          {/* Индикатор загрузки для бесконечной прокрутки */}
+          {(hasMore || (data && allItems.length < data.totalElements)) && (
+            <tfoot>
+              <tr>
+                <td colSpan={visibleColumns.size + 1} className="px-3 py-4 text-center">
+                  <div ref={loadMoreRef} className="flex items-center justify-center gap-2 text-xs text-gray-600">
+                    {loadingMore && (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+                        <span>Загрузка...</span>
+                      </>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            </tfoot>
+          )}
         </table>
         </div>
         </div>
