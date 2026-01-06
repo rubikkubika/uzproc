@@ -899,9 +899,15 @@ public class PurchasePlanItemService {
                                     }
                                 }
                                 logger.warn("Status value '{}' not found by displayName. Checking enum name...", trimmedValue);
-                                // Если не найдено по displayName, пробуем по имени enum
+                                // Если не найдено по displayName, пробуем по имени enum с маппингом
                                 try {
-                                    String enumName = trimmedValue.toUpperCase().replace(" ", "_").replace("НЕ_", "NOT_").replace("ЗАЯВКА", "REQUEST");
+                                    String enumName = trimmedValue.toUpperCase()
+                                        .replace(" ", "_")
+                                        .replace("НЕ_", "NOT_")
+                                        .replace("ЗАЯВКА", "REQUEST")
+                                        .replace("АКТУАЛЬНАЯ", "ACTUAL")
+                                        .replace("В_ПЛАНЕ", "ACTUAL")
+                                        .replace("ИСКЛЮЧЕНА", "NOT_ACTUAL");
                                     com.uzproc.backend.entity.PurchasePlanItemStatus foundEnum = com.uzproc.backend.entity.PurchasePlanItemStatus.valueOf(enumName);
                                     logger.info("Found status enum '{}' by name '{}' for value '{}'", foundEnum, enumName, trimmedValue);
                                     return foundEnum;

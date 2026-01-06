@@ -4,9 +4,8 @@ import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum PurchasePlanItemStatus {
     PROJECT("Проект"),
-    ACTUAL("Актуальная"),
-    NOT_ACTUAL("Не Актуальная"),
-    CORRECTION("Корректировка"),
+    ACTUAL("В плане"),
+    NOT_ACTUAL("Исключена"),
     REQUEST("Заявка");
 
     private final String displayName;

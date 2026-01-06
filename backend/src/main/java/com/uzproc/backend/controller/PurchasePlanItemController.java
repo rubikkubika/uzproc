@@ -126,17 +126,33 @@ public class PurchasePlanItemController {
             // Преобразуем строку в enum
             com.uzproc.backend.entity.PurchasePlanItemStatus status;
             try {
-                // Пробуем найти по displayName
+                String trimmedStatus = statusStr.trim();
+                // Пробуем найти по displayName (точное совпадение с учетом регистра)
                 status = null;
                 for (com.uzproc.backend.entity.PurchasePlanItemStatus s : com.uzproc.backend.entity.PurchasePlanItemStatus.values()) {
-                    if (s.getDisplayName().equalsIgnoreCase(statusStr.trim())) {
+                    if (s.getDisplayName().equals(trimmedStatus)) {
                         status = s;
                         break;
                     }
                 }
+                // Если не найдено точное совпадение, пробуем без учета регистра
                 if (status == null) {
-                    // Если не найдено по displayName, пробуем по имени enum
-                    status = com.uzproc.backend.entity.PurchasePlanItemStatus.valueOf(statusStr.toUpperCase().replace(" ", "_").replace("НЕ_", "NOT_"));
+                    for (com.uzproc.backend.entity.PurchasePlanItemStatus s : com.uzproc.backend.entity.PurchasePlanItemStatus.values()) {
+                        if (s.getDisplayName().equalsIgnoreCase(trimmedStatus)) {
+                            status = s;
+                            break;
+                        }
+                    }
+                }
+                // Если не найдено по displayName, пробуем по имени enum с маппингом старых значений
+                if (status == null) {
+                    String enumName = trimmedStatus.toUpperCase()
+                        .replace(" ", "_")
+                        .replace("НЕ_", "NOT_")
+                        .replace("АКТУАЛЬНАЯ", "ACTUAL")
+                        .replace("В_ПЛАНЕ", "ACTUAL")
+                        .replace("ИСКЛЮЧЕНА", "NOT_ACTUAL");
+                    status = com.uzproc.backend.entity.PurchasePlanItemStatus.valueOf(enumName);
                 }
             } catch (IllegalArgumentException e) {
                 return ResponseEntity.badRequest().body("Invalid status: " + statusStr);
@@ -320,4 +336,5 @@ public class PurchasePlanItemController {
         }
     }
 }
+
 

@@ -49,8 +49,8 @@ type SortField = keyof PurchasePlanItem | null;
 type SortDirection = 'asc' | 'desc' | null;
 
 // ALL_COMPANIES будет загружаться с бэкенда
-const ALL_STATUSES = ['Проект', 'Актуальная', 'Корректировка', 'Заявка', 'Не Актуальная', 'Пусто'];
-const DEFAULT_STATUSES = ['Проект', 'Актуальная', 'Корректировка', 'Заявка', 'Пусто'];
+const ALL_STATUSES = ['Проект', 'В плане', 'Заявка', 'Исключена', 'Пусто'];
+const DEFAULT_STATUSES = ['Проект', 'В плане', 'Заявка', 'Пусто'];
 
 const DEFAULT_VISIBLE_COLUMNS = [
   'id',
@@ -631,7 +631,7 @@ export default function PublicPurchasePlanTable() {
     const monthCounts = Array(14).fill(0);
     
     chartData.forEach((item) => {
-      if (item.status === 'Не Актуальная') {
+      if (item.status === 'Исключена') {
         return;
       }
       
@@ -668,7 +668,7 @@ export default function PublicPurchasePlanTable() {
     const summaryMap = new Map<string, { count: number; totalBudget: number }>();
 
     summaryData.forEach((item) => {
-      if (item.status === 'Не Актуальная') {
+      if (item.status === 'Исключена') {
         return;
       }
 
@@ -1744,7 +1744,7 @@ export default function PublicPurchasePlanTable() {
                       setCompanyFilter(new Set(['Uzum Market']));
                       setCategoryFilter(new Set());
                       setPurchaserFilter(new Set());
-                      const resetStatusFilter = ALL_STATUSES.filter(s => s !== 'Не Актуальная');
+                      const resetStatusFilter = ALL_STATUSES.filter(s => s !== 'Исключена');
                       setStatusFilter(new Set(resetStatusFilter));
                       setSortField('requestDate');
                       setSortDirection('asc');
@@ -2527,7 +2527,7 @@ export default function PublicPurchasePlanTable() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200 border-t-2 border-gray-400">
                 {hasData ? data.content.map((item, rowIndex) => {
-                  const isInactive = item.status === 'Не Актуальная';
+                  const isInactive = item.status === 'Исключена';
                   const isFirstRow = rowIndex === 0;
                   return (
                     <tr key={item.id} className={isInactive ? 'bg-gray-100 opacity-60' : 'hover:bg-gray-50'}>
@@ -2610,12 +2610,10 @@ export default function PublicPurchasePlanTable() {
                                 
                                 return (
                                   <span className={`text-xs rounded px-2 py-0.5 font-medium block ${
-                                    displayStatus === 'Актуальная'
-                                      ? 'bg-green-100 text-green-800'
-                                      : displayStatus === 'Не Актуальная'
-                                      ? 'bg-red-100 text-red-800'
-                                      : displayStatus === 'Корректировка'
-                                      ? 'bg-yellow-100 text-yellow-800'
+                                    displayStatus === 'В плане'
+                                    ? 'bg-green-100 text-green-800'
+                                    : displayStatus === 'Исключена'
+                                    ? 'bg-red-100 text-red-800'
                                       : displayStatus === 'Проект'
                                       ? 'bg-blue-100 text-blue-800'
                                       : displayStatus === 'Заявка'

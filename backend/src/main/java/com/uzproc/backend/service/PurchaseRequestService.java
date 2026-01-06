@@ -409,8 +409,8 @@ public class PurchaseRequestService {
                         }
                     } else {
                         // Если ни один статус не найден в enum, но статусы были переданы,
-                        // возможно они хранятся в поле state - исключаем "Не Актуальная"
-                        logger.warn("No matching status enums found, but status filter was provided. Excluding 'Не Актуальная' from state field.");
+                        // возможно они хранятся в поле state - исключаем "Исключена"
+                        logger.warn("No matching status enums found, but status filter was provided. Excluding 'Исключена' from state field.");
                         predicates.add(cb.or(
                             cb.isNull(root.get("state")),
                             cb.not(cb.like(cb.lower(root.get("state")), "%неактуальн%"))
@@ -419,13 +419,13 @@ public class PurchaseRequestService {
                     }
                 }
             } else {
-                // Если статус фильтр не указан, исключаем записи с state содержащим "Не Актуальная" по умолчанию
+                // Если статус фильтр не указан, исключаем записи с state содержащим "Исключена" по умолчанию
                 predicates.add(cb.or(
                     cb.isNull(root.get("state")),
-                    cb.not(cb.like(cb.lower(root.get("state")), "%неактуальн%"))
+                    cb.not(cb.like(cb.lower(root.get("state")), "%исключена%"))
                 ));
                 predicateCount++;
-                logger.info("No status filter provided - excluding records with state containing 'Не Актуальная' or 'Неактуальна' by default");
+                logger.info("No status filter provided - excluding records with state containing 'Исключена' by default");
             }
             
             // Фильтр по бюджету с оператором

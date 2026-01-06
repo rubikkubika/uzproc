@@ -81,8 +81,8 @@ const FILTERS_STORAGE_KEY = 'purchasePlanItems_filters';
 const COLUMNS_VISIBILITY_STORAGE_KEY = 'purchasePlanItems_columnsVisibility';
 
 // Константы для статусов
-const ALL_STATUSES = ['Проект', 'Актуальная', 'Не Актуальная', 'Корректировка', 'Заявка', 'Пусто'];
-const DEFAULT_STATUSES = ALL_STATUSES.filter(s => s !== 'Не Актуальная');
+const ALL_STATUSES = ['Проект', 'В плане', 'Исключена', 'Заявка', 'Пусто'];
+const DEFAULT_STATUSES = ALL_STATUSES.filter(s => s !== 'Исключена');
 
 // Определение всех возможных колонок (все поля сущности PurchasePlanItem)
 const ALL_COLUMNS = [
@@ -1553,11 +1553,11 @@ export default function PurchasePlanItemsTable() {
           if (Array.isArray(savedFilters.statusFilter) && savedFilters.statusFilter.length > 0) {
             setStatusFilter(new Set(savedFilters.statusFilter));
           } else {
-            // Если статус фильтр пустой, устанавливаем значения по умолчанию (все кроме Не Актуальная)
+            // Если статус фильтр пустой, устанавливаем значения по умолчанию (все кроме Исключена)
             setStatusFilter(new Set(DEFAULT_STATUSES));
           }
         } else {
-          // Если статус фильтр не найден, устанавливаем значения по умолчанию (все кроме Не Актуальная)
+          // Если статус фильтр не найден, устанавливаем значения по умолчанию (все кроме Исключена)
           setStatusFilter(new Set(DEFAULT_STATUSES));
         }
         
@@ -2109,7 +2109,7 @@ export default function PurchasePlanItemsTable() {
     // Месяцы: [Дек пред.года, Янв, Фев, Мар, Апр, Май, Июн, Июл, Авг, Сен, Окт, Ноя, Дек, Без даты]
     chartData.forEach((item) => {
       // Исключаем неактуальные строки из расчета диаграммы
-      if (item.status === 'Не Актуальная') {
+      if (item.status === 'Исключена') {
         return;
       }
       
@@ -2159,7 +2159,7 @@ export default function PurchasePlanItemsTable() {
 
     summaryData.forEach((item) => {
       // Исключаем неактуальные строки из сводной таблицы
-      if (item.status === 'Не Актуальная') {
+      if (item.status === 'Исключена') {
         return;
       }
 
@@ -3498,8 +3498,8 @@ export default function PurchasePlanItemsTable() {
                     setCompanyFilter(new Set(['Uzum Market'])); // При сбросе устанавливаем фильтр по умолчанию на "Uzum Market"
                     setCategoryFilter(new Set());
                     setPurchaserFilter(new Set());
-                    // При сбросе устанавливаем фильтр по статусу на все статусы кроме "Не Актуальная"
-                    const resetStatusFilter = ALL_STATUSES.filter(s => s !== 'Не Актуальная');
+                    // При сбросе устанавливаем фильтр по статусу на все статусы кроме "Исключена"
+                    const resetStatusFilter = ALL_STATUSES.filter(s => s !== 'Исключена');
                     setStatusFilter(new Set(resetStatusFilter));
                   setSortField('requestDate');
                   setSortDirection('asc');
@@ -3510,8 +3510,8 @@ export default function PurchasePlanItemsTable() {
                     setCurrentPage(0);
                     // Сохраняем сброшенные фильтры в localStorage
                     // Фильтр по компании устанавливается на "Uzum Market" по умолчанию
-                    // Фильтр по статусу устанавливается на все статусы кроме "Не Актуальная"
-                    const defaultStatusFilter = ALL_STATUSES.filter(s => s !== 'Не Актуальная');
+                    // Фильтр по статусу устанавливается на все статусы кроме "Исключена"
+                    const defaultStatusFilter = ALL_STATUSES.filter(s => s !== 'Исключена');
                     setStatusFilter(new Set(defaultStatusFilter));
                     try {
                       const resetFilters = {
@@ -3520,7 +3520,7 @@ export default function PurchasePlanItemsTable() {
                         companyFilter: ['Uzum Market'], // При сбросе устанавливаем фильтр по умолчанию на "Uzum Market"
                         categoryFilter: [],
                         purchaserFilter: [],
-                        statusFilter: defaultStatusFilter, // При сбросе устанавливаем фильтр по умолчанию (все кроме Не Актуальная)
+                        statusFilter: defaultStatusFilter, // При сбросе устанавливаем фильтр по умолчанию (все кроме Исключена)
                         sortField: 'requestDate',
                         sortDirection: 'asc',
                         pageSize: pageSize,
@@ -4897,7 +4897,7 @@ export default function PurchasePlanItemsTable() {
             {hasData ? (
               data?.content.map((item) => {
                 const isExpanded = expandedRows.has(item.id);
-                const isInactive = item.status === 'Не Актуальная';
+                const isInactive = item.status === 'Исключена';
                 return (
                   <React.Fragment key={item.id}>
                 <tr 
@@ -5433,12 +5433,10 @@ export default function PurchasePlanItemsTable() {
                       className={`text-xs rounded px-2 py-0.5 font-medium cursor-pointer transition-all ${
                         editingStatus === item.id 
                           ? 'border border-blue-500 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500' 
-                              : displayStatus === 'Актуальная'
+                              : displayStatus === 'В плане'
                           ? 'bg-green-100 text-green-800 border-0'
-                              : displayStatus === 'Не Актуальная'
+                              : displayStatus === 'Исключена'
                           ? 'bg-red-100 text-red-800 border-0'
-                              : displayStatus === 'Корректировка'
-                          ? 'bg-yellow-100 text-yellow-800 border-0'
                               : displayStatus === 'Проект'
                           ? 'bg-blue-100 text-blue-800 border-0'
                               : displayStatus === 'Заявка'
@@ -5460,18 +5458,17 @@ export default function PurchasePlanItemsTable() {
                     >
                       <option value="">-</option>
                           {isFromPurchaseRequest ? (
-                            // Если есть заявка, показываем "Заявка" (disabled) и можно выбрать только "Не Актуальная"
+                            // Если есть заявка, показываем "Заявка" (disabled) и можно выбрать только "Исключена"
                             <>
                               <option value="Заявка" disabled>Заявка</option>
-                              <option value="Не Актуальная">Не Актуальная</option>
+                              <option value="Исключена">Исключена</option>
                             </>
                           ) : (
                             // Если нет заявки, можно выбрать все статусы
                             <>
                       <option value="Проект">Проект</option>
-                      <option value="Актуальная">Актуальная</option>
-                      <option value="Не Актуальная">Не Актуальная</option>
-                      <option value="Корректировка">Корректировка</option>
+                      <option value="В плане">В плане</option>
+                      <option value="Исключена">Исключена</option>
                             </>
                           )}
                     </select>
