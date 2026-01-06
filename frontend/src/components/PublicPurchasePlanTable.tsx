@@ -474,7 +474,14 @@ export default function PublicPurchasePlanTable() {
         }
         
         if (companyFilter.size > 0) {
-          companyFilter.forEach(company => params.append('company', company));
+          companyFilter.forEach(company => {
+            // Если выбрано "Не выбрано", передаем специальное значение для null
+            if (company === 'Не выбрано') {
+              params.append('company', '__NULL__');
+            } else {
+              params.append('company', company);
+            }
+          });
         }
         if (cfoFilter.size > 0) {
           cfoFilter.forEach(cfo => params.append('cfo', cfo));
@@ -541,7 +548,14 @@ export default function PublicPurchasePlanTable() {
         }
         
         if (companyFilter.size > 0) {
-          companyFilter.forEach(company => params.append('company', company));
+          companyFilter.forEach(company => {
+            // Если выбрано "Не выбрано", передаем специальное значение для null
+            if (company === 'Не выбрано') {
+              params.append('company', '__NULL__');
+            } else {
+              params.append('company', company);
+            }
+          });
         }
         if (cfoFilter.size > 0) {
           cfoFilter.forEach(cfo => params.append('cfo', cfo));
@@ -1031,18 +1045,44 @@ export default function PublicPurchasePlanTable() {
       cfo: new Set(),
       category: new Set(),
       purchaser: new Set(),
+      status: new Set(),
+      company: new Set(),
     };
 
+    let hasNullStatus = false;
+    let hasNullCompany = false;
     summaryData.forEach((item) => {
       if (item.cfo) result.cfo.add(item.cfo);
       if (item.category) result.category.add(item.category);
       if (item.purchaser) result.purchaser.add(item.purchaser);
+      if (item.company) {
+        result.company.add(item.company);
+      } else {
+        hasNullCompany = true;
+      }
+      if (item.status) {
+        result.status.add(item.status);
+      } else {
+        hasNullStatus = true;
+      }
     });
+
+    // Добавляем "Пусто" если есть позиции с null статусом
+    if (hasNullStatus) {
+      result.status.add('Пусто');
+    }
+
+    // Добавляем "Не выбрано" если есть позиции с null компанией
+    if (hasNullCompany) {
+      result.company.add('Не выбрано');
+    }
 
     return {
       cfo: Array.from(result.cfo).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
       category: Array.from(result.category).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
       purchaser: Array.from(result.purchaser).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
+      status: Array.from(result.status).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
+      company: Array.from(result.company).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
     };
   }, [summaryData]);
 
@@ -1167,9 +1207,11 @@ export default function PublicPurchasePlanTable() {
   }, [cfoSearchQuery, uniqueValues.cfo]);
 
   const getFilteredCompanyOptions = useMemo(() => {
+    // Используем только компании, которые есть в данных
+    const availableCompanies = uniqueValues.company || [];
     const query = companySearchQuery.toLowerCase();
     return availableCompanies.filter((company) => company.toLowerCase().includes(query));
-  }, [companySearchQuery, availableCompanies]);
+  }, [companySearchQuery, uniqueValues.company]);
 
   const getFilteredCategoryOptions = useMemo(() => {
     const query = categorySearchQuery.toLowerCase();
@@ -1182,9 +1224,11 @@ export default function PublicPurchasePlanTable() {
   }, [uniqueValues.purchaser, purchaserSearchQuery]);
 
   const getFilteredStatusOptions = useMemo(() => {
+    // Используем только статусы, которые есть в данных
+    const availableStatuses = uniqueValues.status || [];
     const query = statusSearchQuery.toLowerCase();
-    return ALL_STATUSES.filter((status) => status.toLowerCase().includes(query));
-  }, [statusSearchQuery]);
+    return availableStatuses.filter((status) => status.toLowerCase().includes(query));
+  }, [statusSearchQuery, uniqueValues.status]);
 
   const handleCfoToggle = (cfo: string) => {
     const newSet = new Set(cfoFilter);
@@ -1266,7 +1310,9 @@ export default function PublicPurchasePlanTable() {
   };
 
   const handleStatusSelectAll = () => {
-    const newSet = new Set(ALL_STATUSES);
+    // Используем только доступные статусы из данных
+    const availableStatuses = uniqueValues.status || [];
+    const newSet = new Set(availableStatuses);
     setStatusFilter(newSet);
     setCurrentPage(0);
   };
@@ -1744,7 +1790,7 @@ export default function PublicPurchasePlanTable() {
                       setCompanyFilter(new Set(['Uzum Market']));
                       setCategoryFilter(new Set());
                       setPurchaserFilter(new Set());
-                      const resetStatusFilter = ALL_STATUSES.filter(s => s !== 'Исключена');
+                      const resetStatusFilter = (uniqueValues.status || []).filter(s => s !== 'Исключена');
                       setStatusFilter(new Set(resetStatusFilter));
                       setSortField('requestDate');
                       setSortDirection('asc');

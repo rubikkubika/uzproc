@@ -2757,6 +2757,8 @@ export default function PurchasePlanItemsTable() {
             status: new Set(),
           };
           
+          let hasNullStatus = false;
+          let hasNullCompany = false;
           result.content.forEach((item: PurchasePlanItem) => {
             if (item.cfo) values.cfo.add(item.cfo);
             if (item.company) {
@@ -2765,11 +2767,27 @@ export default function PurchasePlanItemsTable() {
               if (normalizedCompany) {
                 values.company.add(normalizedCompany);
               }
+            } else {
+              hasNullCompany = true;
             }
             if (item.purchaser) values.purchaser.add(item.purchaser);
             if (item.category) values.category.add(item.category);
-            if (item.status) values.status.add(item.status);
+            if (item.status) {
+              values.status.add(item.status);
+            } else {
+              hasNullStatus = true;
+            }
           });
+          
+          // Добавляем "Пусто" если есть позиции с null статусом
+          if (hasNullStatus) {
+            values.status.add('Пусто');
+          }
+          
+          // Добавляем "Не выбрано" если есть позиции с null компанией
+          if (hasNullCompany) {
+            values.company.add('Не выбрано');
+          }
           
           setUniqueValues({
             cfo: Array.from(values.cfo).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
@@ -2897,7 +2915,9 @@ export default function PurchasePlanItemsTable() {
   };
 
   const handleStatusSelectAll = () => {
-    const newSet = new Set(ALL_STATUSES);
+    // Используем только доступные статусы из данных
+    const availableStatuses = uniqueValues.status || [];
+    const newSet = new Set(availableStatuses);
     setStatusFilter(newSet);
     setCurrentPage(0);
   };
@@ -3067,17 +3087,17 @@ export default function PurchasePlanItemsTable() {
   }, [purchaserSearchQuery, uniqueValues.purchaser]);
 
   const getFilteredStatusOptions = useMemo(() => {
-    // Используем все статусы из константы ALL_STATUSES вместо uniqueValues.status
-    const allStatuses = ALL_STATUSES;
+    // Используем только статусы, которые есть в данных
+    const availableStatuses = uniqueValues.status || [];
     if (!statusSearchQuery || !statusSearchQuery.trim()) {
-      return allStatuses;
+      return availableStatuses;
     }
     const searchLower = statusSearchQuery.toLowerCase().trim();
-    return allStatuses.filter(status => {
+    return availableStatuses.filter(status => {
       if (!status) return false;
       return status.toLowerCase().includes(searchLower);
     });
-  }, [statusSearchQuery]);
+  }, [statusSearchQuery, uniqueValues.status]);
 
   if (loading) {
     return (
@@ -3498,8 +3518,8 @@ export default function PurchasePlanItemsTable() {
                     setCompanyFilter(new Set(['Uzum Market'])); // При сбросе устанавливаем фильтр по умолчанию на "Uzum Market"
                     setCategoryFilter(new Set());
                     setPurchaserFilter(new Set());
-                    // При сбросе устанавливаем фильтр по статусу на все статусы кроме "Исключена"
-                    const resetStatusFilter = ALL_STATUSES.filter(s => s !== 'Исключена');
+                    // При сбросе устанавливаем фильтр по статусу на все доступные статусы кроме "Исключена"
+                    const resetStatusFilter = (uniqueValues.status || []).filter(s => s !== 'Исключена');
                     setStatusFilter(new Set(resetStatusFilter));
                   setSortField('requestDate');
                   setSortDirection('asc');
@@ -3510,8 +3530,8 @@ export default function PurchasePlanItemsTable() {
                     setCurrentPage(0);
                     // Сохраняем сброшенные фильтры в localStorage
                     // Фильтр по компании устанавливается на "Uzum Market" по умолчанию
-                    // Фильтр по статусу устанавливается на все статусы кроме "Исключена"
-                    const defaultStatusFilter = ALL_STATUSES.filter(s => s !== 'Исключена');
+                    // Фильтр по статусу устанавливается на все доступные статусы кроме "Исключена"
+                    const defaultStatusFilter = (uniqueValues.status || []).filter(s => s !== 'Исключена');
                     setStatusFilter(new Set(defaultStatusFilter));
                     try {
                       const resetFilters = {
