@@ -3,7 +3,9 @@ package com.uzproc.backend.service;
 import com.uzproc.backend.dto.PurchaseDto;
 import com.uzproc.backend.entity.Purchase;
 import com.uzproc.backend.entity.PurchaseRequest;
+import com.uzproc.backend.entity.PurchaseApproval;
 import com.uzproc.backend.repository.PurchaseRepository;
+import com.uzproc.backend.repository.PurchaseApprovalRepository;
 import jakarta.persistence.criteria.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,9 +32,11 @@ public class PurchaseService {
     private static final Logger logger = LoggerFactory.getLogger(PurchaseService.class);
     
     private final PurchaseRepository purchaseRepository;
+    private final PurchaseApprovalRepository purchaseApprovalRepository;
 
-    public PurchaseService(PurchaseRepository purchaseRepository) {
+    public PurchaseService(PurchaseRepository purchaseRepository, PurchaseApprovalRepository purchaseApprovalRepository) {
         this.purchaseRepository = purchaseRepository;
+        this.purchaseApprovalRepository = purchaseApprovalRepository;
     }
 
     public Page<PurchaseDto> findAll(
@@ -53,14 +57,15 @@ public class PurchaseService {
             List<String> purchaser,
             List<String> status,
             java.math.BigDecimal budgetAmount,
-            String budgetAmountOperator) {
+            String budgetAmountOperator,
+            String mcc) {
         
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, month: {}, innerId: '{}', purchaseNumber: {}, cfo: {}, purchaseInitiator: '{}', name: '{}', costType: '{}', contractType: '{}', purchaseRequestId: {}, purchaser: {}, status: {}, budgetAmount: {}, budgetAmountOperator: '{}'",
-                year, month, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType, purchaseRequestId, purchaser, status, budgetAmount, budgetAmountOperator);
+        logger.info("Filter parameters - year: {}, month: {}, innerId: '{}', purchaseNumber: {}, cfo: {}, purchaseInitiator: '{}', name: '{}', costType: '{}', contractType: '{}', purchaseRequestId: {}, purchaser: {}, status: {}, budgetAmount: {}, budgetAmountOperator: '{}', mcc: '{}'",
+                year, month, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType, purchaseRequestId, purchaser, status, budgetAmount, budgetAmountOperator, mcc);
         
         Specification<Purchase> spec = buildSpecification(
-                year, month, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType, purchaseRequestId, purchaser, status, budgetAmount, budgetAmountOperator);
+                year, month, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType, purchaseRequestId, purchaser, status, budgetAmount, budgetAmountOperator, mcc);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -117,6 +122,27 @@ public class PurchaseService {
         dto.setContractInnerId(entity.getContractInnerId());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
+        
+        // Новые поля для таблицы закупок
+        // Способ закупки (mcc)
+        dto.setPurchaseMethod(entity.getMcc());
+        
+        // Дата создания заявки на закупку (связанной)
+        if (entity.getPurchaseRequest() != null) {
+            dto.setPurchaseRequestCreatedAt(entity.getPurchaseRequest().getCreatedAt());
+        }
+        
+        // Дата утверждения (последнее completionDate из PurchaseApproval)
+        if (entity.getPurchaseRequestId() != null) {
+            List<PurchaseApproval> approvals = purchaseApprovalRepository.findByPurchaseRequestId(entity.getPurchaseRequestId());
+            LocalDateTime latestApprovalDate = approvals.stream()
+                    .filter(approval -> approval.getCompletionDate() != null)
+                    .map(PurchaseApproval::getCompletionDate)
+                    .max(LocalDateTime::compareTo)
+                    .orElse(null);
+            dto.setApprovalDate(latestApprovalDate);
+        }
+        
         return dto;
     }
 
@@ -134,7 +160,8 @@ public class PurchaseService {
             List<String> purchaser,
             List<String> status,
             java.math.BigDecimal budgetAmount,
-            String budgetAmountOperator) {
+            String budgetAmountOperator,
+            String mcc) {
         
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -358,6 +385,13 @@ public class PurchaseService {
             } else {
                 logger.info("Budget filter not applied: budgetAmount={}, budgetAmountOperator='{}'", 
                         budgetAmount, budgetAmountOperator);
+            }
+            
+            // Фильтр по способу закупки (mcc) - частичное совпадение, case-insensitive
+            if (mcc != null && !mcc.trim().isEmpty()) {
+                predicates.add(cb.like(cb.lower(root.get("mcc")), "%" + mcc.toLowerCase() + "%"));
+                predicateCount++;
+                logger.info("Added mcc filter: '{}'", mcc);
             }
             
             logger.info("Total predicates added: {}", predicateCount);

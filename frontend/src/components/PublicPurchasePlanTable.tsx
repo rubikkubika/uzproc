@@ -141,6 +141,49 @@ export default function PublicPurchasePlanTable() {
   const [chartData, setChartData] = useState<PurchasePlanItem[]>([]);
   const [summaryData, setSummaryData] = useState<PurchasePlanItem[]>([]);
   
+  // Состояние для выбранной валюты (по умолчанию UZS)
+  const [selectedCurrency, setSelectedCurrency] = useState<'UZS' | 'USD'>('UZS');
+  const USD_TO_UZS_RATE = 12000; // Курс: 1 USD = 12 000 UZS
+  
+  // Функция для форматирования бюджета с учетом выбранной валюты
+  const formatBudget = (amount: number | null): string => {
+    if (!amount) return '-';
+    
+    let displayAmount = amount;
+    let currency = 'UZS';
+    
+    if (selectedCurrency === 'USD') {
+      displayAmount = amount / USD_TO_UZS_RATE;
+      currency = 'USD';
+    }
+    
+    return new Intl.NumberFormat('ru-RU', {
+      notation: 'compact',
+      maximumFractionDigits: 1,
+      ...(selectedCurrency === 'USD' ? { style: 'currency', currency: 'USD' } : {})
+    }).format(displayAmount);
+  };
+  
+  // Функция для форматирования бюджета с полным форматом (для детального просмотра)
+  const formatBudgetFull = (amount: number | null): string => {
+    if (!amount) return '-';
+    
+    let displayAmount = amount;
+    let currency = 'UZS';
+    
+    if (selectedCurrency === 'USD') {
+      displayAmount = amount / USD_TO_UZS_RATE;
+      currency = 'USD';
+    }
+    
+    return new Intl.NumberFormat('ru-RU', {
+      style: 'currency',
+      currency: currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(displayAmount);
+  };
+  
   const [filters, setFilters] = useState<Record<string, string>>({
     company: '',
     cfo: '',
@@ -2174,28 +2217,36 @@ export default function PublicPurchasePlanTable() {
                                   <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
                                 )}
                               </button>
-                              <span className="text-xs font-medium text-gray-500 tracking-wider">Бюджет (UZS)</span>
+                              <span className="text-xs font-medium text-gray-500 tracking-wider">Бюджет ({selectedCurrency})</span>
                             </div>
                             <div className="flex items-center gap-1 mt-1" style={{ minHeight: '20px' }}>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  // TODO: Переключить валюту на USD
+                                  setSelectedCurrency('UZS');
                                 }}
-                                className="px-1.5 py-0.5 text-xs border border-gray-300 rounded hover:bg-gray-100 transition-colors"
-                                title="USD"
+                                className={`px-1.5 py-0.5 text-xs border rounded hover:bg-gray-100 transition-colors ${
+                                  selectedCurrency === 'UZS' 
+                                    ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' 
+                                    : 'border-gray-300'
+                                }`}
+                                title="UZS"
                               >
-                                USD
+                                UZS
                               </button>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  // TODO: Переключить валюту на UZS
+                                  setSelectedCurrency('USD');
                                 }}
-                                className="px-1.5 py-0.5 text-xs border border-gray-300 rounded hover:bg-gray-100 transition-colors"
-                                title="UZS"
+                                className={`px-1.5 py-0.5 text-xs border rounded hover:bg-gray-100 transition-colors ${
+                                  selectedCurrency === 'USD' 
+                                    ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' 
+                                    : 'border-gray-300'
+                                }`}
+                                title="USD"
                               >
-                                UZS
+                                USD
                               </button>
                               <button
                                 onClick={(e) => {
@@ -2660,7 +2711,7 @@ export default function PublicPurchasePlanTable() {
                         if (columnKey === 'budgetAmount') {
                           return (
                             <td key={columnKey} className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px` }}>
-                              {formatCurrency(item.budgetAmount)}
+                              {formatBudget(item.budgetAmount)}
                             </td>
                           );
                         }

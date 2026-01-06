@@ -86,6 +86,7 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private static final String SPECIFICATION_FORM = "Спецификация";
     private static final String EXPENSE_ITEM_COLUMN = "Статья бюджета (PL) (Заявка на ЗП)";
     private static final String CONTRACT_INNER_ID_COLUMN = "Договор.Внутренний номер";
+    private static final String MCC_COLUMN = "Способ закупки (Заявка на ЗП)";
     
     // Оптимизация: статические DateTimeFormatter для парсинга дат (создаются один раз)
     private static final DateTimeFormatter[] DATE_TIME_FORMATTERS = {
@@ -696,6 +697,21 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 }
             } else {
                 logger.debug("Row {}: contractInnerIdColumnIndex is null, skipping contractInnerId field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
+            }
+            
+            // Способ закупки (опционально) - парсим из колонки "Способ закупки (Заявка на ЗП)"
+            Integer mccCol = columnIndices.get(MCC_COLUMN);
+            if (mccCol == null) {
+                mccCol = findColumnIndex(MCC_COLUMN);
+            }
+            if (mccCol != null) {
+                String mcc = currentRowData.get(mccCol);
+                if (mcc != null && !mcc.trim().isEmpty()) {
+                    purchase.setMcc(mcc.trim());
+                    logger.debug("Row {}: parsed mcc: '{}' for purchase {}", currentRowNum + 1, mcc.trim(), purchase.getInnerId());
+                }
+            } else {
+                logger.debug("Row {}: mccColumnIndex is null, skipping mcc field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
             }
             
             // Сохраняем или обновляем
@@ -1312,6 +1328,15 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 existing.setExpenseItem(newData.getExpenseItem());
                 updated = true;
                 logger.debug("Updated expenseItem for purchase {}: {}", existing.getInnerId(), newData.getExpenseItem());
+            }
+        }
+        
+        // Обновляем mcc (способ закупки)
+        if (newData.getMcc() != null && !newData.getMcc().trim().isEmpty()) {
+            if (existing.getMcc() == null || !existing.getMcc().equals(newData.getMcc())) {
+                existing.setMcc(newData.getMcc());
+                updated = true;
+                logger.debug("Updated mcc for purchase {}: {}", existing.getInnerId(), newData.getMcc());
             }
         }
         

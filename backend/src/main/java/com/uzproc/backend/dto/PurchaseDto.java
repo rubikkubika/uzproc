@@ -29,6 +29,10 @@ public class PurchaseDto {
     private String contractInnerId;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    // Новые поля для таблицы закупок
+    private String purchaseMethod; // Способ закупки (mcc)
+    private LocalDateTime purchaseRequestCreatedAt; // Дата создания заявки на закупку (связанной)
+    private LocalDateTime approvalDate; // Дата утверждения (из блока согласования)
 
     // Constructors
     public PurchaseDto() {
@@ -217,6 +221,30 @@ public class PurchaseDto {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getPurchaseMethod() {
+        return purchaseMethod;
+    }
+
+    public void setPurchaseMethod(String purchaseMethod) {
+        this.purchaseMethod = purchaseMethod;
+    }
+
+    public LocalDateTime getPurchaseRequestCreatedAt() {
+        return purchaseRequestCreatedAt;
+    }
+
+    public void setPurchaseRequestCreatedAt(LocalDateTime purchaseRequestCreatedAt) {
+        this.purchaseRequestCreatedAt = purchaseRequestCreatedAt;
+    }
+
+    public LocalDateTime getApprovalDate() {
+        return approvalDate;
+    }
+
+    public void setApprovalDate(LocalDateTime approvalDate) {
+        this.approvalDate = approvalDate;
     }
 }
 

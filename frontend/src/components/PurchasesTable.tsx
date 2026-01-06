@@ -23,6 +23,10 @@ interface Purchase {
   status: string | null;
   createdAt: string;
   updatedAt: string;
+  // Новые поля
+  purchaseMethod: string | null; // Способ закупки (mcc)
+  purchaseRequestCreatedAt: string | null; // Дата создания заявки на закупку (связанной)
+  approvalDate: string | null; // Дата утверждения (из блока согласования)
 }
 
 interface PageResponse {
@@ -52,6 +56,7 @@ export default function PurchasesTable() {
     budgetAmount: '',
     budgetAmountOperator: 'gte', // По умолчанию "больше равно"
     purchaseRequestId: '', // Фильтр по номеру заявки
+    purchaseMethod: '', // Фильтр по способу закупки
   });
 
   // Локальное состояние для текстовых фильтров (для сохранения фокуса)
@@ -60,6 +65,7 @@ export default function PurchasesTable() {
     budgetAmount: '',
     budgetAmountOperator: 'gte', // По умолчанию "больше равно"
     purchaseRequestId: '', // Фильтр по номеру заявки
+    purchaseMethod: '', // Фильтр по способу закупки
   });
 
   // ID активного поля для восстановления фокуса
@@ -140,6 +146,8 @@ export default function PurchasesTable() {
     
     const handleMouseMove = (e: MouseEvent) => {
       if (!resizeColumn.current) return;
+      e.preventDefault();
+      e.stopPropagation();
       const diff = e.clientX - resizeStartX.current;
       const newWidth = Math.max(50, resizeStartWidth.current + diff); // Минимальная ширина 50px
       setColumnWidths(prev => {
@@ -149,17 +157,25 @@ export default function PurchasesTable() {
       });
     };
     
-    const handleMouseUp = () => {
+    const handleMouseUp = (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
       setIsResizing(null);
       resizeColumn.current = null;
     };
     
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    // Предотвращаем выделение текста во время изменения размера
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+    
+    document.addEventListener('mousemove', handleMouseMove, { passive: false });
+    document.addEventListener('mouseup', handleMouseUp, { passive: false });
     
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
     };
   }, [isResizing, saveColumnWidths]);
   
@@ -172,6 +188,10 @@ export default function PurchasesTable() {
       budgetAmount: 150, // Бюджет
       status: 120, // Статус
       purchaser: 150, // Закупщик
+      purchaseMethod: 140, // Способ закупки
+      purchaseRequestCreatedAt: 140, // Дата создания заявки
+      purchaseCreationDate: 140, // Дата создания закупки
+      approvalDate: 140, // Дата утверждения
     };
     return defaults[columnKey] || 120;
   };
@@ -182,7 +202,7 @@ export default function PurchasesTable() {
   };
   
   // Состояние для порядка колонок
-  const [columnOrder, setColumnOrder] = useState<string[]>(['purchaseRequestId', 'innerId', 'cfo', 'purchaser', 'budgetAmount', 'status']);
+  const [columnOrder, setColumnOrder] = useState<string[]>(['purchaseRequestId', 'innerId', 'cfo', 'purchaser', 'budgetAmount', 'purchaseMethod', 'purchaseRequestCreatedAt', 'purchaseCreationDate', 'approvalDate', 'status']);
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
   
@@ -193,7 +213,7 @@ export default function PurchasesTable() {
         if (saved) {
           const order = JSON.parse(saved);
           // Проверяем, что все колонки присутствуют
-          const defaultOrder = ['purchaseRequestId', 'innerId', 'cfo', 'purchaser', 'budgetAmount', 'status'];
+          const defaultOrder = ['purchaseRequestId', 'innerId', 'cfo', 'purchaser', 'budgetAmount', 'purchaseMethod', 'purchaseRequestCreatedAt', 'purchaseCreationDate', 'approvalDate', 'status'];
           const validOrder = order.filter((col: string) => defaultOrder.includes(col));
           const missingCols = defaultOrder.filter(col => !validOrder.includes(col));
           setColumnOrder([...validOrder, ...missingCols]);
@@ -434,6 +454,11 @@ export default function PurchasesTable() {
         }
       }
 
+      // Фильтр по способу закупки
+      if (filters.purchaseMethod && filters.purchaseMethod.trim() !== '') {
+        params.append('mcc', filters.purchaseMethod.trim());
+      }
+
       const url = `${getBackendUrl()}/api/purchases?${params.toString()}`;
       const response = await fetch(url);
       if (!response.ok) {
@@ -451,7 +476,7 @@ export default function PurchasesTable() {
   // Debounce для текстовых фильтров и фильтра бюджета (задержка 500мс)
   useEffect(() => {
     // Проверяем, изменились ли текстовые фильтры
-    const textFields = ['innerId', 'purchaseRequestId'];
+    const textFields = ['innerId', 'purchaseRequestId', 'purchaseMethod'];
     const hasTextChanges = textFields.some(field => localFilters[field] !== filters[field]);
     // Для бюджета проверяем изменение значения
     const hasBudgetValueChange = localFilters.budgetAmount !== filters.budgetAmount;
@@ -793,10 +818,17 @@ export default function PurchasesTable() {
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e, columnKey)}
           className={`px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''} cursor-move`}
-          style={{ width: `${getColumnWidth('purchaseRequestId')}px`, minWidth: `${getColumnWidth('purchaseRequestId')}px`, maxWidth: `${getColumnWidth('purchaseRequestId')}px`, verticalAlign: 'top' }}
+          style={{ 
+            width: `${getColumnWidth('purchaseRequestId')}px`, 
+            minWidth: `${getColumnWidth('purchaseRequestId')}px`, 
+            maxWidth: `${getColumnWidth('purchaseRequestId')}px`, 
+            verticalAlign: 'top',
+            overflow: 'hidden',
+            boxSizing: 'border-box'
+          }}
         >
-          <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
-            <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+          <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%', overflow: 'hidden' }}>
+            <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%', overflow: 'hidden' }}>
               <input
                 type="text"
                 data-filter-field="purchaseRequestId"
@@ -860,9 +892,9 @@ export default function PurchasesTable() {
             </div>
           </div>
           <div
-            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+            className="absolute top-0 right-0 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
             onMouseDown={(e) => handleResizeStart(e, 'purchaseRequestId')}
-            style={{ zIndex: 10 }}
+            style={{ zIndex: 10, width: '2px', marginRight: '-1px' }}
           />
         </th>
       );
@@ -880,8 +912,8 @@ export default function PurchasesTable() {
           className={`px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''} cursor-move`}
           style={{ width: `${getColumnWidth('innerId')}px`, minWidth: `${getColumnWidth('innerId')}px`, maxWidth: `${getColumnWidth('innerId')}px`, verticalAlign: 'top' }}
         >
-          <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
-            <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+          <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%', overflow: 'hidden' }}>
+            <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%', overflow: 'hidden' }}>
               <input
                 type="text"
                 data-filter-field="innerId"
@@ -965,8 +997,8 @@ export default function PurchasesTable() {
           className={`px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''} cursor-move`}
           style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px`, verticalAlign: 'top' }}
         >
-          <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
-            <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+          <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%', overflow: 'hidden' }}>
+            <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%', overflow: 'hidden' }}>
               <div className="relative cfo-filter-container w-full h-full flex-1" style={{ minWidth: 0 }}>
                 <button
                   ref={cfoFilterButtonRef}
@@ -1192,8 +1224,8 @@ export default function PurchasesTable() {
           className={`px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''} cursor-move`}
           style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px`, verticalAlign: 'top' }}
         >
-          <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
-            <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+          <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%', overflow: 'hidden' }}>
+            <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%', overflow: 'hidden' }}>
               <div className="relative flex-1" style={{ minWidth: 0 }}>
                 <select
                   value={localFilters.budgetAmountOperator || 'gte'}
@@ -1324,8 +1356,8 @@ export default function PurchasesTable() {
           className={`px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''} cursor-move`}
           style={{ width: `${getColumnWidth('purchaser')}px`, minWidth: `${getColumnWidth('purchaser')}px`, maxWidth: `${getColumnWidth('purchaser')}px`, verticalAlign: 'top' }}
         >
-          <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
-            <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+          <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%', overflow: 'hidden' }}>
+            <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%', overflow: 'hidden' }}>
               <div className="relative purchaser-filter-container w-full h-full flex-1" style={{ minWidth: 0 }}>
                 <button
                   ref={purchaserFilterButtonRef}
@@ -1436,6 +1468,208 @@ export default function PurchasesTable() {
       );
     }
     
+    if (columnKey === 'purchaseMethod') {
+      return (
+        <th
+          key={columnKey}
+          draggable
+          onDragStart={(e) => handleDragStart(e, columnKey)}
+          onDragOver={(e) => handleDragOver(e, columnKey)}
+          onDragLeave={handleDragLeave}
+          onDrop={(e) => handleDrop(e, columnKey)}
+          className={`px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''} cursor-move`}
+          style={{ width: `${getColumnWidth('purchaseMethod')}px`, minWidth: `${getColumnWidth('purchaseMethod')}px`, maxWidth: `${getColumnWidth('purchaseMethod')}px`, verticalAlign: 'top' }}
+        >
+          <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%', overflow: 'hidden' }}>
+            <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%', overflow: 'hidden' }}>
+              <input
+                type="text"
+                data-filter-field="purchaseMethod"
+                value={localFilters.purchaseMethod || ''}
+                onChange={(e) => {
+                  setLocalFilters(prev => ({
+                    ...prev,
+                    purchaseMethod: e.target.value,
+                  }));
+                }}
+                onFocus={(e) => {
+                  e.stopPropagation();
+                  setFocusedField('purchaseMethod');
+                }}
+                onBlur={(e) => {
+                  setTimeout(() => {
+                    const activeElement = document.activeElement as HTMLElement;
+                    if (activeElement && activeElement !== e.target && !activeElement.closest('input[data-filter-field]')) {
+                      setFocusedField(null);
+                    }
+                  }, 200);
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                placeholder="Фильтр"
+                style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+              />
+            </div>
+            <div className="flex items-center gap-1 min-h-[20px]">
+              <button
+                onClick={() => handleSort('purchaseMethod')}
+                className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+              >
+                {sortField === 'purchaseMethod' ? (
+                  sortDirection === 'asc' ? (
+                    <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                  ) : (
+                    <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                  )
+                ) : (
+                  <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                )}
+              </button>
+              <span className="text-xs font-medium text-gray-500 tracking-wider">Способ закупки</span>
+            </div>
+          </div>
+          <div
+            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+            onMouseDown={(e) => handleResizeStart(e, 'purchaseMethod')}
+            style={{ zIndex: 10 }}
+          />
+        </th>
+      );
+    }
+    
+    if (columnKey === 'purchaseRequestCreatedAt') {
+      return (
+        <th
+          key={columnKey}
+          draggable
+          onDragStart={(e) => handleDragStart(e, columnKey)}
+          onDragOver={(e) => handleDragOver(e, columnKey)}
+          onDragLeave={handleDragLeave}
+          onDrop={(e) => handleDrop(e, columnKey)}
+          className={`px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''} cursor-move`}
+          style={{ width: `${getColumnWidth('purchaseRequestCreatedAt')}px`, minWidth: `${getColumnWidth('purchaseRequestCreatedAt')}px`, maxWidth: `${getColumnWidth('purchaseRequestCreatedAt')}px`, verticalAlign: 'top' }}
+        >
+          <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%', overflow: 'hidden' }}>
+            <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%', overflow: 'hidden' }}>
+              <div className="flex-1" style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0 }}></div>
+            </div>
+            <div className="flex items-center gap-1 min-h-[20px]">
+              <button
+                onClick={() => handleSort('purchaseRequestCreatedAt')}
+                className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+              >
+                {sortField === 'purchaseRequestCreatedAt' ? (
+                  sortDirection === 'asc' ? (
+                    <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                  ) : (
+                    <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                  )
+                ) : (
+                  <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                )}
+              </button>
+              <span className="text-xs font-medium text-gray-500 tracking-wider">Дата создания заявки</span>
+            </div>
+          </div>
+          <div
+            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+            onMouseDown={(e) => handleResizeStart(e, 'purchaseRequestCreatedAt')}
+            style={{ zIndex: 10 }}
+          />
+        </th>
+      );
+    }
+    
+    if (columnKey === 'purchaseCreationDate') {
+      return (
+        <th
+          key={columnKey}
+          draggable
+          onDragStart={(e) => handleDragStart(e, columnKey)}
+          onDragOver={(e) => handleDragOver(e, columnKey)}
+          onDragLeave={handleDragLeave}
+          onDrop={(e) => handleDrop(e, columnKey)}
+          className={`px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''} cursor-move`}
+          style={{ width: `${getColumnWidth('purchaseCreationDate')}px`, minWidth: `${getColumnWidth('purchaseCreationDate')}px`, maxWidth: `${getColumnWidth('purchaseCreationDate')}px`, verticalAlign: 'top' }}
+        >
+          <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%', overflow: 'hidden' }}>
+            <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%', overflow: 'hidden' }}>
+              <div className="flex-1" style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0 }}></div>
+            </div>
+            <div className="flex items-center gap-1 min-h-[20px]">
+              <button
+                onClick={() => handleSort('purchaseCreationDate')}
+                className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+              >
+                {sortField === 'purchaseCreationDate' ? (
+                  sortDirection === 'asc' ? (
+                    <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                  ) : (
+                    <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                  )
+                ) : (
+                  <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                )}
+              </button>
+              <span className="text-xs font-medium text-gray-500 tracking-wider">Дата создания закупки</span>
+            </div>
+          </div>
+          <div
+            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+            onMouseDown={(e) => handleResizeStart(e, 'purchaseCreationDate')}
+            style={{ zIndex: 10 }}
+          />
+        </th>
+      );
+    }
+    
+    if (columnKey === 'approvalDate') {
+      return (
+        <th
+          key={columnKey}
+          draggable
+          onDragStart={(e) => handleDragStart(e, columnKey)}
+          onDragOver={(e) => handleDragOver(e, columnKey)}
+          onDragLeave={handleDragLeave}
+          onDrop={(e) => handleDrop(e, columnKey)}
+          className={`px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''} cursor-move`}
+          style={{ width: `${getColumnWidth('approvalDate')}px`, minWidth: `${getColumnWidth('approvalDate')}px`, maxWidth: `${getColumnWidth('approvalDate')}px`, verticalAlign: 'top' }}
+        >
+          <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%', overflow: 'hidden' }}>
+            <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%', overflow: 'hidden' }}>
+              <div className="flex-1" style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0 }}></div>
+            </div>
+            <div className="flex items-center gap-1 min-h-[20px]">
+              <button
+                onClick={() => handleSort('approvalDate')}
+                className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+              >
+                {sortField === 'approvalDate' ? (
+                  sortDirection === 'asc' ? (
+                    <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                  ) : (
+                    <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                  )
+                ) : (
+                  <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                )}
+              </button>
+              <span className="text-xs font-medium text-gray-500 tracking-wider">Дата утверждения</span>
+            </div>
+          </div>
+          <div
+            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+            onMouseDown={(e) => handleResizeStart(e, 'approvalDate')}
+            style={{ zIndex: 10 }}
+          />
+        </th>
+      );
+    }
+    
     return null;
   };
   
@@ -1446,7 +1680,14 @@ export default function PurchasesTable() {
         <td 
           key={columnKey} 
           className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
-          style={{ width: `${getColumnWidth('purchaseRequestId')}px`, minWidth: `${getColumnWidth('purchaseRequestId')}px`, maxWidth: `${getColumnWidth('purchaseRequestId')}px` }}
+          style={{ 
+            width: `${getColumnWidth('purchaseRequestId')}px`, 
+            minWidth: `${getColumnWidth('purchaseRequestId')}px`, 
+            maxWidth: `${getColumnWidth('purchaseRequestId')}px`,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            boxSizing: 'border-box'
+          }}
         >
           {item.purchaseRequestId || '-'}
         </td>
@@ -1458,7 +1699,14 @@ export default function PurchasesTable() {
         <td 
           key={columnKey} 
           className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
-          style={{ width: `${getColumnWidth('innerId')}px`, minWidth: `${getColumnWidth('innerId')}px`, maxWidth: `${getColumnWidth('innerId')}px` }}
+          style={{ 
+            width: `${getColumnWidth('innerId')}px`, 
+            minWidth: `${getColumnWidth('innerId')}px`, 
+            maxWidth: `${getColumnWidth('innerId')}px`,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            boxSizing: 'border-box'
+          }}
         >
           {item.innerId || '-'}
         </td>
@@ -1470,7 +1718,14 @@ export default function PurchasesTable() {
         <td 
           key={columnKey} 
           className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
-          style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px` }}
+          style={{ 
+            width: `${getColumnWidth('cfo')}px`, 
+            minWidth: `${getColumnWidth('cfo')}px`, 
+            maxWidth: `${getColumnWidth('cfo')}px`,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            boxSizing: 'border-box'
+          }}
         >
           {item.cfo || '-'}
         </td>
@@ -1482,7 +1737,14 @@ export default function PurchasesTable() {
         <td 
           key={columnKey} 
           className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
-          style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px` }}
+          style={{ 
+            width: `${getColumnWidth('budgetAmount')}px`, 
+            minWidth: `${getColumnWidth('budgetAmount')}px`, 
+            maxWidth: `${getColumnWidth('budgetAmount')}px`,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            boxSizing: 'border-box'
+          }}
         >
           {item.budgetAmount ? new Intl.NumberFormat('ru-RU', {
             notation: 'compact',
@@ -1497,7 +1759,14 @@ export default function PurchasesTable() {
         <td 
           key={columnKey} 
           className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
-          style={{ width: `${getColumnWidth('purchaser')}px`, minWidth: `${getColumnWidth('purchaser')}px`, maxWidth: `${getColumnWidth('purchaser')}px` }}
+          style={{ 
+            width: `${getColumnWidth('purchaser')}px`, 
+            minWidth: `${getColumnWidth('purchaser')}px`, 
+            maxWidth: `${getColumnWidth('purchaser')}px`,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            boxSizing: 'border-box'
+          }}
         >
           {item.purchaser || '-'}
         </td>
@@ -1509,7 +1778,14 @@ export default function PurchasesTable() {
         <td 
           key={columnKey} 
           className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
-          style={{ width: `${getColumnWidth('status')}px`, minWidth: `${getColumnWidth('status')}px`, maxWidth: `${getColumnWidth('status')}px` }}
+          style={{ 
+            width: `${getColumnWidth('status')}px`, 
+            minWidth: `${getColumnWidth('status')}px`, 
+            maxWidth: `${getColumnWidth('status')}px`,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            boxSizing: 'border-box'
+          }}
         >
           {item.status ? (
             <span className={`px-2 py-1 text-xs font-medium rounded-full ${
@@ -1524,6 +1800,82 @@ export default function PurchasesTable() {
               -
             </span>
           )}
+        </td>
+      );
+    }
+    
+    if (columnKey === 'purchaseMethod') {
+      return (
+        <td 
+          key={columnKey} 
+          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
+          style={{ 
+            width: `${getColumnWidth('purchaseMethod')}px`, 
+            minWidth: `${getColumnWidth('purchaseMethod')}px`, 
+            maxWidth: `${getColumnWidth('purchaseMethod')}px`,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            boxSizing: 'border-box'
+          }}
+        >
+          {item.purchaseMethod || '-'}
+        </td>
+      );
+    }
+    
+    if (columnKey === 'purchaseRequestCreatedAt') {
+      return (
+        <td 
+          key={columnKey} 
+          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
+          style={{ 
+            width: `${getColumnWidth('purchaseRequestCreatedAt')}px`, 
+            minWidth: `${getColumnWidth('purchaseRequestCreatedAt')}px`, 
+            maxWidth: `${getColumnWidth('purchaseRequestCreatedAt')}px`,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            boxSizing: 'border-box'
+          }}
+        >
+          {item.purchaseRequestCreatedAt ? new Date(item.purchaseRequestCreatedAt).toLocaleDateString('ru-RU') : '-'}
+        </td>
+      );
+    }
+    
+    if (columnKey === 'purchaseCreationDate') {
+      return (
+        <td 
+          key={columnKey} 
+          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
+          style={{ 
+            width: `${getColumnWidth('purchaseCreationDate')}px`, 
+            minWidth: `${getColumnWidth('purchaseCreationDate')}px`, 
+            maxWidth: `${getColumnWidth('purchaseCreationDate')}px`,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            boxSizing: 'border-box'
+          }}
+        >
+          {item.purchaseCreationDate ? new Date(item.purchaseCreationDate).toLocaleDateString('ru-RU') : '-'}
+        </td>
+      );
+    }
+    
+    if (columnKey === 'approvalDate') {
+      return (
+        <td 
+          key={columnKey} 
+          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
+          style={{ 
+            width: `${getColumnWidth('approvalDate')}px`, 
+            minWidth: `${getColumnWidth('approvalDate')}px`, 
+            maxWidth: `${getColumnWidth('approvalDate')}px`,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            boxSizing: 'border-box'
+          }}
+        >
+          {item.approvalDate ? new Date(item.approvalDate).toLocaleDateString('ru-RU') : '-'}
         </td>
       );
     }
@@ -1778,7 +2130,7 @@ export default function PurchasesTable() {
       </div>
       
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse">
+        <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
           <thead className="bg-gray-50">
             <tr>
               {columnOrder.map(columnKey => renderColumnHeader(columnKey))}

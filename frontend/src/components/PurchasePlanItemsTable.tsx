@@ -147,6 +147,49 @@ export default function PurchasePlanItemsTable() {
   const [lastSelectedMonthIndex, setLastSelectedMonthIndex] = useState<number | null>(null); // Индекс последнего выбранного месяца для Shift+клик
   const [availableCompanies, setAvailableCompanies] = useState<string[]>([]); // Список компаний с бэкенда
   
+  // Состояние для выбранной валюты (по умолчанию UZS)
+  const [selectedCurrency, setSelectedCurrency] = useState<'UZS' | 'USD'>('UZS');
+  const USD_TO_UZS_RATE = 12000; // Курс: 1 USD = 12 000 UZS
+  
+  // Функция для форматирования бюджета с учетом выбранной валюты
+  const formatBudget = (amount: number | null): string => {
+    if (!amount) return '-';
+    
+    let displayAmount = amount;
+    let currency = 'UZS';
+    
+    if (selectedCurrency === 'USD') {
+      displayAmount = amount / USD_TO_UZS_RATE;
+      currency = 'USD';
+    }
+    
+    return new Intl.NumberFormat('ru-RU', {
+      notation: 'compact',
+      maximumFractionDigits: 1,
+      ...(selectedCurrency === 'USD' ? { style: 'currency', currency: 'USD' } : {})
+    }).format(displayAmount);
+  };
+  
+  // Функция для форматирования бюджета с полным форматом (для детального просмотра)
+  const formatBudgetFull = (amount: number | null): string => {
+    if (!amount) return '-';
+    
+    let displayAmount = amount;
+    let currency = 'UZS';
+    
+    if (selectedCurrency === 'USD') {
+      displayAmount = amount / USD_TO_UZS_RATE;
+      currency = 'USD';
+    }
+    
+    return new Intl.NumberFormat('ru-RU', {
+      style: 'currency',
+      currency: currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(displayAmount);
+  };
+  
   // Состояние для сортировки
   const [sortField, setSortField] = useState<SortField>('requestDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -3371,22 +3414,30 @@ export default function PurchasePlanItemsTable() {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  // TODO: Переключить валюту на USD
+                  setSelectedCurrency('UZS');
                 }}
-                className="px-1.5 py-0.5 text-xs border border-gray-300 rounded hover:bg-gray-100 transition-colors"
-                title="USD"
+                className={`px-1.5 py-0.5 text-xs border rounded hover:bg-gray-100 transition-colors ${
+                  selectedCurrency === 'UZS' 
+                    ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' 
+                    : 'border-gray-300'
+                }`}
+                title="UZS"
               >
-                USD
+                UZS
               </button>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  // TODO: Переключить валюту на UZS
+                  setSelectedCurrency('USD');
                 }}
-                className="px-1.5 py-0.5 text-xs border border-gray-300 rounded hover:bg-gray-100 transition-colors"
-                title="UZS"
+                className={`px-1.5 py-0.5 text-xs border rounded hover:bg-gray-100 transition-colors ${
+                  selectedCurrency === 'USD' 
+                    ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' 
+                    : 'border-gray-300'
+                }`}
+                title="USD"
               >
-                UZS
+                USD
               </button>
               <button
                 onClick={(e) => {
@@ -4558,7 +4609,7 @@ export default function PurchasePlanItemsTable() {
               </th>
               )}
               {visibleColumns.has('budgetAmount') && (
-              <SortableHeader field="budgetAmount" label="Бюджет (UZS)" columnKey="budgetAmount" />
+              <SortableHeader field="budgetAmount" label={`Бюджет (${selectedCurrency})`} columnKey="budgetAmount" />
               )}
               {visibleColumns.has('requestDate') && (
               <SortableHeader field="requestDate" label="Дата заявки" columnKey="requestDate" />
@@ -5404,10 +5455,7 @@ export default function PurchasePlanItemsTable() {
                           className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
                           style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px` }}
                         >
-                          {item.budgetAmount ? new Intl.NumberFormat('ru-RU', { 
-                            notation: 'compact',
-                            maximumFractionDigits: 1 
-                          }).format(item.budgetAmount) : '-'}
+                          {formatBudget(item.budgetAmount)}
                   </td>
                   )}
                   {visibleColumns.has('requestDate') && (
@@ -5784,7 +5832,7 @@ export default function PurchasePlanItemsTable() {
                               )}
                               {item.budgetAmount && (
                                 <div>
-                                  <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Бюджет:</span> <span className="text-gray-900">{new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(item.budgetAmount)}</span></span>
+                                  <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Бюджет:</span> <span className="text-gray-900">{formatBudgetFull(item.budgetAmount)}</span></span>
                                 </div>
                               )}
                               {item.complexity && (
@@ -5876,7 +5924,7 @@ export default function PurchasePlanItemsTable() {
                                   )}
                                   {purchaseRequestData[item.id]!.data!.budgetAmount && (
                                     <div>
-                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Бюджет:</span> <span className="text-gray-900">{new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(purchaseRequestData[item.id]!.data!.budgetAmount!)}</span></span>
+                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Бюджет:</span> <span className="text-gray-900">{formatBudgetFull(purchaseRequestData[item.id]!.data!.budgetAmount!)}</span></span>
                                     </div>
                                   )}
                                   {purchaseRequestData[item.id]!.data!.costType && (
