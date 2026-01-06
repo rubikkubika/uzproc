@@ -17,7 +17,7 @@ WORKDIR /app
 # Set UTF-8 encoding for Java
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
-ENV JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8 -Duser.language=en -Duser.country=US -Dsun.jnu.encoding=UTF-8
+ENV JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8 -Duser.language=ru -Duser.country=UZ -Dsun.jnu.encoding=UTF-8
 
 # Create non-root user
 RUN addgroup -S spring && adduser -S spring -G spring
