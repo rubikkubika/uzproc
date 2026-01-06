@@ -7,15 +7,19 @@ export async function GET() {
   try {
     const cookieStore = await cookies();
     const authToken = cookieStore.get('auth-token');
+    const userRole = cookieStore.get('user-role');
 
     // Проверяем, что cookie содержит актуальную версию пароля
     if (authToken && authToken.value === `authenticated-${PASSWORD_VERSION}`) {
-      return NextResponse.json({ authenticated: true });
+      return NextResponse.json({ 
+        authenticated: true,
+        role: userRole?.value || null
+      });
     }
 
-    return NextResponse.json({ authenticated: false });
+    return NextResponse.json({ authenticated: false, role: null });
   } catch (error) {
-    return NextResponse.json({ authenticated: false });
+    return NextResponse.json({ authenticated: false, role: null });
   }
 }
 

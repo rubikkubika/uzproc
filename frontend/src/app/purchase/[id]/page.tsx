@@ -49,6 +49,8 @@ interface Purchase {
   costType: string | null;
   contractType: string | null;
   contractDurationMonths: number | null;
+  expenseItem: string | null;
+  contractInnerId: string | null;
   purchaseRequestId: number | null;
   status: string | null;
   state: string | null;
@@ -230,7 +232,14 @@ export default function PurchaseDetailPage() {
           // Загружаем все необходимые данные параллельно и ждем их завершения
           const loadPromises: Promise<void>[] = [];
           
-          // Загружаем договоры по purchaseRequestId закупки
+          // Загружаем договор по contractInnerId для закупки (если это не заказ)
+          if (data && data.contractInnerId) {
+            loadPromises.push(
+              fetchPurchaseContract(data.contractInnerId).catch(() => {})
+            );
+          }
+          
+          // Загружаем договоры по purchaseRequestId закупки (для заказов)
           if (data && data.purchaseRequestId) {
             loadPromises.push(
               fetchContracts(data.purchaseRequestId).catch(() => {})
@@ -399,7 +408,7 @@ export default function PurchaseDetailPage() {
     };
   }, [navigationData, filteredPurchases, currentPurchaseIndex, router]);
 
-  // Функция для загрузки договоров по purchaseRequestId
+  // Функция для загрузки договоров по purchaseRequestId (для заказов)
   const [contracts, setContracts] = useState<Contract[]>([]);
   
   const fetchContracts = async (purchaseRequestId: number): Promise<void> => {
@@ -414,6 +423,24 @@ export default function PurchaseDetailPage() {
     } catch (err) {
       console.error('Error fetching contracts:', err);
       setContracts([]);
+    }
+  };
+
+  // Функция для загрузки договора по contractInnerId (для закупок)
+  const [purchaseContract, setPurchaseContract] = useState<Contract | null>(null);
+  
+  const fetchPurchaseContract = async (contractInnerId: string): Promise<void> => {
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/contracts/by-inner-id/${encodeURIComponent(contractInnerId)}`);
+      if (response.ok) {
+        const data = await response.json();
+        setPurchaseContract(data);
+      } else {
+        setPurchaseContract(null);
+      }
+    } catch (err) {
+      console.error('Error fetching purchase contract:', err);
+      setPurchaseContract(null);
     }
   };
 
@@ -510,7 +537,17 @@ export default function PurchaseDetailPage() {
       // Добавляем текстовые фильтры
       Object.entries(navData.filters).forEach(([key, value]) => {
         if (value && value.trim() !== '') {
-          params.append(key, value);
+          // Преобразуем requiresPurchase из строки в булево значение
+          if (key === 'requiresPurchase') {
+            const requiresPurchaseValue = value.trim();
+            if (requiresPurchaseValue === 'Закупка') {
+              params.append(key, 'true');
+            } else if (requiresPurchaseValue === 'Заказ') {
+              params.append(key, 'false');
+            }
+          } else {
+            params.append(key, value);
+          }
         }
       });
       
@@ -1062,6 +1099,14 @@ export default function PurchaseDetailPage() {
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-gray-600 mb-0">
+                          Статья расходов
+                        </label>
+                        <p className="text-xs text-gray-900">
+                          {purchase.expenseItem || '-'}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-0">
                           Срок договора (мес.)
                         </label>
                         <p className="text-xs text-gray-900">
@@ -1357,17 +1402,31 @@ export default function PurchaseDetailPage() {
             </div>
 
             {/* Раздел: Договор */}
-            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-              <div className="px-2 py-1.5 border-b border-gray-300 bg-gray-100">
-                <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Договор</h2>
-              </div>
+            {/* Показываем договор для закупки (если это не заказ) или для заказа */}
+            {(() => {
+              // Определяем, является ли это заказом (requiresPurchase === false)
+              const isOrder = purchaseRequest && purchaseRequest.requiresPurchase === false;
+              
+              // Для заказа показываем договоры из contracts (существующая логика)
+              // Для закупки показываем договор из purchaseContract (по contractInnerId)
+              const contractsToShow = isOrder ? contracts : (purchaseContract ? [purchaseContract] : []);
+              
+              if (contractsToShow.length === 0) {
+                return null;
+              }
+              
+              return (
+                <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+                  <div className="px-2 py-1.5 border-b border-gray-300 bg-gray-100">
+                    <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Договор</h2>
+                  </div>
               <div className="p-2">
                 <div className="flex flex-col lg:flex-row gap-4 items-start">
                   {/* Левая часть с полями договора */}
                   <div className="flex-1">
-                    {contracts.length > 0 ? (
+                    {contractsToShow.length > 0 ? (
                       <div className="space-y-3">
-                        {contracts.map((contract) => (
+                        {contractsToShow.map((contract) => (
                         <div key={contract.id} className="border border-gray-200 rounded p-2">
                           {contract.parentContract ? (
                             // Если договор является спецификацией, показываем основной договор
@@ -1485,16 +1544,17 @@ export default function PurchaseDetailPage() {
                       )}
                     </div>
                         ))}
-                  </div>
+                      </div>
                     ) : (
                       <div className="text-center py-2 text-xs text-gray-500">
                         <p>Нет данных о договоре</p>
-              </div>
+                      </div>
                     )}
-              </div>
+                  </div>
 
-                  {/* Правая часть - согласования договора */}
-              <div className="w-full lg:w-64 flex-shrink-0">
+                  {/* Правая часть - согласования договора (только для заказов) */}
+                  {isOrder && (
+                  <div className="w-full lg:w-64 flex-shrink-0">
                     <div className="space-y-1.5">
                       {/* Этап: Согласование договора */}
                       {contractApprovalStageApprovals.length > 0 && (
@@ -1744,13 +1804,16 @@ export default function PurchaseDetailPage() {
                       {contractApprovals.length === 0 && (
                         <div className="border border-gray-200 rounded p-1.5 text-center py-2 text-[10px] text-gray-500">
                           Нет согласований
-                    </div>
+                        </div>
                       )}
+                    </div>
                   </div>
+                  )}
                 </div>
               </div>
-            </div>
-            </div>
+                </div>
+              );
+            })()}
 
             {/* Раздел: Заявка на закупку */}
             {purchaseRequest && (

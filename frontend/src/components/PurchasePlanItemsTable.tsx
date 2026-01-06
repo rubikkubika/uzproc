@@ -82,7 +82,7 @@ const COLUMNS_VISIBILITY_STORAGE_KEY = 'purchasePlanItems_columnsVisibility';
 
 // Константы для статусов
 const ALL_STATUSES = ['Проект', 'Актуальная', 'Не Актуальная', 'Корректировка', 'Заявка', 'Пусто'];
-const DEFAULT_STATUSES = ALL_STATUSES.filter(s => s !== 'Не Актуальная' && s !== 'Пусто');
+const DEFAULT_STATUSES = ALL_STATUSES.filter(s => s !== 'Не Актуальная');
 
 // Определение всех возможных колонок (все поля сущности PurchasePlanItem)
 const ALL_COLUMNS = [
@@ -606,6 +606,26 @@ export default function PurchasePlanItemsTable() {
   const isViewingArchiveVersion = selectedVersionId !== null && selectedVersionInfo !== null && !selectedVersionInfo.isCurrent;
   const [authUsername, setAuthUsername] = useState('');
   const [authPassword, setAuthPassword] = useState('');
+  const [userRole, setUserRole] = useState<string | null>(null);
+  
+  // Загружаем роль пользователя при монтировании
+  useEffect(() => {
+    const checkUserRole = async () => {
+      try {
+        const response = await fetch('/api/auth/check');
+        const data = await response.json();
+        if (data.authenticated && data.role) {
+          setUserRole(data.role);
+        }
+      } catch (error) {
+        console.error('Error checking user role:', error);
+      }
+    };
+    checkUserRole();
+  }, []);
+  
+  // Проверка, может ли пользователь редактировать (только admin)
+  const canEdit = userRole === 'admin';
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
   const [pendingDateChange, setPendingDateChange] = useState<{ 
@@ -1908,7 +1928,12 @@ export default function PurchasePlanItemsTable() {
         // Добавляем параметры фильтрации
         if (companyFilter.size > 0) {
           companyFilter.forEach(company => {
-            params.append('company', company);
+            // Если выбрано "Не выбрано", передаем специальное значение для null
+            if (company === 'Не выбрано') {
+              params.append('company', '__NULL__');
+            } else {
+              params.append('company', company);
+            }
           });
         }
         if (cfoFilter.size > 0) {
@@ -2285,6 +2310,9 @@ export default function PurchasePlanItemsTable() {
               if (normalizedCompany) {
                 values.company.add(normalizedCompany);
               }
+            } else {
+              // Если компания пустая/null, добавляем "Не выбрано"
+              values.company.add('Не выбрано');
             }
             if (item.purchaser) values.purchaser.add(item.purchaser);
             if (item.category) values.category.add(item.category);
@@ -2292,9 +2320,15 @@ export default function PurchasePlanItemsTable() {
           });
           
           const yearsArray = Array.from(years).sort((a, b) => b - a);
+          const companyArray = Array.from(values.company).sort((a, b) => {
+            // "Не выбрано" всегда в конце
+            if (a === 'Не выбрано') return 1;
+            if (b === 'Не выбрано') return -1;
+            return a.localeCompare(b, 'ru', { sensitivity: 'base' });
+          });
           const uniqueValuesData = {
             cfo: Array.from(values.cfo).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
-            company: Array.from(values.company).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
+            company: companyArray,
             purchaser: Array.from(values.purchaser).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
             category: Array.from(values.category).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
             status: Array.from(values.status).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
@@ -2355,7 +2389,12 @@ export default function PurchasePlanItemsTable() {
       // Фильтр по компании - передаем все выбранные значения на бэкенд
       if (companyFilter.size > 0) {
         companyFilter.forEach(company => {
-          params.append('company', company);
+          // Если выбрано "Не выбрано", передаем специальное значение для null
+          if (company === 'Не выбрано') {
+            params.append('company', '__NULL__');
+          } else {
+            params.append('company', company);
+          }
         });
       }
       // Фильтр по ЦФО - передаем все выбранные значения на бэкенд
@@ -4876,16 +4915,18 @@ export default function PurchasePlanItemsTable() {
                       ref={editingCompany === item.id ? companySelectRef : null}
                       data-editing-company={item.id}
                       value={item.company || ''}
-                      disabled={isInactive || isViewingArchiveVersion}
+                      disabled={isInactive || isViewingArchiveVersion || !canEdit}
                       onChange={(e) => {
                         e.stopPropagation();
-                        if (e.target.value !== item.company) {
+                        if (canEdit && e.target.value !== item.company) {
                           handleCompanyUpdate(item.id, e.target.value);
                         }
                       }}
                       onFocus={(e) => {
                         e.stopPropagation();
-                        setEditingCompany(item.id);
+                        if (canEdit) {
+                          setEditingCompany(item.id);
+                        }
                       }}
                       onBlur={() => {
                         setTimeout(() => {
@@ -4899,7 +4940,9 @@ export default function PurchasePlanItemsTable() {
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        setEditingCompany(item.id);
+                        if (canEdit) {
+                          setEditingCompany(item.id);
+                        }
                       }}
                       className={`text-xs rounded px-2 py-0.5 font-medium cursor-pointer transition-all w-full ${
                         isInactive
@@ -4921,7 +4964,6 @@ export default function PurchasePlanItemsTable() {
                         })
                       }}
                     >
-                      <option value="">Не выбрано</option>
                       {availableCompanies.map((company) => (
                         <option key={company} value={company}>{company}</option>
                       ))}
@@ -4938,7 +4980,7 @@ export default function PurchasePlanItemsTable() {
                         onBlur={(e) => {
                           const newValue = e.target.value.trim();
                           const currentValue = item.purchaseRequestId?.toString() || '';
-                          if (newValue !== currentValue) {
+                          if (canEdit && newValue !== currentValue) {
                             handlePurchaseRequestIdUpdate(item.id, newValue || null);
                           } else {
                             setEditingPurchaseRequestId(null);
@@ -4954,21 +4996,23 @@ export default function PurchasePlanItemsTable() {
                         onClick={(e) => e.stopPropagation()}
                         onFocus={(e) => {
                           e.stopPropagation();
-                          setEditingPurchaseRequestId(item.id);
+                          if (canEdit) {
+                            setEditingPurchaseRequestId(item.id);
+                          }
                         }}
                         className="w-full text-xs border border-blue-500 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        disabled={isInactive || isViewingArchiveVersion}
+                        disabled={isInactive || isViewingArchiveVersion || !canEdit}
                         autoFocus
                       />
                     ) : (
                       <div
                         onClick={() => {
-                          if (!isInactive && !isViewingArchiveVersion) {
+                          if (!isInactive && !isViewingArchiveVersion && canEdit) {
                             setEditingPurchaseRequestId(item.id);
                           }
                         }}
-                        className={isInactive || isViewingArchiveVersion ? '' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors'}
-                        title={isInactive || isViewingArchiveVersion ? '' : 'Нажмите для редактирования'}
+                        className={isInactive || isViewingArchiveVersion || !canEdit ? '' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors'}
+                        title={isInactive || isViewingArchiveVersion || !canEdit ? '' : 'Нажмите для редактирования'}
                       >
                         {item.purchaseRequestId || '-'}
                       </div>
@@ -4985,14 +5029,14 @@ export default function PurchasePlanItemsTable() {
                               ref={cfoInputRef}
                               type="text"
                               value={cfoInputValue[item.id] !== undefined ? cfoInputValue[item.id] : ''}
-                              disabled={isInactive || isViewingArchiveVersion}
+                              disabled={isInactive || isViewingArchiveVersion || !canEdit}
                               onChange={(e) => {
                                 e.stopPropagation();
                                 setCfoInputValue(prev => ({ ...prev, [item.id]: e.target.value }));
                               }}
                               onBlur={(e) => {
                                 const value = e.target.value.trim();
-                                if (value) {
+                                if (canEdit && value) {
                                   handleCfoUpdate(item.id, value);
                                 } else {
                                   setCreatingNewCfo(null);
@@ -5045,14 +5089,14 @@ export default function PurchasePlanItemsTable() {
                               ref={editingCfo === item.id ? cfoSelectRef : null}
                               data-editing-cfo={item.id}
                               value={item.cfo || ''}
-                              disabled={isInactive || isViewingArchiveVersion}
+                              disabled={isInactive || isViewingArchiveVersion || !canEdit}
                               onChange={(e) => {
                                 e.stopPropagation();
                                 if (e.target.value === '__CREATE_NEW__') {
                                   setCreatingNewCfo(item.id);
                                   setCfoInputValue(prev => ({ ...prev, [item.id]: '' }));
                                   setEditingCfo(null);
-                                } else if (e.target.value !== item.cfo) {
+                                } else if (canEdit && e.target.value !== item.cfo) {
                                   handleCfoUpdate(item.id, e.target.value || null);
                                 }
                               }}
@@ -5139,7 +5183,7 @@ export default function PurchasePlanItemsTable() {
                               defaultValue={item.purchaseSubject || ''}
                               onBlur={(e) => {
                                 const newValue = e.target.value.trim();
-                                if (newValue !== (item.purchaseSubject || '')) {
+                                if (canEdit && newValue !== (item.purchaseSubject || '')) {
                                   handlePurchaseSubjectUpdate(item.id, newValue);
                                 } else {
                                   setEditingPurchaseSubject(null);
@@ -5148,11 +5192,13 @@ export default function PurchasePlanItemsTable() {
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                                   e.preventDefault();
-                                  const newValue = e.currentTarget.value.trim();
-                                  if (newValue !== (item.purchaseSubject || '')) {
-                                    handlePurchaseSubjectUpdate(item.id, newValue);
-                                  } else {
-                                    setEditingPurchaseSubject(null);
+                                  if (canEdit) {
+                                    const newValue = e.currentTarget.value.trim();
+                                    if (newValue !== (item.purchaseSubject || '')) {
+                                      handlePurchaseSubjectUpdate(item.id, newValue);
+                                    } else {
+                                      setEditingPurchaseSubject(null);
+                                    }
                                   }
                                 } else if (e.key === 'Escape') {
                                   setEditingPurchaseSubject(null);
@@ -5161,11 +5207,13 @@ export default function PurchasePlanItemsTable() {
                               onClick={(e) => e.stopPropagation()}
                               onFocus={(e) => {
                                 e.stopPropagation();
-                                setEditingPurchaseSubject(item.id);
-                                // Автоматически подстраиваем размер под содержимое
-                                const textarea = e.target as HTMLTextAreaElement;
-                                textarea.style.height = 'auto';
-                                textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+                                if (canEdit) {
+                                  setEditingPurchaseSubject(item.id);
+                                  // Автоматически подстраиваем размер под содержимое
+                                  const textarea = e.target as HTMLTextAreaElement;
+                                  textarea.style.height = 'auto';
+                                  textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+                                }
                               }}
                               onChange={(e) => {
                                 // Автоматически подстраиваем размер при вводе
@@ -5174,7 +5222,7 @@ export default function PurchasePlanItemsTable() {
                                 textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
                               }}
                               className="w-full text-xs border border-blue-500 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none overflow-hidden"
-                              disabled={isInactive}
+                              disabled={isInactive || !canEdit}
                               autoFocus
                               rows={1}
                               style={{ minHeight: '20px', maxHeight: '200px' }}
@@ -5183,12 +5231,12 @@ export default function PurchasePlanItemsTable() {
                             <div
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (!isInactive && !isViewingArchiveVersion) {
+                                if (!isInactive && !isViewingArchiveVersion && canEdit) {
                                   setEditingPurchaseSubject(item.id);
                                 }
                               }}
-                              className={isInactive ? 'break-words' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors break-words'}
-                              title={isInactive ? '' : 'Нажмите для редактирования'}
+                              className={isInactive || !canEdit ? 'break-words' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors break-words'}
+                              title={isInactive || !canEdit ? '' : 'Нажмите для редактирования'}
                             >
                               {item.purchaseSubject || '-'}
                             </div>
@@ -5250,13 +5298,13 @@ export default function PurchasePlanItemsTable() {
                     ) : (
                       <div
                         onClick={(e) => {
-                          if (!isInactive && !isViewingArchiveVersion) {
+                          if (!isInactive && !isViewingArchiveVersion && canEdit) {
                             e.stopPropagation();
                             setEditingDate({ itemId: item.id, field: 'requestDate' });
                           }
                         }}
-                        className={isInactive ? '' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors'}
-                        title={isInactive ? '' : 'Нажмите для редактирования'}
+                        className={isInactive || !canEdit ? '' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors'}
+                        title={isInactive || !canEdit ? '' : 'Нажмите для редактирования'}
                       >
                         {tempDates[item.id]?.requestDate 
                           ? new Date(tempDates[item.id]!.requestDate!).toLocaleDateString('ru-RU')
@@ -5356,13 +5404,15 @@ export default function PurchasePlanItemsTable() {
                           value={displayStatus || ''}
                       onChange={(e) => {
                         e.stopPropagation();
-                            if (e.target.value !== displayStatus) {
+                        if (canEdit && e.target.value !== displayStatus) {
                           handleStatusUpdate(item.id, e.target.value);
                         }
                       }}
                       onFocus={(e) => {
                         e.stopPropagation();
-                        setEditingStatus(item.id);
+                        if (canEdit) {
+                          setEditingStatus(item.id);
+                        }
                       }}
                       onBlur={() => {
                         setTimeout(() => {
@@ -5376,7 +5426,9 @@ export default function PurchasePlanItemsTable() {
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        setEditingStatus(item.id);
+                        if (canEdit) {
+                          setEditingStatus(item.id);
+                        }
                       }}
                       className={`text-xs rounded px-2 py-0.5 font-medium cursor-pointer transition-all ${
                         editingStatus === item.id 
@@ -5451,7 +5503,7 @@ export default function PurchasePlanItemsTable() {
                       newContractDate={item.newContractDate}
                       contractEndDate={item.contractEndDate}
                       currentContractEndDate={item.currentContractEndDate}
-                      disabled={isInactive || isViewingArchiveVersion}
+                      disabled={isInactive || isViewingArchiveVersion || !canEdit}
                       onDragStart={() => {
                         // Закрываем режим редактирования даты при начале перетаскивания Ганта
                         if (editingDate?.itemId === item.id) {

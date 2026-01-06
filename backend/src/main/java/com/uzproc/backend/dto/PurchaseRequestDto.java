@@ -29,6 +29,7 @@ public class PurchaseRequestDto {
     private Boolean requiresPurchase;
     private PurchaseRequestStatus status;
     private String state;
+    private String expenseItem;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     // Список ID связанных закупок
@@ -215,6 +216,14 @@ public class PurchaseRequestDto {
 
     public void setState(String state) {
         this.state = state;
+    }
+
+    public String getExpenseItem() {
+        return expenseItem;
+    }
+
+    public void setExpenseItem(String expenseItem) {
+        this.expenseItem = expenseItem;
     }
 
     public LocalDateTime getCreatedAt() {

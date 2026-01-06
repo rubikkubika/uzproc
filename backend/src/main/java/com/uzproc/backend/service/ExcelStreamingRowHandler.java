@@ -84,6 +84,8 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private static final String AMOUNT_COLUMN = "Сумма";
     private static final String MAIN_CONTRACT_COLUMN = "Основной договор";
     private static final String SPECIFICATION_FORM = "Спецификация";
+    private static final String EXPENSE_ITEM_COLUMN = "Статья бюджета (PL) (Заявка на ЗП)";
+    private static final String CONTRACT_INNER_ID_COLUMN = "Договор.Внутренний номер";
     
     // Оптимизация: статические DateTimeFormatter для парсинга дат (создаются один раз)
     private static final DateTimeFormatter[] DATE_TIME_FORMATTERS = {
@@ -485,6 +487,21 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 logger.debug("Row {}: amountColumnIndex is null, skipping budgetAmount field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
             }
             
+            // Статья расходов (опционально)
+            Integer expenseItemCol = columnIndices.get(EXPENSE_ITEM_COLUMN);
+            if (expenseItemCol == null) {
+                expenseItemCol = findColumnIndex(EXPENSE_ITEM_COLUMN);
+            }
+            if (expenseItemCol != null) {
+                String expenseItem = currentRowData.get(expenseItemCol);
+                if (expenseItem != null && !expenseItem.trim().isEmpty()) {
+                    pr.setExpenseItem(expenseItem.trim());
+                    logger.debug("Row {}: parsed expenseItem: '{}' for request {}", currentRowNum + 1, expenseItem.trim(), pr.getIdPurchaseRequest());
+                }
+            } else {
+                logger.debug("Row {}: expenseItemColumnIndex is null, skipping expenseItem field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
+            }
+            
             // Сохраняем или обновляем
             if (existingOpt.isPresent()) {
                 PurchaseRequest existing = existingOpt.get();
@@ -630,6 +647,55 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 }
             } else {
                 logger.debug("Row {}: amountColumnIndex is null, skipping budgetAmount field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
+            }
+            
+            // Статья расходов (опционально)
+            Integer expenseItemCol = columnIndices.get(EXPENSE_ITEM_COLUMN);
+            if (expenseItemCol == null) {
+                expenseItemCol = findColumnIndex(EXPENSE_ITEM_COLUMN);
+            }
+            if (expenseItemCol != null) {
+                String expenseItem = currentRowData.get(expenseItemCol);
+                if (expenseItem != null && !expenseItem.trim().isEmpty()) {
+                    purchase.setExpenseItem(expenseItem.trim());
+                    logger.debug("Row {}: parsed expenseItem: '{}' for purchase {}", currentRowNum + 1, expenseItem.trim(), purchase.getInnerId());
+                }
+            } else {
+                logger.debug("Row {}: expenseItemColumnIndex is null, skipping expenseItem field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
+            }
+            
+            // Внутренний номер договора (опционально) - парсим из колонки "Договор.Внутренний номер"
+            // ВАЖНО: Используем только точное совпадение, чтобы не перепутать с колонкой "Внутренний номер"
+            Integer contractInnerIdCol = columnIndices.get(CONTRACT_INNER_ID_COLUMN);
+            if (contractInnerIdCol == null) {
+                // Ищем точное совпадение вручную, чтобы избежать путаницы с "Внутренний номер"
+                for (Map.Entry<String, Integer> entry : columnIndices.entrySet()) {
+                    if (entry.getKey().equals(CONTRACT_INNER_ID_COLUMN)) {
+                        contractInnerIdCol = entry.getValue();
+                        break;
+                    }
+                }
+            }
+            if (contractInnerIdCol != null) {
+                String contractInnerId = currentRowData.get(contractInnerIdCol);
+                if (contractInnerId != null && !contractInnerId.trim().isEmpty()) {
+                    String trimmedContractInnerId = contractInnerId.trim();
+                    // Валидация: contractInnerId не должен совпадать с innerId закупки
+                    if (trimmedContractInnerId.equals(purchase.getInnerId())) {
+                        logger.warn("Row {}: contractInnerId '{}' equals purchase innerId '{}', clearing contractInnerId for purchase {}", 
+                            currentRowNum + 1, trimmedContractInnerId, purchase.getInnerId(), purchase.getInnerId());
+                        purchase.setContractInnerId(null);
+                    } else {
+                        purchase.setContractInnerId(trimmedContractInnerId);
+                        logger.debug("Row {}: parsed contractInnerId: '{}' for purchase {}", currentRowNum + 1, trimmedContractInnerId, purchase.getInnerId());
+                    }
+                } else {
+                    // Если колонка найдена, но значение пустое - очищаем contractInnerId
+                    purchase.setContractInnerId(null);
+                    logger.debug("Row {}: contractInnerId column is empty, clearing contractInnerId for purchase {}", currentRowNum + 1, purchase.getInnerId());
+                }
+            } else {
+                logger.debug("Row {}: contractInnerIdColumnIndex is null, skipping contractInnerId field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
             }
             
             // Сохраняем или обновляем
@@ -1142,6 +1208,15 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             }
         }
         
+        // Обновляем expenseItem
+        if (newData.getExpenseItem() != null && !newData.getExpenseItem().trim().isEmpty()) {
+            if (existing.getExpenseItem() == null || !existing.getExpenseItem().equals(newData.getExpenseItem())) {
+                existing.setExpenseItem(newData.getExpenseItem());
+                updated = true;
+                logger.debug("Updated expenseItem for request {}: {}", existing.getIdPurchaseRequest(), newData.getExpenseItem());
+            }
+        }
+        
         // Обновляем status
         if (newData.getStatus() != null) {
             if (existing.getStatus() == null || !existing.getStatus().equals(newData.getStatus())) {
@@ -1228,6 +1303,41 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 existing.setState(newData.getState());
                 updated = true;
                 logger.debug("Updated state for purchase {}: {}", existing.getInnerId(), newData.getState());
+            }
+        }
+        
+        // Обновляем expenseItem
+        if (newData.getExpenseItem() != null && !newData.getExpenseItem().trim().isEmpty()) {
+            if (existing.getExpenseItem() == null || !existing.getExpenseItem().equals(newData.getExpenseItem())) {
+                existing.setExpenseItem(newData.getExpenseItem());
+                updated = true;
+                logger.debug("Updated expenseItem for purchase {}: {}", existing.getInnerId(), newData.getExpenseItem());
+            }
+        }
+        
+        // Обновляем contractInnerId
+        // Если в новых данных contractInnerId установлен в null (колонка была пустая), очищаем его
+        if (newData.getContractInnerId() == null) {
+            if (existing.getContractInnerId() != null) {
+                existing.setContractInnerId(null);
+                updated = true;
+                logger.debug("Cleared contractInnerId for purchase {}", existing.getInnerId());
+            }
+        } else if (!newData.getContractInnerId().trim().isEmpty()) {
+            String trimmedContractInnerId = newData.getContractInnerId().trim();
+            // Валидация: contractInnerId не должен совпадать с innerId закупки
+            if (trimmedContractInnerId.equals(existing.getInnerId())) {
+                logger.warn("contractInnerId '{}' equals purchase innerId '{}', clearing contractInnerId for purchase {}", 
+                    trimmedContractInnerId, existing.getInnerId(), existing.getInnerId());
+                if (existing.getContractInnerId() != null) {
+                    existing.setContractInnerId(null);
+                    updated = true;
+                    logger.debug("Cleared contractInnerId for purchase {} due to validation", existing.getInnerId());
+                }
+            } else if (existing.getContractInnerId() == null || !existing.getContractInnerId().equals(trimmedContractInnerId)) {
+                existing.setContractInnerId(trimmedContractInnerId);
+                updated = true;
+                logger.debug("Updated contractInnerId for purchase {}: {}", existing.getInnerId(), trimmedContractInnerId);
             }
         }
         

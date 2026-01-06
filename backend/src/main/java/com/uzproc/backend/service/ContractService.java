@@ -74,6 +74,14 @@ public class ContractService {
         return toDto(contract);
     }
 
+    public ContractDto findByInnerId(String innerId) {
+        java.util.Optional<Contract> contract = contractRepository.findByInnerId(innerId);
+        if (contract.isPresent()) {
+            return toDto(contract.get());
+        }
+        return null;
+    }
+
     public List<ContractDto> findByParentContractId(Long parentContractId) {
         List<Contract> contracts = contractRepository.findByParentContractId(parentContractId);
         return contracts.stream()

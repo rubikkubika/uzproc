@@ -58,5 +58,14 @@ public class ContractController {
         List<ContractDto> contracts = contractService.findByPurchaseRequestId(purchaseRequestId);
         return ResponseEntity.ok(contracts);
     }
+
+    @GetMapping("/by-inner-id/{innerId}")
+    public ResponseEntity<ContractDto> getContractByInnerId(@PathVariable String innerId) {
+        ContractDto contract = contractService.findByInnerId(innerId);
+        if (contract != null) {
+            return ResponseEntity.ok(contract);
+        }
+        return ResponseEntity.notFound().build();
+    }
 }
 

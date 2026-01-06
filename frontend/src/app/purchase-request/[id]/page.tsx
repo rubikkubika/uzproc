@@ -24,6 +24,7 @@ interface PurchaseRequest {
   costType: string | null;
   contractType: string | null;
   contractDurationMonths: number | null;
+  expenseItem: string | null;
   isPlanned: boolean | null;
   requiresPurchase: boolean | null;
   innerId: string | null;
@@ -1022,6 +1023,14 @@ export default function PurchaseRequestDetailPage() {
                         </span>
                       )}
                     </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-0">
+                      Статья расходов
+                    </label>
+                    <p className="text-xs text-gray-900">
+                      {purchaseRequest.expenseItem || '-'}
+                    </p>
                   </div>
               </div>
               </div>

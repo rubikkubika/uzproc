@@ -648,9 +648,18 @@ public class PurchasePlanItemService {
                     .toList();
                 
                 if (!validCompanyValues.isEmpty()) {
-                    // Конвертируем строковые значения в enum
+                    // Проверяем, есть ли среди значений "__NULL__" для фильтрации по null
+                    boolean includeNull = validCompanyValues.stream()
+                        .anyMatch(s -> s.equalsIgnoreCase("__NULL__"));
+                    
+                    // Конвертируем строковые значения в enum (исключаем "__NULL__")
                     List<Company> companyEnums = new ArrayList<>();
                     for (String companyStr : validCompanyValues) {
+                        // Пропускаем специальное значение для null
+                        if (companyStr.equalsIgnoreCase("__NULL__")) {
+                            continue;
+                        }
+                        
                         String companyLower = companyStr.toLowerCase();
                         // Пробуем найти соответствующий enum по displayName
                         Company companyEnum = null;
@@ -675,16 +684,32 @@ public class PurchasePlanItemService {
                         }
                     }
                     
+                    // Формируем предикат для фильтрации
+                    List<Predicate> companyPredicates = new ArrayList<>();
+                    
+                    // Если есть enum значения, добавляем фильтр по ним
                     if (!companyEnums.isEmpty()) {
                         if (companyEnums.size() == 1) {
-                            predicates.add(cb.equal(root.get("company"), companyEnums.get(0)));
-                            predicateCount++;
-                            logger.info("Added single company filter: '{}' (enum: {})", validCompanyValues.get(0), companyEnums.get(0));
+                            companyPredicates.add(cb.equal(root.get("company"), companyEnums.get(0)));
                         } else {
-                            predicates.add(root.get("company").in(companyEnums));
-                            predicateCount++;
-                            logger.info("Added multiple company filter: {} (enums: {})", validCompanyValues, companyEnums);
+                            companyPredicates.add(root.get("company").in(companyEnums));
                         }
+                    }
+                    
+                    // Если нужно включить null значения
+                    if (includeNull) {
+                        companyPredicates.add(cb.isNull(root.get("company")));
+                    }
+                    
+                    // Объединяем предикаты через OR, если есть и enum, и null
+                    if (!companyPredicates.isEmpty()) {
+                        if (companyPredicates.size() == 1) {
+                            predicates.add(companyPredicates.get(0));
+                        } else {
+                            predicates.add(cb.or(companyPredicates.toArray(new Predicate[0])));
+                        }
+                        predicateCount++;
+                        logger.info("Added company filter: {} (enums: {}, includeNull: {})", validCompanyValues, companyEnums, includeNull);
                     } else {
                         logger.warn("No valid company enums found for values: {}", validCompanyValues);
                     }

@@ -147,6 +147,7 @@ public class PurchaseRequestService {
         dto.setRequiresPurchase(entity.getRequiresPurchase());
         dto.setStatus(entity.getStatus());
         dto.setState(entity.getState());
+        dto.setExpenseItem(entity.getExpenseItem());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
         

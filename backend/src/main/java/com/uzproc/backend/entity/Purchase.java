@@ -67,6 +67,20 @@ public class Purchase {
     @Column(name = "state", length = 255)
     private String state;
 
+    @Column(name = "expense_item", length = 255)
+    private String expenseItem;
+
+    @Column(name = "contract_inner_id", length = 255)
+    private String contractInnerId;
+
+    // Связь с Contract по внутреннему номеру договора (lazy loading через репозиторий)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "contract_inner_id", 
+                referencedColumnName = "inner_id", 
+                insertable = false, 
+                updatable = false)
+    private Contract contract;
+
     // Связь с PurchaseRequest по полю idPurchaseRequest
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "purchase_request_id", 
@@ -277,6 +291,33 @@ public class Purchase {
 
     public void setState(String state) {
         this.state = state;
+    }
+
+    public String getExpenseItem() {
+        return expenseItem;
+    }
+
+    public void setExpenseItem(String expenseItem) {
+        this.expenseItem = expenseItem;
+    }
+
+    public String getContractInnerId() {
+        return contractInnerId;
+    }
+
+    public void setContractInnerId(String contractInnerId) {
+        this.contractInnerId = contractInnerId;
+    }
+
+    public Contract getContract() {
+        return contract;
+    }
+
+    public void setContract(Contract contract) {
+        this.contract = contract;
+        if (contract != null && contract.getInnerId() != null) {
+            this.contractInnerId = contract.getInnerId();
+        }
     }
 
     public PurchaseStatus getStatus() {

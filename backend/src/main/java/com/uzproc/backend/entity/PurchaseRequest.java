@@ -82,6 +82,9 @@ public class PurchaseRequest {
     @Column(name = "state", length = 255)
     private String state;
 
+    @Column(name = "expense_item", length = 255)
+    private String expenseItem;
+
     // Обратная связь с Purchase (одна заявка может иметь много закупок)
     @OneToMany(mappedBy = "purchaseRequest", fetch = FetchType.LAZY)
     private java.util.List<Purchase> purchases;
@@ -301,6 +304,14 @@ public class PurchaseRequest {
 
     public void setState(String state) {
         this.state = state;
+    }
+
+    public String getExpenseItem() {
+        return expenseItem;
+    }
+
+    public void setExpenseItem(String expenseItem) {
+        this.expenseItem = expenseItem;
     }
 
     public java.util.List<Purchase> getPurchases() {

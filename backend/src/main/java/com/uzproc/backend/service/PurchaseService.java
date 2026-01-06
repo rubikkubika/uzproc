@@ -113,6 +113,8 @@ public class PurchaseService {
         }
         dto.setStatus(entity.getStatus());
         dto.setState(entity.getState());
+        dto.setExpenseItem(entity.getExpenseItem());
+        dto.setContractInnerId(entity.getContractInnerId());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
         return dto;

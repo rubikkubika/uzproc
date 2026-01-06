@@ -25,6 +25,8 @@ public class PurchaseDto {
     private String purchaser;
     private PurchaseStatus status;
     private String state;
+    private String expenseItem;
+    private String contractInnerId;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -183,6 +185,22 @@ public class PurchaseDto {
 
     public void setState(String state) {
         this.state = state;
+    }
+
+    public String getExpenseItem() {
+        return expenseItem;
+    }
+
+    public void setExpenseItem(String expenseItem) {
+        this.expenseItem = expenseItem;
+    }
+
+    public String getContractInnerId() {
+        return contractInnerId;
+    }
+
+    public void setContractInnerId(String contractInnerId) {
+        this.contractInnerId = contractInnerId;
     }
 
     public LocalDateTime getCreatedAt() {

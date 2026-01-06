@@ -50,7 +50,7 @@ type SortDirection = 'asc' | 'desc' | null;
 
 // ALL_COMPANIES будет загружаться с бэкенда
 const ALL_STATUSES = ['Проект', 'Актуальная', 'Корректировка', 'Заявка', 'Не Актуальная', 'Пусто'];
-const DEFAULT_STATUSES = ['Проект', 'Актуальная', 'Корректировка', 'Заявка'];
+const DEFAULT_STATUSES = ['Проект', 'Актуальная', 'Корректировка', 'Заявка', 'Пусто'];
 
 const DEFAULT_VISIBLE_COLUMNS = [
   'id',
@@ -1456,14 +1456,21 @@ export default function PublicPurchasePlanTable() {
       <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
         {/* Заголовок с логотипом */}
         <div className="px-6 py-4 border-b border-gray-200 flex items-center gap-4">
-          <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                window.location.href = '/?tab=overview';
+              }
+            }}
+            className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+          >
             <img 
               src="/images/logo-small.svg" 
               alt="uzProc Logo" 
               className="w-8 h-8"
             />
             <h1 className="text-xl font-bold text-black">uzProc</h1>
-          </div>
+          </button>
           <div className="flex-1">
             <h2 className="text-lg font-semibold text-gray-900">
               План закупок {selectedYear ? selectedYear : ''} (текущая редакция)
