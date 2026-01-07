@@ -1649,13 +1649,16 @@ export default function PurchasePlanItemsTable() {
         }
         if (savedFilters.statusFilter !== undefined) {
           if (Array.isArray(savedFilters.statusFilter) && savedFilters.statusFilter.length > 0) {
+            // Восстанавливаем сохраненные статусы (валидация будет выполнена в useEffect после загрузки uniqueValues)
             setStatusFilter(new Set(savedFilters.statusFilter));
           } else {
             // Если статус фильтр пустой, устанавливаем значения по умолчанию (все кроме Исключена)
+            // Но это будет обновлено в useEffect после загрузки uniqueValues на основе реальных данных БД
             setStatusFilter(new Set(DEFAULT_STATUSES));
           }
         } else {
           // Если статус фильтр не найден, устанавливаем значения по умолчанию (все кроме Исключена)
+          // Но это будет обновлено в useEffect после загрузки uniqueValues на основе реальных данных БД
           setStatusFilter(new Set(DEFAULT_STATUSES));
         }
         
@@ -3000,6 +3003,65 @@ export default function PurchasePlanItemsTable() {
     };
     fetchUniqueValues();
   }, [normalizeCompany]);
+
+  // Очищаем фильтр статусов от несуществующих статусов после загрузки uniqueValues
+  // И устанавливаем фильтр по умолчанию (все кроме "Исключена") при первой загрузке
+  const statusFilterInitializedRef = useRef(false);
+  useEffect(() => {
+    if (uniqueValues.status && uniqueValues.status.length > 0 && filtersLoadedRef.current) {
+      if (!statusFilterInitializedRef.current) {
+        // При первой загрузке uniqueValues устанавливаем фильтр по умолчанию (все кроме "Исключена")
+        // Но только если фильтры из localStorage уже загружены (чтобы не перезаписать сохраненные)
+        // Формируем список статусов по умолчанию: все статусы из БД кроме "Исключена"
+        // Это гарантирует, что "Пусто" будет включено, если оно есть в данных
+        const defaultStatuses = uniqueValues.status.filter(s => s !== 'Исключена');
+        console.log('Setting default status filter. uniqueValues.status:', uniqueValues.status, 'defaultStatuses:', defaultStatuses);
+        if (defaultStatuses.length > 0) {
+          // Используем функциональное обновление, чтобы получить актуальное значение statusFilter
+          setStatusFilter(prevFilter => {
+            const currentFilterArray = Array.from(prevFilter);
+            // Проверяем, соответствует ли текущий фильтр статусам по умолчанию из БД (кроме "Исключена")
+            // Или фильтр пустой (если был восстановлен как пустой из localStorage)
+            // ВАЖНО: сравниваем с defaultStatuses из БД, а не с жестко заданным DEFAULT_STATUSES
+            const hasAllDefaultStatuses = defaultStatuses.every(s => currentFilterArray.includes(s));
+            const hasOnlyDefaultStatuses = currentFilterArray.every(s => defaultStatuses.includes(s));
+            const isDefaultFilter = currentFilterArray.length === 0 || 
+              (currentFilterArray.length === defaultStatuses.length && hasAllDefaultStatuses && hasOnlyDefaultStatuses);
+            console.log('isDefaultFilter:', isDefaultFilter, 'currentFilterArray:', currentFilterArray, 'defaultStatuses:', defaultStatuses, 'hasAllDefaultStatuses:', hasAllDefaultStatuses, 'hasOnlyDefaultStatuses:', hasOnlyDefaultStatuses);
+            // Если фильтр соответствует defaultStatuses из БД или пустой, обновляем его на основе реальных данных БД
+            if (isDefaultFilter) {
+              console.log('Updating status filter to:', defaultStatuses);
+              return new Set(defaultStatuses);
+            }
+            // Иначе возвращаем текущий фильтр без изменений (пользователь уже изменил его)
+            console.log('Keeping current filter:', currentFilterArray);
+            return prevFilter;
+          });
+          statusFilterInitializedRef.current = true;
+        }
+      } else {
+        // После первой загрузки очищаем фильтр от несуществующих статусов
+        setStatusFilter(prevFilter => {
+          if (prevFilter.size === 0) return prevFilter;
+          const validStatuses = Array.from(prevFilter).filter(s => uniqueValues.status.includes(s));
+          if (validStatuses.length !== prevFilter.size) {
+            // Если есть несуществующие статусы, обновляем фильтр
+            console.log('Removing invalid statuses from filter. Current:', Array.from(prevFilter), 'Valid:', validStatuses);
+            if (validStatuses.length > 0) {
+              return new Set(validStatuses);
+            } else {
+              // Если все статусы невалидны, устанавливаем значения по умолчанию
+              const defaultStatuses = uniqueValues.status.filter(s => s !== 'Исключена');
+              if (defaultStatuses.length > 0) {
+                return new Set(defaultStatuses);
+              }
+            }
+          }
+          return prevFilter;
+        });
+      }
+    }
+  }, [uniqueValues.status]);
 
   const getUniqueValues = (field: keyof PurchasePlanItem): string[] => {
     const fieldMap: Record<string, keyof typeof uniqueValues> = {
@@ -4791,11 +4853,21 @@ export default function PurchasePlanItemsTable() {
                         style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
                       >
                       <span className="text-gray-600 truncate flex-1 min-w-0 text-left">
-                        {statusFilter.size === 0 
-                          ? 'Все' 
-                          : statusFilter.size === 1
-                          ? (Array.from(statusFilter)[0] || 'Все')
-                          : `${statusFilter.size} выбрано`}
+                        {(() => {
+                          // Вычисляем количество валидных выбранных статусов (только те, что есть в БД)
+                          const validSelectedStatuses = uniqueValues.status && uniqueValues.status.length > 0
+                            ? Array.from(statusFilter).filter(s => uniqueValues.status.includes(s))
+                            : Array.from(statusFilter);
+                          const validCount = validSelectedStatuses.length;
+                          
+                          if (validCount === 0) {
+                            return 'Все';
+                          } else if (validCount === 1) {
+                            return validSelectedStatuses[0] || 'Все';
+                          } else {
+                            return `${validCount} выбрано`;
+                          }
+                        })()}
                       </span>
                       <svg className={`w-3 h-3 transition-transform flex-shrink-0 ${isStatusFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />

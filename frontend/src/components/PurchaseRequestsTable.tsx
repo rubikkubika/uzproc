@@ -1225,26 +1225,16 @@ export default function PurchaseRequestsTable() {
   }, [purchaserSearchQuery, uniqueValues.purchaser]);
 
   const getFilteredStatusOptions = useMemo(() => {
-    // Используем статусы из БД, если они загружены, иначе fallback на ALL_STATUSES
-    const allStatuses = (uniqueValues.status && uniqueValues.status.length > 0) 
-      ? uniqueValues.status 
-      : ALL_STATUSES;
-    console.log('getFilteredStatusOptions - allStatuses:', allStatuses, 'uniqueValues.status:', uniqueValues.status);
-    console.log('getFilteredStatusOptions - statusSearchQuery:', statusSearchQuery);
-    console.log('getFilteredStatusOptions - has "Утверждена":', allStatuses.includes('Утверждена'));
-    
+    // Используем только статусы, которые есть в данных (в БД есть заявки с этими статусами)
+    const availableStatuses = uniqueValues.status || [];
     if (!statusSearchQuery || !statusSearchQuery.trim()) {
-      const result = allStatuses;
-      console.log('getFilteredStatusOptions - returning (no search):', result);
-      return result;
+      return availableStatuses;
     }
     const searchLower = statusSearchQuery.toLowerCase().trim();
-    const result = allStatuses.filter(status => {
+    return availableStatuses.filter(status => {
       if (!status) return false;
       return status.toLowerCase().includes(searchLower);
     });
-    console.log('getFilteredStatusOptions - returning (with search):', result);
-    return result;
   }, [statusSearchQuery, uniqueValues.status]);
 
   if (loading) {
@@ -2215,7 +2205,7 @@ export default function PurchaseRequestsTable() {
                       </button>
                     {isStatusFilterOpen && statusFilterPosition && (
                       <div 
-                        className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden"
+                        className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-96 overflow-hidden"
                         style={{
                           top: `${statusFilterPosition.top}px`,
                           left: `${statusFilterPosition.left}px`,
@@ -2248,7 +2238,7 @@ export default function PurchaseRequestsTable() {
                             Снять
                           </button>
                         </div>
-                        <div className="max-h-48 overflow-y-auto">
+                        <div className="max-h-72 overflow-y-auto">
                           {getFilteredStatusOptions.length === 0 ? (
                             <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
                           ) : (
