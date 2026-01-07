@@ -154,7 +154,7 @@ export default function PurchaseRequestsTable() {
   const [yearRestored, setYearRestored] = useState(false);
   
   // Ref для хранения функции fetchTabCounts, чтобы избежать бесконечных циклов
-  const fetchTabCountsRef = useRef<() => Promise<void>>();
+  const fetchTabCountsRef = useRef<(() => Promise<void>) | undefined>(undefined);
   
   // Ref для хранения актуальных значений фильтров (для cleanup-функции)
   const filtersStateRef = useRef({
@@ -169,6 +169,7 @@ export default function PurchaseRequestsTable() {
     pageSize: 100,
     cfoSearchQuery: '',
     statusSearchQuery: '',
+    activeTab: 'in-work' as TabType,
   });
   
   // Функция для расчета позиции выпадающего списка
