@@ -236,9 +236,33 @@ public class PurchaseRequestService {
                     .collect(Collectors.toList());
             dto.setPurchaseIds(purchaseIds);
             
-            // Загружаем связанные договоры по idPurchaseRequest
-            List<Contract> contracts = contractRepository.findByPurchaseRequestId(entity.getIdPurchaseRequest());
+            // Загружаем связанные договоры:
+            // 1. Напрямую по purchaseRequestId
+            List<Contract> contracts = new ArrayList<>(contractRepository.findByPurchaseRequestId(entity.getIdPurchaseRequest()));
+            
+            // 2. Через закупки по contractInnerId (договоры связаны с закупками через innerId)
+            Set<Long> contractIds = new HashSet<>();
+            for (com.uzproc.backend.entity.Purchase purchase : purchases) {
+                if (purchase.getContractInnerId() != null && !purchase.getContractInnerId().trim().isEmpty()) {
+                    contractRepository.findByInnerId(purchase.getContractInnerId()).ifPresent(contract -> {
+                        if (!contractIds.contains(contract.getId())) {
+                            contracts.add(contract);
+                            contractIds.add(contract.getId());
+                        }
+                    });
+                }
+            }
+            
+            // Преобразуем в DTO и убираем дубликаты по ID
+            Set<Long> addedContractIds = new HashSet<>();
             List<ContractDto> contractDtos = contracts.stream()
+                    .filter(contract -> {
+                        if (addedContractIds.contains(contract.getId())) {
+                            return false;
+                        }
+                        addedContractIds.add(contract.getId());
+                        return true;
+                    })
                     .map(contract -> contractService.toDto(contract))
                     .collect(Collectors.toList());
             dto.setContracts(contractDtos);

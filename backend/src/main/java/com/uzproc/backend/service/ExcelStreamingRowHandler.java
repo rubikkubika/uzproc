@@ -198,6 +198,20 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
         headerProcessed = true;
         logger.info("Processed header row with {} columns", columnIndices.size());
         
+        // Проверяем наличие колонки "Договор.Внутренний номер"
+        Integer contractInnerIdCol = columnIndices.get(CONTRACT_INNER_ID_COLUMN);
+        if (contractInnerIdCol != null) {
+            logger.info("Found contractInnerId column '{}' at index {} in streaming mode", CONTRACT_INNER_ID_COLUMN, contractInnerIdCol);
+        } else {
+            logger.warn("ContractInnerId column '{}' not found in Excel file (streaming mode). Searching for similar columns...", CONTRACT_INNER_ID_COLUMN);
+            // Ищем похожие колонки
+            for (String colName : columnIndices.keySet()) {
+                if (colName != null && (colName.contains("Договор") && colName.contains("Внутренний"))) {
+                    logger.info("Found similar column: '{}' at index {}", colName, columnIndices.get(colName));
+                }
+            }
+        }
+        
         // Проверяем наличие колонки "Состояние"
         Integer statusCol = columnIndices.get(STATUS_COLUMN);
         if (statusCol != null) {
@@ -697,16 +711,37 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             }
             
             // Внутренний номер договора (опционально) - парсим из колонки "Договор.Внутренний номер"
-            // ВАЖНО: Используем только точное совпадение, чтобы не перепутать с колонкой "Внутренний номер"
+            // Используем findColumnIndex для поиска колонки (как для других колонок)
             Integer contractInnerIdCol = columnIndices.get(CONTRACT_INNER_ID_COLUMN);
             if (contractInnerIdCol == null) {
-                // Ищем точное совпадение вручную, чтобы избежать путаницы с "Внутренний номер"
+                contractInnerIdCol = findColumnIndex(CONTRACT_INNER_ID_COLUMN);
+            }
+            // Если не нашли через findColumnIndex, ищем вручную по частичному совпадению
+            if (contractInnerIdCol == null) {
                 for (Map.Entry<String, Integer> entry : columnIndices.entrySet()) {
-                    if (entry.getKey().equals(CONTRACT_INNER_ID_COLUMN)) {
+                    String colName = entry.getKey();
+                    if (colName == null) continue;
+                    String normalizedColName = colName.trim();
+                    // Проверяем, что колонка содержит "Договор" и "Внутренний" (не обязательно "Внутренний номер")
+                    // но не является просто "Внутренний номер" или INNER_ID_COLUMN
+                    boolean hasContract = normalizedColName.contains("Договор");
+                    boolean hasInner = normalizedColName.contains("Внутренний");
+                    boolean isNotSimpleInner = !normalizedColName.equals("Внутренний номер") && 
+                                             !normalizedColName.equals(INNER_ID_COLUMN);
+                    // Также проверяем варианты с точкой и пробелом: "Договор.Внутренний", "Договор. Внутренний"
+                    boolean hasContractDotInner = normalizedColName.contains("Договор.") && normalizedColName.contains("Внутренний");
+                    
+                    if ((hasContract && hasInner && isNotSimpleInner) || hasContractDotInner) {
                         contractInnerIdCol = entry.getValue();
+                        logger.info("Row {}: Found contractInnerId column by partial match: '{}' for purchase {}", 
+                            currentRowNum + 1, colName, purchase.getInnerId());
                         break;
                     }
                 }
+            }
+            if (contractInnerIdCol != null) {
+                logger.debug("Row {}: Found contractInnerId column '{}' at index {} for purchase {}", 
+                    currentRowNum + 1, CONTRACT_INNER_ID_COLUMN, contractInnerIdCol, purchase.getInnerId());
             }
             if (contractInnerIdCol != null) {
                 String contractInnerId = currentRowData.get(contractInnerIdCol);
@@ -719,15 +754,16 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                         purchase.setContractInnerId(null);
                     } else {
                         purchase.setContractInnerId(trimmedContractInnerId);
-                        logger.debug("Row {}: parsed contractInnerId: '{}' for purchase {}", currentRowNum + 1, trimmedContractInnerId, purchase.getInnerId());
+                        logger.info("Row {}: parsed contractInnerId: '{}' for purchase {}", currentRowNum + 1, trimmedContractInnerId, purchase.getInnerId());
                     }
                 } else {
                     // Если колонка найдена, но значение пустое - очищаем contractInnerId
                     purchase.setContractInnerId(null);
-                    logger.debug("Row {}: contractInnerId column is empty, clearing contractInnerId for purchase {}", currentRowNum + 1, purchase.getInnerId());
+                    logger.info("Row {}: contractInnerId column found but value is empty for purchase {}", currentRowNum + 1, purchase.getInnerId());
                 }
             } else {
-                logger.debug("Row {}: contractInnerIdColumnIndex is null, skipping contractInnerId field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
+                logger.warn("Row {}: contractInnerIdColumnIndex is null for purchase {}. Looking for column '{}'. Available columns: {}", 
+                    currentRowNum + 1, purchase.getInnerId(), CONTRACT_INNER_ID_COLUMN, columnIndices.keySet());
             }
             
             // Способ закупки (опционально) - парсим из колонки "Способ закупки (Заявка на ЗП)"

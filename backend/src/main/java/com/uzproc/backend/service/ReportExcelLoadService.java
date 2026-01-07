@@ -40,6 +40,7 @@ public class ReportExcelLoadService {
     // Константы для колонок
     private static final String REQUEST_NUMBER_COLUMN = "№ заявки";
     private static final int REQUEST_NUMBER_COLUMN_INDEX = 0;
+    private static final String CONTRACT_INNER_ID_COLUMN = "Договор.Внутренний номер";
     
     // Этапы согласований для заявок на закупку
     private static final String STAGE_APPROVAL_REQUEST = "Согласование Заявки на ЗП";
@@ -193,6 +194,16 @@ public class ReportExcelLoadService {
             // Строим карту колонок на основе заголовков с учетом merged cells
             Map<String, Integer> approvalColumnMap = buildApprovalColumnMap(sheet, headerRow0, headerRow1, headerRow2);
             logger.info("Built approval column map with {} entries", approvalColumnMap.size());
+            
+            // Ищем колонку "Договор.Внутренний номер" в заголовках репорта
+            // Ищем во всех строках заголовков, как и другие колонки
+            Integer contractInnerIdColumnIndex = findContractInnerIdColumn(headerRow0, headerRow1, headerRow2);
+            if (contractInnerIdColumnIndex != null) {
+                logger.info("Found contractInnerId column '{}' at index {} in report file", CONTRACT_INNER_ID_COLUMN, contractInnerIdColumnIndex);
+            } else {
+                logger.warn("ContractInnerId column '{}' not found in report file. Searching for similar columns...", CONTRACT_INNER_ID_COLUMN);
+            }
+            
             logger.info("Processing report file: {}", excelFile.getName());
             
             int processedRequestsCount = 0;
@@ -236,7 +247,8 @@ public class ReportExcelLoadService {
                         processedRequestsCount++;
                     }
                     
-                    // Находим закупки по purchaseRequestId (используем тот же номер заявки)
+                    // Находим закупки по purchaseRequestId (используем номер заявки на закупку)
+                    // Связь делается через номер заявки на закупку (requestNumber = idPurchaseRequest)
                     List<Purchase> purchases = purchaseRepository.findByPurchaseRequestId(requestNumber);
                     if (!purchases.isEmpty()) {
                         for (Purchase purchase : purchases) {
@@ -245,6 +257,13 @@ public class ReportExcelLoadService {
                                 // Парсим согласования для закупки
                                 int rowPurchaseApprovalsCount = parseApprovalsForPurchase(row, purchaseRequestId, approvalColumnMap);
                                 purchaseApprovalsCount += rowPurchaseApprovalsCount;
+                                
+                                // Парсим и обновляем contractInnerId из колонки "Договор.Внутренний номер" в репорте
+                                // Связь с закупкой через номер заявки на закупку (purchaseRequestId)
+                                if (contractInnerIdColumnIndex != null) {
+                                    updatePurchaseContractInnerId(purchase, row, contractInnerIdColumnIndex);
+                                }
+                                
                                 processedPurchasesCount++;
                             }
                         }
@@ -1201,6 +1220,116 @@ public class ReportExcelLoadService {
         }
         
         return null;
+    }
+    
+    /**
+     * Ищет колонку "Договор.Внутренний номер" в заголовках отчета
+     * Ищет во всех строках заголовков (headerRow0, headerRow1, headerRow2), как и другие колонки
+     */
+    private Integer findContractInnerIdColumn(Row headerRow0, Row headerRow1, Row headerRow2) {
+        // Определяем максимальное количество колонок
+        int maxCol = Math.max(
+            Math.max(headerRow0 != null ? headerRow0.getLastCellNum() : 0, 
+                     headerRow1 != null ? headerRow1.getLastCellNum() : 0),
+            headerRow2 != null ? headerRow2.getLastCellNum() : 0
+        );
+        
+        // Ищем колонку по точному совпадению во всех строках заголовков
+        for (int col = 0; col < maxCol; col++) {
+            // Проверяем headerRow2 (основная строка с полями)
+            if (headerRow2 != null) {
+                Cell cell = headerRow2.getCell(col);
+                String cellValue = getCellValueAsString(cell);
+                if (cellValue != null && cellValue.trim().equals(CONTRACT_INNER_ID_COLUMN)) {
+                    logger.debug("Found contractInnerId column '{}' at index {} in report file (headerRow2)", CONTRACT_INNER_ID_COLUMN, col);
+                    return col;
+                }
+            }
+            
+            // Проверяем headerRow1 (строка с ролями) - на случай, если колонка там
+            if (headerRow1 != null) {
+                Cell cell = headerRow1.getCell(col);
+                String cellValue = getCellValueAsString(cell);
+                if (cellValue != null && cellValue.trim().equals(CONTRACT_INNER_ID_COLUMN)) {
+                    logger.debug("Found contractInnerId column '{}' at index {} in report file (headerRow1)", CONTRACT_INNER_ID_COLUMN, col);
+                    return col;
+                }
+            }
+            
+            // Проверяем headerRow0 (строка с этапами) - на случай, если колонка там
+            if (headerRow0 != null) {
+                Cell cell = headerRow0.getCell(col);
+                String cellValue = getCellValueAsString(cell);
+                if (cellValue != null && cellValue.trim().equals(CONTRACT_INNER_ID_COLUMN)) {
+                    logger.debug("Found contractInnerId column '{}' at index {} in report file (headerRow0)", CONTRACT_INNER_ID_COLUMN, col);
+                    return col;
+                }
+            }
+        }
+        
+        // Ищем по частичному совпадению (содержит "Договор" и "Внутренний") во всех строках
+        for (int col = 0; col < maxCol; col++) {
+            // Проверяем headerRow2 (основная строка с полями)
+            if (headerRow2 != null) {
+                Cell cell = headerRow2.getCell(col);
+                String cellValue = getCellValueAsString(cell);
+                if (cellValue != null) {
+                    String normalizedValue = cellValue.trim();
+                    boolean hasContract = normalizedValue.contains("Договор");
+                    boolean hasInner = normalizedValue.contains("Внутренний");
+                    boolean isNotSimpleInner = !normalizedValue.equals("Внутренний номер");
+                    boolean hasContractDotInner = normalizedValue.contains("Договор.") && normalizedValue.contains("Внутренний");
+                    
+                    if ((hasContract && hasInner && isNotSimpleInner) || hasContractDotInner) {
+                        logger.info("Found contractInnerId column by partial match: '{}' at index {} in report file (headerRow2)", cellValue, col);
+                        return col;
+                    }
+                }
+            }
+        }
+        
+        logger.debug("ContractInnerId column '{}' not found in report file", CONTRACT_INNER_ID_COLUMN);
+        return null;
+    }
+    
+    /**
+     * Обновляет contractInnerId для закупки из колонки "Договор.Внутренний номер"
+     */
+    private void updatePurchaseContractInnerId(Purchase purchase, Row row, Integer contractInnerIdColumnIndex) {
+        try {
+            Cell contractInnerIdCell = row.getCell(contractInnerIdColumnIndex);
+            String contractInnerId = getCellValueAsString(contractInnerIdCell);
+            
+            if (contractInnerId != null && !contractInnerId.trim().isEmpty()) {
+                String trimmedContractInnerId = contractInnerId.trim();
+                
+                // Валидация: contractInnerId не должен совпадать с innerId закупки
+                if (trimmedContractInnerId.equals(purchase.getInnerId())) {
+                    logger.warn("Row {}: contractInnerId '{}' equals purchase innerId '{}', clearing contractInnerId for purchase {}", 
+                        row.getRowNum() + 1, trimmedContractInnerId, purchase.getInnerId(), purchase.getInnerId());
+                    purchase.setContractInnerId(null);
+                } else {
+                    // Обновляем только если значение изменилось
+                    if (!trimmedContractInnerId.equals(purchase.getContractInnerId())) {
+                        purchase.setContractInnerId(trimmedContractInnerId);
+                        purchaseRepository.save(purchase);
+                        logger.info("Row {}: Updated contractInnerId: '{}' for purchase {}", 
+                            row.getRowNum() + 1, trimmedContractInnerId, purchase.getInnerId());
+                    }
+                }
+            } else {
+                // Если колонка найдена, но значение пустое - очищаем contractInnerId только если оно было установлено
+                if (purchase.getContractInnerId() != null) {
+                    purchase.setContractInnerId(null);
+                    purchaseRepository.save(purchase);
+                    logger.debug("Row {}: Cleared contractInnerId for purchase {} (empty value in report)", 
+                        row.getRowNum() + 1, purchase.getInnerId());
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("Error updating contractInnerId for purchase {} in row {}: {}", 
+                purchase.getInnerId(), row.getRowNum() + 1, e.getMessage());
+        }
     }
 }
 
