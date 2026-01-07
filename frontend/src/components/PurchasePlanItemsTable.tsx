@@ -3379,7 +3379,7 @@ export default function PurchasePlanItemsTable() {
                   // Предотвращаем потерю фокуса при нажатии некоторых клавиш
                   e.stopPropagation();
                 }}
-                className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                 placeholder="Фильтр"
                 style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
               />
@@ -3629,7 +3629,7 @@ export default function PurchasePlanItemsTable() {
                             }}
                             onClick={(e) => e.stopPropagation()}
                             onFocus={(e) => e.stopPropagation()}
-                            className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                             placeholder="Поиск..."
                           />
                         </div>

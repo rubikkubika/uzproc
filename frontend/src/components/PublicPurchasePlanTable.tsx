@@ -127,10 +127,15 @@ const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
 
 export default function PublicPurchasePlanTable() {
   const [data, setData] = useState<PageResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [pageSize, setPageSize] = useState(100);
+  const [allItems, setAllItems] = useState<PurchasePlanItem[]>([]); // Все загруженные элементы
+  const [loadingMore, setLoadingMore] = useState(false); // Загрузка следующей страницы
+  const [hasMore, setHasMore] = useState(true); // Есть ли еще данные для загрузки
+  const loadMoreRef = useRef<HTMLDivElement>(null); // Ref для отслеживания прокрутки
+  const initialTotalElementsRef = useRef<number | null>(null); // Сохраняем totalElements из первой загрузки
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [selectedMonths, setSelectedMonths] = useState<Set<number>>(new Set()); // Множество выбранных месяцев: -1 = без даты, 0-11 = месяц (0=январь, 11=декабрь)
   const [selectedMonthYear, setSelectedMonthYear] = useState<number | null>(null); // Год для фильтра по месяцу (если отличается от selectedYear)
@@ -757,9 +762,15 @@ export default function PublicPurchasePlanTable() {
     sortField: SortField,
     sortDirection: SortDirection,
     filters: Record<string, string>,
-    purchaserFilter: Set<string>
+    purchaserFilter: Set<string>,
+    append: boolean = false
   ) => {
-    setLoading(true);
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+      setAllItems([]); // Сбрасываем накопленные данные при новой загрузке
+    }
     setError(null);
     try {
       const params = new URLSearchParams();
@@ -850,18 +861,72 @@ export default function PublicPurchasePlanTable() {
       }
       const result = await response.json();
       setData(result);
+      
+      if (append) {
+        // Добавляем новые данные к существующим
+        setAllItems(prev => {
+          const newItems = [...prev, ...result.content];
+          // Проверяем, есть ли еще данные для загрузки
+          const totalElements = initialTotalElementsRef.current ?? result.totalElements;
+          setHasMore(result.content.length === size && newItems.length < totalElements);
+          return newItems;
+        });
+      } else {
+        // Первая загрузка - устанавливаем все данные
+        setAllItems(result.content);
+        // Сохраняем totalElements из первой загрузки
+        initialTotalElementsRef.current = result.totalElements;
+        // Проверяем, есть ли еще данные для загрузки
+        setHasMore(result.content.length === size && result.content.length < result.totalElements);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Произошла ошибка');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
+  // Загрузка первой страницы при изменении фильтров
   useEffect(() => {
     if (selectedYear !== null) {
-      fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters, purchaserFilter);
+      setCurrentPage(0);
+      setHasMore(true);
+      initialTotalElementsRef.current = null; // Сбрасываем при изменении фильтров
+      fetchData(0, pageSize, selectedYear, sortField, sortDirection, filters, purchaserFilter, false);
     }
-  }, [currentPage, pageSize, selectedYear, selectedMonths, selectedMonthYear, sortField, sortDirection, filters, companyFilter, cfoFilter, purchaserFilter, categoryFilter, statusFilter]);
+  }, [selectedYear, selectedMonthYear, sortField, sortDirection, filters, companyFilter, cfoFilter, purchaserFilter, categoryFilter, statusFilter, selectedMonths]);
+
+  // Intersection Observer для бесконечной прокрутки
+  useEffect(() => {
+    // Проверяем, есть ли еще данные для загрузки
+    const hasMoreData = hasMore || (data && allItems.length < data.totalElements);
+    
+    if (!loadMoreRef.current || !hasMoreData || loading || loadingMore) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const stillHasMore = hasMore || (data && allItems.length < (data.totalElements || 0));
+        if (entries[0].isIntersecting && stillHasMore && !loading && !loadingMore) {
+          const nextPage = currentPage + 1;
+          setCurrentPage(nextPage);
+          fetchData(nextPage, pageSize, selectedYear, sortField, sortDirection, filters, purchaserFilter, true);
+        }
+      },
+      {
+        threshold: 0.1,
+        rootMargin: '100px', // Начинаем загрузку за 100px до конца
+      }
+    );
+
+    observer.observe(loadMoreRef.current);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasMore, loading, loadingMore, currentPage, pageSize, selectedYear, sortField, sortDirection, filters, companyFilter, cfoFilter, purchaserFilter, categoryFilter, statusFilter, selectedMonths, selectedMonthYear, data, allItems]);
 
   // Debounce для текстовых фильтров и фильтра бюджета
   const prevLocalFiltersRef = useRef<Record<string, string>>({
@@ -1538,13 +1603,13 @@ export default function PublicPurchasePlanTable() {
     );
   };
 
-  const hasData = data && data.content && data.content.length > 0;
+  const hasData = allItems && allItems.length > 0;
 
   return (
-    <div className="bg-gray-50 min-h-screen p-4">
+    <div className="bg-gray-50 flex-1 p-4 flex flex-col min-h-0">
       <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
         {/* Заголовок с логотипом */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center gap-4">
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center gap-4 flex-shrink-0">
           <button
             onClick={() => {
               if (typeof window !== 'undefined') {
@@ -1810,6 +1875,29 @@ export default function PublicPurchasePlanTable() {
                             </label>
                           ))}
                         </div>
+                        <div className="p-2 border-t border-gray-200">
+                          <button
+                            onClick={() => {
+                              // Сбрасываем видимые колонки к значениям по умолчанию
+                              setVisibleColumns(new Set(DEFAULT_VISIBLE_COLUMNS));
+                              // Сбрасываем порядок колонок к значениям по умолчанию
+                              setColumnOrder(DEFAULT_VISIBLE_COLUMNS);
+                              // Сохраняем в localStorage
+                              if (typeof window !== 'undefined') {
+                                localStorage.setItem('publicPurchasePlan_columnsVisibility', JSON.stringify(DEFAULT_VISIBLE_COLUMNS));
+                                localStorage.setItem('publicPurchasePlan_columnOrder', JSON.stringify(DEFAULT_VISIBLE_COLUMNS));
+                              }
+                              // Сбрасываем ширины колонок к значениям по умолчанию
+                              setColumnWidths(DEFAULT_COLUMN_WIDTHS);
+                              if (typeof window !== 'undefined') {
+                                localStorage.setItem('publicPurchasePlan_columnWidths', JSON.stringify(DEFAULT_COLUMN_WIDTHS));
+                              }
+                            }}
+                            className="w-full px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors"
+                          >
+                            По умолчанию
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1871,61 +1959,11 @@ export default function PublicPurchasePlanTable() {
           </div>
         </div>
 
-        {/* Пагинация */}
+        {/* Информация о количестве записей */}
         {data && (
-          <div className="px-3 py-2 border-b border-gray-200 flex items-center justify-between bg-gray-50">
-            <div className="flex items-center gap-3">
-              <div className="text-xs text-gray-700">
-                Показано {data?.content.length || 0} из {data?.totalElements || 0} записей
-              </div>
-              <div className="flex items-center gap-2">
-                <label htmlFor="pageSize" className="text-xs text-gray-700">
-                  Элементов на странице:
-                </label>
-                <select
-                  id="pageSize"
-                  value={pageSize}
-                  onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                  className="px-2 py-1 text-xs border border-gray-300 rounded bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
-              </div>
-            </div>
-            <div className="flex gap-1">
-              <button
-                onClick={() => setCurrentPage(0)}
-                disabled={currentPage === 0}
-                className="px-2 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Первая
-              </button>
-              <button
-                onClick={() => setCurrentPage(currentPage - 1)}
-                disabled={currentPage === 0}
-                className="px-2 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Назад
-              </button>
-              <span className="px-2 py-1 text-xs font-medium text-gray-700">
-                Страница {currentPage + 1} из {data?.totalPages || 0}
-              </span>
-              <button
-                onClick={() => setCurrentPage(currentPage + 1)}
-                disabled={currentPage >= (data?.totalPages || 0) - 1}
-                className="px-2 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Вперед
-              </button>
-              <button
-                onClick={() => setCurrentPage((data?.totalPages || 0) - 1)}
-                disabled={currentPage >= (data?.totalPages || 0) - 1}
-                className="px-2 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Последняя
-              </button>
+          <div className="px-3 py-2 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
+            <div className="text-xs text-gray-700">
+              Показано {allItems.length} из {initialTotalElementsRef.current ?? data?.totalElements ?? 0} записей
             </div>
           </div>
         )}
@@ -1945,7 +1983,7 @@ export default function PublicPurchasePlanTable() {
             </div>
           </div>
         ) : (
-          <div ref={printRef} className="flex-1 overflow-auto print-container">
+          <div ref={printRef} className="flex-1 min-h-0 overflow-auto print-container">
             <table className="w-full border-collapse">
               <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
@@ -2655,7 +2693,7 @@ export default function PublicPurchasePlanTable() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200 border-t-2 border-gray-400">
-                {hasData ? data.content.map((item, rowIndex) => {
+                {hasData ? allItems.map((item, rowIndex) => {
                   const isInactive = item.status === 'Исключена';
                   const isFirstRow = rowIndex === 0;
                   return (
@@ -2862,6 +2900,26 @@ export default function PublicPurchasePlanTable() {
                   </tr>
                 )}
               </tbody>
+              {/* Индикатор загрузки для бесконечной прокрутки */}
+              {(() => {
+                const totalElements = initialTotalElementsRef.current ?? data?.totalElements ?? 0;
+                return hasMore && allItems.length < totalElements;
+              })() && (
+                <tfoot>
+                  <tr>
+                    <td colSpan={columnOrder.filter(col => visibleColumns.has(col)).length + 1} className="px-3 py-4 text-center">
+                      <div ref={loadMoreRef} className="flex items-center justify-center gap-2 text-xs text-gray-600">
+                        {loadingMore && (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+                            <span>Загрузка...</span>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         )}

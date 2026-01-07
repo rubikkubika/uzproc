@@ -391,14 +391,14 @@ function DashboardContent() {
 
       case 'purchase-requests':
         return (
-          <div className="space-y-6">
+          <div className="space-y-6 h-full flex flex-col">
             <PurchaseRequestsTable />
           </div>
         );
 
       case 'purchases':
         return (
-          <div className="space-y-6">
+          <div className="space-y-6 h-full flex flex-col">
             <PurchasesTable />
           </div>
         );
@@ -412,7 +412,7 @@ function DashboardContent() {
 
       case 'contracts':
         return (
-          <div className="space-y-6">
+          <div className="space-y-6 h-full flex flex-col">
             <ContractsTable />
           </div>
         );

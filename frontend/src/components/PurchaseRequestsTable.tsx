@@ -1298,7 +1298,7 @@ export default function PurchaseRequestsTable() {
                   // Предотвращаем потерю фокуса при нажатии некоторых клавиш
                   e.stopPropagation();
                 }}
-                className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                 placeholder="Фильтр"
                 style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
               />
@@ -1547,8 +1547,8 @@ export default function PurchaseRequestsTable() {
   const hasData = data && data.content && data.content.length > 0;
 
   return (
-    <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-200">
+    <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
+      <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-700 font-medium">Фильтр по году создания:</span>
@@ -1625,7 +1625,7 @@ export default function PurchaseRequestsTable() {
 
       {/* Пагинация */}
       {data && (
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <button
@@ -1698,9 +1698,9 @@ export default function PurchaseRequestsTable() {
         </div>
       )}
       
-      <div className="overflow-x-auto relative">
+      <div className="flex-1 overflow-auto relative">
         <table className="w-full border-collapse">
-          <thead className="bg-gray-50">
+          <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
               {columnOrder.map(columnKey => {
                 const isDragging = draggedColumn === columnKey;
@@ -1763,7 +1763,7 @@ export default function PurchaseRequestsTable() {
                               }}
                               onClick={(e) => e.stopPropagation()}
                               onFocus={(e) => e.stopPropagation()}
-                              className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                               placeholder="Поиск..."
                             />
                           </div>
@@ -2065,7 +2065,7 @@ export default function PurchaseRequestsTable() {
                                 }, 200);
                               }}
                               placeholder="Число"
-                              className="w-full text-xs border border-gray-300 rounded px-1 py-0.5 pl-11 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              className="w-full text-xs border border-gray-300 rounded px-1 py-0.5 pl-11 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                               style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
                             />
                           </div>
@@ -2155,7 +2155,7 @@ export default function PurchaseRequestsTable() {
                               value={statusSearchQuery}
                               onChange={(e) => setStatusSearchQuery(e.target.value)}
                               onClick={(e) => e.stopPropagation()}
-                              className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                               placeholder="Поиск..."
                             />
                           </div>

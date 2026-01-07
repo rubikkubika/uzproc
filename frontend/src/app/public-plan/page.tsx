@@ -3,7 +3,11 @@
 import PublicPurchasePlanTable from '@/components/PublicPurchasePlanTable';
 
 export default function PublicPlanPage() {
-  return <PublicPurchasePlanTable />;
+  return (
+    <div className="h-screen flex flex-col">
+      <PublicPurchasePlanTable />
+    </div>
+  );
 }
 
 

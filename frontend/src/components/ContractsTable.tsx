@@ -387,8 +387,8 @@ export default function ContractsTable() {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-200">
+    <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
+      <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
         <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-700 font-medium">Фильтр по году создания:</span>
@@ -431,7 +431,7 @@ export default function ContractsTable() {
       </div>
 
       {/* Пагинация */}
-      <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
+      <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
         <div className="flex items-center gap-4">
           <div className="text-sm text-gray-700">
             Показано {data?.content?.length || 0} из {data?.totalElements || 0} записей
@@ -493,9 +493,9 @@ export default function ContractsTable() {
       {loading ? (
         <div className="px-6 py-8 text-center text-gray-500">Загрузка...</div>
       ) : (
-      <div className="overflow-x-auto relative">
+      <div className="flex-1 overflow-auto relative">
         <table className="w-full border-collapse">
-          <thead className="bg-gray-50">
+          <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
                 <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative">
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
@@ -536,7 +536,7 @@ export default function ContractsTable() {
                           e.stopPropagation();
                         }}
                         data-filter-field="innerId"
-                        className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                         placeholder="Фильтр"
                         style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
                       />
@@ -603,7 +603,7 @@ export default function ContractsTable() {
                                   }}
                                   onClick={(e) => e.stopPropagation()}
                                   onFocus={(e) => e.stopPropagation()}
-                                  className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                  className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                                   placeholder="Поиск..."
                                 />
                               </div>
@@ -706,7 +706,7 @@ export default function ContractsTable() {
                           e.stopPropagation();
                         }}
                         data-filter-field="name"
-                        className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                         placeholder="Фильтр"
                         style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
                       />
@@ -770,7 +770,7 @@ export default function ContractsTable() {
                           e.stopPropagation();
                         }}
                         data-filter-field="documentForm"
-                        className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                         placeholder="Фильтр"
                         style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
                       />
