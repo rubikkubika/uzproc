@@ -15,6 +15,7 @@ interface Purchase {
   purchaseInitiator: string | null;
   purchaseCreationDate: string | null;
   budgetAmount: number | null;
+  currency: string | null;
   costType: string | null;
   contractType: string | null;
   contractDurationMonths: number | null;
@@ -37,6 +38,20 @@ interface PageResponse {
   size: number;
   number: number;
 }
+
+// Функция для получения символа валюты
+const getCurrencyIcon = (currency: string | null) => {
+  if (!currency) return null;
+  const currencyUpper = currency.toUpperCase();
+  if (currencyUpper === 'USD' || currencyUpper === 'ДОЛЛАР' || currencyUpper === '$') {
+    return <span className="ml-0.5">$</span>;
+  } else if (currencyUpper === 'EUR' || currencyUpper === 'ЕВРО' || currencyUpper === '€') {
+    return <span className="ml-0.5">€</span>;
+  } else if (currencyUpper === 'UZS' || currencyUpper === 'СУМ' || currencyUpper === 'СУММ') {
+    return <span className="ml-0.5 text-xs">UZS</span>;
+  }
+  return <span className="ml-0.5 text-xs">{currency}</span>;
+};
 
 export default function PurchasesTable() {
   const router = useRouter();
@@ -1791,10 +1806,15 @@ export default function PurchasesTable() {
             boxSizing: 'border-box'
           }}
         >
-          {item.budgetAmount ? new Intl.NumberFormat('ru-RU', {
-            notation: 'compact',
-            maximumFractionDigits: 1
-          }).format(item.budgetAmount) : '-'}
+          {item.budgetAmount ? (
+            <span className="flex items-center">
+              {new Intl.NumberFormat('ru-RU', {
+                notation: 'compact',
+                maximumFractionDigits: 1
+              }).format(item.budgetAmount)}
+              {getCurrencyIcon(item.currency)}
+            </span>
+          ) : '-'}
         </td>
       );
     }

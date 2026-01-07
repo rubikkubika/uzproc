@@ -111,6 +111,7 @@ public class ContractService {
         dto.setMcc(entity.getMcc());
         dto.setDocumentForm(entity.getDocumentForm());
         dto.setBudgetAmount(entity.getBudgetAmount());
+        dto.setCurrency(entity.getCurrency());
         dto.setCostType(entity.getCostType());
         dto.setContractType(entity.getContractType());
         dto.setContractDurationMonths(entity.getContractDurationMonths());

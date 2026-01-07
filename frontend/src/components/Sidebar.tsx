@@ -36,16 +36,16 @@ const menuItems: Array<{ id: string; label: string; icon: any }> = [];
 
   const purchaserItems = [
     { id: 'overview', label: 'Обзор', icon: Home, disabled: false },
+    { id: 'purchase-plan', label: 'План закупок', icon: Calendar },
     { id: 'purchase-requests', label: 'Заявки на закупку', icon: Package },
     { id: 'purchases', label: 'Закупки', icon: Package },
-    { id: 'purchase-plan', label: 'План закупок', icon: Calendar },
     { id: 'contracts', label: 'Договоры', icon: Package },
     { id: 'specifications', label: 'Спецификации', icon: Package },
-    { id: 'public-plan', label: 'План закупок (публичный)', icon: FileText, isExternal: true },
   ];
 
   const initiatorItems = [
     { id: 'create-purchase', label: 'Создать закупку', icon: Package, disabled: true },
+    { id: 'public-plan', label: 'План закупок (публичный)', icon: FileText, isExternal: true },
   ];
 
   const initiatorDevelopmentItems = [
@@ -317,12 +317,21 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
               {initiatorItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
-                const isDisabled = item.disabled;
+                const isDisabled = item.disabled || false;
+                const isExternal = (item as any).isExternal || false;
                 
                 return (
                   <li key={item.id}>
                     <button
-                      onClick={() => !isDisabled && handleTabChange(item.id)}
+                      onClick={() => {
+                        if (isDisabled) return;
+                        if (isExternal) {
+                          router.push('/public-plan');
+                          setIsMobileMenuOpen(false);
+                        } else {
+                          handleTabChange(item.id);
+                        }
+                      }}
                       disabled={isDisabled}
                       className={`w-full flex items-center rounded-lg transition-colors relative text-sm ${
                         isCollapsed ? 'justify-center px-2 py-1.5' : 'px-2 py-1.5'

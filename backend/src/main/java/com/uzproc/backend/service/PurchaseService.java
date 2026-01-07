@@ -108,6 +108,7 @@ public class PurchaseService {
         dto.setPurchaseInitiator(entity.getPurchaseInitiator());
         dto.setPurchaseSubject(entity.getPurchaseSubject());
         dto.setBudgetAmount(entity.getBudgetAmount());
+        dto.setCurrency(entity.getCurrency());
         dto.setCostType(entity.getCostType());
         dto.setContractType(entity.getContractType());
         dto.setContractDurationMonths(entity.getContractDurationMonths());

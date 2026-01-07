@@ -20,6 +20,7 @@ interface PurchaseRequest {
   name: string | null;
   purchaseRequestCreationDate: string | null;
   budgetAmount: number | null;
+  currency: string | null;
   costType: string | null;
   contractType: string | null;
   contractDurationMonths: number | null;
@@ -48,6 +49,20 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 минут
 // Константы для статусов
 const ALL_STATUSES = ['На согласовании', 'На утверждении', 'Утверждена', 'Согласована', 'Не согласована', 'Не утверждена', 'Неактуальна', 'Не Актуальная'];
 const DEFAULT_STATUSES = ALL_STATUSES.filter(s => s !== 'Неактуальна' && s !== 'Не Актуальная');
+
+// Функция для получения символа валюты
+const getCurrencyIcon = (currency: string | null) => {
+  if (!currency) return null;
+  const currencyUpper = currency.toUpperCase();
+  if (currencyUpper === 'USD' || currencyUpper === 'ДОЛЛАР' || currencyUpper === '$') {
+    return <span className="ml-0.5">$</span>;
+  } else if (currencyUpper === 'EUR' || currencyUpper === 'ЕВРО' || currencyUpper === '€') {
+    return <span className="ml-0.5">€</span>;
+  } else if (currencyUpper === 'UZS' || currencyUpper === 'СУМ' || currencyUpper === 'СУММ') {
+    return <span className="ml-0.5 text-xs">UZS</span>;
+  }
+  return <span className="ml-0.5 text-xs">{currency}</span>;
+};
 
 export default function PurchaseRequestsTable() {
   const router = useRouter();
@@ -2337,10 +2352,15 @@ export default function PurchaseRequestsTable() {
                           className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
                           style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px` }}
                         >
-                          {request.budgetAmount ? new Intl.NumberFormat('ru-RU', { 
-                            notation: 'compact',
-                            maximumFractionDigits: 1 
-                          }).format(request.budgetAmount) : '-'}
+                          {request.budgetAmount ? (
+                            <span className="flex items-center">
+                              {new Intl.NumberFormat('ru-RU', { 
+                                notation: 'compact',
+                                maximumFractionDigits: 1 
+                              }).format(request.budgetAmount)}
+                              {getCurrencyIcon(request.currency)}
+                            </span>
+                          ) : '-'}
                         </td>
                       );
                     }

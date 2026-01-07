@@ -45,6 +45,9 @@ public class Contract {
     @Column(name = "budget_amount", precision = 15, scale = 2)
     private BigDecimal budgetAmount;
 
+    @Column(name = "currency", length = 10)
+    private String currency;
+
     @Column(name = "cost_type", length = 255)
     private String costType;
 
@@ -187,6 +190,14 @@ public class Contract {
 
     public void setBudgetAmount(BigDecimal budgetAmount) {
         this.budgetAmount = budgetAmount;
+    }
+
+    public String getCurrency() {
+        return currency;
+    }
+
+    public void setCurrency(String currency) {
+        this.currency = currency;
     }
 
     public String getCostType() {

@@ -140,6 +140,7 @@ public class PurchaseRequestService {
         dto.setPurchaser(entity.getPurchaser());
         dto.setPurchaseRequestSubject(entity.getPurchaseRequestSubject());
         dto.setBudgetAmount(entity.getBudgetAmount());
+        dto.setCurrency(entity.getCurrency());
         dto.setCostType(entity.getCostType());
         dto.setContractType(entity.getContractType());
         dto.setContractDurationMonths(entity.getContractDurationMonths());
@@ -389,21 +390,15 @@ public class PurchaseRequestService {
                     
                     if (!statusEnums.isEmpty()) {
                         if (statusEnums.size() == 1) {
-                            // Одно значение - точное совпадение ИЛИ null
-                            predicates.add(cb.or(
-                                cb.equal(root.get("status"), statusEnums.get(0)),
-                                cb.isNull(root.get("status"))
-                            ));
+                            // Одно значение - точное совпадение (БЕЗ null)
+                            predicates.add(cb.equal(root.get("status"), statusEnums.get(0)));
                             predicateCount++;
-                            logger.info("Added single status filter: '{}' (including null)", statusEnums.get(0).getDisplayName());
+                            logger.info("Added single status filter: '{}' (exact match only)", statusEnums.get(0).getDisplayName());
                         } else {
-                            // Несколько значений - IN запрос ИЛИ null
-                            predicates.add(cb.or(
-                                root.get("status").in(statusEnums),
-                                cb.isNull(root.get("status"))
-                            ));
+                            // Несколько значений - IN запрос (БЕЗ null)
+                            predicates.add(root.get("status").in(statusEnums));
                             predicateCount++;
-                            logger.info("Added multiple status filter: {} (including null)", statusEnums.stream()
+                            logger.info("Added multiple status filter: {} (exact match only)", statusEnums.stream()
                                 .map(PurchaseRequestStatus::getDisplayName)
                                 .collect(Collectors.toList()));
                         }

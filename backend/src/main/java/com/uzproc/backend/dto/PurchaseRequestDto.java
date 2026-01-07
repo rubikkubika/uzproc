@@ -22,6 +22,7 @@ public class PurchaseRequestDto {
     private String purchaser;
     private String purchaseRequestSubject;
     private BigDecimal budgetAmount;
+    private String currency;
     private String costType;
     private String contractType;
     private Integer contractDurationMonths;
@@ -160,6 +161,14 @@ public class PurchaseRequestDto {
 
     public void setBudgetAmount(BigDecimal budgetAmount) {
         this.budgetAmount = budgetAmount;
+    }
+
+    public String getCurrency() {
+        return currency;
+    }
+
+    public void setCurrency(String currency) {
+        this.currency = currency;
     }
 
     public String getCostType() {

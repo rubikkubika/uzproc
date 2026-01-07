@@ -15,6 +15,7 @@ interface Contract {
   mcc: string | null;
   documentForm: string | null;
   budgetAmount: number | null;
+  currency: string | null;
   costType: string | null;
   contractType: string | null;
   contractDurationMonths: number | null;

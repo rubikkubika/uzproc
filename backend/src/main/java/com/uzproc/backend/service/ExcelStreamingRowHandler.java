@@ -82,6 +82,7 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private static final String DOCUMENT_FORM_COLUMN = "Форма документа";
     private static final String STATUS_COLUMN = "Состояние";
     private static final String AMOUNT_COLUMN = "Сумма";
+    private static final String CURRENCY_COLUMN = "Валюта";
     private static final String MAIN_CONTRACT_COLUMN = "Основной договор";
     private static final String SPECIFICATION_FORM = "Спецификация";
     private static final String EXPENSE_ITEM_COLUMN = "Статья бюджета (PL) (Заявка на ЗП)";
@@ -488,6 +489,21 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 logger.debug("Row {}: amountColumnIndex is null, skipping budgetAmount field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
             }
             
+            // Валюта (опционально)
+            Integer currencyCol = columnIndices.get(CURRENCY_COLUMN);
+            if (currencyCol == null) {
+                currencyCol = findColumnIndex(CURRENCY_COLUMN);
+            }
+            if (currencyCol != null) {
+                String currency = currentRowData.get(currencyCol);
+                if (currency != null && !currency.trim().isEmpty()) {
+                    pr.setCurrency(currency.trim());
+                    logger.debug("Row {}: parsed currency: '{}' for request {}", currentRowNum + 1, currency.trim(), pr.getIdPurchaseRequest());
+                }
+            } else {
+                logger.debug("Row {}: currencyColumnIndex is null, skipping currency field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
+            }
+            
             // Статья расходов (опционально)
             Integer expenseItemCol = columnIndices.get(EXPENSE_ITEM_COLUMN);
             if (expenseItemCol == null) {
@@ -648,6 +664,21 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 }
             } else {
                 logger.debug("Row {}: amountColumnIndex is null, skipping budgetAmount field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
+            }
+            
+            // Валюта (опционально)
+            Integer currencyCol = columnIndices.get(CURRENCY_COLUMN);
+            if (currencyCol == null) {
+                currencyCol = findColumnIndex(CURRENCY_COLUMN);
+            }
+            if (currencyCol != null) {
+                String currency = currentRowData.get(currencyCol);
+                if (currency != null && !currency.trim().isEmpty()) {
+                    purchase.setCurrency(currency.trim());
+                    logger.debug("Row {}: parsed currency: '{}' for purchase {}", currentRowNum + 1, currency.trim(), purchase.getInnerId());
+                }
+            } else {
+                logger.debug("Row {}: currencyColumnIndex is null, skipping currency field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
             }
             
             // Статья расходов (опционально)
@@ -899,6 +930,43 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 }
             } else {
                 logger.debug("Row {}: statusColumnIndex is null, skipping state field", currentRowNum + 1);
+            }
+            
+            // Сумма (опционально) - парсим поле "Сумма" в поле budgetAmount
+            Integer amountCol = columnIndices.get(AMOUNT_COLUMN);
+            if (amountCol == null) {
+                amountCol = findColumnIndex(AMOUNT_COLUMN);
+            }
+            if (amountCol != null) {
+                String amountStr = currentRowData.get(amountCol);
+                if (amountStr != null && !amountStr.trim().isEmpty()) {
+                    java.math.BigDecimal amount = parseBigDecimalString(amountStr);
+                    if (amount != null) {
+                        contract.setBudgetAmount(amount);
+                        logger.info("Row {}: parsed amount value: '{}' and saved to budgetAmount field for contract {}", currentRowNum + 1, amount, contract.getInnerId());
+                    } else {
+                        logger.debug("Row {}: cannot parse amount value '{}' for contract {}", currentRowNum + 1, amountStr, contract.getInnerId());
+                    }
+                } else {
+                    logger.debug("Row {}: amount cell is empty or null", currentRowNum + 1);
+                }
+            } else {
+                logger.debug("Row {}: amountColumnIndex is null, skipping budgetAmount field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
+            }
+            
+            // Валюта (опционально)
+            Integer currencyCol = columnIndices.get(CURRENCY_COLUMN);
+            if (currencyCol == null) {
+                currencyCol = findColumnIndex(CURRENCY_COLUMN);
+            }
+            if (currencyCol != null) {
+                String currency = currentRowData.get(currencyCol);
+                if (currency != null && !currency.trim().isEmpty()) {
+                    contract.setCurrency(currency.trim());
+                    logger.debug("Row {}: parsed currency: '{}' for contract {}", currentRowNum + 1, currency.trim(), contract.getInnerId());
+                }
+            } else {
+                logger.debug("Row {}: currencyColumnIndex is null, skipping currency field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
             }
             
             // Сохраняем или обновляем
@@ -1215,6 +1283,15 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             }
         }
         
+        // Обновляем валюту
+        if (newData.getCurrency() != null && !newData.getCurrency().trim().isEmpty()) {
+            if (existing.getCurrency() == null || !existing.getCurrency().equals(newData.getCurrency())) {
+                existing.setCurrency(newData.getCurrency());
+                updated = true;
+                logger.debug("Updated currency for request {}: {}", existing.getIdPurchaseRequest(), newData.getCurrency());
+            }
+        }
+        
         // Обновляем state
         if (newData.getState() != null && !newData.getState().trim().isEmpty()) {
             if (existing.getState() == null || !existing.getState().equals(newData.getState())) {
@@ -1311,6 +1388,15 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             }
         } else {
             logger.debug("newData.getBudgetAmount() is null for purchase {}", existing.getInnerId());
+        }
+        
+        // Обновляем валюту
+        if (newData.getCurrency() != null && !newData.getCurrency().trim().isEmpty()) {
+            if (existing.getCurrency() == null || !existing.getCurrency().equals(newData.getCurrency())) {
+                existing.setCurrency(newData.getCurrency());
+                updated = true;
+                logger.debug("Updated currency for purchase {}: {}", existing.getInnerId(), newData.getCurrency());
+            }
         }
         
         // Обновляем state
@@ -1461,6 +1547,15 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 existing.setBudgetAmount(newData.getBudgetAmount());
                 updated = true;
                 logger.debug("Updated budgetAmount for contract {}: {}", existing.getInnerId(), newData.getBudgetAmount());
+            }
+        }
+        
+        // Обновляем валюту
+        if (newData.getCurrency() != null && !newData.getCurrency().trim().isEmpty()) {
+            if (existing.getCurrency() == null || !existing.getCurrency().equals(newData.getCurrency())) {
+                existing.setCurrency(newData.getCurrency());
+                updated = true;
+                logger.debug("Updated currency for contract {}: {}", existing.getInnerId(), newData.getCurrency());
             }
         }
         

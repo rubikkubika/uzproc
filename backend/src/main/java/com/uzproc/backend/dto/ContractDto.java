@@ -16,6 +16,7 @@ public class ContractDto {
     private String mcc;
     private String documentForm;
     private BigDecimal budgetAmount;
+    private String currency;
     private String costType;
     private String contractType;
     private Integer contractDurationMonths;
@@ -110,6 +111,14 @@ public class ContractDto {
 
     public void setBudgetAmount(BigDecimal budgetAmount) {
         this.budgetAmount = budgetAmount;
+    }
+
+    public String getCurrency() {
+        return currency;
+    }
+
+    public void setCurrency(String currency) {
+        this.currency = currency;
     }
 
     public String getCostType() {

@@ -21,6 +21,7 @@ interface PurchaseRequest {
   purchaseRequestSubject: string | null;
   purchaseRequestCreationDate: string | null;
   budgetAmount: number | null;
+  currency: string | null;
   costType: string | null;
   contractType: string | null;
   contractDurationMonths: number | null;
@@ -50,6 +51,7 @@ interface Contract {
   cfo: string | null;
   contractCreationDate: string | null;
   budgetAmount: number | null;
+  currency: string | null;
   purchaseRequestId: number | null;
   parentContractId: number | null;
   parentContract: Contract | null;
@@ -644,14 +646,35 @@ export default function PurchaseRequestDetailPage() {
     a.stage === 'Утверждение спецификации'
   );
 
-  const formatCurrency = (amount: number | null): string => {
+  const getCurrencyIcon = (currency: string | null) => {
+    if (!currency) return null;
+    const currencyUpper = currency.toUpperCase();
+    if (currencyUpper === 'USD' || currencyUpper === 'ДОЛЛАР' || currencyUpper === '$') {
+      return <span className="ml-0.5">$</span>;
+    } else if (currencyUpper === 'EUR' || currencyUpper === 'ЕВРО' || currencyUpper === '€') {
+      return <span className="ml-0.5">€</span>;
+    } else if (currencyUpper === 'UZS' || currencyUpper === 'СУМ' || currencyUpper === 'СУММ') {
+      return <span className="ml-0.5 text-xs">UZS</span>;
+    }
+    return <span className="ml-0.5 text-xs">{currency}</span>;
+  };
+
+  const formatCurrency = (amount: number | null, currency: string | null = null): string | JSX.Element => {
     if (amount === null) return '-';
-    return new Intl.NumberFormat('ru-RU', {
-      style: 'currency',
-      currency: 'RUB',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
+    const formatted = new Intl.NumberFormat('ru-RU', {
+      style: 'decimal',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
     }).format(amount);
+    if (currency) {
+      return (
+        <span className="flex items-center">
+          {formatted}
+          {getCurrencyIcon(currency)}
+        </span>
+      );
+    }
+    return formatted;
   };
 
   const formatBoolean = (value: boolean | null): string => {
@@ -981,7 +1004,7 @@ export default function PurchaseRequestDetailPage() {
                       Бюджет
                     </label>
                     <p className="text-xs text-gray-900">
-                      {formatCurrency(purchaseRequest.budgetAmount ? Number(purchaseRequest.budgetAmount) : null)}
+                      {formatCurrency(purchaseRequest.budgetAmount ? Number(purchaseRequest.budgetAmount) : null, purchaseRequest.currency)}
                     </p>
                   </div>
                   <div>
@@ -1731,7 +1754,12 @@ export default function PurchaseRequestDetailPage() {
                                 Сумма договора
                               </label>
                               <p className="text-xs text-gray-900">
-                                {contract.budgetAmount ? new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(contract.budgetAmount) : '-'}
+                                {contract.budgetAmount ? (
+                                  <span className="flex items-center">
+                                    {new Intl.NumberFormat('ru-RU', { style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(contract.budgetAmount)}
+                                    {getCurrencyIcon(contract.currency)}
+                                  </span>
+                                ) : '-'}
                               </p>
                             </div>
                           </div>
@@ -2077,7 +2105,7 @@ export default function PurchaseRequestDetailPage() {
                                       Сумма договора
                                     </label>
                                     <p className="text-xs text-gray-900">
-                                      {contract.parentContract!.budgetAmount ? new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(contract.parentContract!.budgetAmount) : '-'}
+                                      {contract.parentContract!.budgetAmount ? new Intl.NumberFormat('ru-RU', { style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(contract.parentContract!.budgetAmount) : '-'}
                                     </p>
                                   </div>
                                 </div>
@@ -2145,7 +2173,7 @@ export default function PurchaseRequestDetailPage() {
                                             {spec.contractCreationDate ? new Date(spec.contractCreationDate).toLocaleDateString('ru-RU') : '-'}
                                           </td>
                                           <td className="py-1 px-2 text-gray-900 text-right">
-                                            {spec.budgetAmount ? new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(spec.budgetAmount) : '-'}
+                                            {spec.budgetAmount ? new Intl.NumberFormat('ru-RU', { style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(spec.budgetAmount) : '-'}
                                           </td>
                                         </tr>
                                       ))}
@@ -2219,7 +2247,7 @@ export default function PurchaseRequestDetailPage() {
                                       Сумма договора
                                     </label>
                                     <p className="text-xs text-gray-900">
-                                      {contract.parentContract.budgetAmount ? new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(contract.parentContract.budgetAmount) : '-'}
+                                      {contract.parentContract.budgetAmount ? new Intl.NumberFormat('ru-RU', { style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(contract.parentContract.budgetAmount) : '-'}
                                     </p>
                                   </div>
                                 </div>
@@ -2273,7 +2301,12 @@ export default function PurchaseRequestDetailPage() {
                                     Сумма договора
                                   </label>
                                   <p className="text-xs text-gray-900">
-                                    {contract.budgetAmount ? new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'UZS', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(contract.budgetAmount) : '-'}
+                                    {contract.budgetAmount ? (
+                                  <span className="flex items-center">
+                                    {new Intl.NumberFormat('ru-RU', { style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(contract.budgetAmount)}
+                                    {getCurrencyIcon(contract.currency)}
+                                  </span>
+                                ) : '-'}
                                   </p>
                                 </div>
                               </div>
