@@ -822,3 +822,263 @@ public class EntityService {
 
 **ВАЖНО:** Если пользователь явно просит использовать другие стили или структуру, следовать указаниям пользователя. В остальных случаях использовать стандарт таблицы "Заявка на закупку".
 
+## Реализация полей ввода для фильтров
+
+**КРИТИЧЕСКИ ВАЖНО:** При создании полей ввода для фильтров в таблицах **ОБЯЗАТЕЛЬНО** нужно использовать следующие настройки для сохранения фокуса и корректной работы debounce.
+
+### Обязательные настройки для текстовых полей фильтров:
+
+1. **Состояние для отслеживания фокуса:**
+   ```typescript
+   const [focusedField, setFocusedField] = useState<string | null>(null);
+   ```
+
+2. **Структура поля ввода:**
+   ```typescript
+   <input
+     key={`filter-${field || ''}`}
+     type="text"
+     data-filter-field={field || ''}
+     value={localFilters[field || ''] || ''}
+     onChange={(e) => {
+       const newValue = e.target.value;
+       const cursorPos = e.target.selectionStart || 0;
+       setLocalFilters(prev => ({
+         ...prev,
+         [field || '']: newValue,
+       }));
+       // Сохраняем позицию курсора после обновления
+       requestAnimationFrame(() => {
+         const input = e.target as HTMLInputElement;
+         if (input && document.activeElement === input) {
+           const newPos = Math.min(cursorPos, newValue.length);
+           input.setSelectionRange(newPos, newPos);
+         }
+       });
+     }}
+     onFocus={(e) => {
+       e.stopPropagation();
+       setFocusedField(field || '');
+     }}
+     onBlur={(e) => {
+       // Снимаем фокус только если пользователь явно кликнул в другое место
+       setTimeout(() => {
+         const activeElement = document.activeElement as HTMLElement;
+         if (activeElement && 
+             activeElement !== e.target && 
+             !activeElement.closest('input[data-filter-field]') &&
+             !activeElement.closest('select')) {
+           setFocusedField(null);
+         }
+       }, 200);
+     }}
+     onClick={(e) => e.stopPropagation()}
+     onKeyDown={(e) => {
+       // Предотвращаем потерю фокуса при нажатии некоторых клавиш
+       if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+         e.stopPropagation();
+       }
+     }}
+     className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+     placeholder="Фильтр"
+     style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+   />
+   ```
+
+3. **Debounce с восстановлением фокуса:**
+   ```typescript
+   // Debounce для текстовых фильтров
+   useEffect(() => {
+     const textFields = ['field1', 'field2', 'field3']; // список всех текстовых полей
+     const hasTextChanges = textFields.some(field => localFilters[field] !== filters[field]);
+     
+     if (hasTextChanges) {
+       // Сохраняем фокус перед обновлением
+       const input = focusedField ? document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement : null;
+       const cursorPosition = input ? (input.selectionStart || 0) : null;
+       
+       const timer = setTimeout(() => {
+         setFilters(prev => {
+           const updated = { ...prev };
+           textFields.forEach(field => {
+             updated[field] = localFilters[field];
+           });
+           return updated;
+         });
+         setCurrentPage(0);
+         
+         // Восстанавливаем фокус после обновления
+         if (focusedField && cursorPosition !== null) {
+           setTimeout(() => {
+             const inputAfterRender = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
+             if (inputAfterRender) {
+               inputAfterRender.focus();
+               const newPos = Math.min(cursorPosition, inputAfterRender.value.length);
+               inputAfterRender.setSelectionRange(newPos, newPos);
+             }
+           }, 0);
+         }
+       }, 500); // Задержка 500мс
+
+       return () => clearTimeout(timer);
+     }
+   }, [localFilters, filters, focusedField]);
+   ```
+
+4. **Восстановление фокуса после обновления localFilters:**
+   ```typescript
+   // Восстановление фокуса после обновления localFilters
+   useEffect(() => {
+     if (focusedField) {
+       const input = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
+       if (input) {
+         const cursorPosition = input.selectionStart || 0;
+         const currentValue = input.value;
+         
+         requestAnimationFrame(() => {
+           const inputAfterRender = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
+           if (inputAfterRender && inputAfterRender.value === currentValue) {
+             inputAfterRender.focus();
+             const newPosition = Math.min(cursorPosition, inputAfterRender.value.length);
+             inputAfterRender.setSelectionRange(newPosition, newPosition);
+           }
+         });
+       }
+     }
+   }, [localFilters, focusedField]);
+   ```
+
+5. **Восстановление фокуса после обновления данных:**
+   ```typescript
+   // Восстановление фокуса после обновления данных
+   useEffect(() => {
+     if (focusedField && !loading) {
+       setTimeout(() => {
+         const input = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
+         if (input) {
+           input.focus();
+           const length = input.value.length;
+           input.setSelectionRange(length, length);
+         }
+       }, 50);
+     }
+   }, [data, loading, focusedField]);
+   ```
+
+### Ключевые особенности реализации:
+
+1. **`key` атрибут:** Используется для стабильной идентификации поля при перерисовке компонента
+2. **`data-filter-field` атрибут:** Используется для поиска поля в DOM при восстановлении фокуса
+3. **Сохранение позиции курсора:** В `onChange` сохраняется позиция курсора и восстанавливается через `requestAnimationFrame`
+4. **Отслеживание фокуса:** `focusedField` отслеживает активное поле, чтобы восстановить фокус после обновлений
+5. **`onBlur` с задержкой:** Используется `setTimeout` для проверки, действительно ли фокус потерян (возможно, пользователь кликнул на другой фильтр)
+6. **`stopPropagation`:** Предотвращает всплытие событий, которые могут вызвать нежелательное поведение
+7. **Debounce с восстановлением:** При применении debounce фокус и позиция курсора сохраняются и восстанавливаются
+
+### Преимущества этого подхода:
+
+- ✅ Фокус не теряется при вводе текста
+- ✅ Позиция курсора сохраняется при вводе
+- ✅ Фокус восстанавливается после обновления данных с сервера
+- ✅ Работает корректно с debounce (задержка перед отправкой запроса)
+- ✅ Пользователь может беспрепятственно вводить текст без потери фокуса
+
+### Для select-полей:
+
+Для select-полей используется другая логика - обновление обоих состояний сразу без debounce:
+```typescript
+<select
+  value={filters[field || ''] || ''}
+  onChange={(e) => handleFilterChange(field || '', e.target.value, false)}
+  onClick={(e) => e.stopPropagation()}
+  onFocus={(e) => e.stopPropagation()}
+  className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+  style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+>
+  {/* опции */}
+</select>
+```
+
+**ВАЖНО:** Все эти настройки обязательны для корректной работы полей ввода фильтров. Без них пользователь будет терять фокус при вводе текста, что создает плохой пользовательский опыт.
+
+## Цвет текста в полях ввода
+
+**КРИТИЧЕСКИ ВАЖНО:** При добавлении новых полей ввода (input, textarea) **ОБЯЗАТЕЛЬНО** нужно использовать темный цвет текста для обеспечения читаемости.
+
+### Обязательные классы для полей ввода:
+
+1. **Для всех текстовых полей ввода:**
+   ```typescript
+   <input
+     type="text"
+     className="... text-gray-900 bg-white ..."
+     // или
+     className="... text-black bg-white ..."
+   />
+   ```
+
+2. **Для полей email:**
+   ```typescript
+   <input
+     type="email"
+     className="... text-gray-900 bg-white ..."
+   />
+   ```
+
+3. **Для полей password:**
+   ```typescript
+   <input
+     type="password"
+     className="... text-gray-900 bg-white ..."
+   />
+   ```
+
+4. **Для textarea:**
+   ```typescript
+   <textarea
+     className="... text-gray-900 bg-white ..."
+   />
+   ```
+
+### Рекомендуемые классы:
+
+- **Темный цвет текста:** `text-gray-900` (предпочтительно) или `text-black`
+- **Белый фон:** `bg-white` (для контраста и читаемости)
+- **Для placeholder:** можно использовать `placeholder:text-gray-400` или `placeholder:text-gray-500`
+
+### Пример правильной реализации:
+
+```typescript
+// ✅ ПРАВИЛЬНО: темный текст и белый фон
+<input
+  type="text"
+  value={value}
+  onChange={(e) => setValue(e.target.value)}
+  className="w-full px-3 py-2 text-sm text-gray-900 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+  placeholder="Введите значение"
+/>
+
+// ✅ ПРАВИЛЬНО: для модальных окон и форм
+<input
+  type="email"
+  value={email}
+  onChange={(e) => setEmail(e.target.value)}
+  className="w-full px-3 py-2 text-sm text-gray-900 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+  placeholder="Введите email"
+/>
+
+// ❌ НЕПРАВИЛЬНО: без указания цвета текста (может быть светлым и нечитаемым)
+<input
+  type="text"
+  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg"
+  // Отсутствует text-gray-900 или text-black
+/>
+```
+
+### Исключения:
+
+- Поля ввода в фильтрах таблиц могут использовать стандартные стили из раздела "Реализация полей ввода для фильтров", но также должны иметь темный цвет текста
+- Если поле ввода имеет специальный дизайн (например, поиск с иконкой), темный цвет текста все равно обязателен
+
+**ВАЖНО:** Всегда проверять, что текст в полях ввода хорошо читается. Темный цвет текста (`text-gray-900` или `text-black`) в сочетании с белым фоном (`bg-white`) обеспечивает оптимальную читаемость и соответствует стандартам доступности.
+

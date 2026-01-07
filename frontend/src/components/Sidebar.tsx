@@ -53,6 +53,7 @@ const menuItems: Array<{ id: string; label: string; icon: any }> = [];
     { id: 'workload', label: 'Нагрузка', icon: BarChart3 },
     { id: 'tasks', label: 'Задачи', icon: CheckSquare },
     { id: 'presentation', label: 'Презентация', icon: FileText },
+    { id: 'users', label: 'Пользователи', icon: Users },
   ];
 
   const backendItems: Array<{ id: string; label: string; icon: any }> = [];
@@ -356,24 +357,25 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
             ) : null}
           </div>
 
-          {/* В разработке */}
-          <div className="mb-4">
-            {!isCollapsed && (
-              <button
-                onClick={() => toggleSection('development')}
-                className="w-full flex items-center justify-between text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2 hover:text-gray-700 transition-colors"
-              >
-                <span>В разработке</span>
-                {sectionsCollapsed.development ? (
-                  <ChevronDown className="w-3 h-3" />
-                ) : (
-                  <ChevronUp className="w-3 h-3" />
-                )}
-              </button>
-            )}
-            {(!isCollapsed && !sectionsCollapsed.development) || isCollapsed ? (
-              <ul className="space-y-2">
-              {initiatorDevelopmentItems.map((item) => {
+          {/* В разработке - только для админов */}
+          {userRole === 'admin' && (
+            <div className="mb-4">
+              {!isCollapsed && (
+                <button
+                  onClick={() => toggleSection('development')}
+                  className="w-full flex items-center justify-between text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2 hover:text-gray-700 transition-colors"
+                >
+                  <span>В разработке</span>
+                  {sectionsCollapsed.development ? (
+                    <ChevronDown className="w-3 h-3" />
+                  ) : (
+                    <ChevronUp className="w-3 h-3" />
+                  )}
+                </button>
+              )}
+              {(!isCollapsed && !sectionsCollapsed.development) || isCollapsed ? (
+                <ul className="space-y-2">
+                {initiatorDevelopmentItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
                 
@@ -400,7 +402,8 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
               })}
               </ul>
             ) : null}
-          </div>
+            </div>
+          )}
         </nav>
 
         {/* Кнопка загрузки и выхода */}

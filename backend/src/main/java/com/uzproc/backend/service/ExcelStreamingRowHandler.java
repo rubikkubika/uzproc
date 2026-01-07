@@ -990,15 +990,24 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     
     private void processUserRow() {
         try {
+            // Обрабатываем пользователей из колонки "Подготовил"
             Integer preparedByCol = columnIndices.get(PREPARED_BY_COLUMN);
-            if (preparedByCol == null) {
-                return;
+            if (preparedByCol != null) {
+                String preparedBy = currentRowData.get(preparedByCol);
+                if (preparedBy != null && !preparedBy.trim().isEmpty()) {
+                    excelLoadService.parseAndSaveUser(preparedBy.trim());
+                    usersCount++;
+                }
             }
             
-            String preparedBy = currentRowData.get(preparedByCol);
-            if (preparedBy != null && !preparedBy.trim().isEmpty()) {
-                excelLoadService.parseAndSaveUser(preparedBy.trim());
-                usersCount++;
+            // Обрабатываем пользователей из колонки "Закупщик" (Ответственный за ЗП)
+            Integer purchaserCol = columnIndices.get(PURCHASER_COLUMN);
+            if (purchaserCol != null) {
+                String purchaser = currentRowData.get(purchaserCol);
+                if (purchaser != null && !purchaser.trim().isEmpty()) {
+                    excelLoadService.parseAndSaveUser(purchaser.trim());
+                    usersCount++;
+                }
             }
         } catch (Exception e) {
             logger.warn("Error processing user row {}: {}", currentRowNum + 1, e.getMessage());

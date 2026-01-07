@@ -35,6 +35,10 @@ public class User {
     @Column(name = "position", length = 500)
     private String position;
 
+    @Column(name = "role", length = 50, nullable = false)
+    @Convert(converter = com.uzproc.backend.converter.UserRoleConverter.class)
+    private UserRole role = UserRole.USER;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -51,6 +55,7 @@ public class User {
         this.username = username;
         this.password = password;
         this.email = email;
+        this.role = UserRole.USER;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -63,6 +68,18 @@ public class User {
         this.name = name;
         this.department = department;
         this.position = position;
+        this.role = UserRole.USER;
+    }
+
+    public User(String username, String password, String email, String surname, String name, String department, String position, UserRole role) {
+        this.username = username;
+        this.password = password;
+        this.email = email;
+        this.surname = surname;
+        this.name = name;
+        this.department = department;
+        this.position = position;
+        this.role = role != null ? role : UserRole.USER;
     }
 
     public Long getId() {
@@ -143,5 +160,13 @@ public class User {
 
     public void setPosition(String position) {
         this.position = position;
+    }
+
+    public UserRole getRole() {
+        return role;
+    }
+
+    public void setRole(UserRole role) {
+        this.role = role != null ? role : UserRole.USER;
     }
 }

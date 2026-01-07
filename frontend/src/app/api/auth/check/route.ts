@@ -8,18 +8,20 @@ export async function GET() {
     const cookieStore = await cookies();
     const authToken = cookieStore.get('auth-token');
     const userRole = cookieStore.get('user-role');
+    const userEmail = cookieStore.get('user-email');
 
     // Проверяем, что cookie содержит актуальную версию пароля
     if (authToken && authToken.value === `authenticated-${PASSWORD_VERSION}`) {
       return NextResponse.json({ 
         authenticated: true,
-        role: userRole?.value || null
+        role: userRole?.value || null,
+        email: userEmail?.value || null
       });
     }
 
-    return NextResponse.json({ authenticated: false, role: null });
+    return NextResponse.json({ authenticated: false, role: null, email: null });
   } catch (error) {
-    return NextResponse.json({ authenticated: false, role: null });
+    return NextResponse.json({ authenticated: false, role: null, email: null });
   }
 }
 

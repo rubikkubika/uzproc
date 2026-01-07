@@ -21,6 +21,7 @@ import UploadCSV from '@/components/UploadCSV';
 import { getBackendUrl } from '@/utils/api';
 import Presentation from '@/components/Presentation';
 import TasksBoard from '@/components/TasksBoard';
+import UsersTable from '@/components/UsersTable';
 
 // Компонент для тестирования отправки почты
 function TestEmailForm() {
@@ -127,6 +128,8 @@ function DashboardContent() {
   // Начальное состояние всегда false для совместимости с SSR
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   // Загружаем состояние сайдбара из localStorage
   useLayoutEffect(() => {
@@ -170,6 +173,43 @@ function DashboardContent() {
       // Игнорируем ошибки
     }
   }, [isMounted, searchParams, router]);
+
+  // Загружаем информацию о текущем пользователе
+  useEffect(() => {
+    const loadUserInfo = async () => {
+      try {
+        // Загружаем email из localStorage или cookie
+        const savedEmail = localStorage.getItem('lastEmail');
+        if (savedEmail) {
+          setCurrentUser(savedEmail);
+        } else {
+          // Пытаемся получить из cookie через API
+          const response = await fetch('/api/auth/check');
+          if (response.ok) {
+            const data = await response.json();
+            if (data.authenticated && data.email) {
+              setCurrentUser(data.email);
+            }
+          }
+        }
+
+        // Загружаем роль через API
+        const response = await fetch('/api/auth/check');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.authenticated && data.role) {
+            setUserRole(data.role);
+          }
+        }
+      } catch (err) {
+        console.error('Error loading user info:', err);
+      }
+    };
+
+    if (isMounted) {
+      loadUserInfo();
+    }
+  }, [isMounted]);
 
   // Сохраняем состояние сайдбара в localStorage при изменении
   const handleSidebarCollapse = (collapsed: boolean) => {
@@ -380,15 +420,6 @@ function DashboardContent() {
         );
 
       // Backend разделы
-      case 'users':
-        return (
-          <div className="space-y-6">
-            <div className="bg-white p-6 rounded-lg shadow-lg">
-              <p className="text-gray-500">Таблица пользователей будет добавлена в следующих версиях</p>
-            </div>
-          </div>
-        );
-
       case 'purchase-requests':
         return (
           <div className="space-y-6 h-full flex flex-col">
@@ -433,6 +464,18 @@ function DashboardContent() {
       
       case 'presentation':
         return <Presentation />;
+
+      case 'users':
+        return (
+          <div className="space-y-6 h-full flex flex-col">
+            <div className="flex-shrink-0">
+              <h1 className="text-2xl font-bold text-gray-900 mb-4">Пользователи</h1>
+            </div>
+            <div className="flex-1 min-h-0">
+              <UsersTable />
+            </div>
+          </div>
+        );
 
       case 'upload':
         return <UploadCSV />;
@@ -574,9 +617,30 @@ function DashboardContent() {
                   />
                   <span className="text-lg font-bold text-black">uzProc</span>
                 </div>
+                {isMounted && currentUser && (
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-medium">
+                      {currentUser.charAt(0).toUpperCase()}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              <main className="flex-1 overflow-y-auto p-2 sm:p-3 lg:p-4 pt-16 sm:pt-20 lg:pt-4 safari-main-content" style={{ marginLeft: 0, flexShrink: 1, minWidth: 0 }}>
+              <main className="flex-1 overflow-y-auto p-2 sm:p-3 lg:p-4 pt-16 sm:pt-20 lg:pt-4 safari-main-content relative" style={{ marginLeft: 0, flexShrink: 1, minWidth: 0 }}>
+                {/* Компонент пользователя в правом верхнем углу */}
+                {isMounted && currentUser && (
+                  <div className="fixed top-4 right-4 z-40 bg-white rounded-lg shadow-md px-4 py-2 flex items-center gap-3 border border-gray-200">
+                    <div className="flex flex-col items-end">
+                      <span className="text-sm font-medium text-gray-900">{currentUser}</span>
+                      {userRole && (
+                        <span className="text-xs text-gray-500 capitalize">{userRole === 'admin' ? 'Администратор' : 'Пользователь'}</span>
+                      )}
+                    </div>
+                    <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                      {currentUser.charAt(0).toUpperCase()}
+                    </div>
+                  </div>
+                )}
                 {renderContent()}
               </main>
             </div>

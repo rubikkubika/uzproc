@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 function LoginPageContent() {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -28,10 +28,10 @@ function LoginPageContent() {
         }
       }
       
-      // Загружаем сохраненный логин
-      const lastUsername = localStorage.getItem('lastUsername');
-      if (lastUsername) {
-        setUsername(lastUsername);
+      // Загружаем сохраненный email
+      const lastEmail = localStorage.getItem('lastEmail');
+      if (lastEmail) {
+        setEmail(lastEmail);
       }
     }
   }, [searchParams]);
@@ -47,14 +47,14 @@ function LoginPageContent() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ email, password }),
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        // Сохраняем логин в localStorage для предзаполнения в модальных окнах
-        localStorage.setItem('lastUsername', username);
+        // Сохраняем email в localStorage для предзаполнения
+        localStorage.setItem('lastEmail', email);
         // Сохраняем факт ввода пароля в sessionStorage
         if (password) {
           sessionStorage.setItem('lastPasswordAttempt', 'true');
@@ -89,17 +89,17 @@ function LoginPageContent() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
-              Логин
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+              Email
             </label>
             <input
-              id="username"
+              id="email"
               type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-gray-900 placeholder-gray-500"
-              placeholder="Введите логин"
+              placeholder="Введите email или admin"
             />
           </div>
 
