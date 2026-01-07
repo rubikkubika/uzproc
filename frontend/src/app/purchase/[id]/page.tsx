@@ -1850,7 +1850,7 @@ export default function PurchaseDetailPage() {
 
             {/* Раздел: Заявка на закупку */}
             {purchaseRequest && (
-            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden opacity-60 hover:opacity-100 transition-opacity duration-200 cursor-pointer">
               <div className="px-2 py-1.5 border-b border-gray-300 bg-gray-100">
                 <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Заявка на закупку</h2>
               </div>
