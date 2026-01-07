@@ -389,7 +389,10 @@ export default function PurchasePlanItemsTable() {
   useEffect(() => {
     if (isStatusFilterOpen && statusFilterButtonRef.current) {
       const position = calculateFilterPosition(statusFilterButtonRef);
+      console.log('Status filter position calculated:', position, 'button ref:', statusFilterButtonRef.current);
       setStatusFilterPosition(position);
+    } else if (!isStatusFilterOpen) {
+      setStatusFilterPosition(null);
     }
   }, [isStatusFilterOpen, calculateFilterPosition]);
 
@@ -403,15 +406,24 @@ export default function PurchasePlanItemsTable() {
           // Проверяем, что клик не по самому меню фильтра статуса
           const statusMenuElement = document.querySelector('[data-status-filter-menu="true"]');
           if (statusMenuElement && !statusMenuElement.contains(target)) {
-            setIsStatusFilterOpen(false);
+            // Также проверяем, что клик не по контейнеру фильтра
+            const statusFilterContainer = document.querySelector('.status-filter-container');
+            if (statusFilterContainer && !statusFilterContainer.contains(target)) {
+              setIsStatusFilterOpen(false);
+            }
           }
         }
       }
     };
 
     if (isStatusFilterOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
+      // Добавляем небольшую задержку, чтобы избежать закрытия сразу после открытия
+      const timeoutId = setTimeout(() => {
+        document.addEventListener('mousedown', handleClickOutside);
+      }, 100);
+      
       return () => {
+        clearTimeout(timeoutId);
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
@@ -4770,7 +4782,11 @@ export default function PurchasePlanItemsTable() {
                       <button
                         ref={statusFilterButtonRef}
                         type="button"
-                        onClick={() => setIsStatusFilterOpen(!isStatusFilterOpen)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          console.log('Status filter button clicked, current state:', isStatusFilterOpen);
+                          setIsStatusFilterOpen(!isStatusFilterOpen);
+                        }}
                         className="w-full text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-left focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center gap-1 hover:bg-gray-50"
                         style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
                       >

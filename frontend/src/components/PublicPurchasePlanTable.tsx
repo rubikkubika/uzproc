@@ -208,7 +208,8 @@ export default function PublicPurchasePlanTable() {
   const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
   const [companyFilter, setCompanyFilter] = useState<Set<string>>(new Set(['Uzum Market']));
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
-  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set(DEFAULT_STATUSES));
+  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set(DEFAULT_STATUSES)); // По умолчанию все кроме "Исключена"
+  const [statusFilterInitialized, setStatusFilterInitialized] = useState(false); // Флаг инициализации фильтра
   const [purchaserFilter, setPurchaserFilter] = useState<Set<string>>(new Set());
   const [availableCompanies, setAvailableCompanies] = useState<string[]>(['Uzum Market', 'Uzum Technologies', 'Uzum Tezkor']); // Список компаний с бэкенда
   
@@ -1147,52 +1148,125 @@ export default function PublicPurchasePlanTable() {
     }
   };
 
-  // Получаем уникальные значения для фильтров
-  const uniqueValues = useMemo(() => {
-    const result: Record<string, Set<string>> = {
-      cfo: new Set(),
-      category: new Set(),
-      purchaser: new Set(),
-      status: new Set(),
-      company: new Set(),
-    };
+  // Получаем уникальные значения для фильтров (загружаем БЕЗ фильтра по статусу, чтобы все статусы были видны)
+  const [uniqueValues, setUniqueValues] = useState<Record<string, string[]>>({
+    cfo: [],
+    category: [],
+    purchaser: [],
+    status: [],
+    company: [],
+  });
 
-    let hasNullStatus = false;
-    let hasNullCompany = false;
-    summaryData.forEach((item) => {
-      if (item.cfo) result.cfo.add(item.cfo);
-      if (item.category) result.category.add(item.category);
-      if (item.purchaser) result.purchaser.add(item.purchaser);
-      if (item.company) {
-        result.company.add(item.company);
-      } else {
-        hasNullCompany = true;
+  useEffect(() => {
+    const fetchUniqueValues = async () => {
+      try {
+        // Загружаем данные БЕЗ фильтра по статусу, чтобы все статусы были видны в фильтре
+        const params = new URLSearchParams();
+        params.append('page', '0');
+        params.append('size', '10000');
+        
+        // Применяем другие фильтры (год, компания, ЦФО, категория), но НЕ фильтр по статусу
+        if (selectedYear !== null) {
+          const hasCurrentYearMonths = Array.from(selectedMonths).some(monthKey => monthKey >= 0 && monthKey <= 11 && monthKey !== -1 && monthKey !== -2);
+          if (selectedMonthYear === null || hasCurrentYearMonths) {
+            params.append('year', String(selectedYear));
+          }
+        }
+        
+        if (companyFilter.size > 0) {
+          companyFilter.forEach(company => {
+            if (company === 'Не выбрано') {
+              params.append('company', '__NULL__');
+            } else {
+              params.append('company', company);
+            }
+          });
+        }
+        if (cfoFilter.size > 0) {
+          cfoFilter.forEach(cfo => params.append('cfo', cfo));
+        }
+        if (filters.purchaseSubject && filters.purchaseSubject.trim() !== '') {
+          params.append('purchaseSubject', filters.purchaseSubject.trim());
+        }
+        if (filters.purchaseRequestId && filters.purchaseRequestId.trim() !== '') {
+          params.append('purchaseRequestId', filters.purchaseRequestId.trim());
+        }
+        if (categoryFilter.size > 0) {
+          categoryFilter.forEach(category => params.append('category', category));
+        }
+        
+        // Фильтр по месяцу даты заявки
+        if (selectedMonths.size > 0) {
+          selectedMonths.forEach(monthKey => {
+            if (monthKey === -1) {
+              params.append('requestMonth', '-1');
+            } else if (monthKey === -2) {
+              params.append('requestMonth', '11');
+              if (selectedMonthYear !== null) {
+                params.append('requestYear', String(selectedMonthYear));
+              }
+            } else {
+              params.append('requestMonth', String(monthKey));
+            }
+          });
+        }
+        
+        const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`);
+        if (response.ok) {
+          const result = await response.json();
+          const values: Record<string, Set<string>> = {
+            cfo: new Set(),
+            category: new Set(),
+            purchaser: new Set(),
+            status: new Set(),
+            company: new Set(),
+          };
+          
+          let hasNullStatus = false;
+          let hasNullCompany = false;
+          result.content.forEach((item: PurchasePlanItem) => {
+            if (item.cfo) values.cfo.add(item.cfo);
+            if (item.category) values.category.add(item.category);
+            if (item.purchaser) values.purchaser.add(item.purchaser);
+            if (item.company) {
+              values.company.add(item.company);
+            } else {
+              hasNullCompany = true;
+            }
+            if (item.status) {
+              values.status.add(item.status);
+            } else {
+              hasNullStatus = true;
+            }
+          });
+          
+          // Добавляем "Пусто" если есть позиции с null статусом
+          if (hasNullStatus) {
+            values.status.add('Пусто');
+          }
+          
+          // Добавляем "Не выбрано" если есть позиции с null компанией
+          if (hasNullCompany) {
+            values.company.add('Не выбрано');
+          }
+          
+          setUniqueValues({
+            cfo: Array.from(values.cfo).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
+            category: Array.from(values.category).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
+            purchaser: Array.from(values.purchaser).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
+            status: Array.from(values.status).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
+            company: Array.from(values.company).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
+          });
+        }
+      } catch (err) {
+        console.error('Error fetching unique values:', err);
       }
-      if (item.status) {
-        result.status.add(item.status);
-      } else {
-        hasNullStatus = true;
-      }
-    });
-
-    // Добавляем "Пусто" если есть позиции с null статусом
-    if (hasNullStatus) {
-      result.status.add('Пусто');
-    }
-
-    // Добавляем "Не выбрано" если есть позиции с null компанией
-    if (hasNullCompany) {
-      result.company.add('Не выбрано');
-    }
-
-    return {
-      cfo: Array.from(result.cfo).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
-      category: Array.from(result.category).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
-      purchaser: Array.from(result.purchaser).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
-      status: Array.from(result.status).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
-      company: Array.from(result.company).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
     };
-  }, [summaryData]);
+    
+    if (selectedYear !== null) {
+      fetchUniqueValues();
+    }
+  }, [selectedYear, selectedMonths, selectedMonthYear, filters, cfoFilter, companyFilter, categoryFilter]);
 
   // Фильтры
   const calculateFilterPosition = useCallback((buttonRef: React.RefObject<HTMLButtonElement | null>) => {
@@ -1237,9 +1311,25 @@ export default function PublicPurchasePlanTable() {
   useEffect(() => {
     if (isStatusFilterOpen && statusFilterButtonRef.current) {
       const position = calculateFilterPosition(statusFilterButtonRef);
+      console.log('Status filter position calculated (public):', position, 'button ref:', statusFilterButtonRef.current);
       setStatusFilterPosition(position);
+    } else if (!isStatusFilterOpen) {
+      setStatusFilterPosition(null);
     }
   }, [isStatusFilterOpen, calculateFilterPosition]);
+
+  // Обновляем фильтр статусов при загрузке данных: по умолчанию все кроме "Исключена"
+  useEffect(() => {
+    if (uniqueValues.status && uniqueValues.status.length > 0 && !statusFilterInitialized) {
+      // При первой загрузке данных устанавливаем все статусы кроме "Исключена"
+      // Используем статусы из БД, но исключаем "Исключена"
+      const defaultStatuses = uniqueValues.status.filter(s => s !== 'Исключена');
+      if (defaultStatuses.length > 0) {
+        setStatusFilter(new Set(defaultStatuses));
+        setStatusFilterInitialized(true);
+      }
+    }
+  }, [uniqueValues.status, statusFilterInitialized]);
 
   useEffect(() => {
     if (isColumnsMenuOpen && columnsMenuButtonRef.current) {
@@ -1284,7 +1374,11 @@ export default function PublicPurchasePlanTable() {
       if (isStatusFilterOpen && statusFilterButtonRef.current && !statusFilterButtonRef.current.contains(target)) {
         const statusMenuElement = document.querySelector('[data-status-filter-menu="true"]');
         if (statusMenuElement && !statusMenuElement.contains(target)) {
-          setIsStatusFilterOpen(false);
+          // Также проверяем, что клик не по контейнеру фильтра
+          const statusFilterContainer = document.querySelector('.status-filter-container');
+          if (statusFilterContainer && !statusFilterContainer.contains(target)) {
+            setIsStatusFilterOpen(false);
+          }
         }
       }
       
@@ -1332,10 +1426,16 @@ export default function PublicPurchasePlanTable() {
   }, [uniqueValues.purchaser, purchaserSearchQuery]);
 
   const getFilteredStatusOptions = useMemo(() => {
-    // Используем только статусы, которые есть в данных
+    // Используем только статусы, которые есть в данных (в БД есть позиции с этими статусами)
     const availableStatuses = uniqueValues.status || [];
-    const query = statusSearchQuery.toLowerCase();
-    return availableStatuses.filter((status) => status.toLowerCase().includes(query));
+    if (!statusSearchQuery || !statusSearchQuery.trim()) {
+      return availableStatuses;
+    }
+    const searchLower = statusSearchQuery.toLowerCase().trim();
+    return availableStatuses.filter(status => {
+      if (!status) return false;
+      return status.toLowerCase().includes(searchLower);
+    });
   }, [statusSearchQuery, uniqueValues.status]);
 
   const handleCfoToggle = (cfo: string) => {
@@ -1418,7 +1518,7 @@ export default function PublicPurchasePlanTable() {
   };
 
   const handleStatusSelectAll = () => {
-    // Используем только доступные статусы из данных
+    // Выбираем все статусы, которые есть в данных
     const availableStatuses = uniqueValues.status || [];
     const newSet = new Set(availableStatuses);
     setStatusFilter(newSet);
@@ -1427,6 +1527,7 @@ export default function PublicPurchasePlanTable() {
 
   const handleStatusDeselectAll = () => {
     setStatusFilter(new Set());
+    setStatusSearchQuery(''); // Очищаем поисковый запрос
     setCurrentPage(0);
   };
 
@@ -2396,7 +2497,11 @@ export default function PublicPurchasePlanTable() {
                             <button
                               ref={statusFilterButtonRef}
                               type="button"
-                              onClick={() => setIsStatusFilterOpen(!isStatusFilterOpen)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                console.log('Status filter button clicked (public), current state:', isStatusFilterOpen);
+                                setIsStatusFilterOpen(!isStatusFilterOpen);
+                              }}
                               className="w-full text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-left focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center gap-1 hover:bg-gray-50"
                               style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
                             >

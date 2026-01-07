@@ -46,8 +46,8 @@ type SortDirection = 'asc' | 'desc' | null;
 const CACHE_KEY = 'purchaseRequests_metadata';
 const CACHE_TTL = 5 * 60 * 1000; // 5 минут
 
-// Константы для статусов
-const ALL_STATUSES = ['На согласовании', 'На утверждении', 'Утверждена', 'Согласована', 'Не согласована', 'Не утверждена', 'Неактуальна', 'Не Актуальная'];
+// Константы для статусов (соответствуют PurchaseRequestStatus enum)
+const ALL_STATUSES = ['На согласовании', 'На утверждении', 'Утверждена', 'Согласована', 'Не согласована', 'Не утверждена', 'Проект', 'Неактуальна', 'Не Актуальная'];
 const DEFAULT_STATUSES = ALL_STATUSES.filter(s => s !== 'Неактуальна' && s !== 'Не Актуальная');
 
 // Функция для получения символа валюты
@@ -98,7 +98,7 @@ export default function PurchaseRequestsTable() {
 
   // Состояние для множественных фильтров (чекбоксы)
   const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
-  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set(DEFAULT_STATUSES));
+  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set()); // По умолчанию пустой, как для ЦФО
   const [purchaserFilter, setPurchaserFilter] = useState<Set<string>>(new Set());
   
   // Состояние для открытия/закрытия выпадающих списков
@@ -268,11 +268,11 @@ export default function PurchaseRequestsTable() {
         }
         if (savedFilters.statusFilter && Array.isArray(savedFilters.statusFilter) && savedFilters.statusFilter.length > 0) {
           console.log('Loading statusFilter from localStorage:', savedFilters.statusFilter);
-          setStatusFilter(new Set(savedFilters.statusFilter));
+          const loadedStatusFilter = new Set<string>(savedFilters.statusFilter || []);
+          setStatusFilter(loadedStatusFilter);
         } else {
-          // Если статус фильтр не найден или пустой, устанавливаем значения по умолчанию (все кроме Неактуальна и Не Актуальная)
-          console.log('Setting default statusFilter (all except Неактуальна and Не Актуальная):', DEFAULT_STATUSES);
-          setStatusFilter(new Set(DEFAULT_STATUSES));
+          // Если статус фильтр не найден или пустой, оставляем пустым (по умолчанию)
+          setStatusFilter(new Set());
         }
         
         // Восстанавливаем год
@@ -311,8 +311,8 @@ export default function PurchaseRequestsTable() {
       } else {
         console.log('No saved filters found in localStorage');
         // При первой загрузке устанавливаем значения по умолчанию для statusFilter
-        console.log('Setting default statusFilter (all except Неактуальна and Не Актуальная) on first load:', DEFAULT_STATUSES);
-        setStatusFilter(new Set(DEFAULT_STATUSES));
+        // По умолчанию фильтр пустой (как для ЦФО)
+        setStatusFilter(new Set());
       }
       
       // Помечаем, что загрузка завершена
@@ -321,7 +321,8 @@ export default function PurchaseRequestsTable() {
       console.error('Error loading filters from localStorage:', err);
       // При ошибке загрузки устанавливаем значения по умолчанию для statusFilter
       if (statusFilter.size === 0) {
-        setStatusFilter(new Set(DEFAULT_STATUSES));
+        // По умолчанию фильтр пустой (как для ЦФО)
+        setStatusFilter(new Set());
       }
       filtersLoadedRef.current = true; // Помечаем как загруженное даже при ошибке
     }
@@ -702,17 +703,12 @@ export default function PurchaseRequestsTable() {
       }
       
       // Фильтр по статусу - передаем все выбранные значения на бэкенд
-      // Если фильтр пустой, используем значения по умолчанию (все кроме Неактуальна и Не Актуальная)
-      const statusesToFilter = statusFilter.size > 0 ? statusFilter : new Set(DEFAULT_STATUSES);
-      console.log('Status filter in fetchData:', {
-        statusFilterSize: statusFilter.size,
-        statusFilterValues: Array.from(statusFilter),
-        statusesToFilterValues: Array.from(statusesToFilter),
-        defaultStatuses: DEFAULT_STATUSES
-      });
-      statusesToFilter.forEach(status => {
+      // Если фильтр пустой, не передаем параметр (показываем все статусы)
+      if (statusFilter.size > 0) {
+        statusFilter.forEach(status => {
           params.append('status', status);
         });
+      }
       
       const fetchUrl = `${getBackendUrl()}/api/purchase-requests?${params.toString()}`;
       const response = await fetch(fetchUrl);
@@ -775,12 +771,7 @@ export default function PurchaseRequestsTable() {
     }
   }, [localFilters, filters]);
 
-  // Устанавливаем значения по умолчанию для statusFilter, если он пустой
-  useEffect(() => {
-    if (statusFilter.size === 0 && filtersLoadedRef.current) {
-      setStatusFilter(new Set(DEFAULT_STATUSES));
-    }
-  }, [statusFilter.size]);
+  // Убрали useEffect, который устанавливал DEFAULT_STATUSES - теперь фильтр по умолчанию пустой
 
   useEffect(() => {
     // Не загружаем данные до тех пор, пока фильтры не загружены из localStorage
@@ -897,6 +888,7 @@ export default function PurchaseRequestsTable() {
     cfo: [],
     purchaseRequestInitiator: [],
     purchaser: [],
+    status: [],
   });
 
   // Загружаем общее количество записей без фильтров
@@ -926,15 +918,31 @@ export default function PurchaseRequestsTable() {
           const { data, timestamp } = JSON.parse(cached);
           const now = Date.now();
           if (now - timestamp < CACHE_TTL) {
-            // Используем кэшированные данные
+            // Используем кэшированные данные, но проверяем наличие статусов
             setAllYears(data.years);
-            setUniqueValues(data.uniqueValues);
-            return;
+            // Если в кэше нет статусов, добавляем пустой массив (они загрузятся при следующем запросе)
+            const cachedUniqueValues = {
+              ...data.uniqueValues,
+              status: data.uniqueValues.status || []
+            };
+            setUniqueValues(cachedUniqueValues);
+            console.log('Loaded from cache - uniqueValues:', cachedUniqueValues);
+            // Проверяем, что в кэше есть статус "Утверждена"
+            if (cachedUniqueValues.status && !cachedUniqueValues.status.includes('Утверждена')) {
+              console.warn('WARNING: Cache does not contain "Утверждена" status, clearing cache and reloading');
+              localStorage.removeItem(CACHE_KEY);
+              // Продолжаем загрузку данных
+            } else if (!cachedUniqueValues.status || cachedUniqueValues.status.length === 0) {
+              console.log('Status values not in cache, will load from API');
+            } else {
+              return;
+            }
           }
         }
 
         // Загружаем данные, если кэш отсутствует или устарел
-        const response = await fetch(`${getBackendUrl()}/api/purchase-requests?page=0&size=10000`);
+        // Увеличиваем размер запроса, чтобы получить все записи для сбора уникальных значений
+        const response = await fetch(`${getBackendUrl()}/api/purchase-requests?page=0&size=50000`);
         if (response.ok) {
           const result = await response.json();
           const years = new Set<number>();
@@ -944,6 +952,7 @@ export default function PurchaseRequestsTable() {
             costType: new Set(),
             contractType: new Set(),
             purchaser: new Set(),
+            status: new Set(),
           };
           
           result.content.forEach((request: PurchaseRequest) => {
@@ -959,14 +968,59 @@ export default function PurchaseRequestsTable() {
             if (request.cfo) values.cfo.add(request.cfo);
             if (request.purchaseRequestInitiator) values.purchaseRequestInitiator.add(request.purchaseRequestInitiator);
             if (request.purchaser) values.purchaser.add(request.purchaser);
+            if (request.status) {
+              // Добавляем статус как строку, убираем пробелы
+              const statusStr = String(request.status).trim();
+              if (statusStr) {
+                values.status.add(statusStr);
+                // Логируем для отладки
+                if (statusStr === 'Утверждена') {
+                  console.log('Found status "Утверждена" in request:', request.id, request.idPurchaseRequest);
+                }
+              }
+            }
           });
+          
+          // Дополнительная проверка статуса "Утверждена"
+          const hasApproved = Array.from(values.status).includes('Утверждена');
+          console.log('Status "Утверждена" found in unique values:', hasApproved);
+          console.log('All unique statuses before sorting:', Array.from(values.status));
           
           const yearsArray = Array.from(years).sort((a, b) => b - a);
           const uniqueValuesData = {
             cfo: Array.from(values.cfo).sort(),
             purchaseRequestInitiator: Array.from(values.purchaseRequestInitiator).sort(),
             purchaser: Array.from(values.purchaser).sort(),
+            status: Array.from(values.status).sort(),
           };
+          
+          console.log('Loaded unique statuses from data:', uniqueValuesData.status);
+          console.log('Total requests processed:', result.content.length);
+          console.log('Status values found:', Array.from(values.status));
+          
+          // Проверяем, что статус "Утверждена" присутствует
+          if (!uniqueValuesData.status.includes('Утверждена')) {
+            console.warn('WARNING: Status "Утверждена" not found in unique values!');
+            console.warn('All statuses:', uniqueValuesData.status);
+            // Пересчитываем статусы для проверки
+            const statusCounts: Record<string, number> = {};
+            result.content.forEach((req: PurchaseRequest) => {
+              if (req.status) {
+                const statusStr = String(req.status).trim();
+                statusCounts[statusStr] = (statusCounts[statusStr] || 0) + 1;
+              }
+            });
+            console.warn('Status counts:', statusCounts);
+            
+            // Если статус "Утверждена" есть в данных, но не в уникальных значениях, добавляем его вручную
+            if (statusCounts['Утверждена'] && statusCounts['Утверждена'] > 0) {
+              console.warn('FIXING: Adding "Утверждена" to unique values manually');
+              uniqueValuesData.status.push('Утверждена');
+              uniqueValuesData.status.sort();
+              // Очищаем кэш, чтобы перезагрузить данные
+              localStorage.removeItem(CACHE_KEY);
+            }
+          }
           
           setAllYears(yearsArray);
           setUniqueValues(uniqueValuesData);
@@ -1039,6 +1093,7 @@ export default function PurchaseRequestsTable() {
       purchaser: 'purchaser',
       costType: 'costType',
       contractType: 'contractType',
+      status: 'status',
     };
     return uniqueValues[fieldMap[field] || 'cfo'] || [];
   };
@@ -1109,12 +1164,15 @@ export default function PurchaseRequestsTable() {
   };
 
   const handleStatusSelectAll = () => {
-    setStatusFilter(new Set(ALL_STATUSES));
+    const allStatuses = getUniqueValues('status');
+    const newSet = new Set(allStatuses);
+    setStatusFilter(newSet);
     setCurrentPage(0);
   };
 
   const handleStatusDeselectAll = () => {
     setStatusFilter(new Set());
+    setStatusSearchQuery(''); // Очищаем поисковый запрос, чтобы показать все статусы
     setCurrentPage(0);
   };
 
@@ -1166,12 +1224,28 @@ export default function PurchaseRequestsTable() {
     });
   }, [purchaserSearchQuery, uniqueValues.purchaser]);
 
-  const getFilteredStatusOptions = () => {
-    if (!statusSearchQuery.trim()) return ALL_STATUSES;
-    return ALL_STATUSES.filter(status => 
-      status.toLowerCase().includes(statusSearchQuery.toLowerCase())
-    );
-  };
+  const getFilteredStatusOptions = useMemo(() => {
+    // Используем статусы из БД, если они загружены, иначе fallback на ALL_STATUSES
+    const allStatuses = (uniqueValues.status && uniqueValues.status.length > 0) 
+      ? uniqueValues.status 
+      : ALL_STATUSES;
+    console.log('getFilteredStatusOptions - allStatuses:', allStatuses, 'uniqueValues.status:', uniqueValues.status);
+    console.log('getFilteredStatusOptions - statusSearchQuery:', statusSearchQuery);
+    console.log('getFilteredStatusOptions - has "Утверждена":', allStatuses.includes('Утверждена'));
+    
+    if (!statusSearchQuery || !statusSearchQuery.trim()) {
+      const result = allStatuses;
+      console.log('getFilteredStatusOptions - returning (no search):', result);
+      return result;
+    }
+    const searchLower = statusSearchQuery.toLowerCase().trim();
+    const result = allStatuses.filter(status => {
+      if (!status) return false;
+      return status.toLowerCase().includes(searchLower);
+    });
+    console.log('getFilteredStatusOptions - returning (with search):', result);
+    return result;
+  }, [statusSearchQuery, uniqueValues.status]);
 
   if (loading) {
     return (
@@ -1606,7 +1680,7 @@ export default function PurchaseRequestsTable() {
                 setFilters(emptyFilters);
                 setLocalFilters(emptyFilters);
                 setCfoFilter(new Set());
-                setStatusFilter(new Set(DEFAULT_STATUSES));
+                setStatusFilter(new Set()); // По умолчанию пустой, как для ЦФО
                 setCfoSearchQuery('');
                 setStatusSearchQuery('');
                 setPurchaserFilter(new Set());
@@ -2175,23 +2249,29 @@ export default function PurchaseRequestsTable() {
                           </button>
                         </div>
                         <div className="max-h-48 overflow-y-auto">
-                          {getFilteredStatusOptions().length === 0 ? (
+                          {getFilteredStatusOptions.length === 0 ? (
                             <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
                           ) : (
-                            getFilteredStatusOptions().map((status) => (
-                              <label
-                                key={status}
-                                className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={statusFilter.has(status)}
-                                  onChange={() => handleStatusToggle(status)}
-                                  className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
-                                />
-                                <span className="ml-2 text-xs text-gray-700 flex-1">{status}</span>
-                              </label>
-                            ))
+                            getFilteredStatusOptions.map((status) => {
+                              // Логируем для отладки
+                              if (status === 'Утверждена') {
+                                console.log('Rendering status "Утверждена" in UI, checked:', statusFilter.has(status), 'key:', status);
+                              }
+                              return (
+                                <label
+                                  key={status}
+                                  className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={statusFilter.has(status)}
+                                    onChange={() => handleStatusToggle(status)}
+                                    className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                                  />
+                                  <span className="ml-2 text-xs text-gray-700 flex-1">{status}</span>
+                                </label>
+                              );
+                            })
                           )}
                         </div>
                       </div>
