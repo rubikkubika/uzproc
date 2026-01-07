@@ -37,6 +37,7 @@
     </root>
     
     <logger name="com.uzproc" level="DEBUG"/>
+    <logger name="com.uzproc.backend.service.PurchaseStatusUpdateService" level="INFO"/>
     <logger name="org.springframework.web" level="INFO"/>
     <logger name="org.hibernate.SQL" level="DEBUG"/>
     <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="TRACE"/>

@@ -130,6 +130,7 @@ public class ReportExcelLoadService {
     private final PurchaseApprovalRepository purchaseApprovalRepository;
     private final PurchaseRequestStatusUpdateService statusUpdateService;
     private final ContractStatusUpdateService contractStatusUpdateService;
+    private final PurchaseStatusUpdateService purchaseStatusUpdateService;
     private final DataFormatter dataFormatter = new DataFormatter();
 
     public ReportExcelLoadService(
@@ -138,13 +139,15 @@ public class ReportExcelLoadService {
             PurchaseRepository purchaseRepository,
             PurchaseApprovalRepository purchaseApprovalRepository,
             PurchaseRequestStatusUpdateService statusUpdateService,
-            ContractStatusUpdateService contractStatusUpdateService) {
+            ContractStatusUpdateService contractStatusUpdateService,
+            PurchaseStatusUpdateService purchaseStatusUpdateService) {
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.requestApprovalRepository = requestApprovalRepository;
         this.purchaseRepository = purchaseRepository;
         this.purchaseApprovalRepository = purchaseApprovalRepository;
         this.statusUpdateService = statusUpdateService;
         this.contractStatusUpdateService = contractStatusUpdateService;
+        this.purchaseStatusUpdateService = purchaseStatusUpdateService;
     }
 
     /**
@@ -280,6 +283,18 @@ public class ReportExcelLoadService {
                 } catch (Exception e) {
                     logger.error("Error during contract status update after parsing report file: {}", e.getMessage(), e);
                 }
+            }
+            
+            if (purchaseStatusUpdateService != null) {
+                logger.info("=== Starting status update for all purchases after parsing report file ===");
+                try {
+                    purchaseStatusUpdateService.updateAllStatuses();
+                    logger.info("=== Purchase status update completed successfully ===");
+                } catch (Exception e) {
+                    logger.error("=== ERROR during purchase status update after parsing report file: {} ===", e.getMessage(), e);
+                }
+            } else {
+                logger.warn("=== purchaseStatusUpdateService is NULL, skipping purchase status update ===");
             }
             
             return processedRequestsCount + processedPurchasesCount;

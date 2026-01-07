@@ -3,7 +3,8 @@ package com.uzproc.backend.entity;
 import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum PurchaseStatus {
-    PROJECT("Проект");
+    PROJECT("Проект"),
+    NOT_COORDINATED("Не согласовано");
 
     private final String displayName;
 

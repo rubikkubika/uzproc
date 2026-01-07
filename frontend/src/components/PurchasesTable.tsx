@@ -1809,8 +1809,8 @@ export default function PurchasesTable() {
           {item.budgetAmount ? (
             <span className="flex items-center">
               {new Intl.NumberFormat('ru-RU', {
-                notation: 'compact',
-                maximumFractionDigits: 1
+            notation: 'compact',
+            maximumFractionDigits: 1
               }).format(item.budgetAmount)}
               {getCurrencyIcon(item.currency)}
             </span>

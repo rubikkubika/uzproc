@@ -104,6 +104,7 @@ public class EntityExcelLoadService {
     private final FileProcessingStatsService statsService;
     private final PurchaseRequestStatusUpdateService statusUpdateService;
     private final ContractStatusUpdateService contractStatusUpdateService;
+    private final PurchaseStatusUpdateService purchaseStatusUpdateService;
 
     public EntityExcelLoadService(
             PurchaseRequestRepository purchaseRequestRepository,
@@ -113,7 +114,8 @@ public class EntityExcelLoadService {
             CfoRepository cfoRepository,
             FileProcessingStatsService statsService,
             PurchaseRequestStatusUpdateService statusUpdateService,
-            ContractStatusUpdateService contractStatusUpdateService) {
+            ContractStatusUpdateService contractStatusUpdateService,
+            PurchaseStatusUpdateService purchaseStatusUpdateService) {
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.purchaseRepository = purchaseRepository;
         this.contractRepository = contractRepository;
@@ -122,6 +124,7 @@ public class EntityExcelLoadService {
         this.statsService = statsService;
         this.statusUpdateService = statusUpdateService;
         this.contractStatusUpdateService = contractStatusUpdateService;
+        this.purchaseStatusUpdateService = purchaseStatusUpdateService;
     }
     
     /**
@@ -327,6 +330,18 @@ public class EntityExcelLoadService {
                 } catch (Exception e) {
                     logger.error("Error during contract status update after parsing: {}", e.getMessage(), e);
                 }
+            }
+            
+            if (purchaseStatusUpdateService != null) {
+                logger.info("=== Starting status update for all purchases after parsing ===");
+                try {
+                    purchaseStatusUpdateService.updateAllStatuses();
+                    logger.info("=== Purchase status update completed successfully ===");
+                } catch (Exception e) {
+                    logger.error("=== ERROR during purchase status update after parsing: {} ===", e.getMessage(), e);
+                }
+            } else {
+                logger.warn("=== purchaseStatusUpdateService is NULL, skipping purchase status update ===");
             }
             
             return results;

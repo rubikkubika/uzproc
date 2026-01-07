@@ -150,6 +150,9 @@ export default function PurchaseRequestsTable() {
   // Флаг для отслеживания загрузки фильтров из localStorage
   const filtersLoadedRef = useRef(false);
   
+  // Флаг для отслеживания восстановления года из navigationData (используем состояние для реактивности)
+  const [yearRestored, setYearRestored] = useState(false);
+  
   // Ref для хранения функции fetchTabCounts, чтобы избежать бесконечных циклов
   const fetchTabCountsRef = useRef<() => Promise<void>>();
   
@@ -338,9 +341,34 @@ export default function PurchaseRequestsTable() {
     }
   }, []);
 
-  // Загружаем сохраненные фильтры из localStorage при монтировании
+  // Загружаем сохраненные фильтры из localStorage при монтировании и при возврате с детальной страницы
   useEffect(() => {
     try {
+      // Проверяем, есть ли данные навигации (возврат с детальной страницы)
+      const navigationDataStr = localStorage.getItem('purchaseRequestNavigation');
+      console.log('Checking navigation data on mount/update:', navigationDataStr);
+      let yearFromNavigation: number | null = null;
+      let hasNavigationData = false;
+      
+      if (navigationDataStr) {
+        try {
+          const navigationData = JSON.parse(navigationDataStr);
+          console.log('Parsed navigation data:', navigationData);
+          if (navigationData.selectedYear !== undefined && navigationData.selectedYear !== null) {
+            yearFromNavigation = navigationData.selectedYear;
+            hasNavigationData = true;
+            console.log('Found year in navigation data:', yearFromNavigation);
+            // НЕ удаляем navigationData здесь - удалим после применения года
+          } else {
+            console.log('No year in navigation data');
+          }
+        } catch (err) {
+          console.error('Error parsing navigation data:', err);
+        }
+      } else {
+        console.log('No navigation data found in localStorage');
+      }
+      
       const saved = localStorage.getItem('purchaseRequestsTableFilters');
       if (saved) {
         const savedFilters = JSON.parse(saved);
@@ -391,9 +419,31 @@ export default function PurchaseRequestsTable() {
           setStatusFilter(new Set());
         }
         
-        // Восстанавливаем год
-        if (savedFilters.selectedYear !== undefined && savedFilters.selectedYear !== null) {
-          setSelectedYear(savedFilters.selectedYear);
+        // Восстанавливаем год:
+        // 1. Если есть данные навигации (возврат с детальной страницы) - используем год из навигации
+        // 2. Иначе - устанавливаем null (обновление страницы или переход из меню)
+        if (hasNavigationData && yearFromNavigation !== null) {
+          console.log('Restoring year from navigation data:', yearFromNavigation);
+          setYearRestored(true); // Помечаем, что год был восстановлен
+          // Устанавливаем год и ждем, чтобы useEffect с fetchData успел перезапуститься
+          setSelectedYear(yearFromNavigation);
+          // Удаляем navigationData после небольшой задержки, чтобы избежать повторных проверок
+          setTimeout(() => {
+            localStorage.removeItem('purchaseRequestNavigation');
+            console.log('Navigation data removed after year restoration in main useEffect');
+          }, 100);
+        } else {
+          console.log('No navigation data or year is null, setting year to null');
+          // При обновлении страницы или переходе из меню год всегда "Все"
+          // НО только если год еще не был восстановлен из navigationData
+          if (!yearRestored) {
+            setSelectedYear(null);
+          }
+          // Удаляем navigationData, если он есть, но год не был восстановлен
+          if (navigationDataStr && !yearRestored) {
+            localStorage.removeItem('purchaseRequestNavigation');
+            console.log('Navigation data removed (no year to restore)');
+          }
         }
         
         // Восстанавливаем сортировку
@@ -436,6 +486,10 @@ export default function PurchaseRequestsTable() {
         // При первой загрузке устанавливаем значения по умолчанию для statusFilter
         // По умолчанию фильтр пустой (как для ЦФО)
         setStatusFilter(new Set());
+        // Если год не был восстановлен из navigationData, устанавливаем null
+        if (!yearRestored) {
+          setSelectedYear(null);
+        }
       }
       
       // Помечаем, что загрузка завершена
@@ -450,6 +504,41 @@ export default function PurchaseRequestsTable() {
       filtersLoadedRef.current = true; // Помечаем как загруженное даже при ошибке
     }
   }, []); // Пустой массив зависимостей - выполняется только один раз при монтировании
+
+  // Отдельный useEffect для проверки navigationData при возврате с детальной страницы
+  // Это резервный механизм на случай, если основной useEffect не сработал
+  useEffect(() => {
+    // Используем небольшую задержку, чтобы основной useEffect успел выполниться первым
+    const timeoutId = setTimeout(() => {
+      // Проверяем только если год еще не был восстановлен
+      if (yearRestored) {
+        console.log('Year already restored, skipping backup check');
+        return;
+      }
+      
+      try {
+        const navigationDataStr = localStorage.getItem('purchaseRequestNavigation');
+        if (navigationDataStr) {
+          const navigationData = JSON.parse(navigationDataStr);
+          if (navigationData.selectedYear !== undefined && navigationData.selectedYear !== null) {
+            // Проверяем, отличается ли год от текущего
+            if (selectedYear !== navigationData.selectedYear) {
+              console.log('Year changed from navigation data (backup check):', navigationData.selectedYear, 'current:', selectedYear);
+              setSelectedYear(navigationData.selectedYear);
+              setYearRestored(true); // Помечаем, что год был восстановлен
+              // Удаляем navigationData после применения
+              localStorage.removeItem('purchaseRequestNavigation');
+              console.log('Navigation data removed after year restoration (backup check)');
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error checking navigation data:', err);
+      }
+    }, 200); // Небольшая задержка, чтобы основной useEffect успел выполниться
+
+    return () => clearTimeout(timeoutId);
+  }, []); // Пустой массив - выполняется только при монтировании
 
   // Функция для сохранения всех фильтров в localStorage
   const saveFiltersToLocalStorage = useCallback(() => {
@@ -475,7 +564,7 @@ export default function PurchaseRequestsTable() {
         localFilters: localFilters, // Сохраняем также localFilters для текстовых полей с debounce
         cfoFilter: Array.from(cfoFilter),
         statusFilter: Array.from(statusFilter),
-        selectedYear,
+        // selectedYear НЕ сохраняем - при переходе на страницу всегда "Все"
         sortField,
         sortDirection,
         currentPage,
@@ -530,9 +619,10 @@ export default function PurchaseRequestsTable() {
   }, [filters, localFilters, cfoFilter, statusFilter, selectedYear, sortField, sortDirection, currentPage, pageSize, cfoSearchQuery, statusSearchQuery, activeTab]);
 
   // Сохраняем фильтры в localStorage при их изменении (только после загрузки)
+  // selectedYear не сохраняется - при переходе на страницу всегда "Все"
   useEffect(() => {
     saveFiltersToLocalStorage();
-  }, [filters, cfoFilter, statusFilter, selectedYear, sortField, sortDirection, currentPage, pageSize, cfoSearchQuery, statusSearchQuery, saveFiltersToLocalStorage]);
+  }, [filters, cfoFilter, statusFilter, sortField, sortDirection, currentPage, pageSize, cfoSearchQuery, statusSearchQuery, activeTab, saveFiltersToLocalStorage]);
 
   // Сохраняем localFilters с debounce для текстовых полей (чтобы сохранять промежуточные значения)
   useEffect(() => {
@@ -755,8 +845,12 @@ export default function PurchaseRequestsTable() {
       params.append('page', String(page));
       params.append('size', String(size));
       
+      console.log('fetchData called with year:', year, 'selectedYear state:', selectedYear);
       if (year !== null) {
         params.append('year', String(year));
+        console.log('Year parameter added to request:', year);
+      } else {
+        console.log('No year parameter - fetching all years');
       }
       
       if (sortField && sortDirection) {
@@ -899,10 +993,42 @@ export default function PurchaseRequestsTable() {
   useEffect(() => {
     // Не загружаем данные до тех пор, пока фильтры не загружены из localStorage
     if (!filtersLoadedRef.current) {
+      console.log('Skipping fetchData - filters not loaded yet');
       return;
     }
+    
+    // Проверяем, есть ли navigationData, который еще не был обработан
+    // Если есть, не вызываем fetchData сразу - дождемся восстановления года
+    const navigationDataStr = localStorage.getItem('purchaseRequestNavigation');
+    if (navigationDataStr && !yearRestored) {
+      try {
+        const navigationData = JSON.parse(navigationDataStr);
+        if (navigationData.selectedYear !== undefined && navigationData.selectedYear !== null) {
+          console.log('Skipping fetchData - waiting for year restoration from navigation data');
+          return;
+        }
+      } catch (err) {
+        // Игнорируем ошибки парсинга
+      }
+    }
+    
+    console.log('useEffect fetchData triggered with selectedYear:', selectedYear);
     fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters);
-  }, [currentPage, pageSize, selectedYear, sortField, sortDirection, filters, cfoFilter, statusFilter, purchaserFilter, activeTab]);
+  }, [currentPage, pageSize, selectedYear, sortField, sortDirection, filters, cfoFilter, statusFilter, purchaserFilter, activeTab, yearRestored]);
+
+  // Отдельный useEffect для перезапуска fetchData после восстановления года из navigationData
+  // Это нужно, чтобы убедиться, что данные загружаются с правильным годом
+  useEffect(() => {
+    // Проверяем, был ли год восстановлен из navigationData и загружены ли фильтры
+    if (yearRestored && filtersLoadedRef.current && selectedYear !== null) {
+      console.log('Year was restored, re-fetching data with selectedYear:', selectedYear);
+      // Небольшая задержка, чтобы убедиться, что selectedYear обновился
+      const timeoutId = setTimeout(() => {
+        fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters);
+      }, 100);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [yearRestored, selectedYear]); // Зависимость от yearRestored и selectedYear
 
   // Восстановление фокуса после обновления localFilters
   useEffect(() => {
@@ -1058,7 +1184,7 @@ export default function PurchaseRequestsTable() {
             } else if (!cachedUniqueValues.status || cachedUniqueValues.status.length === 0) {
               console.log('Status values not in cache, will load from API');
             } else {
-              return;
+            return;
             }
           }
         }
@@ -2426,18 +2552,18 @@ export default function PurchaseRequestsTable() {
                                 console.log('Rendering status "Утверждена" in UI, checked:', statusFilter.has(status), 'key:', status);
                               }
                               return (
-                                <label
-                                  key={status}
-                                  className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={statusFilter.has(status)}
-                                    onChange={() => handleStatusToggle(status)}
-                                    className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
-                                  />
-                                  <span className="ml-2 text-xs text-gray-700 flex-1">{status}</span>
-                                </label>
+                              <label
+                                key={status}
+                                className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={statusFilter.has(status)}
+                                  onChange={() => handleStatusToggle(status)}
+                                  className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                                />
+                                <span className="ml-2 text-xs text-gray-700 flex-1">{status}</span>
+                              </label>
                               );
                             })
                           )}
@@ -2523,6 +2649,7 @@ export default function PurchaseRequestsTable() {
                         totalElements: data.totalElements,
                       };
                       localStorage.setItem('purchaseRequestNavigation', JSON.stringify(navigationData));
+                      console.log('Navigation data saved with year:', selectedYear, 'navigationData:', navigationData);
                     } catch (err) {
                       console.error('Error saving navigation data:', err);
                     }
@@ -2590,8 +2717,8 @@ export default function PurchaseRequestsTable() {
                           {request.budgetAmount ? (
                             <span className="flex items-center">
                               {new Intl.NumberFormat('ru-RU', { 
-                                notation: 'compact',
-                                maximumFractionDigits: 1 
+                            notation: 'compact',
+                            maximumFractionDigits: 1 
                               }).format(request.budgetAmount)}
                               {getCurrencyIcon(request.currency)}
                             </span>
@@ -2692,7 +2819,7 @@ export default function PurchaseRequestsTable() {
                                 <Clock className="w-2.5 h-2.5 text-white" />
                               </div>
                             ) : (
-                              <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Закупка"></div>
+                            <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Закупка"></div>
                             )}
                             <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Закупка</span>
                           </div>
@@ -2714,7 +2841,7 @@ export default function PurchaseRequestsTable() {
                               <Clock className="w-2.5 h-2.5 text-white" />
                             </div>
                           ) : (
-                            <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Заказ"></div>
+                          <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Заказ"></div>
                           )}
                           <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Заказ</span>
                         </div>
@@ -2735,8 +2862,8 @@ export default function PurchaseRequestsTable() {
                 </td>
               </tr>
             )}
-            </tbody>
-          </table>
+          </tbody>
+        </table>
       </div>
     </div>
   );
