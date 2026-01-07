@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, ReactElement } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
 import { ArrowLeft, ArrowRight, Clock, Check, X } from 'lucide-react';
@@ -659,7 +659,7 @@ export default function PurchaseRequestDetailPage() {
     return <span className="ml-0.5 text-xs">{currency}</span>;
   };
 
-  const formatCurrency = (amount: number | null, currency: string | null = null): string | JSX.Element => {
+  const formatCurrency = (amount: number | null, currency: string | null = null): string | ReactElement => {
     if (amount === null) return '-';
     const formatted = new Intl.NumberFormat('ru-RU', {
       style: 'decimal',

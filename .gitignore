@@ -47,6 +47,10 @@ backend/logs/
 *.tmp
 *.temp
 
+# Backup folder (ignore all files except .gitkeep)
+backup/*
+!backup/.gitkeep
+
 # Data files
 frontend/images/*.csv
 frontend/images/*.xlsx
