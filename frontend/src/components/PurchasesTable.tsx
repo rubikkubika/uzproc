@@ -87,8 +87,8 @@ export default function PurchasesTable() {
   // ID активного поля для восстановления фокуса
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
-  // Константы для статусов закупок (только Проект)
-  const ALL_STATUSES = ['Проект'];
+  // Константы для статусов закупок
+  const ALL_STATUSES = ['Проект', 'Не согласовано'];
   // По умолчанию показываем все закупки (включая без статуса), поэтому пустой фильтр
   const DEFAULT_STATUSES: string[] = [];
 
@@ -1854,9 +1854,11 @@ export default function PurchasesTable() {
         >
           {item.status ? (
             <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-              item.status === 'Проект'
+              item.status === 'Не согласовано'
+                ? 'bg-red-100 text-red-800'
+                : item.status === 'Проект'
                 ? 'bg-gray-100 text-gray-800'
-                : 'bg-gray-100 text-gray-800'
+                : 'bg-blue-100 text-blue-800'
             }`}>
               {item.status}
             </span>

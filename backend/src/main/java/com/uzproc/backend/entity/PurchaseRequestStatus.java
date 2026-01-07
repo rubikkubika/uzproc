@@ -7,12 +7,15 @@ public enum PurchaseRequestStatus {
     ON_APPROVAL_FINAL("Заявка на утверждении"),
     APPROVED("Заявка утверждена"),
     COORDINATED("Согласована"),
-    NOT_COORDINATED("Не согласована"),
-    NOT_APPROVED("Не утверждена"),
+    NOT_COORDINATED("Заявка не согласована"),
+    NOT_APPROVED("Заявка не утверждена"),
     PROJECT("Проект"),
     SPECIFICATION_CREATED("Спецификация создана"),
+    SPECIFICATION_CREATED_ARCHIVE("Спецификация создана - Архив"),
     SPECIFICATION_SIGNED("Спецификация подписана"),
-    PURCHASE_CREATED("Закупка создана");
+    SPECIFICATION_NOT_COORDINATED("Спецификация не согласована"),
+    PURCHASE_CREATED("Закупка создана"),
+    PURCHASE_NOT_COORDINATED("Закупка не согласована");
 
     private final String displayName;
 

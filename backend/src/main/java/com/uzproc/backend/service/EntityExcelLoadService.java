@@ -311,15 +311,21 @@ public class EntityExcelLoadService {
                 );
             }
             
-            // Обновляем статусы всех заявок на закупку после парсинга
-            if (statusUpdateService != null) {
-                logger.info("Starting status update for all purchase requests after parsing");
+            // Обновляем статусы в правильном порядке:
+            // 1. Сначала статусы закупок (так как статус заявки зависит от статуса закупки)
+            // 2. Затем статусы договоров
+            // 3. Затем статусы заявок (которые зависят от статусов закупок и договоров)
+            
+            if (purchaseStatusUpdateService != null) {
+                logger.info("=== Starting status update for all purchases after parsing ===");
                 try {
-                    statusUpdateService.updateAllStatuses();
-                    logger.info("Status update completed successfully");
+                    purchaseStatusUpdateService.updateAllStatuses();
+                    logger.info("=== Purchase status update completed successfully ===");
                 } catch (Exception e) {
-                    logger.error("Error during status update after parsing: {}", e.getMessage(), e);
+                    logger.error("=== ERROR during purchase status update after parsing: {} ===", e.getMessage(), e);
                 }
+            } else {
+                logger.warn("=== purchaseStatusUpdateService is NULL, skipping purchase status update ===");
             }
             
             if (contractStatusUpdateService != null) {
@@ -332,16 +338,15 @@ public class EntityExcelLoadService {
                 }
             }
             
-            if (purchaseStatusUpdateService != null) {
-                logger.info("=== Starting status update for all purchases after parsing ===");
+            // Обновляем статусы всех заявок на закупку после парсинга (после обновления статусов закупок и договоров)
+            if (statusUpdateService != null) {
+                logger.info("Starting status update for all purchase requests after parsing");
                 try {
-                    purchaseStatusUpdateService.updateAllStatuses();
-                    logger.info("=== Purchase status update completed successfully ===");
+                    statusUpdateService.updateAllStatuses();
+                    logger.info("Status update completed successfully");
                 } catch (Exception e) {
-                    logger.error("=== ERROR during purchase status update after parsing: {} ===", e.getMessage(), e);
+                    logger.error("Error during status update after parsing: {}", e.getMessage(), e);
                 }
-            } else {
-                logger.warn("=== purchaseStatusUpdateService is NULL, skipping purchase status update ===");
             }
             
             return results;
@@ -1994,12 +1999,18 @@ public class EntityExcelLoadService {
             }
         }
         
-        // Обновляем state
+        // Обновляем state - всегда обновляем, если есть новое значение из Excel
         if (newData.getState() != null && !newData.getState().trim().isEmpty()) {
-            if (existing.getState() == null || !existing.getState().equals(newData.getState())) {
-                existing.setState(newData.getState());
-                updated = true;
-                logger.debug("Updated state for contract {}: {}", existing.getId(), newData.getState());
+            String newStateTrimmed = newData.getState().trim();
+            String existingStateTrimmed = existing.getState() != null ? existing.getState().trim() : null;
+            existing.setState(newStateTrimmed);
+            updated = true;
+            if (existingStateTrimmed == null || !existingStateTrimmed.equals(newStateTrimmed)) {
+                logger.info("Updated state for contract {} (innerId: {}): '{}' -> '{}'", 
+                    existing.getId(), existing.getInnerId(), existingStateTrimmed, newStateTrimmed);
+            } else {
+                logger.info("Updated state for contract {} (innerId: {}): '{}' (forced update)", 
+                    existing.getId(), existing.getInnerId(), newStateTrimmed);
             }
         }
         

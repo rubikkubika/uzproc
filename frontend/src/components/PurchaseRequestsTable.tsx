@@ -47,7 +47,7 @@ const CACHE_KEY = 'purchaseRequests_metadata';
 const CACHE_TTL = 5 * 60 * 1000; // 5 минут
 
 // Константы для статусов (соответствуют PurchaseRequestStatus enum)
-const ALL_STATUSES = ['Заявка на согласовании', 'На согласовании', 'Заявка на утверждении', 'На утверждении', 'Утверждена', 'Заявка утверждена', 'Согласована', 'Не согласована', 'Не утверждена', 'Проект', 'Неактуальна', 'Не Актуальная', 'Спецификация создана', 'Спецификация подписана', 'Закупка создана'];
+const ALL_STATUSES = ['Заявка на согласовании', 'На согласовании', 'Заявка на утверждении', 'На утверждении', 'Утверждена', 'Заявка утверждена', 'Согласована', 'Заявка не согласована', 'Заявка не утверждена', 'Проект', 'Неактуальна', 'Не Актуальная', 'Спецификация создана', 'Спецификация создана - Архив', 'Спецификация подписана', 'Закупка создана', 'Закупка не согласована'];
 const DEFAULT_STATUSES = ALL_STATUSES.filter(s => s !== 'Неактуальна' && s !== 'Не Актуальная');
 
 // Функция для получения символа валюты
@@ -121,7 +121,7 @@ export default function PurchaseRequestsTable() {
       case 'completed':
         return ['Спецификация подписана'];
       case 'project-rejected':
-        return ['Проект', 'Не согласована', 'Не утверждена'];
+        return ['Проект', 'Заявка не согласована', 'Заявка не утверждена', 'Закупка не согласована', 'Спецификация создана - Архив'];
       case 'all':
       default:
         return ALL_STATUSES;
@@ -2070,7 +2070,7 @@ export default function PurchaseRequestsTable() {
                 : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
             }`}
           >
-            Проект/Отмена {tabCounts['project-rejected'] !== null ? `(${tabCounts['project-rejected']})` : '(0)'}
+            Проект/Отмена/Не Согласовано/Архив {tabCounts['project-rejected'] !== null ? `(${tabCounts['project-rejected']})` : '(0)'}
           </button>
         </div>
         
@@ -2758,9 +2758,11 @@ export default function PurchaseRequestsTable() {
                             <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                               request.status === 'Согласована' || request.status === 'Спецификация подписана'
                                 ? 'bg-green-100 text-green-800'
+                                : request.status === 'Спецификация создана - Архив'
+                                ? 'bg-gray-200 text-gray-700'
                                 : request.status === 'Спецификация создана' || request.status === 'Закупка создана' || request.status === 'Утверждена' || request.status === 'Заявка утверждена'
                                 ? 'bg-yellow-100 text-yellow-800'
-                                : request.status === 'Не согласована' || request.status === 'Не утверждена'
+                                : request.status === 'Заявка не согласована' || request.status === 'Заявка не утверждена' || request.status === 'Закупка не согласована'
                                 ? 'bg-red-100 text-red-800'
                                 : request.status === 'На согласовании' || request.status === 'Заявка на согласовании' || request.status === 'На утверждении' || request.status === 'Заявка на утверждении'
                                 ? 'bg-yellow-100 text-yellow-800'
@@ -2797,8 +2799,11 @@ export default function PurchaseRequestsTable() {
                           }>
                             <Clock className="w-2.5 h-2.5 text-white" />
                           </div>
-                        ) : request.status === 'Не утверждена' || request.status === 'Не согласована' ? (
-                          <div className="relative w-4 h-4 rounded-full bg-red-500 flex items-center justify-center" title="Заявка: Не утверждена или Не согласована">
+                        ) : request.status === 'Заявка не утверждена' || request.status === 'Заявка не согласована' || request.status === 'Закупка не согласована' ? (
+                          <div className="relative w-4 h-4 rounded-full bg-red-500 flex items-center justify-center" title={
+                            request.status === 'Закупка не согласована' ? "Заявка: Закупка не согласована" :
+                            "Заявка: Заявка не утверждена или Заявка не согласована"
+                          }>
                             <X className="w-2.5 h-2.5 text-white" />
                           </div>
                         ) : (
@@ -2812,14 +2817,18 @@ export default function PurchaseRequestsTable() {
                       {/* Если закупка требуется: Заявка → Закупка → Договор */}
                       {request.requiresPurchase !== false ? (
                         <>
-                          {/* Закупка - активна если статус "Закупка создана" */}
+                          {/* Закупка - активна если статус "Закупка создана" или "Закупка не согласована" */}
                           <div className="flex flex-col items-center gap-0.5">
                             {request.status === 'Закупка создана' ? (
                               <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Закупка: Закупка создана">
                                 <Clock className="w-2.5 h-2.5 text-white" />
                               </div>
+                            ) : request.status === 'Закупка не согласована' ? (
+                              <div className="relative w-4 h-4 rounded-full bg-red-500 flex items-center justify-center mt-0.5" title="Закупка: Закупка не согласована">
+                                <X className="w-2.5 h-2.5 text-white" />
+                              </div>
                             ) : (
-                            <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Закупка"></div>
+                              <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Закупка"></div>
                             )}
                             <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Закупка</span>
                           </div>

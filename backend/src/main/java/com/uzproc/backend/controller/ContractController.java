@@ -2,20 +2,25 @@ package com.uzproc.backend.controller;
 
 import com.uzproc.backend.dto.ContractDto;
 import com.uzproc.backend.service.ContractService;
+import com.uzproc.backend.service.ContractStatusUpdateService;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/contracts")
 public class ContractController {
 
     private final ContractService contractService;
+    private final ContractStatusUpdateService contractStatusUpdateService;
 
-    public ContractController(ContractService contractService) {
+    public ContractController(ContractService contractService, ContractStatusUpdateService contractStatusUpdateService) {
         this.contractService = contractService;
+        this.contractStatusUpdateService = contractStatusUpdateService;
     }
 
     @GetMapping
@@ -66,6 +71,28 @@ public class ContractController {
             return ResponseEntity.ok(contract);
         }
         return ResponseEntity.notFound().build();
+    }
+
+    @GetMapping("/specifications-with-null-status")
+    public ResponseEntity<List<Map<String, Object>>> getSpecificationsWithNullStatus() {
+        List<Map<String, Object>> specifications = contractService.getSpecificationsWithNullStatus();
+        return ResponseEntity.ok(specifications);
+    }
+
+    @PostMapping("/update-all-statuses")
+    public ResponseEntity<Map<String, Object>> updateAllStatuses() {
+        try {
+            contractStatusUpdateService.updateAllStatuses();
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "Статусы всех договоров обновлены");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "Ошибка при обновлении статусов: " + e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
     }
 }
 

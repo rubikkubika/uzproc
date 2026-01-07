@@ -3,6 +3,9 @@ package com.uzproc.backend.service;
 import com.uzproc.backend.dto.ContractDto;
 import com.uzproc.backend.entity.Contract;
 import com.uzproc.backend.repository.ContractRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.Query;
 import jakarta.persistence.criteria.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,7 +18,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -23,6 +28,9 @@ import java.util.stream.Collectors;
 public class ContractService {
 
     private static final Logger logger = LoggerFactory.getLogger(ContractService.class);
+    
+    @PersistenceContext
+    private EntityManager entityManager;
     
     private final ContractRepository contractRepository;
 
@@ -94,6 +102,42 @@ public class ContractService {
         return contracts.stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Получить все спецификации со статусом null, связанные с заявками на закупку
+     * @return список спецификаций с их состояниями
+     */
+    public List<Map<String, Object>> getSpecificationsWithNullStatus() {
+        Query query = entityManager.createNativeQuery(
+            "SELECT c.id, c.inner_id, c.purchase_request_id, c.state, c.contract_creation_date, " +
+            "pr.id_purchase_request, pr.name as purchase_request_name " +
+            "FROM contracts c " +
+            "LEFT JOIN purchase_requests pr ON c.purchase_request_id = pr.id_purchase_request " +
+            "WHERE c.document_form = 'Спецификация' " +
+            "AND c.purchase_request_id IS NOT NULL " +
+            "AND c.status IS NULL " +
+            "ORDER BY c.purchase_request_id, c.inner_id"
+        );
+        
+        @SuppressWarnings("unchecked")
+        List<Object[]> results = query.getResultList();
+        
+        List<Map<String, Object>> specifications = new ArrayList<>();
+        for (Object[] row : results) {
+            Map<String, Object> spec = new HashMap<>();
+            spec.put("id", row[0]);
+            spec.put("innerId", row[1]);
+            spec.put("purchaseRequestId", row[2]);
+            spec.put("state", row[3]);
+            spec.put("contractCreationDate", row[4]);
+            spec.put("purchaseRequestNumber", row[5]);
+            spec.put("purchaseRequestName", row[6]);
+            specifications.add(spec);
+        }
+        
+        logger.info("Found {} specifications with null status linked to purchase requests", specifications.size());
+        return specifications;
     }
 
     /**

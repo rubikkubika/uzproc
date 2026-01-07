@@ -264,15 +264,21 @@ public class ReportExcelLoadService {
             logger.info("Processed {} requests ({} approvals), {} purchases ({} approvals), skipped {} rows from report file {}", 
                 processedRequestsCount, requestApprovalsCount, processedPurchasesCount, purchaseApprovalsCount, skippedCount, excelFile.getName());
             
-            // Обновляем статусы всех заявок на закупку после парсинга
-            if (statusUpdateService != null) {
-                logger.info("Starting status update for all purchase requests after parsing report file");
+            // Обновляем статусы в правильном порядке:
+            // 1. Сначала статусы закупок (так как статус заявки зависит от статуса закупки)
+            // 2. Затем статусы договоров
+            // 3. Затем статусы заявок (которые зависят от статусов закупок и договоров)
+            
+            if (purchaseStatusUpdateService != null) {
+                logger.info("=== Starting status update for all purchases after parsing report file ===");
                 try {
-                    statusUpdateService.updateAllStatuses();
-                    logger.info("Status update completed successfully");
+                    purchaseStatusUpdateService.updateAllStatuses();
+                    logger.info("=== Purchase status update completed successfully ===");
                 } catch (Exception e) {
-                    logger.error("Error during status update after parsing report file: {}", e.getMessage(), e);
+                    logger.error("=== ERROR during purchase status update after parsing report file: {} ===", e.getMessage(), e);
                 }
+            } else {
+                logger.warn("=== purchaseStatusUpdateService is NULL, skipping purchase status update ===");
             }
             
             if (contractStatusUpdateService != null) {
@@ -285,16 +291,15 @@ public class ReportExcelLoadService {
                 }
             }
             
-            if (purchaseStatusUpdateService != null) {
-                logger.info("=== Starting status update for all purchases after parsing report file ===");
+            // Обновляем статусы всех заявок на закупку после парсинга (после обновления статусов закупок и договоров)
+            if (statusUpdateService != null) {
+                logger.info("Starting status update for all purchase requests after parsing report file");
                 try {
-                    purchaseStatusUpdateService.updateAllStatuses();
-                    logger.info("=== Purchase status update completed successfully ===");
+                    statusUpdateService.updateAllStatuses();
+                    logger.info("Status update completed successfully");
                 } catch (Exception e) {
-                    logger.error("=== ERROR during purchase status update after parsing report file: {} ===", e.getMessage(), e);
+                    logger.error("Error during status update after parsing report file: {}", e.getMessage(), e);
                 }
-            } else {
-                logger.warn("=== purchaseStatusUpdateService is NULL, skipping purchase status update ===");
             }
             
             return processedRequestsCount + processedPurchasesCount;

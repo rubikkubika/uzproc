@@ -13,6 +13,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
@@ -141,6 +145,8 @@ public class PurchaseRequestStatusUpdateService {
         // и связаны с заявкой через purchase_request_id
         boolean hasSpecification = false;
         boolean hasSignedSpecification = false;
+        boolean hasNotCoordinatedSpecification = false;
+        boolean hasArchivedSpecification = false;
         try {
             // Проверяем наличие спецификации через нативный SQL запрос к таблице contracts
             Query query = entityManager.createNativeQuery(
@@ -153,9 +159,10 @@ public class PurchaseRequestStatusUpdateService {
                 hasSpecification = true;
                 logger.debug("Found {} specification(s) for purchase request {}", count, idPurchaseRequest);
                 
-                // Проверяем, есть ли подписанная спецификация (для заказов, когда requiresPurchase === false)
-                // В базе данных статус хранится как имя enum константы (SIGNED), а не displayName (Подписан)
+                // Проверяем спецификации для заказов (когда requiresPurchase === false)
                 if (purchaseRequest.getRequiresPurchase() != null && purchaseRequest.getRequiresPurchase() == false) {
+                    // Проверяем, есть ли подписанная спецификация
+                    // В базе данных статус хранится как имя enum константы (SIGNED), а не displayName (Подписан)
                     Query signedQuery = entityManager.createNativeQuery(
                         "SELECT COUNT(*) FROM contracts WHERE purchase_request_id = ? AND document_form = ? AND status = ?"
                     );
@@ -168,6 +175,67 @@ public class PurchaseRequestStatusUpdateService {
                         logger.info("Found {} signed specification(s) for purchase request {} (order type)", signedCount, idPurchaseRequest);
                     } else {
                         logger.debug("No signed specifications found for purchase request {} (order type)", idPurchaseRequest);
+                        
+                        // Проверяем, есть ли спецификация со статусом "Не согласован"
+                        Query notCoordinatedSpecQuery = entityManager.createNativeQuery(
+                            "SELECT COUNT(*) FROM contracts WHERE purchase_request_id = ? AND document_form = ? AND status = ?"
+                        );
+                        notCoordinatedSpecQuery.setParameter(1, idPurchaseRequest);
+                        notCoordinatedSpecQuery.setParameter(2, "Спецификация");
+                        notCoordinatedSpecQuery.setParameter(3, "NOT_COORDINATED"); // Используем имя enum константы
+                        Long notCoordinatedSpecCount = ((Number) notCoordinatedSpecQuery.getSingleResult()).longValue();
+                        if (notCoordinatedSpecCount > 0) {
+                            hasNotCoordinatedSpecification = true;
+                            logger.info("Found {} not coordinated specification(s) for purchase request {} (order type)", notCoordinatedSpecCount, idPurchaseRequest);
+                        } else {
+                            logger.debug("No not coordinated specifications found for purchase request {} (order type)", idPurchaseRequest);
+                            
+                            // Проверяем, есть ли спецификация со статусом "Проект"
+                            Query projectQuery = entityManager.createNativeQuery(
+                                "SELECT COUNT(*) FROM contracts WHERE purchase_request_id = ? AND document_form = ? AND status = ?"
+                            );
+                            projectQuery.setParameter(1, idPurchaseRequest);
+                            projectQuery.setParameter(2, "Спецификация");
+                            projectQuery.setParameter(3, "PROJECT"); // Используем имя enum константы
+                            Long projectCount = ((Number) projectQuery.getSingleResult()).longValue();
+                            if (projectCount > 0) {
+                                // Проверяем, прошло ли более 60 рабочих дней с даты создания заявки
+                                // Используем purchaseRequestCreationDate, если есть, иначе используем дату создания спецификации
+                                LocalDateTime creationDate = purchaseRequest.getPurchaseRequestCreationDate();
+                                if (creationDate == null) {
+                                    // Если дата создания заявки отсутствует, используем дату создания спецификации как fallback
+                                    Query specDateQuery = entityManager.createNativeQuery(
+                                        "SELECT MIN(contract_creation_date) FROM contracts WHERE purchase_request_id = ? AND document_form = ? AND status = ?"
+                                    );
+                                    specDateQuery.setParameter(1, idPurchaseRequest);
+                                    specDateQuery.setParameter(2, "Спецификация");
+                                    specDateQuery.setParameter(3, "PROJECT");
+                                    Object specDateObj = specDateQuery.getSingleResult();
+                                    if (specDateObj != null) {
+                                        if (specDateObj instanceof java.sql.Timestamp) {
+                                            creationDate = ((java.sql.Timestamp) specDateObj).toLocalDateTime();
+                                        } else if (specDateObj instanceof java.time.LocalDateTime) {
+                                            creationDate = (LocalDateTime) specDateObj;
+                                        }
+                                        logger.debug("Using specification creation date as fallback for purchase request {}: {}", idPurchaseRequest, creationDate);
+                                    }
+                                }
+                                
+                                if (creationDate != null) {
+                                    long workingDays = calculateWorkingDays(creationDate.toLocalDate(), LocalDate.now());
+                                    if (workingDays > 60) {
+                                        hasArchivedSpecification = true;
+                                        logger.info("Found {} project specification(s) for purchase request {} (order type) and {} working days passed (>60), marking as archive", 
+                                            projectCount, idPurchaseRequest, workingDays);
+                                    } else {
+                                        logger.debug("Found {} project specification(s) for purchase request {} (order type) but only {} working days passed (<=60)", 
+                                            projectCount, idPurchaseRequest, workingDays);
+                                    }
+                                } else {
+                                    logger.debug("Purchase request {} has no creation date (neither purchaseRequestCreationDate nor specification creation date), cannot check archive condition", idPurchaseRequest);
+                                }
+                            }
+                        }
                     }
                 }
             } else {
@@ -179,6 +247,7 @@ public class PurchaseRequestStatusUpdateService {
         
         // Проверяем наличие связанной закупки для заявок с типом "Закупка" (requiresPurchase !== false)
         boolean hasPurchase = false;
+        boolean hasNotCoordinatedPurchase = false;
         if (purchaseRequest.getRequiresPurchase() != null && purchaseRequest.getRequiresPurchase() != false) {
             try {
                 // Проверяем наличие связанной закупки через нативный SQL запрос к таблице purchases
@@ -192,6 +261,22 @@ public class PurchaseRequestStatusUpdateService {
                     hasPurchase = true;
                     logger.info("Found {} purchase(s) for purchase request {} (requiresPurchase={})", 
                         purchaseCount, idPurchaseRequest, purchaseRequest.getRequiresPurchase());
+                    
+                    // Проверяем, есть ли закупка со статусом "Не согласовано"
+                    // В базе данных статус хранится как имя enum константы (NOT_COORDINATED), а не displayName (Не согласовано)
+                    Query notCoordinatedQuery = entityManager.createNativeQuery(
+                        "SELECT COUNT(*) FROM purchases WHERE purchase_request_id = ? AND status = ?"
+                    );
+                    notCoordinatedQuery.setParameter(1, idPurchaseRequest);
+                    notCoordinatedQuery.setParameter(2, "NOT_COORDINATED"); // Используем имя enum константы
+                    Long notCoordinatedCount = ((Number) notCoordinatedQuery.getSingleResult()).longValue();
+                    if (notCoordinatedCount > 0) {
+                        hasNotCoordinatedPurchase = true;
+                        logger.info("Found {} not coordinated purchase(s) for purchase request {}", 
+                            notCoordinatedCount, idPurchaseRequest);
+                    } else {
+                        logger.debug("No not coordinated purchases found for purchase request {}", idPurchaseRequest);
+                    }
                 } else {
                     logger.debug("No purchases found for purchase request {} (requiresPurchase={})", 
                         idPurchaseRequest, purchaseRequest.getRequiresPurchase());
@@ -211,15 +296,27 @@ public class PurchaseRequestStatusUpdateService {
         PurchaseRequestStatus newStatus = null;
         
         // Приоритет: сначала проверяем подписанную спецификацию (для заказов, самый высокий приоритет),
+        // потом не согласованную спецификацию (для заказов, высокий приоритет),
+        // потом архивную спецификацию (для заказов с проектной спецификацией старше 60 рабочих дней),
         // потом наличие спецификации (высокий приоритет), 
+        // потом проверяем статус закупки (для заявок с requiresPurchase !== false) - если закупка не согласована, то "Закупка не согласована"
         // потом наличие закупки (для заявок с requiresPurchase !== false) - даже если заявка утверждена,
         // потом на не утверждено, потом на не согласованные, 
         // потом на завершенное утверждение, потом на активное утверждение, потом на согласование
         if (hasSignedSpecification) {
             // Для заказов (requiresPurchase === false) с подписанной спецификацией
             newStatus = PurchaseRequestStatus.SPECIFICATION_SIGNED;
+        } else if (hasNotCoordinatedSpecification) {
+            // Для заказов (requiresPurchase === false) с не согласованной спецификацией
+            newStatus = PurchaseRequestStatus.SPECIFICATION_NOT_COORDINATED;
+        } else if (hasArchivedSpecification) {
+            // Для заказов (requiresPurchase === false) с проектной спецификацией старше 60 рабочих дней
+            newStatus = PurchaseRequestStatus.SPECIFICATION_CREATED_ARCHIVE;
         } else if (hasSpecification) {
             newStatus = PurchaseRequestStatus.SPECIFICATION_CREATED;
+        } else if (hasNotCoordinatedPurchase) {
+            // Если связанная закупка имеет статус "Не согласовано", устанавливаем статус "Закупка не согласована"
+            newStatus = PurchaseRequestStatus.PURCHASE_NOT_COORDINATED;
         } else if (hasPurchase) {
             // Если есть закупка, устанавливаем статус "Закупка создана" даже если заявка утверждена
             newStatus = PurchaseRequestStatus.PURCHASE_CREATED;
@@ -316,6 +413,33 @@ public class PurchaseRequestStatusUpdateService {
         long processingTime = System.currentTimeMillis() - startTime;
         logger.info("Status update completed: {} requests processed, {} updated, {} errors, time: {} ms", 
             idPurchaseRequests.size(), updatedCount, errorCount, processingTime);
+    }
+    
+    /**
+     * Подсчитывает количество рабочих дней между двумя датами (исключая выходные - суббота и воскресенье)
+     * 
+     * @param startDate начальная дата
+     * @param endDate конечная дата
+     * @return количество рабочих дней
+     */
+    private long calculateWorkingDays(LocalDate startDate, LocalDate endDate) {
+        if (startDate == null || endDate == null || startDate.isAfter(endDate)) {
+            return 0;
+        }
+        
+        long workingDays = 0;
+        LocalDate currentDate = startDate;
+        
+        while (!currentDate.isAfter(endDate)) {
+            DayOfWeek dayOfWeek = currentDate.getDayOfWeek();
+            // Считаем только рабочие дни (понедельник - пятница)
+            if (dayOfWeek != DayOfWeek.SATURDAY && dayOfWeek != DayOfWeek.SUNDAY) {
+                workingDays++;
+            }
+            currentDate = currentDate.plusDays(1);
+        }
+        
+        return workingDays;
     }
 }
 

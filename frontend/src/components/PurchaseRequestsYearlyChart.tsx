@@ -172,8 +172,8 @@ export default function PurchaseRequestsYearlyChart() {
         if (datasetLabel === 'Не согласована / Проект') {
           // Для "Не согласована / Проект" фильтруем по статусам (не применяем requiresPurchase)
           // ВАЖНО: Добавляем все три статуса как отдельные параметры для множественного фильтра
-          params.append('status', 'Не согласована');
-          params.append('status', 'Не утверждена');
+          params.append('status', 'Заявка не согласована');
+          params.append('status', 'Заявка не утверждена');
           params.append('status', 'Проект');
           // Явно не добавляем requiresPurchase, чтобы показать все заявки с этими статусами
         } else if (datasetLabel === 'Заказы' || datasetLabel === 'Заказ') {
