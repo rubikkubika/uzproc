@@ -124,6 +124,79 @@ public class PurchaseRequestService {
     }
 
     /**
+     * Подсчитывает количество записей для каждой вкладки
+     * @return Map с ключами: "all", "in-work", "completed", "project-rejected"
+     */
+    public Map<String, Long> getTabCounts(
+            Integer year,
+            Long idPurchaseRequest,
+            List<String> cfo,
+            String purchaseRequestInitiator,
+            List<String> purchaser,
+            String name,
+            String costType,
+            String contractType,
+            Boolean isPlanned,
+            Boolean requiresPurchase,
+            java.math.BigDecimal budgetAmount,
+            String budgetAmountOperator) {
+        
+        Map<String, Long> counts = new HashMap<>();
+        
+        // Определяем статусы для каждой вкладки
+        List<String> inWorkStatuses = List.of(
+            "Заявка на согласовании", "На согласовании",
+            "Заявка на утверждении", "На утверждении",
+            "Спецификация создана", "Закупка создана",
+            "Заявка утверждена", "Утверждена"
+        );
+        List<String> completedStatuses = List.of(
+            "Спецификация подписана"
+        );
+        List<String> projectRejectedStatuses = List.of(
+            "Проект", "Не согласована", "Не утверждена"
+        );
+        
+        // Подсчитываем для каждой вкладки
+        counts.put("all", countWithFilters(year, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
+            name, costType, contractType, isPlanned, requiresPurchase, null, budgetAmount, budgetAmountOperator));
+        counts.put("in-work", countWithFilters(year, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
+            name, costType, contractType, isPlanned, requiresPurchase, inWorkStatuses, budgetAmount, budgetAmountOperator));
+        counts.put("completed", countWithFilters(year, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
+            name, costType, contractType, isPlanned, requiresPurchase, completedStatuses, budgetAmount, budgetAmountOperator));
+        counts.put("project-rejected", countWithFilters(year, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
+            name, costType, contractType, isPlanned, requiresPurchase, projectRejectedStatuses, budgetAmount, budgetAmountOperator));
+        
+        return counts;
+    }
+
+    /**
+     * Подсчитывает количество записей с применением фильтров
+     */
+    private long countWithFilters(
+            Integer year,
+            Long idPurchaseRequest,
+            List<String> cfo,
+            String purchaseRequestInitiator,
+            List<String> purchaser,
+            String name,
+            String costType,
+            String contractType,
+            Boolean isPlanned,
+            Boolean requiresPurchase,
+            List<String> status,
+            java.math.BigDecimal budgetAmount,
+            String budgetAmountOperator) {
+        
+        Specification<PurchaseRequest> spec = buildSpecification(
+            year, null, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
+            name, costType, contractType, isPlanned, requiresPurchase, status,
+            false, budgetAmount, budgetAmountOperator);
+        
+        return purchaseRequestRepository.count(spec);
+    }
+
+    /**
      * Конвертирует PurchaseRequest entity в PurchaseRequestDto
      */
     private PurchaseRequestDto toDto(PurchaseRequest entity) {
