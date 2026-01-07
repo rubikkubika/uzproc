@@ -47,7 +47,7 @@ const CACHE_KEY = 'purchaseRequests_metadata';
 const CACHE_TTL = 5 * 60 * 1000; // 5 минут
 
 // Константы для статусов (соответствуют PurchaseRequestStatus enum)
-const ALL_STATUSES = ['На согласовании', 'На утверждении', 'Утверждена', 'Согласована', 'Не согласована', 'Не утверждена', 'Проект', 'Неактуальна', 'Не Актуальная'];
+const ALL_STATUSES = ['Заявка на согласовании', 'На согласовании', 'Заявка на утверждении', 'На утверждении', 'Утверждена', 'Заявка утверждена', 'Согласована', 'Не согласована', 'Не утверждена', 'Проект', 'Неактуальна', 'Не Актуальная', 'Спецификация создана', 'Закупка создана'];
 const DEFAULT_STATUSES = ALL_STATUSES.filter(s => s !== 'Неактуальна' && s !== 'Не Актуальная');
 
 // Функция для получения символа валюты
@@ -201,7 +201,7 @@ export default function PurchaseRequestsTable() {
   const resizeColumn = useRef<string | null>(null);
 
   // Состояние для порядка колонок
-  const [columnOrder, setColumnOrder] = useState<string[]>(['idPurchaseRequest', 'cfo', 'purchaseRequestInitiator', 'purchaser', 'name', 'budgetAmount', 'isPlanned', 'requiresPurchase', 'status', 'track']);
+  const [columnOrder, setColumnOrder] = useState<string[]>(['idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'track']);
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
 
@@ -212,7 +212,7 @@ export default function PurchaseRequestsTable() {
       if (saved) {
         const order = JSON.parse(saved);
         // Проверяем, что все колонки присутствуют
-        const defaultOrder = ['idPurchaseRequest', 'cfo', 'purchaseRequestInitiator', 'purchaser', 'name', 'budgetAmount', 'isPlanned', 'requiresPurchase', 'status', 'track'];
+        const defaultOrder = ['idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'track'];
         const validOrder = order.filter((col: string) => defaultOrder.includes(col));
         const missingCols = defaultOrder.filter(col => !validOrder.includes(col));
         setColumnOrder([...validOrder, ...missingCols]);
@@ -659,10 +659,6 @@ export default function PurchaseRequestsTable() {
           params.append('purchaser', p);
         });
       }
-      // Инициатор
-      if (filters.purchaseRequestInitiator && filters.purchaseRequestInitiator.trim() !== '') {
-        params.append('purchaseRequestInitiator', filters.purchaseRequestInitiator.trim());
-      }
       if (filters.name && filters.name.trim() !== '') {
         params.append('name', filters.name.trim());
       }
@@ -682,15 +678,6 @@ export default function PurchaseRequestsTable() {
       }
       if (filters.contractType && filters.contractType.trim() !== '') {
         params.append('contractType', filters.contractType.trim());
-      }
-      if (filters.isPlanned && filters.isPlanned.trim() !== '') {
-        const isPlannedValue = filters.isPlanned.trim();
-        // Преобразуем "Плановая" в "true", "Внеплановая" в "false"
-        if (isPlannedValue === 'Плановая') {
-          params.append('isPlanned', 'true');
-        } else if (isPlannedValue === 'Внеплановая') {
-          params.append('isPlanned', 'false');
-        }
       }
       if (filters.requiresPurchase && filters.requiresPurchase.trim() !== '') {
         const requiresPurchaseValue = filters.requiresPurchase.trim();
@@ -1898,10 +1885,6 @@ export default function PurchaseRequestsTable() {
                   );
                 }
                 
-                if (columnKey === 'purchaseRequestInitiator') {
-                  return <SortableHeader key={columnKey} field="purchaseRequestInitiator" label="Инициатор" filterType="select" filterOptions={getUniqueValues('purchaseRequestInitiator')} width="w-12" columnKey="purchaseRequestInitiator" />;
-                }
-                
                 if (columnKey === 'purchaser') {
                   return (
                     <th
@@ -2162,10 +2145,6 @@ export default function PurchaseRequestsTable() {
                   );
                 }
                 
-                if (columnKey === 'isPlanned') {
-                  return <SortableHeader key={columnKey} field="isPlanned" label="План" filterType="select" filterOptions={['Плановая', 'Внеплановая']} width="w-20" columnKey="isPlanned" />;
-                }
-                
                 if (columnKey === 'requiresPurchase') {
                   return <SortableHeader key={columnKey} field="requiresPurchase" label="Закупка" filterType="select" filterOptions={['Закупка', 'Заказ']} width="w-24" columnKey="requiresPurchase" />;
                 }
@@ -2377,19 +2356,6 @@ export default function PurchaseRequestsTable() {
                       );
                     }
                     
-                    if (columnKey === 'purchaseRequestInitiator') {
-                      return (
-                        <td 
-                          key={columnKey}
-                          className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" 
-                          style={{ width: `${getColumnWidth('purchaseRequestInitiator')}px`, minWidth: `${getColumnWidth('purchaseRequestInitiator')}px`, maxWidth: `${getColumnWidth('purchaseRequestInitiator')}px` }}
-                          title={request.purchaseRequestInitiator || ''}
-                        >
-                          {request.purchaseRequestInitiator || '-'}
-                        </td>
-                      );
-                    }
-                    
                     if (columnKey === 'purchaser') {
                       return (
                         <td
@@ -2435,30 +2401,6 @@ export default function PurchaseRequestsTable() {
                       );
                     }
                     
-                    if (columnKey === 'isPlanned') {
-                      return (
-                        <td 
-                          key={columnKey}
-                          className="px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200" 
-                          style={{ width: `${getColumnWidth('isPlanned')}px`, minWidth: `${getColumnWidth('isPlanned')}px`, maxWidth: `${getColumnWidth('isPlanned')}px` }}
-                        >
-                          {request.isPlanned ? (
-                            <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
-                              Плановая
-                            </span>
-                          ) : request.isPlanned === false ? (
-                            <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
-                              Внеплановая
-                            </span>
-                          ) : (
-                            <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
-                              -
-                            </span>
-                          )}
-                        </td>
-                      );
-                    }
-                    
                     if (columnKey === 'requiresPurchase') {
                       return (
                         <td 
@@ -2488,15 +2430,17 @@ export default function PurchaseRequestsTable() {
                         <td key={columnKey} className="px-2 py-2 text-xs border-r border-gray-200">
                           {request.status ? (
                             <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                              request.status === 'Утверждена' || request.status === 'Согласована'
+                              request.status === 'Утверждена' || request.status === 'Заявка утверждена' || request.status === 'Согласована'
                                 ? 'bg-green-100 text-green-800'
+                                : request.status === 'Спецификация создана' || request.status === 'Закупка создана'
+                                ? 'bg-yellow-100 text-yellow-800'
                                 : request.status === 'Не согласована' || request.status === 'Не утверждена'
                                 ? 'bg-red-100 text-red-800'
-                                : request.status === 'На согласовании' || request.status === 'На утверждении'
+                                : request.status === 'На согласовании' || request.status === 'Заявка на согласовании' || request.status === 'На утверждении' || request.status === 'Заявка на утверждении'
                                 ? 'bg-yellow-100 text-yellow-800'
                                 : 'bg-gray-100 text-gray-800'
                             }`}>
-                              {request.status}
+                              {request.status === 'Утверждена' ? 'Заявка утверждена' : request.status}
                             </span>
                           ) : (
                             <span className="px-2 py-1 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
@@ -2513,8 +2457,12 @@ export default function PurchaseRequestsTable() {
                     <div className="flex items-end gap-2">
                       {/* Заявка - активна */}
                       <div className="flex flex-col items-center gap-0.5">
-                        {request.status === 'Утверждена' ? (
-                          <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center" title="Заявка утверждена">
+                        {request.status === 'Утверждена' || request.status === 'Заявка утверждена' || request.status === 'Спецификация создана' || request.status === 'Закупка создана' ? (
+                          <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center" title={
+                            request.status === 'Спецификация создана' ? "Заявка: Спецификация создана" :
+                            request.status === 'Закупка создана' ? "Заявка: Закупка создана" :
+                            "Заявка утверждена"
+                          }>
                             <Check className="w-2.5 h-2.5 text-white" />
                           </div>
                         ) : request.status === 'Не утверждена' || request.status === 'Не согласована' ? (
@@ -2532,9 +2480,15 @@ export default function PurchaseRequestsTable() {
                       {/* Если закупка требуется: Заявка → Закупка → Договор */}
                       {request.requiresPurchase !== false ? (
                         <>
-                          {/* Закупка - неактивна */}
+                          {/* Закупка - активна если статус "Закупка создана" */}
                           <div className="flex flex-col items-center gap-0.5">
-                            <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Закупка"></div>
+                            {request.status === 'Закупка создана' ? (
+                              <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Закупка: Закупка создана">
+                                <Clock className="w-2.5 h-2.5 text-white" />
+                              </div>
+                            ) : (
+                              <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Закупка"></div>
+                            )}
                             <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Закупка</span>
                           </div>
                           {/* Договор - неактивна */}
@@ -2546,7 +2500,13 @@ export default function PurchaseRequestsTable() {
                       ) : (
                         /* Если закупка не требуется: Заявка → Заказ */
                         <div className="flex flex-col items-center gap-0.5">
-                          <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Заказ"></div>
+                          {request.status === 'Спецификация создана' ? (
+                            <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Заказ: Спецификация создана">
+                              <Clock className="w-2.5 h-2.5 text-white" />
+                            </div>
+                          ) : (
+                            <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Заказ"></div>
+                          )}
                           <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Заказ</span>
                         </div>
                       )}

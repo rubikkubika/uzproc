@@ -128,7 +128,7 @@ public class ReportExcelLoadService {
     private final PurchaseRequestApprovalRepository requestApprovalRepository;
     private final PurchaseRepository purchaseRepository;
     private final PurchaseApprovalRepository purchaseApprovalRepository;
-    private final PurchaseRequestService purchaseRequestService;
+    private final PurchaseRequestStatusUpdateService statusUpdateService;
     private final DataFormatter dataFormatter = new DataFormatter();
 
     public ReportExcelLoadService(
@@ -136,12 +136,12 @@ public class ReportExcelLoadService {
             PurchaseRequestApprovalRepository requestApprovalRepository,
             PurchaseRepository purchaseRepository,
             PurchaseApprovalRepository purchaseApprovalRepository,
-            PurchaseRequestService purchaseRequestService) {
+            PurchaseRequestStatusUpdateService statusUpdateService) {
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.requestApprovalRepository = requestApprovalRepository;
         this.purchaseRepository = purchaseRepository;
         this.purchaseApprovalRepository = purchaseApprovalRepository;
-        this.purchaseRequestService = purchaseRequestService;
+        this.statusUpdateService = statusUpdateService;
     }
 
     /**
@@ -227,9 +227,6 @@ public class ReportExcelLoadService {
                         int rowApprovalsCount = parseApprovalsForRequest(row, idPurchaseRequest, approvalColumnMap);
                         requestApprovalsCount += rowApprovalsCount;
                         
-                        // Обновляем статус заявки на основе согласований
-                        purchaseRequestService.updateStatusBasedOnApprovals(purchaseRequest.getIdPurchaseRequest());
-                        
                         processedRequestsCount++;
                     }
                     
@@ -260,6 +257,17 @@ public class ReportExcelLoadService {
             
             logger.info("Processed {} requests ({} approvals), {} purchases ({} approvals), skipped {} rows from report file {}", 
                 processedRequestsCount, requestApprovalsCount, processedPurchasesCount, purchaseApprovalsCount, skippedCount, excelFile.getName());
+            
+            // Обновляем статусы всех заявок на закупку после парсинга
+            if (statusUpdateService != null) {
+                logger.info("Starting status update for all purchase requests after parsing report file");
+                try {
+                    statusUpdateService.updateAllStatuses();
+                    logger.info("Status update completed successfully");
+                } catch (Exception e) {
+                    logger.error("Error during status update after parsing report file: {}", e.getMessage(), e);
+                }
+            }
             
             return processedRequestsCount + processedPurchasesCount;
             

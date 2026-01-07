@@ -102,6 +102,7 @@ public class EntityExcelLoadService {
     private final DataFormatter dataFormatter = new DataFormatter();
 
     private final FileProcessingStatsService statsService;
+    private final PurchaseRequestStatusUpdateService statusUpdateService;
 
     public EntityExcelLoadService(
             PurchaseRequestRepository purchaseRequestRepository,
@@ -109,13 +110,15 @@ public class EntityExcelLoadService {
             ContractRepository contractRepository,
             UserRepository userRepository,
             CfoRepository cfoRepository,
-            FileProcessingStatsService statsService) {
+            FileProcessingStatsService statsService,
+            PurchaseRequestStatusUpdateService statusUpdateService) {
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.purchaseRepository = purchaseRepository;
         this.contractRepository = contractRepository;
         this.userRepository = userRepository;
         this.cfoRepository = cfoRepository;
         this.statsService = statsService;
+        this.statusUpdateService = statusUpdateService;
     }
     
     /**
@@ -300,6 +303,17 @@ public class EntityExcelLoadService {
                     0, // purchasePlanItemsCreated
                     0  // purchasePlanItemsUpdated
                 );
+            }
+            
+            // Обновляем статусы всех заявок на закупку после парсинга
+            if (statusUpdateService != null) {
+                logger.info("Starting status update for all purchase requests after parsing");
+                try {
+                    statusUpdateService.updateAllStatuses();
+                    logger.info("Status update completed successfully");
+                } catch (Exception e) {
+                    logger.error("Error during status update after parsing: {}", e.getMessage(), e);
+                }
             }
             
             return results;

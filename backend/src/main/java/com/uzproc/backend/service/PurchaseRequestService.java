@@ -14,9 +14,6 @@ import com.uzproc.backend.repository.PurchaseRequestRepository;
 import com.uzproc.backend.repository.PurchaseRepository;
 import java.util.stream.Collectors;
 import jakarta.persistence.criteria.Predicate;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
-import jakarta.persistence.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -43,26 +40,26 @@ public class PurchaseRequestService {
 
     private static final Logger logger = LoggerFactory.getLogger(PurchaseRequestService.class);
     
-    @PersistenceContext
-    private EntityManager entityManager;
-    
     private final PurchaseRequestRepository purchaseRequestRepository;
     private final PurchaseRequestApprovalRepository approvalRepository;
     private final PurchaseRepository purchaseRepository;
     private final ContractRepository contractRepository;
     private final ContractService contractService;
+    private final PurchaseRequestStatusUpdateService statusUpdateService;
 
     public PurchaseRequestService(
             PurchaseRequestRepository purchaseRequestRepository,
             PurchaseRequestApprovalRepository approvalRepository,
             PurchaseRepository purchaseRepository,
             ContractRepository contractRepository,
-            ContractService contractService) {
+            ContractService contractService,
+            PurchaseRequestStatusUpdateService statusUpdateService) {
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.approvalRepository = approvalRepository;
         this.purchaseRepository = purchaseRepository;
         this.contractRepository = contractRepository;
         this.contractService = contractService;
+        this.statusUpdateService = statusUpdateService;
     }
 
     public Page<PurchaseRequestDto> findAll(
@@ -494,214 +491,17 @@ public class PurchaseRequestService {
 
     /**
      * Обновляет статус заявки на закупку на основе согласований
-     * Логика (приоритет по убыванию):
-     * - Если хотя бы одно согласование не утверждено → статус "Не утверждена"
-     * - Если хотя бы одно согласование не согласовано → статус "Не согласована"
-     * - Если есть завершенное утверждение → статус "Утверждена"
-     * - Если есть активное и не законченное утверждение → статус "На утверждении"
-     * - Если хотя бы одно согласование активно (не завершено) → статус "На согласовании"
+     * Делегирует вызов в PurchaseRequestStatusUpdateService
      * 
      * @param idPurchaseRequest ID заявки на закупку
+     * @deprecated Используйте PurchaseRequestStatusUpdateService.updateStatus() напрямую
      */
+    @Deprecated
     @Transactional
     public void updateStatusBasedOnApprovals(Long idPurchaseRequest) {
-        // Находим заявку по idPurchaseRequest
-        PurchaseRequest purchaseRequest = purchaseRequestRepository.findByIdPurchaseRequest(idPurchaseRequest)
-                .orElse(null);
-        
-        if (purchaseRequest == null) {
-            logger.debug("Purchase request with id {} not found for status update", idPurchaseRequest);
-            return;
-        }
-        
-        // Получаем все согласования для заявки
-        List<PurchaseRequestApproval> approvals = approvalRepository.findByIdPurchaseRequest(idPurchaseRequest);
-        
-        if (approvals.isEmpty()) {
-            logger.debug("No approvals found for purchase request {}, status not updated", idPurchaseRequest);
-            return;
-        }
-        
-        boolean hasNotApproved = false;
-        boolean hasNotCoordinated = false;
-        boolean hasActiveApproval = false;
-        boolean hasActiveFinalApproval = false;
-        boolean hasCompletedFinalApproval = false;
-        
-        // Проверяем каждое согласование
-        for (PurchaseRequestApproval approval : approvals) {
-            // Проверяем, не согласовано ли согласование
-            String completionResult = approval.getCompletionResult();
-            if (completionResult != null && !completionResult.trim().isEmpty()) {
-                String resultLower = completionResult.toLowerCase().trim();
-                // Проверяем различные варианты "не утверждено"
-                if (resultLower.contains("не утвержден") || 
-                    resultLower.contains("не утверждено") ||
-                    resultLower.contains("не утверждена")) {
-                    hasNotApproved = true;
-                    logger.debug("Found not approved approval for request {}: {}", 
-                        idPurchaseRequest, completionResult);
-                }
-                // Проверяем различные варианты "не согласован"
-                if (resultLower.contains("не согласован") || 
-                    resultLower.contains("не согласована") ||
-                    resultLower.contains("отклонен") ||
-                    resultLower.contains("отклонена")) {
-                    hasNotCoordinated = true;
-                    logger.debug("Found not coordinated approval for request {}: {}", 
-                        idPurchaseRequest, completionResult);
-                }
-            }
-            
-            String stage = approval.getStage();
-            // Проверяем, является ли это утверждением
-            boolean isFinalApproval = stage != null && (stage.equals("Утверждение заявки на ЗП") || 
-                stage.equals("Утверждение заявки на ЗП (НЕ требуется ЗП)"));
-            
-            // Проверяем, завершено ли утверждение
-            if (isFinalApproval && approval.getCompletionDate() != null) {
-                // Проверяем, что результат положительный (согласовано)
-                if (completionResult != null && !completionResult.trim().isEmpty()) {
-                    String resultLower = completionResult.toLowerCase().trim();
-                    if (resultLower.contains("согласован") || resultLower.contains("согласовано") ||
-                        resultLower.contains("утвержден") || resultLower.contains("утверждено")) {
-                        hasCompletedFinalApproval = true;
-                        logger.debug("Found completed final approval for request {}: stage={}, role={}, result={}", 
-                            idPurchaseRequest, stage, approval.getRole(), completionResult);
-                    }
-                } else {
-                    // Если completionDate есть, но completionResult пустой, считаем утвержденным
-                    hasCompletedFinalApproval = true;
-                    logger.debug("Found completed final approval for request {}: stage={}, role={} (no result specified)", 
-                        idPurchaseRequest, stage, approval.getRole());
-                }
-            }
-            
-            // Проверяем, активно ли согласование (назначено, но не завершено)
-            if (approval.getAssignmentDate() != null && approval.getCompletionDate() == null) {
-                if (isFinalApproval) {
-                    hasActiveFinalApproval = true;
-                    logger.debug("Found active final approval for request {}: stage={}, role={}", 
-                        idPurchaseRequest, stage, approval.getRole());
-                } else {
-                hasActiveApproval = true;
-                logger.debug("Found active approval for request {}: stage={}, role={}", 
-                        idPurchaseRequest, stage, approval.getRole());
-                }
-            }
-        }
-        
-        // Проверяем наличие спецификации у связанных закупок
-        // Если у заявки есть связанные закупки и хотя бы у одной есть спецификация, устанавливаем статус "Спецификация создана"
-        boolean hasSpecification = false;
-        List<Purchase> purchases = purchaseRepository.findByPurchaseRequestId(idPurchaseRequest);
-        if (purchases != null && !purchases.isEmpty()) {
-            // Проверяем наличие спецификации у закупок через SQL запрос к таблице specifications
-            // Предполагаем, что таблица specifications существует и связана с purchases
-            // через purchase_id, purchase_number или purchase_inner_id
-            for (Purchase purchase : purchases) {
-                try {
-                    Long purchaseId = purchase.getId();
-                    Long purchaseNumber = purchase.getPurchaseNumber();
-                    String innerId = purchase.getInnerId();
-                    
-                    if (purchaseId != null || purchaseNumber != null || (innerId != null && !innerId.trim().isEmpty())) {
-                        // Проверяем наличие спецификации через нативный SQL запрос
-                        // Пробуем разные варианты названий полей в таблице specifications
-                        try {
-                            // Вариант 1: проверка через purchase_id
-                            Query query1 = entityManager.createNativeQuery(
-                                "SELECT COUNT(*) FROM specifications WHERE purchase_id = ?"
-                            );
-                            query1.setParameter(1, purchaseId);
-                            Long count1 = ((Number) query1.getSingleResult()).longValue();
-                            if (count1 > 0) {
-                                hasSpecification = true;
-                                logger.debug("Found specification for purchase {} via purchase_id", purchase.getId());
-                                break;
-                            }
-                        } catch (Exception e1) {
-                            // Таблица или поле не существует, пробуем другой вариант
-                            try {
-                                // Вариант 2: проверка через purchase_number
-                                if (purchaseNumber != null) {
-                                    Query query2 = entityManager.createNativeQuery(
-                                        "SELECT COUNT(*) FROM specifications WHERE purchase_number = ?"
-                                    );
-                                    query2.setParameter(1, purchaseNumber);
-                                    Long count2 = ((Number) query2.getSingleResult()).longValue();
-                                    if (count2 > 0) {
-                                        hasSpecification = true;
-                                        logger.debug("Found specification for purchase {} via purchase_number", purchase.getId());
-                                        break;
-                                    }
-                                }
-                            } catch (Exception e2) {
-                                // Таблица или поле не существует, пробуем другой вариант
-                                try {
-                                    // Вариант 3: проверка через purchase_inner_id
-                                    if (innerId != null && !innerId.trim().isEmpty()) {
-                                        Query query3 = entityManager.createNativeQuery(
-                                            "SELECT COUNT(*) FROM specifications WHERE purchase_inner_id = ?"
-                                        );
-                                        query3.setParameter(1, innerId);
-                                        Long count3 = ((Number) query3.getSingleResult()).longValue();
-                                        if (count3 > 0) {
-                                            hasSpecification = true;
-                                            logger.debug("Found specification for purchase {} via purchase_inner_id", purchase.getId());
-                                            break;
-                                        }
-                                    }
-                                } catch (Exception e3) {
-                                    // Таблица specifications не существует или имеет другую структуру
-                                    logger.debug("Table specifications not found or has different structure. Skipping specification check for purchase {}", purchase.getId());
-                                }
-                            }
-                        }
-                    }
-                } catch (Exception e) {
-                    logger.warn("Error checking specification for purchase {}: {}", purchase.getId(), e.getMessage());
-                }
-            }
-        }
-        
-        // Сохраняем текущий статус для сравнения
-        PurchaseRequestStatus currentStatus = purchaseRequest.getStatus();
-        
-        // Определяем новый статус
-        PurchaseRequestStatus newStatus = null;
-        
-        // Приоритет: сначала проверяем наличие спецификации (высокий приоритет), 
-        // потом на не утверждено, потом на не согласованные, 
-        // потом на завершенное утверждение, потом на активное утверждение, потом на согласование
-        if (hasSpecification) {
-            newStatus = PurchaseRequestStatus.SPECIFICATION_CREATED;
-        } else if (hasNotApproved) {
-            newStatus = PurchaseRequestStatus.NOT_APPROVED;
-        } else if (hasNotCoordinated) {
-            newStatus = PurchaseRequestStatus.NOT_COORDINATED;
-        } else if (hasCompletedFinalApproval) {
-            newStatus = PurchaseRequestStatus.APPROVED;
-        } else if (hasActiveFinalApproval) {
-            newStatus = PurchaseRequestStatus.ON_APPROVAL_FINAL;
-        } else if (hasActiveApproval) {
-            newStatus = PurchaseRequestStatus.ON_APPROVAL;
-        }
-        
-        // Обновляем статус только если он изменился
-        if (newStatus != null && currentStatus != newStatus) {
-            purchaseRequest.setStatus(newStatus);
-            purchaseRequestRepository.save(purchaseRequest);
-            logger.info("Status updated for purchase request {}: {} -> {}", 
-                idPurchaseRequest, 
-                currentStatus != null ? currentStatus.getDisplayName() : "null",
-                newStatus.getDisplayName());
-        } else if (newStatus == null) {
-            logger.debug("No status change needed for request {} (no active approvals or not coordinated)", idPurchaseRequest);
-        } else {
-            logger.debug("Status for request {} already set to: {}", idPurchaseRequest, newStatus.getDisplayName());
-        }
+        statusUpdateService.updateStatus(idPurchaseRequest);
     }
+
 
     /**
      * Получить статистику по закупщикам для закупок (requiresPurchase != false)
