@@ -129,6 +129,7 @@ public class ReportExcelLoadService {
     private final PurchaseRepository purchaseRepository;
     private final PurchaseApprovalRepository purchaseApprovalRepository;
     private final PurchaseRequestStatusUpdateService statusUpdateService;
+    private final ContractStatusUpdateService contractStatusUpdateService;
     private final DataFormatter dataFormatter = new DataFormatter();
 
     public ReportExcelLoadService(
@@ -136,12 +137,14 @@ public class ReportExcelLoadService {
             PurchaseRequestApprovalRepository requestApprovalRepository,
             PurchaseRepository purchaseRepository,
             PurchaseApprovalRepository purchaseApprovalRepository,
-            PurchaseRequestStatusUpdateService statusUpdateService) {
+            PurchaseRequestStatusUpdateService statusUpdateService,
+            ContractStatusUpdateService contractStatusUpdateService) {
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.requestApprovalRepository = requestApprovalRepository;
         this.purchaseRepository = purchaseRepository;
         this.purchaseApprovalRepository = purchaseApprovalRepository;
         this.statusUpdateService = statusUpdateService;
+        this.contractStatusUpdateService = contractStatusUpdateService;
     }
 
     /**
@@ -266,6 +269,16 @@ public class ReportExcelLoadService {
                     logger.info("Status update completed successfully");
                 } catch (Exception e) {
                     logger.error("Error during status update after parsing report file: {}", e.getMessage(), e);
+                }
+            }
+            
+            if (contractStatusUpdateService != null) {
+                logger.info("Starting status update for all contracts after parsing report file");
+                try {
+                    contractStatusUpdateService.updateAllStatuses();
+                    logger.info("Contract status update completed successfully");
+                } catch (Exception e) {
+                    logger.error("Error during contract status update after parsing report file: {}", e.getMessage(), e);
                 }
             }
             

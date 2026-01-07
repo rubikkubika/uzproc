@@ -140,6 +140,7 @@ public class PurchaseRequestStatusUpdateService {
         // Спецификации хранятся в таблице contracts с document_form = 'Спецификация'
         // и связаны с заявкой через purchase_request_id
         boolean hasSpecification = false;
+        boolean hasSignedSpecification = false;
         try {
             // Проверяем наличие спецификации через нативный SQL запрос к таблице contracts
             Query query = entityManager.createNativeQuery(
@@ -151,6 +152,24 @@ public class PurchaseRequestStatusUpdateService {
             if (count > 0) {
                 hasSpecification = true;
                 logger.debug("Found {} specification(s) for purchase request {}", count, idPurchaseRequest);
+                
+                // Проверяем, есть ли подписанная спецификация (для заказов, когда requiresPurchase === false)
+                // В базе данных статус хранится как имя enum константы (SIGNED), а не displayName (Подписан)
+                if (purchaseRequest.getRequiresPurchase() != null && purchaseRequest.getRequiresPurchase() == false) {
+                    Query signedQuery = entityManager.createNativeQuery(
+                        "SELECT COUNT(*) FROM contracts WHERE purchase_request_id = ? AND document_form = ? AND status = ?"
+                    );
+                    signedQuery.setParameter(1, idPurchaseRequest);
+                    signedQuery.setParameter(2, "Спецификация");
+                    signedQuery.setParameter(3, "SIGNED"); // Используем имя enum константы, так как используется @Enumerated(EnumType.STRING)
+                    Long signedCount = ((Number) signedQuery.getSingleResult()).longValue();
+                    if (signedCount > 0) {
+                        hasSignedSpecification = true;
+                        logger.info("Found {} signed specification(s) for purchase request {} (order type)", signedCount, idPurchaseRequest);
+                    } else {
+                        logger.debug("No signed specifications found for purchase request {} (order type)", idPurchaseRequest);
+                    }
+                }
             } else {
                 logger.debug("No specifications found for purchase request {}", idPurchaseRequest);
             }
@@ -191,11 +210,15 @@ public class PurchaseRequestStatusUpdateService {
         // Определяем новый статус
         PurchaseRequestStatus newStatus = null;
         
-        // Приоритет: сначала проверяем наличие спецификации (высокий приоритет), 
+        // Приоритет: сначала проверяем подписанную спецификацию (для заказов, самый высокий приоритет),
+        // потом наличие спецификации (высокий приоритет), 
         // потом наличие закупки (для заявок с requiresPurchase !== false) - даже если заявка утверждена,
         // потом на не утверждено, потом на не согласованные, 
         // потом на завершенное утверждение, потом на активное утверждение, потом на согласование
-        if (hasSpecification) {
+        if (hasSignedSpecification) {
+            // Для заказов (requiresPurchase === false) с подписанной спецификацией
+            newStatus = PurchaseRequestStatus.SPECIFICATION_SIGNED;
+        } else if (hasSpecification) {
             newStatus = PurchaseRequestStatus.SPECIFICATION_CREATED;
         } else if (hasPurchase) {
             // Если есть закупка, устанавливаем статус "Закупка создана" даже если заявка утверждена

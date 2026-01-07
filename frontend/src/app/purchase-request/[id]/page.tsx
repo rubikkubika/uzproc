@@ -55,6 +55,8 @@ interface Contract {
   purchaseRequestId: number | null;
   parentContractId: number | null;
   parentContract: Contract | null;
+  status: string | null;
+  state: string | null;
 }
 
 interface Approval {
@@ -900,7 +902,13 @@ export default function PurchaseRequestDetailPage() {
                     ) : (
                       /* Если закупка не требуется: Заявка → Заказ */
                   <div className="flex flex-col items-center gap-0.5">
-                        <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Заказ"></div>
+                        {purchaseRequest.status === 'Спецификация подписана' ? (
+                          <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center mt-0.5" title="Заказ: Спецификация подписана">
+                            <Check className="w-2.5 h-2.5 text-white" />
+                          </div>
+                        ) : (
+                          <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Заказ"></div>
+                        )}
                         <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Заказ</span>
                   </div>
                     )}
@@ -1735,6 +1743,24 @@ export default function PurchaseRequestDetailPage() {
                             </div>
                             <div>
                               <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                Статус
+                              </label>
+                              <p className="text-xs text-gray-900">
+                                {contract.status ? (
+                                  <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${
+                                    contract.status === 'Подписан' 
+                                      ? 'bg-green-100 text-green-800' 
+                                      : contract.status === 'Проект'
+                                      ? 'bg-gray-100 text-gray-800'
+                                      : 'bg-blue-100 text-blue-800'
+                                  }`}>
+                                    {contract.status}
+                                  </span>
+                                ) : '-'}
+                              </p>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-0">
                                 ЦФО
                               </label>
                               <p className="text-xs text-gray-900">
@@ -2154,12 +2180,13 @@ export default function PurchaseRequestDetailPage() {
                                   <table className="w-full text-[10px] border-collapse" style={{ tableLayout: 'fixed', width: '100%' }}>
                                     <thead>
                                       <tr className="bg-gray-50 border-b border-gray-200">
-                                        <th className="text-left py-1 px-2 font-semibold text-gray-600 border-r border-gray-200" style={{ width: '15%' }}>Внутренний ID</th>
-                                        <th className="text-left py-1 px-2 font-semibold text-gray-600 border-r border-gray-200" style={{ width: '20%' }}>Наименование</th>
-                                        <th className="text-left py-1 px-2 font-semibold text-gray-600 border-r border-gray-200" style={{ width: '20%' }}>Заголовок</th>
+                                        <th className="text-left py-1 px-2 font-semibold text-gray-600 border-r border-gray-200" style={{ width: '12%' }}>Внутренний ID</th>
+                                        <th className="text-left py-1 px-2 font-semibold text-gray-600 border-r border-gray-200" style={{ width: '18%' }}>Наименование</th>
+                                        <th className="text-left py-1 px-2 font-semibold text-gray-600 border-r border-gray-200" style={{ width: '18%' }}>Заголовок</th>
+                                        <th className="text-left py-1 px-2 font-semibold text-gray-600 border-r border-gray-200" style={{ width: '12%' }}>Статус</th>
                                         <th className="text-left py-1 px-2 font-semibold text-gray-600 border-r border-gray-200" style={{ width: '10%' }}>ЦФО</th>
                                         <th className="text-left py-1 px-2 font-semibold text-gray-600 border-r border-gray-200" style={{ width: '15%' }}>Дата создания</th>
-                                        <th className="text-right py-1 px-2 font-semibold text-gray-600" style={{ width: '20%' }}>Сумма</th>
+                                        <th className="text-right py-1 px-2 font-semibold text-gray-600" style={{ width: '15%' }}>Сумма</th>
                                       </tr>
                                     </thead>
                                     <tbody>
@@ -2168,6 +2195,19 @@ export default function PurchaseRequestDetailPage() {
                                           <td className="py-1 px-2 text-gray-900 border-r border-gray-100">{spec.innerId || '-'}</td>
                                           <td className="py-1 px-2 text-gray-900 border-r border-gray-100">{spec.name || '-'}</td>
                                           <td className="py-1 px-2 text-gray-900 border-r border-gray-100">{spec.title || '-'}</td>
+                                          <td className="py-1 px-2 text-gray-900 border-r border-gray-100">
+                                            {spec.status ? (
+                                              <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                                spec.status === 'Подписан' 
+                                                  ? 'bg-green-100 text-green-800' 
+                                                  : spec.status === 'Проект'
+                                                  ? 'bg-gray-100 text-gray-800'
+                                                  : 'bg-blue-100 text-blue-800'
+                                              }`}>
+                                                {spec.status}
+                                              </span>
+                                            ) : '-'}
+                                          </td>
                                           <td className="py-1 px-2 text-gray-900 border-r border-gray-100">{spec.cfo || '-'}</td>
                                           <td className="py-1 px-2 text-gray-900 border-r border-gray-100">
                                             {spec.contractCreationDate ? new Date(spec.contractCreationDate).toLocaleDateString('ru-RU') : '-'}
@@ -2621,9 +2661,91 @@ export default function PurchaseRequestDetailPage() {
                 <div className="flex flex-col lg:flex-row gap-4 items-start">
                   {/* Левая часть с полями спецификации */}
                   <div className="flex-1">
-                  <div className="text-center py-2 text-xs text-gray-500">
-                    <p>Раздел находится в разработке</p>
-                </div>
+                  {specifications && specifications.length > 0 ? (
+                    <div className="space-y-3">
+                      {specifications.map((spec) => (
+                        <div key={spec.id} className="border border-gray-200 rounded p-2">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                Внутренний ID
+                              </label>
+                              <p className="text-xs text-gray-900">
+                                {spec.innerId || '-'}
+                              </p>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                Наименование
+                              </label>
+                              <p className="text-xs text-gray-900">
+                                {spec.name || '-'}
+                              </p>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                Заголовок
+                              </label>
+                              <p className="text-xs text-gray-900">
+                                {spec.title || '-'}
+                              </p>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                Статус
+                              </label>
+                              <p className="text-xs text-gray-900">
+                                {spec.status ? (
+                                  <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${
+                                    spec.status === 'Подписан' 
+                                      ? 'bg-green-100 text-green-800' 
+                                      : spec.status === 'Проект'
+                                      ? 'bg-gray-100 text-gray-800'
+                                      : 'bg-blue-100 text-blue-800'
+                                  }`}>
+                                    {spec.status}
+                                  </span>
+                                ) : '-'}
+                              </p>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                ЦФО
+                              </label>
+                              <p className="text-xs text-gray-900">
+                                {spec.cfo || '-'}
+                              </p>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                Дата создания
+                              </label>
+                              <p className="text-xs text-gray-900">
+                                {spec.contractCreationDate ? new Date(spec.contractCreationDate).toLocaleDateString('ru-RU') : '-'}
+                              </p>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                Сумма договора
+                              </label>
+                              <p className="text-xs text-gray-900">
+                                {spec.budgetAmount ? (
+                                  <span className="flex items-center">
+                                    {new Intl.NumberFormat('ru-RU', { style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(spec.budgetAmount)}
+                                    {getCurrencyIcon(spec.currency)}
+                                  </span>
+                                ) : '-'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-2 text-xs text-gray-500">
+                      <p>Нет данных о спецификациях</p>
+                    </div>
+                  )}
               </div>
 
                   {/* Правая часть с блоком согласований */}

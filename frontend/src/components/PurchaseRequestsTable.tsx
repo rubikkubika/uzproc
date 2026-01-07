@@ -47,7 +47,7 @@ const CACHE_KEY = 'purchaseRequests_metadata';
 const CACHE_TTL = 5 * 60 * 1000; // 5 минут
 
 // Константы для статусов (соответствуют PurchaseRequestStatus enum)
-const ALL_STATUSES = ['Заявка на согласовании', 'На согласовании', 'Заявка на утверждении', 'На утверждении', 'Утверждена', 'Заявка утверждена', 'Согласована', 'Не согласована', 'Не утверждена', 'Проект', 'Неактуальна', 'Не Актуальная', 'Спецификация создана', 'Закупка создана'];
+const ALL_STATUSES = ['Заявка на согласовании', 'На согласовании', 'Заявка на утверждении', 'На утверждении', 'Утверждена', 'Заявка утверждена', 'Согласована', 'Не согласована', 'Не утверждена', 'Проект', 'Неактуальна', 'Не Актуальная', 'Спецификация создана', 'Спецификация подписана', 'Закупка создана'];
 const DEFAULT_STATUSES = ALL_STATUSES.filter(s => s !== 'Неактуальна' && s !== 'Не Актуальная');
 
 // Функция для получения символа валюты
@@ -2430,7 +2430,7 @@ export default function PurchaseRequestsTable() {
                         <td key={columnKey} className="px-2 py-2 text-xs border-r border-gray-200">
                           {request.status ? (
                             <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                              request.status === 'Утверждена' || request.status === 'Заявка утверждена' || request.status === 'Согласована'
+                              request.status === 'Утверждена' || request.status === 'Заявка утверждена' || request.status === 'Согласована' || request.status === 'Спецификация подписана'
                                 ? 'bg-green-100 text-green-800'
                                 : request.status === 'Спецификация создана' || request.status === 'Закупка создана'
                                 ? 'bg-yellow-100 text-yellow-800'
@@ -2457,9 +2457,10 @@ export default function PurchaseRequestsTable() {
                     <div className="flex items-end gap-2">
                       {/* Заявка - активна */}
                       <div className="flex flex-col items-center gap-0.5">
-                        {request.status === 'Утверждена' || request.status === 'Заявка утверждена' || request.status === 'Спецификация создана' || request.status === 'Закупка создана' ? (
+                        {request.status === 'Утверждена' || request.status === 'Заявка утверждена' || request.status === 'Спецификация создана' || request.status === 'Спецификация подписана' || request.status === 'Закупка создана' ? (
                           <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center" title={
                             request.status === 'Спецификация создана' ? "Заявка: Спецификация создана" :
+                            request.status === 'Спецификация подписана' ? "Заявка: Спецификация подписана" :
                             request.status === 'Закупка создана' ? "Заявка: Закупка создана" :
                             "Заявка утверждена"
                           }>
@@ -2500,7 +2501,11 @@ export default function PurchaseRequestsTable() {
                       ) : (
                         /* Если закупка не требуется: Заявка → Заказ */
                         <div className="flex flex-col items-center gap-0.5">
-                          {request.status === 'Спецификация создана' ? (
+                          {request.status === 'Спецификация подписана' ? (
+                            <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center mt-0.5" title="Заказ: Спецификация подписана">
+                              <Check className="w-2.5 h-2.5 text-white" />
+                            </div>
+                          ) : request.status === 'Спецификация создана' ? (
                             <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Заказ: Спецификация создана">
                               <Clock className="w-2.5 h-2.5 text-white" />
                             </div>

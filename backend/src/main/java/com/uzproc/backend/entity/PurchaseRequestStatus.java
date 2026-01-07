@@ -11,6 +11,7 @@ public enum PurchaseRequestStatus {
     NOT_APPROVED("Не утверждена"),
     PROJECT("Проект"),
     SPECIFICATION_CREATED("Спецификация создана"),
+    SPECIFICATION_SIGNED("Спецификация подписана"),
     PURCHASE_CREATED("Закупка создана");
 
     private final String displayName;

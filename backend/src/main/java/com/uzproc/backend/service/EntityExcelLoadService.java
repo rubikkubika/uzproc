@@ -103,6 +103,7 @@ public class EntityExcelLoadService {
 
     private final FileProcessingStatsService statsService;
     private final PurchaseRequestStatusUpdateService statusUpdateService;
+    private final ContractStatusUpdateService contractStatusUpdateService;
 
     public EntityExcelLoadService(
             PurchaseRequestRepository purchaseRequestRepository,
@@ -111,7 +112,8 @@ public class EntityExcelLoadService {
             UserRepository userRepository,
             CfoRepository cfoRepository,
             FileProcessingStatsService statsService,
-            PurchaseRequestStatusUpdateService statusUpdateService) {
+            PurchaseRequestStatusUpdateService statusUpdateService,
+            ContractStatusUpdateService contractStatusUpdateService) {
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.purchaseRepository = purchaseRepository;
         this.contractRepository = contractRepository;
@@ -119,6 +121,7 @@ public class EntityExcelLoadService {
         this.cfoRepository = cfoRepository;
         this.statsService = statsService;
         this.statusUpdateService = statusUpdateService;
+        this.contractStatusUpdateService = contractStatusUpdateService;
     }
     
     /**
@@ -313,6 +316,16 @@ public class EntityExcelLoadService {
                     logger.info("Status update completed successfully");
                 } catch (Exception e) {
                     logger.error("Error during status update after parsing: {}", e.getMessage(), e);
+                }
+            }
+            
+            if (contractStatusUpdateService != null) {
+                logger.info("Starting status update for all contracts after parsing");
+                try {
+                    contractStatusUpdateService.updateAllStatuses();
+                    logger.info("Contract status update completed successfully");
+                } catch (Exception e) {
+                    logger.error("Error during contract status update after parsing: {}", e.getMessage(), e);
                 }
             }
             

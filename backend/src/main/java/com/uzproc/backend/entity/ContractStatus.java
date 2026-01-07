@@ -3,7 +3,8 @@ package com.uzproc.backend.entity;
 import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum ContractStatus {
-    PROJECT("Проект");
+    PROJECT("Проект"),
+    SIGNED("Подписан");
 
     private final String displayName;
 
