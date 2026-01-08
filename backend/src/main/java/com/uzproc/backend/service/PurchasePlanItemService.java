@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -55,6 +56,7 @@ public class PurchasePlanItemService {
             String sortBy,
             String sortDir,
             List<String> company,
+            List<String> purchaserCompany,
             List<String> cfo,
             String purchaseSubject,
             List<String> purchaser,
@@ -68,10 +70,10 @@ public class PurchasePlanItemService {
             String budgetAmountOperator) {
         
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, company: {}, cfo: {}, purchaseSubject: '{}', purchaser: {}, category: {}, requestMonths: {}, requestYear: {}, currentContractEndDate: '{}', status: {}, purchaseRequestId: '{}', budgetAmount: {}, budgetAmountOperator: '{}'",
-                year, company, cfo, purchaseSubject, purchaser, category, requestMonths, requestYear, currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator);
+        logger.info("Filter parameters - year: {}, company: {}, purchaserCompany: {}, cfo: {}, purchaseSubject: '{}', purchaser: {}, category: {}, requestMonths: {}, requestYear: {}, currentContractEndDate: '{}', status: {}, purchaseRequestId: '{}', budgetAmount: {}, budgetAmountOperator: '{}'",
+                year, company, purchaserCompany, cfo, purchaseSubject, purchaser, category, requestMonths, requestYear, currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator);
         
-        Specification<PurchasePlanItem> spec = buildSpecification(year, company, cfo, purchaseSubject, purchaser, category, requestMonths, requestYear, currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator);
+        Specification<PurchasePlanItem> spec = buildSpecification(year, company, purchaserCompany, cfo, purchaseSubject, purchaser, category, requestMonths, requestYear, currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -695,6 +697,7 @@ public class PurchasePlanItemService {
     private Specification<PurchasePlanItem> buildSpecification(
             Integer year,
             List<String> company,
+            List<String> purchaserCompany,
             List<String> cfo,
             String purchaseSubject,
             List<String> purchaser,
@@ -791,6 +794,61 @@ public class PurchasePlanItemService {
                         logger.info("Added company filter: {} (enums: {}, includeNull: {})", validCompanyValues, companyEnums, includeNull);
                     } else {
                         logger.warn("No valid company enums found for values: {}", validCompanyValues);
+                    }
+                }
+            }
+            
+            // Фильтр по компании исполнителя (поддержка множественного выбора - поиск по displayName enum)
+            if (purchaserCompany != null && !purchaserCompany.isEmpty()) {
+                List<String> validPurchaserCompanyValues = purchaserCompany.stream()
+                        .filter(v -> v != null && !v.trim().isEmpty())
+                        .map(String::trim)
+                        .collect(Collectors.toList());
+                
+                if (!validPurchaserCompanyValues.isEmpty()) {
+                    List<Predicate> purchaserCompanyPredicates = new ArrayList<>();
+                    List<Company> purchaserCompanyEnums = new ArrayList<>();
+                    boolean includeNull = false;
+                    
+                    for (String purchaserCompanyValue : validPurchaserCompanyValues) {
+                        if ("__NULL__".equals(purchaserCompanyValue)) {
+                            includeNull = true;
+                        } else {
+                            // Пробуем найти enum по displayName
+                            for (Company c : Company.values()) {
+                                if (c.getDisplayName().equalsIgnoreCase(purchaserCompanyValue)) {
+                                    purchaserCompanyEnums.add(c);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Если есть enum значения, добавляем фильтр по ним
+                    if (!purchaserCompanyEnums.isEmpty()) {
+                        if (purchaserCompanyEnums.size() == 1) {
+                            purchaserCompanyPredicates.add(cb.equal(root.get("purchaserCompany"), purchaserCompanyEnums.get(0)));
+                        } else {
+                            purchaserCompanyPredicates.add(root.get("purchaserCompany").in(purchaserCompanyEnums));
+                        }
+                    }
+                    
+                    // Если нужно включить null значения
+                    if (includeNull) {
+                        purchaserCompanyPredicates.add(cb.isNull(root.get("purchaserCompany")));
+                    }
+                    
+                    // Объединяем предикаты через OR, если есть и enum, и null
+                    if (!purchaserCompanyPredicates.isEmpty()) {
+                        if (purchaserCompanyPredicates.size() == 1) {
+                            predicates.add(purchaserCompanyPredicates.get(0));
+                        } else {
+                            predicates.add(cb.or(purchaserCompanyPredicates.toArray(new Predicate[0])));
+                        }
+                        predicateCount++;
+                        logger.info("Added purchaserCompany filter: {} (enums: {}, includeNull: {})", validPurchaserCompanyValues, purchaserCompanyEnums, includeNull);
+                    } else {
+                        logger.warn("No valid purchaserCompany enums found for values: {}", validPurchaserCompanyValues);
                     }
                 }
             }

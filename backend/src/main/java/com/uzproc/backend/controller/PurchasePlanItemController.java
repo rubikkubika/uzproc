@@ -37,6 +37,7 @@ public class PurchasePlanItemController {
             @RequestParam(required = false) String sortBy,
             @RequestParam(required = false) String sortDir,
             @RequestParam(required = false) List<String> company,
+            @RequestParam(required = false) List<String> purchaserCompany,
             @RequestParam(required = false) List<String> cfo,
             @RequestParam(required = false) String purchaseSubject,
             @RequestParam(required = false) List<String> purchaser,
@@ -50,7 +51,7 @@ public class PurchasePlanItemController {
             @RequestParam(required = false) String budgetAmountOperator) {
         
         Page<PurchasePlanItemDto> items = purchasePlanItemService.findAll(
-                page, size, year, sortBy, sortDir, company, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear, currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator);
+                page, size, year, sortBy, sortDir, company, purchaserCompany, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear, currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator);
         
         return ResponseEntity.ok(items);
     }

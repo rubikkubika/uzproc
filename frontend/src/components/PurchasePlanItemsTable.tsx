@@ -231,6 +231,7 @@ export default function PurchasePlanItemsTable() {
   // Состояние для множественных фильтров (чекбоксы)
   const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
   const [companyFilter, setCompanyFilter] = useState<Set<string>>(new Set(['Market']));
+  const [purchaserCompanyFilter, setPurchaserCompanyFilter] = useState<Set<string>>(new Set());
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set(DEFAULT_STATUSES));
   const [purchaserFilter, setPurchaserFilter] = useState<Set<string>>(() => {
@@ -257,6 +258,7 @@ export default function PurchasePlanItemsTable() {
   // Состояние для открытия/закрытия выпадающих списков
   const [isCfoFilterOpen, setIsCfoFilterOpen] = useState(false);
   const [isCompanyFilterOpen, setIsCompanyFilterOpen] = useState(false);
+  const [isPurchaserCompanyFilterOpen, setIsPurchaserCompanyFilterOpen] = useState(false);
   const [isCategoryFilterOpen, setIsCategoryFilterOpen] = useState(false);
   const [isPurchaserFilterOpen, setIsPurchaserFilterOpen] = useState(false);
   const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
@@ -264,6 +266,7 @@ export default function PurchasePlanItemsTable() {
   // Поиск внутри фильтров
   const [cfoSearchQuery, setCfoSearchQuery] = useState('');
   const [companySearchQuery, setCompanySearchQuery] = useState('');
+  const [purchaserCompanySearchQuery, setPurchaserCompanySearchQuery] = useState('');
   const [categorySearchQuery, setCategorySearchQuery] = useState('');
   const [purchaserSearchQuery, setPurchaserSearchQuery] = useState('');
   const [statusSearchQuery, setStatusSearchQuery] = useState('');
@@ -271,12 +274,14 @@ export default function PurchasePlanItemsTable() {
   // Позиции для выпадающих списков
   const [cfoFilterPosition, setCfoFilterPosition] = useState<{ top: number; left: number } | null>(null);
   const [companyFilterPosition, setCompanyFilterPosition] = useState<{ top: number; left: number } | null>(null);
+  const [purchaserCompanyFilterPosition, setPurchaserCompanyFilterPosition] = useState<{ top: number; left: number } | null>(null);
   const [categoryFilterPosition, setCategoryFilterPosition] = useState<{ top: number; left: number } | null>(null);
   const [purchaserFilterPosition, setPurchaserFilterPosition] = useState<{ top: number; left: number } | null>(null);
   const [statusFilterPosition, setStatusFilterPosition] = useState<{ top: number; left: number } | null>(null);
   
   const cfoFilterButtonRef = useRef<HTMLButtonElement>(null);
   const companyFilterButtonRef = useRef<HTMLButtonElement>(null);
+  const purchaserCompanyFilterButtonRef = useRef<HTMLButtonElement>(null);
   const categoryFilterButtonRef = useRef<HTMLButtonElement>(null);
   const purchaserFilterButtonRef = useRef<HTMLButtonElement>(null);
   const statusFilterButtonRef = useRef<HTMLButtonElement>(null);
@@ -386,13 +391,21 @@ export default function PurchasePlanItemsTable() {
     }
   }, [isCfoFilterOpen, calculateFilterPosition]);
   
-  // Обновляем позицию при открытии фильтра компаний
+  // Обновляем позицию при открытии фильтра компаний (Заказчик)
   useEffect(() => {
     if (isCompanyFilterOpen && companyFilterButtonRef.current) {
       const position = calculateFilterPosition(companyFilterButtonRef);
       setCompanyFilterPosition(position);
     }
   }, [isCompanyFilterOpen, calculateFilterPosition]);
+
+  // Обновляем позицию при открытии фильтра компаний (Исполнитель)
+  useEffect(() => {
+    if (isPurchaserCompanyFilterOpen && purchaserCompanyFilterButtonRef.current) {
+      const position = calculateFilterPosition(purchaserCompanyFilterButtonRef);
+      setPurchaserCompanyFilterPosition(position);
+    }
+  }, [isPurchaserCompanyFilterOpen, calculateFilterPosition]);
 
   // Обновляем позицию при открытии фильтра категории
   useEffect(() => {
@@ -1788,6 +1801,16 @@ export default function PurchasePlanItemsTable() {
             detail: { companyFilter: ['Market'] }
           }));
         }
+        if (savedFilters.purchaserCompanyFilter !== undefined) {
+          if (Array.isArray(savedFilters.purchaserCompanyFilter) && savedFilters.purchaserCompanyFilter.length > 0) {
+            // Нормализуем сохраненные значения компании исполнителя
+            const normalizedPurchaserCompanyFilter = savedFilters.purchaserCompanyFilter.map((c: string) => normalizeCompany(c)).filter((c: string | null) => c !== null) as string[];
+            setPurchaserCompanyFilter(new Set(normalizedPurchaserCompanyFilter));
+          } else {
+            // Если сохраненный фильтр пустой массив, оставляем его пустым
+            setPurchaserCompanyFilter(new Set());
+          }
+        }
         if (savedFilters.categoryFilter !== undefined) {
           if (Array.isArray(savedFilters.categoryFilter)) {
             setCategoryFilter(new Set(savedFilters.categoryFilter));
@@ -1852,6 +1875,7 @@ export default function PurchasePlanItemsTable() {
         filters,
         cfoFilter: Array.from(cfoFilter),
         companyFilter: Array.from(companyFilter),
+        purchaserCompanyFilter: Array.from(purchaserCompanyFilter),
         categoryFilter: Array.from(categoryFilter),
         purchaserFilter: Array.from(purchaserFilter),
         statusFilter: Array.from(statusFilter),
@@ -1862,7 +1886,7 @@ export default function PurchasePlanItemsTable() {
     } catch (err) {
       console.error('Error saving filters:', err);
     }
-  }, [selectedYear, selectedMonths, selectedMonthYear, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter, statusFilter, sortField, sortDirection]);
+  }, [selectedYear, selectedMonths, selectedMonthYear, filters, cfoFilter, companyFilter, purchaserCompanyFilter, purchaserFilter, categoryFilter, statusFilter, sortField, sortDirection]);
   
   // Сохраняем ширины колонок в localStorage
   const saveColumnWidths = useCallback((widths: Record<string, number>) => {
@@ -2229,7 +2253,7 @@ export default function PurchasePlanItemsTable() {
     };
     
     fetchChartData();
-  }, [selectedYear, selectedMonthYear, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter, statusFilter]);
+  }, [selectedYear, selectedMonthYear, filters, cfoFilter, companyFilter, purchaserCompanyFilter, purchaserFilter, categoryFilter, statusFilter]);
 
   // Загружаем данные для сводной таблицы (без учета фильтра по закупщику)
   useEffect(() => {
@@ -2260,6 +2284,16 @@ export default function PurchasePlanItemsTable() {
         if (cfoFilter.size > 0) {
           cfoFilter.forEach(cfo => {
             params.append('cfo', cfo);
+          });
+        }
+        if (purchaserCompanyFilter.size > 0) {
+          purchaserCompanyFilter.forEach(purchaserCompany => {
+            // Если выбрано "Не выбрано", передаем специальное значение для null
+            if (purchaserCompany === 'Не выбрано') {
+              params.append('purchaserCompany', '__NULL__');
+            } else {
+              params.append('purchaserCompany', purchaserCompany);
+            }
           });
         }
         if (filters.purchaseSubject && filters.purchaseSubject.trim() !== '') {
@@ -2318,7 +2352,7 @@ export default function PurchasePlanItemsTable() {
     };
     
     fetchSummaryData();
-  }, [selectedYear, selectedMonthYear, selectedMonths, filters, cfoFilter, companyFilter, categoryFilter, statusFilter]); // НЕ включаем purchaserFilter
+  }, [selectedYear, selectedMonthYear, selectedMonths, filters, cfoFilter, companyFilter, purchaserCompanyFilter, categoryFilter, statusFilter]); // НЕ включаем purchaserFilter
 
   // Функция для подсчета количества закупок по месяцам (использует отфильтрованные данные)
   const getMonthlyDistribution = useMemo(() => {
@@ -2563,6 +2597,7 @@ export default function PurchasePlanItemsTable() {
           const values: Record<string, Set<string>> = {
             cfo: new Set(),
             company: new Set(),
+            purchaserCompany: new Set(),
             purchaser: new Set(),
             category: new Set(),
             status: new Set(),
@@ -2585,6 +2620,16 @@ export default function PurchasePlanItemsTable() {
               // Если компания пустая/null, добавляем "Не выбрано"
               values.company.add('Не выбрано');
             }
+            if (item.purchaserCompany) {
+              // Нормализуем значение компании исполнителя: если это старое название, заменяем на новое
+              const normalizedPurchaserCompany = normalizeCompany(item.purchaserCompany);
+              if (normalizedPurchaserCompany) {
+                values.purchaserCompany.add(normalizedPurchaserCompany);
+              }
+            } else {
+              // Если компания исполнителя пустая/null, добавляем "Не выбрано"
+              values.purchaserCompany.add('Не выбрано');
+            }
             if (item.purchaser) values.purchaser.add(item.purchaser);
             if (item.category) values.category.add(item.category);
             if (item.status) values.status.add(item.status);
@@ -2597,9 +2642,16 @@ export default function PurchasePlanItemsTable() {
             if (b === 'Не выбрано') return -1;
             return a.localeCompare(b, 'ru', { sensitivity: 'base' });
           });
+          const purchaserCompanyArray = Array.from(values.purchaserCompany).sort((a, b) => {
+            // "Не выбрано" всегда в конце
+            if (a === 'Не выбрано') return 1;
+            if (b === 'Не выбрано') return -1;
+            return a.localeCompare(b, 'ru', { sensitivity: 'base' });
+          });
           const uniqueValuesData = {
             cfo: Array.from(values.cfo).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
             company: companyArray,
+            purchaserCompany: purchaserCompanyArray,
             purchaser: Array.from(values.purchaser).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
             category: Array.from(values.category).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
             status: Array.from(values.status).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
@@ -2678,6 +2730,17 @@ export default function PurchasePlanItemsTable() {
       if (cfoFilter.size > 0) {
         cfoFilter.forEach(cfo => {
           params.append('cfo', cfo);
+        });
+      }
+      // Фильтр по компании исполнителя - передаем все выбранные значения на бэкенд
+      if (purchaserCompanyFilter.size > 0) {
+        purchaserCompanyFilter.forEach(purchaserCompany => {
+          // Если выбрано "Не выбрано", передаем специальное значение для null
+          if (purchaserCompany === 'Не выбрано') {
+            params.append('purchaserCompany', '__NULL__');
+          } else {
+            params.append('purchaserCompany', purchaserCompany);
+          }
         });
       }
       if (filters.purchaseSubject && filters.purchaseSubject.trim() !== '') {
@@ -2938,7 +3001,7 @@ export default function PurchasePlanItemsTable() {
     setHasMore(true);
     initialTotalElementsRef.current = null; // Сбрасываем при изменении фильтров
     fetchData(0, pageSize, selectedYear, sortField, sortDirection, filters, selectedMonths, false);
-  }, [selectedYear, selectedMonthYear, sortField, sortDirection, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter, statusFilter, selectedMonths]);
+  }, [selectedYear, selectedMonthYear, sortField, sortDirection, filters, cfoFilter, companyFilter, purchaserCompanyFilter, purchaserFilter, categoryFilter, statusFilter, selectedMonths]);
 
   // Intersection Observer для бесконечной прокрутки
   useEffect(() => {
@@ -2969,7 +3032,7 @@ export default function PurchasePlanItemsTable() {
     return () => {
       observer.disconnect();
     };
-  }, [hasMore, loading, loadingMore, currentPage, pageSize, selectedYear, sortField, sortDirection, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter, statusFilter, selectedMonths, selectedMonthYear, data, allItems]);
+  }, [hasMore, loading, loadingMore, currentPage, pageSize, selectedYear, sortField, sortDirection, filters, cfoFilter, companyFilter, purchaserCompanyFilter, purchaserFilter, categoryFilter, statusFilter, selectedMonths, selectedMonthYear, data, allItems]);
 
   // Автоматически загружаем данные заявок для позиций с purchaseRequestId
   useEffect(() => {
@@ -3152,6 +3215,7 @@ export default function PurchasePlanItemsTable() {
   const [uniqueValues, setUniqueValues] = useState<Record<string, string[]>>({
     cfo: [],
     company: [],
+    purchaserCompany: [],
     purchaser: [],
     category: [],
     status: [],
@@ -3166,6 +3230,7 @@ export default function PurchasePlanItemsTable() {
           const values: Record<string, Set<string>> = {
             cfo: new Set(),
             company: new Set(),
+            purchaserCompany: new Set(),
             purchaser: new Set(),
             category: new Set(),
             status: new Set(),
@@ -3173,6 +3238,7 @@ export default function PurchasePlanItemsTable() {
           
           let hasNullStatus = false;
           let hasNullCompany = false;
+          let hasNullPurchaserCompany = false;
           result.content.forEach((item: PurchasePlanItem) => {
             if (item.cfo) values.cfo.add(item.cfo);
             if (item.company) {
@@ -3183,6 +3249,15 @@ export default function PurchasePlanItemsTable() {
               }
             } else {
               hasNullCompany = true;
+            }
+            if (item.purchaserCompany) {
+              // Нормализуем значение компании исполнителя: если это старое название, заменяем на новое
+              const normalizedPurchaserCompany = normalizeCompany(item.purchaserCompany);
+              if (normalizedPurchaserCompany) {
+                values.purchaserCompany.add(normalizedPurchaserCompany);
+              }
+            } else {
+              hasNullPurchaserCompany = true;
             }
             if (item.purchaser) values.purchaser.add(item.purchaser);
             if (item.category) values.category.add(item.category);
@@ -3203,9 +3278,15 @@ export default function PurchasePlanItemsTable() {
             values.company.add('Не выбрано');
           }
           
+          // Добавляем "Не выбрано" если есть позиции с null компанией исполнителя
+          if (hasNullPurchaserCompany) {
+            values.purchaserCompany.add('Не выбрано');
+          }
+          
           setUniqueValues({
             cfo: Array.from(values.cfo).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
             company: Array.from(values.company).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
+            purchaserCompany: Array.from(values.purchaserCompany).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
             purchaser: Array.from(values.purchaser).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
             category: Array.from(values.category).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
             status: Array.from(values.status).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
@@ -3349,6 +3430,30 @@ export default function PurchasePlanItemsTable() {
     window.dispatchEvent(new CustomEvent('purchasePlanItemCompanyFilterUpdated', {
       detail: { companyFilter: [] }
     }));
+  };
+
+  // Обработчики для фильтра по компаниям (Исполнитель)
+  const handlePurchaserCompanyToggle = (purchaserCompany: string) => {
+    const newSet = new Set(purchaserCompanyFilter);
+    if (newSet.has(purchaserCompany)) {
+      newSet.delete(purchaserCompany);
+    } else {
+      newSet.add(purchaserCompany);
+    }
+    setPurchaserCompanyFilter(newSet);
+    setCurrentPage(0);
+  };
+
+  const handlePurchaserCompanySelectAll = () => {
+    const allPurchaserCompanies = getUniqueValues('purchaserCompany');
+    const newSet = new Set(allPurchaserCompanies);
+    setPurchaserCompanyFilter(newSet);
+    setCurrentPage(0);
+  };
+
+  const handlePurchaserCompanyDeselectAll = () => {
+    setPurchaserCompanyFilter(new Set());
+    setCurrentPage(0);
   };
 
   // Обработчики для фильтра по категории
@@ -3496,15 +3601,18 @@ export default function PurchasePlanItemsTable() {
       if (isPurchaserFilterOpen && !target.closest('.purchaser-filter-container')) {
         setIsPurchaserFilterOpen(false);
       }
+      if (isPurchaserCompanyFilterOpen && !target.closest('.purchaser-company-filter-container')) {
+        setIsPurchaserCompanyFilterOpen(false);
+      }
     };
 
-    if (isCfoFilterOpen || isCompanyFilterOpen || isCategoryFilterOpen || isPurchaserFilterOpen) {
+    if (isCfoFilterOpen || isCompanyFilterOpen || isPurchaserCompanyFilterOpen || isCategoryFilterOpen || isPurchaserFilterOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
-  }, [isCfoFilterOpen, isCompanyFilterOpen, isCategoryFilterOpen, isPurchaserFilterOpen]);
+  }, [isCfoFilterOpen, isCompanyFilterOpen, isPurchaserCompanyFilterOpen, isCategoryFilterOpen, isPurchaserFilterOpen]);
 
   // Фильтруем опции по поисковому запросу
   const getFilteredCfoOptions = useMemo(() => {
@@ -3530,6 +3638,18 @@ export default function PurchasePlanItemsTable() {
       return company.toLowerCase().includes(searchLower);
     });
   }, [companySearchQuery, uniqueValues.company]);
+
+  const getFilteredPurchaserCompanyOptions = useMemo(() => {
+    const allPurchaserCompanies = uniqueValues.purchaserCompany || [];
+    if (!purchaserCompanySearchQuery || !purchaserCompanySearchQuery.trim()) {
+      return allPurchaserCompanies;
+    }
+    const searchLower = purchaserCompanySearchQuery.toLowerCase().trim();
+    return allPurchaserCompanies.filter(purchaserCompany => {
+      if (!purchaserCompany) return false;
+      return purchaserCompany.toLowerCase().includes(searchLower);
+    });
+  }, [purchaserCompanySearchQuery, uniqueValues.purchaserCompany]);
 
   const getFilteredCategoryOptions = useMemo(() => {
     const allCategories = uniqueValues.category || [];
@@ -4028,6 +4148,7 @@ export default function PurchasePlanItemsTable() {
                     setLocalFilters(emptyFilters);
                     setCfoFilter(new Set());
                     setCompanyFilter(new Set(['Market'])); // При сбросе устанавливаем фильтр по умолчанию на "Market"
+                    setPurchaserCompanyFilter(new Set()); // Сбрасываем фильтр по исполнителю
                     setCategoryFilter(new Set());
                     setPurchaserFilter(new Set());
                     // При сбросе устанавливаем фильтр по статусу на все доступные статусы кроме "Исключена"
@@ -4050,6 +4171,7 @@ export default function PurchasePlanItemsTable() {
                         filters: emptyFilters,
                         cfoFilter: [],
                         companyFilter: ['Market'], // При сбросе устанавливаем фильтр по умолчанию на "Market"
+                        purchaserCompanyFilter: [], // Сбрасываем фильтр по исполнителю
                         categoryFilter: [],
                         purchaserFilter: [],
                         statusFilter: defaultStatusFilter, // При сбросе устанавливаем фильтр по умолчанию (все кроме Исключена)
@@ -4633,10 +4755,264 @@ export default function PurchasePlanItemsTable() {
               <SortableHeader field="id" label="ID" columnKey="id" />
               )}
               {visibleColumns.has('company') && (
-              <SortableHeader field="company" label="Заказчик" columnKey="company" />
+              <th 
+                className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" 
+                style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px`, verticalAlign: 'top', overflow: 'hidden' }}
+              >
+                <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                  <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                    <div className="relative company-filter-container flex-1">
+                      <button
+                        ref={companyFilterButtonRef}
+                        type="button"
+                        onClick={() => setIsCompanyFilterOpen(!isCompanyFilterOpen)}
+                        className="w-full text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-left focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center gap-1 hover:bg-gray-50"
+                        style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+                      >
+                        <span className="text-gray-600 truncate flex-1 min-w-0 text-left">
+                          {companyFilter.size === 0 
+                            ? 'Все' 
+                            : companyFilter.size === 1
+                            ? (Array.from(companyFilter)[0] || 'Все')
+                            : `${companyFilter.size} выбрано`}
+                        </span>
+                        <svg className={`w-3 h-3 transition-transform flex-shrink-0 ${isCompanyFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      {isCompanyFilterOpen && companyFilterPosition && (
+                        <div 
+                          className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg"
+                          style={{
+                            top: `${companyFilterPosition.top}px`,
+                            left: `${companyFilterPosition.left}px`,
+                            maxHeight: '400px',
+                          }}
+                        >
+                          <div className="p-2 border-b border-gray-200">
+                            <div className="relative">
+                              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
+                              <input
+                                type="text"
+                                value={companySearchQuery}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  setCompanySearchQuery(e.target.value);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                onFocus={(e) => e.stopPropagation()}
+                                className="w-full pl-7 pr-7 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                placeholder="Поиск..."
+                              />
+                              {companySearchQuery && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCompanySearchQuery('');
+                                  }}
+                                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                                  title="Очистить поиск"
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <div className="p-2 border-b border-gray-200 flex gap-2">
+                            <button
+                              onClick={() => handleCompanySelectAll()}
+                              className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                            >
+                              Все
+                            </button>
+                            <button
+                              onClick={() => handleCompanyDeselectAll()}
+                              className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                            >
+                              Снять
+                            </button>
+                          </div>
+                          <div className="overflow-y-auto" style={{ maxHeight: '300px' }}>
+                            {getFilteredCompanyOptions.length === 0 ? (
+                              <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
+                            ) : (
+                              getFilteredCompanyOptions.map((company) => (
+                                <label
+                                  key={company}
+                                  className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={companyFilter.has(company)}
+                                    onChange={() => handleCompanyToggle(company)}
+                                    className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                                  />
+                                  <span className="ml-2 text-xs text-gray-700 flex-1">{company}</span>
+                                </label>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 min-h-[20px]">
+                    <button
+                      onClick={() => handleSort('company')}
+                      className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                      style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                    >
+                      {sortField === 'company' ? (
+                        sortDirection === 'asc' ? (
+                          <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                        ) : (
+                          <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                      )}
+                    </button>
+                    <span className="text-xs font-medium text-gray-500 tracking-wider">Заказчик</span>
+                  </div>
+                </div>
+                <div
+                  className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+                  onMouseDown={(e) => handleResizeStart(e, 'company')}
+                  style={{ zIndex: 10 }}
+                />
+              </th>
               )}
               {visibleColumns.has('purchaserCompany') && (
-              <SortableHeader field="purchaserCompany" label="Исполнитель" columnKey="purchaserCompany" />
+              <th 
+                className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" 
+                style={{ width: `${getColumnWidth('purchaserCompany')}px`, minWidth: `${getColumnWidth('purchaserCompany')}px`, maxWidth: `${getColumnWidth('purchaserCompany')}px`, verticalAlign: 'top', overflow: 'hidden' }}
+              >
+                <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                  <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                    <div className="relative purchaser-company-filter-container flex-1">
+                      <button
+                        ref={purchaserCompanyFilterButtonRef}
+                        type="button"
+                        onClick={() => setIsPurchaserCompanyFilterOpen(!isPurchaserCompanyFilterOpen)}
+                        className="w-full text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-left focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center gap-1 hover:bg-gray-50"
+                        style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+                      >
+                        <span className="text-gray-600 truncate flex-1 min-w-0 text-left">
+                          {purchaserCompanyFilter.size === 0 
+                            ? 'Все' 
+                            : purchaserCompanyFilter.size === 1
+                            ? (Array.from(purchaserCompanyFilter)[0] || 'Все')
+                            : `${purchaserCompanyFilter.size} выбрано`}
+                        </span>
+                        <svg className={`w-3 h-3 transition-transform flex-shrink-0 ${isPurchaserCompanyFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      {isPurchaserCompanyFilterOpen && purchaserCompanyFilterPosition && (
+                        <div 
+                          className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg"
+                          style={{
+                            top: `${purchaserCompanyFilterPosition.top}px`,
+                            left: `${purchaserCompanyFilterPosition.left}px`,
+                            maxHeight: '400px',
+                          }}
+                        >
+                          <div className="p-2 border-b border-gray-200">
+                            <div className="relative">
+                              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
+                              <input
+                                type="text"
+                                value={purchaserCompanySearchQuery}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  setPurchaserCompanySearchQuery(e.target.value);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                onFocus={(e) => e.stopPropagation()}
+                                className="w-full pl-7 pr-7 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                placeholder="Поиск..."
+                              />
+                              {purchaserCompanySearchQuery && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPurchaserCompanySearchQuery('');
+                                  }}
+                                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                                  title="Очистить поиск"
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <div className="p-2 border-b border-gray-200 flex gap-2">
+                            <button
+                              onClick={() => handlePurchaserCompanySelectAll()}
+                              className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                            >
+                              Все
+                            </button>
+                            <button
+                              onClick={() => handlePurchaserCompanyDeselectAll()}
+                              className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                            >
+                              Снять
+                            </button>
+                          </div>
+                          <div className="overflow-y-auto" style={{ maxHeight: '300px' }}>
+                            {getFilteredPurchaserCompanyOptions.length === 0 ? (
+                              <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
+                            ) : (
+                              getFilteredPurchaserCompanyOptions.map((purchaserCompany) => (
+                                <label
+                                  key={purchaserCompany}
+                                  className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={purchaserCompanyFilter.has(purchaserCompany)}
+                                    onChange={() => handlePurchaserCompanyToggle(purchaserCompany)}
+                                    className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                                  />
+                                  <span className="ml-2 text-xs text-gray-700 flex-1">{purchaserCompany}</span>
+                                </label>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 min-h-[20px]">
+                    <button
+                      onClick={() => handleSort('purchaserCompany')}
+                      className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                      style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                    >
+                      {sortField === 'purchaserCompany' ? (
+                        sortDirection === 'asc' ? (
+                          <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                        ) : (
+                          <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                      )}
+                    </button>
+                    <span className="text-xs font-medium text-gray-500 tracking-wider">Исполнитель</span>
+                  </div>
+                </div>
+                <div
+                  className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+                  onMouseDown={(e) => handleResizeStart(e, 'purchaserCompany')}
+                  style={{ zIndex: 10 }}
+                />
+              </th>
               )}
               {visibleColumns.has('purchaseRequestId') && (
               <SortableHeader 
@@ -5416,8 +5792,8 @@ export default function PurchasePlanItemsTable() {
                         {visibleColumns.has('company') && (
                   <td className={`px-2 py-2 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px` }}>
                     {editingCompany === item.id ? (
-                      <select
-                        ref={editingCompany === item.id ? companySelectRef : null}
+                    <select
+                      ref={editingCompany === item.id ? companySelectRef : null}
                       data-editing-company={item.id}
                       value={item.company || ''}
                       disabled={isInactive || isViewingArchiveVersion || !canEdit}
@@ -5906,8 +6282,8 @@ export default function PurchasePlanItemsTable() {
                               }}
                               className={isInactive || !canEdit ? 'truncate' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors truncate'}
                               title={isInactive || !canEdit ? '' : 'Нажмите для редактирования'}
-                            >
-                              {item.purchaser || '-'}
+                        >
+                          {item.purchaser || '-'}
                             </div>
                           )}
                         </td>
