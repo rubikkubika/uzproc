@@ -2287,6 +2287,24 @@ export default function PurchaseRequestDetailPage() {
                                   </div>
                                   <div>
                                     <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                      Статус
+                                    </label>
+                                    <p className="text-xs text-gray-900">
+                                      {contract.parentContract?.status ? (
+                                        <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${
+                                          (contract.parentContract.status === 'Подписан' || contract.parentContract.status === 'SIGNED') 
+                                            ? 'bg-green-100 text-green-800' 
+                                            : (contract.parentContract.status === 'Проект' || contract.parentContract.status === 'PROJECT')
+                                            ? 'bg-gray-100 text-gray-800'
+                                            : 'bg-blue-100 text-blue-800'
+                                        }`}>
+                                          {typeof contract.parentContract.status === 'string' ? contract.parentContract.status : (contract.parentContract.status?.displayName || contract.parentContract.status?.toString() || '-')}
+                                        </span>
+                                      ) : '-'}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600 mb-0">
                                       ЦФО
                                     </label>
                                     <p className="text-xs text-gray-900">
@@ -2337,6 +2355,24 @@ export default function PurchaseRequestDetailPage() {
                                   </label>
                                   <p className="text-xs text-gray-900">
                                     {contract.title || '-'}
+                                  </p>
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                    Статус
+                                  </label>
+                                  <p className="text-xs text-gray-900">
+                                    {contract.status ? (
+                                      <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${
+                                        (contract.status === 'Подписан' || contract.status === 'SIGNED') 
+                                          ? 'bg-green-100 text-green-800' 
+                                          : (contract.status === 'Проект' || contract.status === 'PROJECT')
+                                          ? 'bg-gray-100 text-gray-800'
+                                          : 'bg-blue-100 text-blue-800'
+                                      }`}>
+                                        {typeof contract.status === 'string' ? contract.status : (contract.status?.displayName || contract.status?.toString() || '-')}
+                                      </span>
+                                    ) : '-'}
                                   </p>
                                 </div>
                                 <div>
