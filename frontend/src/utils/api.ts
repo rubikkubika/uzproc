@@ -4,18 +4,31 @@
 export function getBackendUrl(): string {
   // Server-side (Next.js API routes, SSR): use Docker service name or environment variable
   if (typeof window === 'undefined') {
-    // В серверном коде (API routes) используем имя сервиса Docker или переменную окружения
-    // В Docker контейнере фронтенд может обращаться к бэкенду по имени сервиса backend:8080
-    // Или через nginx, если доступен (в зависимости от конфигурации)
+    // В серверном коде (API routes) используем переменную окружения или определяем автоматически
     const backendUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL;
     if (backendUrl) {
       return backendUrl;
     }
-    // Если переменная окружения не задана, пытаемся использовать имя сервиса Docker
-    // В Docker Compose сервисы доступны по имени, но это работает только внутри Docker сети
-    // Для продакшена лучше использовать nginx proxy через относительный путь
-    // Но для прямого обращения из API route используем имя сервиса
-    return 'http://backend:8080';
+    
+    // Определяем, находимся ли мы в Docker контейнере
+    // В Docker контейнере можно использовать имя сервиса backend:8080
+    // Проверяем наличие переменной окружения или пытаемся определить по окружению
+    // Если NODE_ENV === 'production' и нет LOCAL_DEV, вероятно мы в Docker
+    // Также проверяем наличие переменной DOCKER_ENV
+    const isDocker = process.env.DOCKER_ENV === 'true' || 
+                     (process.env.NODE_ENV === 'production' && 
+                      process.env.LOCAL_DEV !== 'true' &&
+                      !process.env.BACKEND_URL && 
+                      !process.env.NEXT_PUBLIC_BACKEND_URL);
+    
+    if (isDocker) {
+      // В Docker контейнере используем имя сервиса backend:8080
+      // Оба контейнера (frontend и backend) находятся в одной Docker сети
+      return 'http://backend:8080';
+    }
+    
+    // Для локальной разработки используем localhost
+    return 'http://localhost:8080';
   }
   
   // Client-side: check if we're on the server IP or domain
