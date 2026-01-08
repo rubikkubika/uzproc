@@ -2714,9 +2714,13 @@ export default function PurchaseRequestsTable() {
                         >
                           <div className="flex items-center justify-center cursor-pointer hover:bg-gray-100 rounded p-1 transition-colors">
                             {request.excludeFromInWork ? (
-                              <EyeOff className="w-4 h-4 text-gray-400" title="Скрыто из вкладки 'В работе'" />
+                              <span title="Скрыто из вкладки 'В работе'">
+                                <EyeOff className="w-4 h-4 text-gray-400" />
+                              </span>
                             ) : (
-                              <Eye className="w-4 h-4 text-gray-600" title="Отображается во вкладке 'В работе'" />
+                              <span title="Отображается во вкладке 'В работе'">
+                                <Eye className="w-4 h-4 text-gray-600" />
+                              </span>
                             )}
                           </div>
                         </td>

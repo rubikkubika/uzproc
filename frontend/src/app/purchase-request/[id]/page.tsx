@@ -2299,7 +2299,7 @@ export default function PurchaseRequestDetailPage() {
                                             ? 'bg-gray-100 text-gray-800'
                                             : 'bg-blue-100 text-blue-800'
                                         }`}>
-                                          {typeof contract.parentContract.status === 'string' ? contract.parentContract.status : (contract.parentContract.status?.displayName || contract.parentContract.status?.toString() || '-')}
+                                          {contract.parentContract.status}
                                         </span>
                                       ) : '-'}
                                     </p>
@@ -2371,7 +2371,7 @@ export default function PurchaseRequestDetailPage() {
                                           ? 'bg-gray-100 text-gray-800'
                                           : 'bg-blue-100 text-blue-800'
                                       }`}>
-                                        {typeof contract.status === 'string' ? contract.status : (contract.status?.displayName || contract.status?.toString() || '-')}
+                                        {contract.status}
                                       </span>
                                     ) : '-'}
                                   </p>
