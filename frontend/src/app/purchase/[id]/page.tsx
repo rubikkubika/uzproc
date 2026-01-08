@@ -52,7 +52,7 @@ interface Purchase {
   contractType: string | null;
   contractDurationMonths: number | null;
   expenseItem: string | null;
-  contractInnerId: string | null;
+  contractInnerIds: string[] | null; // Список внутренних номеров договоров
   purchaseRequestId: number | null;
   status: string | null;
   state: string | null;
@@ -235,10 +235,10 @@ export default function PurchaseDetailPage() {
           // Загружаем все необходимые данные параллельно и ждем их завершения
           const loadPromises: Promise<void>[] = [];
           
-          // Загружаем договор по contractInnerId для закупки (если это не заказ)
-          if (data && data.contractInnerId) {
+          // Загружаем договоры по contractInnerIds для закупки (если это не заказ)
+          if (data && data.contractInnerIds && data.contractInnerIds.length > 0) {
             loadPromises.push(
-              fetchPurchaseContract(data.contractInnerId).catch(() => {})
+              fetchPurchaseContracts(data.contractInnerIds).catch(() => {})
             );
           }
           
@@ -429,21 +429,29 @@ export default function PurchaseDetailPage() {
     }
   };
 
-  // Функция для загрузки договора по contractInnerId (для закупок)
-  const [purchaseContract, setPurchaseContract] = useState<Contract | null>(null);
+  // Функция для загрузки договоров по contractInnerIds (для закупок - множественные договоры)
+  const [purchaseContracts, setPurchaseContracts] = useState<Contract[]>([]);
   
-  const fetchPurchaseContract = async (contractInnerId: string): Promise<void> => {
+  const fetchPurchaseContracts = async (contractInnerIds: string[]): Promise<void> => {
+    if (!contractInnerIds || contractInnerIds.length === 0) {
+      setPurchaseContracts([]);
+      return;
+    }
+    
     try {
-      const response = await fetch(`${getBackendUrl()}/api/contracts/by-inner-id/${encodeURIComponent(contractInnerId)}`);
-      if (response.ok) {
-        const data = await response.json();
-        setPurchaseContract(data);
-      } else {
-        setPurchaseContract(null);
-      }
+      const contractPromises = contractInnerIds.map(async (contractInnerId) => {
+        const response = await fetch(`${getBackendUrl()}/api/contracts/by-inner-id/${encodeURIComponent(contractInnerId)}`);
+        if (response.ok) {
+          return await response.json();
+        }
+        return null;
+      });
+      
+      const contracts = await Promise.all(contractPromises);
+      setPurchaseContracts(contracts.filter((c): c is Contract => c !== null));
     } catch (err) {
-      console.error('Error fetching purchase contract:', err);
-      setPurchaseContract(null);
+      console.error('Error fetching purchase contracts:', err);
+      setPurchaseContracts([]);
     }
   };
 
@@ -1432,8 +1440,8 @@ export default function PurchaseDetailPage() {
               const isOrder = purchaseRequest && purchaseRequest.requiresPurchase === false;
               
               // Для заказа показываем договоры из contracts (существующая логика)
-              // Для закупки показываем договор из purchaseContract (по contractInnerId)
-              const contractsToShow = isOrder ? contracts : (purchaseContract ? [purchaseContract] : []);
+              // Для закупки показываем договоры из purchaseContracts (по contractInnerIds)
+              const contractsToShow = isOrder ? contracts : purchaseContracts;
               
               if (contractsToShow.length === 0) {
                 return null;

@@ -6,6 +6,8 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -73,16 +75,16 @@ public class Purchase {
     @Column(name = "expense_item", length = 255)
     private String expenseItem;
 
+    // Связь многие-ко-многим с Contract через внутренний номер договора
+    // Используем @ElementCollection для хранения списка contract_inner_id
+    // Это правильный подход для связи через не-первичный ключ (inner_id)
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(
+        name = "purchase_contracts",
+        joinColumns = @JoinColumn(name = "purchase_id")
+    )
     @Column(name = "contract_inner_id", length = 255)
-    private String contractInnerId;
-
-    // Связь с Contract по внутреннему номеру договора (lazy loading через репозиторий)
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "contract_inner_id", 
-                referencedColumnName = "inner_id", 
-                insertable = false, 
-                updatable = false)
-    private Contract contract;
+    private java.util.Set<String> contractInnerIds;
 
     // Связь с PurchaseRequest по полю idPurchaseRequest
     @ManyToOne(fetch = FetchType.LAZY)
@@ -312,22 +314,59 @@ public class Purchase {
         this.expenseItem = expenseItem;
     }
 
+    public Set<String> getContractInnerIds() {
+        if (contractInnerIds == null) {
+            contractInnerIds = new HashSet<>();
+        }
+        return contractInnerIds;
+    }
+
+    public void setContractInnerIds(Set<String> contractInnerIds) {
+        this.contractInnerIds = contractInnerIds;
+    }
+
+    /**
+     * Добавляет внутренний номер договора к закупке
+     */
+    public void addContractInnerId(String contractInnerId) {
+        if (contractInnerId != null && !contractInnerId.trim().isEmpty()) {
+            getContractInnerIds().add(contractInnerId.trim());
+        }
+    }
+
+    /**
+     * Удаляет внутренний номер договора из закупки
+     */
+    public void removeContractInnerId(String contractInnerId) {
+        if (contractInnerIds != null && contractInnerId != null) {
+            contractInnerIds.remove(contractInnerId.trim());
+        }
+    }
+
+    /**
+     * Очищает все связи с договорами
+     */
+    public void clearContractInnerIds() {
+        if (contractInnerIds != null) {
+            contractInnerIds.clear();
+        }
+    }
+
+    // Обратная совместимость: методы для работы с одним договором
+    @Deprecated
     public String getContractInnerId() {
-        return contractInnerId;
+        Set<String> innerIds = getContractInnerIds();
+        if (!innerIds.isEmpty()) {
+            return innerIds.iterator().next();
+        }
+        return null;
     }
 
+    @Deprecated
     public void setContractInnerId(String contractInnerId) {
-        this.contractInnerId = contractInnerId;
-    }
-
-    public Contract getContract() {
-        return contract;
-    }
-
-    public void setContract(Contract contract) {
-        this.contract = contract;
-        if (contract != null && contract.getInnerId() != null) {
-            this.contractInnerId = contract.getInnerId();
+        clearContractInnerIds();
+        if (contractInnerId != null && !contractInnerId.trim().isEmpty()) {
+            contractInnerIds.add(contractInnerId.trim());
         }
     }
 

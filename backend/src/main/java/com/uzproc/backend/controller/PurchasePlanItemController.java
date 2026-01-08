@@ -325,6 +325,51 @@ public class PurchasePlanItemController {
         }
     }
 
+    @PatchMapping("/{id}/purchaser")
+    public ResponseEntity<?> updatePurchasePlanItemPurchaser(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> requestBody) {
+        try {
+            String purchaserStr = requestBody.get("purchaser");
+            // purchaser может быть null или пустой строкой
+            
+            com.uzproc.backend.entity.PlanPurchaser purchaser = null;
+            if (purchaserStr != null && !purchaserStr.trim().isEmpty()) {
+                String trimmedPurchaser = purchaserStr.trim();
+                // Пробуем найти по displayName (поддерживает конвертацию старых значений)
+                purchaser = com.uzproc.backend.entity.PlanPurchaser.fromDisplayName(trimmedPurchaser);
+                // Если не найдено по displayName, пробуем по имени enum
+                if (purchaser == null) {
+                    try {
+                        String enumName = trimmedPurchaser.toUpperCase()
+                            .replace(" ", "_")
+                            .replace("НАСТЯ_АБДУЛАЗИЗ", "NASTYA")  // Старое значение -> Настя
+                            .replace("АБДУЛАЗИЗ", "ABDULAZIZ");
+                        purchaser = com.uzproc.backend.entity.PlanPurchaser.valueOf(enumName);
+                    } catch (IllegalArgumentException e) {
+                        return ResponseEntity.badRequest().body("Invalid purchaser: " + purchaserStr);
+                    }
+                }
+            }
+            
+            PurchasePlanItemDto updatedItem = purchasePlanItemService.updatePurchaser(id, purchaser);
+            if (updatedItem != null) {
+                return ResponseEntity.ok(updatedItem);
+            }
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Ошибка сервера: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/purchasers")
+    public ResponseEntity<List<String>> getPurchasers() {
+        List<String> purchasers = Arrays.stream(com.uzproc.backend.entity.PlanPurchaser.values())
+                .map(com.uzproc.backend.entity.PlanPurchaser::getDisplayName)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(purchasers);
+    }
+
     @PostMapping
     public ResponseEntity<?> createPurchasePlanItem(@RequestBody PurchasePlanItemDto dto) {
         try {

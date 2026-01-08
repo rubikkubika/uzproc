@@ -2,6 +2,7 @@ package com.uzproc.backend.service;
 
 import com.uzproc.backend.entity.Cfo;
 import com.uzproc.backend.entity.Company;
+import com.uzproc.backend.entity.PlanPurchaser;
 import com.uzproc.backend.entity.PurchasePlanItem;
 import com.uzproc.backend.repository.CfoRepository;
 import com.uzproc.backend.repository.PurchasePlanItemRepository;
@@ -513,9 +514,27 @@ public class PurchasePlanExcelLoadService {
             // Закупщик
             if (purchaserColumnIndex != null) {
                 Cell purchaserCell = row.getCell(purchaserColumnIndex);
-                String purchaser = getCellValueAsString(purchaserCell);
-                if (purchaser != null && !purchaser.trim().isEmpty()) {
-                    item.setPurchaser(purchaser.trim());
+                String purchaserStr = getCellValueAsString(purchaserCell);
+                if (purchaserStr != null && !purchaserStr.trim().isEmpty()) {
+                    String trimmedPurchaser = purchaserStr.trim();
+                    PlanPurchaser purchaser = PlanPurchaser.fromDisplayName(trimmedPurchaser);
+                    if (purchaser == null) {
+                        // Пробуем найти по имени enum (NASTYA, ABDULAZIZ, ELENA)
+                        try {
+                            String enumName = trimmedPurchaser.toUpperCase()
+                                .replace(" ", "_")
+                                .replace("НАСТЯ_АБДУЛАЗИЗ", "NASTYA")  // Старое значение -> Настя
+                                .replace("АБДУЛАЗИЗ", "ABDULAZIZ");
+                            purchaser = PlanPurchaser.valueOf(enumName);
+                        } catch (IllegalArgumentException e) {
+                            logger.warn("Cannot convert purchaser '{}' to enum, skipping", trimmedPurchaser);
+                        }
+                    }
+                    if (purchaser != null) {
+                        item.setPurchaser(purchaser);
+                    } else {
+                        logger.debug("Purchaser '{}' not recognized, setting to null", trimmedPurchaser);
+                    }
                 }
             }
             
@@ -1199,7 +1218,7 @@ public class PurchasePlanExcelLoadService {
             }
         }
         
-        if (newData.getPurchaser() != null && !newData.getPurchaser().trim().isEmpty() && 
+        if (newData.getPurchaser() != null && 
             !newData.getPurchaser().equals(existing.getPurchaser())) {
             existing.setPurchaser(newData.getPurchaser());
             updated = true;

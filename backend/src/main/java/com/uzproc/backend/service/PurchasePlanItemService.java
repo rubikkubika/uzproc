@@ -3,6 +3,7 @@ package com.uzproc.backend.service;
 import com.uzproc.backend.dto.PurchasePlanItemDto;
 import com.uzproc.backend.entity.Company;
 import com.uzproc.backend.entity.Cfo;
+import com.uzproc.backend.entity.PlanPurchaser;
 import com.uzproc.backend.entity.PurchasePlanItem;
 import com.uzproc.backend.entity.PurchasePlanItemStatus;
 import com.uzproc.backend.repository.CfoRepository;
@@ -485,6 +486,33 @@ public class PurchasePlanItemService {
     }
 
     @Transactional
+    public PurchasePlanItemDto updatePurchaser(Long id, PlanPurchaser purchaser) {
+        return purchasePlanItemRepository.findById(id)
+                .map(item -> {
+                    PlanPurchaser oldPurchaser = item.getPurchaser();
+                    
+                    // Логируем изменение перед обновлением
+                    if ((oldPurchaser == null && purchaser != null) || 
+                        (oldPurchaser != null && !oldPurchaser.equals(purchaser))) {
+                        purchasePlanItemChangeService.logChange(
+                            item.getId(),
+                            item.getGuid(),
+                            "purchaser",
+                            oldPurchaser != null ? oldPurchaser.getDisplayName() : null,
+                            purchaser != null ? purchaser.getDisplayName() : null
+                        );
+                    }
+                    
+                    item.setPurchaser(purchaser);
+                    PurchasePlanItem saved = purchasePlanItemRepository.save(item);
+                    logger.info("Updated purchaser for purchase plan item {}: purchaser={}",
+                            id, purchaser != null ? purchaser.getDisplayName() : null);
+                    return toDto(saved);
+                })
+                .orElse(null);
+    }
+
+    @Transactional
     public PurchasePlanItemDto create(PurchasePlanItemDto dto) {
         PurchasePlanItem item = new PurchasePlanItem();
         
@@ -775,10 +803,26 @@ public class PurchasePlanItemService {
                     List<Predicate> purchaserPredicates = new java.util.ArrayList<>();
                     
                     // Добавляем фильтр по конкретным закупщикам (если есть)
+                    // Конвертируем строковые значения в enum PlanPurchaser
                     if (!nonNullPurchaserValues.isEmpty()) {
                         for (String purchaserValue : nonNullPurchaserValues) {
-                            purchaserPredicates.add(cb.equal(cb.lower(root.get("purchaser")), purchaserValue.toLowerCase()));
-                            logger.debug("Added purchaser predicate for: '{}'", purchaserValue);
+                            // Пробуем найти enum по displayName (поддерживает конвертацию старых значений)
+                            PlanPurchaser purchaserEnum = PlanPurchaser.fromDisplayName(purchaserValue);
+                            if (purchaserEnum == null) {
+                                // Пробуем найти по имени enum (NASTYA, ABDULAZIZ, ELENA)
+                                try {
+                                    String enumName = purchaserValue.toUpperCase()
+                                        .replace(" ", "_")
+                                        .replace("НАСТЯ_АБДУЛАЗИЗ", "NASTYA")  // Старое значение -> Настя
+                                        .replace("АБДУЛАЗИЗ", "ABDULAZIZ");
+                                    purchaserEnum = PlanPurchaser.valueOf(enumName);
+                                } catch (IllegalArgumentException e) {
+                                    logger.warn("Cannot convert purchaser value '{}' to enum, skipping", purchaserValue);
+                                    continue;
+                                }
+                            }
+                            purchaserPredicates.add(cb.equal(root.get("purchaser"), purchaserEnum));
+                            logger.debug("Added purchaser predicate for enum: '{}'", purchaserEnum);
                         }
                     }
                     

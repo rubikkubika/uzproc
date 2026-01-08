@@ -88,7 +88,7 @@ public class PurchasePlanVersionService {
         itemVersion.setContractEndDate(item.getContractEndDate());
         itemVersion.setRequestDate(item.getRequestDate());
         itemVersion.setNewContractDate(item.getNewContractDate());
-        itemVersion.setPurchaser(item.getPurchaser());
+        itemVersion.setPurchaser(item.getPurchaser() != null ? item.getPurchaser().getDisplayName() : null);
         itemVersion.setProduct(item.getProduct());
         itemVersion.setHasContract(item.getHasContract());
         itemVersion.setCurrentKa(item.getCurrentKa());
@@ -139,7 +139,7 @@ public class PurchasePlanVersionService {
         dto.setContractEndDate(itemVersion.getContractEndDate());
         dto.setRequestDate(itemVersion.getRequestDate());
         dto.setNewContractDate(itemVersion.getNewContractDate());
-        dto.setPurchaser(itemVersion.getPurchaser());
+        dto.setPurchaser(itemVersion.getPurchaser() != null ? PlanPurchaser.fromDisplayName(itemVersion.getPurchaser()) : null);
         dto.setProduct(itemVersion.getProduct());
         dto.setHasContract(itemVersion.getHasContract());
         dto.setCurrentKa(itemVersion.getCurrentKa());

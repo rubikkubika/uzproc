@@ -6,6 +6,8 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -85,6 +87,7 @@ public class Contract {
 
     @Column(name = "parent_contract_id")
     private Long parentContractId;
+
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

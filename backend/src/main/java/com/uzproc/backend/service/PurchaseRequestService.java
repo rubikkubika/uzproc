@@ -240,16 +240,21 @@ public class PurchaseRequestService {
             // 1. Напрямую по purchaseRequestId
             List<Contract> contracts = new ArrayList<>(contractRepository.findByPurchaseRequestId(entity.getIdPurchaseRequest()));
             
-            // 2. Через закупки по contractInnerId (договоры связаны с закупками через innerId)
+            // 2. Через закупки по contractInnerIds (договоры связаны с закупками через innerId)
             Set<Long> contractIds = new HashSet<>();
             for (com.uzproc.backend.entity.Purchase purchase : purchases) {
-                if (purchase.getContractInnerId() != null && !purchase.getContractInnerId().trim().isEmpty()) {
-                    contractRepository.findByInnerId(purchase.getContractInnerId()).ifPresent(contract -> {
-                        if (!contractIds.contains(contract.getId())) {
-                            contracts.add(contract);
-                            contractIds.add(contract.getId());
+                // Обрабатываем множественные договоры для каждой закупки
+                if (purchase.getContractInnerIds() != null && !purchase.getContractInnerIds().isEmpty()) {
+                    for (String contractInnerId : purchase.getContractInnerIds()) {
+                        if (contractInnerId != null && !contractInnerId.trim().isEmpty()) {
+                            contractRepository.findByInnerId(contractInnerId.trim()).ifPresent(contract -> {
+                                if (!contractIds.contains(contract.getId())) {
+                                    contracts.add(contract);
+                                    contractIds.add(contract.getId());
+                                }
+                            });
                         }
-                    });
+                    }
                 }
             }
             

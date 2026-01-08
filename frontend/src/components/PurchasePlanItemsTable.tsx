@@ -527,6 +527,8 @@ export default function PurchasePlanItemsTable() {
   const purchaseRequestIdInputRef = useRef<HTMLInputElement | null>(null);
   const [editingPurchaseSubject, setEditingPurchaseSubject] = useState<number | null>(null);
   const purchaseSubjectInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const [editingPurchaser, setEditingPurchaser] = useState<number | null>(null);
+  const [availablePurchasers, setAvailablePurchasers] = useState<string[]>([]);
   
   // Состояние для раскрытых строк
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
@@ -622,7 +624,7 @@ export default function PurchasePlanItemsTable() {
   const handleRowClick = useCallback((itemId: number, e: React.MouseEvent) => {
     // Не раскрываем, если клик был на интерактивном элементе (input, button, ссылка, область Ганта, select и т.д.)
     const target = e.target as HTMLElement;
-    if (target.closest('input, button, a, [role="button"], [data-gantt-chart], select, [data-editing-status], [data-editing-holding], [data-editing-purchase-subject]')) {
+    if (target.closest('input, button, a, [role="button"], [data-gantt-chart], select, [data-editing-status], [data-editing-holding], [data-editing-purchase-subject], [data-editing-purchaser]')) {
       return;
     }
     
@@ -1415,6 +1417,65 @@ export default function PurchasePlanItemsTable() {
       }
     } catch (error) {
       console.error('Error updating cfo:', error);
+    }
+  };
+
+  const handlePurchaserUpdate = async (itemId: number, newPurchaser: string | null) => {
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/purchaser`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ purchaser: newPurchaser || null }),
+      });
+
+      if (response.ok) {
+        const updatedItem = await response.json();
+        
+        // Обновляем только конкретную строку в локальном состоянии
+        setAllItems(prev => {
+          const updated = prev.map(item => 
+            item.id === itemId 
+              ? { ...item, purchaser: updatedItem.purchaser, updatedAt: updatedItem.updatedAt }
+              : item
+          );
+          return updated;
+        });
+        
+        // Обновляем data если оно существует
+        if (data) {
+          setData(prev => ({
+            ...prev,
+            content: prev.content.map(item => 
+              item.id === itemId 
+                ? { ...item, purchaser: updatedItem.purchaser, updatedAt: updatedItem.updatedAt }
+                : item
+            )
+          }));
+        }
+        
+        // Обновляем сводную таблицу (summaryData)
+        setSummaryData(prev => {
+          return prev.map(item => 
+            item.id === itemId 
+              ? { ...item, purchaser: updatedItem.purchaser, updatedAt: updatedItem.updatedAt }
+              : item
+          );
+        });
+        
+        // Закрываем редактирование с небольшой задержкой, чтобы пользователь увидел изменение
+        setTimeout(() => {
+          setEditingPurchaser(null);
+        }, 100);
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to update purchaser:', errorText);
+        alert('Ошибка при обновлении закупщика: ' + errorText);
+      }
+    } catch (error) {
+      console.error('Error updating purchaser:', error);
+      alert('Ошибка при обновлении закупщика');
     }
   };
 
@@ -2707,6 +2768,46 @@ export default function PurchasePlanItemsTable() {
     }
   }, [availableCompanies.length]);
 
+  // Загрузка списка закупщиков с бэкенда при монтировании и при открытии редактирования или фильтра
+  useEffect(() => {
+    // Загружаем список закупщиков при монтировании или при открытии редактирования/фильтра
+    if (availablePurchasers.length === 0 || editingPurchaser !== null || isPurchaserFilterOpen) {
+      fetch(`${getBackendUrl()}/api/purchase-plan-items/purchasers`)
+        .then(response => {
+          if (response.ok) {
+            return response.json();
+          }
+          throw new Error('Failed to fetch purchasers');
+        })
+        .then((purchasers: string[]) => {
+          setAvailablePurchasers(purchasers);
+        })
+        .catch(error => {
+          console.error('Error fetching purchasers:', error);
+          // Fallback значения
+          setAvailablePurchasers(['Настя', 'Абдулазиз', 'Елена']);
+        });
+    }
+  }, [editingPurchaser, isPurchaserFilterOpen, availablePurchasers.length]);
+
+  // Обновление списка закупщиков из текущих данных при открытии фильтра
+  useEffect(() => {
+    if (isPurchaserFilterOpen) {
+      // Обновляем uniqueValues.purchaser из текущих данных (allItems)
+      const purchaserSet = new Set<string>();
+      allItems.forEach(item => {
+        if (item.purchaser) {
+          purchaserSet.add(item.purchaser);
+        }
+      });
+      
+      setUniqueValues(prev => ({
+        ...prev,
+        purchaser: Array.from(purchaserSet).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' }))
+      }));
+    }
+  }, [isPurchaserFilterOpen, allItems]);
+
   // Автоматически загружаем версии и выбираем текущую при изменении года
   useEffect(() => {
     if (selectedYear && filtersLoadedRef.current) {
@@ -3330,6 +3431,7 @@ export default function PurchasePlanItemsTable() {
   }, [categorySearchQuery, uniqueValues.category]);
 
   const getFilteredPurchaserOptions = useMemo(() => {
+    // Используем uniqueValues.purchaser - список закупщиков из текущих позиций плана закупок
     const allPurchasers = uniqueValues.purchaser || [];
     if (!purchaserSearchQuery || !purchaserSearchQuery.trim()) {
       return allPurchasers;
@@ -5531,11 +5633,65 @@ export default function PurchasePlanItemsTable() {
                         )}
                         {visibleColumns.has('purchaser') && (
                         <td 
-                          className={`px-2 py-2 text-xs truncate border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
+                          className={`px-2 py-2 text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
                           title={item.purchaser || ''}
                           style={{ width: `${getColumnWidth('purchaser')}px`, minWidth: `${getColumnWidth('purchaser')}px`, maxWidth: `${getColumnWidth('purchaser')}px` }}
+                          data-editing-purchaser={editingPurchaser === item.id ? 'true' : 'false'}
                         >
-                          {item.purchaser || '-'}
+                          {editingPurchaser === item.id ? (
+                            <select
+                              value={item.purchaser || ''}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                const newValue = e.target.value || null;
+                                handlePurchaserUpdate(item.id, newValue);
+                              }}
+                              onBlur={(e) => {
+                                // Не закрываем сразу, даем время на обработку onChange
+                                setTimeout(() => {
+                                  setEditingPurchaser(null);
+                                }, 200);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              onFocus={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') {
+                                  setEditingPurchaser(null);
+                                }
+                                e.stopPropagation();
+                              }}
+                              autoFocus
+                              className="w-full text-xs text-gray-900 border border-gray-300 rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            >
+                              <option value="">Не назначен</option>
+                              {availablePurchasers.length > 0 ? (
+                                availablePurchasers.map((purchaser) => (
+                                  <option key={purchaser} value={purchaser}>
+                                    {purchaser}
+                                  </option>
+                                ))
+                              ) : (
+                                <>
+                                  <option value="Настя">Настя</option>
+                                  <option value="Абдулазиз">Абдулазиз</option>
+                                  <option value="Елена">Елена</option>
+                                </>
+                              )}
+                            </select>
+                          ) : (
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!isInactive && !isViewingArchiveVersion && canEdit) {
+                                  setEditingPurchaser(item.id);
+                                }
+                              }}
+                              className={isInactive || !canEdit ? 'truncate' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors truncate'}
+                              title={isInactive || !canEdit ? '' : 'Нажмите для редактирования'}
+                            >
+                              {item.purchaser || '-'}
+                            </div>
+                          )}
                         </td>
                         )}
                         {visibleColumns.has('budgetAmount') && (

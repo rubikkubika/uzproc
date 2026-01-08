@@ -3,6 +3,8 @@ package com.uzproc.backend.dto;
 import com.uzproc.backend.entity.PurchaseStatus;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 public class PurchaseDto {
@@ -27,7 +29,7 @@ public class PurchaseDto {
     private PurchaseStatus status;
     private String state;
     private String expenseItem;
-    private String contractInnerId;
+    private List<String> contractInnerIds; // Список внутренних номеров договоров
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     // Новые поля для таблицы закупок
@@ -209,12 +211,36 @@ public class PurchaseDto {
         this.expenseItem = expenseItem;
     }
 
-    public String getContractInnerId() {
-        return contractInnerId;
+    public List<String> getContractInnerIds() {
+        if (contractInnerIds == null) {
+            contractInnerIds = new ArrayList<>();
+        }
+        return contractInnerIds;
     }
 
+    public void setContractInnerIds(List<String> contractInnerIds) {
+        this.contractInnerIds = contractInnerIds;
+    }
+
+    // Обратная совместимость
+    @Deprecated
+    public String getContractInnerId() {
+        if (contractInnerIds != null && !contractInnerIds.isEmpty()) {
+            return contractInnerIds.get(0);
+        }
+        return null;
+    }
+
+    @Deprecated
     public void setContractInnerId(String contractInnerId) {
-        this.contractInnerId = contractInnerId;
+        if (contractInnerIds == null) {
+            contractInnerIds = new ArrayList<>();
+        } else {
+            contractInnerIds.clear();
+        }
+        if (contractInnerId != null && !contractInnerId.trim().isEmpty()) {
+            contractInnerIds.add(contractInnerId.trim());
+        }
     }
 
     public LocalDateTime getCreatedAt() {

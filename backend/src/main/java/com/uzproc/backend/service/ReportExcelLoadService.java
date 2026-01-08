@@ -4,6 +4,7 @@ import com.uzproc.backend.entity.Purchase;
 import com.uzproc.backend.entity.PurchaseRequest;
 import com.uzproc.backend.entity.PurchaseApproval;
 import com.uzproc.backend.entity.PurchaseRequestApproval;
+import com.uzproc.backend.repository.ContractRepository;
 import com.uzproc.backend.repository.PurchaseApprovalRepository;
 import com.uzproc.backend.repository.PurchaseRequestApprovalRepository;
 import com.uzproc.backend.repository.PurchaseRepository;
@@ -129,6 +130,7 @@ public class ReportExcelLoadService {
     private final PurchaseRequestApprovalRepository requestApprovalRepository;
     private final PurchaseRepository purchaseRepository;
     private final PurchaseApprovalRepository purchaseApprovalRepository;
+    private final ContractRepository contractRepository;
     private final PurchaseRequestStatusUpdateService statusUpdateService;
     private final ContractStatusUpdateService contractStatusUpdateService;
     private final PurchaseStatusUpdateService purchaseStatusUpdateService;
@@ -139,6 +141,7 @@ public class ReportExcelLoadService {
             PurchaseRequestApprovalRepository requestApprovalRepository,
             PurchaseRepository purchaseRepository,
             PurchaseApprovalRepository purchaseApprovalRepository,
+            ContractRepository contractRepository,
             PurchaseRequestStatusUpdateService statusUpdateService,
             ContractStatusUpdateService contractStatusUpdateService,
             PurchaseStatusUpdateService purchaseStatusUpdateService) {
@@ -146,6 +149,7 @@ public class ReportExcelLoadService {
         this.requestApprovalRepository = requestApprovalRepository;
         this.purchaseRepository = purchaseRepository;
         this.purchaseApprovalRepository = purchaseApprovalRepository;
+        this.contractRepository = contractRepository;
         this.statusUpdateService = statusUpdateService;
         this.contractStatusUpdateService = contractStatusUpdateService;
         this.purchaseStatusUpdateService = purchaseStatusUpdateService;
@@ -1305,27 +1309,20 @@ public class ReportExcelLoadService {
                 
                 // Валидация: contractInnerId не должен совпадать с innerId закупки
                 if (trimmedContractInnerId.equals(purchase.getInnerId())) {
-                    logger.warn("Row {}: contractInnerId '{}' equals purchase innerId '{}', clearing contractInnerId for purchase {}", 
+                    logger.warn("Row {}: contractInnerId '{}' equals purchase innerId '{}', skipping contractInnerId for purchase {}", 
                         row.getRowNum() + 1, trimmedContractInnerId, purchase.getInnerId(), purchase.getInnerId());
-                    purchase.setContractInnerId(null);
                 } else {
-                    // Обновляем только если значение изменилось
-                    if (!trimmedContractInnerId.equals(purchase.getContractInnerId())) {
-                        purchase.setContractInnerId(trimmedContractInnerId);
+                    // Добавляем внутренний номер договора (может быть несколько)
+                    // Проверяем, не добавлен ли уже этот договор
+                    if (!purchase.getContractInnerIds().contains(trimmedContractInnerId)) {
+                        purchase.addContractInnerId(trimmedContractInnerId);
                         purchaseRepository.save(purchase);
-                        logger.info("Row {}: Updated contractInnerId: '{}' for purchase {}", 
+                        logger.info("Row {}: Added contractInnerId: '{}' for purchase {}", 
                             row.getRowNum() + 1, trimmedContractInnerId, purchase.getInnerId());
                     }
                 }
-            } else {
-                // Если колонка найдена, но значение пустое - очищаем contractInnerId только если оно было установлено
-                if (purchase.getContractInnerId() != null) {
-                    purchase.setContractInnerId(null);
-                    purchaseRepository.save(purchase);
-                    logger.debug("Row {}: Cleared contractInnerId for purchase {} (empty value in report)", 
-                        row.getRowNum() + 1, purchase.getInnerId());
-                }
             }
+            // Если колонка пустая, не очищаем существующие договоры (они могут быть из других строк)
         } catch (Exception e) {
             logger.warn("Error updating contractInnerId for purchase {} in row {}: {}", 
                 purchase.getInnerId(), row.getRowNum() + 1, e.getMessage());

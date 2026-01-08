@@ -749,17 +749,15 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                     String trimmedContractInnerId = contractInnerId.trim();
                     // Валидация: contractInnerId не должен совпадать с innerId закупки
                     if (trimmedContractInnerId.equals(purchase.getInnerId())) {
-                        logger.warn("Row {}: contractInnerId '{}' equals purchase innerId '{}', clearing contractInnerId for purchase {}", 
+                        logger.warn("Row {}: contractInnerId '{}' equals purchase innerId '{}', skipping contractInnerId for purchase {}", 
                             currentRowNum + 1, trimmedContractInnerId, purchase.getInnerId(), purchase.getInnerId());
-                        purchase.setContractInnerId(null);
                     } else {
-                        purchase.setContractInnerId(trimmedContractInnerId);
+                        // Добавляем внутренний номер договора (может быть несколько)
+                        purchase.addContractInnerId(trimmedContractInnerId);
                         logger.info("Row {}: parsed contractInnerId: '{}' for purchase {}", currentRowNum + 1, trimmedContractInnerId, purchase.getInnerId());
                     }
                 } else {
-                    // Если колонка найдена, но значение пустое - очищаем contractInnerId
-                    purchase.setContractInnerId(null);
-                    logger.info("Row {}: contractInnerId column found but value is empty for purchase {}", currentRowNum + 1, purchase.getInnerId());
+                    logger.debug("Row {}: contractInnerId column found but value is empty for purchase {}", currentRowNum + 1, purchase.getInnerId());
                 }
             } else {
                 logger.warn("Row {}: contractInnerIdColumnIndex is null for purchase {}. Looking for column '{}'. Available columns: {}", 
@@ -1471,29 +1469,60 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             }
         }
         
-        // Обновляем contractInnerId
-        // Если в новых данных contractInnerId установлен в null (колонка была пустая), очищаем его
-        if (newData.getContractInnerId() == null) {
-            if (existing.getContractInnerId() != null) {
-                existing.setContractInnerId(null);
+        // Обновляем contractInnerIds (множественные договоры)
+        // Сравниваем множества внутренних номеров договоров
+        java.util.Set<String> existingIds = existing.getContractInnerIds();
+        java.util.Set<String> newIds = newData.getContractInnerIds();
+        
+        if (newIds == null || newIds.isEmpty()) {
+            // Если в новых данных нет договоров, но в существующих были - очищаем
+            if (existingIds != null && !existingIds.isEmpty()) {
+                existing.clearContractInnerIds();
                 updated = true;
-                logger.debug("Cleared contractInnerId for purchase {}", existing.getInnerId());
+                logger.debug("Cleared contractInnerIds for purchase {}", existing.getInnerId());
             }
-        } else if (!newData.getContractInnerId().trim().isEmpty()) {
-            String trimmedContractInnerId = newData.getContractInnerId().trim();
-            // Валидация: contractInnerId не должен совпадать с innerId закупки
-            if (trimmedContractInnerId.equals(existing.getInnerId())) {
-                logger.warn("contractInnerId '{}' equals purchase innerId '{}', clearing contractInnerId for purchase {}", 
-                    trimmedContractInnerId, existing.getInnerId(), existing.getInnerId());
-                if (existing.getContractInnerId() != null) {
-                    existing.setContractInnerId(null);
-                    updated = true;
-                    logger.debug("Cleared contractInnerId for purchase {} due to validation", existing.getInnerId());
+        } else {
+            // Проверяем, изменились ли договоры
+            if (existingIds == null || existingIds.isEmpty()) {
+                // Если в существующих нет договоров, добавляем новые
+                for (String contractInnerId : newIds) {
+                    if (contractInnerId != null && !contractInnerId.trim().isEmpty()) {
+                        String trimmedId = contractInnerId.trim();
+                        // Валидация: contractInnerId не должен совпадать с innerId закупки
+                        if (!trimmedId.equals(existing.getInnerId())) {
+                            existing.addContractInnerId(trimmedId);
+                            updated = true;
+                        }
+                    }
                 }
-            } else if (existing.getContractInnerId() == null || !existing.getContractInnerId().equals(trimmedContractInnerId)) {
-                existing.setContractInnerId(trimmedContractInnerId);
-                updated = true;
-                logger.debug("Updated contractInnerId for purchase {}: {}", existing.getInnerId(), trimmedContractInnerId);
+                if (updated) {
+                    logger.debug("Added contractInnerIds for purchase {}: {}", existing.getInnerId(), newIds);
+                }
+            } else {
+                // Сравниваем множества
+                java.util.Set<String> toAdd = new java.util.HashSet<>(newIds);
+                toAdd.removeAll(existingIds);
+                java.util.Set<String> toRemove = new java.util.HashSet<>(existingIds);
+                toRemove.removeAll(newIds);
+                
+                if (!toAdd.isEmpty() || !toRemove.isEmpty()) {
+                    // Удаляем старые
+                    for (String id : toRemove) {
+                        existing.removeContractInnerId(id);
+                    }
+                    // Добавляем новые (с валидацией)
+                    for (String contractInnerId : toAdd) {
+                        if (contractInnerId != null && !contractInnerId.trim().isEmpty()) {
+                            String trimmedId = contractInnerId.trim();
+                            if (!trimmedId.equals(existing.getInnerId())) {
+                                existing.addContractInnerId(trimmedId);
+                            }
+                        }
+                    }
+                    updated = true;
+                    logger.debug("Updated contractInnerIds for purchase {}: removed {}, added {}", 
+                        existing.getInnerId(), toRemove, toAdd);
+                }
             }
         }
         

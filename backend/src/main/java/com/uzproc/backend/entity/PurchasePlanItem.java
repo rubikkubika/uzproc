@@ -47,8 +47,9 @@ public class PurchasePlanItem {
     @Column(name = "new_contract_date")
     private LocalDate newContractDate;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "purchaser", length = 255)
-    private String purchaser;
+    private PlanPurchaser purchaser;
 
     @Column(name = "product", length = 500)
     private String product;
@@ -210,11 +211,11 @@ public class PurchasePlanItem {
         this.newContractDate = newContractDate;
     }
 
-    public String getPurchaser() {
+    public PlanPurchaser getPurchaser() {
         return purchaser;
     }
 
-    public void setPurchaser(String purchaser) {
+    public void setPurchaser(PlanPurchaser purchaser) {
         this.purchaser = purchaser;
     }
 
