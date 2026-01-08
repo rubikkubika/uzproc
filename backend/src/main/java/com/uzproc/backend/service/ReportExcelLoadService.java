@@ -30,6 +30,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Optional;
 
@@ -135,6 +136,12 @@ public class ReportExcelLoadService {
     private final ContractStatusUpdateService contractStatusUpdateService;
     private final PurchaseStatusUpdateService purchaseStatusUpdateService;
     private final DataFormatter dataFormatter = new DataFormatter();
+    
+    // Batch-списки для накопления согласований перед сохранением
+    private final List<PurchaseRequestApproval> requestApprovalBatch = new ArrayList<>();
+    private final List<PurchaseApproval> purchaseApprovalBatch = new ArrayList<>();
+    private final List<Purchase> purchaseUpdateBatch = new ArrayList<>();
+    private static final int BATCH_SIZE = 100; // Размер пакета для batch-операций
 
     public ReportExcelLoadService(
             PurchaseRequestRepository purchaseRequestRepository,
@@ -283,6 +290,9 @@ public class ReportExcelLoadService {
                     skippedCount++;
                 }
             }
+            
+            // Сохраняем все оставшиеся согласования и обновления перед обновлением статусов
+            flushAllBatches();
             
             logger.info("Processed {} requests ({} approvals), {} purchases ({} approvals), skipped {} rows from report file {}", 
                 processedRequestsCount, requestApprovalsCount, processedPurchasesCount, purchaseApprovalsCount, skippedCount, excelFile.getName());
@@ -628,8 +638,13 @@ public class ReportExcelLoadService {
                 }
                 
                 if (updated || approval.getId() == null) {
-                    requestApprovalRepository.save(approval);
+                    requestApprovalBatch.add(approval);
                     count++;
+                    
+                    // Сохраняем batch если он заполнен
+                    if (requestApprovalBatch.size() >= BATCH_SIZE) {
+                        flushRequestApprovalBatch();
+                    }
                 }
             }
         }
@@ -726,8 +741,13 @@ public class ReportExcelLoadService {
                 }
                 
                 if (updated || approval.getId() == null) {
-                    purchaseApprovalRepository.save(approval);
+                    purchaseApprovalBatch.add(approval);
                     count++;
+                    
+                    // Сохраняем batch если он заполнен
+                    if (purchaseApprovalBatch.size() >= BATCH_SIZE) {
+                        flushPurchaseApprovalBatch();
+                    }
                 }
             }
         }
@@ -850,8 +870,13 @@ public class ReportExcelLoadService {
                 }
                 
                 if (updated || approval.getId() == null) {
-                    requestApprovalRepository.save(approval);
+                    requestApprovalBatch.add(approval);
                     count++;
+                    
+                    // Сохраняем batch если он заполнен
+                    if (requestApprovalBatch.size() >= BATCH_SIZE) {
+                        flushRequestApprovalBatch();
+                    }
                 }
             }
             
@@ -959,8 +984,13 @@ public class ReportExcelLoadService {
                 }
                 
                 if (updated || approval.getId() == null) {
-                    requestApprovalRepository.save(approval);
+                    requestApprovalBatch.add(approval);
                     count++;
+                    
+                    // Сохраняем batch если он заполнен
+                    if (requestApprovalBatch.size() >= BATCH_SIZE) {
+                        flushRequestApprovalBatch();
+                    }
                 }
             }
             
@@ -1297,6 +1327,60 @@ public class ReportExcelLoadService {
     }
     
     /**
+     * Сохраняет все накопленные согласования и обновления пакетами
+     */
+    private void flushAllBatches() {
+        flushRequestApprovalBatch();
+        flushPurchaseApprovalBatch();
+        flushPurchaseUpdateBatch();
+    }
+    
+    /**
+     * Сохраняет накопленные согласования заявок пакетом
+     */
+    private void flushRequestApprovalBatch() {
+        if (!requestApprovalBatch.isEmpty()) {
+            try {
+                requestApprovalRepository.saveAll(requestApprovalBatch);
+                logger.debug("Flushed {} request approvals to database", requestApprovalBatch.size());
+                requestApprovalBatch.clear();
+            } catch (Exception e) {
+                logger.error("Error flushing request approval batch: {}", e.getMessage(), e);
+            }
+        }
+    }
+    
+    /**
+     * Сохраняет накопленные согласования закупок пакетом
+     */
+    private void flushPurchaseApprovalBatch() {
+        if (!purchaseApprovalBatch.isEmpty()) {
+            try {
+                purchaseApprovalRepository.saveAll(purchaseApprovalBatch);
+                logger.debug("Flushed {} purchase approvals to database", purchaseApprovalBatch.size());
+                purchaseApprovalBatch.clear();
+            } catch (Exception e) {
+                logger.error("Error flushing purchase approval batch: {}", e.getMessage(), e);
+            }
+        }
+    }
+    
+    /**
+     * Сохраняет накопленные обновления закупок пакетом
+     */
+    private void flushPurchaseUpdateBatch() {
+        if (!purchaseUpdateBatch.isEmpty()) {
+            try {
+                purchaseRepository.saveAll(purchaseUpdateBatch);
+                logger.debug("Flushed {} purchase updates to database", purchaseUpdateBatch.size());
+                purchaseUpdateBatch.clear();
+            } catch (Exception e) {
+                logger.error("Error flushing purchase update batch: {}", e.getMessage(), e);
+            }
+        }
+    }
+    
+    /**
      * Обновляет contractInnerId для закупки из колонки "Договор.Внутренний номер"
      */
     private void updatePurchaseContractInnerId(Purchase purchase, Row row, Integer contractInnerIdColumnIndex) {
@@ -1316,9 +1400,17 @@ public class ReportExcelLoadService {
                     // Проверяем, не добавлен ли уже этот договор
                     if (!purchase.getContractInnerIds().contains(trimmedContractInnerId)) {
                         purchase.addContractInnerId(trimmedContractInnerId);
-                        purchaseRepository.save(purchase);
-                        logger.info("Row {}: Added contractInnerId: '{}' for purchase {}", 
-                            row.getRowNum() + 1, trimmedContractInnerId, purchase.getInnerId());
+                        // Добавляем в batch для обновления
+                        if (!purchaseUpdateBatch.contains(purchase)) {
+                            purchaseUpdateBatch.add(purchase);
+                        }
+                        logger.debug("Row {}: Queued purchase {} for batch update with contractInnerId: '{}'", 
+                            row.getRowNum() + 1, purchase.getInnerId(), trimmedContractInnerId);
+                        
+                        // Сохраняем batch если он заполнен
+                        if (purchaseUpdateBatch.size() >= BATCH_SIZE) {
+                            flushPurchaseUpdateBatch();
+                        }
                     }
                 }
             }

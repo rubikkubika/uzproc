@@ -15,7 +15,8 @@ public enum PurchaseRequestStatus {
     SPECIFICATION_SIGNED("Спецификация подписана"),
     SPECIFICATION_NOT_COORDINATED("Спецификация не согласована"),
     PURCHASE_CREATED("Закупка создана"),
-    PURCHASE_NOT_COORDINATED("Закупка не согласована");
+    PURCHASE_NOT_COORDINATED("Закупка не согласована"),
+    CONTRACT_SIGNED("Договор подписан");
 
     private final String displayName;
 

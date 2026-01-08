@@ -426,6 +426,7 @@ export default function PurchaseRequestDetailPage() {
     }
   };
 
+
   // Функция для загрузки списка заявок с фильтрами для навигации
   const fetchFilteredRequests = async (navData: typeof navigationData) => {
     if (!navData) return;

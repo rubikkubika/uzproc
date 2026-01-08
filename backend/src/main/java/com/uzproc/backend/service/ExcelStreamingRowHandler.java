@@ -43,6 +43,16 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private final CfoRepository cfoRepository;
     private final DataFormatter dataFormatter;
     
+    // Кеш ЦФО для оптимизации (загружается один раз в начале)
+    private final Map<String, Cfo> cfoCache = new HashMap<>();
+    
+    // Batch-списки для накопления сущностей перед сохранением
+    private final List<PurchaseRequest> purchaseRequestBatch = new ArrayList<>();
+    private final List<Purchase> purchaseBatch = new ArrayList<>();
+    private final List<Contract> contractBatch = new ArrayList<>();
+    private final List<Cfo> newCfoBatch = new ArrayList<>();
+    private static final int BATCH_SIZE = 100; // Размер пакета для batch-операций
+    
     // Индексы колонок (определяются из заголовка)
     private Map<String, Integer> columnIndices = new HashMap<>();
     private boolean headerProcessed = false;
@@ -88,6 +98,8 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private static final String EXPENSE_ITEM_COLUMN = "Статья бюджета (PL) (Заявка на ЗП)";
     private static final String CONTRACT_INNER_ID_COLUMN = "Договор.Внутренний номер";
     private static final String MCC_COLUMN = "Способ закупки (Заявка на ЗП)";
+    private static final String PLANNED_DELIVERY_START_DATE_COLUMN = "Плановая дата начала поставки (Заявка на ЗП)";
+    private static final String PLANNED_DELIVERY_END_DATE_COLUMN = "Плановая дата окончания поставки (Заявка на ЗП)";
     
     // Оптимизация: статические DateTimeFormatter для парсинга дат (создаются один раз)
     private static final DateTimeFormatter[] DATE_TIME_FORMATTERS = {
@@ -122,26 +134,51 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
         this.userRepository = userRepository;
         this.cfoRepository = cfoRepository;
         this.dataFormatter = new DataFormatter();
+        
+        // Загружаем все ЦФО в кеш один раз при создании обработчика
+        loadCfoCache();
+    }
+    
+    /**
+     * Загружает все ЦФО в кеш для быстрого доступа
+     */
+    private void loadCfoCache() {
+        try {
+            List<Cfo> allCfos = cfoRepository.findAll();
+            for (Cfo cfo : allCfos) {
+                cfoCache.put(cfo.getName().toLowerCase().trim(), cfo);
+            }
+            logger.info("Loaded {} CFOs into cache", cfoCache.size());
+        } catch (Exception e) {
+            logger.warn("Error loading CFO cache: {}", e.getMessage());
+        }
     }
     
     /**
      * Вспомогательный метод для установки Cfo на основе строкового значения
-     * Если ЦФО не найдено, создает новое и сохраняет в БД
+     * Использует кеш для быстрого поиска. Если ЦФО не найдено, добавляет в batch для создания
      */
     private void setCfoFromString(Object entity, String cfoStr) {
         if (cfoStr == null || cfoStr.trim().isEmpty()) {
             return;
         }
         String trimmedCfo = cfoStr.trim();
+        String cacheKey = trimmedCfo.toLowerCase();
         
-        // Ищем существующее ЦФО
-        Cfo cfo = cfoRepository.findByNameIgnoreCase(trimmedCfo).orElse(null);
+        // Ищем в кеше
+        Cfo cfo = cfoCache.get(cacheKey);
         
-        // Если не найдено, создаем новое
+        // Если не найдено в кеше, создаем новое и добавляем в batch
         if (cfo == null) {
             cfo = new Cfo(trimmedCfo);
-            cfo = cfoRepository.save(cfo);
-            logger.debug("Created new Cfo: {}", trimmedCfo);
+            cfoCache.put(cacheKey, cfo); // Добавляем в кеш сразу
+            newCfoBatch.add(cfo); // Добавляем в batch для сохранения
+            logger.debug("Queued new Cfo for batch save: {}", trimmedCfo);
+            
+            // Сохраняем batch если он заполнен
+            if (newCfoBatch.size() >= BATCH_SIZE) {
+                flushCfoBatch();
+            }
         }
         
         // Устанавливаем ЦФО в сущность
@@ -151,6 +188,25 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             ((Purchase) entity).setCfo(cfo);
         } else if (entity instanceof Contract) {
             ((Contract) entity).setCfo(cfo);
+        }
+    }
+    
+    /**
+     * Сохраняет накопленные ЦФО пакетом
+     */
+    private void flushCfoBatch() {
+        if (!newCfoBatch.isEmpty()) {
+            try {
+                List<Cfo> saved = cfoRepository.saveAll(newCfoBatch);
+                // Обновляем кеш с сохраненными ЦФО (на случай если были изменения ID)
+                for (Cfo savedCfo : saved) {
+                    cfoCache.put(savedCfo.getName().toLowerCase().trim(), savedCfo);
+                }
+                logger.debug("Flushed {} CFOs to database", saved.size());
+                newCfoBatch.clear();
+            } catch (Exception e) {
+                logger.error("Error flushing CFO batch: {}", e.getMessage(), e);
+            }
         }
     }
     
@@ -533,7 +589,7 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 logger.debug("Row {}: expenseItemColumnIndex is null, skipping expenseItem field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
             }
             
-            // Сохраняем или обновляем
+            // Сохраняем или обновляем (добавляем в batch)
             if (existingOpt.isPresent()) {
                 PurchaseRequest existing = existingOpt.get();
                 Boolean oldRequiresPurchase = existing.getRequiresPurchase();
@@ -542,21 +598,29 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                     currentRowNum + 1, existing.getIdPurchaseRequest(), oldRequiresPurchase, newRequiresPurchase);
                 boolean updated = updatePurchaseRequestFields(existing, pr);
                 if (updated) {
-                    purchaseRequestRepository.save(existing);
+                    purchaseRequestBatch.add(existing);
                     purchaseRequestsUpdated++;
-                    logger.info("Row {}: SAVED updated purchase request {} (requiresPurchase: {} -> {})", 
-                        currentRowNum + 1, existing.getIdPurchaseRequest(), oldRequiresPurchase, existing.getRequiresPurchase());
+                    logger.debug("Row {}: Queued updated purchase request {} for batch save", 
+                        currentRowNum + 1, existing.getIdPurchaseRequest());
+                    
+                    // Сохраняем batch если он заполнен
+                    if (purchaseRequestBatch.size() >= BATCH_SIZE) {
+                        flushPurchaseRequestBatch();
+                    }
                 } else {
                     logger.debug("Row {}: No changes for purchase request {} (requiresPurchase: {})", 
                         currentRowNum + 1, existing.getIdPurchaseRequest(), existing.getRequiresPurchase());
                 }
             } else {
-                logger.info("Row {}: SAVING new purchase request {} with requiresPurchase: {}", 
-                    currentRowNum + 1, pr.getIdPurchaseRequest(), pr.getRequiresPurchase());
-                purchaseRequestRepository.save(pr);
+                logger.debug("Row {}: Queuing new purchase request {} for batch save", 
+                    currentRowNum + 1, pr.getIdPurchaseRequest());
+                purchaseRequestBatch.add(pr);
                 purchaseRequestsCreated++;
-                logger.info("Row {}: SAVED new purchase request {} with requiresPurchase: {}", 
-                    currentRowNum + 1, pr.getIdPurchaseRequest(), pr.getRequiresPurchase());
+                
+                // Сохраняем batch если он заполнен
+                if (purchaseRequestBatch.size() >= BATCH_SIZE) {
+                    flushPurchaseRequestBatch();
+                }
             }
             purchaseRequestsCount++;
             
@@ -779,17 +843,27 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 logger.debug("Row {}: mccColumnIndex is null, skipping mcc field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
             }
             
-            // Сохраняем или обновляем
+            // Сохраняем или обновляем (добавляем в batch)
             if (existingOpt.isPresent()) {
                 Purchase existing = existingOpt.get();
                 boolean updated = updatePurchaseFields(existing, purchase);
                 if (updated) {
-                    purchaseRepository.save(existing);
+                    purchaseBatch.add(existing);
                     purchasesUpdated++;
+                    
+                    // Сохраняем batch если он заполнен
+                    if (purchaseBatch.size() >= BATCH_SIZE) {
+                        flushPurchaseBatch();
+                    }
                 }
             } else {
-                purchaseRepository.save(purchase);
+                purchaseBatch.add(purchase);
                 purchasesCreated++;
+                
+                // Сохраняем batch если он заполнен
+                if (purchaseBatch.size() >= BATCH_SIZE) {
+                    flushPurchaseBatch();
+                }
             }
             purchasesCount++;
             
@@ -1003,17 +1077,27 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 logger.debug("Row {}: currencyColumnIndex is null, skipping currency field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
             }
             
-            // Сохраняем или обновляем
+            // Сохраняем или обновляем (добавляем в batch)
             if (existingOpt.isPresent()) {
                 Contract existing = existingOpt.get();
                 boolean updated = updateContractFields(existing, contract);
                 if (updated) {
-                    contractRepository.save(existing);
+                    contractBatch.add(existing);
                     contractsUpdated++;
+                    
+                    // Сохраняем batch если он заполнен
+                    if (contractBatch.size() >= BATCH_SIZE) {
+                        flushContractBatch();
+                    }
                 }
             } else {
-                contractRepository.save(contract);
+                contractBatch.add(contract);
                 contractsCreated++;
+                
+                // Сохраняем batch если он заполнен
+                if (contractBatch.size() >= BATCH_SIZE) {
+                    flushContractBatch();
+                }
             }
             contractsCount++;
             
@@ -1672,6 +1756,24 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             }
         }
         
+        // Обновляем плановую дату начала поставки
+        if (newData.getPlannedDeliveryStartDate() != null) {
+            if (existing.getPlannedDeliveryStartDate() == null || !existing.getPlannedDeliveryStartDate().equals(newData.getPlannedDeliveryStartDate())) {
+                existing.setPlannedDeliveryStartDate(newData.getPlannedDeliveryStartDate());
+                updated = true;
+                logger.debug("Updated plannedDeliveryStartDate for contract {}: {}", existing.getInnerId(), newData.getPlannedDeliveryStartDate());
+            }
+        }
+        
+        // Обновляем плановую дату окончания поставки
+        if (newData.getPlannedDeliveryEndDate() != null) {
+            if (existing.getPlannedDeliveryEndDate() == null || !existing.getPlannedDeliveryEndDate().equals(newData.getPlannedDeliveryEndDate())) {
+                existing.setPlannedDeliveryEndDate(newData.getPlannedDeliveryEndDate());
+                updated = true;
+                logger.debug("Updated plannedDeliveryEndDate for contract {}: {}", existing.getInnerId(), newData.getPlannedDeliveryEndDate());
+            }
+        }
+        
         return updated;
     }
     
@@ -1698,7 +1800,65 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
         return null;
     }
     
+    /**
+     * Сохраняет все накопленные сущности пакетами (вызывается в конце обработки файла)
+     */
+    public void flushAllBatches() {
+        flushCfoBatch();
+        flushPurchaseRequestBatch();
+        flushPurchaseBatch();
+        flushContractBatch();
+    }
+    
+    /**
+     * Сохраняет накопленные заявки на закупку пакетом
+     */
+    private void flushPurchaseRequestBatch() {
+        if (!purchaseRequestBatch.isEmpty()) {
+            try {
+                purchaseRequestRepository.saveAll(purchaseRequestBatch);
+                logger.debug("Flushed {} purchase requests to database", purchaseRequestBatch.size());
+                purchaseRequestBatch.clear();
+            } catch (Exception e) {
+                logger.error("Error flushing purchase request batch: {}", e.getMessage(), e);
+            }
+        }
+    }
+    
+    /**
+     * Сохраняет накопленные закупки пакетом
+     */
+    private void flushPurchaseBatch() {
+        if (!purchaseBatch.isEmpty()) {
+            try {
+                purchaseRepository.saveAll(purchaseBatch);
+                logger.debug("Flushed {} purchases to database", purchaseBatch.size());
+                purchaseBatch.clear();
+            } catch (Exception e) {
+                logger.error("Error flushing purchase batch: {}", e.getMessage(), e);
+            }
+        }
+    }
+    
+    /**
+     * Сохраняет накопленные договоры пакетом
+     */
+    private void flushContractBatch() {
+        if (!contractBatch.isEmpty()) {
+            try {
+                contractRepository.saveAll(contractBatch);
+                logger.debug("Flushed {} contracts to database", contractBatch.size());
+                contractBatch.clear();
+            } catch (Exception e) {
+                logger.error("Error flushing contract batch: {}", e.getMessage(), e);
+            }
+        }
+    }
+    
     public Map<String, Integer> getResults() {
+        // Сохраняем все оставшиеся сущности перед возвратом результатов
+        flushAllBatches();
+        
         Map<String, Integer> results = new HashMap<>();
         results.put("purchaseRequests", purchaseRequestsCount);
         results.put("purchases", purchasesCount);

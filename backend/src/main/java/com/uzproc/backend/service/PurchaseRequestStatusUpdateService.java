@@ -1,10 +1,15 @@
 package com.uzproc.backend.service;
 
+import com.uzproc.backend.entity.Contract;
+import com.uzproc.backend.entity.ContractStatus;
+import com.uzproc.backend.entity.Purchase;
 import com.uzproc.backend.entity.PurchaseRequest;
 import com.uzproc.backend.entity.PurchaseRequestApproval;
 import com.uzproc.backend.entity.PurchaseRequestStatus;
+import com.uzproc.backend.repository.ContractRepository;
 import com.uzproc.backend.repository.PurchaseRequestApprovalRepository;
 import com.uzproc.backend.repository.PurchaseRequestRepository;
+import com.uzproc.backend.repository.PurchaseRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;
@@ -17,7 +22,10 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Сервис для обновления статусов заявок на закупку
@@ -34,12 +42,18 @@ public class PurchaseRequestStatusUpdateService {
     
     private final PurchaseRequestRepository purchaseRequestRepository;
     private final PurchaseRequestApprovalRepository approvalRepository;
+    private final ContractRepository contractRepository;
+    private final PurchaseRepository purchaseRepository;
 
     public PurchaseRequestStatusUpdateService(
             PurchaseRequestRepository purchaseRequestRepository,
-            PurchaseRequestApprovalRepository approvalRepository) {
+            PurchaseRequestApprovalRepository approvalRepository,
+            ContractRepository contractRepository,
+            PurchaseRepository purchaseRepository) {
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.approvalRepository = approvalRepository;
+        this.contractRepository = contractRepository;
+        this.purchaseRepository = purchaseRepository;
     }
 
     /**
@@ -289,6 +303,58 @@ public class PurchaseRequestStatusUpdateService {
                 idPurchaseRequest, purchaseRequest.getRequiresPurchase());
         }
         
+        // Проверяем статус всех связанных договоров
+        // Договоры могут быть связаны:
+        // 1. Напрямую через purchase_request_id
+        // 2. Через закупки по contractInnerIds
+        boolean allContractsSigned = false;
+        boolean hasContracts = false;
+        try {
+            List<Contract> allContracts = new ArrayList<>();
+            
+            // 1. Получаем договоры напрямую связанные с заявкой
+            List<Contract> directContracts = contractRepository.findByPurchaseRequestId(idPurchaseRequest);
+            allContracts.addAll(directContracts);
+            
+            // 2. Получаем договоры через закупки
+            List<Purchase> purchases = purchaseRepository.findByPurchaseRequestId(idPurchaseRequest);
+            Set<Long> contractIds = new HashSet<>();
+            for (Purchase purchase : purchases) {
+                if (purchase.getContractInnerIds() != null && !purchase.getContractInnerIds().isEmpty()) {
+                    for (String contractInnerId : purchase.getContractInnerIds()) {
+                        if (contractInnerId != null && !contractInnerId.trim().isEmpty()) {
+                            contractRepository.findByInnerId(contractInnerId.trim()).ifPresent(contract -> {
+                                if (!contractIds.contains(contract.getId())) {
+                                    allContracts.add(contract);
+                                    contractIds.add(contract.getId());
+                                }
+                            });
+                        }
+                    }
+                }
+            }
+            
+            // Исключаем спецификации из проверки (они обрабатываются отдельно)
+            allContracts.removeIf(contract -> {
+                String documentForm = contract.getDocumentForm();
+                return documentForm != null && documentForm.equals("Спецификация");
+            });
+            
+            if (!allContracts.isEmpty()) {
+                hasContracts = true;
+                // Проверяем, все ли договоры имеют статус "Подписан"
+                allContractsSigned = allContracts.stream()
+                    .allMatch(contract -> contract.getStatus() == ContractStatus.SIGNED);
+                
+                logger.debug("Found {} contracts for purchase request {} (excluding specifications), all signed: {}", 
+                    allContracts.size(), idPurchaseRequest, allContractsSigned);
+            } else {
+                logger.debug("No contracts found for purchase request {} (excluding specifications)", idPurchaseRequest);
+            }
+        } catch (Exception e) {
+            logger.warn("Error checking contracts for purchase request {}: {}", idPurchaseRequest, e.getMessage());
+        }
+        
         // Сохраняем текущий статус для сравнения
         PurchaseRequestStatus currentStatus = purchaseRequest.getStatus();
         
@@ -306,6 +372,9 @@ public class PurchaseRequestStatusUpdateService {
         if (hasSignedSpecification) {
             // Для заказов (requiresPurchase === false) с подписанной спецификацией
             newStatus = PurchaseRequestStatus.SPECIFICATION_SIGNED;
+        } else if (hasContracts && allContractsSigned) {
+            // Если есть договоры и все они подписаны, устанавливаем статус "Договор подписан"
+            newStatus = PurchaseRequestStatus.CONTRACT_SIGNED;
         } else if (hasNotCoordinatedSpecification) {
             // Для заказов (requiresPurchase === false) с не согласованной спецификацией
             newStatus = PurchaseRequestStatus.SPECIFICATION_NOT_COORDINATED;

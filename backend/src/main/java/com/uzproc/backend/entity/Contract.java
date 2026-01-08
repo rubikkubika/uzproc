@@ -88,6 +88,11 @@ public class Contract {
     @Column(name = "parent_contract_id")
     private Long parentContractId;
 
+    @Column(name = "planned_delivery_start_date")
+    private LocalDateTime plannedDeliveryStartDate;
+
+    @Column(name = "planned_delivery_end_date")
+    private LocalDateTime plannedDeliveryEndDate;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -289,6 +294,22 @@ public class Contract {
 
     public void setParentContractId(Long parentContractId) {
         this.parentContractId = parentContractId;
+    }
+
+    public LocalDateTime getPlannedDeliveryStartDate() {
+        return plannedDeliveryStartDate;
+    }
+
+    public void setPlannedDeliveryStartDate(LocalDateTime plannedDeliveryStartDate) {
+        this.plannedDeliveryStartDate = plannedDeliveryStartDate;
+    }
+
+    public LocalDateTime getPlannedDeliveryEndDate() {
+        return plannedDeliveryEndDate;
+    }
+
+    public void setPlannedDeliveryEndDate(LocalDateTime plannedDeliveryEndDate) {
+        this.plannedDeliveryEndDate = plannedDeliveryEndDate;
     }
 }
 

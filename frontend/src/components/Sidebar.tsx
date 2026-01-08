@@ -41,6 +41,7 @@ const menuItems: Array<{ id: string; label: string; icon: any }> = [];
     { id: 'purchases', label: 'Закупки', icon: Package },
     { id: 'contracts', label: 'Договоры', icon: Package },
     { id: 'specifications', label: 'Спецификации', icon: Package },
+    { id: 'delivery-plan', label: 'План поставок', icon: Calendar },
   ];
 
   const initiatorItems = [
@@ -269,6 +270,9 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                         if (isDisabled) return;
                         if (isExternal) {
                           router.push('/public-plan');
+                          setIsMobileMenuOpen(false);
+                        } else if (item.id === 'delivery-plan') {
+                          router.push('/delivery-plan');
                           setIsMobileMenuOpen(false);
                         } else {
                           handleTabChange(item.id);

@@ -30,10 +30,10 @@ export default function PurchasePlanItemsMonthlyChart() {
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [allYears, setAllYears] = useState<number[]>([]);
   const [yearsLoaded, setYearsLoaded] = useState(false);
-  const [companyFilter, setCompanyFilter] = useState<string[]>(['Uzum Market']);
+  const [companyFilter, setCompanyFilter] = useState<string[]>(['Market']);
   
   // Используем ref для хранения актуального значения companyFilter в обработчиках событий
-  const companyFilterRef = useRef<string[]>(['Uzum Market']);
+  const companyFilterRef = useRef<string[]>(['Market']);
   
   // Обновляем ref при изменении companyFilter
   useEffect(() => {

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
-import { ArrowUp, ArrowDown, ArrowUpDown, Search, X, Download, Copy, Clock, Check } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpDown, Search, X, Download, Copy, Clock, Check, Eye, EyeOff } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 
@@ -27,6 +27,7 @@ interface PurchaseRequest {
   isPlanned: boolean | null;
   requiresPurchase: boolean | null;
   status: string | null;
+  excludeFromInWork: boolean | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -47,7 +48,7 @@ const CACHE_KEY = 'purchaseRequests_metadata';
 const CACHE_TTL = 5 * 60 * 1000; // 5 минут
 
 // Константы для статусов (соответствуют PurchaseRequestStatus enum)
-const ALL_STATUSES = ['Заявка на согласовании', 'На согласовании', 'Заявка на утверждении', 'На утверждении', 'Утверждена', 'Заявка утверждена', 'Согласована', 'Заявка не согласована', 'Заявка не утверждена', 'Проект', 'Неактуальна', 'Не Актуальная', 'Спецификация создана', 'Спецификация создана - Архив', 'Спецификация подписана', 'Закупка создана', 'Закупка не согласована'];
+const ALL_STATUSES = ['Заявка на согласовании', 'На согласовании', 'Заявка на утверждении', 'На утверждении', 'Утверждена', 'Заявка утверждена', 'Согласована', 'Заявка не согласована', 'Заявка не утверждена', 'Проект', 'Неактуальна', 'Не Актуальная', 'Спецификация создана', 'Спецификация создана - Архив', 'Спецификация подписана', 'Договор подписан', 'Закупка создана', 'Закупка не согласована'];
 const DEFAULT_STATUSES = ALL_STATUSES.filter(s => s !== 'Неактуальна' && s !== 'Не Актуальная');
 
 // Функция для получения символа валюты
@@ -119,7 +120,7 @@ export default function PurchaseRequestsTable() {
       case 'in-work':
         return ['Заявка на согласовании', 'На согласовании', 'Заявка на утверждении', 'На утверждении', 'Спецификация создана', 'Закупка создана', 'Заявка утверждена', 'Утверждена'];
       case 'completed':
-        return ['Спецификация подписана'];
+        return ['Спецификация подписана', 'Договор подписан'];
       case 'project-rejected':
         return ['Проект', 'Заявка не согласована', 'Заявка не утверждена', 'Закупка не согласована', 'Спецификация создана - Архив'];
       case 'all':
@@ -321,7 +322,7 @@ export default function PurchaseRequestsTable() {
   const resizeColumn = useRef<string | null>(null);
 
   // Состояние для порядка колонок
-  const [columnOrder, setColumnOrder] = useState<string[]>(['idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'track']);
+  const [columnOrder, setColumnOrder] = useState<string[]>(['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'track']);
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
 
@@ -332,7 +333,7 @@ export default function PurchaseRequestsTable() {
       if (saved) {
         const order = JSON.parse(saved);
         // Проверяем, что все колонки присутствуют
-        const defaultOrder = ['idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'track'];
+        const defaultOrder = ['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'track'];
         const validOrder = order.filter((col: string) => defaultOrder.includes(col));
         const missingCols = defaultOrder.filter(col => !validOrder.includes(col));
         setColumnOrder([...validOrder, ...missingCols]);
@@ -2083,6 +2084,19 @@ export default function PurchaseRequestsTable() {
                 const isDragging = draggedColumn === columnKey;
                 const isDragOver = dragOverColumn === columnKey;
                 
+                if (columnKey === 'excludeFromInWork') {
+                  return (
+                    <th 
+                      key={columnKey}
+                      className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative w-12"
+                    >
+                      <div className="flex items-center justify-center">
+                        <Eye className="w-4 h-4 text-gray-400" />
+                      </div>
+                    </th>
+                  );
+                }
+                
                 if (columnKey === 'idPurchaseRequest') {
                   return <SortableHeader key={columnKey} field="idPurchaseRequest" label="Номер" width="w-16" columnKey="idPurchaseRequest" />;
                 }
@@ -2658,6 +2672,57 @@ export default function PurchaseRequestsTable() {
                   }}
                 >
                   {columnOrder.map(columnKey => {
+                    if (columnKey === 'excludeFromInWork') {
+                      const handleToggleExclude = async (e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        const newValue = !request.excludeFromInWork;
+                        try {
+                          const response = await fetch(`${getBackendUrl()}/api/purchase-requests/${request.idPurchaseRequest}/exclude-from-in-work`, {
+                            method: 'PATCH',
+                            headers: {
+                              'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ excludeFromInWork: newValue }),
+                          });
+                          if (response.ok) {
+                            const updated = await response.json();
+                            setData(prev => {
+                              if (!prev) return null;
+                              return {
+                                ...prev,
+                                content: prev.content.map(item => 
+                                  item.idPurchaseRequest === request.idPurchaseRequest 
+                                    ? { ...item, excludeFromInWork: updated.excludeFromInWork }
+                                    : item
+                                ),
+                              };
+                            });
+                          } else {
+                            console.error('Failed to update excludeFromInWork');
+                          }
+                        } catch (error) {
+                          console.error('Error updating excludeFromInWork:', error);
+                        }
+                      };
+                      
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-2 whitespace-nowrap border-r border-gray-200" 
+                          style={{ width: '48px', minWidth: '48px', maxWidth: '48px' }}
+                          onClick={handleToggleExclude}
+                        >
+                          <div className="flex items-center justify-center cursor-pointer hover:bg-gray-100 rounded p-1 transition-colors">
+                            {request.excludeFromInWork ? (
+                              <EyeOff className="w-4 h-4 text-gray-400" title="Скрыто из вкладки 'В работе'" />
+                            ) : (
+                              <Eye className="w-4 h-4 text-gray-600" title="Отображается во вкладке 'В работе'" />
+                            )}
+                          </div>
+                        </td>
+                      );
+                    }
+                    
                     if (columnKey === 'idPurchaseRequest') {
                       return (
                         <td 
@@ -2757,7 +2822,7 @@ export default function PurchaseRequestsTable() {
                         <td key={columnKey} className="px-2 py-2 text-xs border-r border-gray-200">
                           {request.status ? (
                             <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                              request.status === 'Согласована' || request.status === 'Спецификация подписана'
+                              request.status === 'Согласована' || request.status === 'Спецификация подписана' || request.status === 'Договор подписан'
                                 ? 'bg-green-100 text-green-800'
                                 : request.status === 'Спецификация создана - Архив'
                                 ? 'bg-gray-200 text-gray-700'
@@ -2786,9 +2851,10 @@ export default function PurchaseRequestsTable() {
                     <div className="flex items-end gap-2">
                       {/* Заявка - активна */}
                       <div className="flex flex-col items-center gap-0.5">
-                        {request.status === 'Спецификация подписана' || request.status === 'Закупка создана' ? (
+                        {request.status === 'Спецификация подписана' || request.status === 'Договор подписан' || request.status === 'Закупка создана' ? (
                           <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center" title={
                             request.status === 'Спецификация подписана' ? "Заявка: Спецификация подписана" :
+                            request.status === 'Договор подписан' ? "Заявка: Договор подписан" :
                             "Заявка: Закупка создана"
                           }>
                             <Check className="w-2.5 h-2.5 text-white" />
@@ -2842,8 +2908,8 @@ export default function PurchaseRequestsTable() {
                       ) : (
                         /* Если закупка не требуется: Заявка → Заказ */
                         <div className="flex flex-col items-center gap-0.5">
-                          {request.status === 'Спецификация подписана' ? (
-                            <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center mt-0.5" title="Заказ: Спецификация подписана">
+                          {request.status === 'Спецификация подписана' || request.status === 'Договор подписан' ? (
+                            <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center mt-0.5" title={request.status === 'Спецификация подписана' ? "Заказ: Спецификация подписана" : "Заявка: Договор подписан"}>
                               <Check className="w-2.5 h-2.5 text-white" />
                             </div>
                           ) : request.status === 'Спецификация создана' ? (

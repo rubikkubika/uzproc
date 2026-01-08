@@ -15,6 +15,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -26,6 +28,8 @@ public class FileProcessingStatsService {
     
     private LocalDateTime startTime;
     private List<FileProcessingRecord> processedFiles;
+    private List<MethodProcessingRecord> methodRecords;
+    private Map<String, LocalDateTime> methodStartTimes;
     private Path statsFilePath;
 
     @PostConstruct
@@ -50,6 +54,8 @@ public class FileProcessingStatsService {
             // Перезаписываем файл при запуске
             startTime = LocalDateTime.now();
             processedFiles = new ArrayList<>();
+            methodRecords = new ArrayList<>();
+            methodStartTimes = new ConcurrentHashMap<>();
             
             // Записываем заголовок
             writeHeader();
@@ -63,10 +69,54 @@ public class FileProcessingStatsService {
     @PreDestroy
     public void cleanup() {
         try {
+            // Завершаем все незавершенные методы
+            for (Map.Entry<String, LocalDateTime> entry : methodStartTimes.entrySet()) {
+                String key = entry.getKey();
+                // Формат ключа: "methodName:fileName"
+                int colonIndex = key.indexOf(':');
+                if (colonIndex > 0) {
+                    String methodName = key.substring(0, colonIndex);
+                    String fileName = key.substring(colonIndex + 1);
+                    endMethod(methodName, fileName);
+                }
+            }
             writeSummary();
             logger.info("File processing stats written to: {}", statsFilePath);
         } catch (Exception e) {
             logger.error("Error writing final stats", e);
+        }
+    }
+    
+    /**
+     * Начинает отслеживание выполнения метода обработки
+     * @param methodName название метода (например, "loadPurchaseRequestsFromExcel")
+     * @param fileName имя файла, который обрабатывается
+     */
+    public void startMethod(String methodName, String fileName) {
+        String key = methodName + ":" + fileName;
+        methodStartTimes.put(key, LocalDateTime.now());
+        logger.debug("Started tracking method: {} for file: {}", methodName, fileName);
+    }
+    
+    /**
+     * Завершает отслеживание выполнения метода обработки
+     * @param methodName название метода
+     * @param fileName имя файла
+     */
+    public void endMethod(String methodName, String fileName) {
+        String key = methodName + ":" + fileName;
+        LocalDateTime startTime = methodStartTimes.remove(key);
+        if (startTime != null) {
+            LocalDateTime endTime = LocalDateTime.now();
+            long durationMs = java.time.Duration.between(startTime, endTime).toMillis();
+            MethodProcessingRecord record = new MethodProcessingRecord(
+                methodName, fileName, startTime, endTime, durationMs
+            );
+            methodRecords.add(record);
+            logger.debug("Ended tracking method: {} for file: {}, duration: {} ms", 
+                methodName, fileName, durationMs);
+        } else {
+            logger.warn("Method {} for file {} was not started or already ended", methodName, fileName);
         }
     }
 
@@ -147,13 +197,14 @@ public class FileProcessingStatsService {
             LocalDateTime endTime = LocalDateTime.now();
             long totalTimeMs = java.time.Duration.between(startTime, endTime).toMillis();
             
-            writer.write("=".repeat(80) + "\n");
+            writer.write("=".repeat(120) + "\n");
             writer.write("ИТОГОВАЯ СТАТИСТИКА\n");
-            writer.write("=".repeat(80) + "\n");
+            writer.write("=".repeat(120) + "\n");
             writer.write("Дата начала: " + startTime.format(DATE_TIME_FORMATTER) + "\n");
             writer.write("Дата окончания: " + endTime.format(DATE_TIME_FORMATTER) + "\n");
             writer.write("Общее время обработки: " + formatDuration(totalTimeMs) + "\n");
             writer.write("Обработано файлов: " + processedFiles.size() + "\n");
+            writer.write("Выполнено методов: " + methodRecords.size() + "\n");
             writer.write("\n");
             
             // Подсчитываем итоги
@@ -193,16 +244,70 @@ public class FileProcessingStatsService {
             }
             writer.write("\n");
             
+            // Выводим таблицу методов обработки
+            writeMethodTable(writer);
+            
+            writer.write("\n");
             writer.write("Обработанные файлы:\n");
             for (FileProcessingRecord record : processedFiles) {
                 writer.write("  - " + record.fileName + " (" + formatDuration(record.processingTimeMs) + ")\n");
             }
             writer.write("\n");
             
-            writer.write("=".repeat(80) + "\n");
+            writer.write("=".repeat(120) + "\n");
         } catch (IOException e) {
             logger.error("Error writing summary to stats", e);
         }
+    }
+    
+    private void writeMethodTable(FileWriter writer) throws IOException {
+        if (methodRecords.isEmpty()) {
+            writer.write("Детальная статистика по методам отсутствует.\n");
+            return;
+        }
+        
+        writer.write("=".repeat(120) + "\n");
+        writer.write("ДЕТАЛЬНАЯ СТАТИСТИКА ПО МЕТОДАМ ОБРАБОТКИ\n");
+        writer.write("=".repeat(120) + "\n");
+        
+        // Заголовок таблицы
+        writer.write(String.format("%-50s | %-30s | %-30s | %-15s\n", 
+            "Метод обработки", "Дата старта", "Дата стоп", "Время (мин)"));
+        writer.write("-".repeat(120) + "\n");
+        
+        // Сортируем по дате старта
+        methodRecords.sort((a, b) -> a.startTime.compareTo(b.startTime));
+        
+        // Выводим строки таблицы
+        for (MethodProcessingRecord record : methodRecords) {
+            String methodName = record.methodName.length() > 48 ? 
+                record.methodName.substring(0, 45) + "..." : record.methodName;
+            String fileName = record.fileName.length() > 28 ? 
+                record.fileName.substring(0, 25) + "..." : record.fileName;
+            String fullMethodName = methodName + " (" + fileName + ")";
+            
+            if (fullMethodName.length() > 50) {
+                fullMethodName = fullMethodName.substring(0, 47) + "...";
+            }
+            
+            String startTimeStr = record.startTime.format(DATE_TIME_FORMATTER);
+            String endTimeStr = record.endTime.format(DATE_TIME_FORMATTER);
+            double minutes = record.durationMs / 60000.0;
+            String durationStr = String.format("%.2f", minutes);
+            
+            writer.write(String.format("%-50s | %-30s | %-30s | %-15s\n", 
+                fullMethodName, startTimeStr, endTimeStr, durationStr));
+        }
+        
+        writer.write("-".repeat(120) + "\n");
+        
+        // Итоговая строка
+        double totalMinutes = methodRecords.stream()
+            .mapToLong(r -> r.durationMs)
+            .sum() / 60000.0;
+        writer.write(String.format("%-50s | %-30s | %-30s | %-15s\n", 
+            "ИТОГО", "", "", String.format("%.2f", totalMinutes)));
+        writer.write("=".repeat(120) + "\n");
     }
 
     private String formatDuration(long milliseconds) {
@@ -254,6 +359,24 @@ public class FileProcessingStatsService {
             this.usersUpdated = usersUpdated;
             this.purchasePlanItemsCreated = purchasePlanItemsCreated;
             this.purchasePlanItemsUpdated = purchasePlanItemsUpdated;
+        }
+    }
+    
+    private static class MethodProcessingRecord {
+        final String methodName;
+        final String fileName;
+        final LocalDateTime startTime;
+        final LocalDateTime endTime;
+        final long durationMs;
+
+        MethodProcessingRecord(String methodName, String fileName, 
+                              LocalDateTime startTime, LocalDateTime endTime, 
+                              long durationMs) {
+            this.methodName = methodName;
+            this.fileName = fileName;
+            this.startTime = startTime;
+            this.endTime = endTime;
+            this.durationMs = durationMs;
         }
     }
 }

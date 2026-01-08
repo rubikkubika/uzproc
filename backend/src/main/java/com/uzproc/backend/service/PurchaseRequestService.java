@@ -87,8 +87,26 @@ public class PurchaseRequestService {
         logger.info("Filter parameters - year: {}, month: {}, idPurchaseRequest: {}, cfo: {}, purchaseRequestInitiator: '{}', purchaser: {}, name: '{}', costType: '{}', contractType: '{}', isPlanned: {}, requiresPurchase: {}, status: {}, excludePendingStatuses: {}, budgetAmount: {}, budgetAmountOperator: '{}'",
                 year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, requiresPurchase, status, excludePendingStatuses, budgetAmount, budgetAmountOperator);
         
+        // Определяем, нужно ли исключать записи с excludeFromInWork = true
+        // Это делается, если переданы статусы для вкладки "В работе"
+        boolean excludeFromInWork = false;
+        if (status != null && !status.isEmpty()) {
+            List<String> inWorkStatuses = List.of(
+                "Заявка на согласовании", "На согласовании",
+                "Заявка на утверждении", "На утверждении",
+                "Спецификация создана", "Закупка создана",
+                "Заявка утверждена", "Утверждена"
+            );
+            // Проверяем, все ли переданные статусы относятся к вкладке "В работе"
+            boolean allInWorkStatuses = status.stream().allMatch(s -> inWorkStatuses.contains(s));
+            if (allInWorkStatuses) {
+                excludeFromInWork = true;
+                logger.info("Detected 'in-work' tab statuses - will exclude records with excludeFromInWork = true");
+            }
+        }
+        
         Specification<PurchaseRequest> spec = buildSpecification(
-                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, requiresPurchase, status, excludePendingStatuses, budgetAmount, budgetAmountOperator);
+                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, requiresPurchase, status, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWork);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -151,7 +169,8 @@ public class PurchaseRequestService {
             "Заявка утверждена", "Утверждена"
         );
         List<String> completedStatuses = List.of(
-            "Спецификация подписана"
+            "Спецификация подписана",
+            "Договор подписан"
         );
         List<String> projectRejectedStatuses = List.of(
             "Проект", "Заявка не согласована", "Заявка не утверждена", "Закупка не согласована", "Спецификация создана - Архив"
@@ -159,13 +178,14 @@ public class PurchaseRequestService {
         
         // Подсчитываем для каждой вкладки
         counts.put("all", countWithFilters(year, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
-            name, costType, contractType, isPlanned, requiresPurchase, null, budgetAmount, budgetAmountOperator));
+            name, costType, contractType, isPlanned, requiresPurchase, null, budgetAmount, budgetAmountOperator, false));
+        // Для вкладки "В работе" исключаем записи с excludeFromInWork = true
         counts.put("in-work", countWithFilters(year, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
-            name, costType, contractType, isPlanned, requiresPurchase, inWorkStatuses, budgetAmount, budgetAmountOperator));
+            name, costType, contractType, isPlanned, requiresPurchase, inWorkStatuses, budgetAmount, budgetAmountOperator, true));
         counts.put("completed", countWithFilters(year, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
-            name, costType, contractType, isPlanned, requiresPurchase, completedStatuses, budgetAmount, budgetAmountOperator));
+            name, costType, contractType, isPlanned, requiresPurchase, completedStatuses, budgetAmount, budgetAmountOperator, false));
         counts.put("project-rejected", countWithFilters(year, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
-            name, costType, contractType, isPlanned, requiresPurchase, projectRejectedStatuses, budgetAmount, budgetAmountOperator));
+            name, costType, contractType, isPlanned, requiresPurchase, projectRejectedStatuses, budgetAmount, budgetAmountOperator, false));
         
         return counts;
     }
@@ -186,12 +206,13 @@ public class PurchaseRequestService {
             Boolean requiresPurchase,
             List<String> status,
             java.math.BigDecimal budgetAmount,
-            String budgetAmountOperator) {
+            String budgetAmountOperator,
+            boolean excludeFromInWork) {
         
         Specification<PurchaseRequest> spec = buildSpecification(
             year, null, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
             name, costType, contractType, isPlanned, requiresPurchase, status,
-            false, budgetAmount, budgetAmountOperator);
+            false, budgetAmount, budgetAmountOperator, excludeFromInWork);
         
         return purchaseRequestRepository.count(spec);
     }
@@ -225,6 +246,7 @@ public class PurchaseRequestService {
         dto.setStatus(entity.getStatus());
         dto.setState(entity.getState());
         dto.setExpenseItem(entity.getExpenseItem());
+        dto.setExcludeFromInWork(entity.getExcludeFromInWork());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
         
@@ -294,7 +316,8 @@ public class PurchaseRequestService {
             List<String> status,
             Boolean excludePendingStatuses,
             java.math.BigDecimal budgetAmount,
-            String budgetAmountOperator) {
+            String budgetAmountOperator,
+            boolean excludeFromInWork) {
         
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -570,6 +593,16 @@ public class PurchaseRequestService {
                         budgetAmount, budgetAmountOperator);
             }
             
+            // Фильтр по excludeFromInWork - для вкладки "В работе" исключаем записи с excludeFromInWork = true
+            if (excludeFromInWork) {
+                predicates.add(cb.or(
+                    cb.isNull(root.get("excludeFromInWork")),
+                    cb.equal(root.get("excludeFromInWork"), false)
+                ));
+                predicateCount++;
+                logger.info("Excluding records with excludeFromInWork = true from in-work tab");
+            }
+            
             logger.info("Total predicates added: {}", predicateCount);
             
             if (predicates.isEmpty()) {
@@ -589,6 +622,19 @@ public class PurchaseRequestService {
             return Sort.by(direction, sortBy);
         }
         return Sort.unsorted();
+    }
+
+    @Transactional
+    public PurchaseRequestDto updateExcludeFromInWork(Long idPurchaseRequest, Boolean excludeFromInWork) {
+        PurchaseRequest purchaseRequest = purchaseRequestRepository.findByIdPurchaseRequest(idPurchaseRequest)
+                .orElse(null);
+        if (purchaseRequest == null) {
+            return null;
+        }
+        purchaseRequest.setExcludeFromInWork(excludeFromInWork);
+        PurchaseRequest saved = purchaseRequestRepository.save(purchaseRequest);
+        logger.info("Updated excludeFromInWork for purchase request {}: {}", idPurchaseRequest, excludeFromInWork);
+        return toDto(saved);
     }
 
     /**

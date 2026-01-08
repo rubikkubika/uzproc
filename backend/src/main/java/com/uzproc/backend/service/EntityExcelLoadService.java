@@ -242,6 +242,13 @@ public class EntityExcelLoadService {
      */
     private Map<String, Integer> loadAllFromExcelStreaming(File excelFile) throws Exception {
         logger.info("Starting streaming read of file: {}", excelFile.getName());
+        String fileName = excelFile.getName();
+        
+        // Отслеживаем общий метод обработки файла
+        if (statsService != null) {
+            statsService.startMethod("loadAllFromExcelStreaming", fileName);
+        }
+        
         long startTime = System.currentTimeMillis();
         
         OPCPackage pkg = OPCPackage.open(excelFile);
@@ -287,16 +294,24 @@ public class EntityExcelLoadService {
                 }
             }
             
+            // Сохраняем все оставшиеся сущности из batch перед получением результатов
+            rowHandler.flushAllBatches();
+            
             Map<String, Integer> results = rowHandler.getResults();
             long processingTime = System.currentTimeMillis() - startTime;
             
             logger.info("Streaming read completed: {} purchase requests, {} purchases, {} users", 
                 results.get("purchaseRequests"), results.get("purchases"), results.get("users"));
             
+            // Завершаем отслеживание общего метода
+            if (statsService != null) {
+                statsService.endMethod("loadAllFromExcelStreaming", fileName);
+            }
+            
             // Записываем статистику
             if (statsService != null) {
                 statsService.recordFileProcessing(
-                    excelFile.getName(),
+                    fileName,
                     processingTime,
                     results.getOrDefault("purchaseRequestsCreated", 0),
                     results.getOrDefault("purchaseRequestsUpdated", 0),
@@ -2020,6 +2035,24 @@ public class EntityExcelLoadService {
                 existing.setStatus(newData.getStatus());
                 updated = true;
                 logger.debug("Updated status for contract {}: {}", existing.getId(), newData.getStatus());
+            }
+        }
+        
+        // Обновляем плановую дату начала поставки
+        if (newData.getPlannedDeliveryStartDate() != null) {
+            if (existing.getPlannedDeliveryStartDate() == null || !existing.getPlannedDeliveryStartDate().equals(newData.getPlannedDeliveryStartDate())) {
+                existing.setPlannedDeliveryStartDate(newData.getPlannedDeliveryStartDate());
+                updated = true;
+                logger.debug("Updated plannedDeliveryStartDate for contract {}: {}", existing.getId(), newData.getPlannedDeliveryStartDate());
+            }
+        }
+        
+        // Обновляем плановую дату окончания поставки
+        if (newData.getPlannedDeliveryEndDate() != null) {
+            if (existing.getPlannedDeliveryEndDate() == null || !existing.getPlannedDeliveryEndDate().equals(newData.getPlannedDeliveryEndDate())) {
+                existing.setPlannedDeliveryEndDate(newData.getPlannedDeliveryEndDate());
+                updated = true;
+                logger.debug("Updated plannedDeliveryEndDate for contract {}: {}", existing.getId(), newData.getPlannedDeliveryEndDate());
             }
         }
         

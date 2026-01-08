@@ -206,7 +206,7 @@ export default function PublicPurchasePlanTable() {
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
-  const [companyFilter, setCompanyFilter] = useState<Set<string>>(new Set(['Uzum Market']));
+  const [companyFilter, setCompanyFilter] = useState<Set<string>>(new Set(['Market']));
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set(DEFAULT_STATUSES)); // По умолчанию все кроме "Исключена"
   const [statusFilterInitialized, setStatusFilterInitialized] = useState(false); // Флаг инициализации фильтра
@@ -278,12 +278,12 @@ export default function PublicPurchasePlanTable() {
         } else {
           console.error('Failed to load companies');
           // Fallback к захардкоженным значениям при ошибке
-          setAvailableCompanies(['Uzum Market', 'Uzum Technologies', 'Uzum Tezkor']);
+          setAvailableCompanies(['Market', 'Holding', 'Tezkor']);
         }
       } catch (error) {
         console.error('Error loading companies:', error);
         // Fallback к захардкоженным значениям при ошибке
-        setAvailableCompanies(['Uzum Market', 'Uzum Technologies', 'Uzum Tezkor']);
+        setAvailableCompanies(['Market', 'Holding', 'Tezkor']);
       }
     };
     loadCompanies();
@@ -2019,7 +2019,7 @@ export default function PublicPurchasePlanTable() {
                         budgetAmountOperator: 'gte',
                       });
                       setCfoFilter(new Set());
-                      setCompanyFilter(new Set(['Uzum Market']));
+                      setCompanyFilter(new Set(['Market']));
                       setCategoryFilter(new Set());
                       setPurchaserFilter(new Set());
                       const resetStatusFilter = (uniqueValues.status || []).filter(s => s !== 'Исключена');

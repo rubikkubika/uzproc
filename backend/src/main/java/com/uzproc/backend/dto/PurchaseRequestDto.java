@@ -31,6 +31,7 @@ public class PurchaseRequestDto {
     private PurchaseRequestStatus status;
     private String state;
     private String expenseItem;
+    private Boolean excludeFromInWork;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     // Список ID связанных закупок
@@ -233,6 +234,14 @@ public class PurchaseRequestDto {
 
     public void setExpenseItem(String expenseItem) {
         this.expenseItem = expenseItem;
+    }
+
+    public Boolean getExcludeFromInWork() {
+        return excludeFromInWork;
+    }
+
+    public void setExcludeFromInWork(Boolean excludeFromInWork) {
+        this.excludeFromInWork = excludeFromInWork;
     }
 
     public LocalDateTime getCreatedAt() {

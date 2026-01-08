@@ -3,9 +3,9 @@ package com.uzproc.backend.entity;
 import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum Company {
-    UZUM_MARKET("Uzum Market"),
-    UZUM_TECHNOLOGIES("Uzum Technologies"),
-    UZUM_TEZKOR("Uzum Tezkor");
+    UZUM_MARKET("Market"),
+    UZUM_TECHNOLOGIES("Holding"),
+    UZUM_TEZKOR("Tezkor");
 
     private final String displayName;
 

@@ -135,6 +135,10 @@ const getCompanyLogoPath = (companyName: string | null): string | null => {
   if (!companyName) return null;
   
   const logoMap: Record<string, string> = {
+    'Market': '/images/company logo/market.png',
+    'Holding': '/images/company logo/technologies.svg',
+    'Tezkor': '/images/company logo/tezkor.png',
+    // Старые названия для обратной совместимости
     'Uzum Market': '/images/company logo/market.png',
     'Uzum Technologies': '/images/company logo/technologies.svg',
     'Uzum Tezkor': '/images/company logo/tezkor.png',
@@ -226,7 +230,7 @@ export default function PurchasePlanItemsTable() {
 
   // Состояние для множественных фильтров (чекбоксы)
   const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
-  const [companyFilter, setCompanyFilter] = useState<Set<string>>(new Set(['Uzum Market']));
+  const [companyFilter, setCompanyFilter] = useState<Set<string>>(new Set(['Market']));
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set(DEFAULT_STATUSES));
   const [purchaserFilter, setPurchaserFilter] = useState<Set<string>>(() => {
@@ -674,7 +678,7 @@ export default function PurchasePlanItemsTable() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newItemData, setNewItemData] = useState<Partial<PurchasePlanItem>>({
     year: selectedYear || (new Date().getFullYear() + 1),
-    company: 'Uzum Market',
+    company: 'Market',
     status: 'Проект',
   });
   
@@ -1348,7 +1352,7 @@ export default function PurchasePlanItemsTable() {
         setIsCreateModalOpen(false);
         setNewItemData({
           year: selectedYear || (new Date().getFullYear() + 1),
-          company: 'Uzum Market',
+          company: 'Market',
           status: 'Проект',
           complexity: null,
           requestDate: null,
@@ -1778,10 +1782,10 @@ export default function PurchasePlanItemsTable() {
             }));
           }
         } else {
-          // Если фильтр не сохранен (первая загрузка), устанавливаем фильтр по умолчанию на "Uzum Market"
-          setCompanyFilter(new Set(['Uzum Market']));
+          // Если фильтр не сохранен (первая загрузка), устанавливаем фильтр по умолчанию на "Market"
+          setCompanyFilter(new Set(['Market']));
           window.dispatchEvent(new CustomEvent('purchasePlanItemCompanyFilterUpdated', {
-            detail: { companyFilter: ['Uzum Market'] }
+            detail: { companyFilter: ['Market'] }
           }));
         }
         if (savedFilters.categoryFilter !== undefined) {
@@ -2497,25 +2501,51 @@ export default function PurchasePlanItemsTable() {
     if (!company) return null;
     const normalized = company.trim().toLowerCase();
     
-    // Проверяем на "Узум маркет" и варианты
+    // Проверяем на "Узум маркет" и варианты -> "Market"
     if (normalized.includes('узум') && normalized.includes('маркет')) {
-      return 'Uzum Market';
+      return 'Market';
     }
-    // Проверяем на "Uzum Market" и варианты
+    // Проверяем на "Uzum Market" и варианты -> "Market"
     if (normalized.includes('uzum') && normalized.includes('market')) {
-      return 'Uzum Market';
+      return 'Market';
     }
-    // Проверяем на "Uzum Technologies" и варианты
+    // Проверяем на "Market" (новое название)
+    if (normalized === 'market') {
+      return 'Market';
+    }
+    // Проверяем на "Узум технологии" и варианты -> "Holding"
     if (normalized.includes('узум') && normalized.includes('технологи')) {
-      return 'Uzum Technologies';
+      return 'Holding';
     }
     if (normalized.includes('uzum') && normalized.includes('technolog')) {
-      return 'Uzum Technologies';
+      return 'Holding';
+    }
+    // Проверяем на "Holding" (новое название)
+    if (normalized === 'holding') {
+      return 'Holding';
+    }
+    // Проверяем на "Uzum Tezkor" и варианты -> "Tezkor"
+    if (normalized.includes('uzum') && normalized.includes('tezkor')) {
+      return 'Tezkor';
+    }
+    // Проверяем на "Tezkor" (новое название)
+    if (normalized === 'tezkor') {
+      return 'Tezkor';
     }
     
     // Если это уже правильное значение, возвращаем как есть
-    if (company === 'Uzum Market' || company === 'Uzum Technologies') {
+    if (company === 'Market' || company === 'Holding' || company === 'Tezkor') {
       return company;
+    }
+    // Обратная совместимость со старыми названиями
+    if (company === 'Uzum Market') {
+      return 'Market';
+    }
+    if (company === 'Uzum Technologies') {
+      return 'Holding';
+    }
+    if (company === 'Uzum Tezkor') {
+      return 'Tezkor';
     }
     
     // Если не распознали, возвращаем как есть (на случай других значений)
@@ -2839,12 +2869,12 @@ export default function PurchasePlanItemsTable() {
           } else {
             console.error('Failed to load companies');
             // Fallback к захардкоженным значениям при ошибке
-            setAvailableCompanies(['Uzum Market', 'Uzum Technologies', 'Uzum Tezkor']);
+            setAvailableCompanies(['Market', 'Holding', 'Tezkor']);
           }
         } catch (error) {
           console.error('Error loading companies:', error);
           // Fallback к захардкоженным значениям при ошибке
-          setAvailableCompanies(['Uzum Market', 'Uzum Technologies', 'Uzum Tezkor']);
+          setAvailableCompanies(['Market', 'Holding', 'Tezkor']);
         }
       };
       loadCompanies();
@@ -3997,7 +4027,7 @@ export default function PurchasePlanItemsTable() {
                     setFilters(emptyFilters);
                     setLocalFilters(emptyFilters);
                     setCfoFilter(new Set());
-                    setCompanyFilter(new Set(['Uzum Market'])); // При сбросе устанавливаем фильтр по умолчанию на "Uzum Market"
+                    setCompanyFilter(new Set(['Market'])); // При сбросе устанавливаем фильтр по умолчанию на "Market"
                     setCategoryFilter(new Set());
                     setPurchaserFilter(new Set());
                     // При сбросе устанавливаем фильтр по статусу на все доступные статусы кроме "Исключена"
@@ -4011,7 +4041,7 @@ export default function PurchasePlanItemsTable() {
                     setSelectedMonthYear(null);
                     setCurrentPage(0);
                     // Сохраняем сброшенные фильтры в localStorage
-                    // Фильтр по компании устанавливается на "Uzum Market" по умолчанию
+                    // Фильтр по компании устанавливается на "Market" по умолчанию
                     // Фильтр по статусу устанавливается на все доступные статусы кроме "Исключена"
                     const defaultStatusFilter = (uniqueValues.status || []).filter(s => s !== 'Исключена');
                     setStatusFilter(new Set(defaultStatusFilter));
@@ -4019,7 +4049,7 @@ export default function PurchasePlanItemsTable() {
                       const resetFilters = {
                         filters: emptyFilters,
                         cfoFilter: [],
-                        companyFilter: ['Uzum Market'], // При сбросе устанавливаем фильтр по умолчанию на "Uzum Market"
+                        companyFilter: ['Market'], // При сбросе устанавливаем фильтр по умолчанию на "Market"
                         categoryFilter: [],
                         purchaserFilter: [],
                         statusFilter: defaultStatusFilter, // При сбросе устанавливаем фильтр по умолчанию (все кроме Исключена)
@@ -4032,7 +4062,7 @@ export default function PurchasePlanItemsTable() {
                     }
                     // Отправляем событие для обновления фильтра компании в диаграмме
                     window.dispatchEvent(new CustomEvent('purchasePlanItemCompanyFilterUpdated', {
-                      detail: { companyFilter: ['Uzum Market'] }
+                      detail: { companyFilter: ['Market'] }
                     }));
                     // Устанавливаем просмотр текущей версии
                     if (selectedYear) {
@@ -4488,7 +4518,7 @@ export default function PurchasePlanItemsTable() {
                   setIsCreateModalOpen(false);
                   setNewItemData({
                     year: selectedYear || (new Date().getFullYear() + 1),
-                    company: 'Uzum Market',
+                    company: 'Market',
                     status: 'Проект',
                     complexity: null,
                     requestDate: null,

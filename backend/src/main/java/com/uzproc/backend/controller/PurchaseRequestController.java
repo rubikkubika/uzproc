@@ -131,6 +131,33 @@ public class PurchaseRequestController {
         }
     }
 
+    @PatchMapping("/{idPurchaseRequest}/exclude-from-in-work")
+    public ResponseEntity<?> updateExcludeFromInWork(
+            @PathVariable Long idPurchaseRequest,
+            @RequestBody Map<String, Boolean> requestBody) {
+        try {
+            Boolean excludeFromInWork = requestBody.get("excludeFromInWork");
+            if (excludeFromInWork == null) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", "Поле excludeFromInWork обязательно"
+                ));
+            }
+            
+            PurchaseRequestDto updated = purchaseRequestService.updateExcludeFromInWork(idPurchaseRequest, excludeFromInWork);
+            if (updated != null) {
+                return ResponseEntity.ok(updated);
+            }
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            logger.error("Error updating excludeFromInWork for purchase request {}", idPurchaseRequest, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                "success", false,
+                "message", "Ошибка сервера: " + e.getMessage()
+            ));
+        }
+    }
+
     @PostMapping("/update-status/{idPurchaseRequest}")
     public ResponseEntity<Map<String, Object>> updateStatus(@PathVariable Long idPurchaseRequest) {
         try {

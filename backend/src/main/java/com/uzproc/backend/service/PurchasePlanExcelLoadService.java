@@ -24,6 +24,8 @@ import java.time.ZoneId;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Optional;
 
@@ -70,6 +72,14 @@ public class PurchasePlanExcelLoadService {
     private final CfoRepository cfoRepository;
     private final DataFormatter dataFormatter = new DataFormatter();
     private final FileProcessingStatsService statsService;
+    
+    // Кеш ЦФО для оптимизации (загружается один раз в начале)
+    private Map<String, Cfo> cfoCache = null;
+    
+    // Batch-списки для накопления сущностей перед сохранением
+    private final List<PurchasePlanItem> purchasePlanItemBatch = new ArrayList<>();
+    private final List<Cfo> newCfoBatch = new ArrayList<>();
+    private static final int BATCH_SIZE = 100; // Размер пакета для batch-операций
 
     public PurchasePlanExcelLoadService(
             PurchasePlanItemRepository purchasePlanItemRepository,
@@ -304,6 +314,15 @@ public class PurchasePlanExcelLoadService {
                     currentContractAmountColumnIndex, currentContractBalanceColumnIndex, currentContractEndDateColumnIndex,
                     autoRenewalColumnIndex, complexityColumnIndex, holdingColumnIndex, categoryColumnIndex);
             
+            // Загружаем кеш ЦФО один раз в начале
+            loadCfoCache();
+            
+            // Отслеживаем метод обработки
+            String fileName = excelFile.getName();
+            if (statsService != null) {
+                statsService.startMethod("loadPurchasePlanItemsFromExcel", fileName);
+            }
+            
             int loadedCount = 0;
             int skippedCount = 0;
             int createdCount = 0;
@@ -335,15 +354,25 @@ public class PurchasePlanExcelLoadService {
                             PurchasePlanItem existing = existingItem.get();
                             boolean wasUpdated = updatePurchasePlanItemFields(existing, item);
                             if (wasUpdated) {
-                            purchasePlanItemRepository.save(existing);
+                                purchasePlanItemBatch.add(existing);
                                 updatedCount++;
-                            logger.debug("Updated existing purchase plan item with subject: {}", item.getPurchaseSubject());
+                                logger.debug("Queued existing purchase plan item for batch update with subject: {}", item.getPurchaseSubject());
+                                
+                                // Сохраняем batch если он заполнен
+                                if (purchasePlanItemBatch.size() >= BATCH_SIZE) {
+                                    flushPurchasePlanItemBatch();
+                                }
                             }
                         } else {
                             // Создаем новую запись
-                            purchasePlanItemRepository.save(item);
+                            purchasePlanItemBatch.add(item);
                             createdCount++;
-                            logger.debug("Created new purchase plan item with subject: {}", item.getPurchaseSubject());
+                            logger.debug("Queued new purchase plan item for batch save with subject: {}", item.getPurchaseSubject());
+                            
+                            // Сохраняем batch если он заполнен
+                            if (purchasePlanItemBatch.size() >= BATCH_SIZE) {
+                                flushPurchasePlanItemBatch();
+                            }
                         }
                         loadedCount++;
                     } else {
@@ -358,7 +387,15 @@ public class PurchasePlanExcelLoadService {
                 }
             }
             
+            // Сохраняем все оставшиеся сущности перед завершением
+            flushAllBatches();
+            
             long processingTime = System.currentTimeMillis() - startTime;
+            
+            // Завершаем отслеживание метода
+            if (statsService != null) {
+                statsService.endMethod("loadPurchasePlanItemsFromExcel", fileName);
+            }
             
             // Записываем статистику
             if (statsService != null) {
@@ -380,6 +417,7 @@ public class PurchasePlanExcelLoadService {
             
             logger.info("Loaded {} purchase plan items from file {}, skipped {}", loadedCount, excelFile.getName(), skippedCount);
             return loadedCount;
+            
         } finally {
             workbook.close();
         }
@@ -442,15 +480,22 @@ public class PurchasePlanExcelLoadService {
                 String cfoStr = getCellValueAsString(cfoCell);
                 if (cfoStr != null && !cfoStr.trim().isEmpty()) {
                     String trimmedCfo = cfoStr.trim();
+                    String cacheKey = trimmedCfo.toLowerCase();
                     
-                    // Ищем существующее ЦФО
-                    Cfo cfo = cfoRepository.findByNameIgnoreCase(trimmedCfo).orElse(null);
+                    // Ищем в кеше
+                    Cfo cfo = cfoCache.get(cacheKey);
                     
-                    // Если не найдено, создаем новое
+                    // Если не найдено в кеше, создаем новое и добавляем в batch
                     if (cfo == null) {
                         cfo = new Cfo(trimmedCfo);
-                        cfo = cfoRepository.save(cfo);
-                        logger.debug("Created new Cfo: {}", trimmedCfo);
+                        cfoCache.put(cacheKey, cfo); // Добавляем в кеш сразу
+                        newCfoBatch.add(cfo); // Добавляем в batch для сохранения
+                        logger.debug("Queued new Cfo for batch save: {}", trimmedCfo);
+                        
+                        // Сохраняем batch если он заполнен
+                        if (newCfoBatch.size() >= BATCH_SIZE) {
+                            flushCfoBatch();
+                        }
                     }
                     
                     item.setCfo(cfo);
@@ -1070,12 +1115,18 @@ public class PurchasePlanExcelLoadService {
             }
         }
         
-        // Специальная обработка для "Узум маркет" -> "Uzum Market"
+        // Специальная обработка для старых названий (обратная совместимость)
+        // "Узум маркет" -> "Market"
         if (normalizedLower.contains("узум") && normalizedLower.contains("маркет")) {
             return Company.UZUM_MARKET;
         }
+        // "Узум технологии" -> "Holding"
         if (normalizedLower.contains("узум") && normalizedLower.contains("технологи")) {
             return Company.UZUM_TECHNOLOGIES;
+        }
+        // "Узум тезкор" -> "Tezkor"
+        if (normalizedLower.contains("узум") && normalizedLower.contains("тезкор")) {
+            return Company.UZUM_TEZKOR;
         }
         
         logger.debug("Cannot parse company string: '{}', returning null", companyStr);
@@ -1388,6 +1439,66 @@ public class PurchasePlanExcelLoadService {
         }
         
         return addWorkingDays(requestDate, workingDays);
+    }
+    
+    /**
+     * Загружает все ЦФО в кеш для быстрого доступа
+     */
+    private void loadCfoCache() {
+        if (cfoCache == null) {
+            cfoCache = new HashMap<>();
+            try {
+                List<Cfo> allCfos = cfoRepository.findAll();
+                for (Cfo cfo : allCfos) {
+                    cfoCache.put(cfo.getName().toLowerCase().trim(), cfo);
+                }
+                logger.info("Loaded {} CFOs into cache for purchase plan", cfoCache.size());
+            } catch (Exception e) {
+                logger.warn("Error loading CFO cache: {}", e.getMessage());
+            }
+        }
+    }
+    
+    /**
+     * Сохраняет все накопленные сущности пакетами
+     */
+    private void flushAllBatches() {
+        flushCfoBatch();
+        flushPurchasePlanItemBatch();
+    }
+    
+    /**
+     * Сохраняет накопленные ЦФО пакетом
+     */
+    private void flushCfoBatch() {
+        if (!newCfoBatch.isEmpty()) {
+            try {
+                List<Cfo> saved = cfoRepository.saveAll(newCfoBatch);
+                // Обновляем кеш с сохраненными ЦФО
+                for (Cfo savedCfo : saved) {
+                    cfoCache.put(savedCfo.getName().toLowerCase().trim(), savedCfo);
+                }
+                logger.debug("Flushed {} CFOs to database", saved.size());
+                newCfoBatch.clear();
+            } catch (Exception e) {
+                logger.error("Error flushing CFO batch: {}", e.getMessage(), e);
+            }
+        }
+    }
+    
+    /**
+     * Сохраняет накопленные позиции плана закупок пакетом
+     */
+    private void flushPurchasePlanItemBatch() {
+        if (!purchasePlanItemBatch.isEmpty()) {
+            try {
+                purchasePlanItemRepository.saveAll(purchasePlanItemBatch);
+                logger.debug("Flushed {} purchase plan items to database", purchasePlanItemBatch.size());
+                purchasePlanItemBatch.clear();
+            } catch (Exception e) {
+                logger.error("Error flushing purchase plan item batch: {}", e.getMessage(), e);
+            }
+        }
     }
 }
 
