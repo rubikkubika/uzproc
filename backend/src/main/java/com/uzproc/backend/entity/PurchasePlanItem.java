@@ -25,7 +25,11 @@ public class PurchasePlanItem {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "company", length = 50)
-    private Company company;
+    private Company company; // Компания заказчик
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "purchaser_company", length = 50)
+    private Company purchaserCompany; // Компания закупщик
 
     // Связь с Cfo
     @ManyToOne(fetch = FetchType.LAZY)
@@ -161,6 +165,14 @@ public class PurchasePlanItem {
 
     public void setCompany(Company company) {
         this.company = company;
+    }
+
+    public Company getPurchaserCompany() {
+        return purchaserCompany;
+    }
+
+    public void setPurchaserCompany(Company purchaserCompany) {
+        this.purchaserCompany = purchaserCompany;
     }
 
     public Cfo getCfo() {

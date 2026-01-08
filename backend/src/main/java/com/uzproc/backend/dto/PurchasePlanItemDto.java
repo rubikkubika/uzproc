@@ -12,7 +12,8 @@ public class PurchasePlanItemDto {
     private Long id;
     private UUID guid;
     private Integer year;
-    private String company;
+    private String company; // Компания заказчик
+    private String purchaserCompany; // Компания закупщик
     private String cfo;
     private String purchaseSubject;
     private BigDecimal budgetAmount;
@@ -73,6 +74,14 @@ public class PurchasePlanItemDto {
 
     public void setCompany(String company) {
         this.company = company;
+    }
+
+    public String getPurchaserCompany() {
+        return purchaserCompany;
+    }
+
+    public void setPurchaserCompany(String purchaserCompany) {
+        this.purchaserCompany = purchaserCompany;
     }
 
     public String getCfo() {

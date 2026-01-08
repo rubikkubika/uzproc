@@ -344,6 +344,33 @@ public class PurchasePlanItemService {
     }
 
     @Transactional
+    public PurchasePlanItemDto updatePurchaserCompany(Long id, Company purchaserCompany) {
+        return purchasePlanItemRepository.findById(id)
+                .map(item -> {
+                    Company oldPurchaserCompany = item.getPurchaserCompany();
+                    
+                    // Логируем изменение перед обновлением
+                    if ((oldPurchaserCompany == null && purchaserCompany != null) || 
+                        (oldPurchaserCompany != null && !oldPurchaserCompany.equals(purchaserCompany))) {
+                        purchasePlanItemChangeService.logChange(
+                            item.getId(),
+                            item.getGuid(),
+                            "purchaserCompany",
+                            oldPurchaserCompany != null ? oldPurchaserCompany.getDisplayName() : null,
+                            purchaserCompany != null ? purchaserCompany.getDisplayName() : null
+                        );
+                    }
+                    
+                    item.setPurchaserCompany(purchaserCompany);
+                    PurchasePlanItem saved = purchasePlanItemRepository.save(item);
+                    logger.info("Updated purchaserCompany for purchase plan item {}: purchaserCompany={}",
+                            id, purchaserCompany != null ? purchaserCompany.getDisplayName() : null);
+                    return toDto(saved);
+                })
+                .orElse(null);
+    }
+
+    @Transactional
     public PurchasePlanItemDto updatePurchaseRequestId(Long id, Long purchaseRequestId) {
         return purchasePlanItemRepository.findById(id)
                 .map(item -> {
@@ -544,8 +571,31 @@ public class PurchasePlanItemService {
                 }
             }
             item.setCompany(companyEnum);
+            // При создании заполняем purchaserCompany значением из company (если purchaserCompany не указан)
+            if (dto.getPurchaserCompany() == null || dto.getPurchaserCompany().trim().isEmpty()) {
+                item.setPurchaserCompany(companyEnum);
+            } else {
+                // Если purchaserCompany указан, конвертируем его
+                String purchaserCompanyStr = dto.getPurchaserCompany().trim();
+                Company purchaserCompanyEnum = null;
+                for (Company c : Company.values()) {
+                    if (c.getDisplayName().equals(purchaserCompanyStr)) {
+                        purchaserCompanyEnum = c;
+                        break;
+                    }
+                }
+                if (purchaserCompanyEnum == null) {
+                    try {
+                        purchaserCompanyEnum = Company.valueOf(purchaserCompanyStr.toUpperCase().replace(" ", "_"));
+                    } catch (IllegalArgumentException e) {
+                        logger.warn("Unknown purchaserCompany value: {}", purchaserCompanyStr);
+                    }
+                }
+                item.setPurchaserCompany(purchaserCompanyEnum);
+            }
         } else {
             item.setCompany(null);
+            item.setPurchaserCompany(null);
         }
         
         // Устанавливаем ЦФО
@@ -614,6 +664,7 @@ public class PurchasePlanItemService {
         dto.setYear(entity.getYear());
         // Преобразуем Company enum в строку (displayName) для фронтенда
         dto.setCompany(entity.getCompany() != null ? entity.getCompany().getDisplayName() : null);
+        dto.setPurchaserCompany(entity.getPurchaserCompany() != null ? entity.getPurchaserCompany().getDisplayName() : null);
         dto.setCfo(entity.getCfo() != null ? entity.getCfo().getName() : null);
         dto.setPurchaseSubject(entity.getPurchaseSubject());
         dto.setBudgetAmount(entity.getBudgetAmount());

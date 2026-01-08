@@ -420,7 +420,7 @@ public class PurchasePlanExcelLoadService {
                 }
             }
             
-            // Компания
+            // Компания заказчик
             if (companyColumnIndex != null) {
                 Cell companyCell = row.getCell(companyColumnIndex);
                 String companyStr = getCellValueAsString(companyCell);
@@ -428,6 +428,10 @@ public class PurchasePlanExcelLoadService {
                     Company company = parseCompany(companyStr.trim());
                     if (company != null) {
                         item.setCompany(company);
+                        // При первой загрузке заполняем purchaserCompany значением из company
+                        if (item.getPurchaserCompany() == null) {
+                            item.setPurchaserCompany(company);
+                        }
                     }
                 }
             }
@@ -1174,8 +1178,19 @@ public class PurchasePlanExcelLoadService {
         
         if (newData.getCompany() != null && !newData.getCompany().equals(existing.getCompany())) {
             existing.setCompany(newData.getCompany());
+            // При обновлении company заполняем purchaserCompany значением из company, если purchaserCompany еще не установлен
+            if (existing.getPurchaserCompany() == null) {
+                existing.setPurchaserCompany(newData.getCompany());
+            }
             updated = true;
             logger.debug("Updated company for purchase plan item {}: {}", existing.getId(), newData.getCompany());
+        }
+        
+        // Обновляем purchaserCompany отдельно, если он указан в новых данных
+        if (newData.getPurchaserCompany() != null && !newData.getPurchaserCompany().equals(existing.getPurchaserCompany())) {
+            existing.setPurchaserCompany(newData.getPurchaserCompany());
+            updated = true;
+            logger.debug("Updated purchaserCompany for purchase plan item {}: {}", existing.getId(), newData.getPurchaserCompany());
         }
         
         if (newData.getCfo() != null) {

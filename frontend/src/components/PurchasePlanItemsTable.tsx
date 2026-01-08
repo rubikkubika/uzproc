@@ -11,7 +11,8 @@ interface PurchasePlanItem {
   id: number;
   guid: string;
   year: number | null;
-  company: string | null;
+  company: string | null; // Компания заказчик
+  purchaserCompany: string | null; // Компания закупщик
   cfo: string | null;
   purchaseSubject: string | null;
   budgetAmount: number | null;
@@ -89,7 +90,8 @@ const ALL_COLUMNS = [
   { key: 'id', label: 'ID' },
   { key: 'guid', label: 'GUID' },
   { key: 'year', label: 'Год' },
-  { key: 'company', label: 'Компания' },
+  { key: 'company', label: 'Компания заказчик' },
+  { key: 'purchaserCompany', label: 'Компания закупщик' },
   { key: 'cfo', label: 'ЦФО' },
   { key: 'purchaseSubject', label: 'Предмет закупки' },
   { key: 'budgetAmount', label: 'Бюджет (UZS)' },
@@ -117,6 +119,7 @@ const ALL_COLUMNS = [
 const DEFAULT_VISIBLE_COLUMNS = [
   'id',
   'company',
+  'purchaserCompany',
   'purchaseRequestId',
   'cfo',
   'purchaseSubject',
@@ -518,6 +521,8 @@ export default function PurchasePlanItemsTable() {
   const holdingSelectRef = useRef<HTMLSelectElement | null>(null);
   const [editingCompany, setEditingCompany] = useState<number | null>(null);
   const companySelectRef = useRef<HTMLSelectElement | null>(null);
+  const [editingPurchaserCompany, setEditingPurchaserCompany] = useState<number | null>(null);
+  const purchaserCompanySelectRef = useRef<HTMLSelectElement | null>(null);
   const [editingCfo, setEditingCfo] = useState<number | null>(null);
   const [creatingNewCfo, setCreatingNewCfo] = useState<number | null>(null);
   const cfoSelectRef = useRef<HTMLSelectElement | null>(null);
@@ -624,7 +629,7 @@ export default function PurchasePlanItemsTable() {
   const handleRowClick = useCallback((itemId: number, e: React.MouseEvent) => {
     // Не раскрываем, если клик был на интерактивном элементе (input, button, ссылка, область Ганта, select и т.д.)
     const target = e.target as HTMLElement;
-    if (target.closest('input, button, a, [role="button"], [data-gantt-chart], select, [data-editing-status], [data-editing-holding], [data-editing-purchase-subject], [data-editing-purchaser]')) {
+    if (target.closest('input, button, a, [role="button"], [data-gantt-chart], select, [data-editing-status], [data-editing-holding], [data-editing-purchase-subject], [data-editing-purchaser], [data-editing-company], [data-editing-purchaser-company]')) {
       return;
     }
     
@@ -1053,6 +1058,60 @@ export default function PurchasePlanItemsTable() {
     } catch (error) {
       console.error('Error updating holding:', error);
     } finally {
+    }
+  };
+
+  const handlePurchaserCompanyUpdate = async (itemId: number, newPurchaserCompany: string) => {
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/purchaser-company`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ purchaserCompany: newPurchaserCompany || null }),
+      });
+
+      if (response.ok) {
+        const updatedItem = await response.json();
+        
+        // Обновляем только конкретную строку в локальном состоянии
+        setAllItems(prev => {
+          const updated = prev.map(item => 
+            item.id === itemId 
+              ? { ...item, purchaserCompany: updatedItem.purchaserCompany, updatedAt: updatedItem.updatedAt }
+              : item
+          );
+          return updated;
+        });
+        
+        // Обновляем data если оно существует
+        if (data) {
+          setData(prev => ({
+            ...prev,
+            content: prev.content.map(item => 
+              item.id === itemId 
+                ? { ...item, purchaserCompany: updatedItem.purchaserCompany, updatedAt: updatedItem.updatedAt }
+                : item
+            )
+          }));
+        }
+        
+        // Обновляем сводную таблицу (summaryData)
+        setSummaryData(prev => {
+          return prev.map(item => 
+            item.id === itemId 
+              ? { ...item, purchaserCompany: updatedItem.purchaserCompany, updatedAt: updatedItem.updatedAt }
+              : item
+          );
+        });
+      } else {
+        const errorText = await response.text();
+        console.error('Failed to update purchaserCompany:', errorText);
+        alert('Ошибка при обновлении компании закупщика: ' + errorText);
+      }
+    } catch (error) {
+      console.error('Error updating purchaserCompany:', error);
+      alert('Ошибка при обновлении компании закупщика');
     }
   };
 
@@ -4520,7 +4579,10 @@ export default function PurchasePlanItemsTable() {
               <SortableHeader field="id" label="ID" columnKey="id" />
               )}
               {visibleColumns.has('company') && (
-              <SortableHeader field="company" label="Компания" columnKey="company" />
+              <SortableHeader field="company" label="Компания заказчик" columnKey="company" />
+              )}
+              {visibleColumns.has('purchaserCompany') && (
+              <SortableHeader field="purchaserCompany" label="Компания закупщик" columnKey="purchaserCompany" />
               )}
               {visibleColumns.has('purchaseRequestId') && (
               <SortableHeader 
@@ -5354,6 +5416,70 @@ export default function PurchasePlanItemsTable() {
                     >
                       {availableCompanies.map((company) => (
                         <option key={company} value={company}>{company}</option>
+                      ))}
+                    </select>
+                  </td>
+                  )}
+                  {visibleColumns.has('purchaserCompany') && (
+                  <td className={`px-2 py-2 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('purchaserCompany')}px`, minWidth: `${getColumnWidth('purchaserCompany')}px`, maxWidth: `${getColumnWidth('purchaserCompany')}px` }}>
+                    <select
+                      ref={editingPurchaserCompany === item.id ? purchaserCompanySelectRef : null}
+                      data-editing-purchaser-company={item.id}
+                      value={item.purchaserCompany || ''}
+                      disabled={isInactive || isViewingArchiveVersion || !canEdit}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        if (canEdit && e.target.value !== item.purchaserCompany) {
+                          handlePurchaserCompanyUpdate(item.id, e.target.value);
+                        }
+                      }}
+                      onFocus={(e) => {
+                        e.stopPropagation();
+                        if (canEdit) {
+                          setEditingPurchaserCompany(item.id);
+                        }
+                      }}
+                      onBlur={() => {
+                        setTimeout(() => {
+                          setEditingPurchaserCompany(null);
+                        }, 200);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          setEditingPurchaserCompany(null);
+                        }
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (canEdit) {
+                          setEditingPurchaserCompany(item.id);
+                        }
+                      }}
+                      className={`text-xs rounded px-2 py-0.5 font-medium cursor-pointer transition-all w-full ${
+                        isInactive
+                          ? 'bg-gray-100 text-gray-500 border-0 cursor-not-allowed'
+                          : editingPurchaserCompany === item.id
+                          ? 'border border-blue-500 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500'
+                          : 'bg-gray-100 text-gray-800 border-0'
+                      }`}
+                      style={{
+                        ...(isInactive || editingPurchaserCompany === item.id ? {} : {
+                          appearance: 'none',
+                          WebkitAppearance: 'none',
+                          MozAppearance: 'none',
+                          paddingRight: '20px',
+                          backgroundImage: item.purchaserCompany ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 9L1 4h10z'/%3E%3C/svg%3E")` : 'none',
+                          backgroundRepeat: 'no-repeat',
+                          backgroundPosition: 'right 4px center',
+                          backgroundSize: '12px',
+                        }),
+                      }}
+                    >
+                      <option value="">Не выбрано</option>
+                      {availableCompanies.map((company) => (
+                        <option key={company} value={company}>
+                          {company}
+                        </option>
                       ))}
                     </select>
                   </td>

@@ -256,6 +256,42 @@ public class PurchasePlanItemController {
         }
     }
 
+    @PatchMapping("/{id}/purchaser-company")
+    public ResponseEntity<?> updatePurchasePlanItemPurchaserCompany(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> requestBody) {
+        try {
+            String purchaserCompanyStr = requestBody.get("purchaserCompany");
+            // purchaserCompany может быть null или пустой строкой
+            
+            com.uzproc.backend.entity.Company purchaserCompany = null;
+            if (purchaserCompanyStr != null && !purchaserCompanyStr.trim().isEmpty()) {
+                // Пробуем найти по displayName
+                purchaserCompany = null;
+                for (com.uzproc.backend.entity.Company c : com.uzproc.backend.entity.Company.values()) {
+                    if (c.getDisplayName().equalsIgnoreCase(purchaserCompanyStr.trim())) {
+                        purchaserCompany = c;
+                        break;
+                    }
+                }
+                // Если не найдено по displayName, пробуем по имени enum
+                if (purchaserCompany == null) {
+                    purchaserCompany = com.uzproc.backend.entity.Company.valueOf(purchaserCompanyStr.toUpperCase().replace(" ", "_"));
+                }
+            }
+            
+            PurchasePlanItemDto updatedItem = purchasePlanItemService.updatePurchaserCompany(id, purchaserCompany);
+            if (updatedItem != null) {
+                return ResponseEntity.ok(updatedItem);
+            }
+            return ResponseEntity.notFound().build();
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body("Invalid purchaserCompany: " + requestBody.get("purchaserCompany"));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Ошибка сервера: " + e.getMessage());
+        }
+    }
+
     @PatchMapping("/{id}/purchase-request-id")
     public ResponseEntity<?> updatePurchasePlanItemPurchaseRequestId(
             @PathVariable Long id,
