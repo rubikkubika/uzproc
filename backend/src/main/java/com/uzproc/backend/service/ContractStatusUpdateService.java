@@ -39,6 +39,11 @@ public class ContractStatusUpdateService {
      * - "Принятие на хранение: Зарегистрирован"
      * то статус устанавливается в "Подписан"
      * 
+     * Если state содержит:
+     * - "Согласование договора - Этап 1: На согласовании"
+     * - "Синхронизация: Исполнен" (когда нет согласования)
+     * то статус устанавливается в "На согласовании"
+     * 
      * @param contractId ID договора
      */
     @Transactional
@@ -78,6 +83,15 @@ public class ContractStatusUpdateService {
                      stateTrimmed.contains("Принятие на хранение: Зарегистрирован")) {
                 newStatus = ContractStatus.SIGNED;
                 logger.debug("Contract {} state matches signed condition (contains): {}", contractId, stateTrimmed);
+            }
+            // Проверяем условия для статуса "На согласовании"
+            // Приоритет: сначала проверяем "На согласовании", потом "Не согласован"
+            else if (stateTrimmed.contains("Согласование договора - Этап 1: На согласовании") ||
+                     (stateTrimmed.contains("Синхронизация: Исполнен") && 
+                      !stateTrimmed.contains("Согласование договора - Этап 1: Согласован") &&
+                      !stateTrimmed.contains("Согласование - Этап 1: Согласован"))) {
+                newStatus = ContractStatus.ON_COORDINATION;
+                logger.debug("Contract {} state matches on coordination condition: {}", contractId, stateTrimmed);
             }
             // Проверяем условия для статуса "Не согласован"
             else if (stateTrimmed.contains("Не согласован") || stateTrimmed.contains("не согласован")) {

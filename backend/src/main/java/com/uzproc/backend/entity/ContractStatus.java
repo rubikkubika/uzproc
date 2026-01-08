@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum ContractStatus {
     PROJECT("Проект"),
+    ON_COORDINATION("На согласовании"),
     SIGNED("Подписан"),
     NOT_COORDINATED("Не согласован");
 
