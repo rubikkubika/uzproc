@@ -25,7 +25,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -249,6 +251,27 @@ public class PurchaseRequestService {
         dto.setExcludeFromInWork(entity.getExcludeFromInWork());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
+        
+        // Срок с даты создания: количество рабочих дней между датой создания заявки и сегодня (для всех заявок)
+        LocalDate creationDate = null;
+        if (entity.getPurchaseRequestCreationDate() != null) {
+            creationDate = entity.getPurchaseRequestCreationDate().toLocalDate();
+        } else if (entity.getCreatedAt() != null) {
+            creationDate = entity.getCreatedAt().toLocalDate();
+        }
+        if (creationDate != null) {
+            long daysSinceCreation = calculateWorkingDays(creationDate, LocalDate.now());
+            dto.setDaysSinceCreation(daysSinceCreation);
+        }
+        
+        // Рассчитываем рабочие дни в статусе только для закупок (requiresPurchase !== false)
+        if (entity.getRequiresPurchase() != null && entity.getRequiresPurchase() != false) {
+            // Срок в статусе: количество рабочих дней между датой обновления статуса и сегодня
+            if (entity.getUpdatedAt() != null) {
+                long daysInStatus = calculateWorkingDays(entity.getUpdatedAt().toLocalDate(), LocalDate.now());
+                dto.setDaysInStatus(daysInStatus);
+            }
+        }
         
         // Загружаем связанные закупки по idPurchaseRequest
         if (entity.getIdPurchaseRequest() != null) {
@@ -1193,6 +1216,33 @@ public class PurchaseRequestService {
         long totalDays = 0;
         long requestsWithDays = 0;
         BigDecimal totalAmount = BigDecimal.ZERO;
+    }
+    
+    /**
+     * Подсчитывает количество рабочих дней между двумя датами (исключая выходные - суббота и воскресенье)
+     * 
+     * @param startDate начальная дата
+     * @param endDate конечная дата
+     * @return количество рабочих дней
+     */
+    private long calculateWorkingDays(LocalDate startDate, LocalDate endDate) {
+        if (startDate == null || endDate == null || startDate.isAfter(endDate)) {
+            return 0;
+        }
+        
+        long workingDays = 0;
+        LocalDate currentDate = startDate;
+        
+        while (!currentDate.isAfter(endDate)) {
+            DayOfWeek dayOfWeek = currentDate.getDayOfWeek();
+            // Считаем только рабочие дни (понедельник - пятница)
+            if (dayOfWeek != DayOfWeek.SATURDAY && dayOfWeek != DayOfWeek.SUNDAY) {
+                workingDays++;
+            }
+            currentDate = currentDate.plusDays(1);
+        }
+        
+        return workingDays;
     }
 }
 

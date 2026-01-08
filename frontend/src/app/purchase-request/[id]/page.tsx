@@ -2248,92 +2248,12 @@ export default function PurchaseRequestDetailPage() {
                         </div>
                       </div>
                     ) : (purchaseRequest.requiresPurchase === true || purchaseRequest.requiresPurchase === null) && purchaseRequest.contracts && purchaseRequest.contracts.length > 0 ? (
-                      // Для закупок показываем договоры (если договор является спецификацией, показываем основной договор)
+                      // Для закупок показываем договоры (всегда показываем сам договор, не основной)
                       <div className="space-y-3">
                         {purchaseRequest.contracts.map((contract) => (
                           <div key={contract.id} className="border border-gray-200 rounded p-2">
-                            {contract.parentContract ? (
-                              // Если договор является спецификацией, показываем основной договор
-                              <>
-                                <div className="mb-2">
-                                  <label className="block text-xs font-semibold text-gray-600 mb-1">
-                                    Основной договор
-                                  </label>
-                                </div>
-                                <div className="bg-white rounded-lg shadow-md p-2">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
-                                  <div>
-                                    <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                      Внутренний ID
-                                    </label>
-                                    <p className="text-xs text-gray-900">
-                                      {contract.parentContract.innerId || '-'}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                      Наименование
-                                    </label>
-                                    <p className="text-xs text-gray-900">
-                                      {contract.parentContract.name || '-'}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                      Заголовок
-                                    </label>
-                                    <p className="text-xs text-gray-900">
-                                      {contract.parentContract.title || '-'}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                      Статус
-                                    </label>
-                                    <p className="text-xs text-gray-900">
-                                      {contract.parentContract?.status ? (
-                                        <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${
-                                          (contract.parentContract.status === 'Подписан' || contract.parentContract.status === 'SIGNED') 
-                                            ? 'bg-green-100 text-green-800' 
-                                            : (contract.parentContract.status === 'Проект' || contract.parentContract.status === 'PROJECT')
-                                            ? 'bg-gray-100 text-gray-800'
-                                            : 'bg-blue-100 text-blue-800'
-                                        }`}>
-                                          {contract.parentContract.status}
-                                        </span>
-                                      ) : '-'}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                      ЦФО
-                                    </label>
-                                    <p className="text-xs text-gray-900">
-                                      {contract.parentContract.cfo || '-'}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                      Дата создания
-                                    </label>
-                                    <p className="text-xs text-gray-900">
-                                      {contract.parentContract.contractCreationDate ? new Date(contract.parentContract.contractCreationDate).toLocaleDateString('ru-RU') : '-'}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                      Сумма договора
-                                    </label>
-                                    <p className="text-xs text-gray-900">
-                                      {contract.parentContract.budgetAmount ? new Intl.NumberFormat('ru-RU', { style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(contract.parentContract.budgetAmount) : '-'}
-                                    </p>
-                                  </div>
-                                </div>
-                                </div>
-                              </>
-                            ) : (
-                              // Если договор не является спецификацией, показываем сам договор
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                            {/* Для закупок всегда показываем сам договор */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
                                 <div>
                                   <label className="block text-xs font-semibold text-gray-600 mb-0">
                                     Внутренний ID
@@ -2406,7 +2326,6 @@ export default function PurchaseRequestDetailPage() {
                                   </p>
                                 </div>
                               </div>
-                            )}
                           </div>
                         ))}
                       </div>

@@ -381,7 +381,8 @@ public class PurchaseRequestStatusUpdateService {
         } else if (hasArchivedSpecification) {
             // Для заказов (requiresPurchase === false) с проектной спецификацией старше 60 рабочих дней
             newStatus = PurchaseRequestStatus.SPECIFICATION_CREATED_ARCHIVE;
-        } else if (hasSpecification) {
+        } else if (hasSpecification && purchaseRequest.getRequiresPurchase() != null && purchaseRequest.getRequiresPurchase() == false) {
+            // Статус "Спецификация создана" только для заказов (requiresPurchase === false)
             newStatus = PurchaseRequestStatus.SPECIFICATION_CREATED;
         } else if (hasNotCoordinatedPurchase) {
             // Если связанная закупка имеет статус "Не согласовано", устанавливаем статус "Закупка не согласована"

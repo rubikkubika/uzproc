@@ -34,6 +34,10 @@ public class PurchaseRequestDto {
     private Boolean excludeFromInWork;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    // Количество рабочих дней в текущем статусе (только для закупок)
+    private Long daysInStatus;
+    // Количество рабочих дней с даты создания (только для закупок)
+    private Long daysSinceCreation;
     // Список ID связанных закупок
     private java.util.List<Long> purchaseIds;
     // Список связанных договоров
@@ -258,6 +262,22 @@ public class PurchaseRequestDto {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Long getDaysInStatus() {
+        return daysInStatus;
+    }
+
+    public void setDaysInStatus(Long daysInStatus) {
+        this.daysInStatus = daysInStatus;
+    }
+
+    public Long getDaysSinceCreation() {
+        return daysSinceCreation;
+    }
+
+    public void setDaysSinceCreation(Long daysSinceCreation) {
+        this.daysSinceCreation = daysSinceCreation;
     }
 
     public java.util.List<Long> getPurchaseIds() {

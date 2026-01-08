@@ -28,6 +28,8 @@ interface PurchaseRequest {
   requiresPurchase: boolean | null;
   status: string | null;
   excludeFromInWork: boolean | null;
+  daysInStatus: number | null;
+  daysSinceCreation: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -322,7 +324,7 @@ export default function PurchaseRequestsTable() {
   const resizeColumn = useRef<string | null>(null);
 
   // Состояние для порядка колонок
-  const [columnOrder, setColumnOrder] = useState<string[]>(['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'track']);
+  const [columnOrder, setColumnOrder] = useState<string[]>(['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'daysInStatus', 'daysSinceCreation', 'track']);
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
 
@@ -330,16 +332,50 @@ export default function PurchaseRequestsTable() {
   useEffect(() => {
     try {
       const saved = localStorage.getItem('purchaseRequestsTableColumnOrder');
+      const defaultOrder = ['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'daysInStatus', 'daysSinceCreation', 'track'];
+      
       if (saved) {
         const order = JSON.parse(saved);
         // Проверяем, что все колонки присутствуют
-        const defaultOrder = ['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'track'];
         const validOrder = order.filter((col: string) => defaultOrder.includes(col));
         const missingCols = defaultOrder.filter(col => !validOrder.includes(col));
-        setColumnOrder([...validOrder, ...missingCols]);
+        
+        // Убеждаемся, что daysInStatus и daysSinceCreation идут перед track
+        let finalOrder = [...validOrder, ...missingCols];
+        const trackIndex = finalOrder.indexOf('track');
+        const daysInStatusIndex = finalOrder.indexOf('daysInStatus');
+        const daysSinceCreationIndex = finalOrder.indexOf('daysSinceCreation');
+        
+        // Если track найден, а колонки сроков не перед ним, перемещаем их
+        if (trackIndex !== -1 && (daysInStatusIndex === -1 || daysSinceCreationIndex === -1 || daysInStatusIndex >= trackIndex || daysSinceCreationIndex >= trackIndex)) {
+          // Удаляем колонки сроков из текущей позиции
+          finalOrder = finalOrder.filter(col => col !== 'daysInStatus' && col !== 'daysSinceCreation');
+          // Вставляем их перед track
+          const newTrackIndex = finalOrder.indexOf('track');
+          if (newTrackIndex !== -1) {
+            finalOrder.splice(newTrackIndex, 0, 'daysInStatus', 'daysSinceCreation');
+          } else {
+            // Если track не найден, добавляем в конец
+            finalOrder.push('daysInStatus', 'daysSinceCreation');
+          }
+        }
+        
+        setColumnOrder(finalOrder);
+        // Сохраняем исправленный порядок
+        try {
+          localStorage.setItem('purchaseRequestsTableColumnOrder', JSON.stringify(finalOrder));
+        } catch (saveErr) {
+          console.error('Error saving column order:', saveErr);
+        }
+      } else {
+        // Если нет сохраненного порядка, используем дефолтный
+        setColumnOrder(defaultOrder);
       }
     } catch (err) {
       console.error('Error loading column order:', err);
+      // В случае ошибки используем дефолтный порядок
+      const defaultOrder = ['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'daysInStatus', 'daysSinceCreation', 'track'];
+      setColumnOrder(defaultOrder);
     }
   }, []);
 
@@ -823,6 +859,8 @@ export default function PurchaseRequestsTable() {
       costType: 120,
       contractType: 120,
       contractDurationMonths: 120,
+      daysInStatus: 120,
+      daysSinceCreation: 140, // Срок с даты создания - немного шире для переноса текста
     };
     return defaults[columnKey] || 120;
   };
@@ -2593,6 +2631,60 @@ export default function PurchaseRequestsTable() {
                   );
                 }
                 
+                if (columnKey === 'daysInStatus') {
+                  // Показываем только для закупок на вкладке "в работе"
+                  if (activeTab !== 'in-work') {
+                    return null;
+                  }
+                  return (
+                    <th
+                      key={columnKey}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, columnKey)}
+                      onDragOver={(e) => handleDragOver(e, columnKey)}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(e) => handleDrop(e, columnKey)}
+                      className={`px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                      style={{ verticalAlign: 'top' }}
+                    >
+                      <div className="flex flex-col gap-1">
+                        <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}></div>
+                        <span className="normal-case min-h-[20px] flex items-center">Срок в статусе</span>
+                      </div>
+                    </th>
+                  );
+                }
+                
+                if (columnKey === 'daysSinceCreation') {
+                  return (
+                    <th
+                      key={columnKey}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, columnKey)}
+                      onDragOver={(e) => handleDragOver(e, columnKey)}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(e) => handleDrop(e, columnKey)}
+                      className={`px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 cursor-move relative ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                      style={{ 
+                        verticalAlign: 'top',
+                        width: `${getColumnWidth(columnKey)}px`,
+                        minWidth: `${getColumnWidth(columnKey)}px`,
+                        maxWidth: `${getColumnWidth(columnKey)}px`
+                      }}
+                    >
+                      <div className="flex flex-col gap-1">
+                        <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}></div>
+                        <span className="normal-case min-h-[20px] flex items-center break-words" style={{ wordBreak: 'break-word', lineHeight: '1.2' }}>Срок с даты создания</span>
+                      </div>
+                      <div
+                        className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+                        onMouseDown={(e) => handleResizeStart(e, columnKey)}
+                        style={{ zIndex: 10 }}
+                      />
+                    </th>
+                  );
+                }
+                
                 if (columnKey === 'track') {
                   return (
                     <th
@@ -2845,6 +2937,41 @@ export default function PurchaseRequestsTable() {
                               -
                             </span>
                           )}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'daysInStatus') {
+                      // Показываем только для закупок на вкладке "в работе"
+                      if (activeTab !== 'in-work') {
+                        return null;
+                      }
+                      return (
+                        <td 
+                          key={columnKey} 
+                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center"
+                        >
+                          {request.requiresPurchase !== false && request.daysInStatus !== null && request.daysInStatus !== undefined ? (
+                            <span>{request.daysInStatus}</span>
+                          ) : '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'daysSinceCreation') {
+                      return (
+                        <td 
+                          key={columnKey} 
+                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center"
+                          style={{ 
+                            width: `${getColumnWidth(columnKey)}px`,
+                            minWidth: `${getColumnWidth(columnKey)}px`,
+                            maxWidth: `${getColumnWidth(columnKey)}px`
+                          }}
+                        >
+                          {request.daysSinceCreation !== null && request.daysSinceCreation !== undefined ? (
+                            <span>{request.daysSinceCreation}</span>
+                          ) : '-'}
                         </td>
                       );
                     }
