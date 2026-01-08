@@ -90,8 +90,8 @@ const ALL_COLUMNS = [
   { key: 'id', label: 'ID' },
   { key: 'guid', label: 'GUID' },
   { key: 'year', label: 'Год' },
-  { key: 'company', label: 'Компания заказчик' },
-  { key: 'purchaserCompany', label: 'Компания закупщик' },
+  { key: 'company', label: 'Заказчик' },
+  { key: 'purchaserCompany', label: 'Исполнитель' },
   { key: 'cfo', label: 'ЦФО' },
   { key: 'purchaseSubject', label: 'Предмет закупки' },
   { key: 'budgetAmount', label: 'Бюджет (UZS)' },
@@ -129,6 +129,24 @@ const DEFAULT_VISIBLE_COLUMNS = [
   'newContractDate',
   'status',
 ];
+
+// Функция для получения пути к логотипу компании
+const getCompanyLogoPath = (companyName: string | null): string | null => {
+  if (!companyName) return null;
+  
+  const logoMap: Record<string, string> = {
+    'Uzum Market': '/images/company logo/market.png',
+    'Uzum Technologies': '/images/company logo/technologies.svg',
+    'Uzum Tezkor': '/images/company logo/tezkor.png',
+    // Дополнительные компании на случай расширения enum
+    'Uzum Bank': '/images/company logo/bank.png',
+    'Uzum Business': '/images/company logo/business.png',
+    'Uzum Avto': '/images/company logo/avto.png',
+    'Uzum Nasiya': '/images/company logo/nasiya.png',
+  };
+  
+  return logoMap[companyName] || null;
+};
 
 export default function PurchasePlanItemsTable() {
   const printRef = useRef<HTMLDivElement>(null);
@@ -4579,10 +4597,10 @@ export default function PurchasePlanItemsTable() {
               <SortableHeader field="id" label="ID" columnKey="id" />
               )}
               {visibleColumns.has('company') && (
-              <SortableHeader field="company" label="Компания заказчик" columnKey="company" />
+              <SortableHeader field="company" label="Заказчик" columnKey="company" />
               )}
               {visibleColumns.has('purchaserCompany') && (
-              <SortableHeader field="purchaserCompany" label="Компания закупщик" columnKey="purchaserCompany" />
+              <SortableHeader field="purchaserCompany" label="Исполнитель" columnKey="purchaserCompany" />
               )}
               {visibleColumns.has('purchaseRequestId') && (
               <SortableHeader 
@@ -5361,8 +5379,9 @@ export default function PurchasePlanItemsTable() {
                   )}
                         {visibleColumns.has('company') && (
                   <td className={`px-2 py-2 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px` }}>
-                    <select
-                      ref={editingCompany === item.id ? companySelectRef : null}
+                    {editingCompany === item.id ? (
+                      <select
+                        ref={editingCompany === item.id ? companySelectRef : null}
                       data-editing-company={item.id}
                       value={item.company || ''}
                       disabled={isInactive || isViewingArchiveVersion || !canEdit}
@@ -5397,91 +5416,128 @@ export default function PurchasePlanItemsTable() {
                       className={`text-xs rounded px-2 py-0.5 font-medium cursor-pointer transition-all w-full ${
                         isInactive
                           ? 'bg-gray-100 text-gray-500 border-0 cursor-not-allowed'
-                          : editingCompany === item.id
-                          ? 'border border-blue-500 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500'
-                          : 'bg-gray-100 text-gray-800 border-0'
+                          : 'border border-blue-500 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500'
                       }`}
-                      style={{
-                        ...(isInactive || editingCompany === item.id ? {} : {
-                          appearance: 'none',
-                          WebkitAppearance: 'none',
-                          MozAppearance: 'none',
-                          paddingRight: '20px',
-                          backgroundImage: item.company ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 9L1 4h10z'/%3E%3C/svg%3E")` : 'none',
-                          backgroundRepeat: 'no-repeat',
-                          backgroundPosition: 'right 4px center',
-                          backgroundSize: '12px',
-                        })
-                      }}
                     >
                       {availableCompanies.map((company) => (
                         <option key={company} value={company}>{company}</option>
                       ))}
                     </select>
+                    ) : (
+                      <div 
+                        className={`flex items-center gap-1.5 ${isInactive || !canEdit ? '' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors'}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!isInactive && !isViewingArchiveVersion && canEdit) {
+                            setEditingCompany(item.id);
+                          }
+                        }}
+                        title={isInactive || !canEdit ? '' : 'Нажмите для редактирования'}
+                      >
+                        {getCompanyLogoPath(item.company) && (
+                          <img 
+                            src={getCompanyLogoPath(item.company)!} 
+                            alt={item.company || ''} 
+                            className="object-contain flex-shrink-0"
+                            style={{ width: '22.4px', height: '22.4px' }}
+                            onError={(e) => {
+                              // Скрываем изображение, если оно не загрузилось
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        )}
+                        <span className={`text-xs rounded px-2 py-0.5 font-medium ${
+                          isInactive
+                            ? 'bg-gray-100 text-gray-500'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {item.company || '-'}
+                        </span>
+                      </div>
+                    )}
                   </td>
                   )}
                   {visibleColumns.has('purchaserCompany') && (
                   <td className={`px-2 py-2 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('purchaserCompany')}px`, minWidth: `${getColumnWidth('purchaserCompany')}px`, maxWidth: `${getColumnWidth('purchaserCompany')}px` }}>
-                    <select
-                      ref={editingPurchaserCompany === item.id ? purchaserCompanySelectRef : null}
-                      data-editing-purchaser-company={item.id}
-                      value={item.purchaserCompany || ''}
-                      disabled={isInactive || isViewingArchiveVersion || !canEdit}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        if (canEdit && e.target.value !== item.purchaserCompany) {
-                          handlePurchaserCompanyUpdate(item.id, e.target.value);
-                        }
-                      }}
-                      onFocus={(e) => {
-                        e.stopPropagation();
-                        if (canEdit) {
-                          setEditingPurchaserCompany(item.id);
-                        }
-                      }}
-                      onBlur={() => {
-                        setTimeout(() => {
-                          setEditingPurchaserCompany(null);
-                        }, 200);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') {
-                          setEditingPurchaserCompany(null);
-                        }
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (canEdit) {
-                          setEditingPurchaserCompany(item.id);
-                        }
-                      }}
-                      className={`text-xs rounded px-2 py-0.5 font-medium cursor-pointer transition-all w-full ${
-                        isInactive
-                          ? 'bg-gray-100 text-gray-500 border-0 cursor-not-allowed'
-                          : editingPurchaserCompany === item.id
-                          ? 'border border-blue-500 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500'
-                          : 'bg-gray-100 text-gray-800 border-0'
-                      }`}
-                      style={{
-                        ...(isInactive || editingPurchaserCompany === item.id ? {} : {
-                          appearance: 'none',
-                          WebkitAppearance: 'none',
-                          MozAppearance: 'none',
-                          paddingRight: '20px',
-                          backgroundImage: item.purchaserCompany ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 9L1 4h10z'/%3E%3C/svg%3E")` : 'none',
-                          backgroundRepeat: 'no-repeat',
-                          backgroundPosition: 'right 4px center',
-                          backgroundSize: '12px',
-                        }),
-                      }}
-                    >
-                      <option value="">Не выбрано</option>
-                      {availableCompanies.map((company) => (
-                        <option key={company} value={company}>
-                          {company}
-                        </option>
-                      ))}
-                    </select>
+                    {editingPurchaserCompany === item.id ? (
+                      <select
+                        ref={editingPurchaserCompany === item.id ? purchaserCompanySelectRef : null}
+                        data-editing-purchaser-company={item.id}
+                        value={item.purchaserCompany || ''}
+                        disabled={isInactive || isViewingArchiveVersion || !canEdit}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          if (canEdit && e.target.value !== item.purchaserCompany) {
+                            handlePurchaserCompanyUpdate(item.id, e.target.value);
+                          }
+                        }}
+                        onFocus={(e) => {
+                          e.stopPropagation();
+                          if (canEdit) {
+                            setEditingPurchaserCompany(item.id);
+                          }
+                        }}
+                        onBlur={() => {
+                          setTimeout(() => {
+                            setEditingPurchaserCompany(null);
+                          }, 200);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') {
+                            setEditingPurchaserCompany(null);
+                          }
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (canEdit) {
+                            setEditingPurchaserCompany(item.id);
+                          }
+                        }}
+                        className={`text-xs rounded px-2 py-0.5 font-medium cursor-pointer transition-all w-full ${
+                          isInactive
+                            ? 'bg-gray-100 text-gray-500 border-0 cursor-not-allowed'
+                            : 'border border-blue-500 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500'
+                        }`}
+                      >
+                        <option value="">Не выбрано</option>
+                        {availableCompanies.map((company) => (
+                          <option key={company} value={company}>
+                            {company}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div 
+                        className={`flex items-center gap-1.5 ${isInactive || !canEdit ? '' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors'}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!isInactive && !isViewingArchiveVersion && canEdit) {
+                            setEditingPurchaserCompany(item.id);
+                          }
+                        }}
+                        title={isInactive || !canEdit ? '' : 'Нажмите для редактирования'}
+                      >
+                        {getCompanyLogoPath(item.purchaserCompany) && (
+                          <img 
+                            src={getCompanyLogoPath(item.purchaserCompany)!} 
+                            alt={item.purchaserCompany || ''} 
+                            className="object-contain flex-shrink-0"
+                            style={{ width: '22.4px', height: '22.4px' }}
+                            onError={(e) => {
+                              // Скрываем изображение, если оно не загрузилось
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        )}
+                        <span className={`text-xs rounded px-2 py-0.5 font-medium ${
+                          isInactive
+                            ? 'bg-gray-100 text-gray-500'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {item.purchaserCompany || '-'}
+                        </span>
+                      </div>
+                    )}
                   </td>
                   )}
                   {visibleColumns.has('purchaseRequestId') && (
