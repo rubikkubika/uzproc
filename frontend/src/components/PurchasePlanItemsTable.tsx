@@ -3999,7 +3999,7 @@ export default function PurchasePlanItemsTable() {
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-1">
               <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-700 font-medium">Компания:</span>
+                  <span className="text-sm text-gray-700 font-medium">Заказчик:</span>
                   <div className="relative company-filter-container">
                 <button
                     ref={companyFilterButtonRef}
