@@ -1104,14 +1104,17 @@ export default function PurchasePlanItemsTable() {
         
         // Обновляем data если оно существует
         if (data) {
-          setData(prev => ({
-            ...prev,
-            content: prev.content.map(item => 
-              item.id === itemId 
-                ? { ...item, purchaserCompany: updatedItem.purchaserCompany, updatedAt: updatedItem.updatedAt }
-                : item
-            )
-          }));
+          setData(prev => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              content: prev.content.map(item => 
+                item.id === itemId 
+                  ? { ...item, purchaserCompany: updatedItem.purchaserCompany, updatedAt: updatedItem.updatedAt }
+                  : item
+              )
+            };
+          });
         }
         
         // Обновляем сводную таблицу (summaryData)
@@ -1522,14 +1525,17 @@ export default function PurchasePlanItemsTable() {
         
         // Обновляем data если оно существует
         if (data) {
-          setData(prev => ({
-            ...prev,
-            content: prev.content.map(item => 
-              item.id === itemId 
-                ? { ...item, purchaser: updatedItem.purchaser, updatedAt: updatedItem.updatedAt }
-                : item
-            )
-          }));
+          setData(prev => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              content: prev.content.map(item => 
+                item.id === itemId 
+                  ? { ...item, purchaser: updatedItem.purchaser, updatedAt: updatedItem.updatedAt }
+                  : item
+              )
+            };
+          });
         }
         
         // Обновляем сводную таблицу (summaryData)
