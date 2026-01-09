@@ -3,8 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
-import { getBackendUrl } from '@/utils/api';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface PurchasePlanItem {
   id: number;
@@ -31,9 +30,7 @@ interface PageResponse {
 
 export default function DeliveryPlanPage() {
   const router = useRouter();
-  const [data, setData] = useState<PageResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [data] = useState<PageResponse | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -47,10 +44,6 @@ export default function DeliveryPlanPage() {
     if (saved === 'true') {
       setIsSidebarCollapsed(true);
     }
-  }, []);
-
-  useEffect(() => {
-    fetchData();
   }, []);
 
   // Вычисляем даты для календаря
@@ -162,28 +155,6 @@ export default function DeliveryPlanPage() {
     return date.getMonth() === currentDate.getMonth() && date.getFullYear() === currentDate.getFullYear();
   };
 
-  const fetchData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // Загружаем все данные для календаря (большой размер)
-      const params = new URLSearchParams({
-        page: '0',
-        size: '10000', // Загружаем много данных для календаря
-      });
-      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`);
-      if (!response.ok) {
-        throw new Error('Ошибка загрузки данных');
-      }
-      const result = await response.json();
-      setData(result);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка загрузки данных');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   if (!isMounted) {
     return null;
   }
@@ -202,18 +173,7 @@ export default function DeliveryPlanPage() {
         <div className="flex-1 flex flex-col overflow-hidden p-4">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">План поставок</h1>
           
-          {loading && (
-            <div className="text-center py-8 text-gray-500">Загрузка...</div>
-          )}
-          
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-800 mb-4">
-              {error}
-            </div>
-          )}
-          
-          {!loading && !error && (
-            <div className="bg-white rounded-lg shadow-lg overflow-hidden flex-1 flex flex-col">
+          <div className="bg-white rounded-lg shadow-lg overflow-hidden flex-1 flex flex-col">
               {/* Заголовок календаря с навигацией */}
               <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -384,7 +344,6 @@ export default function DeliveryPlanPage() {
                 )}
               </div>
             </div>
-          )}
         </div>
       </div>
     </div>

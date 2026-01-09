@@ -208,9 +208,9 @@ export default function PurchaseRequestsTable() {
   const getStatusesForTab = (tab: TabType): string[] => {
     switch (tab) {
       case 'in-work':
-        return ['Заявка на согласовании', 'На согласовании', 'Заявка на утверждении', 'На утверждении', 'Спецификация создана', 'Закупка создана', 'Заявка утверждена', 'Утверждена'];
+        return ['Заявка на согласовании', 'На согласовании', 'Заявка на утверждении', 'На утверждении', 'Спецификация создана', 'Закупка создана', 'Договор создан', 'Заявка утверждена', 'Утверждена'];
       case 'completed':
-        return ['Спецификация подписана', 'Договор создан', 'Договор подписан', 'Закупка завершена'];
+        return ['Спецификация подписана', 'Договор подписан', 'Закупка завершена'];
       case 'project-rejected':
         return ['Проект', 'Заявка не согласована', 'Заявка не утверждена', 'Закупка не согласована', 'Спецификация создана - Архив'];
       case 'all':
@@ -411,6 +411,27 @@ export default function PurchaseRequestsTable() {
       fetchTabCountsRef.current();
     }
   }, [selectedYear, filters, cfoFilter, purchaserFilter, localFilters]);
+
+  // Автоматическое переключение на вкладку с записями, если текущая вкладка пуста
+  useEffect(() => {
+    // Проверяем, что количество записей загружено для всех вкладок
+    const allCountsLoaded = Object.values(tabCounts).every(count => count !== null);
+    
+    if (allCountsLoaded) {
+      // Если активная вкладка имеет 0 записей, переключаемся на первую вкладку с записями
+      if (tabCounts[activeTab] === 0) {
+        // Приоритет переключения: in-work -> completed -> all -> project-rejected
+        const tabsOrder: TabType[] = ['in-work', 'completed', 'all', 'project-rejected'];
+        const tabWithRecords = tabsOrder.find(tab => tabCounts[tab] !== null && tabCounts[tab]! > 0);
+        
+        if (tabWithRecords) {
+          setActiveTab(tabWithRecords);
+          setStatusFilter(new Set());
+          setCurrentPage(0);
+        }
+      }
+    }
+  }, [tabCounts, activeTab]);
 
   // Состояние для ширин колонок
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
@@ -1203,10 +1224,24 @@ export default function PurchaseRequestsTable() {
     }
   };
 
-  // Debounce для текстовых фильтров и фильтра бюджета
+  // Debounce для текстовых фильтров и фильтра бюджета (как в PurchasePlanItemsTable)
   useEffect(() => {
     // Проверяем, изменились ли текстовые фильтры
-    const textFields = ['idPurchaseRequest', 'name', 'contractDurationMonths'];
+    const textFields = [
+      'idPurchaseRequest', 
+      'name', 
+      'contractDurationMonths',
+      'guid',
+      'purchaseRequestPlanYear',
+      'company',
+      'mcc',
+      'purchaseRequestInitiator',
+      'purchaseRequestCreationDate',
+      'createdAt',
+      'updatedAt',
+      'title',
+      'innerId'
+    ];
     const hasTextChanges = textFields.some(field => localFilters[field] !== filters[field]);
     // Для бюджета проверяем изменение значения
     const hasBudgetValueChange = localFilters.budgetAmount !== filters.budgetAmount;
@@ -1240,7 +1275,7 @@ export default function PurchaseRequestsTable() {
 
       return () => clearTimeout(timer);
     }
-  }, [localFilters, filters]);
+  }, [localFilters]);
 
   // Убрали useEffect, который устанавливал DEFAULT_STATUSES - теперь фильтр по умолчанию пустой
 
@@ -1285,41 +1320,43 @@ export default function PurchaseRequestsTable() {
   }, [yearRestored, selectedYear]); // Зависимость от yearRestored и selectedYear
 
   // Восстановление фокуса после обновления localFilters
-  useEffect(() => {
-    if (focusedField) {
-      const input = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
-      if (input) {
-        // Сохраняем позицию курсора (только для текстовых полей)
-        const cursorPosition = input.type === 'number' ? null : (input.selectionStart || 0);
-        const currentValue = input.value;
-        
-        // Восстанавливаем фокус в следующем тике, чтобы не мешать текущему вводу
-        requestAnimationFrame(() => {
-          const inputAfterRender = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
-          if (inputAfterRender) {
-            // Для фильтра бюджета проверяем, что неотформатированное значение совпадает
-            if (focusedField === 'budgetAmount') {
-              const currentRawValue = currentValue.replace(/\s/g, '').replace(/,/g, '');
-              const afterRenderRawValue = inputAfterRender.value.replace(/\s/g, '').replace(/,/g, '');
-              if (currentRawValue === afterRenderRawValue) {
-                inputAfterRender.focus();
-                // Для бюджета устанавливаем курсор в конец
-                const length = inputAfterRender.value.length;
-                inputAfterRender.setSelectionRange(length, length);
-              }
-            } else if (inputAfterRender.value === currentValue) {
-              inputAfterRender.focus();
-              // Восстанавливаем позицию курсора только для текстовых полей
-              if (inputAfterRender.type !== 'number' && cursorPosition !== null) {
-                const newPosition = Math.min(cursorPosition, inputAfterRender.value.length);
-                inputAfterRender.setSelectionRange(newPosition, newPosition);
-              }
-            }
-          }
-        });
-      }
-    }
-  }, [localFilters, focusedField]);
+  // Отключено, чтобы не прерывать ввод текста - React сам правильно обрабатывает фокус и курсор
+  // (как в PurchasePlanItemsTable)
+  // useEffect(() => {
+  //   if (focusedField) {
+  //     const input = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
+  //     if (input) {
+  //       // Сохраняем позицию курсора (только для текстовых полей)
+  //       const cursorPosition = input.type === 'number' ? null : (input.selectionStart || 0);
+  //       const currentValue = input.value;
+  //       
+  //       // Восстанавливаем фокус в следующем тике, чтобы не мешать текущему вводу
+  //       requestAnimationFrame(() => {
+  //         const inputAfterRender = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
+  //         if (inputAfterRender) {
+  //           // Для фильтра бюджета проверяем, что неотформатированное значение совпадает
+  //           if (focusedField === 'budgetAmount') {
+  //             const currentRawValue = currentValue.replace(/\s/g, '').replace(/,/g, '');
+  //             const afterRenderRawValue = inputAfterRender.value.replace(/\s/g, '').replace(/,/g, '');
+  //             if (currentRawValue === afterRenderRawValue) {
+  //               inputAfterRender.focus();
+  //               // Для бюджета устанавливаем курсор в конец
+  //               const length = inputAfterRender.value.length;
+  //               inputAfterRender.setSelectionRange(length, length);
+  //             }
+  //           } else if (inputAfterRender.value === currentValue) {
+  //             inputAfterRender.focus();
+  //             // Восстанавливаем позицию курсора только для текстовых полей
+  //             if (inputAfterRender.type !== 'number' && cursorPosition !== null) {
+  //               const newPosition = Math.min(cursorPosition, inputAfterRender.value.length);
+  //               inputAfterRender.setSelectionRange(newPosition, newPosition);
+  //             }
+  //           }
+  //         }
+  //       });
+  //     }
+  //   }
+  // }, [localFilters, focusedField]);
 
   // Синхронизация localFilters.budgetAmount с filters после загрузки данных
   // НО только если поле не в фокусе, чтобы сохранить форматирование
@@ -1991,25 +2028,17 @@ export default function PurchaseRequestsTable() {
               </select>
             ) : filterType === 'text' ? (
               <input
-                key={`filter-${fieldKey}`}
                 type="text"
                 data-filter-field={fieldKey}
                 value={filterValue}
+                autoFocus={focusedField === fieldKey}
                 onChange={(e) => {
                   const newValue = e.target.value;
-                  const cursorPos = e.target.selectionStart || 0;
+                  // Напрямую обновляем localFilters, как в PurchasePlanItemsTable
                   setLocalFilters(prev => ({
                     ...prev,
                     [fieldKey]: newValue,
                   }));
-                  // Сохраняем позицию курсора после обновления
-                  requestAnimationFrame(() => {
-                    const input = e.target as HTMLInputElement;
-                    if (input && document.activeElement === input) {
-                      const newPos = Math.min(cursorPos, newValue.length);
-                      input.setSelectionRange(newPos, newPos);
-                    }
-                  });
                 }}
                 onFocus={(e) => {
                   e.stopPropagation();
@@ -2017,10 +2046,14 @@ export default function PurchaseRequestsTable() {
                 }}
                 onBlur={(e) => {
                   // Снимаем фокус только если пользователь явно кликнул в другое место
+                  // Используем setTimeout, чтобы проверить, действительно ли фокус потерян
+                  // Это предотвращает мигание фокуса при перерисовке компонента
+                  const currentTarget = e.currentTarget;
                   setTimeout(() => {
                     const activeElement = document.activeElement as HTMLElement;
+                    // Проверяем, что фокус действительно потерян и не вернулся на тот же элемент
                     if (activeElement && 
-                        activeElement !== e.target && 
+                        activeElement !== currentTarget && 
                         !activeElement.closest('input[data-filter-field]') &&
                         !activeElement.closest('select')) {
                       setFocusedField(null);
@@ -2494,62 +2527,74 @@ export default function PurchaseRequestsTable() {
       <div className="flex-1 overflow-auto relative">
         {/* Вкладки - слева в углу над заголовками, закреплены при прокрутке */}
         <div className="sticky top-0 left-0 right-0 z-30 flex gap-1 pt-2 pb-2 bg-white shadow-sm" style={{ minHeight: '44px', width: '100%', backgroundColor: 'white' }}>
-          <button
-            onClick={() => {
-              setActiveTab('in-work');
-              setStatusFilter(new Set());
-              setCurrentPage(0);
-            }}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors shadow-sm ${
-              activeTab === 'in-work'
-                ? 'bg-blue-600 text-white border-blue-600'
-                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            В работе {tabCounts['in-work'] !== null ? `(${tabCounts['in-work']})` : '(0)'}
-          </button>
-          <button
-            onClick={() => {
-              setActiveTab('completed');
-              setStatusFilter(new Set());
-              setCurrentPage(0);
-            }}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors shadow-sm ${
-              activeTab === 'completed'
-                ? 'bg-blue-600 text-white border-blue-600'
-                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            Завершенные {tabCounts['completed'] !== null ? `(${tabCounts['completed']})` : '(0)'}
-          </button>
-          <button
-            onClick={() => {
-              setActiveTab('all');
-              setStatusFilter(new Set());
-              setCurrentPage(0);
-            }}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors shadow-sm ${
-              activeTab === 'all'
-                ? 'bg-blue-600 text-white border-blue-600'
-                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            Все {tabCounts['all'] !== null ? `(${tabCounts['all']})` : '(0)'}
-          </button>
-          <button
-            onClick={() => {
-              setActiveTab('project-rejected');
-              setStatusFilter(new Set());
-              setCurrentPage(0);
-            }}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors shadow-sm ${
-              activeTab === 'project-rejected'
-                ? 'bg-blue-600 text-white border-blue-600'
-                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            Проект/Отмена/Не Согласовано/Архив {tabCounts['project-rejected'] !== null ? `(${tabCounts['project-rejected']})` : '(0)'}
-          </button>
+          {/* Показываем вкладку "В работе" только если есть записи или количество еще не загружено */}
+          {(tabCounts['in-work'] === null || tabCounts['in-work'] > 0) && (
+            <button
+              onClick={() => {
+                setActiveTab('in-work');
+                setStatusFilter(new Set());
+                setCurrentPage(0);
+              }}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors shadow-sm ${
+                activeTab === 'in-work'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              В работе {tabCounts['in-work'] !== null ? `(${tabCounts['in-work']})` : '(0)'}
+            </button>
+          )}
+          {/* Показываем вкладку "Завершенные" только если есть записи или количество еще не загружено */}
+          {(tabCounts['completed'] === null || tabCounts['completed'] > 0) && (
+            <button
+              onClick={() => {
+                setActiveTab('completed');
+                setStatusFilter(new Set());
+                setCurrentPage(0);
+              }}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors shadow-sm ${
+                activeTab === 'completed'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              Завершенные {tabCounts['completed'] !== null ? `(${tabCounts['completed']})` : '(0)'}
+            </button>
+          )}
+          {/* Показываем вкладку "Все" только если есть записи или количество еще не загружено */}
+          {(tabCounts['all'] === null || tabCounts['all'] > 0) && (
+            <button
+              onClick={() => {
+                setActiveTab('all');
+                setStatusFilter(new Set());
+                setCurrentPage(0);
+              }}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors shadow-sm ${
+                activeTab === 'all'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              Все {tabCounts['all'] !== null ? `(${tabCounts['all']})` : '(0)'}
+            </button>
+          )}
+          {/* Показываем вкладку "Проект/Отмена/Не Согласовано/Архив" только если есть записи или количество еще не загружено */}
+          {(tabCounts['project-rejected'] === null || tabCounts['project-rejected'] > 0) && (
+            <button
+              onClick={() => {
+                setActiveTab('project-rejected');
+                setStatusFilter(new Set());
+                setCurrentPage(0);
+              }}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors shadow-sm ${
+                activeTab === 'project-rejected'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              Проект/Отмена/Не Согласовано/Архив {tabCounts['project-rejected'] !== null ? `(${tabCounts['project-rejected']})` : '(0)'}
+            </button>
+          )}
         </div>
         
         {/* Таблица с закрепленными заголовками */}

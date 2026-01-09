@@ -820,6 +820,31 @@ export default function ContractsTable() {
                     </div>
                 </div>
               </th>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative">
+                  <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                    <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                      <div className="flex-1" style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0 }}></div>
+                    </div>
+                    <div className="flex items-center gap-1 min-h-[20px]">
+                      <button
+                        onClick={() => handleSort('status')}
+                        className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                        style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                      >
+                        {sortField === 'status' ? (
+                          sortDirection === 'asc' ? (
+                            <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                          ) : (
+                            <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                        )}
+                      </button>
+                      <span className="text-xs font-medium text-gray-500 tracking-wider">Статус</span>
+                    </div>
+                </div>
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -843,11 +868,32 @@ export default function ContractsTable() {
                         ? new Date(contract.contractCreationDate).toLocaleDateString('ru-RU')
                         : '-'}
                     </td>
+                    <td className="px-2 py-2 whitespace-nowrap text-xs border-r border-gray-300">
+                      {contract.status ? (
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                          contract.status === 'Подписан'
+                            ? 'bg-green-100 text-green-800'
+                            : contract.status === 'На согласовании'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : contract.status === 'Не согласован'
+                            ? 'bg-red-100 text-red-800'
+                            : contract.status === 'Проект'
+                            ? 'bg-gray-200 text-gray-700'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {contract.status}
+                        </span>
+                      ) : (
+                        <span className="px-2 py-1 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
+                          -
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 ))
               ) : (
             <tr>
-              <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+              <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                 Нет данных для отображения
               </td>
             </tr>

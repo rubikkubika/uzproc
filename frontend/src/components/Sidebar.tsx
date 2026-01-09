@@ -19,7 +19,8 @@ import {
   Upload,
   Mail,
   FileText,
-  CheckSquare
+  CheckSquare,
+  Star
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -55,6 +56,7 @@ const menuItems: Array<{ id: string; label: string; icon: any }> = [];
     { id: 'tasks', label: 'Задачи', icon: CheckSquare },
     { id: 'presentation', label: 'Презентация', icon: FileText },
     { id: 'users', label: 'Пользователи', icon: Users },
+    { id: 'csi', label: 'Сбор CSI', icon: Star },
   ];
 
   const backendItems: Array<{ id: string; label: string; icon: any }> = [];

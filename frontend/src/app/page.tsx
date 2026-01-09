@@ -22,6 +22,7 @@ import { getBackendUrl } from '@/utils/api';
 import Presentation from '@/components/Presentation';
 import TasksBoard from '@/components/TasksBoard';
 import UsersTable from '@/components/UsersTable';
+import CSIForm from '@/components/CSIForm';
 
 // Компонент для тестирования отправки почты
 function TestEmailForm() {
@@ -474,6 +475,13 @@ function DashboardContent() {
             <div className="flex-1 min-h-0">
               <UsersTable />
             </div>
+          </div>
+        );
+
+      case 'csi':
+        return (
+          <div className="space-y-6">
+            <CSIForm />
           </div>
         );
 
