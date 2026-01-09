@@ -7,6 +7,22 @@ import { ArrowUp, ArrowDown, ArrowUpDown, Search, X, Download, Copy, Clock, Chec
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 
+interface Contract {
+  id: number;
+  innerId: string | null;
+  name: string | null;
+  title: string | null;
+  cfo: string | null;
+  contractCreationDate: string | null;
+  budgetAmount: number | null;
+  currency: string | null;
+  purchaseRequestId: number | null;
+  parentContractId: number | null;
+  documentForm: string | null;
+  status: string | null;
+  state: string | null;
+}
+
 interface PurchaseRequest {
   id: number;
   idPurchaseRequest: number | null;
@@ -32,6 +48,7 @@ interface PurchaseRequest {
   daysSinceCreation: number | null;
   isStrategicProduct: boolean | null;
   hasCompletedPurchase: boolean | null;
+  contracts: Contract[] | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -52,7 +69,7 @@ const CACHE_KEY = 'purchaseRequests_metadata';
 const CACHE_TTL = 5 * 60 * 1000; // 5 минут
 
 // Константы для статусов (соответствуют PurchaseRequestStatus enum)
-const ALL_STATUSES = ['Заявка на согласовании', 'На согласовании', 'Заявка на утверждении', 'На утверждении', 'Утверждена', 'Заявка утверждена', 'Согласована', 'Заявка не согласована', 'Заявка не утверждена', 'Проект', 'Неактуальна', 'Не Актуальная', 'Спецификация создана', 'Спецификация создана - Архив', 'Спецификация подписана', 'Договор подписан', 'Закупка создана', 'Закупка не согласована'];
+const ALL_STATUSES = ['Заявка на согласовании', 'На согласовании', 'Заявка на утверждении', 'На утверждении', 'Утверждена', 'Заявка утверждена', 'Согласована', 'Заявка не согласована', 'Заявка не утверждена', 'Проект', 'Неактуальна', 'Не Актуальная', 'Спецификация создана', 'Спецификация создана - Архив', 'Спецификация подписана', 'Договор создан', 'Договор подписан', 'Закупка создана', 'Закупка не согласована', 'Закупка завершена'];
 const DEFAULT_STATUSES = ALL_STATUSES.filter(s => s !== 'Неактуальна' && s !== 'Не Актуальная');
 
 // Ключ для сохранения видимости колонок в localStorage
@@ -193,7 +210,7 @@ export default function PurchaseRequestsTable() {
       case 'in-work':
         return ['Заявка на согласовании', 'На согласовании', 'Заявка на утверждении', 'На утверждении', 'Спецификация создана', 'Закупка создана', 'Заявка утверждена', 'Утверждена'];
       case 'completed':
-        return ['Спецификация подписана', 'Договор подписан'];
+        return ['Спецификация подписана', 'Договор создан', 'Договор подписан', 'Закупка завершена'];
       case 'project-rejected':
         return ['Проект', 'Заявка не согласована', 'Заявка не утверждена', 'Закупка не согласована', 'Спецификация создана - Архив'];
       case 'all':
@@ -1376,6 +1393,9 @@ export default function PurchaseRequestsTable() {
     purchaser: [],
     status: [],
   });
+  
+  // Уникальные статусы из текущих данных (с учетом вкладки и фильтров)
+  const [availableStatuses, setAvailableStatuses] = useState<string[]>([]);
 
   // Загружаем общее количество записей без фильтров
   useEffect(() => {
@@ -1526,6 +1546,141 @@ export default function PurchaseRequestsTable() {
     };
     fetchMetadata();
   }, []);
+
+  // Загружаем уникальные статусы из текущих данных (с учетом вкладки и фильтров, кроме фильтра по статусу)
+  useEffect(() => {
+    if (!filtersLoadedRef.current) {
+      return;
+    }
+    
+    const fetchAvailableStatuses = async () => {
+      try {
+        const params = new URLSearchParams();
+        params.append('page', '0');
+        params.append('size', '10000'); // Загружаем много данных для получения всех уникальных статусов
+        
+        // Применяем все фильтры, кроме фильтра по статусу
+        if (selectedYear !== null) {
+          params.append('year', String(selectedYear));
+        }
+        
+        if (filters.idPurchaseRequest && filters.idPurchaseRequest.trim() !== '') {
+          const idValue = parseInt(filters.idPurchaseRequest.trim(), 10);
+          if (!isNaN(idValue)) {
+            params.append('idPurchaseRequest', String(idValue));
+          }
+        }
+        
+        if (cfoFilter.size > 0) {
+          cfoFilter.forEach(cfo => {
+            params.append('cfo', cfo);
+          });
+        }
+        
+        if (purchaserFilter.size > 0) {
+          purchaserFilter.forEach(p => {
+            params.append('purchaser', p);
+          });
+        }
+        
+        if (filters.name && filters.name.trim() !== '') {
+          params.append('name', filters.name.trim());
+        }
+        
+        const budgetOperator = localFilters.budgetAmountOperator || filters.budgetAmountOperator;
+        if (localFilters.budgetAmount && localFilters.budgetAmount.trim() !== '') {
+          const budgetValue = parseFloat(localFilters.budgetAmount.trim());
+          if (!isNaN(budgetValue)) {
+            params.append('budgetAmount', String(budgetValue));
+            params.append('budgetAmountOperator', budgetOperator || 'gte');
+          }
+        }
+        
+        if (filters.costType && filters.costType.trim() !== '') {
+          params.append('costType', filters.costType.trim());
+        }
+        
+        if (filters.contractType && filters.contractType.trim() !== '') {
+          params.append('contractType', filters.contractType.trim());
+        }
+        
+        if (filters.contractDurationMonths && filters.contractDurationMonths.trim() !== '') {
+          const durationValue = parseInt(filters.contractDurationMonths.trim(), 10);
+          if (!isNaN(durationValue)) {
+            params.append('contractDurationMonths', String(durationValue));
+          }
+        }
+        
+        if (filters.isPlanned && filters.isPlanned.trim() !== '') {
+          const isPlannedValue = filters.isPlanned.trim();
+          if (isPlannedValue === 'Да') {
+            params.append('isPlanned', 'true');
+          } else if (isPlannedValue === 'Нет') {
+            params.append('isPlanned', 'false');
+          }
+        }
+        
+        if (filters.requiresPurchase && filters.requiresPurchase.trim() !== '') {
+          const requiresPurchaseValue = filters.requiresPurchase.trim();
+          if (requiresPurchaseValue === 'Требуется') {
+            params.append('requiresPurchase', 'true');
+          } else if (requiresPurchaseValue === 'Заказ') {
+            params.append('requiresPurchase', 'false');
+          }
+        }
+        
+        if (filters.isStrategicProduct && filters.isStrategicProduct.trim() !== '' && filters.isStrategicProduct.trim() !== 'Все') {
+          const isStrategicProductValue = filters.isStrategicProduct.trim();
+          if (isStrategicProductValue === 'Да') {
+            params.append('isStrategicProduct', 'true');
+          } else if (isStrategicProductValue === 'Нет') {
+            params.append('isStrategicProduct', 'false');
+          }
+        }
+        
+        // Применяем фильтр по статусам вкладки (но не фильтр по статусу из statusFilter)
+        // Это нужно, чтобы получить только те статусы, которые есть в текущей вкладке
+        // Для вкладки "Все" не применяем фильтр по статусам вкладки, чтобы показать все доступные статусы
+        if (activeTab !== 'all') {
+          const tabStatuses = getStatusesForTab(activeTab);
+          tabStatuses.forEach(status => {
+            params.append('status', status);
+          });
+        }
+        
+        // НЕ применяем statusFilter - это то, что мы хотим показать в фильтре
+        
+        const fetchUrl = `${getBackendUrl()}/api/purchase-requests?${params.toString()}`;
+        const response = await fetch(fetchUrl);
+        if (!response.ok) {
+          throw new Error('Ошибка загрузки статусов');
+        }
+        const result = await response.json();
+        
+        // Собираем уникальные статусы из загруженных данных
+        const statusSet = new Set<string>();
+        if (result.content && Array.isArray(result.content)) {
+          result.content.forEach((request: PurchaseRequest) => {
+            if (request.status) {
+              const statusStr = String(request.status).trim();
+              if (statusStr) {
+                statusSet.add(statusStr);
+              }
+            }
+          });
+        }
+        
+        const statusesArray = Array.from(statusSet).sort();
+        setAvailableStatuses(statusesArray);
+      } catch (err) {
+        console.error('Error fetching available statuses:', err);
+        // В случае ошибки используем пустой массив
+        setAvailableStatuses([]);
+      }
+    };
+    
+    fetchAvailableStatuses();
+  }, [selectedYear, filters, cfoFilter, purchaserFilter, localFilters, activeTab]);
 
   const handlePageSizeChange = (newSize: number) => {
     setPageSize(newSize);
@@ -1740,17 +1895,17 @@ export default function PurchaseRequestsTable() {
   }, [columnOrder, visibleColumns]);
 
   const getFilteredStatusOptions = useMemo(() => {
-    // Используем только статусы, которые есть в данных (в БД есть заявки с этими статусами)
-    const availableStatuses = uniqueValues.status || [];
+    // Используем только статусы, которые есть в текущих данных (с учетом вкладки и фильтров)
+    const statuses = availableStatuses.length > 0 ? availableStatuses : (uniqueValues.status || []);
     if (!statusSearchQuery || !statusSearchQuery.trim()) {
-      return availableStatuses;
+      return statuses;
     }
     const searchLower = statusSearchQuery.toLowerCase().trim();
-    return availableStatuses.filter(status => {
+    return statuses.filter(status => {
       if (!status) return false;
       return status.toLowerCase().includes(searchLower);
     });
-  }, [statusSearchQuery, uniqueValues.status]);
+  }, [statusSearchQuery, availableStatuses, uniqueValues.status]);
 
   if (loading) {
     return (
@@ -3401,11 +3556,11 @@ export default function PurchaseRequestsTable() {
                         <td key={columnKey} className="px-2 py-2 text-xs border-r border-gray-200">
                           {request.status ? (
                             <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                              request.status === 'Согласована' || request.status === 'Спецификация подписана' || request.status === 'Договор подписан'
+                              request.status === 'Согласована' || request.status === 'Спецификация подписана' || request.status === 'Договор подписан' || request.status === 'Закупка завершена'
                                 ? 'bg-green-100 text-green-800'
                                 : request.status === 'Спецификация создана - Архив'
                                 ? 'bg-gray-200 text-gray-700'
-                                : request.status === 'Спецификация создана' || request.status === 'Закупка создана' || request.status === 'Утверждена' || request.status === 'Заявка утверждена'
+                                : request.status === 'Спецификация создана' || request.status === 'Закупка создана' || request.status === 'Договор создан' || request.status === 'Утверждена' || request.status === 'Заявка утверждена'
                                 ? 'bg-yellow-100 text-yellow-800'
                                 : request.status === 'Заявка не согласована' || request.status === 'Заявка не утверждена' || request.status === 'Закупка не согласована'
                                 ? 'bg-red-100 text-red-800'
@@ -3580,17 +3735,36 @@ export default function PurchaseRequestsTable() {
                       ) : (
                         /* Если закупка не требуется: Заявка → Заказ */
                         <div className="flex flex-col items-center gap-0.5">
-                          {request.status === 'Спецификация подписана' || request.status === 'Договор подписан' ? (
-                            <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center mt-0.5" title={request.status === 'Спецификация подписана' ? "Заказ: Спецификация подписана" : "Заявка: Договор подписан"}>
-                              <Check className="w-2.5 h-2.5 text-white" />
-                            </div>
-                          ) : request.status === 'Спецификация создана' ? (
-                            <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Заказ: Спецификация создана">
-                              <Clock className="w-2.5 h-2.5 text-white" />
-                            </div>
-                          ) : (
-                          <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Заказ"></div>
-                          )}
+                          {(() => {
+                            // Проверяем, есть ли спецификация на согласовании
+                            const hasSpecificationOnCoordination = request.contracts && request.contracts.some(
+                              (contract: Contract) => 
+                                contract.documentForm === 'Спецификация' && 
+                                contract.status === 'На согласовании'
+                            );
+                            
+                            if (request.status === 'Спецификация подписана' || request.status === 'Договор подписан' || hasSpecificationOnCoordination) {
+                              return (
+                                <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center mt-0.5" title={
+                                  hasSpecificationOnCoordination ? "Заказ: Спецификация на согласовании" :
+                                  request.status === 'Спецификация подписана' ? "Заказ: Спецификация подписана" : 
+                                  "Заявка: Договор подписан"
+                                }>
+                                  <Check className="w-2.5 h-2.5 text-white" />
+                                </div>
+                              );
+                            } else if (request.status === 'Спецификация создана') {
+                              return (
+                                <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Заказ: Спецификация создана">
+                                  <Clock className="w-2.5 h-2.5 text-white" />
+                                </div>
+                              );
+                            } else {
+                              return (
+                                <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Заказ"></div>
+                              );
+                            }
+                          })()}
                           <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Заказ</span>
                         </div>
                       )}

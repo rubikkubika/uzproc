@@ -231,7 +231,7 @@ export default function PurchasePlanItemsTable() {
   // Состояние для множественных фильтров (чекбоксы)
   const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
   const [companyFilter, setCompanyFilter] = useState<Set<string>>(new Set(['Market']));
-  const [purchaserCompanyFilter, setPurchaserCompanyFilter] = useState<Set<string>>(new Set());
+  const [purchaserCompanyFilter, setPurchaserCompanyFilter] = useState<Set<string>>(new Set(['Market']));
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set(DEFAULT_STATUSES));
   const [purchaserFilter, setPurchaserFilter] = useState<Set<string>>(() => {
@@ -1807,9 +1807,12 @@ export default function PurchasePlanItemsTable() {
             const normalizedPurchaserCompanyFilter = savedFilters.purchaserCompanyFilter.map((c: string) => normalizeCompany(c)).filter((c: string | null) => c !== null) as string[];
             setPurchaserCompanyFilter(new Set(normalizedPurchaserCompanyFilter));
           } else {
-            // Если сохраненный фильтр пустой массив, оставляем его пустым
+            // Если сохраненный фильтр пустой массив, оставляем его пустым (не устанавливаем дефолт)
             setPurchaserCompanyFilter(new Set());
           }
+        } else {
+          // Если фильтр не сохранен (первая загрузка), устанавливаем фильтр по умолчанию на "Market"
+          setPurchaserCompanyFilter(new Set(['Market']));
         }
         if (savedFilters.categoryFilter !== undefined) {
           if (Array.isArray(savedFilters.categoryFilter)) {
@@ -2299,7 +2302,17 @@ export default function PurchasePlanItemsTable() {
         if (filters.purchaseSubject && filters.purchaseSubject.trim() !== '') {
           params.append('purchaseSubject', filters.purchaseSubject.trim());
         }
-        // НЕ добавляем фильтр по закупщику для сводной таблицы
+        // Фильтр по закупщику - передаем все выбранные значения на бэкенд
+        if (purchaserFilter.size > 0) {
+          purchaserFilter.forEach(purchaser => {
+            // Если выбрано "Не назначен", передаем специальное значение для null
+            if (purchaser === 'Не назначен') {
+              params.append('purchaser', '__NULL__');
+            } else {
+              params.append('purchaser', purchaser);
+            }
+          });
+        }
         // Фильтр по категории - передаем все выбранные значения на бэкенд
         if (categoryFilter.size > 0) {
           categoryFilter.forEach(category => {
@@ -2352,7 +2365,7 @@ export default function PurchasePlanItemsTable() {
     };
     
     fetchSummaryData();
-  }, [selectedYear, selectedMonthYear, selectedMonths, filters, cfoFilter, companyFilter, purchaserCompanyFilter, categoryFilter, statusFilter]); // НЕ включаем purchaserFilter
+  }, [selectedYear, selectedMonthYear, selectedMonths, filters, cfoFilter, companyFilter, purchaserCompanyFilter, purchaserFilter, categoryFilter, statusFilter]);
 
   // Функция для подсчета количества закупок по месяцам (использует отфильтрованные данные)
   const getMonthlyDistribution = useMemo(() => {
@@ -2966,23 +2979,8 @@ export default function PurchasePlanItemsTable() {
     }
   }, [editingPurchaser, isPurchaserFilterOpen, availablePurchasers.length]);
 
-  // Обновление списка закупщиков из текущих данных при открытии фильтра
-  useEffect(() => {
-    if (isPurchaserFilterOpen) {
-      // Обновляем uniqueValues.purchaser из текущих данных (allItems)
-      const purchaserSet = new Set<string>();
-      allItems.forEach(item => {
-        if (item.purchaser) {
-          purchaserSet.add(item.purchaser);
-        }
-      });
-      
-      setUniqueValues(prev => ({
-        ...prev,
-        purchaser: Array.from(purchaserSet).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' }))
-      }));
-    }
-  }, [isPurchaserFilterOpen, allItems]);
+  // Не обновляем список закупщиков из allItems, так как allItems уже отфильтрованы
+  // Используем полный список закупщиков из uniqueValues, который загружается без фильтров
 
   // Автоматически загружаем версии и выбираем текущую при изменении года
   useEffect(() => {
@@ -3598,8 +3596,18 @@ export default function PurchasePlanItemsTable() {
       if (isCategoryFilterOpen && !target.closest('.category-filter-container')) {
         setIsCategoryFilterOpen(false);
       }
-      if (isPurchaserFilterOpen && !target.closest('.purchaser-filter-container')) {
-        setIsPurchaserFilterOpen(false);
+      if (isPurchaserFilterOpen) {
+        // Проверяем, что клик не по кнопке фильтра
+        if (purchaserFilterButtonRef.current && !purchaserFilterButtonRef.current.contains(target)) {
+          // Проверяем, что клик не по самому меню фильтра закупщика
+          const purchaserMenuElement = document.querySelector('[data-purchaser-filter-menu="true"]');
+          if (purchaserMenuElement && !purchaserMenuElement.contains(target)) {
+            // Также проверяем, что клик не по контейнеру фильтра
+            if (!target.closest('.purchaser-filter-container')) {
+              setIsPurchaserFilterOpen(false);
+            }
+          }
+        }
       }
       if (isPurchaserCompanyFilterOpen && !target.closest('.purchaser-company-filter-container')) {
         setIsPurchaserCompanyFilterOpen(false);
@@ -3905,7 +3913,7 @@ export default function PurchasePlanItemsTable() {
             <tbody className="bg-white divide-y divide-gray-200">
                     {purchaserSummary.length > 0 ? (
                       purchaserSummary.map((item, index) => {
-                      const isSelected = purchaserFilter.size === 1 && purchaserFilter.has(item.purchaser);
+                      const isSelected = purchaserFilter.has(item.purchaser);
                       return (
                         <tr 
                           key={index} 
@@ -3914,14 +3922,27 @@ export default function PurchasePlanItemsTable() {
                               ? 'bg-blue-100 hover:bg-blue-200' 
                               : 'hover:bg-gray-50'
                           }`}
-                          onClick={() => {
-                            if (isSelected) {
-                              // Если уже выбран, сбрасываем фильтр
-                              setPurchaserFilter(new Set());
+                          onClick={(e) => {
+                            const newSet = new Set(purchaserFilter);
+                            if (e.ctrlKey || e.metaKey) {
+                              // Множественный выбор через Ctrl/Cmd
+                              if (isSelected) {
+                                newSet.delete(item.purchaser);
+                              } else {
+                                newSet.add(item.purchaser);
+                              }
                             } else {
-                              // Устанавливаем фильтр только на этого закупщика
-                              setPurchaserFilter(new Set([item.purchaser]));
+                              // Одиночный выбор - заменяем весь фильтр
+                              if (isSelected && purchaserFilter.size === 1) {
+                                // Если выбран только этот закупщик, сбрасываем фильтр
+                                newSet.clear();
+                              } else {
+                                // Устанавливаем фильтр только на этого закупщика
+                                newSet.clear();
+                                newSet.add(item.purchaser);
+                              }
                             }
+                            setPurchaserFilter(newSet);
                             setCurrentPage(0);
                           }}
                         >
@@ -4148,7 +4169,7 @@ export default function PurchasePlanItemsTable() {
                     setLocalFilters(emptyFilters);
                     setCfoFilter(new Set());
                     setCompanyFilter(new Set(['Market'])); // При сбросе устанавливаем фильтр по умолчанию на "Market"
-                    setPurchaserCompanyFilter(new Set()); // Сбрасываем фильтр по исполнителю
+                    setPurchaserCompanyFilter(new Set(['Market'])); // При сбросе устанавливаем фильтр по умолчанию на "Market"
                     setCategoryFilter(new Set());
                     setPurchaserFilter(new Set());
                     // При сбросе устанавливаем фильтр по статусу на все доступные статусы кроме "Исключена"
@@ -4171,7 +4192,7 @@ export default function PurchasePlanItemsTable() {
                         filters: emptyFilters,
                         cfoFilter: [],
                         companyFilter: ['Market'], // При сбросе устанавливаем фильтр по умолчанию на "Market"
-                        purchaserCompanyFilter: [], // Сбрасываем фильтр по исполнителю
+                        purchaserCompanyFilter: ['Market'], // При сбросе устанавливаем фильтр по умолчанию на "Market"
                         categoryFilter: [],
                         purchaserFilter: [],
                         statusFilter: defaultStatusFilter, // При сбросе устанавливаем фильтр по умолчанию (все кроме Исключена)
@@ -5189,6 +5210,7 @@ export default function PurchasePlanItemsTable() {
                       </button>
                       {isPurchaserFilterOpen && purchaserFilterPosition && (
                         <div 
+                          data-purchaser-filter-menu="true"
                           className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden"
                           style={{
                             top: `${purchaserFilterPosition.top}px`,
@@ -5214,13 +5236,19 @@ export default function PurchasePlanItemsTable() {
                           </div>
                           <div className="p-2 border-b border-gray-200 flex gap-2">
                             <button
-                              onClick={() => handlePurchaserSelectAll()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handlePurchaserSelectAll();
+                              }}
                               className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                             >
                               Все
                             </button>
                             <button
-                              onClick={() => handlePurchaserDeselectAll()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handlePurchaserDeselectAll();
+                              }}
                               className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
                             >
                               Снять
@@ -5234,11 +5262,16 @@ export default function PurchasePlanItemsTable() {
                                 <label
                                   key={purchaser}
                                   className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                                  onClick={(e) => e.stopPropagation()}
                                 >
                                   <input
                                     type="checkbox"
                                     checked={purchaserFilter.has(purchaser)}
-                                    onChange={() => handlePurchaserToggle(purchaser)}
+                                    onChange={(e) => {
+                                      e.stopPropagation();
+                                      handlePurchaserToggle(purchaser);
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
                                     className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
                                   />
                                   <span className="ml-2 text-xs text-gray-700 flex-1">{purchaser}</span>

@@ -6,6 +6,7 @@ import com.uzproc.backend.entity.Purchase;
 import com.uzproc.backend.entity.PurchaseRequest;
 import com.uzproc.backend.entity.PurchaseRequestApproval;
 import com.uzproc.backend.entity.PurchaseRequestStatus;
+import com.uzproc.backend.entity.PurchaseStatus;
 import com.uzproc.backend.repository.ContractRepository;
 import com.uzproc.backend.repository.PurchaseRequestApprovalRepository;
 import com.uzproc.backend.repository.PurchaseRequestRepository;
@@ -262,34 +263,47 @@ public class PurchaseRequestStatusUpdateService {
         // Проверяем наличие связанной закупки для заявок с типом "Закупка" (requiresPurchase !== false)
         boolean hasPurchase = false;
         boolean hasNotCoordinatedPurchase = false;
+        boolean allPurchasesCompleted = false;
         if (purchaseRequest.getRequiresPurchase() != null && purchaseRequest.getRequiresPurchase() != false) {
             try {
-                // Проверяем наличие связанной закупки через нативный SQL запрос к таблице purchases
-                // Поле purchase_request_id в таблице purchases ссылается на id_purchase_request в purchase_requests
-                Query purchaseQuery = entityManager.createNativeQuery(
-                    "SELECT COUNT(*) FROM purchases WHERE purchase_request_id = ?"
-                );
-                purchaseQuery.setParameter(1, idPurchaseRequest);
-                Long purchaseCount = ((Number) purchaseQuery.getSingleResult()).longValue();
-                if (purchaseCount > 0) {
+                // Получаем все связанные закупки через репозиторий
+                List<Purchase> purchases = purchaseRepository.findByPurchaseRequestId(idPurchaseRequest);
+                if (!purchases.isEmpty()) {
                     hasPurchase = true;
                     logger.info("Found {} purchase(s) for purchase request {} (requiresPurchase={})", 
-                        purchaseCount, idPurchaseRequest, purchaseRequest.getRequiresPurchase());
+                        purchases.size(), idPurchaseRequest, purchaseRequest.getRequiresPurchase());
                     
                     // Проверяем, есть ли закупка со статусом "Не согласовано"
-                    // В базе данных статус хранится как имя enum константы (NOT_COORDINATED), а не displayName (Не согласовано)
-                    Query notCoordinatedQuery = entityManager.createNativeQuery(
-                        "SELECT COUNT(*) FROM purchases WHERE purchase_request_id = ? AND status = ?"
-                    );
-                    notCoordinatedQuery.setParameter(1, idPurchaseRequest);
-                    notCoordinatedQuery.setParameter(2, "NOT_COORDINATED"); // Используем имя enum константы
-                    Long notCoordinatedCount = ((Number) notCoordinatedQuery.getSingleResult()).longValue();
-                    if (notCoordinatedCount > 0) {
+                    boolean hasNotCoordinatedPurchaseStatus = purchases.stream()
+                        .anyMatch(p -> p.getStatus() != null && p.getStatus() == PurchaseStatus.NOT_COORDINATED);
+                    if (hasNotCoordinatedPurchaseStatus) {
                         hasNotCoordinatedPurchase = true;
-                        logger.info("Found {} not coordinated purchase(s) for purchase request {}", 
-                            notCoordinatedCount, idPurchaseRequest);
+                        logger.info("Found not coordinated purchase(s) for purchase request {}", idPurchaseRequest);
                     } else {
                         logger.debug("No not coordinated purchases found for purchase request {}", idPurchaseRequest);
+                    }
+                    
+                    // Проверяем, все ли закупки завершены
+                    // Считаем только закупки с непустым статусом (исключаем null)
+                    List<Purchase> purchasesWithStatus = purchases.stream()
+                        .filter(p -> p.getStatus() != null)
+                        .toList();
+                    
+                    if (!purchasesWithStatus.isEmpty()) {
+                        // Проверяем, что все закупки с непустым статусом имеют статус COMPLETED
+                        allPurchasesCompleted = purchasesWithStatus.stream()
+                            .allMatch(p -> p.getStatus() == PurchaseStatus.COMPLETED);
+                        
+                        if (allPurchasesCompleted) {
+                            logger.info("All {} purchase(s) for purchase request {} are completed", 
+                                purchasesWithStatus.size(), idPurchaseRequest);
+                        } else {
+                            logger.debug("Not all purchases are completed for purchase request {} ({} with status, {} completed)", 
+                                idPurchaseRequest, purchasesWithStatus.size(),
+                                purchasesWithStatus.stream().filter(p -> p.getStatus() == PurchaseStatus.COMPLETED).count());
+                        }
+                    } else {
+                        logger.debug("No purchases with status found for purchase request {}", idPurchaseRequest);
                     }
                 } else {
                     logger.debug("No purchases found for purchase request {} (requiresPurchase={})", 
@@ -367,6 +381,7 @@ public class PurchaseRequestStatusUpdateService {
         // потом наличие спецификации (высокий приоритет), 
         // потом проверяем статус закупки (для заявок с requiresPurchase !== false) - если закупка не согласована, то "Закупка не согласована"
         // потом наличие договора (для заявок с requiresPurchase !== false) - если есть договор, то "Договор создан"
+        // потом проверяем завершенность всех закупок (для заявок с requiresPurchase !== false) - если все закупки завершены, то "Закупка завершена"
         // потом наличие закупки (для заявок с requiresPurchase !== false) - даже если заявка утверждена,
         // потом на не утверждено, потом на не согласованные, 
         // потом на завершенное утверждение, потом на активное утверждение, потом на согласование
@@ -392,6 +407,11 @@ public class PurchaseRequestStatusUpdateService {
             // Если есть договор и это закупка (requiresPurchase !== false), устанавливаем статус "Договор создан"
             newStatus = PurchaseRequestStatus.CONTRACT_CREATED;
             logger.info("Found contracts for purchase request {} (requiresPurchase={}), setting status to CONTRACT_CREATED", 
+                idPurchaseRequest, purchaseRequest.getRequiresPurchase());
+        } else if (allPurchasesCompleted && purchaseRequest.getRequiresPurchase() != null && purchaseRequest.getRequiresPurchase() != false) {
+            // Если все связанные закупки завершены, устанавливаем статус "Закупка завершена"
+            newStatus = PurchaseRequestStatus.PURCHASE_COMPLETED;
+            logger.info("All purchases completed for purchase request {} (requiresPurchase={}), setting status to PURCHASE_COMPLETED", 
                 idPurchaseRequest, purchaseRequest.getRequiresPurchase());
         } else if (hasPurchase) {
             // Если есть закупка, устанавливаем статус "Закупка создана" даже если заявка утверждена

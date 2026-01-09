@@ -16,6 +16,7 @@ public enum PurchaseRequestStatus {
     SPECIFICATION_NOT_COORDINATED("Спецификация не согласована"),
     PURCHASE_CREATED("Закупка создана"),
     PURCHASE_NOT_COORDINATED("Закупка не согласована"),
+    PURCHASE_COMPLETED("Закупка завершена"),
     CONTRACT_CREATED("Договор создан"),
     CONTRACT_SIGNED("Договор подписан");
 

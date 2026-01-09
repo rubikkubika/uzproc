@@ -172,7 +172,9 @@ public class PurchaseRequestService {
         );
         List<String> completedStatuses = List.of(
             "Спецификация подписана",
-            "Договор подписан"
+            "Договор создан",
+            "Договор подписан",
+            "Закупка завершена"
         );
         List<String> projectRejectedStatuses = List.of(
             "Проект", "Заявка не согласована", "Заявка не утверждена", "Закупка не согласована", "Спецификация создана - Архив"
