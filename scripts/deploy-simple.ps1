@@ -42,34 +42,49 @@ $backupFileName = "uzproc_backup_${backupDate}.sql"
 $backupPath = "${REMOTE_PATH}/backup"
 
 # Создаем папку backup на сервере, если её нет
-ssh $SERVER "mkdir -p ${backupPath}"
+ssh -o ConnectTimeout=10 $SERVER "mkdir -p ${backupPath}" 2>&1 | Out-Null
 
-# Создаем бэкап БД через pg_dump внутри контейнера
-# Используем bash -c для правильного перенаправления вывода
-$backupCommand = "bash -c 'docker exec uzproc-postgres pg_dump -U uzproc_user -d uzproc > ${backupPath}/${backupFileName} 2>&1' && test -f ${backupPath}/${backupFileName} && echo 'Backup created successfully' || echo 'Warning: Database backup failed or container not running'"
-$backupResult = ssh $SERVER $backupCommand
-
-if ($backupResult -match "Backup created successfully") {
-    Write-Host "Database backup created: ${backupFileName}" -ForegroundColor Green
+# Проверяем, запущен ли контейнер БД
+$containerCheck = ssh -o ConnectTimeout=10 $SERVER "docker ps --filter name=uzproc-postgres --format '{{.Names}}' 2>/dev/null" 2>&1
+if ($containerCheck -match "uzproc-postgres") {
+    Write-Host "Database container is running, creating backup..." -ForegroundColor Cyan
     
-    # Копируем бэкап локально в папку backup
-    Write-Host "Copying backup to local backup folder..." -ForegroundColor Yellow
-    mkdir -p backup -Force | Out-Null
-    scp "${SERVER}:${backupPath}/${backupFileName}" "backup/${backupFileName}"
-    if ($LASTEXITCODE -eq 0) {
-        $localBackupSize = (Get-Item "backup/${backupFileName}").Length / 1MB
-        Write-Host "Backup copied to local backup folder ($([math]::Round($localBackupSize, 2)) MB)" -ForegroundColor Green
+    # Создаем бэкап БД через pg_dump внутри контейнера с таймаутом
+    # Используем timeout для предотвращения зависания
+    $backupCommand = "timeout 60 bash -c 'docker exec uzproc-postgres pg_dump -U uzproc_user -d uzproc -F p 2>&1 > ${backupPath}/${backupFileName}' && test -f ${backupPath}/${backupFileName} && test -s ${backupPath}/${backupFileName} && echo 'Backup created successfully' || echo 'Warning: Database backup failed'"
+    
+    try {
+        $backupResult = ssh -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 $SERVER $backupCommand 2>&1
         
-        # Удаляем бэкап с сервера после успешного копирования
-        Write-Host "Removing backup from server..." -ForegroundColor Yellow
-        ssh $SERVER "rm -f ${backupPath}/${backupFileName}"
-        Write-Host "Backup removed from server" -ForegroundColor Green
-    } else {
-        Write-Host "Warning: Failed to copy backup locally, backup remains on server..." -ForegroundColor Yellow
+        if ($backupResult -match "Backup created successfully") {
+            Write-Host "Database backup created: ${backupFileName}" -ForegroundColor Green
+            
+            # Копируем бэкап локально в папку backup
+            Write-Host "Copying backup to local backup folder..." -ForegroundColor Yellow
+            mkdir -p backup -Force | Out-Null
+            scp -o ConnectTimeout=10 "${SERVER}:${backupPath}/${backupFileName}" "backup/${backupFileName}" 2>&1 | Out-Null
+            if ($LASTEXITCODE -eq 0 -and (Test-Path "backup/${backupFileName}")) {
+                $localBackupSize = (Get-Item "backup/${backupFileName}").Length / 1MB
+                Write-Host "Backup copied to local backup folder ($([math]::Round($localBackupSize, 2)) MB)" -ForegroundColor Green
+                
+                # Удаляем бэкап с сервера после успешного копирования
+                Write-Host "Removing backup from server..." -ForegroundColor Yellow
+                ssh -o ConnectTimeout=10 $SERVER "rm -f ${backupPath}/${backupFileName}" 2>&1 | Out-Null
+                Write-Host "Backup removed from server" -ForegroundColor Green
+            } else {
+                Write-Host "Warning: Failed to copy backup locally, backup remains on server..." -ForegroundColor Yellow
+            }
+        } else {
+            Write-Host "Warning: Failed to create database backup, continuing anyway..." -ForegroundColor Yellow
+            Write-Host "  Backup result: $backupResult" -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Host "Warning: Error creating database backup: $_" -ForegroundColor Yellow
+        Write-Host "  Continuing deployment without backup..." -ForegroundColor Yellow
     }
 } else {
-    Write-Host "Warning: Failed to create database backup, continuing anyway..." -ForegroundColor Yellow
-    Write-Host "  (This might happen if the database container is not running)" -ForegroundColor Yellow
+    Write-Host "Warning: Database container is not running, skipping backup..." -ForegroundColor Yellow
+    Write-Host "  Continuing deployment without backup..." -ForegroundColor Yellow
 }
 
 Write-Host "`nStep 4: Cleaning old Docker images on server..." -ForegroundColor Yellow
