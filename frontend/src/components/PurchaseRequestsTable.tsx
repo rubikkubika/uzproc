@@ -3666,108 +3666,106 @@ export default function PurchaseRequestsTable() {
                       return (
                         <td key={columnKey} className="px-2 py-2 text-xs border-r border-gray-200">
                     <div className="flex items-end gap-2">
-                      {/* Заявка - активна */}
-                      <div className="flex flex-col items-center gap-0.5">
-                        {request.status === 'Спецификация подписана' || request.status === 'Договор подписан' || request.status === 'Закупка создана' ? (
-                          <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center" title={
-                            request.status === 'Спецификация подписана' ? "Заявка: Спецификация подписана" :
-                            request.status === 'Договор подписан' ? "Заявка: Договор подписан" :
-                            "Заявка: Закупка создана"
-                          }>
-                            <Check className="w-2.5 h-2.5 text-white" />
-                          </div>
-                        ) : request.status === 'Утверждена' || request.status === 'Заявка утверждена' || request.status === 'Спецификация создана' ? (
-                          <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center" title={
-                            request.status === 'Спецификация создана' ? "Заявка: Спецификация создана" :
-                            "Заявка утверждена"
-                          }>
-                            <Clock className="w-2.5 h-2.5 text-white" />
-                          </div>
-                        ) : request.status === 'Заявка не утверждена' || request.status === 'Заявка не согласована' || request.status === 'Закупка не согласована' ? (
-                          <div className="relative w-4 h-4 rounded-full bg-red-500 flex items-center justify-center" title={
-                            request.status === 'Закупка не согласована' ? "Заявка: Закупка не согласована" :
-                            "Заявка: Заявка не утверждена или Заявка не согласована"
-                          }>
-                            <X className="w-2.5 h-2.5 text-white" />
-                          </div>
-                        ) : (
-                          <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center" title="Заявка">
-                            <Clock className="w-2.5 h-2.5 text-white" />
-                          </div>
-                        )}
-                        <span className="text-[10px] text-gray-600 whitespace-nowrap leading-none">Заявка</span>
-                      </div>
-                      
-                      {/* Если закупка требуется: Заявка → Закупка → Договор */}
-                      {request.requiresPurchase !== false ? (
-                        <>
-                          {/* Закупка - зеленая галочка если связанная закупка со статусом "Завершена" */}
-                          <div className="flex flex-col items-center gap-0.5">
-                            {request.hasCompletedPurchase ? (
-                              <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center mt-0.5" title="Закупка: Завершена">
-                                <Check className="w-2.5 h-2.5 text-white" />
-                              </div>
-                            ) : request.status === 'Закупка создана' ? (
-                              <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Закупка: Закупка создана">
-                                <Clock className="w-2.5 h-2.5 text-white" />
-                              </div>
-                            ) : request.status === 'Закупка не согласована' ? (
-                              <div className="relative w-4 h-4 rounded-full bg-red-500 flex items-center justify-center mt-0.5" title="Закупка: Закупка не согласована">
-                                <X className="w-2.5 h-2.5 text-white" />
-                              </div>
-                            ) : (
-                              <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Закупка"></div>
-                            )}
-                            <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Закупка</span>
-                          </div>
-                          {/* Договор - желтая галочка если связанная закупка со статусом "Завершена" */}
-                          <div className="flex flex-col items-center gap-0.5">
-                            {request.hasCompletedPurchase ? (
-                              <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Договор: Закупка завершена">
-                                <Clock className="w-2.5 h-2.5 text-white" />
-                              </div>
-                            ) : (
-                              <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Договор"></div>
-                            )}
-                            <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Договор</span>
-                          </div>
-                        </>
-                      ) : (
-                        /* Если закупка не требуется: Заявка → Заказ */
-                        <div className="flex flex-col items-center gap-0.5">
-                          {(() => {
-                            // Проверяем, есть ли спецификация на согласовании
-                            const hasSpecificationOnCoordination = request.contracts && request.contracts.some(
-                              (contract: Contract) => 
-                                contract.documentForm === 'Спецификация' && 
-                                contract.status === 'На согласовании'
-                            );
-                            
-                            if (request.status === 'Спецификация подписана' || request.status === 'Договор подписан' || hasSpecificationOnCoordination) {
-                              return (
-                                <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center mt-0.5" title={
-                                  hasSpecificationOnCoordination ? "Заказ: Спецификация на согласовании" :
-                                  request.status === 'Спецификация подписана' ? "Заказ: Спецификация подписана" : 
-                                  "Заявка: Договор подписан"
+                      {/* Проверяем, есть ли спецификация на согласовании (для заказов) */}
+                      {(() => {
+                        const hasSpecificationOnCoordination = request.contracts && request.contracts.some(
+                          (contract: Contract) => 
+                            contract.documentForm === 'Спецификация' && 
+                            contract.status === 'На согласовании'
+                        );
+                        
+                        return (
+                          <>
+                            {/* Заявка - активна */}
+                            <div className="flex flex-col items-center gap-0.5">
+                              {request.status === 'Спецификация подписана' || request.status === 'Договор подписан' || request.status === 'Закупка создана' || (request.requiresPurchase === false && hasSpecificationOnCoordination) ? (
+                                <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center" title={
+                                  hasSpecificationOnCoordination && request.requiresPurchase === false ? "Заявка: Спецификация на согласовании" :
+                                  request.status === 'Спецификация подписана' ? "Заявка: Спецификация подписана" :
+                                  request.status === 'Договор подписан' ? "Заявка: Договор подписан" :
+                                  "Заявка: Закупка создана"
                                 }>
                                   <Check className="w-2.5 h-2.5 text-white" />
                                 </div>
-                              );
-                            } else if (request.status === 'Спецификация создана') {
-                              return (
-                                <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Заказ: Спецификация создана">
+                              ) : request.status === 'Утверждена' || request.status === 'Заявка утверждена' || request.status === 'Спецификация создана' ? (
+                                <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center" title={
+                                  request.status === 'Спецификация создана' ? "Заявка: Спецификация создана" :
+                                  "Заявка утверждена"
+                                }>
                                   <Clock className="w-2.5 h-2.5 text-white" />
                                 </div>
-                              );
-                            } else {
-                              return (
-                                <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Заказ"></div>
-                              );
-                            }
-                          })()}
-                          <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Заказ</span>
-                        </div>
-                      )}
+                              ) : request.status === 'Заявка не утверждена' || request.status === 'Заявка не согласована' || request.status === 'Закупка не согласована' ? (
+                                <div className="relative w-4 h-4 rounded-full bg-red-500 flex items-center justify-center" title={
+                                  request.status === 'Закупка не согласована' ? "Заявка: Закупка не согласована" :
+                                  "Заявка: Заявка не утверждена или Заявка не согласована"
+                                }>
+                                  <X className="w-2.5 h-2.5 text-white" />
+                                </div>
+                              ) : (
+                                <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center" title="Заявка">
+                                  <Clock className="w-2.5 h-2.5 text-white" />
+                                </div>
+                              )}
+                              <span className="text-[10px] text-gray-600 whitespace-nowrap leading-none">Заявка</span>
+                            </div>
+                            
+                            {/* Если закупка требуется: Заявка → Закупка → Договор */}
+                            {request.requiresPurchase !== false ? (
+                              <>
+                                {/* Закупка - зеленая галочка если связанная закупка со статусом "Завершена" */}
+                                <div className="flex flex-col items-center gap-0.5">
+                                  {request.hasCompletedPurchase ? (
+                                    <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center mt-0.5" title="Закупка: Завершена">
+                                      <Check className="w-2.5 h-2.5 text-white" />
+                                    </div>
+                                  ) : request.status === 'Закупка создана' ? (
+                                    <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Закупка: Закупка создана">
+                                      <Clock className="w-2.5 h-2.5 text-white" />
+                                    </div>
+                                  ) : request.status === 'Закупка не согласована' ? (
+                                    <div className="relative w-4 h-4 rounded-full bg-red-500 flex items-center justify-center mt-0.5" title="Закупка: Закупка не согласована">
+                                      <X className="w-2.5 h-2.5 text-white" />
+                                    </div>
+                                  ) : (
+                                    <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Закупка"></div>
+                                  )}
+                                  <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Закупка</span>
+                                </div>
+                                {/* Договор - желтая галочка если связанная закупка со статусом "Завершена" */}
+                                <div className="flex flex-col items-center gap-0.5">
+                                  {request.hasCompletedPurchase ? (
+                                    <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Договор: Закупка завершена">
+                                      <Clock className="w-2.5 h-2.5 text-white" />
+                                    </div>
+                                  ) : (
+                                    <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Договор"></div>
+                                  )}
+                                  <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Договор</span>
+                                </div>
+                              </>
+                            ) : (
+                              /* Если закупка не требуется: Заявка → Заказ */
+                              <div className="flex flex-col items-center gap-0.5">
+                                {request.status === 'Спецификация подписана' || request.status === 'Договор подписан' ? (
+                                  <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center mt-0.5" title={
+                                    request.status === 'Спецификация подписана' ? "Заказ: Спецификация подписана" : 
+                                    "Заявка: Договор подписан"
+                                  }>
+                                    <Check className="w-2.5 h-2.5 text-white" />
+                                  </div>
+                                ) : request.status === 'Спецификация создана' ? (
+                                  <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Заказ: Спецификация создана">
+                                    <Clock className="w-2.5 h-2.5 text-white" />
+                                  </div>
+                                ) : (
+                                  <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Заказ"></div>
+                                )}
+                                <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Заказ</span>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                         </td>
                       );
