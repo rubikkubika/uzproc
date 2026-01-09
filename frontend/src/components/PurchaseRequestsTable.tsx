@@ -1028,16 +1028,16 @@ export default function PurchaseRequestsTable() {
     const defaults: Record<string, number> = {
       idPurchaseRequest: 64, // w-16 = 4rem = 64px
       cfo: 80, // w-20 = 5rem = 80px
-      purchaseRequestInitiator: 48, // w-12 = 3rem = 48px
+      purchaseRequestInitiator: 128, // w-32 = 8rem = 128px
       purchaser: 150, // Закупщик
       name: 192, // w-48 = 12rem = 192px
       budgetAmount: 112, // w-28 = 7rem = 112px
-      isPlanned: 80, // w-20 = 5rem = 80px
+      isPlanned: 96, // w-24 = 6rem = 96px
       requiresPurchase: 96, // w-24 = 6rem = 96px
-      purchaseRequestCreationDate: 120,
-      costType: 120,
-      contractType: 120,
-      contractDurationMonths: 120,
+      purchaseRequestCreationDate: 128, // w-32 = 8rem = 128px
+      costType: 128, // w-32 = 8rem = 128px
+      contractType: 128, // w-32 = 8rem = 128px
+      contractDurationMonths: 128, // w-32 = 8rem = 128px
       daysInStatus: 120,
       daysSinceCreation: 140, // Срок с даты создания - немного шире для переноса текста
       isStrategicProduct: 160, // Стратегическая продукция - w-40 = 10rem = 160px
@@ -1045,13 +1045,7 @@ export default function PurchaseRequestsTable() {
       purchaseRequestPlanYear: 96, // w-24 = 6rem = 96px
       company: 128, // w-32 = 8rem = 128px
       mcc: 96, // w-24 = 6rem = 96px
-      purchaseRequestInitiator: 128, // w-32 = 8rem = 128px
-      purchaseRequestCreationDate: 128, // w-32 = 8rem = 128px
       currency: 96, // w-24 = 6rem = 96px
-      costType: 128, // w-32 = 8rem = 128px
-      contractType: 128, // w-32 = 8rem = 128px
-      contractDurationMonths: 128, // w-32 = 8rem = 128px
-      isPlanned: 96, // w-24 = 6rem = 96px
       createdAt: 160, // w-40 = 10rem = 160px
       updatedAt: 160, // w-40 = 10rem = 160px
     };
