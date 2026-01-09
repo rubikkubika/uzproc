@@ -2302,17 +2302,7 @@ export default function PurchasePlanItemsTable() {
         if (filters.purchaseSubject && filters.purchaseSubject.trim() !== '') {
           params.append('purchaseSubject', filters.purchaseSubject.trim());
         }
-        // Фильтр по закупщику - передаем все выбранные значения на бэкенд
-        if (purchaserFilter.size > 0) {
-          purchaserFilter.forEach(purchaser => {
-            // Если выбрано "Не назначен", передаем специальное значение для null
-            if (purchaser === 'Не назначен') {
-              params.append('purchaser', '__NULL__');
-            } else {
-              params.append('purchaser', purchaser);
-            }
-          });
-        }
+        // НЕ добавляем фильтр по закупщику для сводной таблицы - все закупщики должны оставаться видимыми
         // Фильтр по категории - передаем все выбранные значения на бэкенд
         if (categoryFilter.size > 0) {
           categoryFilter.forEach(category => {
@@ -2365,7 +2355,7 @@ export default function PurchasePlanItemsTable() {
     };
     
     fetchSummaryData();
-  }, [selectedYear, selectedMonthYear, selectedMonths, filters, cfoFilter, companyFilter, purchaserCompanyFilter, purchaserFilter, categoryFilter, statusFilter]);
+  }, [selectedYear, selectedMonthYear, selectedMonths, filters, cfoFilter, companyFilter, purchaserCompanyFilter, categoryFilter, statusFilter]); // НЕ включаем purchaserFilter - сводная таблица должна показывать всех закупщиков
 
   // Функция для подсчета количества закупок по месяцам (использует отфильтрованные данные)
   const getMonthlyDistribution = useMemo(() => {
@@ -3990,17 +3980,44 @@ export default function PurchasePlanItemsTable() {
                     Итого
                   </td>
                     <td className="px-2 py-1 text-xs font-semibold text-gray-700 text-right border-r border-gray-200 whitespace-nowrap">
-                      {purchaserSummary.reduce((sum, item) => sum + item.count, 0)}
+                      {(() => {
+                        // Если фильтр по закупщику не установлен, показываем сумму всех закупщиков
+                        if (purchaserFilter.size === 0) {
+                          return purchaserSummary.reduce((sum, item) => sum + item.count, 0);
+                        }
+                        // Если фильтр установлен, суммируем только выбранных закупщиков
+                        return purchaserSummary
+                          .filter(item => purchaserFilter.has(item.purchaser))
+                          .reduce((sum, item) => sum + item.count, 0);
+                      })()}
                   </td>
                     <td className="px-2 py-1 text-xs font-semibold text-gray-700 text-right border-r border-gray-200 whitespace-nowrap">
-                      {purchaserSummary.reduce((sum, item) => sum + item.totalBudget, 0).toLocaleString('ru-RU', { 
+                      {(() => {
+                        // Если фильтр по закупщику не установлен, показываем сумму всех закупщиков
+                        if (purchaserFilter.size === 0) {
+                          return purchaserSummary.reduce((sum, item) => sum + item.totalBudget, 0);
+                        }
+                        // Если фильтр установлен, суммируем только выбранных закупщиков
+                        return purchaserSummary
+                          .filter(item => purchaserFilter.has(item.purchaser))
+                          .reduce((sum, item) => sum + item.totalBudget, 0);
+                      })().toLocaleString('ru-RU', { 
                         minimumFractionDigits: 0, 
                         maximumFractionDigits: 0 
                       })}
                     </td>
                     <td className="px-2 py-1 text-xs font-semibold text-gray-700 text-right whitespace-nowrap">
                       {(() => {
-                        const totalComplexity = purchaserSummary.reduce((sum, item) => sum + item.totalComplexity, 0);
+                        // Если фильтр по закупщику не установлен, показываем сумму всех закупщиков
+                        let totalComplexity: number;
+                        if (purchaserFilter.size === 0) {
+                          totalComplexity = purchaserSummary.reduce((sum, item) => sum + item.totalComplexity, 0);
+                        } else {
+                          // Если фильтр установлен, суммируем только выбранных закупщиков
+                          totalComplexity = purchaserSummary
+                            .filter(item => purchaserFilter.has(item.purchaser))
+                            .reduce((sum, item) => sum + item.totalComplexity, 0);
+                        }
                         return totalComplexity > 0 
                           ? totalComplexity.toLocaleString('ru-RU', { 
                               minimumFractionDigits: 0, 
@@ -4009,7 +4026,7 @@ export default function PurchasePlanItemsTable() {
                           : '-';
                       })()}
                   </td>
-                </tr>
+                  </tr>
                 </tfoot>
           </table>
         </div>
