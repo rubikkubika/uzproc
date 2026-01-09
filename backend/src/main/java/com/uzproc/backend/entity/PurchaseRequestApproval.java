@@ -49,6 +49,9 @@ public class PurchaseRequestApproval {
     @Column(name = "completion_result", length = 500)
     private String completionResult;
 
+    @Column(name = "is_strategic_product")
+    private Boolean isStrategicProduct;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -157,6 +160,14 @@ public class PurchaseRequestApproval {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Boolean getIsStrategicProduct() {
+        return isStrategicProduct;
+    }
+
+    public void setIsStrategicProduct(Boolean isStrategicProduct) {
+        this.isStrategicProduct = isStrategicProduct;
     }
 }
 

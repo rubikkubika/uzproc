@@ -109,6 +109,9 @@ public class PurchasePlanItem {
     @Column(name = "comment", columnDefinition = "TEXT")
     private String comment;
 
+    @Column(name = "is_strategic_product")
+    private Boolean isStrategicProduct;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -376,6 +379,14 @@ public class PurchasePlanItem {
 
     public void setComment(String comment) {
         this.comment = comment;
+    }
+
+    public Boolean getIsStrategicProduct() {
+        return isStrategicProduct;
+    }
+
+    public void setIsStrategicProduct(Boolean isStrategicProduct) {
+        this.isStrategicProduct = isStrategicProduct;
     }
 }
 

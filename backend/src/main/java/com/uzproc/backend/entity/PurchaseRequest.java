@@ -91,6 +91,9 @@ public class PurchaseRequest {
     @Column(name = "exclude_from_in_work")
     private Boolean excludeFromInWork;
 
+    @Column(name = "is_strategic_product")
+    private Boolean isStrategicProduct;
+
     // Обратная связь с Purchase (одна заявка может иметь много закупок)
     @OneToMany(mappedBy = "purchaseRequest", fetch = FetchType.LAZY)
     private java.util.List<Purchase> purchases;
@@ -334,6 +337,14 @@ public class PurchaseRequest {
 
     public void setExcludeFromInWork(Boolean excludeFromInWork) {
         this.excludeFromInWork = excludeFromInWork;
+    }
+
+    public Boolean getIsStrategicProduct() {
+        return isStrategicProduct;
+    }
+
+    public void setIsStrategicProduct(Boolean isStrategicProduct) {
+        this.isStrategicProduct = isStrategicProduct;
     }
 
     public java.util.List<Purchase> getPurchases() {

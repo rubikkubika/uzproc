@@ -30,6 +30,9 @@ public class PurchasePlanVersion {
     @Column(name = "is_current")
     private Boolean isCurrent;
 
+    @Column(name = "is_strategic_product")
+    private Boolean isStrategicProduct;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -111,6 +114,14 @@ public class PurchasePlanVersion {
 
     public void setItems(List<PurchasePlanItemVersion> items) {
         this.items = items;
+    }
+
+    public Boolean getIsStrategicProduct() {
+        return isStrategicProduct;
+    }
+
+    public void setIsStrategicProduct(Boolean isStrategicProduct) {
+        this.isStrategicProduct = isStrategicProduct;
     }
 }
 

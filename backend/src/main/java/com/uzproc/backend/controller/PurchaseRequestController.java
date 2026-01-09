@@ -134,8 +134,18 @@ public class PurchaseRequestController {
     @PatchMapping("/{idPurchaseRequest}/exclude-from-in-work")
     public ResponseEntity<?> updateExcludeFromInWork(
             @PathVariable Long idPurchaseRequest,
-            @RequestBody Map<String, Boolean> requestBody) {
+            @RequestBody Map<String, Boolean> requestBody,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
         try {
+            // Проверяем, что пользователь является администратором
+            if (userRole == null || !"admin".equalsIgnoreCase(userRole.trim())) {
+                logger.warn("Attempt to update excludeFromInWork by non-admin user. Role: {}", userRole);
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of(
+                    "success", false,
+                    "message", "Только администратор может изменять видимость заявки в работе"
+                ));
+            }
+            
             Boolean excludeFromInWork = requestBody.get("excludeFromInWork");
             if (excludeFromInWork == null) {
                 return ResponseEntity.badRequest().body(Map.of(

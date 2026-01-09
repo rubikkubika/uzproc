@@ -33,6 +33,9 @@ public class PurchasePlanItemChange {
     @Column(name = "change_date", nullable = false)
     private LocalDateTime changeDate;
 
+    @Column(name = "is_strategic_product")
+    private Boolean isStrategicProduct;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -124,6 +127,14 @@ public class PurchasePlanItemChange {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Boolean getIsStrategicProduct() {
+        return isStrategicProduct;
+    }
+
+    public void setIsStrategicProduct(Boolean isStrategicProduct) {
+        this.isStrategicProduct = isStrategicProduct;
     }
 }
 

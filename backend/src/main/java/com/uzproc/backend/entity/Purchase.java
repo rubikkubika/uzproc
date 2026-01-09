@@ -75,6 +75,9 @@ public class Purchase {
     @Column(name = "expense_item", length = 255)
     private String expenseItem;
 
+    @Column(name = "is_strategic_product")
+    private Boolean isStrategicProduct;
+
     // Связь многие-ко-многим с Contract через внутренний номер договора
     // Используем @ElementCollection для хранения списка contract_inner_id
     // Это правильный подход для связи через не-первичный ключ (inner_id)
@@ -376,6 +379,14 @@ public class Purchase {
 
     public void setStatus(PurchaseStatus status) {
         this.status = status;
+    }
+
+    public Boolean getIsStrategicProduct() {
+        return isStrategicProduct;
+    }
+
+    public void setIsStrategicProduct(Boolean isStrategicProduct) {
+        this.isStrategicProduct = isStrategicProduct;
     }
 }
 

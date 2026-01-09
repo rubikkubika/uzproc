@@ -19,6 +19,9 @@ public class Cfo {
     @Column(name = "name", unique = true, nullable = false, length = 255)
     private String name;
 
+    @Column(name = "is_strategic_product")
+    private Boolean isStrategicProduct;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -72,6 +75,14 @@ public class Cfo {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Boolean getIsStrategicProduct() {
+        return isStrategicProduct;
+    }
+
+    public void setIsStrategicProduct(Boolean isStrategicProduct) {
+        this.isStrategicProduct = isStrategicProduct;
     }
 
     @Override

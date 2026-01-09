@@ -39,6 +39,9 @@ public class User {
     @Convert(converter = com.uzproc.backend.converter.UserRoleConverter.class)
     private UserRole role = UserRole.USER;
 
+    @Column(name = "is_strategic_product")
+    private Boolean isStrategicProduct;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -168,5 +171,13 @@ public class User {
 
     public void setRole(UserRole role) {
         this.role = role != null ? role : UserRole.USER;
+    }
+
+    public Boolean getIsStrategicProduct() {
+        return isStrategicProduct;
+    }
+
+    public void setIsStrategicProduct(Boolean isStrategicProduct) {
+        this.isStrategicProduct = isStrategicProduct;
     }
 }

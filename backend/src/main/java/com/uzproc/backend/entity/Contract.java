@@ -94,6 +94,9 @@ public class Contract {
     @Column(name = "planned_delivery_end_date")
     private LocalDateTime plannedDeliveryEndDate;
 
+    @Column(name = "is_strategic_product")
+    private Boolean isStrategicProduct;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -310,6 +313,14 @@ public class Contract {
 
     public void setPlannedDeliveryEndDate(LocalDateTime plannedDeliveryEndDate) {
         this.plannedDeliveryEndDate = plannedDeliveryEndDate;
+    }
+
+    public Boolean getIsStrategicProduct() {
+        return isStrategicProduct;
+    }
+
+    public void setIsStrategicProduct(Boolean isStrategicProduct) {
+        this.isStrategicProduct = isStrategicProduct;
     }
 }
 

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
-import { ArrowUp, ArrowDown, ArrowUpDown, Search, X, Download, Copy, Clock, Check, Eye, EyeOff } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpDown, Search, X, Download, Copy, Clock, Check, Eye, EyeOff, Settings } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 
@@ -30,6 +30,7 @@ interface PurchaseRequest {
   excludeFromInWork: boolean | null;
   daysInStatus: number | null;
   daysSinceCreation: number | null;
+  isStrategicProduct: boolean | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -52,6 +53,54 @@ const CACHE_TTL = 5 * 60 * 1000; // 5 минут
 // Константы для статусов (соответствуют PurchaseRequestStatus enum)
 const ALL_STATUSES = ['Заявка на согласовании', 'На согласовании', 'Заявка на утверждении', 'На утверждении', 'Утверждена', 'Заявка утверждена', 'Согласована', 'Заявка не согласована', 'Заявка не утверждена', 'Проект', 'Неактуальна', 'Не Актуальная', 'Спецификация создана', 'Спецификация создана - Архив', 'Спецификация подписана', 'Договор подписан', 'Закупка создана', 'Закупка не согласована'];
 const DEFAULT_STATUSES = ALL_STATUSES.filter(s => s !== 'Неактуальна' && s !== 'Не Актуальная');
+
+// Ключ для сохранения видимости колонок в localStorage
+const COLUMNS_VISIBILITY_STORAGE_KEY = 'purchaseRequests_columnsVisibility';
+
+// Определение всех возможных колонок
+const ALL_COLUMNS = [
+  { key: 'excludeFromInWork', label: 'Скрыть из вкладки' },
+  { key: 'idPurchaseRequest', label: 'Номер' },
+  { key: 'guid', label: 'GUID' },
+  { key: 'purchaseRequestPlanYear', label: 'Год плана' },
+  { key: 'company', label: 'Компания' },
+  { key: 'cfo', label: 'ЦФО' },
+  { key: 'mcc', label: 'МЦК' },
+  { key: 'purchaseRequestInitiator', label: 'Инициатор' },
+  { key: 'purchaser', label: 'Закупщик' },
+  { key: 'name', label: 'Название' },
+  { key: 'purchaseRequestCreationDate', label: 'Дата создания' },
+  { key: 'budgetAmount', label: 'Бюджет' },
+  { key: 'currency', label: 'Валюта' },
+  { key: 'costType', label: 'Тип затрат' },
+  { key: 'contractType', label: 'Тип договора' },
+  { key: 'contractDurationMonths', label: 'Длительность (мес)' },
+  { key: 'isPlanned', label: 'План' },
+  { key: 'requiresPurchase', label: 'Закупка' },
+  { key: 'status', label: 'Статус' },
+  { key: 'daysInStatus', label: 'Срок в статусе' },
+  { key: 'isStrategicProduct', label: 'Стратегическая продукция' },
+  { key: 'daysSinceCreation', label: 'Срок с даты создания' },
+  { key: 'createdAt', label: 'Дата создания (системная)' },
+  { key: 'updatedAt', label: 'Дата обновления' },
+  { key: 'track', label: 'Трэк' },
+] as const;
+
+// Колонки, которые отображаются по умолчанию
+const DEFAULT_VISIBLE_COLUMNS = [
+  'excludeFromInWork',
+  'idPurchaseRequest',
+  'cfo',
+  'purchaser',
+  'name',
+  'budgetAmount',
+  'requiresPurchase',
+  'status',
+  'daysInStatus',
+  'isStrategicProduct',
+  'daysSinceCreation',
+  'track',
+];
 
 // Функция для получения символа валюты
 const getCurrencyIcon = (currency: string | null) => {
@@ -77,6 +126,26 @@ export default function PurchaseRequestsTable() {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [totalRecords, setTotalRecords] = useState<number>(0);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  
+  // Загружаем роль пользователя при монтировании
+  useEffect(() => {
+    const checkUserRole = async () => {
+      try {
+        const response = await fetch('/api/auth/check');
+        const data = await response.json();
+        if (data.authenticated && data.role) {
+          setUserRole(data.role);
+        }
+      } catch (error) {
+        console.error('Error checking user role:', error);
+      }
+    };
+    checkUserRole();
+  }, []);
+  
+  // Проверка, может ли пользователь изменять видимость заявки (только admin)
+  const canEditExcludeFromInWork = userRole === 'admin';
   
   // Состояние для сортировки (по умолчанию сортировка по номеру по убыванию)
   const [sortField, setSortField] = useState<SortField>('idPurchaseRequest');
@@ -97,6 +166,7 @@ export default function PurchaseRequestsTable() {
     isPlanned: '',
     requiresPurchase: '',
     status: '',
+    isStrategicProduct: '',
   });
 
   // Состояние для множественных фильтров (чекбоксы)
@@ -281,6 +351,15 @@ export default function PurchaseRequestsTable() {
           params.append('requiresPurchase', 'false');
         }
       }
+      if (filters.isStrategicProduct && filters.isStrategicProduct.trim() !== '' && filters.isStrategicProduct.trim() !== 'Все') {
+        const isStrategicProductValue = filters.isStrategicProduct.trim();
+        // Преобразуем "Да" в "true", "Нет" в "false"
+        if (isStrategicProductValue === 'Да') {
+          params.append('isStrategicProduct', 'true');
+        } else if (isStrategicProductValue === 'Нет') {
+          params.append('isStrategicProduct', 'false');
+        }
+      }
       
       const fetchUrl = `${getBackendUrl()}/api/purchase-requests/tab-counts?${params.toString()}`;
       const response = await fetch(fetchUrl);
@@ -324,15 +403,115 @@ export default function PurchaseRequestsTable() {
   const resizeColumn = useRef<string | null>(null);
 
   // Состояние для порядка колонок
-  const [columnOrder, setColumnOrder] = useState<string[]>(['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'daysInStatus', 'daysSinceCreation', 'track']);
+  const [columnOrder, setColumnOrder] = useState<string[]>(['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'daysInStatus', 'isStrategicProduct', 'daysSinceCreation', 'track']);
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
+
+  // Состояние для видимости колонок
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') {
+      return new Set(DEFAULT_VISIBLE_COLUMNS);
+    }
+    try {
+      const saved = localStorage.getItem(COLUMNS_VISIBILITY_STORAGE_KEY);
+      if (saved) {
+        const savedColumns = JSON.parse(saved);
+        if (Array.isArray(savedColumns)) {
+          const filteredColumns = savedColumns.filter((col: unknown): col is string => typeof col === 'string');
+          // Проверяем, что все колонки из DEFAULT_VISIBLE_COLUMNS присутствуют
+          const missingCols = DEFAULT_VISIBLE_COLUMNS.filter(col => !filteredColumns.includes(col));
+          if (missingCols.length > 0) {
+            // Добавляем недостающие колонки
+            filteredColumns.push(...missingCols);
+            try {
+              localStorage.setItem(COLUMNS_VISIBILITY_STORAGE_KEY, JSON.stringify(filteredColumns));
+            } catch (err) {
+              console.error('Error saving updated column visibility to localStorage:', err);
+            }
+          }
+          return new Set(filteredColumns);
+        }
+      }
+    } catch (err) {
+      console.error('Error loading column visibility from localStorage:', err);
+    }
+    return new Set(DEFAULT_VISIBLE_COLUMNS);
+  });
+
+  // Состояние для открытия меню выбора колонок
+  const [isColumnsMenuOpen, setIsColumnsMenuOpen] = useState(false);
+  const [columnsMenuPosition, setColumnsMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const columnsMenuButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Функции для управления видимостью колонок
+  const toggleColumnVisibility = (columnKey: string) => {
+    setVisibleColumns(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(columnKey)) {
+        newSet.delete(columnKey);
+      } else {
+        newSet.add(columnKey);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllColumns = () => {
+    setVisibleColumns(new Set(ALL_COLUMNS.map(col => col.key)));
+  };
+
+  const selectDefaultColumns = () => {
+    setVisibleColumns(new Set(DEFAULT_VISIBLE_COLUMNS));
+  };
+
+  // Сохраняем видимость колонок в localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(COLUMNS_VISIBILITY_STORAGE_KEY, JSON.stringify(Array.from(visibleColumns)));
+    } catch (err) {
+      console.error('Error saving column visibility to localStorage:', err);
+    }
+  }, [visibleColumns]);
+
+  // Обновляем позицию при открытии меню выбора колонок
+  useEffect(() => {
+    if (isColumnsMenuOpen && columnsMenuButtonRef.current) {
+      const position = calculateFilterPosition(columnsMenuButtonRef);
+      setColumnsMenuPosition(position);
+    }
+  }, [isColumnsMenuOpen, calculateFilterPosition]);
+
+  // Закрываем меню колонок при клике вне его
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isColumnsMenuOpen) {
+        const target = event.target as Node;
+        if (columnsMenuButtonRef.current && !columnsMenuButtonRef.current.contains(target)) {
+          const columnsMenuElement = document.querySelector('[data-columns-menu="true"]');
+          if (columnsMenuElement && !columnsMenuElement.contains(target)) {
+            setIsColumnsMenuOpen(false);
+          }
+        }
+      }
+    };
+
+    if (isColumnsMenuOpen) {
+      const timeoutId = setTimeout(() => {
+        document.addEventListener('mousedown', handleClickOutside);
+      }, 100);
+      
+      return () => {
+        clearTimeout(timeoutId);
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isColumnsMenuOpen]);
 
   // Загружаем сохраненный порядок колонок из localStorage
   useEffect(() => {
     try {
       const saved = localStorage.getItem('purchaseRequestsTableColumnOrder');
-      const defaultOrder = ['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'daysInStatus', 'daysSinceCreation', 'track'];
+      const defaultOrder = ['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'daysInStatus', 'isStrategicProduct', 'daysSinceCreation', 'track'];
       
       if (saved) {
         const order = JSON.parse(saved);
@@ -861,6 +1040,20 @@ export default function PurchaseRequestsTable() {
       contractDurationMonths: 120,
       daysInStatus: 120,
       daysSinceCreation: 140, // Срок с даты создания - немного шире для переноса текста
+      isStrategicProduct: 160, // Стратегическая продукция - w-40 = 10rem = 160px
+      guid: 192, // w-48 = 12rem = 192px
+      purchaseRequestPlanYear: 96, // w-24 = 6rem = 96px
+      company: 128, // w-32 = 8rem = 128px
+      mcc: 96, // w-24 = 6rem = 96px
+      purchaseRequestInitiator: 128, // w-32 = 8rem = 128px
+      purchaseRequestCreationDate: 128, // w-32 = 8rem = 128px
+      currency: 96, // w-24 = 6rem = 96px
+      costType: 128, // w-32 = 8rem = 128px
+      contractType: 128, // w-32 = 8rem = 128px
+      contractDurationMonths: 128, // w-32 = 8rem = 128px
+      isPlanned: 96, // w-24 = 6rem = 96px
+      createdAt: 160, // w-40 = 10rem = 160px
+      updatedAt: 160, // w-40 = 10rem = 160px
     };
     return defaults[columnKey] || 120;
   };
@@ -945,6 +1138,15 @@ export default function PurchaseRequestsTable() {
           params.append('requiresPurchase', 'true');
         } else if (requiresPurchaseValue === 'Заказ') {
           params.append('requiresPurchase', 'false');
+        }
+      }
+      if (filters.isStrategicProduct && filters.isStrategicProduct.trim() !== '' && filters.isStrategicProduct.trim() !== 'Все') {
+        const isStrategicProductValue = filters.isStrategicProduct.trim();
+        // Преобразуем "Да" в "true", "Нет" в "false"
+        if (isStrategicProductValue === 'Да') {
+          params.append('isStrategicProduct', 'true');
+        } else if (isStrategicProductValue === 'Нет') {
+          params.append('isStrategicProduct', 'false');
         }
       }
       
@@ -1513,6 +1715,35 @@ export default function PurchaseRequestsTable() {
     });
   }, [purchaserSearchQuery, uniqueValues.purchaser]);
 
+  // Обновляем columnOrder, когда добавляются новые колонки
+  useEffect(() => {
+    const missingColumns = Array.from(visibleColumns).filter(col => !columnOrder.includes(col));
+    if (missingColumns.length > 0) {
+      setColumnOrder(prev => {
+        const newOrder = [...prev];
+        // Добавляем недостающие колонки перед track, если он есть
+        const trackIndex = newOrder.indexOf('track');
+        if (trackIndex !== -1) {
+          newOrder.splice(trackIndex, 0, ...missingColumns);
+        } else {
+          newOrder.push(...missingColumns);
+        }
+        // Сохраняем в localStorage
+        try {
+          localStorage.setItem('purchaseRequestsTableColumnOrder', JSON.stringify(newOrder));
+        } catch (err) {
+          console.error('Error saving column order:', err);
+        }
+        return newOrder;
+      });
+    }
+  }, [visibleColumns, columnOrder]);
+
+  // Фильтруем columnOrder, чтобы показывать только видимые колонки
+  const filteredColumnOrder = useMemo(() => {
+    return columnOrder.filter(columnKey => visibleColumns.has(columnKey));
+  }, [columnOrder, visibleColumns]);
+
   const getFilteredStatusOptions = useMemo(() => {
     // Используем только статусы, которые есть в данных (в БД есть заявки с этими статусами)
     const availableStatuses = uniqueValues.status || [];
@@ -1939,6 +2170,62 @@ export default function PurchaseRequestsTable() {
             <p className="text-sm text-gray-500">
               Всего записей: {totalRecords}
             </p>
+            <div className="relative">
+              <button
+                ref={columnsMenuButtonRef}
+                onClick={() => setIsColumnsMenuOpen(!isColumnsMenuOpen)}
+                className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-2"
+                title="Настройка колонок"
+              >
+                <Settings className="w-4 h-4" />
+                Колонки
+              </button>
+              {isColumnsMenuOpen && columnsMenuPosition && (
+                <div 
+                  data-columns-menu="true"
+                  className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-96 overflow-hidden"
+                  style={{
+                    top: `${columnsMenuPosition.top}px`,
+                    left: `${columnsMenuPosition.left}px`,
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="p-3 border-b border-gray-200">
+                    <h3 className="text-sm font-semibold text-gray-900">Выбор колонок</h3>
+                  </div>
+                  <div className="p-2 border-b border-gray-200 flex gap-2">
+                    <button
+                      onClick={selectAllColumns}
+                      className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                    >
+                      Все
+                    </button>
+                    <button
+                      onClick={selectDefaultColumns}
+                      className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                    >
+                      По умолчанию
+                    </button>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto">
+                    {ALL_COLUMNS.map((column) => (
+                      <label
+                        key={column.key}
+                        className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={visibleColumns.has(column.key)}
+                          onChange={() => toggleColumnVisibility(column.key)}
+                          className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                        />
+                        <span className="ml-2 text-xs text-gray-700 flex-1">{column.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
             <button
               onClick={() => {
                 const emptyFilters = {
@@ -1955,6 +2242,7 @@ export default function PurchaseRequestsTable() {
                   isPlanned: '',
                   requiresPurchase: '',
                   status: '',
+                  isStrategicProduct: '',
                 };
                 setFilters(emptyFilters);
                 setLocalFilters(emptyFilters);
@@ -2118,7 +2406,7 @@ export default function PurchaseRequestsTable() {
         <table className="w-full border-collapse">
           <thead className="bg-gray-50 sticky top-[44px] z-20">
             <tr>
-              {columnOrder.map(columnKey => {
+              {filteredColumnOrder.map(columnKey => {
                 const isDragging = draggedColumn === columnKey;
                 const isDragOver = dragOverColumn === columnKey;
                 
@@ -2137,6 +2425,26 @@ export default function PurchaseRequestsTable() {
                 
                 if (columnKey === 'idPurchaseRequest') {
                   return <SortableHeader key={columnKey} field="idPurchaseRequest" label="Номер" width="w-16" columnKey="idPurchaseRequest" />;
+                }
+                
+                if (columnKey === 'guid') {
+                  return <SortableHeader key={columnKey} field="guid" label="GUID" width="w-48" columnKey="guid" />;
+                }
+                
+                if (columnKey === 'purchaseRequestPlanYear') {
+                  return <SortableHeader key={columnKey} field="purchaseRequestPlanYear" label="Год плана" width="w-24" columnKey="purchaseRequestPlanYear" />;
+                }
+                
+                if (columnKey === 'company') {
+                  return <SortableHeader key={columnKey} field="company" label="Компания" width="w-32" columnKey="company" />;
+                }
+                
+                if (columnKey === 'mcc') {
+                  return <SortableHeader key={columnKey} field="mcc" label="МЦК" width="w-24" columnKey="mcc" />;
+                }
+                
+                if (columnKey === 'purchaseRequestInitiator') {
+                  return <SortableHeader key={columnKey} field="purchaseRequestInitiator" label="Инициатор" width="w-32" columnKey="purchaseRequestInitiator" />;
                 }
                 
                 if (columnKey === 'cfo') {
@@ -2389,6 +2697,10 @@ export default function PurchaseRequestsTable() {
                 
                 if (columnKey === 'name') {
                   return <SortableHeader key={columnKey} field="name" label="Наименование" width="w-48" columnKey="name" />;
+                }
+                
+                if (columnKey === 'purchaseRequestCreationDate') {
+                  return <SortableHeader key={columnKey} field="purchaseRequestCreationDate" label="Дата создания" width="w-32" columnKey="purchaseRequestCreationDate" />;
                 }
                 
                 if (columnKey === 'budgetAmount') {
@@ -2655,6 +2967,10 @@ export default function PurchaseRequestsTable() {
                   );
                 }
                 
+                if (columnKey === 'isStrategicProduct') {
+                  return <SortableHeader key={columnKey} field="isStrategicProduct" label="Стратегическая продукция" filterType="select" filterOptions={['Да', 'Нет', 'Все']} width="w-40" columnKey="isStrategicProduct" />;
+                }
+                
                 if (columnKey === 'daysSinceCreation') {
                   return (
                     <th
@@ -2683,6 +2999,14 @@ export default function PurchaseRequestsTable() {
                       />
                     </th>
                   );
+                }
+                
+                if (columnKey === 'createdAt') {
+                  return <SortableHeader key={columnKey} field="createdAt" label="Дата создания (системная)" width="w-40" columnKey="createdAt" />;
+                }
+                
+                if (columnKey === 'updatedAt') {
+                  return <SortableHeader key={columnKey} field="updatedAt" label="Дата обновления" width="w-40" columnKey="updatedAt" />;
                 }
                 
                 if (columnKey === 'track') {
@@ -2763,16 +3087,21 @@ export default function PurchaseRequestsTable() {
                     router.push(`/purchase-request/${request.id}`);
                   }}
                 >
-                  {columnOrder.map(columnKey => {
+                  {filteredColumnOrder.map(columnKey => {
                     if (columnKey === 'excludeFromInWork') {
                       const handleToggleExclude = async (e: React.MouseEvent) => {
                         e.stopPropagation();
+                        if (!canEditExcludeFromInWork) {
+                          alert('Только администратор может изменять видимость заявки в работе');
+                          return;
+                        }
                         const newValue = !request.excludeFromInWork;
                         try {
                           const response = await fetch(`${getBackendUrl()}/api/purchase-requests/${request.idPurchaseRequest}/exclude-from-in-work`, {
                             method: 'PATCH',
                             headers: {
                               'Content-Type': 'application/json',
+                              'X-User-Role': userRole || 'user',
                             },
                             body: JSON.stringify({ excludeFromInWork: newValue }),
                           });
@@ -2790,27 +3119,30 @@ export default function PurchaseRequestsTable() {
                               };
                             });
                           } else {
+                            const errorData = await response.json().catch(() => ({ message: 'Ошибка сервера' }));
+                            alert(errorData.message || 'Не удалось обновить видимость заявки');
                             console.error('Failed to update excludeFromInWork');
                           }
                         } catch (error) {
                           console.error('Error updating excludeFromInWork:', error);
+                          alert('Ошибка при обновлении видимости заявки');
                         }
                       };
                       
                       return (
                         <td 
                           key={columnKey}
-                          className="px-2 py-2 whitespace-nowrap border-r border-gray-200" 
+                          className={`px-2 py-2 whitespace-nowrap border-r border-gray-200 ${canEditExcludeFromInWork ? 'cursor-pointer' : 'cursor-not-allowed'}`}
                           style={{ width: '48px', minWidth: '48px', maxWidth: '48px' }}
-                          onClick={handleToggleExclude}
+                          onClick={canEditExcludeFromInWork ? handleToggleExclude : undefined}
                         >
-                          <div className="flex items-center justify-center cursor-pointer hover:bg-gray-100 rounded p-1 transition-colors">
+                          <div className={`flex items-center justify-center rounded p-1 transition-colors ${canEditExcludeFromInWork ? 'hover:bg-gray-100' : 'opacity-50'}`}>
                             {request.excludeFromInWork ? (
-                              <span title="Скрыто из вкладки 'В работе'">
+                              <span title={canEditExcludeFromInWork ? "Скрыто из вкладки 'В работе' (кликните для изменения)" : "Скрыто из вкладки 'В работе' (только администратор может изменить)"}>
                                 <EyeOff className="w-4 h-4 text-gray-400" />
                               </span>
                             ) : (
-                              <span title="Отображается во вкладке 'В работе'">
+                              <span title={canEditExcludeFromInWork ? "Отображается во вкладке 'В работе' (кликните для изменения)" : "Отображается во вкладке 'В работе' (только администратор может изменить)"}>
                                 <Eye className="w-4 h-4 text-gray-600" />
                               </span>
                             )}
@@ -2831,6 +3163,44 @@ export default function PurchaseRequestsTable() {
                       );
                     }
                     
+                    if (columnKey === 'guid') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('guid')}px`, minWidth: `${getColumnWidth('guid')}px`, maxWidth: `${getColumnWidth('guid')}px` }}
+                          title={request.guid ? String(request.guid) : ''}
+                        >
+                          {request.guid ? String(request.guid) : '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'purchaseRequestPlanYear') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('purchaseRequestPlanYear')}px`, minWidth: `${getColumnWidth('purchaseRequestPlanYear')}px`, maxWidth: `${getColumnWidth('purchaseRequestPlanYear')}px` }}
+                        >
+                          {request.purchaseRequestPlanYear || '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'company') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px` }}
+                          title={request.company || ''}
+                        >
+                          {request.company || '-'}
+                        </td>
+                      );
+                    }
+                    
                     if (columnKey === 'cfo') {
                       return (
                         <td 
@@ -2840,6 +3210,32 @@ export default function PurchaseRequestsTable() {
                           title={request.cfo || ''}
                         >
                           {request.cfo || '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'mcc') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('mcc')}px`, minWidth: `${getColumnWidth('mcc')}px`, maxWidth: `${getColumnWidth('mcc')}px` }}
+                          title={request.mcc || ''}
+                        >
+                          {request.mcc || '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'purchaseRequestInitiator') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('purchaseRequestInitiator')}px`, minWidth: `${getColumnWidth('purchaseRequestInitiator')}px`, maxWidth: `${getColumnWidth('purchaseRequestInitiator')}px` }}
+                          title={request.purchaseRequestInitiator || ''}
+                        >
+                          {request.purchaseRequestInitiator || '-'}
                         </td>
                       );
                     }
@@ -2869,6 +3265,18 @@ export default function PurchaseRequestsTable() {
                       );
                     }
                     
+                    if (columnKey === 'purchaseRequestCreationDate') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('purchaseRequestCreationDate')}px`, minWidth: `${getColumnWidth('purchaseRequestCreationDate')}px`, maxWidth: `${getColumnWidth('purchaseRequestCreationDate')}px` }}
+                        >
+                          {request.purchaseRequestCreationDate ? new Date(request.purchaseRequestCreationDate).toLocaleDateString('ru-RU') : '-'}
+                        </td>
+                      );
+                    }
+                    
                     if (columnKey === 'budgetAmount') {
                       return (
                         <td 
@@ -2885,6 +3293,86 @@ export default function PurchaseRequestsTable() {
                               {getCurrencyIcon(request.currency)}
                             </span>
                           ) : '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'currency') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('currency')}px`, minWidth: `${getColumnWidth('currency')}px`, maxWidth: `${getColumnWidth('currency')}px` }}
+                        >
+                          {request.currency ? (
+                            <span className="flex items-center">
+                              {getCurrencyIcon(request.currency)}
+                            </span>
+                          ) : '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'costType') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('costType')}px`, minWidth: `${getColumnWidth('costType')}px`, maxWidth: `${getColumnWidth('costType')}px` }}
+                          title={request.costType || ''}
+                        >
+                          {request.costType || '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'contractType') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('contractType')}px`, minWidth: `${getColumnWidth('contractType')}px`, maxWidth: `${getColumnWidth('contractType')}px` }}
+                          title={request.contractType || ''}
+                        >
+                          {request.contractType || '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'contractDurationMonths') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center" 
+                          style={{ width: `${getColumnWidth('contractDurationMonths')}px`, minWidth: `${getColumnWidth('contractDurationMonths')}px`, maxWidth: `${getColumnWidth('contractDurationMonths')}px` }}
+                        >
+                          {request.contractDurationMonths !== null && request.contractDurationMonths !== undefined ? (
+                            <span>{request.contractDurationMonths}</span>
+                          ) : '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'isPlanned') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('isPlanned')}px`, minWidth: `${getColumnWidth('isPlanned')}px`, maxWidth: `${getColumnWidth('isPlanned')}px` }}
+                        >
+                          {request.isPlanned ? (
+                            <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                              Плановая
+                            </span>
+                          ) : request.isPlanned === false ? (
+                            <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
+                              Внеплановая
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
+                              -
+                            </span>
+                          )}
                         </td>
                       );
                     }
@@ -2958,6 +3446,30 @@ export default function PurchaseRequestsTable() {
                       );
                     }
                     
+                    if (columnKey === 'isStrategicProduct') {
+                      return (
+                        <td 
+                          key={columnKey} 
+                          className="px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('isStrategicProduct')}px`, minWidth: `${getColumnWidth('isStrategicProduct')}px`, maxWidth: `${getColumnWidth('isStrategicProduct')}px` }}
+                        >
+                          {request.isStrategicProduct ? (
+                            <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                              Да
+                            </span>
+                          ) : request.isStrategicProduct === false ? (
+                            <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
+                              Нет
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
+                              -
+                            </span>
+                          )}
+                        </td>
+                      );
+                    }
+                    
                     if (columnKey === 'daysSinceCreation') {
                       return (
                         <td 
@@ -2972,6 +3484,30 @@ export default function PurchaseRequestsTable() {
                           {request.daysSinceCreation !== null && request.daysSinceCreation !== undefined ? (
                             <span>{request.daysSinceCreation}</span>
                           ) : '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'createdAt') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('createdAt')}px`, minWidth: `${getColumnWidth('createdAt')}px`, maxWidth: `${getColumnWidth('createdAt')}px` }}
+                        >
+                          {request.createdAt ? new Date(request.createdAt).toLocaleString('ru-RU') : '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'updatedAt') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('updatedAt')}px`, minWidth: `${getColumnWidth('updatedAt')}px`, maxWidth: `${getColumnWidth('updatedAt')}px` }}
+                        >
+                          {request.updatedAt ? new Date(request.updatedAt).toLocaleString('ru-RU') : '-'}
                         </td>
                       );
                     }
@@ -3064,7 +3600,7 @@ export default function PurchaseRequestsTable() {
               ))
             ) : (
               <tr>
-                <td colSpan={columnOrder.length} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={filteredColumnOrder.length} className="px-6 py-8 text-center text-gray-500">
                   Нет данных
                 </td>
               </tr>
