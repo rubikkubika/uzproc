@@ -281,6 +281,12 @@ public class PurchaseRequestService {
                     .collect(Collectors.toList());
             dto.setPurchaseIds(purchaseIds);
             
+            // Проверяем, есть ли закупка со статусом "Завершена"
+            boolean hasCompletedPurchase = purchases.stream()
+                    .anyMatch(p -> p.getStatus() != null && 
+                            p.getStatus().getDisplayName().equals("Завершена"));
+            dto.setHasCompletedPurchase(hasCompletedPurchase);
+            
             // Загружаем связанные договоры:
             // 1. Напрямую по purchaseRequestId
             List<Contract> contracts = new ArrayList<>(contractRepository.findByPurchaseRequestId(entity.getIdPurchaseRequest()));

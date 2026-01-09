@@ -31,6 +31,7 @@ interface PurchaseRequest {
   daysInStatus: number | null;
   daysSinceCreation: number | null;
   isStrategicProduct: boolean | null;
+  hasCompletedPurchase: boolean | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -3551,9 +3552,13 @@ export default function PurchaseRequestsTable() {
                       {/* Если закупка требуется: Заявка → Закупка → Договор */}
                       {request.requiresPurchase !== false ? (
                         <>
-                          {/* Закупка - активна если статус "Закупка создана" или "Закупка не согласована" */}
+                          {/* Закупка - зеленая галочка если связанная закупка со статусом "Завершена" */}
                           <div className="flex flex-col items-center gap-0.5">
-                            {request.status === 'Закупка создана' ? (
+                            {request.hasCompletedPurchase ? (
+                              <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center mt-0.5" title="Закупка: Завершена">
+                                <Check className="w-2.5 h-2.5 text-white" />
+                              </div>
+                            ) : request.status === 'Закупка создана' ? (
                               <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Закупка: Закупка создана">
                                 <Clock className="w-2.5 h-2.5 text-white" />
                               </div>
@@ -3566,9 +3571,15 @@ export default function PurchaseRequestsTable() {
                             )}
                             <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Закупка</span>
                           </div>
-                          {/* Договор - неактивна */}
+                          {/* Договор - желтая галочка если связанная закупка со статусом "Завершена" */}
                           <div className="flex flex-col items-center gap-0.5">
-                            <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Договор"></div>
+                            {request.hasCompletedPurchase ? (
+                              <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Договор: Закупка завершена">
+                                <Clock className="w-2.5 h-2.5 text-white" />
+                              </div>
+                            ) : (
+                              <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Договор"></div>
+                            )}
                             <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Договор</span>
                           </div>
                         </>

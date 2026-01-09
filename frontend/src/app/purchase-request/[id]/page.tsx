@@ -890,14 +890,26 @@ export default function PurchaseRequestDetailPage() {
                     {/* Если закупка требуется: Заявка → Закупка → Договор */}
                     {purchaseRequest.requiresPurchase !== false ? (
                       <>
-                        {/* Закупка - неактивна */}
+                        {/* Закупка - зеленая галочка если связанная закупка со статусом "Завершена" */}
                   <div className="flex flex-col items-center gap-0.5">
-                    <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Закупка"></div>
+                    {purchase && purchase.status === 'Завершена' ? (
+                      <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center mt-0.5" title="Закупка: Завершена">
+                        <Check className="w-2.5 h-2.5 text-white" />
+                      </div>
+                    ) : (
+                      <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Закупка"></div>
+                    )}
                     <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Закупка</span>
                   </div>
-                  {/* Договор - неактивна */}
+                  {/* Договор - желтая галочка если связанная закупка со статусом "Завершена" */}
                   <div className="flex flex-col items-center gap-0.5">
-                    <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Договор"></div>
+                    {purchase && purchase.status === 'Завершена' ? (
+                      <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Договор: Закупка завершена">
+                        <Clock className="w-2.5 h-2.5 text-white" />
+                      </div>
+                    ) : (
+                      <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Договор"></div>
+                    )}
                     <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Договор</span>
                   </div>
                       </>

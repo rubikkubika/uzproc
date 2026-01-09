@@ -40,6 +40,8 @@ public class PurchaseRequestDto {
     private Long daysSinceCreation;
     // Список ID связанных закупок
     private java.util.List<Long> purchaseIds;
+    // Флаг, указывающий есть ли связанная закупка со статусом "Завершена"
+    private Boolean hasCompletedPurchase;
     // Список связанных договоров
     private java.util.List<ContractDto> contracts;
 
@@ -286,6 +288,14 @@ public class PurchaseRequestDto {
 
     public void setPurchaseIds(java.util.List<Long> purchaseIds) {
         this.purchaseIds = purchaseIds;
+    }
+
+    public Boolean getHasCompletedPurchase() {
+        return hasCompletedPurchase;
+    }
+
+    public void setHasCompletedPurchase(Boolean hasCompletedPurchase) {
+        this.hasCompletedPurchase = hasCompletedPurchase;
     }
 
     public java.util.List<ContractDto> getContracts() {

@@ -366,6 +366,7 @@ public class PurchaseRequestStatusUpdateService {
         // потом архивную спецификацию (для заказов с проектной спецификацией старше 60 рабочих дней),
         // потом наличие спецификации (высокий приоритет), 
         // потом проверяем статус закупки (для заявок с requiresPurchase !== false) - если закупка не согласована, то "Закупка не согласована"
+        // потом наличие договора (для заявок с requiresPurchase !== false) - если есть договор, то "Договор создан"
         // потом наличие закупки (для заявок с requiresPurchase !== false) - даже если заявка утверждена,
         // потом на не утверждено, потом на не согласованные, 
         // потом на завершенное утверждение, потом на активное утверждение, потом на согласование
@@ -387,6 +388,11 @@ public class PurchaseRequestStatusUpdateService {
         } else if (hasNotCoordinatedPurchase) {
             // Если связанная закупка имеет статус "Не согласовано", устанавливаем статус "Закупка не согласована"
             newStatus = PurchaseRequestStatus.PURCHASE_NOT_COORDINATED;
+        } else if (hasContracts && purchaseRequest.getRequiresPurchase() != null && purchaseRequest.getRequiresPurchase() != false) {
+            // Если есть договор и это закупка (requiresPurchase !== false), устанавливаем статус "Договор создан"
+            newStatus = PurchaseRequestStatus.CONTRACT_CREATED;
+            logger.info("Found contracts for purchase request {} (requiresPurchase={}), setting status to CONTRACT_CREATED", 
+                idPurchaseRequest, purchaseRequest.getRequiresPurchase());
         } else if (hasPurchase) {
             // Если есть закупка, устанавливаем статус "Закупка создана" даже если заявка утверждена
             newStatus = PurchaseRequestStatus.PURCHASE_CREATED;
