@@ -22,6 +22,8 @@ backend/.mvn/wrapper/maven-wrapper.jar
 frontend/.next/
 out/
 frontend/out/
+next-env.d.ts
+frontend/next-env.d.ts
 
 # IDE
 .vscode/
