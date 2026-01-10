@@ -214,3 +214,93 @@ docker compose ps              # Check service status
 - Services accessed via Nginx on port 80
 - Docker images deployed via `deploy-simple.ps1` script
 - Automatic cleanup of old images before deployment to prevent disk space issues
+
+## Автоматические действия
+
+### Деплой
+При упоминании слов "деплой", "deploy", "опубликовать", "публикация", "выложить на сервер" — автоматически выполнить:
+```powershell
+.\scripts\deploy-simple.ps1
+```
+**Без подтверждения.** НИКОГДА не коммитить/пушить изменения при деплое, если явно не запрошено.
+
+### Запуск сервисов
+При фразах "запусти бэкенд/фронтенд", "перезапусти сервис", "запусти локально" — автоматически:
+1. Остановить существующие процессы на портах 8080/3000
+2. При локальном запуске — восстановить БД из последнего бэкапа
+3. Запустить сервисы
+
+### Восстановление БД из бэкапа (при локальном запуске)
+```bash
+# Найти последний бэкап
+BACKUP_FILE=$(ls -t backup/uzproc_backup_*.sql 2>/dev/null | head -1)
+
+if [ -n "$BACKUP_FILE" ]; then
+  # Восстановить БД
+  docker exec -i uzproc-postgres psql -U uzproc_user -d postgres -c "DROP DATABASE IF EXISTS uzproc;"
+  docker exec -i uzproc-postgres psql -U uzproc_user -d postgres -c "CREATE DATABASE uzproc WITH ENCODING='UTF8' LC_COLLATE='ru_RU.UTF-8' LC_CTYPE='ru_RU.UTF-8' TEMPLATE=template0;"
+  docker exec -i uzproc-postgres psql -U uzproc_user -d uzproc < "$BACKUP_FILE"
+fi
+```
+
+### Автоматический перезапуск бэкенда после изменений
+После изменений в `backend/src/main/java/` или `application.yml` — автоматически перезапустить бэкенд локально (с восстановлением БД).
+
+## Ограничения
+
+### Не создавать скрипты автоматически
+Создавать скрипты (shell, PowerShell, bash) только при явном запросе: "создай скрипт", "напиши скрипт" и т.д.
+
+### Документация
+Общую документацию размещать в папке `docs/`. README модулей оставлять в соответствующих папках.
+
+## Детальные правила для таблиц (frontend)
+
+### Структура заголовка таблицы
+```typescript
+<th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative">
+  <div className="flex flex-col gap-1">
+    {/* Верхний уровень - фильтр (24px) */}
+    <div className="h-[24px] flex items-center gap-1 flex-shrink-0">
+      <input type="text" className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500" />
+    </div>
+    {/* Нижний уровень - сортировка и название (20px) */}
+    <div className="flex items-center gap-1 min-h-[20px]">
+      <button className="flex items-center justify-center hover:text-gray-700">
+        {/* Иконка сортировки */}
+      </button>
+      <span>Название</span>
+    </div>
+  </div>
+</th>
+```
+
+### Сохранение фокуса в фильтрах
+Для полей ввода фильтров обязательно:
+- Использовать `data-filter-field` атрибут
+- Отслеживать `focusedField` состояние
+- Восстанавливать фокус и позицию курсора после debounce
+- Использовать `requestAnimationFrame` для восстановления позиции курсора
+
+```typescript
+const [focusedField, setFocusedField] = useState<string | null>(null);
+
+<input
+  data-filter-field={field}
+  onFocus={() => setFocusedField(field)}
+  onChange={(e) => {
+    const cursorPos = e.target.selectionStart || 0;
+    // ... обновление значения
+    requestAnimationFrame(() => {
+      e.target.setSelectionRange(cursorPos, cursorPos);
+    });
+  }}
+/>
+```
+
+### Обязательные правила для таблиц
+- Каждый столбец должен иметь фильтр
+- Фильтрация на бэкенде (не на клиенте)
+- Пагинация применяется ПОСЛЕ фильтрации
+- Стили ячеек: `px-2 py-2 text-xs text-gray-900 border-r border-gray-300`
+- Для полей ввода: `text-gray-900 bg-white`
