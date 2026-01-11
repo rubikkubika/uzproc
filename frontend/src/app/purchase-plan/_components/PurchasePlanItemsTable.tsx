@@ -116,7 +116,6 @@ export default function PurchasePlanItemsTable() {
       const fileName = `План_закупок_с_фильтрами_${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
-      console.error('Ошибка при экспорте в Excel:', error);
       alert('Ошибка при экспорте в Excel');
     }
   }, [table.data]);
@@ -738,7 +737,7 @@ export default function PurchasePlanItemsTable() {
               table.versions.loadVersions(table.selectedYear);
             }
           } catch (error) {
-            console.error('Error creating version:', error);
+            // Ошибка создания версии игнорируется
           }
         }}
         onClose={() => {

@@ -48,7 +48,6 @@ export const usePurchasePlanItemsData = () => {
         }));
       }
     } catch (error) {
-      console.error('Error fetching changes:', error);
       setChangesData(prev => ({
         ...prev,
         [itemId]: { ...prev[itemId], loading: false }
@@ -80,7 +79,6 @@ export const usePurchasePlanItemsData = () => {
         }));
       }
     } catch (error) {
-      console.error('Error fetching modal item data:', error);
       setModalItemData(prev => ({
         ...prev,
         [itemId]: { data: null, loading: false }
@@ -112,7 +110,6 @@ export const usePurchasePlanItemsData = () => {
         }));
       }
     } catch (error) {
-      console.error('Error fetching purchase request:', error);
       setPurchaseRequestData(prev => ({
         ...prev,
         [itemId]: { data: null, loading: false }

@@ -262,7 +262,7 @@ export default function PurchasePlanItemsTableRow({
                   textarea.style.height = 'auto';
                   textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
                 }}
-                className="w-full text-xs text-gray-900 border border-blue-500 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none overflow-hidden"
+                className="w-full text-xs text-gray-900 bg-white border border-blue-500 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none overflow-hidden"
                 disabled={isInactive || !canEdit}
                 autoFocus
                 rows={1}
@@ -632,7 +632,24 @@ export default function PurchasePlanItemsTableRow({
         const displayStatus = hasPurchaseRequest && item.purchaseRequestStatus 
           ? item.purchaseRequestStatus 
           : (hasPurchaseRequest ? 'Заявка' : item.status);
-        const statusColor = getPurchaseRequestStatusColor(displayStatus);
+        const isFromPurchaseRequest = hasPurchaseRequest;
+        
+        // Определяем цвет статуса
+        let statusColor: string;
+        if (editingStatus === item.id) {
+          statusColor = 'border border-blue-500 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500';
+        } else if (displayStatus === 'В плане') {
+          statusColor = 'bg-green-100 text-green-800 border-0';
+        } else if (displayStatus === 'Исключена') {
+          statusColor = 'bg-red-100 text-red-800 border-0';
+        } else if (displayStatus === 'Проект') {
+          statusColor = 'bg-blue-100 text-blue-800 border-0';
+        } else if (isFromPurchaseRequest && item.purchaseRequestStatus) {
+          statusColor = getPurchaseRequestStatusColor(item.purchaseRequestStatus);
+        } else {
+          statusColor = 'bg-gray-100 text-gray-800 border-0';
+        }
+        
         return (
           <td
             key={columnKey}
@@ -669,11 +686,7 @@ export default function PurchasePlanItemsTableRow({
                   setEditingStatus?.(item.id);
                 }
               }}
-              className={`text-xs rounded px-2 py-0.5 font-medium cursor-pointer transition-all ${
-                editingStatus === item.id 
-                  ? 'border border-blue-500 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500' 
-                  : statusColor
-              }`}
+              className={`text-xs rounded px-2 py-0.5 font-medium cursor-pointer transition-all ${statusColor}`}
               style={{
                 ...(editingStatus === item.id ? {} : {
                   appearance: 'none',
@@ -694,10 +707,13 @@ export default function PurchasePlanItemsTableRow({
             >
               <option value="">-</option>
               {hasPurchaseRequest ? (
+                // Если есть заявка, показываем статус заявки (disabled) и можно выбрать только "Исключена"
                 <>
+                  <option value={displayStatus || ''} disabled>{displayStatus}</option>
                   <option value="Исключена">Исключена</option>
                 </>
               ) : (
+                // Если нет заявки, можно выбрать все статусы
                 <>
                   <option value="Проект">Проект</option>
                   <option value="В плане">В плане</option>
@@ -711,7 +727,6 @@ export default function PurchasePlanItemsTableRow({
         );
       
       case 'purchaseRequestId':
-        const requestStatusColor = getPurchaseRequestStatusColor(item.purchaseRequestStatus);
         return (
           <td
             key={columnKey}
@@ -745,7 +760,7 @@ export default function PurchasePlanItemsTableRow({
                     setEditingPurchaseRequestId?.(item.id);
                   }
                 }}
-                className="w-full text-xs text-gray-900 border border-blue-500 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full text-xs text-gray-900 bg-white border border-blue-500 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 disabled={isInactive || isViewingArchiveVersion || !canEdit}
                 autoFocus
               />
@@ -760,16 +775,7 @@ export default function PurchasePlanItemsTableRow({
                 className={isInactive || isViewingArchiveVersion || !canEdit ? '' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors'}
                 title={isInactive || isViewingArchiveVersion || !canEdit ? '' : 'Нажмите для редактирования'}
               >
-                {item.purchaseRequestId ? (
-                  <div className="flex flex-col gap-1">
-                    <span className="text-gray-900">{item.purchaseRequestId}</span>
-                    {item.purchaseRequestStatus && (
-                      <span className={`px-1 py-0.5 rounded text-xs ${requestStatusColor}`}>
-                        {item.purchaseRequestStatus}
-                      </span>
-                    )}
-                  </div>
-                ) : '-'}
+                {item.purchaseRequestId || '-'}
               </div>
             )}
           </td>
@@ -791,7 +797,7 @@ export default function PurchasePlanItemsTableRow({
               className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
               title="Открыть детали"
             >
-              Детали
+              Открыть
             </button>
           </td>
         );
