@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useCallback, useEffect, useMemo } from 'react';
+import React, { useRef, useCallback, useEffect } from 'react';
 import { useReactToPrint } from 'react-to-print';
 import * as XLSX from 'xlsx';
 import { usePurchasePlanItemsTable } from './hooks/usePurchasePlanItemsTable';
@@ -8,7 +8,6 @@ import { ALL_COLUMNS } from './constants/purchase-plan-items.constants';
 import { getCompanyLogoPath, getPurchaseRequestStatusColor } from './utils/purchase-plan-items.utils';
 import { prepareExportData } from './utils/export.utils';
 import { getBackendUrl } from '@/utils/api';
-import { calculateNewContractDate } from './utils/date.utils';
 
 // UI компоненты
 import PurchasePlanItemsTableHeader from './ui/PurchasePlanItemsTableHeader';
@@ -16,10 +15,7 @@ import PurchasePlanItemsTableBody from './ui/PurchasePlanItemsTableBody';
 import PurchasePlanItemsTableRow from './ui/PurchasePlanItemsTableRow';
 import PurchasePlanItemsTableFilters from './ui/PurchasePlanItemsTableFilters';
 import PurchasePlanItemsTableColumnsMenu from './ui/PurchasePlanItemsTableColumnsMenu';
-import PurchasePlanItemsSummaryTable from './ui/PurchasePlanItemsSummaryTable';
-import PurchasePlanItemsMonthlyChart from './ui/PurchasePlanItemsMonthlyChart';
 import SortableHeader from './ui/SortableHeader';
-import FilterButton from './filters/FilterButton';
 
 // Модальные окна
 import PurchasePlanItemsDetailsModal from './ui/PurchasePlanItemsDetailsModal';
@@ -178,7 +174,7 @@ export default function PurchasePlanItemsTable() {
     if (table.selectedYear) {
       table.versions.loadVersions(table.selectedYear);
     }
-  }, [table.versions.setIsVersionsListModalOpen, table.versions.loadVersions, table.selectedYear]);
+  }, [table.versions, table.selectedYear]);
 
   const handleCreateItem = useCallback(() => {
     table.modals.setIsCreateModalOpen(true);
@@ -214,108 +210,7 @@ export default function PurchasePlanItemsTable() {
     if (table.selectedYear) {
       table.versions.loadVersions(table.selectedYear);
     }
-  }, [table.selectedYear, table.versions.loadVersions]);
-
-  // Сводная статистика по закупщикам (использует summaryData, который не учитывает фильтр по закупщику)
-  // ВАЖНО: Должен быть вызван ДО условных возвратов, чтобы соблюдать правила хуков
-  const purchaserSummary = useMemo(() => {
-    if (!table.summaryData || table.summaryData.length === 0) {
-      return [];
-    }
-
-    const summaryMap = new Map<string, { count: number; totalBudget: number; totalComplexity: number }>();
-
-    table.summaryData.forEach((item) => {
-      // Исключаем неактуальные строки из сводной таблицы
-      if (item.status === 'Исключена') {
-        return;
-      }
-
-      const purchaser = item.purchaser || 'Не назначен';
-      const budget = item.budgetAmount || 0;
-      
-      // Парсим сложность как число (если это числовое значение)
-      let complexity = 0;
-      if (item.complexity) {
-        const parsed = parseFloat(item.complexity.toString().replace(/,/g, '.').replace(/\s/g, ''));
-        if (!isNaN(parsed)) {
-          complexity = parsed;
-        }
-      }
-
-      if (!summaryMap.has(purchaser)) {
-        summaryMap.set(purchaser, { count: 0, totalBudget: 0, totalComplexity: 0 });
-      }
-
-      const stats = summaryMap.get(purchaser)!;
-      stats.count++;
-      stats.totalBudget += budget;
-      stats.totalComplexity += complexity;
-    });
-
-    return Array.from(summaryMap.entries())
-      .map(([purchaser, stats]) => ({
-        purchaser,
-        count: stats.count,
-        totalBudget: stats.totalBudget,
-        totalComplexity: stats.totalComplexity,
-      }))
-      .sort((a, b) => b.totalBudget - a.totalBudget); // Сортировка по сумме бюджета по убыванию
-  }, [table.summaryData]);
-
-  // Функция для сброса всех фильтров (как в оригинале)
-  // ВАЖНО: Должен быть вызван ДО условных возвратов, чтобы соблюдать правила хуков
-  const handleResetFilters = useCallback(() => {
-    const emptyFilters = {
-      company: '',
-      cfo: '',
-      purchaseSubject: '',
-      currentContractEndDate: '',
-      purchaseRequestId: '',
-    };
-    table.filters.setFilters(emptyFilters);
-    table.filters.setLocalFilters(emptyFilters);
-    table.filters.setCfoFilter(new Set());
-    table.filters.setCompanyFilter(new Set(['Market'])); // При сбросе устанавливаем фильтр по умолчанию на "Market"
-    table.filters.setPurchaserCompanyFilter(new Set(['Market'])); // При сбросе устанавливаем фильтр по умолчанию на "Market"
-    table.filters.setCategoryFilter(new Set());
-    table.filters.setPurchaserFilter(new Set());
-    // При сбросе устанавливаем фильтр по статусу на все доступные статусы кроме "Исключена"
-    const availableStatuses = table.filters.getUniqueValues('status') || [];
-    const resetStatusFilter = availableStatuses.filter(s => s !== 'Исключена');
-    table.filters.setStatusFilter(new Set(resetStatusFilter));
-    table.setSortField('requestDate');
-    table.setSortDirection('asc');
-    table.filters.setFocusedField(null);
-    table.setSelectedYear(table.allYears.length > 0 ? table.allYears[0] : null);
-    table.setSelectedMonths(new Set());
-    table.setSelectedMonthYear(null);
-    table.setCurrentPage(0);
-    
-    // Отправляем событие для обновления фильтра компании в диаграмме
-    window.dispatchEvent(new CustomEvent('purchasePlanItemCompanyFilterUpdated', {
-      detail: { companyFilter: ['Market'] }
-    }));
-    
-    // Устанавливаем просмотр текущей версии
-    if (table.selectedYear) {
-      table.versions.loadVersions(table.selectedYear).then(() => {
-        // После загрузки версий текущая версия будет выбрана автоматически
-      });
-    } else {
-      // Если год не выбран, просто сбрасываем выбранную версию
-      table.versions.setSelectedVersionId(null);
-      table.versions.setSelectedVersionInfo(null);
-    }
-  }, [table]);
-
-  // Функция для закрытия просмотра версии
-  // ВАЖНО: Должен быть вызван ДО условных возвратов, чтобы соблюдать правила хуков
-  const handleCloseVersion = useCallback(() => {
-    table.versions.setSelectedVersionId(null);
-    table.versions.setSelectedVersionInfo(null);
-    table.fetchData(0, table.pageSize, table.selectedYear, table.sortField, table.sortDirection, table.filters.filters, table.selectedMonths);
-  }, [table]);
+  }, [table.selectedYear, table.versions]);
 
   // Если данные загружаются
   if (table.loading) {
@@ -509,27 +404,6 @@ export default function PurchasePlanItemsTable() {
         onColumnsSettings={handleColumnsSettings}
         isViewingArchiveVersion={table.versions.isViewingArchiveVersion}
         selectedVersionInfo={table.versions.selectedVersionInfo}
-        purchaserSummary={purchaserSummary}
-        purchaserFilter={table.filters.purchaserFilter}
-        setPurchaserFilter={table.filters.setPurchaserFilter}
-        setCurrentPage={table.setCurrentPage}
-        totalRecords={table.totalRecords}
-        companyFilter={table.filters.companyFilter}
-        companyFilterButtonRef={table.filters.companyFilterButtonRef}
-        isCompanyFilterOpen={table.filters.isCompanyFilterOpen}
-        companyFilterPosition={table.filters.companyFilterPosition}
-        companySearchQuery={table.filters.companySearchQuery}
-        companyFilterOptions={table.filters.getFilteredCompanyOptions}
-        onCompanyFilterToggle={() => table.filters.setIsCompanyFilterOpen(!table.filters.isCompanyFilterOpen)}
-        onCompanySearchChange={table.filters.setCompanySearchQuery}
-        onCompanyToggle={table.filters.handleCompanyToggle}
-        onCompanySelectAll={table.filters.handleCompanySelectAll}
-        onCompanyDeselectAll={table.filters.handleCompanyDeselectAll}
-        onCompanyFilterClose={() => table.filters.setIsCompanyFilterOpen(false)}
-        onResetFilters={handleResetFilters}
-        selectedVersionId={table.versions.selectedVersionId}
-        onCloseVersion={handleCloseVersion}
-        canEdit={true} // TODO: получить из контекста или пропсов
       />
 
       {/* Фильтры таблицы: выпадающие списки для множественного выбора */}
@@ -558,88 +432,8 @@ export default function PurchasePlanItemsTable() {
                   const column = ALL_COLUMNS.find(col => col.key === columnKey);
                   if (!column) return null;
                   
-                  // Для колонки requestDate создаем отдельный заголовок со столбчатой диаграммой
-                  if (columnKey === 'requestDate') {
-                    return (
-                      <th 
-                        key={columnKey}
-                        className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative"
-                        style={{ width: '350px', minWidth: '350px' }}
-                        draggable={!!columnKey}
-                        onDragStart={columnKey ? (e) => table.columns.handleDragStart(e, columnKey) : undefined}
-                        onDragOver={columnKey ? (e) => table.columns.handleDragOver(e, columnKey) : undefined}
-                        onDragLeave={columnKey ? table.columns.handleDragLeave : undefined}
-                        onDrop={columnKey ? (e) => table.columns.handleDrop(e, columnKey) : undefined}
-                        data-column={columnKey || undefined}
-                      >
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-1 min-h-[20px]">
-                            {/* Столбчатая диаграмма распределения по месяцам */}
-                            <PurchasePlanItemsMonthlyChart
-                              monthlyDistribution={table.getMonthlyDistribution || Array(14).fill(0)}
-                              selectedYear={table.selectedYear}
-                              chartData={table.chartData}
-                              selectedMonths={table.selectedMonths}
-                              selectedMonthYear={table.selectedMonthYear}
-                              lastSelectedMonthIndex={table.lastSelectedMonthIndex}
-                              setSelectedMonthYear={table.setSelectedMonthYear}
-                              setSelectedYear={table.setSelectedYear}
-                              setSelectedMonths={table.setSelectedMonths}
-                              setLastSelectedMonthIndex={table.setLastSelectedMonthIndex}
-                            />
-                          </div>
-                        </div>
-                        {columnKey && table.columns.handleResizeStart && (
-                          <div
-                            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
-                            onMouseDown={(e) => table.columns.handleResizeStart(e, columnKey)}
-                            style={{ zIndex: 10 }}
-                          />
-                        )}
-                      </th>
-                    );
-                  }
-                  
-                  // Для остальных колонок используем SortableHeader
+                  // Определяем тип фильтра для колонки
                   const isTextFilter = ['purchaseSubject', 'purchaseRequestId', 'currentContractEndDate'].includes(columnKey);
-                  
-                  // Маппинг фильтров для множественного выбора
-                  const filterConfigMap = {
-                    cfo: {
-                      buttonRef: table.filters.cfoFilterButtonRef,
-                      selectedCount: table.filters.cfoFilter.size,
-                      onToggle: () => table.filters.setIsCfoFilterOpen(!table.filters.isCfoFilterOpen),
-                    },
-                    company: {
-                      buttonRef: table.filters.companyFilterButtonRef,
-                      selectedCount: table.filters.companyFilter.size,
-                      onToggle: () => table.filters.setIsCompanyFilterOpen(!table.filters.isCompanyFilterOpen),
-                    },
-                    purchaserCompany: {
-                      buttonRef: table.filters.purchaserCompanyFilterButtonRef,
-                      selectedCount: table.filters.purchaserCompanyFilter.size,
-                      onToggle: () => table.filters.setIsPurchaserCompanyFilterOpen(!table.filters.isPurchaserCompanyFilterOpen),
-                    },
-                    category: {
-                      buttonRef: table.filters.categoryFilterButtonRef,
-                      selectedCount: table.filters.categoryFilter.size,
-                      onToggle: () => table.filters.setIsCategoryFilterOpen(!table.filters.isCategoryFilterOpen),
-                    },
-                    status: {
-                      buttonRef: table.filters.statusFilterButtonRef,
-                      selectedCount: table.filters.statusFilter.size,
-                      onToggle: () => table.filters.setIsStatusFilterOpen(!table.filters.isStatusFilterOpen),
-                    },
-                    purchaser: {
-                      buttonRef: table.filters.purchaserFilterButtonRef,
-                      selectedCount: table.filters.purchaserFilter.size,
-                      onToggle: () => table.filters.setIsPurchaserFilterOpen(!table.filters.isPurchaserFilterOpen),
-                    },
-                  } as const;
-                  
-                  const filterConfig = !isTextFilter && columnKey in filterConfigMap 
-                    ? filterConfigMap[columnKey as keyof typeof filterConfigMap]
-                    : null;
                   
                   return (
                     <SortableHeader
@@ -656,54 +450,33 @@ export default function PurchasePlanItemsTable() {
                       onFocus={() => table.filters.handleFocusForHeader(columnKey)}
                       onBlur={(e) => table.filters.handleBlurForHeader(e, columnKey)}
                       width={table.columns.getColumnWidth(columnKey)}
-                      onDragStart={(e, colKey) => table.columns.handleDragStart(e, colKey)}
-                      onDragOver={(e, colKey) => table.columns.handleDragOver(e, colKey)}
-                      onDragLeave={table.columns.handleDragLeave}
-                      onDrop={(e, colKey) => table.columns.handleDrop(e, colKey)}
-                      isDragged={table.columns.draggedColumn === columnKey}
-                      isDragOver={table.columns.dragOverColumn === columnKey}
-                      onResizeStart={(e, colKey) => table.columns.handleResizeStart(e, colKey)}
                     >
                       {/* Для колонок с множественным выбором (ЦФО, Компания и т.д.) */}
-                      {filterConfig && (
-                        <FilterButton
-                          buttonRef={filterConfig.buttonRef}
-                          selectedCount={filterConfig.selectedCount}
-                          onToggle={filterConfig.onToggle}
-                        />
+                      {!isTextFilter && columnKey === 'cfo' && (
+                        <button
+                          ref={table.filters.cfoFilterButtonRef}
+                          onClick={() => table.filters.setIsCfoFilterOpen(!table.filters.isCfoFilterOpen)}
+                          className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+                        >
+                          {table.filters.cfoFilter.size > 0 
+                            ? `${table.filters.cfoFilter.size} выбрано`
+                            : 'Все'}
+                        </button>
                       )}
-                      {columnKey === 'budgetAmount' && (
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              table.setSelectedCurrency('UZS');
-                            }}
-                            className={`px-1.5 py-0.5 text-xs border rounded hover:bg-gray-100 transition-colors ${
-                              table.selectedCurrency === 'UZS' 
-                                ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' 
-                                : 'border-gray-300'
-                            }`}
-                            title="UZS"
-                          >
-                            UZS
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              table.setSelectedCurrency('USD');
-                            }}
-                            className={`px-1.5 py-0.5 text-xs border rounded hover:bg-gray-100 transition-colors ${
-                              table.selectedCurrency === 'USD' 
-                                ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' 
-                                : 'border-gray-300'
-                            }`}
-                            title="USD"
-                          >
-                            USD
-                          </button>
-                        </div>
+                      {!isTextFilter && columnKey === 'company' && (
+                        <button
+                          ref={table.filters.companyFilterButtonRef}
+                          onClick={() => table.filters.setIsCompanyFilterOpen(!table.filters.isCompanyFilterOpen)}
+                          className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+                        >
+                          {table.filters.companyFilter.size > 0 
+                            ? `${table.filters.companyFilter.size} выбрано`
+                            : 'Все'}
+                        </button>
                       )}
+                      {/* Добавить аналогичные кнопки для других фильтров с множественным выбором */}
                     </SortableHeader>
                   );
                 })}
@@ -720,14 +493,6 @@ export default function PurchasePlanItemsTable() {
               getPurchaseRequestStatusColor={getPurchaseRequestStatusColor}
               onRowClick={handleRowClick}
               columnOrder={table.columns.columnOrder}
-              tempDates={table.editing.tempDates}
-              animatingDates={table.editing.animatingDates}
-              performGanttDateUpdate={table.editing.performGanttDateUpdate}
-              setTempDates={table.editing.setTempDates}
-              setAnimatingDates={table.editing.setAnimatingDates}
-              setEditingDate={table.editing.setEditingDate}
-              canEdit={table.modals.canEdit}
-              isViewingArchiveVersion={table.versions.isViewingArchiveVersion}
             />
           </table>
         ) : (
