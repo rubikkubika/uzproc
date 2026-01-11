@@ -62,6 +62,8 @@ export const usePurchasePlanItemsFilters = (
     purchaseSubject: '',
     currentContractEndDate: '',
     purchaseRequestId: '',
+    budgetAmount: '',
+    budgetAmountOperator: 'gte', // По умолчанию "больше равно"
   });
 
   const [localFilters, setLocalFilters] = useState<Record<string, string>>({
@@ -69,6 +71,8 @@ export const usePurchasePlanItemsFilters = (
     purchaseSubject: '',
     currentContractEndDate: '',
     purchaseRequestId: '',
+    budgetAmount: '',
+    budgetAmountOperator: 'gte',
   });
 
   const [focusedField, setFocusedField] = useState<string | null>(null);
@@ -194,6 +198,7 @@ export const usePurchasePlanItemsFilters = (
     const fieldMap: Record<string, keyof typeof uniqueValues> = {
       cfo: 'cfo',
       company: 'company',
+      purchaserCompany: 'purchaserCompany',
       purchaser: 'purchaser',
       category: 'category',
       status: 'status',
@@ -237,9 +242,12 @@ export const usePurchasePlanItemsFilters = (
       }
       setCurrentPage(0);
       
-      window.dispatchEvent(new CustomEvent('purchasePlanItemCompanyFilterUpdated', {
-        detail: { companyFilter: Array.from(newSet) }
-      }));
+      // Отправляем событие асинхронно, чтобы не блокировать обновление состояния
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('purchasePlanItemCompanyFilterUpdated', {
+          detail: { companyFilter: Array.from(newSet) }
+        }));
+      }, 0);
       
       return newSet;
     });
@@ -266,6 +274,7 @@ export const usePurchasePlanItemsFilters = (
   }, [setCurrentPage]);
 
   const handlePurchaserCompanyToggle = useCallback((purchaserCompany: string) => {
+    console.log('[DEBUG] handlePurchaserCompanyToggle called with:', purchaserCompany);
     setPurchaserCompanyFilter(prev => {
       const newSet = new Set(prev);
       if (newSet.has(purchaserCompany)) {
@@ -273,6 +282,7 @@ export const usePurchasePlanItemsFilters = (
       } else {
         newSet.add(purchaserCompany);
       }
+      console.log('[DEBUG] New purchaserCompanyFilter:', Array.from(newSet));
       setCurrentPage(0);
       return newSet;
     });
@@ -290,81 +300,88 @@ export const usePurchasePlanItemsFilters = (
     setCurrentPage(0);
   }, [setCurrentPage]);
 
-  const handleCategoryToggle = (category: string) => {
-    const newSet = new Set(categoryFilter);
-    if (newSet.has(category)) {
-      newSet.delete(category);
-    } else {
-      newSet.add(category);
-    }
-    setCategoryFilter(newSet);
+  const handleCategoryToggle = useCallback((category: string) => {
+    setCategoryFilter(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(category)) {
+        newSet.delete(category);
+      } else {
+        newSet.add(category);
+      }
+      return newSet;
+    });
     setCurrentPage(0);
-  };
+  }, [setCurrentPage]);
 
-  const handleCategorySelectAll = () => {
+  const handleCategorySelectAll = useCallback(() => {
     const allCategories = getUniqueValues('category');
     const newSet = new Set(allCategories);
     setCategoryFilter(newSet);
     setCurrentPage(0);
-  };
+  }, [getUniqueValues, setCurrentPage]);
 
-  const handleCategoryDeselectAll = () => {
+  const handleCategoryDeselectAll = useCallback(() => {
     setCategoryFilter(new Set());
     setCurrentPage(0);
-  };
+  }, [setCurrentPage]);
 
-  const handleStatusToggle = (status: string) => {
-    const newSet = new Set(statusFilter);
-    if (newSet.has(status)) {
-      newSet.delete(status);
-    } else {
-      newSet.add(status);
-    }
-    setStatusFilter(newSet);
+  const handleStatusToggle = useCallback((status: string) => {
+    setStatusFilter(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(status)) {
+        newSet.delete(status);
+      } else {
+        newSet.add(status);
+      }
+      return newSet;
+    });
     setCurrentPage(0);
-  };
+  }, [setCurrentPage]);
 
-  const handleStatusSelectAll = () => {
+  const handleStatusSelectAll = useCallback(() => {
     const availableStatuses = uniqueValues.status || [];
     const newSet = new Set(availableStatuses);
     setStatusFilter(newSet);
     setCurrentPage(0);
-  };
+  }, [uniqueValues.status, setCurrentPage]);
 
-  const handleStatusDeselectAll = () => {
+  const handleStatusDeselectAll = useCallback(() => {
     setStatusFilter(new Set());
     setCurrentPage(0);
-  };
+  }, [setCurrentPage]);
 
-  const handlePurchaserToggle = (purchaser: string) => {
-    const newSet = new Set(purchaserFilter);
-    if (newSet.has(purchaser)) {
-      newSet.delete(purchaser);
-    } else {
-      newSet.add(purchaser);
-    }
-    setPurchaserFilter(newSet);
+  const handlePurchaserToggle = useCallback((purchaser: string) => {
+    setPurchaserFilter(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(purchaser)) {
+        newSet.delete(purchaser);
+      } else {
+        newSet.add(purchaser);
+      }
+
+      try {
+        const filtersToSave = {
+          selectedYear,
+          selectedMonths: Array.from(selectedMonths),
+          filters,
+          cfoFilter: Array.from(cfoFilter),
+          companyFilter: Array.from(companyFilter),
+          categoryFilter: Array.from(categoryFilter),
+          purchaserFilter: Array.from(newSet),
+          sortField,
+          sortDirection,
+        };
+        localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filtersToSave));
+      } catch (err) {
+        // Ошибка сохранения в localStorage игнорируется
+      }
+
+      return newSet;
+    });
     setCurrentPage(0);
+  }, [selectedYear, selectedMonths, filters, cfoFilter, companyFilter, categoryFilter, sortField, sortDirection, setCurrentPage]);
 
-    try {
-      const filtersToSave = {
-        selectedYear,
-        selectedMonths: Array.from(selectedMonths),
-        filters,
-        cfoFilter: Array.from(cfoFilter),
-        companyFilter: Array.from(companyFilter),
-        categoryFilter: Array.from(categoryFilter),
-        purchaserFilter: Array.from(newSet),
-        sortField,
-        sortDirection,
-      };
-      localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filtersToSave));
-    } catch (err) {
-      // Ошибка сохранения в localStorage игнорируется
-    }
-  };
-
-  const handlePurchaserSelectAll = () => {
+  const handlePurchaserSelectAll = useCallback(() => {
     const allPurchasers = getUniqueValues('purchaser');
     const newSet = new Set(allPurchasers);
     setPurchaserFilter(newSet);
@@ -386,9 +403,9 @@ export const usePurchasePlanItemsFilters = (
     } catch (err) {
       // Ошибка сохранения в localStorage игнорируется
     }
-  };
+  }, [selectedYear, selectedMonths, filters, cfoFilter, companyFilter, categoryFilter, sortField, sortDirection, getUniqueValues, setCurrentPage]);
 
-  const handlePurchaserDeselectAll = () => {
+  const handlePurchaserDeselectAll = useCallback(() => {
     const emptySet = new Set<string>();
     setPurchaserFilter(emptySet);
     setCurrentPage(0);
@@ -409,7 +426,7 @@ export const usePurchasePlanItemsFilters = (
     } catch (err) {
       // Ошибка сохранения в localStorage игнорируется
     }
-  };
+  }, [selectedYear, selectedMonths, filters, cfoFilter, companyFilter, categoryFilter, sortField, sortDirection, setCurrentPage]);
 
   // Фильтруем опции по поисковому запросу
   const getFilteredCfoOptions = useMemo(() => {
@@ -548,6 +565,22 @@ export const usePurchasePlanItemsFilters = (
             category: Array.from(values.category).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
             status: Array.from(values.status).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })),
           });
+          
+          // Синхронизируем фильтр компании с загруженными уникальными значениями
+          // Если в фильтре есть значения, которых нет в загруженных уникальных значениях, удаляем их
+          setCompanyFilter(prev => {
+            const availableCompanies = new Set(Array.from(values.company));
+            const filtered = new Set(Array.from(prev).filter(company => availableCompanies.has(company)));
+            // Если после фильтрации фильтр стал пустым, но был не пустым, и есть доступные компании, устанавливаем Market по умолчанию
+            if (filtered.size === 0 && prev.size > 0 && availableCompanies.has('Market')) {
+              return new Set(['Market']);
+            }
+            // Если фильтр был пустым и есть доступные компании, устанавливаем Market по умолчанию
+            if (filtered.size === 0 && prev.size === 0 && availableCompanies.has('Market')) {
+              return new Set(['Market']);
+            }
+            return filtered;
+          });
         }
       } catch (err) {
         // Ошибка загрузки уникальных значений игнорируется
@@ -612,74 +645,49 @@ export const usePurchasePlanItemsFilters = (
     }
   }, [isStatusFilterOpen, calculateFilterPosition]);
 
-  // Закрываем выпадающие списки при клике вне их
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (isCfoFilterOpen && !target.closest('.cfo-filter-container')) {
-        setIsCfoFilterOpen(false);
-      }
-      if (isCompanyFilterOpen && !target.closest('.company-filter-container')) {
-        setIsCompanyFilterOpen(false);
-      }
-      if (isCategoryFilterOpen && !target.closest('.category-filter-container')) {
-        setIsCategoryFilterOpen(false);
-      }
-      if (isPurchaserFilterOpen) {
-        if (purchaserFilterButtonRef.current && !purchaserFilterButtonRef.current.contains(target)) {
-          const purchaserMenuElement = document.querySelector('[data-purchaser-filter-menu="true"]');
-          if (purchaserMenuElement && !purchaserMenuElement.contains(target)) {
-            if (!target.closest('.purchaser-filter-container')) {
-              setIsPurchaserFilterOpen(false);
-            }
-          }
-        }
-      }
-      if (isPurchaserCompanyFilterOpen && !target.closest('.purchaser-company-filter-container')) {
-        setIsPurchaserCompanyFilterOpen(false);
-      }
-      if (isStatusFilterOpen) {
-        const targetNode = event.target as Node;
-        if (statusFilterButtonRef.current && !statusFilterButtonRef.current.contains(targetNode)) {
-          const statusMenuElement = document.querySelector('[data-status-filter-menu="true"]');
-          if (statusMenuElement && !statusMenuElement.contains(targetNode)) {
-            const statusFilterContainer = document.querySelector('.status-filter-container');
-            if (statusFilterContainer && !statusFilterContainer.contains(targetNode)) {
-              setIsStatusFilterOpen(false);
-            }
-          }
-        }
-      }
-    };
-
-    if (isCfoFilterOpen || isCompanyFilterOpen || isPurchaserCompanyFilterOpen || isCategoryFilterOpen || isPurchaserFilterOpen || isStatusFilterOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }
-  }, [isCfoFilterOpen, isCompanyFilterOpen, isPurchaserCompanyFilterOpen, isCategoryFilterOpen, isPurchaserFilterOpen, isStatusFilterOpen]);
+  // Закрытие выпадающих списков теперь управляется в MultiSelectFilterDropdown
+  // Этот старый обработчик удален, чтобы не конфликтовать с новым
 
   // Debounce для текстовых фильтров
   useEffect(() => {
-    const textFields = ['id', 'purchaseSubject', 'currentContractEndDate', 'purchaseRequestId'];
-    const hasTextChanges = textFields.some(field => localFilters[field] !== filters[field]);
+    const textFields = ['id', 'purchaseSubject', 'currentContractEndDate', 'purchaseRequestId', 'budgetAmount'];
+    const hasTextChanges = textFields.some(field => {
+      const localValue = localFilters[field] || '';
+      const filterValue = filters[field] || '';
+      return localValue !== filterValue;
+    });
     
     if (hasTextChanges) {
+      // Сохраняем фокус перед обновлением
+      const input = focusedField ? document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement : null;
+      const cursorPosition = input ? (input.selectionStart || 0) : null;
+      
       const timer = setTimeout(() => {
         setFilters(prev => {
           const updated = { ...prev };
           textFields.forEach(field => {
-            updated[field] = localFilters[field];
+            updated[field] = localFilters[field] || '';
           });
           return updated;
         });
         setCurrentPage(0);
+        
+        // Восстанавливаем фокус после обновления
+        if (focusedField && cursorPosition !== null) {
+          setTimeout(() => {
+            const inputAfterRender = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
+            if (inputAfterRender) {
+              inputAfterRender.focus();
+              const newPos = Math.min(cursorPosition, inputAfterRender.value.length);
+              inputAfterRender.setSelectionRange(newPos, newPos);
+            }
+          }, 0);
+        }
       }, 500);
 
       return () => clearTimeout(timer);
     }
-  }, [localFilters, filters, setCurrentPage]);
+  }, [localFilters, filters, setCurrentPage, focusedField]);
 
   // Восстановление фокуса после завершения загрузки данных
   useEffect(() => {
