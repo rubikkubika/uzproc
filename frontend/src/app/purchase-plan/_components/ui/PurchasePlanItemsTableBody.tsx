@@ -72,9 +72,9 @@ export default function PurchasePlanItemsTableBody({
 
   return (
     <tbody className="bg-white divide-y divide-gray-200">
-      {data.content.map((item) => (
+      {data.content.map((item, index) => (
         <PurchasePlanItemsTableRow
-          key={item.id}
+          key={`${item.id}-${index}`}
           item={item}
           visibleColumns={visibleColumnsSet}
           columnOrder={columnOrder}

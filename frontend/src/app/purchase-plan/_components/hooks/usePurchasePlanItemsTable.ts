@@ -188,11 +188,18 @@ export const usePurchasePlanItemsTable = () => {
       const result = await response.json();
       
       if (append) {
-        setAllItems(prev => [...prev, ...result.content]);
+        // Фильтруем дубликаты при добавлении данных
+        setAllItems(prev => {
+          const existingIds = new Set(prev.map((item: PurchasePlanItem) => item.id));
+          const newItems = result.content.filter((item: PurchasePlanItem) => !existingIds.has(item.id));
+          return [...prev, ...newItems];
+        });
         if (data) {
+          const existingIds = new Set((data.content || []).map((item: PurchasePlanItem) => item.id));
+          const newItems = result.content.filter((item: PurchasePlanItem) => !existingIds.has(item.id));
           setData({
             ...result,
-            content: [...(data.content || []), ...result.content]
+            content: [...(data.content || []), ...newItems]
           });
         }
       } else {
@@ -499,21 +506,42 @@ export const usePurchasePlanItemsTable = () => {
   }, [currentPage, hasMore, loading, loadingMore, selectedYear, sortField, sortDirection, filtersHook.filters, selectedMonths, fetchData, pageSize]);
 
   // Загружаем данные при изменении фильтров, сортировки, года
+  // Используем размер Set и строковое представление для правильного отслеживания изменений Set
   useEffect(() => {
-    if (selectedYear !== null || selectedYear === null) {
-      fetchData(
-        currentPage,
-        pageSize,
-        selectedYear,
-        sortField,
-        sortDirection,
-        filtersHook.filters,
-        selectedMonths,
-        false
-      );
-      setCurrentPage(0);
-    }
-  }, [selectedYear, sortField, sortDirection, filtersHook.filters, filtersHook.cfoFilter, filtersHook.companyFilter, filtersHook.purchaserCompanyFilter, filtersHook.purchaserFilter, filtersHook.categoryFilter, filtersHook.statusFilter, selectedMonths]);
+    setCurrentPage(0);
+    setHasMore(true);
+    initialTotalElementsRef.current = null; // Сбрасываем при изменении фильтров
+    fetchData(
+      0,
+      pageSize,
+      selectedYear,
+      sortField,
+      sortDirection,
+      filtersHook.filters,
+      selectedMonths,
+      false
+    );
+  }, [
+    selectedYear, 
+    selectedMonthYear, 
+    sortField, 
+    sortDirection, 
+    filtersHook.filters, 
+    filtersHook.cfoFilter.size,
+    Array.from(filtersHook.cfoFilter).sort().join(','),
+    filtersHook.companyFilter.size,
+    Array.from(filtersHook.companyFilter).sort().join(','),
+    filtersHook.purchaserCompanyFilter.size,
+    Array.from(filtersHook.purchaserCompanyFilter).sort().join(','),
+    filtersHook.purchaserFilter.size,
+    Array.from(filtersHook.purchaserFilter).sort().join(','),
+    filtersHook.categoryFilter.size,
+    Array.from(filtersHook.categoryFilter).sort().join(','),
+    filtersHook.statusFilter.size,
+    Array.from(filtersHook.statusFilter).sort().join(','),
+    selectedMonths.size,
+    Array.from(selectedMonths).sort().join(',')
+  ]);
 
   return {
     // Данные
