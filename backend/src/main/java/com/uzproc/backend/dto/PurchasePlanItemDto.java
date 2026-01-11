@@ -35,6 +35,7 @@ public class PurchasePlanItemDto {
     private PurchasePlanItemStatus status;
     private String state;
     private Long purchaseRequestId;
+    private String purchaseRequestStatus; // Статус заявки на закупку
     private String comment;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -266,6 +267,14 @@ public class PurchasePlanItemDto {
 
     public void setPurchaseRequestId(Long purchaseRequestId) {
         this.purchaseRequestId = purchaseRequestId;
+    }
+
+    public String getPurchaseRequestStatus() {
+        return purchaseRequestStatus;
+    }
+
+    public void setPurchaseRequestStatus(String purchaseRequestStatus) {
+        this.purchaseRequestStatus = purchaseRequestStatus;
     }
 
     public String getComment() {

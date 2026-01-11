@@ -32,6 +32,7 @@ interface PurchasePlanItem {
   category: string | null;
   status: string | null;
   purchaseRequestId: number | null;
+  purchaseRequestStatus: string | null; // Статус заявки на закупку
   comment: string | null;
   createdAt: string;
   updatedAt: string;
@@ -47,6 +48,40 @@ interface PageResponse {
 
 type SortField = keyof PurchasePlanItem | null;
 type SortDirection = 'asc' | 'desc' | null;
+
+// Функция для определения цвета статуса заявки (как в PurchaseRequestsTable)
+const getPurchaseRequestStatusColor = (status: string | null): string => {
+  if (!status) return 'bg-gray-100 text-gray-800';
+  
+  // Зеленый: завершенные статусы
+  if (status === 'Согласована' || status === 'Спецификация подписана' || 
+      status === 'Договор подписан' || status === 'Закупка завершена') {
+    return 'bg-green-100 text-green-800';
+  }
+  
+  // Серый (архив)
+  if (status === 'Спецификация создана - Архив') {
+    return 'bg-gray-200 text-gray-700';
+  }
+  
+  // Желтый: в процессе
+  if (status === 'Спецификация создана' || status === 'Закупка создана' || 
+      status === 'Договор создан' || status === 'Утверждена' || 
+      status === 'Заявка утверждена' || status === 'На согласовании' || 
+      status === 'Заявка на согласовании' || status === 'На утверждении' || 
+      status === 'Заявка на утверждении') {
+    return 'bg-yellow-100 text-yellow-800';
+  }
+  
+  // Красный: не согласовано
+  if (status === 'Заявка не согласована' || status === 'Заявка не утверждена' || 
+      status === 'Закупка не согласована') {
+    return 'bg-red-100 text-red-800';
+  }
+  
+  // Серый по умолчанию
+  return 'bg-gray-100 text-gray-800';
+};
 
 // ALL_COMPANIES будет загружаться с бэкенда
 const ALL_STATUSES = ['Проект', 'В плане', 'Заявка', 'Исключена', 'Пусто'];
@@ -118,7 +153,7 @@ const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   complexity: 112,
   holding: 128,
   category: 128,
-  status: 128,
+  status: 200, // Увеличено для длинных статусов заявки (например, "Заявка на согласовании")
   purchaseRequestId: 160,
   comment: 200,
   createdAt: 128,
@@ -450,32 +485,75 @@ export default function PublicPurchasePlanTable() {
     resizeStartWidth.current = currentWidth;
   }, [columnWidths]);
 
-  // Обработчик изменения размера
+  // Обработчик изменения размера (оптимизирован)
   useEffect(() => {
     if (!isResizing) return;
+
+    let rafId: number | null = null;
+    let pendingWidth: number | null = null;
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!resizeColumn.current) return;
       const diff = e.clientX - resizeStartX.current;
       const newWidth = Math.max(50, resizeStartWidth.current + diff); // Минимальная ширина 50px
-      setColumnWidths(prev => {
-        const updated = { ...prev, [resizeColumn.current!]: newWidth };
-        saveColumnWidths(updated);
-        return updated;
-      });
+      pendingWidth = newWidth;
+
+      // Используем requestAnimationFrame для оптимизации обновлений
+      if (rafId === null) {
+        rafId = requestAnimationFrame(() => {
+          if (pendingWidth !== null && resizeColumn.current) {
+            setColumnWidths(prev => {
+              const updated = { ...prev, [resizeColumn.current!]: pendingWidth! };
+              return updated;
+            });
+            pendingWidth = null;
+          }
+          rafId = null;
+        });
+      }
     };
 
     const handleMouseUp = () => {
+      // Сохраняем в localStorage только при отпускании мыши
+      if (resizeColumn.current && pendingWidth !== null) {
+        setColumnWidths(prev => {
+          const updated = { ...prev, [resizeColumn.current!]: pendingWidth! };
+          saveColumnWidths(updated);
+          return updated;
+        });
+      } else if (resizeColumn.current) {
+        // Сохраняем текущее состояние
+        setColumnWidths(prev => {
+          saveColumnWidths(prev);
+          return prev;
+        });
+      }
+      
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      
       setIsResizing(null);
       resizeColumn.current = null;
+      pendingWidth = null;
     };
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    // Предотвращаем выделение текста во время изменения размера
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+
+    document.addEventListener('mousemove', handleMouseMove, { passive: true });
+    document.addEventListener('mouseup', handleMouseUp, { passive: true });
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
     };
   }, [isResizing, saveColumnWidths]);
 
@@ -2874,24 +2952,26 @@ export default function PublicPurchasePlanTable() {
                         }
                         if (columnKey === 'status') {
                           return (
-                            <td key={columnKey} className="px-2 py-2 text-xs border-r border-gray-200 relative" style={{ width: `${getColumnWidth('status')}px`, minWidth: `${getColumnWidth('status')}px`, maxWidth: `${getColumnWidth('status')}px` }}>
+                            <td key={columnKey} className="px-2 py-2 text-xs border-r border-gray-200 relative" style={{ width: `${getColumnWidth('status')}px`, minWidth: `${getColumnWidth('status')}px`, maxWidth: `${getColumnWidth('status')}px`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {(() => {
-                                // Если есть purchaseRequestId, показываем статус "Заявка"
+                                // Если есть purchaseRequestId, показываем статус заявки
                                 const hasPurchaseRequest = item.purchaseRequestId !== null;
-                                const displayStatus = hasPurchaseRequest ? 'Заявка' : item.status;
+                                const displayStatus = hasPurchaseRequest && item.purchaseRequestStatus 
+                                  ? item.purchaseRequestStatus 
+                                  : (hasPurchaseRequest ? 'Заявка' : item.status);
                                 
                                 return (
-                                  <span className={`text-xs rounded px-2 py-0.5 font-medium block ${
+                                  <span className={`text-xs rounded px-2 py-0.5 font-medium inline-block max-w-full ${
                                     displayStatus === 'В плане'
                                     ? 'bg-green-100 text-green-800'
                                     : displayStatus === 'Исключена'
                                     ? 'bg-red-100 text-red-800'
                                       : displayStatus === 'Проект'
                                       ? 'bg-blue-100 text-blue-800'
-                                      : displayStatus === 'Заявка'
-                                      ? 'bg-purple-100 text-purple-800'
+                                      : hasPurchaseRequest && item.purchaseRequestStatus
+                                      ? getPurchaseRequestStatusColor(item.purchaseRequestStatus)
                                       : 'bg-gray-100 text-gray-800'
-                                  }`}>
+                                  }`} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
                                     {displayStatus || '-'}
                                   </span>
                                 );

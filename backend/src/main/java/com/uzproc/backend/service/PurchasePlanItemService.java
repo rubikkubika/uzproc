@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -84,8 +85,31 @@ public class PurchasePlanItemService {
                 items.getContent().size(), page, size, items.getTotalElements());
         logger.info("=== END FILTER REQUEST ===\n");
         
-        // Конвертируем entity в DTO
-        Page<PurchasePlanItemDto> dtoPage = items.map(this::toDto);
+        // Собираем все purchaseRequestId для загрузки статусов заявок одним запросом
+        List<Long> purchaseRequestIds = items.getContent().stream()
+                .map(PurchasePlanItem::getPurchaseRequestId)
+                .filter(id -> id != null)
+                .distinct()
+                .collect(Collectors.toList());
+        
+        // Загружаем статусы заявок одним запросом
+        Map<Long, String> purchaseRequestStatusMap = new HashMap<>();
+        if (!purchaseRequestIds.isEmpty()) {
+            // Используем Specification для загрузки заявок по idPurchaseRequest
+            Specification<com.uzproc.backend.entity.PurchaseRequest> prSpec = 
+                    (root, query, cb) -> root.get("idPurchaseRequest").in(purchaseRequestIds);
+            List<com.uzproc.backend.entity.PurchaseRequest> purchaseRequests = 
+                    purchaseRequestRepository.findAll(prSpec);
+            for (com.uzproc.backend.entity.PurchaseRequest pr : purchaseRequests) {
+                if (pr.getStatus() != null && pr.getIdPurchaseRequest() != null) {
+                    purchaseRequestStatusMap.put(pr.getIdPurchaseRequest(), pr.getStatus().getDisplayName());
+                }
+            }
+        }
+        
+        // Конвертируем entity в DTO с использованием Map статусов
+        final Map<Long, String> statusMap = purchaseRequestStatusMap;
+        Page<PurchasePlanItemDto> dtoPage = items.map(item -> toDto(item, statusMap));
         
         return dtoPage;
     }
@@ -96,7 +120,22 @@ public class PurchasePlanItemService {
         if (item == null) {
             return null;
         }
-        return toDto(item);
+        
+        // Загружаем статус заявки, если есть purchaseRequestId
+        Map<Long, String> purchaseRequestStatusMap = null;
+        if (item.getPurchaseRequestId() != null) {
+            Optional<com.uzproc.backend.entity.PurchaseRequest> purchaseRequest = 
+                    purchaseRequestRepository.findByIdPurchaseRequest(item.getPurchaseRequestId());
+            if (purchaseRequest.isPresent() && purchaseRequest.get().getStatus() != null) {
+                purchaseRequestStatusMap = new HashMap<>();
+                purchaseRequestStatusMap.put(
+                    purchaseRequest.get().getIdPurchaseRequest(), 
+                    purchaseRequest.get().getStatus().getDisplayName()
+                );
+            }
+        }
+        
+        return toDto(item, purchaseRequestStatusMap);
     }
 
     /**
@@ -660,6 +699,13 @@ public class PurchasePlanItemService {
      * Конвертирует PurchasePlanItem entity в PurchasePlanItemDto
      */
     private PurchasePlanItemDto toDto(PurchasePlanItem entity) {
+        return toDto(entity, null);
+    }
+    
+    /**
+     * Конвертирует PurchasePlanItem entity в PurchasePlanItemDto с использованием Map статусов заявок
+     */
+    private PurchasePlanItemDto toDto(PurchasePlanItem entity, Map<Long, String> purchaseRequestStatusMap) {
         PurchasePlanItemDto dto = new PurchasePlanItemDto();
         dto.setId(entity.getId());
         dto.setGuid(entity.getGuid());
@@ -688,6 +734,13 @@ public class PurchasePlanItemService {
         dto.setStatus(entity.getStatus());
         dto.setState(entity.getState());
         dto.setPurchaseRequestId(entity.getPurchaseRequestId());
+        
+        // Устанавливаем статус заявки, если есть purchaseRequestId и Map статусов
+        if (entity.getPurchaseRequestId() != null && purchaseRequestStatusMap != null) {
+            String purchaseRequestStatus = purchaseRequestStatusMap.get(entity.getPurchaseRequestId());
+            dto.setPurchaseRequestStatus(purchaseRequestStatus);
+        }
+        
         dto.setComment(entity.getComment());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());

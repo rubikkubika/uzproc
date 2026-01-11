@@ -33,6 +33,8 @@ interface PurchasePlanItem {
   category: string | null;
   status: string | null;
   purchaseRequestId: number | null;
+  purchaseRequestStatus: string | null; // Статус заявки на закупку
+  comment: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -150,6 +152,40 @@ const getCompanyLogoPath = (companyName: string | null): string | null => {
   };
   
   return logoMap[companyName] || null;
+};
+
+// Функция для определения цвета статуса заявки (как в PurchaseRequestsTable)
+const getPurchaseRequestStatusColor = (status: string | null): string => {
+  if (!status) return 'bg-gray-100 text-gray-800';
+  
+  // Зеленый: завершенные статусы
+  if (status === 'Согласована' || status === 'Спецификация подписана' || 
+      status === 'Договор подписан' || status === 'Закупка завершена') {
+    return 'bg-green-100 text-green-800';
+  }
+  
+  // Серый (архив)
+  if (status === 'Спецификация создана - Архив') {
+    return 'bg-gray-200 text-gray-700';
+  }
+  
+  // Желтый: в процессе
+  if (status === 'Спецификация создана' || status === 'Закупка создана' || 
+      status === 'Договор создан' || status === 'Утверждена' || 
+      status === 'Заявка утверждена' || status === 'На согласовании' || 
+      status === 'Заявка на согласовании' || status === 'На утверждении' || 
+      status === 'Заявка на утверждении') {
+    return 'bg-yellow-100 text-yellow-800';
+  }
+  
+  // Красный: не согласовано
+  if (status === 'Заявка не согласована' || status === 'Заявка не утверждена' || 
+      status === 'Закупка не согласована') {
+    return 'bg-red-100 text-red-800';
+  }
+  
+  // Серый по умолчанию
+  return 'bg-gray-100 text-gray-800';
 };
 
 export default function PurchasePlanItemsTable() {
@@ -544,6 +580,11 @@ export default function PurchasePlanItemsTable() {
   const resizeStartWidth = useRef<number>(0);
   const resizeColumn = useRef<string | null>(null);
 
+  // Состояние для порядка колонок
+  const [columnOrder, setColumnOrder] = useState<string[]>(DEFAULT_VISIBLE_COLUMNS);
+  const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
+  const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
+
   // Состояние для временных дат при перетаскивании Ганта
   const [tempDates, setTempDates] = useState<Record<number, { requestDate: string | null; newContractDate: string | null }>>({});
   const [animatingDates, setAnimatingDates] = useState<Record<number, boolean>>({});
@@ -570,11 +611,17 @@ export default function PurchasePlanItemsTable() {
   const [editingPurchaser, setEditingPurchaser] = useState<number | null>(null);
   const [availablePurchasers, setAvailablePurchasers] = useState<string[]>([]);
   
-  // Состояние для раскрытых строк
-  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  // Состояние для модального окна деталей
+  const [detailsModalOpen, setDetailsModalOpen] = useState<number | null>(null);
   
-  // Состояние для активной вкладки в раскрытых строках
-  const [activeTab, setActiveTab] = useState<Record<number, 'data' | 'changes' | 'purchaseRequest'>>({});
+  // Состояние для активной вкладки в модальном окне
+  const [activeTab, setActiveTab] = useState<Record<number, 'comments' | 'data' | 'changes' | 'purchaseRequest'>>({});
+  
+  // Состояние для данных модального окна (загруженных с бэкенда)
+  const [modalItemData, setModalItemData] = useState<Record<number, {
+    data: PurchasePlanItem | null;
+    loading: boolean;
+  }>>({});
   
   // Состояние для изменений
   const [changesData, setChangesData] = useState<Record<number, {
@@ -627,6 +674,39 @@ export default function PurchasePlanItemsTable() {
     }
   }, []);
   
+  // Функция для загрузки данных плана закупок с бэкенда
+  const fetchModalItemData = useCallback(async (itemId: number) => {
+    setModalItemData(prev => ({
+      ...prev,
+      [itemId]: { ...prev[itemId], loading: true }
+    }));
+    
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setModalItemData(prev => ({
+          ...prev,
+          [itemId]: {
+            data: data,
+            loading: false
+          }
+        }));
+      } else {
+        setModalItemData(prev => ({
+          ...prev,
+          [itemId]: { data: null, loading: false }
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching modal item data:', error);
+      setModalItemData(prev => ({
+        ...prev,
+        [itemId]: { data: null, loading: false }
+      }));
+    }
+  }, []);
+  
   // Функция для загрузки данных заявки на закупку
   const fetchPurchaseRequest = useCallback(async (itemId: number, purchaseRequestId: number) => {
     setPurchaseRequestData(prev => ({
@@ -660,30 +740,6 @@ export default function PurchasePlanItemsTable() {
     }
   }, []);
   
-  // Обработчик клика на строку для раскрытия/сворачивания
-  const handleRowClick = useCallback((itemId: number, e: React.MouseEvent) => {
-    // Не раскрываем, если клик был на интерактивном элементе (input, button, ссылка, область Ганта, select и т.д.)
-    const target = e.target as HTMLElement;
-    if (target.closest('input, button, a, [role="button"], [data-gantt-chart], select, [data-editing-status], [data-editing-holding], [data-editing-purchase-subject], [data-editing-purchaser], [data-editing-company], [data-editing-purchaser-company]')) {
-      return;
-    }
-    
-    // Проверяем, не кликнули ли на область Ганта (по классу или родительскому элементу)
-    const ganttContainer = target.closest('.gantt-container, [class*="GanttChart"]');
-    if (ganttContainer) {
-      return;
-    }
-    
-    setExpandedRows(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(itemId)) {
-        newSet.delete(itemId);
-      } else {
-        newSet.add(itemId);
-      }
-      return newSet;
-    });
-  }, []);
 
   // Состояние для подтверждения изменений (повторный ввод логина/пароля)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -1718,6 +1774,37 @@ export default function PurchasePlanItemsTable() {
     }
   }, []);
 
+  // Загружаем сохраненный порядок колонок из localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('purchasePlanItemsTableColumnOrder');
+      if (saved) {
+        const order = JSON.parse(saved);
+        // Проверяем, что все колонки присутствуют
+        const validOrder = order.filter((col: string) => DEFAULT_VISIBLE_COLUMNS.includes(col));
+        const missingCols = DEFAULT_VISIBLE_COLUMNS.filter(col => !validOrder.includes(col));
+        
+        // Добавляем недостающие колонки в конец
+        const finalOrder = [...validOrder, ...missingCols];
+        setColumnOrder(finalOrder);
+        
+        // Сохраняем исправленный порядок
+        try {
+          localStorage.setItem('purchasePlanItemsTableColumnOrder', JSON.stringify(finalOrder));
+        } catch (saveErr) {
+          console.error('Error saving column order:', saveErr);
+        }
+      } else {
+        // Если нет сохраненного порядка, используем дефолтный
+        setColumnOrder(DEFAULT_VISIBLE_COLUMNS);
+      }
+    } catch (err) {
+      console.error('Error loading column order:', err);
+      // В случае ошибки используем дефолтный порядок
+      setColumnOrder(DEFAULT_VISIBLE_COLUMNS);
+    }
+  }, []);
+
   // Флаг для отслеживания загрузки фильтров из localStorage
   const filtersLoadedRef = useRef(false);
 
@@ -1925,7 +2012,7 @@ export default function PurchasePlanItemsTable() {
       complexity: 112, // w-28 = 7rem = 112px
       holding: 128, // w-32 = 8rem = 128px
       category: 128, // w-32 = 8rem = 128px
-      status: 128, // w-32 = 8rem = 128px
+      status: 200, // Увеличено для длинных статусов заявки (например, "Заявка на согласовании")
       purchaseRequestId: 160, // w-40 = 10rem = 160px
       createdAt: 128, // w-32 = 8rem = 128px
       updatedAt: 128, // w-32 = 8rem = 128px
@@ -2487,11 +2574,59 @@ export default function PurchasePlanItemsTable() {
     const currentWidth = columnWidths[columnKey] || getDefaultColumnWidth(columnKey);
     resizeStartWidth.current = currentWidth;
   }, [columnWidths]);
-  
+
+  // Функции для drag and drop столбцов
+  const handleDragStart = (e: React.DragEvent, columnKey: string) => {
+    setDraggedColumn(columnKey);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', columnKey);
+  };
+
+  const handleDragOver = (e: React.DragEvent, columnKey: string) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (draggedColumn && draggedColumn !== columnKey) {
+      setDragOverColumn(columnKey);
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDragOverColumn(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetColumnKey: string) => {
+    e.preventDefault();
+    if (!draggedColumn || draggedColumn === targetColumnKey) {
+      setDraggedColumn(null);
+      setDragOverColumn(null);
+      return;
+    }
+
+    const newOrder = [...columnOrder];
+    const draggedIndex = newOrder.indexOf(draggedColumn);
+    const targetIndex = newOrder.indexOf(targetColumnKey);
+
+    newOrder.splice(draggedIndex, 1);
+    newOrder.splice(targetIndex, 0, draggedColumn);
+
+    setColumnOrder(newOrder);
+    saveColumnOrder(newOrder);
+    setDraggedColumn(null);
+    setDragOverColumn(null);
+  };
+
+  const saveColumnOrder = useCallback((order: string[]) => {
+    try {
+      localStorage.setItem('purchasePlanItemsTableColumnOrder', JSON.stringify(order));
+    } catch (err) {
+      console.error('Error saving column order:', err);
+    }
+  }, []);
+
   // Обработчик изменения размера
   useEffect(() => {
     if (!isResizing) return;
-    
+
     const handleMouseMove = (e: MouseEvent) => {
       if (!resizeColumn.current) return;
       const diff = e.clientX - resizeStartX.current;
@@ -2502,15 +2637,15 @@ export default function PurchasePlanItemsTable() {
         return updated;
       });
     };
-    
+
     const handleMouseUp = () => {
       setIsResizing(null);
       resizeColumn.current = null;
     };
-    
+
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
-    
+
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
@@ -3637,6 +3772,18 @@ export default function PurchasePlanItemsTable() {
     });
   }, [companySearchQuery, uniqueValues.company]);
 
+  // Используем данные из modalItemData (загруженные с бэкенда) вместо allItems
+  const modalItem = useMemo(() => {
+    if (detailsModalOpen === null) return null;
+    // Используем данные из modalItemData, если они загружены, иначе используем allItems как fallback
+    const loadedData = modalItemData[detailsModalOpen];
+    if (loadedData && loadedData.data) {
+      return loadedData.data;
+    }
+    // Fallback на данные из таблицы, если еще не загружены
+    return allItems.find(i => i.id === detailsModalOpen) || null;
+  }, [modalItemData, allItems, detailsModalOpen]);
+
   const getFilteredPurchaserCompanyOptions = useMemo(() => {
     const allPurchaserCompanies = uniqueValues.purchaserCompany || [];
     if (!purchaserCompanySearchQuery || !purchaserCompanySearchQuery.trim()) {
@@ -3686,6 +3833,11 @@ export default function PurchasePlanItemsTable() {
       return status.toLowerCase().includes(searchLower);
     });
   }, [statusSearchQuery, uniqueValues.status]);
+
+  // Фильтруем columnOrder, чтобы показывать только видимые колонки
+  const filteredColumnOrder = useMemo(() => {
+    return columnOrder.filter(columnKey => visibleColumns.has(columnKey));
+  }, [columnOrder, visibleColumns]);
 
   if (loading) {
     return (
@@ -3739,9 +3891,17 @@ export default function PurchasePlanItemsTable() {
       ? { width: `${columnWidth}px`, minWidth: `${columnWidth}px`, maxWidth: `${columnWidth}px`, verticalAlign: 'top', overflow: 'hidden' }
       : { verticalAlign: 'top', overflow: 'hidden' };
 
+    const isDragging = draggedColumn === columnKey;
+    const isDragOver = dragOverColumn === columnKey;
+
     return (
       <th 
-        className={`px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${width || ''} ${className || ''}`} 
+        draggable={!!columnKey}
+        onDragStart={columnKey ? (e) => handleDragStart(e, columnKey) : undefined}
+        onDragOver={columnKey ? (e) => handleDragOver(e, columnKey) : undefined}
+        onDragLeave={columnKey ? handleDragLeave : undefined}
+        onDrop={columnKey ? (e) => handleDrop(e, columnKey) : undefined}
+        className={`px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${width || ''} ${className || ''} ${columnKey ? 'cursor-move' : ''} ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`} 
         style={style}
         data-column={columnKey || undefined}
       >
@@ -4789,12 +4949,24 @@ export default function PurchasePlanItemsTable() {
         <table className="w-full border-collapse">
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
-              {visibleColumns.has('id') && (
-              <SortableHeader field="id" label="ID" columnKey="id" />
-              )}
-              {visibleColumns.has('company') && (
+              {filteredColumnOrder.map(columnKey => {
+                const isDragging = draggedColumn === columnKey;
+                const isDragOver = dragOverColumn === columnKey;
+
+                if (columnKey === 'id') {
+                  return <SortableHeader key={columnKey} field="id" label="ID" columnKey="id" />;
+                }
+                
+                if (columnKey === 'company') {
+                  return (
               <th 
-                className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" 
+                key={columnKey}
+                draggable
+                onDragStart={(e) => handleDragStart(e, columnKey)}
+                onDragOver={(e) => handleDragOver(e, columnKey)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, columnKey)}
+                className={`px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
                 style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px`, verticalAlign: 'top', overflow: 'hidden' }}
               >
                 <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
@@ -4921,10 +5093,19 @@ export default function PurchasePlanItemsTable() {
                   style={{ zIndex: 10 }}
                 />
               </th>
-              )}
-              {visibleColumns.has('purchaserCompany') && (
-              <th 
-                className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" 
+                  );
+                }
+                
+                if (columnKey === 'purchaserCompany') {
+                  return (
+              <th
+                key={columnKey}
+                draggable
+                onDragStart={(e) => handleDragStart(e, columnKey)}
+                onDragOver={(e) => handleDragOver(e, columnKey)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, columnKey)}
+                className={`px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
                 style={{ width: `${getColumnWidth('purchaserCompany')}px`, minWidth: `${getColumnWidth('purchaserCompany')}px`, maxWidth: `${getColumnWidth('purchaserCompany')}px`, verticalAlign: 'top', overflow: 'hidden' }}
               >
                 <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
@@ -5051,19 +5232,24 @@ export default function PurchasePlanItemsTable() {
                   style={{ zIndex: 10 }}
                 />
               </th>
-              )}
-              {visibleColumns.has('purchaseRequestId') && (
-              <SortableHeader 
-                field="purchaseRequestId" 
-                label="Заявка на закупку" 
-                filterType="text"
-                columnKey="purchaseRequestId" 
-              />
-              )}
-              {visibleColumns.has('cfo') && (
-              <th 
-                className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" 
-                      style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px`, verticalAlign: 'top', overflow: 'hidden' }}
+                  );
+                }
+                
+                if (columnKey === 'purchaseRequestId') {
+                  return <SortableHeader key={columnKey} field="purchaseRequestId" label="Заявка на закупку" filterType="text" columnKey="purchaseRequestId" />;
+                }
+                
+                if (columnKey === 'cfo') {
+                  return (
+              <th
+                key={columnKey}
+                draggable
+                onDragStart={(e) => handleDragStart(e, columnKey)}
+                onDragOver={(e) => handleDragOver(e, columnKey)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, columnKey)}
+                className={`px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px`, verticalAlign: 'top', overflow: 'hidden' }}
                     >
                 <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                   <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
@@ -5189,19 +5375,23 @@ export default function PurchasePlanItemsTable() {
                   style={{ zIndex: 10 }}
                 />
               </th>
-              )}
-              {visibleColumns.has('purchaseSubject') && (
-              <SortableHeader 
-                field="purchaseSubject" 
-                label="Предмет закупки" 
-                filterType="text" 
-                columnKey="purchaseSubject"
-                className="purchase-subject-column"
-              />
-              )}
-              {visibleColumns.has('purchaser') && (
-              <th 
-                className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" 
+                  );
+                }
+                
+                if (columnKey === 'purchaseSubject') {
+                  return <SortableHeader key={columnKey} field="purchaseSubject" label="Предмет закупки" filterType="text" columnKey="purchaseSubject" className="purchase-subject-column" />;
+                }
+                
+                if (columnKey === 'purchaser') {
+                  return (
+              <th
+                key={columnKey}
+                draggable
+                onDragStart={(e) => handleDragStart(e, columnKey)}
+                onDragOver={(e) => handleDragOver(e, columnKey)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, columnKey)}
+                className={`px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
                 style={{ width: `${getColumnWidth('purchaser')}px`, minWidth: `${getColumnWidth('purchaser')}px`, maxWidth: `${getColumnWidth('purchaser')}px`, verticalAlign: 'top', overflow: 'hidden' }}
               >
                 <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
@@ -5325,46 +5515,67 @@ export default function PurchasePlanItemsTable() {
                   style={{ zIndex: 10 }}
                 />
               </th>
-              )}
-              {visibleColumns.has('budgetAmount') && (
-              <SortableHeader field="budgetAmount" label={`Бюджет (${selectedCurrency})`} columnKey="budgetAmount" />
-              )}
-              {visibleColumns.has('requestDate') && (
-              <SortableHeader field="requestDate" label="Дата заявки" columnKey="requestDate" />
-              )}
-              {visibleColumns.has('newContractDate') && (
-              <SortableHeader field="newContractDate" label="Дата завершения закупки" columnKey="newContractDate" />
-              )}
-              {visibleColumns.has('guid') && (
-              <SortableHeader field="guid" label="GUID" columnKey="guid" />
-              )}
-              {visibleColumns.has('year') && (
-              <SortableHeader field="year" label="Год" columnKey="year" />
-              )}
-              {visibleColumns.has('product') && (
-              <SortableHeader field="product" label="Продукция" columnKey="product" />
-              )}
-              {visibleColumns.has('currentKa') && (
-              <SortableHeader field="currentKa" label="КА действующего" columnKey="currentKa" />
-              )}
-              {visibleColumns.has('currentAmount') && (
-              <SortableHeader field="currentAmount" label="Сумма текущего" columnKey="currentAmount" />
-              )}
-              {visibleColumns.has('currentContractAmount') && (
-              <SortableHeader field="currentContractAmount" label="Сумма текущего договора" columnKey="currentContractAmount" />
-              )}
-              {visibleColumns.has('currentContractBalance') && (
-              <SortableHeader field="currentContractBalance" label="Остаток текущего договора" columnKey="currentContractBalance" />
-              )}
-              {visibleColumns.has('currentContractEndDate') && (
-              <SortableHeader field="currentContractEndDate" label="Дата окончания действующего" columnKey="currentContractEndDate" />
-              )}
-              {visibleColumns.has('complexity') && (
-              <SortableHeader field="complexity" label="Сложность" columnKey="complexity" />
-              )}
-              {visibleColumns.has('category') && (
-              <th 
-                className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" 
+                  );
+                }
+                
+                if (columnKey === 'budgetAmount') {
+                  return <SortableHeader key={columnKey} field="budgetAmount" label={`Бюджет (${selectedCurrency})`} columnKey="budgetAmount" />;
+                }
+                
+                if (columnKey === 'requestDate') {
+                  return <SortableHeader key={columnKey} field="requestDate" label="Дата заявки" columnKey="requestDate" />;
+                }
+                
+                if (columnKey === 'newContractDate') {
+                  return <SortableHeader key={columnKey} field="newContractDate" label="Дата завершения закупки" columnKey="newContractDate" />;
+                }
+                
+                if (columnKey === 'guid') {
+                  return <SortableHeader key={columnKey} field="guid" label="GUID" columnKey="guid" />;
+                }
+                
+                if (columnKey === 'year') {
+                  return <SortableHeader key={columnKey} field="year" label="Год" columnKey="year" />;
+                }
+                
+                if (columnKey === 'product') {
+                  return <SortableHeader key={columnKey} field="product" label="Продукция" columnKey="product" />;
+                }
+                
+                if (columnKey === 'currentKa') {
+                  return <SortableHeader key={columnKey} field="currentKa" label="КА действующего" columnKey="currentKa" />;
+                }
+                
+                if (columnKey === 'currentAmount') {
+                  return <SortableHeader key={columnKey} field="currentAmount" label="Сумма текущего" columnKey="currentAmount" />;
+                }
+                
+                if (columnKey === 'currentContractAmount') {
+                  return <SortableHeader key={columnKey} field="currentContractAmount" label="Сумма текущего договора" columnKey="currentContractAmount" />;
+                }
+                
+                if (columnKey === 'currentContractBalance') {
+                  return <SortableHeader key={columnKey} field="currentContractBalance" label="Остаток текущего договора" columnKey="currentContractBalance" />;
+                }
+                
+                if (columnKey === 'currentContractEndDate') {
+                  return <SortableHeader key={columnKey} field="currentContractEndDate" label="Дата окончания действующего" columnKey="currentContractEndDate" />;
+                }
+                
+                if (columnKey === 'complexity') {
+                  return <SortableHeader key={columnKey} field="complexity" label="Сложность" columnKey="complexity" />;
+                }
+                
+                if (columnKey === 'category') {
+                  return (
+              <th
+                key={columnKey}
+                draggable
+                onDragStart={(e) => handleDragStart(e, columnKey)}
+                onDragOver={(e) => handleDragOver(e, columnKey)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, columnKey)}
+                className={`px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
                 style={{ width: `${getColumnWidth('category')}px`, minWidth: `${getColumnWidth('category')}px`, maxWidth: `${getColumnWidth('category')}px`, verticalAlign: 'top', overflow: 'hidden' }}
               >
                 <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
@@ -5476,10 +5687,19 @@ export default function PurchasePlanItemsTable() {
                   style={{ zIndex: 10 }}
                 />
               </th>
-              )}
-              {visibleColumns.has('status') && (
-              <th 
-                className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" 
+                  );
+                }
+                
+                if (columnKey === 'status') {
+                  return (
+              <th
+                key={columnKey}
+                draggable
+                onDragStart={(e) => handleDragStart(e, columnKey)}
+                onDragOver={(e) => handleDragOver(e, columnKey)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, columnKey)}
+                className={`px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
                 style={{ width: `${getColumnWidth('status')}px`, minWidth: `${getColumnWidth('status')}px`, maxWidth: `${getColumnWidth('status')}px`, verticalAlign: 'top', overflow: 'hidden' }}
               >
                 <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
@@ -5606,7 +5826,18 @@ export default function PurchasePlanItemsTable() {
                   style={{ zIndex: 10 }}
                 />
               </th>
-              )}
+                  );
+                }
+                
+                return null;
+              })}
+              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '100px', minWidth: '100px', maxWidth: '100px' }}>
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-1 min-h-[20px]">
+                    <span className="text-xs font-medium text-gray-500 tracking-wider">Детали</span>
+                  </div>
+                </div>
+              </th>
               {visibleColumns.has('createdAt') && (
               <SortableHeader field="createdAt" label="Дата создания" columnKey="createdAt" />
               )}
@@ -5826,21 +6057,24 @@ export default function PurchasePlanItemsTable() {
           <tbody className="bg-white divide-y divide-gray-200 border-t-2 border-gray-400">
             {hasData ? (
               allItems.map((item) => {
-                const isExpanded = expandedRows.has(item.id);
                 const isInactive = item.status === 'Исключена';
                 return (
                   <React.Fragment key={item.id}>
                 <tr 
-                      className={`${isInactive ? 'bg-gray-100 opacity-60' : 'hover:bg-gray-50'} cursor-pointer`}
-                      onDoubleClick={(e) => handleRowClick(item.id, e)}
+                      className={`${isInactive ? 'bg-gray-100 opacity-60' : 'hover:bg-gray-50'}`}
                 >
-                        {visibleColumns.has('id') && (
-                  <td className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 text-center ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('id')}px`, minWidth: `${getColumnWidth('id')}px`, maxWidth: `${getColumnWidth('id')}px` }}>
-                    {item.id}
-                  </td>
-                  )}
-                        {visibleColumns.has('company') && (
-                  <td className={`px-2 py-2 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px` }}>
+                        {filteredColumnOrder.map(columnKey => {
+                          if (columnKey === 'id') {
+                            return (
+                              <td key={columnKey} className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 text-center ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('id')}px`, minWidth: `${getColumnWidth('id')}px`, maxWidth: `${getColumnWidth('id')}px` }}>
+                                {item.id}
+                              </td>
+                            );
+                          }
+                          
+                          if (columnKey === 'company') {
+                            return (
+                  <td key={columnKey} className={`px-2 py-2 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px` }}>
                     {editingCompany === item.id ? (
                     <select
                       ref={editingCompany === item.id ? companySelectRef : null}
@@ -5918,9 +6152,12 @@ export default function PurchasePlanItemsTable() {
                       </div>
                     )}
                   </td>
-                  )}
-                  {visibleColumns.has('purchaserCompany') && (
-                  <td className={`px-2 py-2 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('purchaserCompany')}px`, minWidth: `${getColumnWidth('purchaserCompany')}px`, maxWidth: `${getColumnWidth('purchaserCompany')}px` }}>
+                            );
+                          }
+                          
+                          if (columnKey === 'purchaserCompany') {
+                            return (
+                  <td key={columnKey} className={`px-2 py-2 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('purchaserCompany')}px`, minWidth: `${getColumnWidth('purchaserCompany')}px`, maxWidth: `${getColumnWidth('purchaserCompany')}px` }}>
                     {editingPurchaserCompany === item.id ? (
                       <select
                         ref={editingPurchaserCompany === item.id ? purchaserCompanySelectRef : null}
@@ -6001,9 +6238,12 @@ export default function PurchasePlanItemsTable() {
                       </div>
                     )}
                   </td>
-                  )}
-                  {visibleColumns.has('purchaseRequestId') && (
-                  <td className={`px-2 py-2 text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('purchaseRequestId')}px`, minWidth: `${getColumnWidth('purchaseRequestId')}px`, maxWidth: `${getColumnWidth('purchaseRequestId')}px` }}>
+                            );
+                          }
+                          
+                          if (columnKey === 'purchaseRequestId') {
+                            return (
+                  <td key={columnKey} className={`px-2 py-2 text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('purchaseRequestId')}px`, minWidth: `${getColumnWidth('purchaseRequestId')}px`, maxWidth: `${getColumnWidth('purchaseRequestId')}px` }}>
                     {editingPurchaseRequestId === item.id ? (
                       <input
                         ref={purchaseRequestIdInputRef}
@@ -6050,9 +6290,13 @@ export default function PurchasePlanItemsTable() {
                       </div>
                     )}
                   </td>
-                  )}
-                        {visibleColumns.has('cfo') && (
+                            );
+                          }
+                          
+                          if (columnKey === 'cfo') {
+                            return (
                         <td 
+                          key={columnKey}
                           className={`px-2 py-2 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
                           style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px` }}
                         >
@@ -6193,9 +6437,13 @@ export default function PurchasePlanItemsTable() {
                             </select>
                           )}
                         </td>
-                        )}
-                        {visibleColumns.has('purchaseSubject') && (
+                            );
+                          }
+                          
+                          if (columnKey === 'purchaseSubject') {
+                            return (
                         <td 
+                          key={columnKey}
                           className={`px-2 py-2 text-xs border-r border-gray-200 relative purchase-subject-column ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
                           data-column="purchaseSubject"
                           style={{ 
@@ -6274,9 +6522,13 @@ export default function PurchasePlanItemsTable() {
                             </div>
                           )}
                         </td>
-                        )}
-                        {visibleColumns.has('purchaser') && (
+                            );
+                          }
+                          
+                          if (columnKey === 'purchaser') {
+                            return (
                         <td 
+                          key={columnKey}
                           className={`px-2 py-2 text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
                           title={item.purchaser || ''}
                           style={{ width: `${getColumnWidth('purchaser')}px`, minWidth: `${getColumnWidth('purchaser')}px`, maxWidth: `${getColumnWidth('purchaser')}px` }}
@@ -6337,17 +6589,25 @@ export default function PurchasePlanItemsTable() {
                             </div>
                           )}
                         </td>
-                        )}
-                        {visibleColumns.has('budgetAmount') && (
+                            );
+                          }
+                          
+                          if (columnKey === 'budgetAmount') {
+                            return (
                         <td 
+                          key={columnKey}
                           className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
                           style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px` }}
                         >
                           {formatBudget(item.budgetAmount)}
                   </td>
-                  )}
-                  {visibleColumns.has('requestDate') && (
+                            );
+                          }
+                          
+                          if (columnKey === 'requestDate') {
+                            return (
                   <td 
+                    key={columnKey}
                     className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${
                       animatingDates[item.id] ? 'animate-pulse bg-blue-50 text-blue-700 font-semibold' : isInactive ? 'text-gray-500' : 'text-gray-900'
                     }`}
@@ -6395,9 +6655,13 @@ export default function PurchasePlanItemsTable() {
                       </div>
                     )}
                   </td>
-                  )}
-                  {visibleColumns.has('newContractDate') && (
+                            );
+                          }
+                          
+                          if (columnKey === 'newContractDate') {
+                            return (
                   <td 
+                    key={columnKey}
                     className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${
                       animatingDates[item.id] ? 'animate-pulse bg-blue-50 text-blue-700 font-semibold' : isInactive ? 'text-gray-500' : 'text-gray-900'
                     }`}
@@ -6412,72 +6676,107 @@ export default function PurchasePlanItemsTable() {
                           : (item.newContractDate ? new Date(item.newContractDate).toLocaleDateString('ru-RU') : '-')}
                       </div>
                   </td>
-                  )}
-                  {visibleColumns.has('guid') && (
-                  <td className={`px-2 py-2 text-xs truncate border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} title={item.guid} style={{ width: `${getColumnWidth('guid')}px`, minWidth: `${getColumnWidth('guid')}px`, maxWidth: `${getColumnWidth('guid')}px` }}>
-                    {item.guid || '-'}
-                  </td>
-                  )}
-                  {visibleColumns.has('year') && (
-                  <td className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 text-center ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('year')}px`, minWidth: `${getColumnWidth('year')}px`, maxWidth: `${getColumnWidth('year')}px` }}>
-                    {item.year || '-'}
-                  </td>
-                  )}
-                  {visibleColumns.has('product') && (
-                  <td className={`px-2 py-2 text-xs break-words border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('product')}px`, minWidth: `${getColumnWidth('product')}px`, maxWidth: `${getColumnWidth('product')}px` }}>
-                    {item.product || '-'}
-                  </td>
-                  )}
-                  {visibleColumns.has('currentKa') && (
-                  <td className={`px-2 py-2 text-xs truncate border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} title={item.currentKa || ''} style={{ width: `${getColumnWidth('currentKa')}px`, minWidth: `${getColumnWidth('currentKa')}px`, maxWidth: `${getColumnWidth('currentKa')}px` }}>
-                    {item.currentKa || '-'}
-                  </td>
-                  )}
-                  {visibleColumns.has('currentAmount') && (
-                  <td className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('currentAmount')}px`, minWidth: `${getColumnWidth('currentAmount')}px`, maxWidth: `${getColumnWidth('currentAmount')}px` }}>
-                    {item.currentAmount ? new Intl.NumberFormat('ru-RU', { 
-                      notation: 'compact',
-                      maximumFractionDigits: 1 
-                    }).format(item.currentAmount) : '-'}
-                  </td>
-                  )}
-                  {visibleColumns.has('currentContractAmount') && (
-                  <td className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('currentContractAmount')}px`, minWidth: `${getColumnWidth('currentContractAmount')}px`, maxWidth: `${getColumnWidth('currentContractAmount')}px` }}>
-                    {item.currentContractAmount ? new Intl.NumberFormat('ru-RU', { 
-                      notation: 'compact',
-                      maximumFractionDigits: 1 
-                    }).format(item.currentContractAmount) : '-'}
-                  </td>
-                  )}
-                  {visibleColumns.has('currentContractBalance') && (
-                  <td className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('currentContractBalance')}px`, minWidth: `${getColumnWidth('currentContractBalance')}px`, maxWidth: `${getColumnWidth('currentContractBalance')}px` }}>
-                    {item.currentContractBalance ? new Intl.NumberFormat('ru-RU', { 
-                      notation: 'compact',
-                      maximumFractionDigits: 1 
-                    }).format(item.currentContractBalance) : '-'}
-                  </td>
-                  )}
-                  {visibleColumns.has('currentContractEndDate') && (
-                  <td className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('currentContractEndDate')}px`, minWidth: `${getColumnWidth('currentContractEndDate')}px`, maxWidth: `${getColumnWidth('currentContractEndDate')}px` }}>
-                    {item.currentContractEndDate ? new Date(item.currentContractEndDate).toLocaleDateString('ru-RU') : '-'}
-                  </td>
-                  )}
-                  {visibleColumns.has('complexity') && (
-                  <td className={`px-2 py-2 text-xs truncate border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} title={item.complexity || ''} style={{ width: `${getColumnWidth('complexity')}px`, minWidth: `${getColumnWidth('complexity')}px`, maxWidth: `${getColumnWidth('complexity')}px` }}>
-                    {item.complexity || '-'}
-                  </td>
-                  )}
-                  {visibleColumns.has('category') && (
-                  <td className={`px-2 py-2 text-xs truncate border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} title={item.category || ''} style={{ width: `${getColumnWidth('category')}px`, minWidth: `${getColumnWidth('category')}px`, maxWidth: `${getColumnWidth('category')}px` }}>
-                    {item.category || '-'}
-                  </td>
-                  )}
-                  {visibleColumns.has('status') && (
-                  <td className="px-2 py-2 text-xs border-r border-gray-200 relative" style={{ width: `${getColumnWidth('status')}px`, minWidth: `${getColumnWidth('status')}px`, maxWidth: `${getColumnWidth('status')}px` }}>
+                            );
+                          }
+                          
+                          if (columnKey === 'guid') {
+                            return (
+                              <td key={columnKey} className={`px-2 py-2 text-xs truncate border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} title={item.guid} style={{ width: `${getColumnWidth('guid')}px`, minWidth: `${getColumnWidth('guid')}px`, maxWidth: `${getColumnWidth('guid')}px` }}>
+                                {item.guid || '-'}
+                              </td>
+                            );
+                          }
+                          
+                          if (columnKey === 'year') {
+                            return (
+                              <td key={columnKey} className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 text-center ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('year')}px`, minWidth: `${getColumnWidth('year')}px`, maxWidth: `${getColumnWidth('year')}px` }}>
+                                {item.year || '-'}
+                              </td>
+                            );
+                          }
+                          
+                          if (columnKey === 'product') {
+                            return (
+                              <td key={columnKey} className={`px-2 py-2 text-xs break-words border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('product')}px`, minWidth: `${getColumnWidth('product')}px`, maxWidth: `${getColumnWidth('product')}px` }}>
+                                {item.product || '-'}
+                              </td>
+                            );
+                          }
+                          
+                          if (columnKey === 'currentKa') {
+                            return (
+                              <td key={columnKey} className={`px-2 py-2 text-xs truncate border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} title={item.currentKa || ''} style={{ width: `${getColumnWidth('currentKa')}px`, minWidth: `${getColumnWidth('currentKa')}px`, maxWidth: `${getColumnWidth('currentKa')}px` }}>
+                                {item.currentKa || '-'}
+                              </td>
+                            );
+                          }
+                          
+                          if (columnKey === 'currentAmount') {
+                            return (
+                              <td key={columnKey} className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('currentAmount')}px`, minWidth: `${getColumnWidth('currentAmount')}px`, maxWidth: `${getColumnWidth('currentAmount')}px` }}>
+                                {item.currentAmount ? new Intl.NumberFormat('ru-RU', { 
+                                  notation: 'compact',
+                                  maximumFractionDigits: 1 
+                                }).format(item.currentAmount) : '-'}
+                              </td>
+                            );
+                          }
+                          
+                          if (columnKey === 'currentContractAmount') {
+                            return (
+                              <td key={columnKey} className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('currentContractAmount')}px`, minWidth: `${getColumnWidth('currentContractAmount')}px`, maxWidth: `${getColumnWidth('currentContractAmount')}px` }}>
+                                {item.currentContractAmount ? new Intl.NumberFormat('ru-RU', { 
+                                  notation: 'compact',
+                                  maximumFractionDigits: 1 
+                                }).format(item.currentContractAmount) : '-'}
+                              </td>
+                            );
+                          }
+                          
+                          if (columnKey === 'currentContractBalance') {
+                            return (
+                              <td key={columnKey} className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('currentContractBalance')}px`, minWidth: `${getColumnWidth('currentContractBalance')}px`, maxWidth: `${getColumnWidth('currentContractBalance')}px` }}>
+                                {item.currentContractBalance ? new Intl.NumberFormat('ru-RU', { 
+                                  notation: 'compact',
+                                  maximumFractionDigits: 1 
+                                }).format(item.currentContractBalance) : '-'}
+                              </td>
+                            );
+                          }
+                          
+                          if (columnKey === 'currentContractEndDate') {
+                            return (
+                              <td key={columnKey} className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('currentContractEndDate')}px`, minWidth: `${getColumnWidth('currentContractEndDate')}px`, maxWidth: `${getColumnWidth('currentContractEndDate')}px` }}>
+                                {item.currentContractEndDate ? new Date(item.currentContractEndDate).toLocaleDateString('ru-RU') : '-'}
+                              </td>
+                            );
+                          }
+                          
+                          if (columnKey === 'complexity') {
+                            return (
+                              <td key={columnKey} className={`px-2 py-2 text-xs truncate border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} title={item.complexity || ''} style={{ width: `${getColumnWidth('complexity')}px`, minWidth: `${getColumnWidth('complexity')}px`, maxWidth: `${getColumnWidth('complexity')}px` }}>
+                                {item.complexity || '-'}
+                              </td>
+                            );
+                          }
+                          
+                          if (columnKey === 'category') {
+                            return (
+                              <td key={columnKey} className={`px-2 py-2 text-xs truncate border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} title={item.category || ''} style={{ width: `${getColumnWidth('category')}px`, minWidth: `${getColumnWidth('category')}px`, maxWidth: `${getColumnWidth('category')}px` }}>
+                                {item.category || '-'}
+                              </td>
+                            );
+                          }
+                          
+                          if (columnKey === 'status') {
+                            return (
+                  <td key={columnKey} className="px-2 py-2 text-xs border-r border-gray-200 relative" style={{ width: `${getColumnWidth('status')}px`, minWidth: `${getColumnWidth('status')}px`, maxWidth: `${getColumnWidth('status')}px`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {(() => {
-                      // Если есть purchaseRequestId, показываем статус "Заявка"
+                      // Если есть purchaseRequestId, показываем статус заявки
                       const hasPurchaseRequest = item.purchaseRequestId !== null;
-                      const displayStatus = hasPurchaseRequest ? 'Заявка' : item.status;
+                      const displayStatus = hasPurchaseRequest && item.purchaseRequestStatus 
+                        ? item.purchaseRequestStatus 
+                        : (hasPurchaseRequest ? 'Заявка' : item.status);
                       const isFromPurchaseRequest = hasPurchaseRequest;
                       
                       return (
@@ -6522,8 +6821,8 @@ export default function PurchasePlanItemsTable() {
                           ? 'bg-red-100 text-red-800 border-0'
                               : displayStatus === 'Проект'
                           ? 'bg-blue-100 text-blue-800 border-0'
-                              : displayStatus === 'Заявка'
-                              ? 'bg-purple-100 text-purple-800 border-0'
+                              : isFromPurchaseRequest && item.purchaseRequestStatus
+                          ? getPurchaseRequestStatusColor(item.purchaseRequestStatus)
                           : 'bg-gray-100 text-gray-800 border-0'
                       }`}
                       style={{
@@ -6532,7 +6831,12 @@ export default function PurchasePlanItemsTable() {
                           WebkitAppearance: 'none',
                           MozAppearance: 'none',
                           paddingRight: '20px',
-                              backgroundImage: displayStatus ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 9L1 4h10z'/%3E%3C/svg%3E")` : 'none',
+                          width: '100%',
+                          maxWidth: '100%',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          backgroundImage: displayStatus ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 9L1 4h10z'/%3E%3C/svg%3E")` : 'none',
                           backgroundRepeat: 'no-repeat',
                           backgroundPosition: 'right 4px center',
                           backgroundSize: '12px',
@@ -6541,9 +6845,9 @@ export default function PurchasePlanItemsTable() {
                     >
                       <option value="">-</option>
                           {isFromPurchaseRequest ? (
-                            // Если есть заявка, показываем "Заявка" (disabled) и можно выбрать только "Исключена"
+                            // Если есть заявка, показываем статус заявки (disabled) и можно выбрать только "Исключена"
                             <>
-                              <option value="Заявка" disabled>Заявка</option>
+                              <option value={displayStatus || ''} disabled>{displayStatus}</option>
                               <option value="Исключена">Исключена</option>
                             </>
                           ) : (
@@ -6558,7 +6862,29 @@ export default function PurchasePlanItemsTable() {
                       );
                     })()}
                   </td>
-                  )}
+                            );
+                          }
+                          
+                          return null;
+                        })}
+                  <td className="px-2 py-2 text-xs border-r border-gray-200 text-center" style={{ width: '100px', minWidth: '100px', maxWidth: '100px' }}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDetailsModalOpen(item.id);
+                        if (!activeTab[item.id]) {
+                          setActiveTab(prev => ({ ...prev, [item.id]: 'comments' }));
+                        }
+                        // Загружаем данные с бэкенда при открытии модального окна
+                        if (!modalItemData[item.id] || !modalItemData[item.id].data) {
+                          fetchModalItemData(item.id);
+                        }
+                      }}
+                      className="px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                    >
+                      Открыть
+                    </button>
+                  </td>
                   {visibleColumns.has('createdAt') && (
                   <td className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('createdAt')}px`, minWidth: `${getColumnWidth('createdAt')}px`, maxWidth: `${getColumnWidth('createdAt')}px` }}>
                     {item.createdAt ? new Date(item.createdAt).toLocaleDateString('ru-RU') : '-'}
@@ -6632,291 +6958,6 @@ export default function PurchasePlanItemsTable() {
                     </div>
                   </td>
                 </tr>
-                    {/* Подстрока при раскрытии */}
-                    {isExpanded && (
-                      <tr className="bg-blue-50 border-t-2 border-blue-300">
-                        <td colSpan={visibleColumns.size + 1} className="px-2 py-1">
-                          {/* Вкладки */}
-                          <div className="mb-1 border-b border-blue-200">
-                            <div className="flex gap-1">
-                              <button
-                                onClick={() => setActiveTab(prev => ({ ...prev, [item.id]: 'data' }))}
-                                className={`px-3 py-1 text-xs font-medium rounded-t-lg transition-colors ${
-                                  activeTab[item.id] === 'data' || !activeTab[item.id]
-                                    ? 'bg-white text-blue-700 border-b-2 border-blue-500'
-                                    : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
-                                }`}
-                              >
-                                Данные
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setActiveTab(prev => ({ ...prev, [item.id]: 'changes' }));
-                                  if (!changesData[item.id] || changesData[item.id].content.length === 0) {
-                                    fetchChanges(item.id, 0);
-                                  }
-                                }}
-                                className={`px-3 py-1 text-xs font-medium rounded-t-lg transition-colors ${
-                                  activeTab[item.id] === 'changes'
-                                    ? 'bg-white text-blue-700 border-b-2 border-blue-500'
-                                    : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
-                                }`}
-                              >
-                                Изменения
-                              </button>
-                              {item.purchaseRequestId && (
-                                <button
-                                  onClick={() => {
-                                    setActiveTab(prev => ({ ...prev, [item.id]: 'purchaseRequest' }));
-                                    if (!purchaseRequestData[item.id] || !purchaseRequestData[item.id].data) {
-                                      if (item.purchaseRequestId !== null) {
-                                      fetchPurchaseRequest(item.id, item.purchaseRequestId);
-                                      }
-                                    }
-                                  }}
-                                  className={`px-3 py-1 text-xs font-medium rounded-t-lg transition-colors ${
-                                    activeTab[item.id] === 'purchaseRequest'
-                                      ? 'bg-white text-blue-700 border-b-2 border-blue-500'
-                                      : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
-                                  }`}
-                                >
-                                  Данные о заявке
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                          
-                          {/* Содержимое вкладки "Данные" */}
-                          {(activeTab[item.id] === 'data' || !activeTab[item.id]) && (
-                            <div className="text-xs text-gray-700">
-                              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1 gap-y-0.5">
-                              <div>
-                                <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">ID:</span> <span className="text-gray-900">{item.id}</span></span>
-                              </div>
-                              {item.guid && (
-                                <div>
-                                  <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200 break-all"><span className="font-semibold text-blue-700">GUID:</span> <span className="text-gray-900">{item.guid}</span></span>
-                                </div>
-                              )}
-                              {item.company && (
-                                <div>
-                                  <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Компания:</span> <span className="text-gray-900">{item.company}</span></span>
-                                </div>
-                              )}
-                              {item.purchaseSubject && (
-                                <div>
-                                  <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Предмет закупки:</span> <span className="text-gray-900">{item.purchaseSubject}</span></span>
-                                </div>
-                              )}
-                              {item.purchaser && (
-                                <div>
-                                  <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Закупщик:</span> <span className="text-gray-900">{item.purchaser}</span></span>
-                                </div>
-                              )}
-                              {item.product && (
-                                <div>
-                                  <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Продукт:</span> <span className="text-gray-900">{item.product}</span></span>
-                                </div>
-                              )}
-                              {item.budgetAmount && (
-                                <div>
-                                  <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Бюджет:</span> <span className="text-gray-900">{formatBudgetFull(item.budgetAmount)}</span></span>
-                                </div>
-                              )}
-                              {item.complexity && (
-                                <div>
-                                  <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Сложность:</span> <span className="text-gray-900">{item.complexity}</span></span>
-                                </div>
-                              )}
-                              {item.category && (
-                                <div>
-                                  <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Категория:</span> <span className="text-gray-900">{item.category}</span></span>
-                                </div>
-                              )}
-                              <div>
-                                <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Есть договор:</span> <span className="text-gray-900">{item.hasContract === true ? 'Да' : item.hasContract === false ? 'Нет' : '-'}</span></span>
-                              </div>
-                              <div>
-                                <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Автопролонгация:</span> <span className="text-gray-900">{item.autoRenewal === true ? 'Да' : item.autoRenewal === false ? 'Нет' : '-'}</span></span>
-                              </div>
-                            </div>
-                          </div>
-                          )}
-                          
-                          {/* Содержимое вкладки "Данные о заявке" */}
-                          {activeTab[item.id] === 'purchaseRequest' && item.purchaseRequestId && (
-                            <div className="text-xs text-gray-700">
-                              {purchaseRequestData[item.id]?.loading ? (
-                                <div className="text-center py-2">Загрузка...</div>
-                              ) : purchaseRequestData[item.id]?.data ? (
-                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1 gap-y-0.5">
-                                  {purchaseRequestData[item.id]!.data!.idPurchaseRequest && (
-                                    <div>
-                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Номер заявки:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.idPurchaseRequest}</span></span>
-                                    </div>
-                                  )}
-                                  {purchaseRequestData[item.id]!.data!.purchaseRequestCreationDate && (
-                                    <div>
-                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Дата создания:</span> <span className="text-gray-900">{new Date(purchaseRequestData[item.id]!.data!.purchaseRequestCreationDate!).toLocaleDateString('ru-RU')}</span></span>
-                                    </div>
-                                  )}
-                                  {purchaseRequestData[item.id]!.data!.innerId && (
-                                    <div>
-                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Внутренний ID:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.innerId}</span></span>
-                                    </div>
-                                  )}
-                                  {purchaseRequestData[item.id]!.data!.name && (
-                                    <div>
-                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Наименование:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.name}</span></span>
-                                    </div>
-                                  )}
-                                  {purchaseRequestData[item.id]!.data!.title && (
-                                    <div>
-                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Заголовок:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.title}</span></span>
-                                    </div>
-                                  )}
-                                  {purchaseRequestData[item.id]!.data!.purchaseRequestPlanYear && (
-                                    <div>
-                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Год планирования:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.purchaseRequestPlanYear}</span></span>
-                                    </div>
-                                  )}
-                                  {purchaseRequestData[item.id]!.data!.company && (
-                                    <div>
-                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Компания:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.company}</span></span>
-                                    </div>
-                                  )}
-                                  {purchaseRequestData[item.id]!.data!.cfo && (
-                                    <div>
-                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">ЦФО:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.cfo}</span></span>
-                                    </div>
-                                  )}
-                                  {purchaseRequestData[item.id]!.data!.mcc && (
-                                    <div>
-                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">МЦЦ:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.mcc}</span></span>
-                                    </div>
-                                  )}
-                                  {purchaseRequestData[item.id]!.data!.purchaseRequestInitiator && (
-                                    <div>
-                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Инициатор:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.purchaseRequestInitiator}</span></span>
-                                    </div>
-                                  )}
-                                  {purchaseRequestData[item.id]!.data!.purchaser && (
-                                    <div>
-                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Закупщик:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.purchaser}</span></span>
-                                    </div>
-                                  )}
-                                  {purchaseRequestData[item.id]!.data!.purchaseRequestSubject && (
-                                    <div>
-                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Предмет закупки:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.purchaseRequestSubject}</span></span>
-                                    </div>
-                                  )}
-                                  {purchaseRequestData[item.id]!.data!.budgetAmount && (
-                                    <div>
-                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Бюджет:</span> <span className="text-gray-900">{formatBudgetFull(purchaseRequestData[item.id]!.data!.budgetAmount!)}</span></span>
-                                    </div>
-                                  )}
-                                  {purchaseRequestData[item.id]!.data!.costType && (
-                                    <div>
-                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Тип затрат:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.costType}</span></span>
-                                    </div>
-                                  )}
-                                  {purchaseRequestData[item.id]!.data!.contractType && (
-                                    <div>
-                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Тип договора:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.contractType}</span></span>
-                                    </div>
-                                  )}
-                                  {purchaseRequestData[item.id]!.data!.contractDurationMonths && (
-                                    <div>
-                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Длительность договора (мес.):</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.contractDurationMonths}</span></span>
-                                    </div>
-                                  )}
-                                  <div>
-                                    <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Запланировано:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.isPlanned === true ? 'Да' : purchaseRequestData[item.id]!.data!.isPlanned === false ? 'Нет' : '-'}</span></span>
-                                  </div>
-                                  <div>
-                                    <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Требуется закупка:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.requiresPurchase === true ? 'Да' : purchaseRequestData[item.id]!.data!.requiresPurchase === false ? 'Нет' : '-'}</span></span>
-                                  </div>
-                                  {purchaseRequestData[item.id]!.data!.status && (
-                                    <div>
-                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Статус:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.status}</span></span>
-                                    </div>
-                                  )}
-                                  {purchaseRequestData[item.id]!.data!.state && (
-                                    <div>
-                                      <span className="inline-block bg-white px-1 py-0.5 rounded border border-blue-200"><span className="font-semibold text-blue-700">Состояние:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.state}</span></span>
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                <div className="text-center py-2 text-gray-500">Заявка не найдена</div>
-                              )}
-                          </div>
-                          )}
-                          
-                          {/* Содержимое вкладки "Изменения" */}
-                          {activeTab[item.id] === 'changes' && (
-                            <div className="text-xs text-gray-700">
-                              {changesData[item.id]?.loading ? (
-                                <div className="text-center py-1 text-gray-500">Загрузка...</div>
-                              ) : changesData[item.id]?.content && changesData[item.id].content.length > 0 ? (
-                                <>
-                                  <table className="w-full border-collapse">
-                                    <thead>
-                                      <tr className="bg-blue-50 border-b border-blue-200">
-                                        <th className="text-left px-1.5 py-0.5 text-[9px] font-semibold text-blue-700 border-r border-blue-200">Поле</th>
-                                        <th className="text-left px-1.5 py-0.5 text-[9px] font-semibold text-blue-700 border-r border-blue-200">Было</th>
-                                        <th className="text-left px-1.5 py-0.5 text-[9px] font-semibold text-blue-700 border-r border-blue-200">Стало</th>
-                                        <th className="text-left px-1.5 py-0.5 text-[9px] font-semibold text-blue-700">Дата</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                    {changesData[item.id].content.map((change: any) => (
-                                        <tr key={change.id} className="bg-white border-b border-blue-100 hover:bg-blue-50">
-                                          <td className="px-1.5 py-0.5 text-[9px] text-gray-900 border-r border-blue-100">{change.fieldName}</td>
-                                          <td className="px-1.5 py-0.5 text-[9px] text-red-600 border-r border-blue-100">{change.valueBefore || '-'}</td>
-                                          <td className="px-1.5 py-0.5 text-[9px] text-green-600 border-r border-blue-100">{change.valueAfter || '-'}</td>
-                                          <td className="px-1.5 py-0.5 text-[9px] text-gray-500">{new Date(change.changeDate).toLocaleString('ru-RU')}</td>
-                                        </tr>
-                                    ))}
-                                    </tbody>
-                                  </table>
-                                  
-                                  {/* Пагинация */}
-                                  {changesData[item.id].totalPages > 1 && (
-                                    <div className="flex items-center justify-between border-t border-blue-200 pt-1">
-                                      <div className="text-[9px] text-gray-500">
-                                        Показано {changesData[item.id].content.length} из {changesData[item.id].totalElements}
-                                      </div>
-                                      <div className="flex gap-0.5">
-                                        <button
-                                          onClick={() => fetchChanges(item.id, changesData[item.id].currentPage - 1)}
-                                          disabled={changesData[item.id].currentPage === 0}
-                                          className="px-1.5 py-0.5 text-[9px] bg-white border border-blue-300 rounded hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                          Назад
-                                        </button>
-                                        <span className="px-1.5 py-0.5 text-[9px] text-gray-600">
-                                          {changesData[item.id].currentPage + 1} / {changesData[item.id].totalPages}
-                                        </span>
-                                        <button
-                                          onClick={() => fetchChanges(item.id, changesData[item.id].currentPage + 1)}
-                                          disabled={changesData[item.id].currentPage >= changesData[item.id].totalPages - 1}
-                                          className="px-1.5 py-0.5 text-[9px] bg-white border border-blue-300 rounded hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                          Вперед
-                                        </button>
-                                      </div>
-                                    </div>
-                                  )}
-                                </>
-                              ) : (
-                                <div className="text-center py-1 text-gray-500">Нет изменений</div>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    )}
                   </React.Fragment>
                 );
               })
@@ -7151,6 +7192,359 @@ export default function PurchasePlanItemsTable() {
           </div>
         </div>
       )}
+
+      {/* Модальное окно деталей строки плана закупок */}
+      {modalItem && detailsModalOpen !== null && (() => {
+        const item = modalItem;
+        const isLoading = modalItemData[item.id]?.loading || false;
+        
+        const currentTab = activeTab[item.id] || 'comments';
+        
+        // Обработчики для мгновенного переключения вкладок (без ожидания загрузки)
+        const handleTabClick = (tab: 'comments' | 'data' | 'changes' | 'purchaseRequest') => {
+          // Сразу переключаем вкладку синхронно для мгновенного отклика
+          setActiveTab(prev => {
+            const newState = { ...prev, [item.id]: tab };
+            return newState;
+          });
+          
+          // Загружаем данные асинхронно после переключения (не блокируя UI)
+          if (tab === 'changes' && (!changesData[item.id] || changesData[item.id].content.length === 0)) {
+            // Используем setTimeout с минимальной задержкой для отложенной загрузки
+            setTimeout(() => {
+              fetchChanges(item.id, 0);
+            }, 0);
+          } else if (tab === 'purchaseRequest' && item.purchaseRequestId && (!purchaseRequestData[item.id] || !purchaseRequestData[item.id].data)) {
+            setTimeout(() => {
+              if (item.purchaseRequestId !== null) {
+                fetchPurchaseRequest(item.id, item.purchaseRequestId);
+              }
+            }, 0);
+          }
+        };
+        
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setDetailsModalOpen(null)}>
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-start justify-between p-4 border-b border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Детали плана закупок (ID: {item.id})
+                  {isLoading && <span className="ml-2 text-sm text-gray-500">(Загрузка...)</span>}
+                </h2>
+                <button
+                  onClick={() => setDetailsModalOpen(null)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              
+              {/* Вкладки */}
+              <div className="border-b border-gray-200 px-4">
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => handleTabClick('comments')}
+                    className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                      currentTab === 'comments'
+                        ? 'bg-white text-blue-700 border-b-2 border-blue-500'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    Комментарии
+                  </button>
+                  <button
+                    onClick={() => handleTabClick('data')}
+                    className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                      currentTab === 'data'
+                        ? 'bg-white text-blue-700 border-b-2 border-blue-500'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    Данные
+                  </button>
+                  <button
+                    onClick={() => handleTabClick('changes')}
+                    className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                      currentTab === 'changes'
+                        ? 'bg-white text-blue-700 border-b-2 border-blue-500'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    Изменения
+                  </button>
+                  {item.purchaseRequestId && (
+                    <button
+                      onClick={() => handleTabClick('purchaseRequest')}
+                      className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+                        currentTab === 'purchaseRequest'
+                          ? 'bg-white text-blue-700 border-b-2 border-blue-500'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      Данные о заявке
+                    </button>
+                  )}
+                </div>
+              </div>
+              
+              {/* Содержимое вкладок */}
+              <div className="flex-1 overflow-y-auto p-4">
+                {/* Вкладка "Комментарии" */}
+                <div style={{ display: currentTab === 'comments' ? 'block' : 'none' }}>
+                  <div className="text-sm text-gray-700">
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Комментарий</label>
+                      <textarea
+                        value={item.comment || ''}
+                        readOnly
+                        className="w-full px-3 py-2 text-sm text-gray-900 border border-gray-300 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        rows={6}
+                        placeholder="Комментариев нет"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Вкладка "Данные" */}
+                <div style={{ display: currentTab === 'data' ? 'block' : 'none' }}>
+                  <div className="text-sm text-gray-700">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                      <div>
+                        <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">ID:</span> <span className="text-gray-900">{item.id}</span></span>
+                      </div>
+                      {item.guid && (
+                        <div>
+                          <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full break-all"><span className="font-semibold text-blue-700">GUID:</span> <span className="text-gray-900">{item.guid}</span></span>
+                        </div>
+                      )}
+                      {item.company && (
+                        <div>
+                          <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">Компания:</span> <span className="text-gray-900">{item.company}</span></span>
+                        </div>
+                      )}
+                      {item.purchaseSubject && (
+                        <div>
+                          <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">Предмет закупки:</span> <span className="text-gray-900">{item.purchaseSubject}</span></span>
+                        </div>
+                      )}
+                      {item.purchaser && (
+                        <div>
+                          <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">Закупщик:</span> <span className="text-gray-900">{item.purchaser}</span></span>
+                        </div>
+                      )}
+                      {item.product && (
+                        <div>
+                          <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">Продукт:</span> <span className="text-gray-900">{item.product}</span></span>
+                        </div>
+                      )}
+                      {item.budgetAmount && (
+                        <div>
+                          <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">Бюджет:</span> <span className="text-gray-900">{formatBudgetFull(item.budgetAmount)}</span></span>
+                        </div>
+                      )}
+                      {item.complexity && (
+                        <div>
+                          <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">Сложность:</span> <span className="text-gray-900">{item.complexity}</span></span>
+                        </div>
+                      )}
+                      {item.category && (
+                        <div>
+                          <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">Категория:</span> <span className="text-gray-900">{item.category}</span></span>
+                        </div>
+                      )}
+                      <div>
+                        <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">Есть договор:</span> <span className="text-gray-900">{item.hasContract === true ? 'Да' : item.hasContract === false ? 'Нет' : '-'}</span></span>
+                      </div>
+                      <div>
+                        <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">Автопролонгация:</span> <span className="text-gray-900">{item.autoRenewal === true ? 'Да' : item.autoRenewal === false ? 'Нет' : '-'}</span></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Вкладка "Данные о заявке" */}
+                {item.purchaseRequestId && (
+                  <div className="text-sm text-gray-700" style={{ display: currentTab === 'purchaseRequest' ? 'block' : 'none' }}>
+                    {purchaseRequestData[item.id]?.loading ? (
+                      <div className="text-center py-4">Загрузка...</div>
+                    ) : purchaseRequestData[item.id]?.data ? (
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                        {purchaseRequestData[item.id]!.data!.idPurchaseRequest && (
+                          <div>
+                            <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">Номер заявки:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.idPurchaseRequest}</span></span>
+                          </div>
+                        )}
+                        {purchaseRequestData[item.id]!.data!.purchaseRequestCreationDate && (
+                          <div>
+                            <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">Дата создания:</span> <span className="text-gray-900">{new Date(purchaseRequestData[item.id]!.data!.purchaseRequestCreationDate!).toLocaleDateString('ru-RU')}</span></span>
+                          </div>
+                        )}
+                        {purchaseRequestData[item.id]!.data!.innerId && (
+                          <div>
+                            <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">Внутренний ID:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.innerId}</span></span>
+                          </div>
+                        )}
+                        {purchaseRequestData[item.id]!.data!.name && (
+                          <div>
+                            <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">Наименование:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.name}</span></span>
+                          </div>
+                        )}
+                        {purchaseRequestData[item.id]!.data!.title && (
+                          <div>
+                            <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">Заголовок:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.title}</span></span>
+                          </div>
+                        )}
+                        {purchaseRequestData[item.id]!.data!.purchaseRequestPlanYear && (
+                          <div>
+                            <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">Год планирования:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.purchaseRequestPlanYear}</span></span>
+                          </div>
+                        )}
+                        {purchaseRequestData[item.id]!.data!.company && (
+                          <div>
+                            <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">Компания:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.company}</span></span>
+                          </div>
+                        )}
+                        {purchaseRequestData[item.id]!.data!.cfo && (
+                          <div>
+                            <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">ЦФО:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.cfo}</span></span>
+                          </div>
+                        )}
+                        {purchaseRequestData[item.id]!.data!.mcc && (
+                          <div>
+                            <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">МЦЦ:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.mcc}</span></span>
+                          </div>
+                        )}
+                        {purchaseRequestData[item.id]!.data!.purchaseRequestInitiator && (
+                          <div>
+                            <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">Инициатор:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.purchaseRequestInitiator}</span></span>
+                          </div>
+                        )}
+                        {purchaseRequestData[item.id]!.data!.purchaser && (
+                          <div>
+                            <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">Закупщик:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.purchaser}</span></span>
+                          </div>
+                        )}
+                        {purchaseRequestData[item.id]!.data!.purchaseRequestSubject && (
+                          <div>
+                            <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">Предмет закупки:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.purchaseRequestSubject}</span></span>
+                          </div>
+                        )}
+                        {purchaseRequestData[item.id]!.data!.budgetAmount && (
+                          <div>
+                            <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">Бюджет:</span> <span className="text-gray-900">{formatBudgetFull(purchaseRequestData[item.id]!.data!.budgetAmount!)}</span></span>
+                          </div>
+                        )}
+                        {purchaseRequestData[item.id]!.data!.costType && (
+                          <div>
+                            <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">Тип затрат:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.costType}</span></span>
+                          </div>
+                        )}
+                        {purchaseRequestData[item.id]!.data!.contractType && (
+                          <div>
+                            <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">Тип договора:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.contractType}</span></span>
+                          </div>
+                        )}
+                        {purchaseRequestData[item.id]!.data!.contractDurationMonths && (
+                          <div>
+                            <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">Длительность договора (мес.):</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.contractDurationMonths}</span></span>
+                          </div>
+                        )}
+                        <div>
+                          <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">Запланировано:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.isPlanned === true ? 'Да' : purchaseRequestData[item.id]!.data!.isPlanned === false ? 'Нет' : '-'}</span></span>
+                        </div>
+                        <div>
+                          <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">Требуется закупка:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.requiresPurchase === true ? 'Да' : purchaseRequestData[item.id]!.data!.requiresPurchase === false ? 'Нет' : '-'}</span></span>
+                        </div>
+                        {purchaseRequestData[item.id]!.data!.status && (
+                          <div>
+                            <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">Статус:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.status}</span></span>
+                          </div>
+                        )}
+                        {purchaseRequestData[item.id]!.data!.state && (
+                          <div>
+                            <span className="inline-block bg-gray-50 px-2 py-1 rounded border border-gray-200 w-full"><span className="font-semibold text-blue-700">Состояние:</span> <span className="text-gray-900">{purchaseRequestData[item.id]!.data!.state}</span></span>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 text-gray-500">Заявка не найдена</div>
+                    )}
+                  </div>
+                )}
+                
+                {/* Вкладка "Изменения" */}
+                <div className="text-sm text-gray-700" style={{ display: currentTab === 'changes' ? 'block' : 'none' }}>
+                    {changesData[item.id]?.loading ? (
+                      <div className="text-center py-4 text-gray-500">Загрузка...</div>
+                    ) : changesData[item.id]?.content && changesData[item.id].content.length > 0 ? (
+                      <>
+                        <table className="w-full border-collapse">
+                          <thead>
+                            <tr className="bg-gray-50 border-b border-gray-200">
+                              <th className="text-left px-3 py-2 text-sm font-semibold text-gray-700 border-r border-gray-200">Поле</th>
+                              <th className="text-left px-3 py-2 text-sm font-semibold text-gray-700 border-r border-gray-200">Было</th>
+                              <th className="text-left px-3 py-2 text-sm font-semibold text-gray-700 border-r border-gray-200">Стало</th>
+                              <th className="text-left px-3 py-2 text-sm font-semibold text-gray-700">Дата</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {changesData[item.id].content.map((change: any) => (
+                              <tr key={change.id} className="bg-white border-b border-gray-100 hover:bg-gray-50">
+                                <td className="px-3 py-2 text-sm text-gray-900 border-r border-gray-100">{change.fieldName}</td>
+                                <td className="px-3 py-2 text-sm text-red-600 border-r border-gray-100">{change.valueBefore || '-'}</td>
+                                <td className="px-3 py-2 text-sm text-green-600 border-r border-gray-100">{change.valueAfter || '-'}</td>
+                                <td className="px-3 py-2 text-sm text-gray-500">{new Date(change.changeDate).toLocaleString('ru-RU')}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        
+                        {/* Пагинация */}
+                        {changesData[item.id].totalPages > 1 && (
+                          <div className="flex items-center justify-between border-t border-gray-200 pt-4 mt-4">
+                            <div className="text-sm text-gray-500">
+                              Показано {changesData[item.id].content.length} из {changesData[item.id].totalElements}
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => fetchChanges(item.id, changesData[item.id].currentPage - 1)}
+                                disabled={changesData[item.id].currentPage === 0}
+                                className="px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                Назад
+                              </button>
+                              <span className="px-3 py-1 text-sm text-gray-600">
+                                {changesData[item.id].currentPage + 1} / {changesData[item.id].totalPages}
+                              </span>
+                              <button
+                                onClick={() => fetchChanges(item.id, changesData[item.id].currentPage + 1)}
+                                disabled={changesData[item.id].currentPage >= changesData[item.id].totalPages - 1}
+                                className="px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                Вперед
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="text-center py-4 text-gray-500">Нет изменений</div>
+                    )}
+                </div>
+              </div>
+              
+              <div className="flex justify-end gap-2 p-4 border-t border-gray-200">
+                <button
+                  onClick={() => setDetailsModalOpen(null)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Закрыть
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
