@@ -4,7 +4,6 @@ import React, { useRef, useCallback, useEffect, useMemo } from 'react';
 import { useReactToPrint } from 'react-to-print';
 import * as XLSX from 'xlsx';
 import { usePurchasePlanItemsTable } from './hooks/usePurchasePlanItemsTable';
-import { ALL_COLUMNS } from './constants/purchase-plan-items.constants';
 import { getCompanyLogoPath, getPurchaseRequestStatusColor } from './utils/purchase-plan-items.utils';
 import { prepareExportData } from './utils/export.utils';
 import { getBackendUrl } from '@/utils/api';
@@ -16,10 +15,8 @@ import PurchasePlanItemsTableBody from './ui/PurchasePlanItemsTableBody';
 import PurchasePlanItemsTableRow from './ui/PurchasePlanItemsTableRow';
 import PurchasePlanItemsTableFilters from './ui/PurchasePlanItemsTableFilters';
 import PurchasePlanItemsTableColumnsMenu from './ui/PurchasePlanItemsTableColumnsMenu';
+import PurchasePlanItemsTableColumnsHeader from './ui/PurchasePlanItemsTableColumnsHeader';
 import PurchasePlanItemsSummaryTable from './ui/PurchasePlanItemsSummaryTable';
-import PurchasePlanItemsMonthlyChart from './ui/PurchasePlanItemsMonthlyChart';
-import SortableHeader from './ui/SortableHeader';
-import FilterButton from './filters/FilterButton';
 
 // Модальные окна
 import PurchasePlanItemsDetailsModal from './ui/PurchasePlanItemsDetailsModal';
@@ -453,6 +450,8 @@ export default function PurchasePlanItemsTable() {
     cfoInputValue: table.editing.cfoInputValue,
     availablePurchasers: table.editing.availablePurchasers,
     availableCompanies: table.editing.availableCompanies,
+    availableCfo: table.filters.getUniqueValues('cfo') || [],
+    availableHoldings: table.filters.getUniqueValues('holding') || [],
   };
 
   const editingHandlers = {
@@ -552,177 +551,60 @@ export default function PurchasePlanItemsTable() {
       <div className="flex-1 overflow-auto" ref={printRef}>
         {table.data && table.data.content && table.data.content.length > 0 ? (
           <table className="w-full border-collapse">
-            <thead className="bg-gray-50 sticky top-0 z-10">
-              <tr>
-                {table.columns.filteredColumnOrder.map((columnKey) => {
-                  const column = ALL_COLUMNS.find(col => col.key === columnKey);
-                  if (!column) return null;
-                  
-                  // Для колонки requestDate создаем отдельный заголовок со столбчатой диаграммой
-                  if (columnKey === 'requestDate') {
-                    return (
-                      <th 
-                        key={columnKey}
-                        className="px-1 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative"
-                        style={{ width: '350px', minWidth: '350px' }}
-                        draggable={!!columnKey}
-                        onDragStart={columnKey ? (e) => table.columns.handleDragStart(e, columnKey) : undefined}
-                        onDragOver={columnKey ? (e) => table.columns.handleDragOver(e, columnKey) : undefined}
-                        onDragLeave={columnKey ? table.columns.handleDragLeave : undefined}
-                        onDrop={columnKey ? (e) => table.columns.handleDrop(e, columnKey) : undefined}
-                        data-column={columnKey || undefined}
-                      >
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-1 min-h-[20px]">
-                            {/* Столбчатая диаграмма распределения по месяцам */}
-                            <PurchasePlanItemsMonthlyChart
-                              monthlyDistribution={table.getMonthlyDistribution || Array(14).fill(0)}
-                              selectedYear={table.selectedYear}
-                              chartData={table.chartData}
-                              selectedMonths={table.selectedMonths}
-                              selectedMonthYear={table.selectedMonthYear}
-                              lastSelectedMonthIndex={table.lastSelectedMonthIndex}
-                              setSelectedMonthYear={table.setSelectedMonthYear}
-                              setSelectedYear={table.setSelectedYear}
-                              setSelectedMonths={table.setSelectedMonths}
-                              setLastSelectedMonthIndex={table.setLastSelectedMonthIndex}
-                            />
-                          </div>
-                        </div>
-                        {columnKey && table.columns.handleResizeStart && (
-                          <div
-                            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
-                            onMouseDown={(e) => table.columns.handleResizeStart(e, columnKey)}
-                            style={{ zIndex: 10 }}
-                          />
-                        )}
-                      </th>
-                    );
-                  }
-                  
-                  // Для остальных колонок используем SortableHeader
-                  const isTextFilter = ['purchaseSubject', 'purchaseRequestId', 'currentContractEndDate'].includes(columnKey);
-                  
-                  // Маппинг фильтров для множественного выбора
-                  const filterConfigMap = {
-                    cfo: {
-                      buttonRef: table.filters.cfoFilterButtonRef,
-                      selectedCount: table.filters.cfoFilter.size,
-                      selectedValues: table.filters.cfoFilter,
-                      isOpen: table.filters.isCfoFilterOpen,
-                      onToggle: () => table.filters.setIsCfoFilterOpen(!table.filters.isCfoFilterOpen),
-                    },
-                    company: {
-                      buttonRef: table.filters.companyFilterButtonRef,
-                      selectedCount: table.filters.companyFilter.size,
-                      selectedValues: table.filters.companyFilter,
-                      isOpen: table.filters.isCompanyFilterOpen,
-                      onToggle: () => table.filters.setIsCompanyFilterOpen(!table.filters.isCompanyFilterOpen),
-                    },
-                    purchaserCompany: {
-                      buttonRef: table.filters.purchaserCompanyFilterButtonRef,
-                      selectedCount: table.filters.purchaserCompanyFilter.size,
-                      selectedValues: table.filters.purchaserCompanyFilter,
-                      isOpen: table.filters.isPurchaserCompanyFilterOpen,
-                      onToggle: () => table.filters.setIsPurchaserCompanyFilterOpen(!table.filters.isPurchaserCompanyFilterOpen),
-                    },
-                    category: {
-                      buttonRef: table.filters.categoryFilterButtonRef,
-                      selectedCount: table.filters.categoryFilter.size,
-                      selectedValues: table.filters.categoryFilter,
-                      isOpen: table.filters.isCategoryFilterOpen,
-                      onToggle: () => table.filters.setIsCategoryFilterOpen(!table.filters.isCategoryFilterOpen),
-                    },
-                    status: {
-                      buttonRef: table.filters.statusFilterButtonRef,
-                      selectedCount: table.filters.statusFilter.size,
-                      selectedValues: table.filters.statusFilter,
-                      isOpen: table.filters.isStatusFilterOpen,
-                      onToggle: () => table.filters.setIsStatusFilterOpen(!table.filters.isStatusFilterOpen),
-                    },
-                    purchaser: {
-                      buttonRef: table.filters.purchaserFilterButtonRef,
-                      selectedCount: table.filters.purchaserFilter.size,
-                      selectedValues: table.filters.purchaserFilter,
-                      isOpen: table.filters.isPurchaserFilterOpen,
-                      onToggle: () => table.filters.setIsPurchaserFilterOpen(!table.filters.isPurchaserFilterOpen),
-                    },
-                  } as const;
-                  
-                  const filterConfig = !isTextFilter && columnKey in filterConfigMap 
-                    ? filterConfigMap[columnKey as keyof typeof filterConfigMap]
-                    : null;
-                  
-                  return (
-                    <SortableHeader
-                      key={columnKey}
-                      field={columnKey}
-                      label={column.label}
-                      filterType={isTextFilter ? 'text' : undefined}
-                      columnKey={columnKey}
-                      sortField={table.sortField}
-                      sortDirection={table.sortDirection}
-                      onSort={table.handleSort}
-                      filterValue={isTextFilter ? (table.filters.localFilters[columnKey] || '') : undefined}
-                      onFilterChange={isTextFilter ? ((value) => table.filters.handleFilterChangeForHeader(columnKey, value)) : undefined}
-                      onFocus={isTextFilter ? () => table.filters.handleFocusForHeader(columnKey) : undefined}
-                      onBlur={isTextFilter ? ((e) => table.filters.handleBlurForHeader(e, columnKey)) : undefined}
-                      width={table.columns.getColumnWidth(columnKey)}
-                      onDragStart={(e, colKey) => table.columns.handleDragStart(e, colKey)}
-                      onDragOver={(e, colKey) => table.columns.handleDragOver(e, colKey)}
-                      onDragLeave={table.columns.handleDragLeave}
-                      onDrop={(e, colKey) => table.columns.handleDrop(e, colKey)}
-                      isDragged={table.columns.draggedColumn === columnKey}
-                      isDragOver={table.columns.dragOverColumn === columnKey}
-                      onResizeStart={(e, colKey) => table.columns.handleResizeStart(e, colKey)}
-                    >
-                      {/* Для колонок с множественным выбором (ЦФО, Компания и т.д.) */}
-                      {filterConfig && (
-                        <FilterButton
-                          buttonRef={filterConfig.buttonRef}
-                          selectedCount={filterConfig.selectedCount}
-                          selectedValues={filterConfig.selectedValues}
-                          isOpen={filterConfig.isOpen}
-                          onToggle={filterConfig.onToggle}
-                        />
-                      )}
-                      {columnKey === 'budgetAmount' && (
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              table.setSelectedCurrency('UZS');
-                            }}
-                            className={`px-1.5 py-0.5 text-xs border rounded hover:bg-gray-100 transition-colors ${
-                              table.selectedCurrency === 'UZS' 
-                                ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' 
-                                : 'border-gray-300'
-                            }`}
-                            title="UZS"
-                          >
-                            UZS
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              table.setSelectedCurrency('USD');
-                            }}
-                            className={`px-1.5 py-0.5 text-xs border rounded hover:bg-gray-100 transition-colors ${
-                              table.selectedCurrency === 'USD' 
-                                ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' 
-                                : 'border-gray-300'
-                            }`}
-                            title="USD"
-                          >
-                            USD
-                          </button>
-                        </div>
-                      )}
-                    </SortableHeader>
-                  );
-                })}
-              </tr>
-            </thead>
+            <PurchasePlanItemsTableColumnsHeader
+              filteredColumnOrder={table.columns.filteredColumnOrder}
+              getColumnWidth={table.columns.getColumnWidth}
+              handleDragStart={table.columns.handleDragStart}
+              handleDragOver={table.columns.handleDragOver}
+              handleDragLeave={table.columns.handleDragLeave}
+              handleDrop={table.columns.handleDrop}
+              draggedColumn={table.columns.draggedColumn}
+              dragOverColumn={table.columns.dragOverColumn}
+              handleResizeStart={table.columns.handleResizeStart}
+              sortField={table.sortField}
+              sortDirection={table.sortDirection}
+              handleSort={table.handleSort}
+              localFilters={table.filters.localFilters}
+              handleFilterChangeForHeader={table.filters.handleFilterChangeForHeader}
+              handleFocusForHeader={table.filters.handleFocusForHeader}
+              handleBlurForHeader={table.filters.handleBlurForHeader}
+              cfoFilterButtonRef={table.filters.cfoFilterButtonRef}
+              cfoFilter={table.filters.cfoFilter}
+              isCfoFilterOpen={table.filters.isCfoFilterOpen}
+              setIsCfoFilterOpen={table.filters.setIsCfoFilterOpen}
+              companyFilterButtonRef={table.filters.companyFilterButtonRef}
+              companyFilter={table.filters.companyFilter}
+              isCompanyFilterOpen={table.filters.isCompanyFilterOpen}
+              setIsCompanyFilterOpen={table.filters.setIsCompanyFilterOpen}
+              purchaserCompanyFilterButtonRef={table.filters.purchaserCompanyFilterButtonRef}
+              purchaserCompanyFilter={table.filters.purchaserCompanyFilter}
+              isPurchaserCompanyFilterOpen={table.filters.isPurchaserCompanyFilterOpen}
+              setIsPurchaserCompanyFilterOpen={table.filters.setIsPurchaserCompanyFilterOpen}
+              categoryFilterButtonRef={table.filters.categoryFilterButtonRef}
+              categoryFilter={table.filters.categoryFilter}
+              isCategoryFilterOpen={table.filters.isCategoryFilterOpen}
+              setIsCategoryFilterOpen={table.filters.setIsCategoryFilterOpen}
+              statusFilterButtonRef={table.filters.statusFilterButtonRef}
+              statusFilter={table.filters.statusFilter}
+              isStatusFilterOpen={table.filters.isStatusFilterOpen}
+              setIsStatusFilterOpen={table.filters.setIsStatusFilterOpen}
+              purchaserFilterButtonRef={table.filters.purchaserFilterButtonRef}
+              purchaserFilter={table.filters.purchaserFilter}
+              isPurchaserFilterOpen={table.filters.isPurchaserFilterOpen}
+              setIsPurchaserFilterOpen={table.filters.setIsPurchaserFilterOpen}
+              getMonthlyDistribution={table.getMonthlyDistribution}
+              selectedYear={table.selectedYear}
+              chartData={table.chartData}
+              selectedMonths={table.selectedMonths}
+              selectedMonthYear={table.selectedMonthYear}
+              lastSelectedMonthIndex={table.lastSelectedMonthIndex}
+              setSelectedMonthYear={table.setSelectedMonthYear}
+              setSelectedYear={table.setSelectedYear}
+              setSelectedMonths={table.setSelectedMonths}
+              setLastSelectedMonthIndex={table.setLastSelectedMonthIndex}
+              selectedCurrency={table.selectedCurrency}
+              setSelectedCurrency={table.setSelectedCurrency}
+            />
             <PurchasePlanItemsTableBody
               data={table.data}
               visibleColumns={table.columns.filteredColumnOrder}

@@ -35,6 +35,11 @@ export const usePurchasePlanItemsColumns = () => {
             }
             columnsUpdated = true;
           }
+          // Если 'details' отсутствует в сохраненных колонках, добавляем его в конец
+          if (!filteredColumns.includes('details') && DEFAULT_VISIBLE_COLUMNS.includes('details')) {
+            filteredColumns.push('details');
+            columnsUpdated = true;
+          }
           // Сохраняем обновленный список в localStorage, если были изменения
           if (columnsUpdated) {
             try {
