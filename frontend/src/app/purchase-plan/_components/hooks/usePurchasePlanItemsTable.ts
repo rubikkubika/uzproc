@@ -137,6 +137,16 @@ export const usePurchasePlanItemsTable = () => {
       if (filters.purchaseRequestId && filters.purchaseRequestId.trim() !== '') {
         params.append('purchaseRequestId', filters.purchaseRequestId.trim());
       }
+      // Фильтр бюджета
+      const budgetOperator = filters.budgetAmountOperator;
+      const budgetAmount = filters.budgetAmount;
+      if (budgetOperator && budgetOperator.trim() !== '' && budgetAmount && budgetAmount.trim() !== '') {
+        const budgetValue = parseFloat(budgetAmount.replace(/\s/g, '').replace(/,/g, ''));
+        if (!isNaN(budgetValue) && budgetValue >= 0) {
+          params.append('budgetAmountOperator', budgetOperator.trim());
+          params.append('budgetAmount', String(budgetValue));
+        }
+      }
       if (filters.currentContractEndDate && filters.currentContractEndDate.trim() !== '') {
         const dateValue = filters.currentContractEndDate.trim();
         if (dateValue === '-') {
@@ -317,7 +327,11 @@ export const usePurchasePlanItemsTable = () => {
         
         if (filtersHook.companyFilter.size > 0) {
           filtersHook.companyFilter.forEach(company => {
-            params.append('company', company);
+            if (company === 'Не выбрано') {
+              params.append('company', '__NULL__');
+            } else {
+              params.append('company', company);
+            }
           });
         }
         if (filtersHook.cfoFilter.size > 0) {

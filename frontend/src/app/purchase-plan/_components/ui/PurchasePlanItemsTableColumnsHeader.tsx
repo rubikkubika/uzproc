@@ -27,6 +27,9 @@ interface PurchasePlanItemsTableColumnsHeaderProps {
   handleFilterChangeForHeader: (columnKey: string, value: string) => void;
   handleFocusForHeader: (columnKey: string) => void;
   handleBlurForHeader: (e: React.FocusEvent<HTMLInputElement>, columnKey: string) => void;
+  setFilters?: (updater: (prev: Record<string, string>) => Record<string, string>) => void;
+  setLocalFilters?: (updater: (prev: Record<string, string>) => Record<string, string>) => void;
+  setCurrentPage?: (page: number) => void;
   // Filter configs
   cfoFilterButtonRef: React.RefObject<HTMLButtonElement | null>;
   cfoFilter: Set<string>;
@@ -89,6 +92,9 @@ export default function PurchasePlanItemsTableColumnsHeader({
   handleFilterChangeForHeader,
   handleFocusForHeader,
   handleBlurForHeader,
+  setFilters,
+  setLocalFilters,
+  setCurrentPage,
   cfoFilterButtonRef,
   cfoFilter,
   isCfoFilterOpen,
@@ -298,6 +304,40 @@ export default function PurchasePlanItemsTableColumnsHeader({
               isDragged={draggedColumn === columnKey}
               isDragOver={dragOverColumn === columnKey}
               onResizeStart={(e, colKey) => handleResizeStart(e, colKey)}
+              bottomChildren={columnKey === 'budgetAmount' ? (
+                <div className="flex items-center gap-0.5">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedCurrency('UZS');
+                    }}
+                    className={`px-1 py-0.5 text-xs border rounded hover:bg-gray-100 transition-colors ${
+                      selectedCurrency === 'UZS'
+                        ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium'
+                        : 'border-gray-300'
+                    }`}
+                    style={{ height: '20px', minHeight: '20px', maxHeight: '20px', boxSizing: 'border-box' }}
+                    title="UZS"
+                  >
+                    UZS
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedCurrency('USD');
+                    }}
+                    className={`px-1 py-0.5 text-xs border rounded hover:bg-gray-100 transition-colors ${
+                      selectedCurrency === 'USD'
+                        ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium'
+                        : 'border-gray-300'
+                    }`}
+                    style={{ height: '20px', minHeight: '20px', maxHeight: '20px', boxSizing: 'border-box' }}
+                    title="USD"
+                  >
+                    USD
+                  </button>
+                </div>
+              ) : undefined}
             >
               {/* Для колонок с множественным выбором (ЦФО, Компания и т.д.) */}
               {filterConfig && (
@@ -310,35 +350,75 @@ export default function PurchasePlanItemsTableColumnsHeader({
                 />
               )}
               {columnKey === 'budgetAmount' && (
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedCurrency('UZS');
-                    }}
-                    className={`px-1.5 py-0.5 text-xs border rounded hover:bg-gray-100 transition-colors ${
-                      selectedCurrency === 'UZS' 
-                        ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' 
-                        : 'border-gray-300'
-                    }`}
-                    title="UZS"
-                  >
-                    UZS
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedCurrency('USD');
-                    }}
-                    className={`px-1.5 py-0.5 text-xs border rounded hover:bg-gray-100 transition-colors ${
-                      selectedCurrency === 'USD' 
-                        ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' 
-                        : 'border-gray-300'
-                    }`}
-                    title="USD"
-                  >
-                    USD
-                  </button>
+                <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                  <div className="relative flex-1" style={{ minWidth: 0 }}>
+                    <select
+                      value={localFilters.budgetAmountOperator || 'gte'}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        const newValue = e.target.value;
+                        // Для select обновляем filters сразу, без debounce
+                        handleFilterChangeForHeader('budgetAmountOperator', newValue);
+                        // Также обновляем filters напрямую для немедленного применения
+                        if (setFilters) {
+                          setFilters(prev => ({
+                            ...prev,
+                            budgetAmountOperator: newValue,
+                          }));
+                        }
+                        if (setLocalFilters) {
+                          setLocalFilters(prev => ({
+                            ...prev,
+                            budgetAmountOperator: newValue,
+                          }));
+                        }
+                        if (setCurrentPage) {
+                          setCurrentPage(0);
+                        }
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      onFocus={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      className={`absolute left-0 top-0 h-full text-xs border-0 border-r border-gray-300 rounded-l px-1 py-0 focus:outline-none focus:ring-0 appearance-none cursor-pointer z-10 transition-colors ${
+                        localFilters.budgetAmountOperator && ['gt', 'gte', 'lt', 'lte'].includes(localFilters.budgetAmountOperator)
+                          ? 'bg-blue-500 text-white font-semibold'
+                          : 'bg-gray-50 text-gray-700'
+                      }`}
+                      style={{ width: '42px', minWidth: '42px', paddingRight: '4px', height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
+                    >
+                      <option value="gt">&gt;</option>
+                      <option value="gte">&gt;=</option>
+                      <option value="lt">&lt;</option>
+                      <option value="lte">&lt;=</option>
+                    </select>
+                    <input
+                      type="text"
+                      data-filter-field="budgetAmount"
+                      value={(() => {
+                        const value = localFilters.budgetAmount || '';
+                        if (!value) return '';
+                        const numValue = value.toString().replace(/\s/g, '').replace(/,/g, '');
+                        const num = parseFloat(numValue);
+                        if (isNaN(num)) return value;
+                        return new Intl.NumberFormat('ru-RU', {
+                          maximumFractionDigits: 2,
+                          useGrouping: true,
+                        }).format(num);
+                      })()}
+                      onChange={(e) => {
+                        const cursorPos = e.target.selectionStart || 0;
+                        handleFilterChangeForHeader('budgetAmount', e.target.value);
+                        requestAnimationFrame(() => {
+                          e.target.setSelectionRange(cursorPos, cursorPos);
+                        });
+                      }}
+                      onFocus={() => handleFocusForHeader('budgetAmount')}
+                      onBlur={(e) => handleBlurForHeader(e, 'budgetAmount')}
+                      className="w-full h-full text-xs border border-gray-300 rounded-r px-1 py-0.5 text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Введите сумму"
+                      style={{ paddingLeft: '46px', height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
+                    />
+                  </div>
                 </div>
               )}
             </SortableHeader>

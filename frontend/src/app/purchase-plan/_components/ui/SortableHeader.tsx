@@ -18,6 +18,7 @@ interface SortableHeaderProps {
   onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void;
   width?: number;
   children?: React.ReactNode; // Для кастомных фильтров
+  bottomChildren?: React.ReactNode; // Для дополнительного контента в нижнем уровне (под названием)
   // Drag and drop
   onDragStart?: (e: React.DragEvent, columnKey: string) => void;
   onDragOver?: (e: React.DragEvent, columnKey: string) => void;
@@ -47,6 +48,7 @@ export default function SortableHeader({
   onBlur,
   width,
   children,
+  bottomChildren,
   onDragStart,
   onDragOver,
   onDragLeave,
@@ -128,19 +130,26 @@ export default function SortableHeader({
         </div>
         
         {/* Нижний уровень - сортировка и название */}
-        <div className="flex items-center gap-1 min-h-[20px]">
-          <button
-            onClick={() => onSort(field as SortField)}
-            className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
-            style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
-          >
-            {isSorted ? (
-              sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
-            ) : (
-              <ArrowUpDown className="w-4 h-4" />
-            )}
-          </button>
-          <span className={`text-xs font-medium text-gray-500 tracking-wider ${label === 'ЦФО' ? 'uppercase' : ''}`}>{label}</span>
+        <div className="flex flex-col gap-1 min-h-[20px]">
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => onSort(field as SortField)}
+              className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+              style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+            >
+              {isSorted ? (
+                sortDirection === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+              ) : (
+                <ArrowUpDown className="w-4 h-4" />
+              )}
+            </button>
+            <span className={`text-xs font-medium text-gray-500 tracking-wider ${label === 'ЦФО' ? 'uppercase' : ''}`}>{label}</span>
+          </div>
+          {bottomChildren && (
+            <div className="flex items-center gap-1">
+              {bottomChildren}
+            </div>
+          )}
         </div>
       </div>
       {columnKey && onResizeStart && (

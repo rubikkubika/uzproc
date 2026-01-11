@@ -268,6 +268,8 @@ export default function PurchasePlanItemsTable() {
       purchaseSubject: '',
       currentContractEndDate: '',
       purchaseRequestId: '',
+      budgetAmount: '',
+      budgetAmountOperator: 'gte',
     };
     table.filters.setFilters(emptyFilters);
     table.filters.setLocalFilters(emptyFilters);
@@ -567,6 +569,9 @@ export default function PurchasePlanItemsTable() {
               handleFilterChangeForHeader={table.filters.handleFilterChangeForHeader}
               handleFocusForHeader={table.filters.handleFocusForHeader}
               handleBlurForHeader={table.filters.handleBlurForHeader}
+              setFilters={table.filters.setFilters}
+              setLocalFilters={table.filters.setLocalFilters}
+              setCurrentPage={table.setCurrentPage}
               cfoFilterButtonRef={table.filters.cfoFilterButtonRef}
               cfoFilter={table.filters.cfoFilter}
               isCfoFilterOpen={table.filters.isCfoFilterOpen}
