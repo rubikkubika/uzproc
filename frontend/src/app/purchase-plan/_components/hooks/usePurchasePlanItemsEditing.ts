@@ -158,7 +158,6 @@ export const usePurchasePlanItemsEditing = (
         }, 500);
       } else {
         const errorText = await response.text();
-        console.error('Failed to update gantt dates:', response.status, errorText);
         setAllItems(prev => {
           const updated = prev.map(i => 
             i.id === itemId 
@@ -176,7 +175,6 @@ export const usePurchasePlanItemsEditing = (
         });
       }
     } catch (error) {
-      console.error('Error updating gantt dates:', error);
       setAllItems(prev => {
         const updated = prev.map(i => 
           i.id === itemId 
@@ -272,12 +270,9 @@ export const usePurchasePlanItemsEditing = (
           });
         }, 1000);
         setEditingDate(null);
-      } else {
-        const errorText = await response.text();
-        console.error('Failed to update date:', response.status, errorText);
       }
     } catch (error) {
-      console.error('Error updating date:', error);
+      // Ошибка обновления даты игнорируется
     }
   };
 
@@ -301,7 +296,6 @@ export const usePurchasePlanItemsEditing = (
 
       if (response.ok) {
         const updatedItem = await response.json();
-        console.log('Status updated successfully:', updatedItem);
         // Обновляем данные в таблице
         setAllItems(prev => {
           const updated = prev.map(i => 
@@ -333,12 +327,9 @@ export const usePurchasePlanItemsEditing = (
           );
         });
         setEditingStatus(null);
-      } else {
-        const errorText = await response.text();
-        console.error('Failed to update status:', response.status, errorText);
       }
     } catch (error) {
-      console.error('Error updating status:', error);
+      // Ошибка обновления статуса игнорируется
     }
   };
 
@@ -357,7 +348,6 @@ export const usePurchasePlanItemsEditing = (
 
       if (response.ok) {
         const updatedItem = await response.json();
-        console.log('Holding updated successfully:', updatedItem);
         // Обновляем данные в таблице
         setAllItems(prev => {
           const updated = prev.map(i => 
@@ -371,12 +361,9 @@ export const usePurchasePlanItemsEditing = (
           return updated;
         });
         setEditingHolding(null);
-      } else {
-        const errorText = await response.text();
-        console.error('Failed to update holding:', response.status, errorText);
       }
     } catch (error) {
-      console.error('Error updating holding:', error);
+      // Ошибка обновления холдинга игнорируется
     }
   };
 
@@ -426,11 +413,9 @@ export const usePurchasePlanItemsEditing = (
         });
       } else {
         const errorText = await response.text();
-        console.error('Failed to update purchaserCompany:', errorText);
         alert('Ошибка при обновлении компании закупщика: ' + errorText);
       }
     } catch (error) {
-      console.error('Error updating purchaserCompany:', error);
       alert('Ошибка при обновлении компании закупщика');
     }
   };
@@ -553,12 +538,9 @@ export const usePurchasePlanItemsEditing = (
         window.dispatchEvent(new CustomEvent('purchasePlanItemCompanyFilterUpdated', {
           detail: { companyFilter: Array.from(companyFilter) }
         }));
-      } else {
-        const errorText = await response.text();
-        console.error('Failed to update company:', response.status, errorText);
       }
     } catch (error) {
-      console.error('Error updating company:', error);
+      // Ошибка обновления компании игнорируется
     } finally {
       setEditingHolding(null);
     }
@@ -687,12 +669,9 @@ export const usePurchasePlanItemsEditing = (
             cfo: [...prev.cfo, normalizedNewCfo].sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' }))
           }));
         }
-      } else {
-        const errorText = await response.text();
-        console.error('Failed to update cfo:', response.status, errorText);
       }
     } catch (error) {
-      console.error('Error updating cfo:', error);
+      // Ошибка обновления ЦФО игнорируется
     }
   };
 
@@ -747,11 +726,9 @@ export const usePurchasePlanItemsEditing = (
         }, 100);
       } else {
         const errorText = await response.text();
-        console.error('Failed to update purchaser:', errorText);
         alert('Ошибка при обновлении закупщика: ' + errorText);
       }
     } catch (error) {
-      console.error('Error updating purchaser:', error);
       alert('Ошибка при обновлении закупщика');
     }
   };
@@ -783,12 +760,9 @@ export const usePurchasePlanItemsEditing = (
           }
           return updated;
         });
-      } else {
-        const errorText = await response.text();
-        console.error('Failed to update purchase subject:', response.status, errorText);
       }
     } catch (error) {
-      console.error('Error updating purchase subject:', error);
+      // Ошибка обновления предмета закупки игнорируется
     }
   };
 
@@ -800,7 +774,6 @@ export const usePurchasePlanItemsEditing = (
         : null;
       
       if (isNaN(purchaseRequestIdValue as any) && purchaseRequestIdValue !== null) {
-        console.error('Invalid purchaseRequestId:', newPurchaseRequestId);
         return;
       }
 
@@ -830,7 +803,6 @@ export const usePurchasePlanItemsEditing = (
         });
       } else {
         const errorText = await response.text();
-        console.error('Failed to update purchaseRequestId:', response.status, errorText);
         // Показываем ошибку пользователю во всплывающем окне
         if (setErrorModal) {
           setErrorModal({ isOpen: true, message: errorText || 'Ошибка при обновлении номера заявки на закупку' });
@@ -839,7 +811,7 @@ export const usePurchasePlanItemsEditing = (
         return;
       }
     } catch (error) {
-      console.error('Error updating purchaseRequestId:', error);
+      // Ошибка обновления ID заявки игнорируется
     } finally {
       setEditingPurchaseRequestId(null);
     }
@@ -848,9 +820,8 @@ export const usePurchasePlanItemsEditing = (
   // Функция для создания нового элемента
   const handleCreateItem = async () => {
     if (!setIsCreateModalOpen || !setErrorModal || !setNewItemData || !newItemData || !fetchData || 
-        selectedYear === undefined || currentPage === undefined || sortField === undefined || 
+        selectedYear === undefined || currentPage === undefined ||         sortField === undefined || 
         sortDirection === undefined || filters === undefined || selectedMonths === undefined) {
-      console.error('Missing required dependencies for handleCreateItem');
       return;
     }
 
@@ -896,7 +867,6 @@ export const usePurchasePlanItemsEditing = (
         setErrorModal({ isOpen: true, message: errorText || 'Ошибка при создании строки плана закупок' });
       }
     } catch (error) {
-      console.error('Error creating purchase plan item:', error);
       if (setErrorModal) {
         setErrorModal({ isOpen: true, message: 'Ошибка при создании строки плана закупок' });
       }

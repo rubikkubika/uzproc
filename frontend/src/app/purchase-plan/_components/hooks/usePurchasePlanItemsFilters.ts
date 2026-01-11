@@ -58,15 +58,14 @@ export const usePurchasePlanItemsFilters = (
   pageSize: number
 ) => {
   const [filters, setFilters] = useState<Record<string, string>>({
-    company: '',
-    cfo: '',
+    id: '',
     purchaseSubject: '',
     currentContractEndDate: '',
     purchaseRequestId: '',
   });
 
   const [localFilters, setLocalFilters] = useState<Record<string, string>>({
-    company: '',
+    id: '',
     purchaseSubject: '',
     currentContractEndDate: '',
     purchaseRequestId: '',
@@ -95,7 +94,7 @@ export const usePurchasePlanItemsFilters = (
         }
       }
     } catch (err) {
-      console.error('Error loading initial purchaserFilter from localStorage:', err);
+      // Ошибка загрузки из localStorage игнорируется
     }
     return new Set<string>();
   });
@@ -140,10 +139,11 @@ export const usePurchasePlanItemsFilters = (
   const calculateFilterPosition = useCallback((buttonRef: React.RefObject<HTMLButtonElement | null>) => {
     if (buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      return {
+      const position = {
         top: rect.bottom + window.scrollY + 4,
         left: rect.left + window.scrollX,
       };
+      return position;
     }
     return null;
   }, []);
@@ -202,45 +202,50 @@ export const usePurchasePlanItemsFilters = (
   };
 
   // Обработчики для фильтров с чекбоксами
-  const handleCfoToggle = (cfo: string) => {
-    const newSet = new Set(cfoFilter);
-    if (newSet.has(cfo)) {
-      newSet.delete(cfo);
-    } else {
-      newSet.add(cfo);
-    }
-    setCfoFilter(newSet);
-    setCurrentPage(0);
-  };
+  const handleCfoToggle = useCallback((cfo: string) => {
+    setCfoFilter(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(cfo)) {
+        newSet.delete(cfo);
+      } else {
+        newSet.add(cfo);
+      }
+      setCurrentPage(0);
+      return newSet;
+    });
+  }, [setCurrentPage]);
 
-  const handleCfoSelectAll = () => {
+  const handleCfoSelectAll = useCallback(() => {
     const allCfo = getUniqueValues('cfo');
     const newSet = new Set(allCfo);
     setCfoFilter(newSet);
     setCurrentPage(0);
-  };
+  }, [getUniqueValues, setCurrentPage]);
 
-  const handleCfoDeselectAll = () => {
+  const handleCfoDeselectAll = useCallback(() => {
     setCfoFilter(new Set());
     setCurrentPage(0);
-  };
+  }, [setCurrentPage]);
 
-  const handleCompanyToggle = (company: string) => {
-    const newSet = new Set(companyFilter);
-    if (newSet.has(company)) {
-      newSet.delete(company);
-    } else {
-      newSet.add(company);
-    }
-    setCompanyFilter(newSet);
-    setCurrentPage(0);
-    
-    window.dispatchEvent(new CustomEvent('purchasePlanItemCompanyFilterUpdated', {
-      detail: { companyFilter: Array.from(newSet) }
-    }));
-  };
+  const handleCompanyToggle = useCallback((company: string) => {
+    setCompanyFilter(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(company)) {
+        newSet.delete(company);
+      } else {
+        newSet.add(company);
+      }
+      setCurrentPage(0);
+      
+      window.dispatchEvent(new CustomEvent('purchasePlanItemCompanyFilterUpdated', {
+        detail: { companyFilter: Array.from(newSet) }
+      }));
+      
+      return newSet;
+    });
+  }, [setCurrentPage]);
 
-  const handleCompanySelectAll = () => {
+  const handleCompanySelectAll = useCallback(() => {
     const allCompanies = getUniqueValues('company');
     const newSet = new Set(allCompanies);
     setCompanyFilter(newSet);
@@ -249,39 +254,41 @@ export const usePurchasePlanItemsFilters = (
     window.dispatchEvent(new CustomEvent('purchasePlanItemCompanyFilterUpdated', {
       detail: { companyFilter: Array.from(newSet) }
     }));
-  };
+  }, [getUniqueValues, setCurrentPage]);
 
-  const handleCompanyDeselectAll = () => {
+  const handleCompanyDeselectAll = useCallback(() => {
     setCompanyFilter(new Set());
     setCurrentPage(0);
     
     window.dispatchEvent(new CustomEvent('purchasePlanItemCompanyFilterUpdated', {
       detail: { companyFilter: [] }
     }));
-  };
+  }, [setCurrentPage]);
 
-  const handlePurchaserCompanyToggle = (purchaserCompany: string) => {
-    const newSet = new Set(purchaserCompanyFilter);
-    if (newSet.has(purchaserCompany)) {
-      newSet.delete(purchaserCompany);
-    } else {
-      newSet.add(purchaserCompany);
-    }
-    setPurchaserCompanyFilter(newSet);
-    setCurrentPage(0);
-  };
+  const handlePurchaserCompanyToggle = useCallback((purchaserCompany: string) => {
+    setPurchaserCompanyFilter(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(purchaserCompany)) {
+        newSet.delete(purchaserCompany);
+      } else {
+        newSet.add(purchaserCompany);
+      }
+      setCurrentPage(0);
+      return newSet;
+    });
+  }, [setCurrentPage]);
 
-  const handlePurchaserCompanySelectAll = () => {
+  const handlePurchaserCompanySelectAll = useCallback(() => {
     const allPurchaserCompanies = getUniqueValues('purchaserCompany');
     const newSet = new Set(allPurchaserCompanies);
     setPurchaserCompanyFilter(newSet);
     setCurrentPage(0);
-  };
+  }, [getUniqueValues, setCurrentPage]);
 
-  const handlePurchaserCompanyDeselectAll = () => {
+  const handlePurchaserCompanyDeselectAll = useCallback(() => {
     setPurchaserCompanyFilter(new Set());
     setCurrentPage(0);
-  };
+  }, [setCurrentPage]);
 
   const handleCategoryToggle = (category: string) => {
     const newSet = new Set(categoryFilter);
@@ -353,7 +360,7 @@ export const usePurchasePlanItemsFilters = (
       };
       localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filtersToSave));
     } catch (err) {
-      console.error('Error saving purchaserFilter on toggle:', err);
+      // Ошибка сохранения в localStorage игнорируется
     }
   };
 
@@ -377,7 +384,7 @@ export const usePurchasePlanItemsFilters = (
       };
       localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filtersToSave));
     } catch (err) {
-      console.error('Error saving purchaserFilter on select all:', err);
+      // Ошибка сохранения в localStorage игнорируется
     }
   };
 
@@ -400,7 +407,7 @@ export const usePurchasePlanItemsFilters = (
       };
       localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filtersToSave));
     } catch (err) {
-      console.error('Error saving purchaserFilter on deselect all:', err);
+      // Ошибка сохранения в localStorage игнорируется
     }
   };
 
@@ -543,7 +550,7 @@ export const usePurchasePlanItemsFilters = (
           });
         }
       } catch (err) {
-        console.error('Error fetching unique values:', err);
+        // Ошибка загрузки уникальных значений игнорируется
       }
     };
     fetchUniqueValues();
@@ -655,7 +662,7 @@ export const usePurchasePlanItemsFilters = (
 
   // Debounce для текстовых фильтров
   useEffect(() => {
-    const textFields = ['company', 'purchaseSubject', 'currentContractEndDate', 'purchaseRequestId'];
+    const textFields = ['id', 'purchaseSubject', 'currentContractEndDate', 'purchaseRequestId'];
     const hasTextChanges = textFields.some(field => localFilters[field] !== filters[field]);
     
     if (hasTextChanges) {

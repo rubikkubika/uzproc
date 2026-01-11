@@ -45,14 +45,14 @@ export const usePurchasePlanItemsColumns = () => {
             try {
               localStorage.setItem(COLUMNS_VISIBILITY_STORAGE_KEY, JSON.stringify(filteredColumns));
             } catch (err) {
-              console.error('Error saving updated column visibility to localStorage:', err);
+              // Ошибка сохранения в localStorage игнорируется
             }
           }
           return new Set(filteredColumns);
         }
       }
     } catch (err) {
-      console.error('Error loading column visibility from localStorage:', err);
+      // Ошибка загрузки из localStorage игнорируется
     }
     return new Set(DEFAULT_VISIBLE_COLUMNS);
   });
@@ -86,7 +86,7 @@ export const usePurchasePlanItemsColumns = () => {
     try {
       localStorage.setItem('purchasePlanItemsTableColumnWidths', JSON.stringify(widths));
     } catch (err) {
-      console.error('Error saving column widths:', err);
+      // Ошибка сохранения в localStorage игнорируется
     }
   }, []);
 
@@ -94,7 +94,7 @@ export const usePurchasePlanItemsColumns = () => {
     try {
       localStorage.setItem('purchasePlanItemsTableColumnOrder', JSON.stringify(order));
     } catch (err) {
-      console.error('Error saving column order:', err);
+      // Ошибка сохранения в localStorage игнорируется
     }
   }, []);
 
@@ -180,7 +180,7 @@ export const usePurchasePlanItemsColumns = () => {
       try {
         localStorage.setItem(COLUMNS_VISIBILITY_STORAGE_KEY, JSON.stringify(Array.from(visibleColumns)));
       } catch (err) {
-        console.error('Error saving column visibility to localStorage:', err);
+        // Ошибка сохранения в localStorage игнорируется
       }
     }
   }, [visibleColumns]);
@@ -221,7 +221,7 @@ export const usePurchasePlanItemsColumns = () => {
         setColumnWidths(widths);
       }
     } catch (err) {
-      console.error('Error loading column widths:', err);
+      // Ошибка загрузки из localStorage игнорируется
     }
   }, []);
 
@@ -243,14 +243,13 @@ export const usePurchasePlanItemsColumns = () => {
         try {
           localStorage.setItem('purchasePlanItemsTableColumnOrder', JSON.stringify(finalOrder));
         } catch (saveErr) {
-          console.error('Error saving column order:', saveErr);
+          // Ошибка сохранения в localStorage игнорируется
         }
       } else {
         // Если нет сохраненного порядка, используем дефолтный
         setColumnOrder(DEFAULT_VISIBLE_COLUMNS);
       }
     } catch (err) {
-      console.error('Error loading column order:', err);
       // В случае ошибки используем дефолтный порядок
       setColumnOrder(DEFAULT_VISIBLE_COLUMNS);
     }

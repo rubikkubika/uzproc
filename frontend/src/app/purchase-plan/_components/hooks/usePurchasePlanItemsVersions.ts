@@ -43,11 +43,9 @@ export const usePurchasePlanItemsVersions = () => {
           });
         }
       } else {
-        console.error('Error loading versions');
         setVersions([]);
       }
     } catch (error) {
-      console.error('Error loading versions:', error);
       setVersions([]);
     } finally {
       setLoadingVersions(false);

@@ -204,7 +204,25 @@ export default function PurchasePlanItemsTableColumnsHeader({
           }
           
           // Для остальных колонок используем SortableHeader
-          const isTextFilter = ['purchaseSubject', 'purchaseRequestId', 'currentContractEndDate'].includes(columnKey);
+          // Колонки с текстовыми фильтрами (текстовые/числовые поля без множественного выбора)
+          const textFilterColumns = [
+            'id',
+            'guid',
+            'year',
+            'purchaseSubject',
+            'purchaseRequestId',
+            'product',
+            'currentKa',
+            'complexity',
+            'newContractDate',
+            'currentContractEndDate',
+            'currentAmount',
+            'currentContractAmount',
+            'currentContractBalance',
+            'createdAt',
+            'updatedAt',
+          ];
+          const isTextFilter = textFilterColumns.includes(columnKey);
           
           // Маппинг фильтров для множественного выбора
           const filterConfigMap = {
@@ -213,7 +231,9 @@ export default function PurchasePlanItemsTableColumnsHeader({
               selectedCount: cfoFilter.size,
               selectedValues: cfoFilter,
               isOpen: isCfoFilterOpen,
-              onToggle: () => setIsCfoFilterOpen(!isCfoFilterOpen),
+              onToggle: () => {
+                setIsCfoFilterOpen(!isCfoFilterOpen);
+              },
             },
             company: {
               buttonRef: companyFilterButtonRef,

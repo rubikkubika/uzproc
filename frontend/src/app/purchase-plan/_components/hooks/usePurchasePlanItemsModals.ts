@@ -32,7 +32,7 @@ export const usePurchasePlanItemsModals = () => {
           setUserRole(data.role);
         }
       } catch (error) {
-        console.error('Error checking user role:', error);
+        // Ошибка проверки роли пользователя игнорируется
       }
     };
     checkUserRole();

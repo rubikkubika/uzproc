@@ -112,7 +112,11 @@ export const usePurchasePlanItemsTable = () => {
       }
       if (filtersHook.cfoFilter.size > 0) {
         filtersHook.cfoFilter.forEach(cfo => {
-          params.append('cfo', cfo);
+          if (cfo === 'Не выбрано') {
+            params.append('cfo', '__NULL__');
+          } else {
+            params.append('cfo', cfo);
+          }
         });
       }
       if (filtersHook.purchaserCompanyFilter.size > 0) {
@@ -123,6 +127,9 @@ export const usePurchasePlanItemsTable = () => {
             params.append('purchaserCompany', purchaserCompany);
           }
         });
+      }
+      if (filters.id && filters.id.trim() !== '') {
+        params.append('id', filters.id.trim());
       }
       if (filters.purchaseSubject && filters.purchaseSubject.trim() !== '') {
         params.append('purchaseSubject', filters.purchaseSubject.trim());
@@ -212,7 +219,6 @@ export const usePurchasePlanItemsTable = () => {
       
       setHasMore(result.content && result.content.length === size && (result.number || 0) < (result.totalPages || 0) - 1);
     } catch (err) {
-      console.error('Error fetching data:', err);
       setError(err instanceof Error ? err.message : 'Ошибка загрузки данных');
     } finally {
       setLoading(false);
@@ -246,7 +252,11 @@ export const usePurchasePlanItemsTable = () => {
         }
         if (filtersHook.cfoFilter.size > 0) {
           filtersHook.cfoFilter.forEach(cfo => {
-            params.append('cfo', cfo);
+            if (cfo === 'Не выбрано') {
+              params.append('cfo', '__NULL__');
+            } else {
+              params.append('cfo', cfo);
+            }
           });
         }
         if (filtersHook.filters.purchaseSubject && filtersHook.filters.purchaseSubject.trim() !== '') {
@@ -283,7 +293,6 @@ export const usePurchasePlanItemsTable = () => {
           setChartData(result.content || []);
         }
       } catch (err) {
-        console.error('Error fetching chart data:', err);
         setChartData([]);
       }
     };
@@ -313,7 +322,11 @@ export const usePurchasePlanItemsTable = () => {
         }
         if (filtersHook.cfoFilter.size > 0) {
           filtersHook.cfoFilter.forEach(cfo => {
-            params.append('cfo', cfo);
+            if (cfo === 'Не выбрано') {
+              params.append('cfo', '__NULL__');
+            } else {
+              params.append('cfo', cfo);
+            }
           });
         }
         if (filtersHook.purchaserCompanyFilter.size > 0) {
@@ -364,7 +377,6 @@ export const usePurchasePlanItemsTable = () => {
           setSummaryData(result.content || []);
         }
       } catch (err) {
-        console.error('Error fetching summary data:', err);
         setSummaryData([]);
       }
     };
@@ -452,7 +464,7 @@ export const usePurchasePlanItemsTable = () => {
           }
         }
       } catch (err) {
-        console.error('Error fetching years:', err);
+        // Ошибка загрузки годов игнорируется
       }
     };
     fetchYears();
@@ -468,7 +480,7 @@ export const usePurchasePlanItemsTable = () => {
           setTotalRecords(result.totalElements || 0);
         }
       } catch (err) {
-        console.error('Error fetching total records:', err);
+        // Ошибка загрузки общего количества записей игнорируется
       }
     };
     fetchTotalRecords();
