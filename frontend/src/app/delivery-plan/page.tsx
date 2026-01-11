@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import Sidebar from '@/components/Sidebar';
+import Sidebar from './_components/Sidebar';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface PurchasePlanItem {

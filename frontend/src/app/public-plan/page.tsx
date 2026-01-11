@@ -1,6 +1,6 @@
 'use client';
 
-import PublicPurchasePlanTable from '@/components/PublicPurchasePlanTable';
+import PublicPurchasePlanTable from './_components/PublicPurchasePlanTable';
 
 export default function PublicPlanPage() {
   return (

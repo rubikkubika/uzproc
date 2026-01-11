@@ -4,7 +4,7 @@ import { useState, useEffect, useLayoutEffect, useRef, ReactElement } from 'reac
 import { useRouter, useParams } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
 import { ArrowLeft, ArrowRight, Clock, Check, X } from 'lucide-react';
-import Sidebar from '@/components/Sidebar';
+import Sidebar from './_components/Sidebar';
 
 interface PurchaseRequest {
   id: number;

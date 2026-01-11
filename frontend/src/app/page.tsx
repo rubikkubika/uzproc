@@ -2,27 +2,27 @@
 
 import { useState, useEffect, useLayoutEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Sidebar from '@/components/Sidebar';
-import MonthlyPurchasesChart from '@/components/MonthlyPurchasesChart';
-import CategoryChart from '@/components/CategoryChart';
-import SupplierChart from '@/components/SupplierChart';
-import RevenueChart from '@/components/RevenueChart';
-import BudgetChart from '@/components/BudgetChart';
-import PerformanceChart from '@/components/PerformanceChart';
-import PurchaserWorkload from '@/components/PurchaserWorkload';
-import PurchaseRequestsTable from '@/components/PurchaseRequestsTable';
-import PurchasesTable from '@/components/PurchasesTable';
-import PurchasePlanItemsTable from '@/components/PurchasePlanItemsTable';
-import ContractsTable from '@/components/ContractsTable';
-import SpecificationsTable from '@/components/SpecificationsTable';
-import PurchasePlanItemsMonthlyChart from '@/components/PurchasePlanItemsMonthlyChart';
-import PurchaseRequestsYearlyChart from '@/components/PurchaseRequestsYearlyChart';
-import UploadCSV from '@/components/UploadCSV';
+import Sidebar from './_components/Sidebar';
+import MonthlyPurchasesChart from './analytics/_components/MonthlyPurchasesChart';
+import CategoryChart from './analytics/_components/CategoryChart';
+import SupplierChart from './suppliers/_components/SupplierChart';
+import RevenueChart from './analytics/_components/RevenueChart';
+import BudgetChart from './analytics/_components/BudgetChart';
+import PerformanceChart from './analytics/_components/PerformanceChart';
+import PurchaserWorkload from './workload/_components/PurchaserWorkload';
+import PurchaseRequestsTable from './purchase-requests/_components/PurchaseRequestsTable';
+import PurchasesTable from './purchases/_components/PurchasesTable';
+import PurchasePlanItemsTable from './purchase-plan/_components/PurchasePlanItemsTable';
+import ContractsTable from './contracts/_components/ContractsTable';
+import SpecificationsTable from './specifications/_components/SpecificationsTable';
+import PurchasePlanItemsMonthlyChart from './overview/_components/PurchasePlanItemsMonthlyChart';
+import PurchaseRequestsYearlyChart from './overview/_components/PurchaseRequestsYearlyChart';
+import UploadCSV from './upload/_components/UploadCSV';
 import { getBackendUrl } from '@/utils/api';
-import Presentation from '@/components/Presentation';
-import TasksBoard from '@/components/TasksBoard';
-import UsersTable from '@/components/UsersTable';
-import CSIForm from '@/components/CSIForm';
+import Presentation from './presentation/_components/Presentation';
+import TasksBoard from './tasks/_components/TasksBoard';
+import UsersTable from './users/_components/UsersTable';
+import CSIForm from './csi/_components/CSIForm';
 
 // Компонент для тестирования отправки почты
 function TestEmailForm() {
