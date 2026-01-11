@@ -40,6 +40,11 @@ docker compose logs -f backend # View backend logs
 docker compose ps              # Check service status
 ```
 
+### Local Restart (Перезапуск локально)
+```bash
+./scripts/restart-local.sh     # Перезапуск backend + frontend + восстановление БД
+```
+
 ### Deployment
 ```powershell
 .\scripts\deploy-simple.ps1    # Deploy to production server (10.123.48.62)
@@ -224,27 +229,15 @@ docker compose ps              # Check service status
 ```
 **Без подтверждения.** НИКОГДА не коммитить/пушить изменения при деплое, если явно не запрошено.
 
-### Запуск сервисов
-При фразах "запусти бэкенд/фронтенд", "перезапусти сервис", "запусти локально" — автоматически:
-1. Остановить существующие процессы на портах 8080/3000
-2. При локальном запуске — восстановить БД из последнего бэкапа
-3. Запустить сервисы
-
-### Восстановление БД из бэкапа (при локальном запуске)
+### Запуск/перезапуск сервисов локально
+При фразах "запусти бэкенд/фронтенд", "перезапусти сервис", "запусти локально", "перезапусти локально" — выполнить:
 ```bash
-# Найти последний бэкап
-BACKUP_FILE=$(ls -t backup/uzproc_backup_*.sql 2>/dev/null | head -1)
-
-if [ -n "$BACKUP_FILE" ]; then
-  # Восстановить БД
-  docker exec -i uzproc-postgres psql -U uzproc_user -d postgres -c "DROP DATABASE IF EXISTS uzproc;"
-  docker exec -i uzproc-postgres psql -U uzproc_user -d postgres -c "CREATE DATABASE uzproc WITH ENCODING='UTF8' LC_COLLATE='ru_RU.UTF-8' LC_CTYPE='ru_RU.UTF-8' TEMPLATE=template0;"
-  docker exec -i uzproc-postgres psql -U uzproc_user -d uzproc < "$BACKUP_FILE"
-fi
+./scripts/restart-local.sh
 ```
+**Одна команда.** Скрипт автоматически: останавливает процессы, восстанавливает БД, запускает backend и frontend.
 
 ### Автоматический перезапуск бэкенда после изменений
-После изменений в `backend/src/main/java/` или `application.yml` — автоматически перезапустить бэкенд локально (с восстановлением БД).
+После изменений в `backend/src/main/java/` или `application.yml` — выполнить `./scripts/restart-local.sh`
 
 ## Ограничения
 
