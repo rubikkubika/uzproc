@@ -76,7 +76,11 @@ export default function SortableHeader({
       <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
         {/* Верхний уровень - фильтр */}
         <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
-          {filterType === 'text' && onFilterChange ? (
+          {children ? (
+            // Если есть children (например, FilterButton для множественного выбора), показываем их
+            children
+          ) : filterType === 'text' && onFilterChange ? (
+            // Если нет children и filterType === 'text', показываем текстовый input
             <input
               key={`filter-${fieldKey}`}
               type="text"
@@ -120,8 +124,6 @@ export default function SortableHeader({
               placeholder="Фильтр"
               style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
             />
-          ) : children ? (
-            children
           ) : null}
         </div>
         

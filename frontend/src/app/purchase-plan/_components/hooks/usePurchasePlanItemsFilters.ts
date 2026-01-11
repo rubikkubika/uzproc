@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
 import { DEFAULT_STATUSES, FILTERS_STORAGE_KEY } from '../constants/purchase-plan-items.constants';
 import { PurchasePlanItem } from '../types/purchase-plan-items.types';
 import { getBackendUrl } from '@/utils/api';
@@ -550,42 +550,53 @@ export const usePurchasePlanItemsFilters = (
   }, []);
 
   // Обновляем позиции выпадающих списков
-  useEffect(() => {
+  // Используем useLayoutEffect для синхронного обновления позиции перед рендером
+  useLayoutEffect(() => {
     if (isCfoFilterOpen && cfoFilterButtonRef.current) {
       const position = calculateFilterPosition(cfoFilterButtonRef);
       setCfoFilterPosition(position);
+    } else if (!isCfoFilterOpen) {
+      setCfoFilterPosition(null);
     }
   }, [isCfoFilterOpen, calculateFilterPosition]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isCompanyFilterOpen && companyFilterButtonRef.current) {
       const position = calculateFilterPosition(companyFilterButtonRef);
       setCompanyFilterPosition(position);
+    } else if (!isCompanyFilterOpen) {
+      setCompanyFilterPosition(null);
     }
   }, [isCompanyFilterOpen, calculateFilterPosition]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isPurchaserCompanyFilterOpen && purchaserCompanyFilterButtonRef.current) {
       const position = calculateFilterPosition(purchaserCompanyFilterButtonRef);
       setPurchaserCompanyFilterPosition(position);
+    } else if (!isPurchaserCompanyFilterOpen) {
+      setPurchaserCompanyFilterPosition(null);
     }
   }, [isPurchaserCompanyFilterOpen, calculateFilterPosition]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isCategoryFilterOpen && categoryFilterButtonRef.current) {
       const position = calculateFilterPosition(categoryFilterButtonRef);
       setCategoryFilterPosition(position);
+    } else if (!isCategoryFilterOpen) {
+      setCategoryFilterPosition(null);
     }
   }, [isCategoryFilterOpen, calculateFilterPosition]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isPurchaserFilterOpen && purchaserFilterButtonRef.current) {
       const position = calculateFilterPosition(purchaserFilterButtonRef);
       setPurchaserFilterPosition(position);
+    } else if (!isPurchaserFilterOpen) {
+      setPurchaserFilterPosition(null);
     }
   }, [isPurchaserFilterOpen, calculateFilterPosition]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isStatusFilterOpen && statusFilterButtonRef.current) {
       const position = calculateFilterPosition(statusFilterButtonRef);
       setStatusFilterPosition(position);

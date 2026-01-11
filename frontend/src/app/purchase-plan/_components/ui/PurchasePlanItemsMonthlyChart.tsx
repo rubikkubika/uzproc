@@ -115,15 +115,20 @@ export default function PurchasePlanItemsMonthlyChart({
                 if (monthForFilter !== null) {
                   const currentDisplayYear = selectedYear || chartData[0]?.year || new Date().getFullYear();
                   const currentPrevYear = currentDisplayYear - 1;
-                  const monthKey = monthForFilter === -1 ? -1 : (index === 0 ? -2 : monthForFilter);
+                  const monthKey = monthForFilter === -1 ? -1 : (index === 0 ? -2 : monthForFilter); // -2 для декабря предыдущего года
+                  // Упрощенная проверка: для месяцев текущего года проверяем только наличие в selectedMonths
+                  // Для декабря предыдущего года проверяем также selectedMonthYear
                   const isCurrentlySelected = selectedMonths.has(monthKey) && 
                     (monthForFilter === -1 || 
                      (index === 0 && selectedMonthYear === currentPrevYear) || 
-                     (index >= 1 && index <= 12));
+                     (index >= 1 && index <= 12)); // Для месяцев текущего года достаточно наличия в selectedMonths
                   
+                  // Явно проверяем, что Shift нажат
                   const shiftPressed = Boolean(e.shiftKey);
                   
-                  if (shiftPressed && lastSelectedMonthIndex !== null && lastSelectedMonthIndex !== index && !isCurrentlySelected) {
+                  // Shift+клик: выбираем диапазон месяцев ТОЛЬКО если Shift явно нажат
+                  if (shiftPressed && lastSelectedMonthIndex !== null && lastSelectedMonthIndex !== index) {
+                    // Shift+клик: выбираем диапазон месяцев
                     const startIndex = Math.min(lastSelectedMonthIndex, index);
                     const endIndex = Math.max(lastSelectedMonthIndex, index);
                     const newSelectedMonths = new Set(selectedMonths);
@@ -133,12 +138,15 @@ export default function PurchasePlanItemsMonthlyChart({
                       let yearForRange: number | null = null;
                       
                       if (i === 0) {
+                        // Декабрь предыдущего года
                         monthKeyForRange = -2;
                         yearForRange = currentPrevYear;
                       } else if (i >= 1 && i <= 12) {
+                        // Месяцы текущего года
                         monthKeyForRange = i - 1;
                         yearForRange = null;
                       } else if (i === 13) {
+                        // Без даты
                         monthKeyForRange = -1;
                         yearForRange = null;
                       } else {
@@ -147,6 +155,7 @@ export default function PurchasePlanItemsMonthlyChart({
                       
                       newSelectedMonths.add(monthKeyForRange);
                       
+                      // Устанавливаем selectedMonthYear, если это декабрь предыдущего года
                       if (i === 0 && yearForRange !== null) {
                         setSelectedMonthYear(yearForRange);
                       }
@@ -157,25 +166,34 @@ export default function PurchasePlanItemsMonthlyChart({
                     return;
                   }
                   
+                  // Обычный клик (БЕЗ Shift): выбираем только один месяц (сбрасываем предыдущий выбор)
                   const newSelectedMonths = new Set<number>();
                   
                   if (!isCurrentlySelected) {
+                    // Если месяц не выбран, выбираем только его
                     newSelectedMonths.add(monthKey);
+                    // Если это декабрь предыдущего года, сохраняем год для фильтрации по месяцу
                     if (index === 0 && yearForFilter !== null) {
                       setSelectedMonthYear(yearForFilter);
                     } else if (index >= 1 && index <= 12) {
+                      // Для месяцев текущего года сбрасываем selectedMonthYear
                       setSelectedMonthYear(null);
+                      // Для месяцев текущего года устанавливаем текущий год (если он не установлен)
                       if (yearForFilter !== null && selectedYear === null) {
                         setSelectedYear(yearForFilter);
                       }
                     } else if (monthForFilter === -1) {
+                      // Без даты
                       setSelectedMonthYear(null);
                     }
                   } else {
+                    // Если месяц уже выбран, снимаем выбор (оставляем пустым)
                     setSelectedMonthYear(null);
                   }
                   
                   setSelectedMonths(newSelectedMonths);
+                  // Устанавливаем lastSelectedMonthIndex только при обычном клике (без Shift)
+                  // Это нужно для последующего Shift+клик выбора диапазона
                   setLastSelectedMonthIndex(index);
                 }
               }}

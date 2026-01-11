@@ -608,31 +608,43 @@ export default function PurchasePlanItemsTable() {
                     cfo: {
                       buttonRef: table.filters.cfoFilterButtonRef,
                       selectedCount: table.filters.cfoFilter.size,
+                      selectedValues: table.filters.cfoFilter,
+                      isOpen: table.filters.isCfoFilterOpen,
                       onToggle: () => table.filters.setIsCfoFilterOpen(!table.filters.isCfoFilterOpen),
                     },
                     company: {
                       buttonRef: table.filters.companyFilterButtonRef,
                       selectedCount: table.filters.companyFilter.size,
+                      selectedValues: table.filters.companyFilter,
+                      isOpen: table.filters.isCompanyFilterOpen,
                       onToggle: () => table.filters.setIsCompanyFilterOpen(!table.filters.isCompanyFilterOpen),
                     },
                     purchaserCompany: {
                       buttonRef: table.filters.purchaserCompanyFilterButtonRef,
                       selectedCount: table.filters.purchaserCompanyFilter.size,
+                      selectedValues: table.filters.purchaserCompanyFilter,
+                      isOpen: table.filters.isPurchaserCompanyFilterOpen,
                       onToggle: () => table.filters.setIsPurchaserCompanyFilterOpen(!table.filters.isPurchaserCompanyFilterOpen),
                     },
                     category: {
                       buttonRef: table.filters.categoryFilterButtonRef,
                       selectedCount: table.filters.categoryFilter.size,
+                      selectedValues: table.filters.categoryFilter,
+                      isOpen: table.filters.isCategoryFilterOpen,
                       onToggle: () => table.filters.setIsCategoryFilterOpen(!table.filters.isCategoryFilterOpen),
                     },
                     status: {
                       buttonRef: table.filters.statusFilterButtonRef,
                       selectedCount: table.filters.statusFilter.size,
+                      selectedValues: table.filters.statusFilter,
+                      isOpen: table.filters.isStatusFilterOpen,
                       onToggle: () => table.filters.setIsStatusFilterOpen(!table.filters.isStatusFilterOpen),
                     },
                     purchaser: {
                       buttonRef: table.filters.purchaserFilterButtonRef,
                       selectedCount: table.filters.purchaserFilter.size,
+                      selectedValues: table.filters.purchaserFilter,
+                      isOpen: table.filters.isPurchaserFilterOpen,
                       onToggle: () => table.filters.setIsPurchaserFilterOpen(!table.filters.isPurchaserFilterOpen),
                     },
                   } as const;
@@ -651,10 +663,10 @@ export default function PurchasePlanItemsTable() {
                       sortField={table.sortField}
                       sortDirection={table.sortDirection}
                       onSort={table.handleSort}
-                      filterValue={table.filters.localFilters[columnKey] || ''}
-                      onFilterChange={(value) => table.filters.handleFilterChangeForHeader(columnKey, value)}
-                      onFocus={() => table.filters.handleFocusForHeader(columnKey)}
-                      onBlur={(e) => table.filters.handleBlurForHeader(e, columnKey)}
+                      filterValue={isTextFilter ? (table.filters.localFilters[columnKey] || '') : undefined}
+                      onFilterChange={isTextFilter ? ((value) => table.filters.handleFilterChangeForHeader(columnKey, value)) : undefined}
+                      onFocus={isTextFilter ? () => table.filters.handleFocusForHeader(columnKey) : undefined}
+                      onBlur={isTextFilter ? ((e) => table.filters.handleBlurForHeader(e, columnKey)) : undefined}
                       width={table.columns.getColumnWidth(columnKey)}
                       onDragStart={(e, colKey) => table.columns.handleDragStart(e, colKey)}
                       onDragOver={(e, colKey) => table.columns.handleDragOver(e, colKey)}
@@ -669,6 +681,8 @@ export default function PurchasePlanItemsTable() {
                         <FilterButton
                           buttonRef={filterConfig.buttonRef}
                           selectedCount={filterConfig.selectedCount}
+                          selectedValues={filterConfig.selectedValues}
+                          isOpen={filterConfig.isOpen}
                           onToggle={filterConfig.onToggle}
                         />
                       )}
