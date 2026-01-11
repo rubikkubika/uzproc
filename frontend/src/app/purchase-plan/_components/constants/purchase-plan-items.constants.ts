@@ -32,6 +32,7 @@ export const ALL_COLUMNS = [
   { key: 'category', label: 'Категория' },
   { key: 'status', label: 'Статус' },
   { key: 'purchaseRequestId', label: 'Заявка на закупку' },
+  { key: 'details', label: 'Детали' },
   { key: 'createdAt', label: 'Дата создания' },
   { key: 'updatedAt', label: 'Дата обновления' },
 ] as const;
@@ -46,6 +47,7 @@ export const DEFAULT_VISIBLE_COLUMNS = [
   'purchaseSubject',
   'purchaser',
   'budgetAmount',
+  'details',
   'requestDate',
   'newContractDate',
   'status',
@@ -89,6 +91,7 @@ export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   category: 128, // w-32 = 8rem = 128px
   status: 200, // Увеличено для длинных статусов заявки (например, "Заявка на согласовании")
   purchaseRequestId: 160, // w-40 = 10rem = 160px
+  details: 100, // Ширина для колонки с кнопкой деталей
   createdAt: 128, // w-32 = 8rem = 128px
   updatedAt: 128, // w-32 = 8rem = 128px
 };
