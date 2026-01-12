@@ -297,3 +297,100 @@ const [focusedField, setFocusedField] = useState<string | null>(null);
 - Пагинация применяется ПОСЛЕ фильтрации
 - Стили ячеек: `px-2 py-2 text-xs text-gray-900 border-r border-gray-300`
 - Для полей ввода: `text-gray-900 bg-white`
+
+## Структура компонентов фронтенда
+
+**КРИТИЧЕСКИ ВАЖНО:** При создании новых элементов фронтенда (таблицы, формы, страницы и т.д.) **ОБЯЗАТЕЛЬНО** нужно раскладывать все по отдельным компонентам, следуя структуре плана закупок (`purchase-plan/_components`).
+
+### Правила организации компонентов:
+
+1. **Основная структура папок:**
+   ```
+   app/[feature]/_components/
+   ├── [Feature]Table.tsx              # Главный компонент (интегрирует все остальные)
+   ├── hooks/                          # Кастомные хуки
+   │   ├── use[Feature]Table.ts        # Главный хук, композирующий остальные
+   │   ├── use[Feature]Filters.ts      # Хук для фильтров
+   │   ├── use[Feature]Columns.ts      # Хук для колонок
+   │   ├── use[Feature]Editing.ts      # Хук для редактирования
+   │   ├── use[Feature]Data.ts         # Хук для данных
+   │   └── use[Feature]Modals.ts       # Хук для модальных окон
+   ├── ui/                             # UI компоненты
+   │   ├── [Feature]TableHeader.tsx   # Заголовок таблицы
+   │   ├── [Feature]TableBody.tsx      # Тело таблицы
+   │   ├── [Feature]TableRow.tsx       # Строка таблицы
+   │   ├── [Feature]TableFilters.tsx  # Фильтры таблицы
+   │   └── [Feature]DetailsModal.tsx  # Модальное окно деталей
+   ├── filters/                        # Компоненты фильтров
+   │   ├── [Field]FilterDropdown.tsx  # Выпадающий список фильтра
+   │   └── MultiSelectFilterDropdown.tsx # Базовый компонент для множественного выбора
+   ├── types/                          # TypeScript типы
+   │   └── [feature].types.ts         # Типы для feature
+   ├── utils/                          # Утилиты
+   │   ├── [feature].utils.ts         # Общие утилиты
+   │   ├── currency.utils.ts          # Утилиты для валют
+   │   └── date.utils.ts              # Утилиты для дат
+   └── constants/                      # Константы
+       └── [feature].constants.ts     # Константы для feature
+   ```
+
+2. **Разделение ответственности:**
+   - **Главный компонент** (`[Feature]Table.tsx`): только интеграция хуков и UI компонентов, минимальная логика
+   - **Хуки**: вся бизнес-логика, состояние, обработчики событий
+   - **UI компоненты**: только отображение, получают данные и обработчики через пропсы
+   - **Фильтры**: отдельные компоненты для каждого типа фильтра
+   - **Утилиты**: переиспользуемые функции без состояния
+   - **Типы**: TypeScript интерфейсы и типы
+   - **Константы**: конфигурация, значения по умолчанию
+
+3. **Пример структуры (план закупок):**
+   ```
+   purchase-plan/_components/
+   ├── PurchasePlanItemsTable.tsx          # Главный компонент
+   ├── hooks/
+   │   ├── usePurchasePlanItemsTable.ts    # Главный хук (композирует все)
+   │   ├── usePurchasePlanItemsFilters.ts  # Фильтры
+   │   ├── usePurchasePlanItemsColumns.ts  # Колонки
+   │   ├── usePurchasePlanItemsEditing.ts  # Редактирование
+   │   ├── usePurchasePlanItemsData.ts     # Данные
+   │   ├── usePurchasePlanItemsModals.ts   # Модальные окна
+   │   └── usePurchasePlanItemsVersions.ts # Версии
+   ├── ui/
+   │   ├── PurchasePlanItemsTableHeader.tsx
+   │   ├── PurchasePlanItemsTableBody.tsx
+   │   ├── PurchasePlanItemsTableRow.tsx
+   │   ├── PurchasePlanItemsTableFilters.tsx
+   │   └── PurchasePlanItemsDetailsModal.tsx
+   ├── filters/
+   │   ├── StatusFilterDropdown.tsx
+   │   ├── CfoFilterDropdown.tsx
+   │   └── MultiSelectFilterDropdown.tsx
+   ├── types/
+   │   └── purchase-plan-items.types.ts
+   ├── utils/
+   │   └── purchase-plan-items.utils.ts
+   └── constants/
+       └── purchase-plan-items.constants.ts
+   ```
+
+4. **Правила создания компонентов:**
+   - **НЕ создавать монолитные компоненты** - разбивать на отдельные файлы
+   - **Каждый хук отвечает за свою область** - фильтры, колонки, редактирование и т.д.
+   - **UI компоненты должны быть максимально простыми** - только отображение
+   - **Переиспользуемые компоненты** (фильтры, модальные окна) выносить в отдельные файлы
+   - **Типы и константы** всегда в отдельных файлах
+
+5. **Что НЕ делать:**
+   - ❌ Создавать один большой файл со всей логикой
+   - ❌ Смешивать логику и UI в одном компоненте
+   - ❌ Дублировать код между компонентами
+   - ❌ Хранить типы и константы в компонентах
+
+6. **Что делать:**
+   - ✅ Разбивать на отдельные компоненты по функциональности
+   - ✅ Выносить логику в хуки
+   - ✅ Создавать переиспользуемые UI компоненты
+   - ✅ Использовать отдельные файлы для типов и констант
+   - ✅ Следовать структуре плана закупок как примеру
+
+**ВАЖНО:** При создании нового функционала всегда использовать эту структуру. Если функционал простой (например, одна форма), можно упростить структуру, но основные принципы разделения должны соблюдаться.

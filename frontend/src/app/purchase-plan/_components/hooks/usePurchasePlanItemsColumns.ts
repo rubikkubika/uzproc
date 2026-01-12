@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { DEFAULT_VISIBLE_COLUMNS, ALL_COLUMNS, COLUMNS_VISIBILITY_STORAGE_KEY } from '../constants/purchase-plan-items.constants';
+import { DEFAULT_VISIBLE_COLUMNS, ALL_COLUMNS, COLUMNS_VISIBILITY_STORAGE_KEY, DEFAULT_COLUMN_WIDTHS } from '../constants/purchase-plan-items.constants';
 import { getDefaultColumnWidth } from '../utils/purchase-plan-items.utils';
 
 export const usePurchasePlanItemsColumns = () => {
@@ -175,7 +175,29 @@ export const usePurchasePlanItemsColumns = () => {
   };
 
   const selectDefaultColumns = () => {
+    // Восстанавливаем список видимых колонок
     setVisibleColumns(new Set(DEFAULT_VISIBLE_COLUMNS));
+    
+    // Восстанавливаем порядок колонок по умолчанию
+    setColumnOrder([...DEFAULT_VISIBLE_COLUMNS]);
+    saveColumnOrder(DEFAULT_VISIBLE_COLUMNS);
+    
+    // Восстанавливаем ширину колонок по умолчанию
+    // Создаем объект с дефолтными ширинами только для видимых колонок
+    const defaultWidths: Record<string, number> = {};
+    DEFAULT_VISIBLE_COLUMNS.forEach(columnKey => {
+      defaultWidths[columnKey] = DEFAULT_COLUMN_WIDTHS[columnKey] || getDefaultColumnWidth(columnKey);
+    });
+    setColumnWidths(defaultWidths);
+    saveColumnWidths(defaultWidths);
+    
+    // Очищаем сохраненные значения из localStorage
+    try {
+      localStorage.removeItem('purchasePlanItemsTableColumnOrder');
+      localStorage.removeItem('purchasePlanItemsTableColumnWidths');
+    } catch (err) {
+      // Ошибка очистки localStorage игнорируется
+    }
   };
 
   const getColumnWidth = useCallback((columnKey: string): number => {

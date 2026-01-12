@@ -31,7 +31,8 @@ export const usePurchasePlanItemsFilters = (
   selectedMonths: Set<number>,
   sortField: any,
   sortDirection: any,
-  pageSize: number
+  pageSize: number,
+  allItems: PurchasePlanItem[] = []
 ) => {
   const [filters, setFilters] = useState<Record<string, string>>({
     id: '',
@@ -57,7 +58,9 @@ export const usePurchasePlanItemsFilters = (
   const [companyFilter, setCompanyFilter] = useState<Set<string>>(new Set());
   const [purchaserCompanyFilter, setPurchaserCompanyFilter] = useState<Set<string>>(new Set(['Market']));
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
-  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set(DEFAULT_STATUSES));
+  // Инициализация фильтра статусов: по умолчанию пустой, будет установлен при загрузке данных
+  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set());
+  const statusFilterInitializedRef = useRef(false);
   const [purchaserFilter, setPurchaserFilter] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set<string>();
     try {
@@ -258,7 +261,7 @@ export const usePurchasePlanItemsFilters = (
   const getFilteredPurchaserOptions = useMemo(() => getFilteredOptions(uniqueValues.purchaser, purchaserSearchQuery), [purchaserSearchQuery, uniqueValues.purchaser, getFilteredOptions]);
   const getFilteredStatusOptions = useMemo(() => getFilteredOptions(uniqueValues.status, statusSearchQuery), [statusSearchQuery, uniqueValues.status, getFilteredOptions]);
 
-  // Загрузка уникальных значений
+  // Загрузка уникальных значений для всех полей ВКЛЮЧАЯ статусы
   useEffect(() => {
     const fetchUniqueValues = async () => {
       try {
@@ -269,7 +272,7 @@ export const usePurchasePlanItemsFilters = (
             cfo: new Set(), company: new Set(), purchaserCompany: new Set(),
             purchaser: new Set(), category: new Set(), status: new Set()
           };
-          let hasNullStatus = false, hasNullPurchaserCompany = false, hasNullCompany = false;
+          let hasNullPurchaserCompany = false, hasNullCompany = false, hasNullStatus = false;
 
           result.content.forEach((item: PurchasePlanItem) => {
             if (item.cfo) values.cfo.add(item.cfo);
@@ -277,21 +280,33 @@ export const usePurchasePlanItemsFilters = (
             if (item.purchaserCompany) { const n = normalizeCompany(item.purchaserCompany); if (n) values.purchaserCompany.add(n); } else { hasNullPurchaserCompany = true; }
             if (item.purchaser) values.purchaser.add(item.purchaser);
             if (item.category) values.category.add(item.category);
-            if (item.status) values.status.add(item.status); else hasNullStatus = true;
+
+            // Извлекаем статусы
+            if (item.purchaseRequestId !== null && item.purchaseRequestStatus) {
+              values.status.add(item.purchaseRequestStatus);
+            } else if (item.status) {
+              values.status.add(item.status);
+            } else {
+              hasNullStatus = true;
+            }
           });
 
-          if (hasNullStatus) values.status.add('Пусто');
           if (hasNullPurchaserCompany) values.purchaserCompany.add('Не выбрано');
           if (hasNullCompany) values.company.add('Не выбрано');
+          if (hasNullStatus) values.status.add('Пусто');
 
-          setUniqueValues({
+          const newStatuses = Array.from(values.status).sort((a,b)=>a.localeCompare(b,'ru',{sensitivity:'base'}));
+
+          // Обновляем uniqueValues для всех полей
+          // Фильтр статусов будет установлен из текущих данных таблицы (allItems)
+          setUniqueValues(prev => ({
             cfo: Array.from(values.cfo).sort((a,b)=>a.localeCompare(b,'ru',{sensitivity:'base'})),
             company: Array.from(values.company).sort((a,b)=>a.localeCompare(b,'ru',{sensitivity:'base'})),
             purchaserCompany: Array.from(values.purchaserCompany).sort((a,b)=>a.localeCompare(b,'ru',{sensitivity:'base'})),
             purchaser: Array.from(values.purchaser).sort((a,b)=>a.localeCompare(b,'ru',{sensitivity:'base'})),
             category: Array.from(values.category).sort((a,b)=>a.localeCompare(b,'ru',{sensitivity:'base'})),
-            status: Array.from(values.status).sort((a,b)=>a.localeCompare(b,'ru',{sensitivity:'base'})),
-          });
+            status: newStatuses, // Обновляем статусы из всех данных
+          }));
         }
       } catch { }
     };
@@ -305,6 +320,44 @@ export const usePurchasePlanItemsFilters = (
   useLayoutEffect(() => { setCategoryFilterPosition(isCategoryFilterOpen ? calculateFilterPosition(categoryFilterButtonRef) : null); }, [isCategoryFilterOpen, calculateFilterPosition]);
   useLayoutEffect(() => { setPurchaserFilterPosition(isPurchaserFilterOpen ? calculateFilterPosition(purchaserFilterButtonRef) : null); }, [isPurchaserFilterOpen, calculateFilterPosition]);
   useLayoutEffect(() => { setStatusFilterPosition(isStatusFilterOpen ? calculateFilterPosition(statusFilterButtonRef) : null); }, [isStatusFilterOpen, calculateFilterPosition]);
+
+  // Извлечение уникальных статусов из текущих данных таблицы (allItems)
+  // Обновляем uniqueValues.status только если статусы изменились
+  useEffect(() => {
+    if (allItems && allItems.length > 0) {
+      const statusSet = new Set<string>();
+      let hasNullStatus = false;
+      
+      allItems.forEach((item: PurchasePlanItem) => {
+        if (item.purchaseRequestId !== null && item.purchaseRequestStatus) {
+          statusSet.add(item.purchaseRequestStatus);
+        } else if (item.status) {
+          statusSet.add(item.status);
+        } else {
+          hasNullStatus = true;
+        }
+      });
+      
+      if (hasNullStatus) {
+        statusSet.add('Пусто');
+      }
+      
+      const newStatuses = Array.from(statusSet).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' }));
+      
+      // Обновляем uniqueValues.status только если статусы изменились
+      setUniqueValues(prev => {
+        const prevStatusesStr = prev.status.sort().join(',');
+        const newStatusesStr = newStatuses.sort().join(',');
+        if (prevStatusesStr !== newStatusesStr) {
+          return {
+            ...prev,
+            status: newStatuses,
+          };
+        }
+        return prev;
+      });
+    }
+  }, [allItems]);
 
   // Debounce текстовых фильтров
   useEffect(() => {

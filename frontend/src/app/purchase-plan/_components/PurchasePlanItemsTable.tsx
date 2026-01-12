@@ -195,8 +195,11 @@ export default function PurchasePlanItemsTable() {
   const handleTabChange = useCallback((itemId: number, tab: any) => {
     table.modals.setActiveTab(prev => ({ ...prev, [itemId]: tab }));
     
-    if (tab === 'changes' && table.modalData.changesData[itemId]?.content.length === 0) {
-      table.modalData.fetchChanges(itemId, 0);
+    if (tab === 'changes') {
+      const changesData = table.modalData.changesData[itemId];
+      if (!changesData || !changesData.content || changesData.content.length === 0) {
+        table.modalData.fetchChanges(itemId, 0);
+      }
     } else if (tab === 'purchaseRequest') {
       const item = table.data?.content.find(i => i.id === itemId);
       if (item?.purchaseRequestId && !table.modalData.purchaseRequestData[itemId]?.data) {
@@ -263,7 +266,7 @@ export default function PurchasePlanItemsTable() {
   // ВАЖНО: Должен быть вызван ДО условных возвратов, чтобы соблюдать правила хуков
   const handleResetFilters = useCallback(() => {
     const emptyFilters = {
-      cfo: '',
+      id: '',
       purchaseSubject: '',
       currentContractEndDate: '',
       purchaseRequestId: '',
@@ -277,7 +280,7 @@ export default function PurchasePlanItemsTable() {
     table.filters.setPurchaserCompanyFilter(new Set(['Market'])); // При сбросе устанавливаем фильтр по умолчанию на "Market"
     table.filters.setCategoryFilter(new Set());
     table.filters.setPurchaserFilter(new Set());
-    // При сбросе устанавливаем фильтр по статусу на все доступные статусы кроме "Исключена"
+    // При сбросе устанавливаем фильтр по статусу на все доступные статусы из текущих данных кроме "Исключена"
     const availableStatuses = table.filters.getUniqueValues('status') || [];
     const resetStatusFilter = availableStatuses.filter(s => s !== 'Исключена');
     table.filters.setStatusFilter(new Set(resetStatusFilter));
@@ -288,7 +291,7 @@ export default function PurchasePlanItemsTable() {
     table.setSelectedMonths(new Set());
     table.setSelectedMonthYear(null);
     table.setCurrentPage(0);
-    
+
     // Устанавливаем просмотр текущей версии
     if (table.selectedYear) {
       table.versions.loadVersions(table.selectedYear).then(() => {
@@ -528,7 +531,7 @@ export default function PurchasePlanItemsTable() {
       )}
 
       {/* Тело таблицы: заголовки колонок и строки с данными */}
-      <div className="flex-1 overflow-auto" ref={printRef}>
+      <div className="flex-1 overflow-auto custom-scrollbar" ref={printRef}>
         {table.data && table.data.content && table.data.content.length > 0 ? (
           <table className="w-full border-collapse">
             <PurchasePlanItemsTableColumnsHeader
@@ -637,6 +640,15 @@ export default function PurchasePlanItemsTable() {
           onClose={() => table.modals.setDetailsModalOpen(null)}
           comments={[]} // TODO: добавить загрузку комментариев
           changes={currentModalItemId ? table.modalData.changesData[currentModalItemId]?.content || [] : []}
+          changesLoading={currentModalItemId ? table.modalData.changesData[currentModalItemId]?.loading || false : false}
+          changesTotalElements={currentModalItemId ? table.modalData.changesData[currentModalItemId]?.totalElements : undefined}
+          changesTotalPages={currentModalItemId ? table.modalData.changesData[currentModalItemId]?.totalPages : undefined}
+          changesCurrentPage={currentModalItemId ? table.modalData.changesData[currentModalItemId]?.currentPage : undefined}
+          onChangesPageChange={(page) => {
+            if (currentModalItemId) {
+              table.modalData.fetchChanges(currentModalItemId, page);
+            }
+          }}
           loadingPurchaseRequest={currentModalItemId ? table.modalData.purchaseRequestData[currentModalItemId]?.loading || false : false}
         />
       )}

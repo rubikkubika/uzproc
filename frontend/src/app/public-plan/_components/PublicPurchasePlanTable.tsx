@@ -3171,7 +3171,7 @@ export default function PublicPurchasePlanTable() {
                                 return (
                                   <span className={`text-xs rounded px-2 py-0.5 font-medium inline-block max-w-full ${
                                     displayStatus === 'В плане'
-                                    ? 'bg-green-100 text-green-800'
+                                    ? 'bg-blue-100 text-blue-800'
                                     : displayStatus === 'Исключена'
                                     ? 'bg-red-100 text-red-800'
                                       : displayStatus === 'Проект'
