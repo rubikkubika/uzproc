@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { DEFAULT_VISIBLE_COLUMNS, ALL_COLUMNS, COLUMNS_VISIBILITY_STORAGE_KEY, DEFAULT_COLUMN_WIDTHS } from '../constants/purchase-plan-items.constants';
-import { getDefaultColumnWidth } from '../utils/purchase-plan-items.utils';
+import { getDefaultColumnWidth, getCompanyLogoPath } from '../utils/purchase-plan-items.utils';
+import { PurchasePlanItem } from '../types/purchase-plan-items.types';
 
-export const usePurchasePlanItemsColumns = () => {
+export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) => {
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') {
       return new Set(DEFAULT_VISIBLE_COLUMNS);
@@ -306,6 +307,14 @@ export const usePurchasePlanItemsColumns = () => {
       if (saved) {
         const widths = JSON.parse(saved);
         setColumnWidths(widths);
+        // Отмечаем колонки с сохраненными значениями как измененные пользователем
+        // НО для company и purchaserCompany НЕ отмечаем, чтобы автоматический расчет всегда применялся
+        const columnsToAutoSize = ['id'] as const;
+        columnsToAutoSize.forEach(columnKey => {
+          if (widths[columnKey] !== undefined) {
+            userResizedColumnsRef.current.add(columnKey);
+          }
+        });
       }
     } catch (err) {
       // Ошибка загрузки из localStorage игнорируется
@@ -342,6 +351,9 @@ export const usePurchasePlanItemsColumns = () => {
     }
   }, []);
 
+  // Ref для отслеживания того, были ли колонки изменены пользователем вручную
+  const userResizedColumnsRef = useRef<Set<string>>(new Set());
+
   // Обработчик изменения размера
   useEffect(() => {
     if (!isResizing) return;
@@ -358,6 +370,10 @@ export const usePurchasePlanItemsColumns = () => {
     };
 
     const handleMouseUp = () => {
+      // Отмечаем колонку как измененную пользователем вручную
+      if (resizeColumn.current) {
+        userResizedColumnsRef.current.add(resizeColumn.current);
+      }
       setIsResizing(null);
       resizeColumn.current = null;
     };
@@ -370,6 +386,132 @@ export const usePurchasePlanItemsColumns = () => {
       document.removeEventListener('mouseup', handleMouseUp);
     };
   }, [isResizing, saveColumnWidths]);
+
+  // Функция для расчета ширины текста
+  const measureTextWidth = useCallback((text: string, fontSize: string, fontFamily: string = 'system-ui, -apple-system'): number => {
+    if (typeof window === 'undefined') return 0;
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) return 0;
+    context.font = `${fontSize} ${fontFamily}`;
+    return context.measureText(text).width;
+  }, []);
+
+  // Автоматический расчет ширины для колонок id, company, purchaserCompany на основе контента
+  // Применяется только при первой загрузке или если текущая ширина меньше рассчитанной
+  useEffect(() => {
+    if (allItems.length === 0) return;
+
+    const columnsToAutoSize = ['id', 'company', 'purchaserCompany'] as const;
+    const updatedWidths: Record<string, number> = {};
+
+    columnsToAutoSize.forEach(columnKey => {
+      if (!visibleColumns.has(columnKey)) return;
+
+      // Если пользователь уже изменил ширину этой колонки вручную, пропускаем автоматический расчет
+      if (userResizedColumnsRef.current.has(columnKey)) return;
+
+      // Находим заголовок колонки
+      const column = ALL_COLUMNS.find(col => col.key === columnKey);
+      const headerText = column?.label || '';
+      
+      // Определяем размер шрифта для колонки
+      const fontSize = (columnKey === 'company' || columnKey === 'purchaserCompany') ? '16.8px' : '13.44px';
+      const headerFontSize = '12px'; // Размер шрифта заголовка
+      
+      // Измеряем ширину заголовка (без логотипа, так как в заголовке его нет)
+      const headerWidth = measureTextWidth(headerText, headerFontSize);
+      let maxTextWidth = headerWidth;
+
+      // Измеряем ширину всех значений в колонке - только ширину текста
+      allItems.forEach(item => {
+        let cellText = '';
+        
+        if (columnKey === 'id') {
+          cellText = String(item.id || '');
+        } else if (columnKey === 'company') {
+          cellText = item.company || '-';
+        } else if (columnKey === 'purchaserCompany') {
+          cellText = item.purchaserCompany || '-';
+        }
+        
+        const textWidth = measureTextWidth(cellText, fontSize);
+        maxTextWidth = Math.max(maxTextWidth, textWidth);
+      });
+      
+      // Рассчитываем итоговую ширину колонки:
+      // - ширина текста (максимальная из всех)
+      // - padding td: 8px слева + 8px справа = 16px
+      // - padding span: 8px слева + 8px справа = 16px (только для company и purchaserCompany)
+      // - логотип: 22.4px (если есть, только для company и purchaserCompany)
+      // - gap: 6px (если есть логотип)
+      let maxWidth = maxTextWidth + 16; // padding td
+      
+      // Для company и purchaserCompany добавляем padding span и проверяем наличие логотипа
+      if (columnKey === 'company' || columnKey === 'purchaserCompany') {
+        maxWidth += 16; // padding span
+        
+        // Проверяем, есть ли хотя бы один элемент с логотипом
+        const hasAnyLogo = allItems.some(item => {
+          const companyName = columnKey === 'company' ? item.company : item.purchaserCompany;
+          if (!companyName) return false;
+          const logoPath = getCompanyLogoPath(companyName);
+          return logoPath !== null;
+        });
+        
+        if (hasAnyLogo) {
+          maxWidth += 22.4 + 6; // ширина логотипа (22.4px) + gap (6px = gap-1.5)
+        }
+      }
+      
+      // Уменьшаем ширину для более компактных колонок
+      // Для company и purchaserCompany уменьшаем на 20%, для остальных на 10%
+      if (columnKey === 'company' || columnKey === 'purchaserCompany') {
+        maxWidth = Math.ceil(maxWidth * 0.8); // Уменьшаем на 20%
+      } else {
+        maxWidth = Math.ceil(maxWidth * 0.9); // Уменьшаем на 10%
+      }
+
+      // Устанавливаем минимальную ширину
+      const minWidth = DEFAULT_COLUMN_WIDTHS[columnKey] || getDefaultColumnWidth(columnKey);
+      const calculatedWidth = Math.max(maxWidth, minWidth);
+      
+      // Для колонок company и purchaserCompany всегда применяем новый расчет
+      // (если они не были изменены пользователем вручную в этой сессии через resize)
+      if ((columnKey === 'company' || columnKey === 'purchaserCompany') && !userResizedColumnsRef.current.has(columnKey)) {
+        updatedWidths[columnKey] = calculatedWidth;
+      } else if (columnKey !== 'company' && columnKey !== 'purchaserCompany') {
+        // Для остальных колонок применяем автоматический расчет только если:
+        // 1. Текущая ширина не установлена (первая загрузка)
+        // 2. Или текущая ширина меньше рассчитанной (контент не помещается)
+        const currentWidth = columnWidths[columnKey];
+        if (!currentWidth || currentWidth < calculatedWidth) {
+          updatedWidths[columnKey] = calculatedWidth;
+        }
+      }
+    });
+
+    // Обновляем ширины только если они изменились
+    if (Object.keys(updatedWidths).length > 0) {
+      setColumnWidths(prev => {
+        let hasChanges = false;
+        const newWidths = { ...prev };
+        
+        Object.entries(updatedWidths).forEach(([key, width]) => {
+          if (newWidths[key] !== width) {
+            newWidths[key] = width;
+            hasChanges = true;
+          }
+        });
+
+        if (hasChanges) {
+          saveColumnWidths(newWidths);
+          return newWidths;
+        }
+        return prev;
+      });
+    }
+  }, [allItems, visibleColumns, measureTextWidth, saveColumnWidths, columnWidths]);
 
   // Фильтруем columnOrder, чтобы показывать только видимые колонки
   const filteredColumnOrder = useMemo(() => {

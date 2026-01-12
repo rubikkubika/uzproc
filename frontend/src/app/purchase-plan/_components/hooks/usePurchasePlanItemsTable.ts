@@ -22,6 +22,7 @@ export const usePurchasePlanItemsTable = () => {
   const [hasMore, setHasMore] = useState(true);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const initialTotalElementsRef = useRef<number | null>(null);
+  const isInitialLoadRef = useRef(true);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [allYears, setAllYears] = useState<number[]>([]);
   const [totalRecords, setTotalRecords] = useState<number>(0);
@@ -45,11 +46,10 @@ export const usePurchasePlanItemsTable = () => {
     selectedMonths,
     sortField,
     sortDirection,
-    pageSize,
-    allItems
+    pageSize
   );
 
-  const columnsHook = usePurchasePlanItemsColumns();
+  const columnsHook = usePurchasePlanItemsColumns(allItems);
   const dataHook = usePurchasePlanItemsData();
   const modalsHook = usePurchasePlanItemsModals();
   const versionsHook = usePurchasePlanItemsVersions();
@@ -233,7 +233,7 @@ export const usePurchasePlanItemsTable = () => {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [filtersHook, selectedMonthYear]);
+  }, [filtersHook, selectedMonthYear, pageSize]);
 
   // Загружаем данные для диаграммы
   useEffect(() => {
@@ -539,9 +539,30 @@ export const usePurchasePlanItemsTable = () => {
     };
   }, [currentPage, hasMore, loading, loadingMore, selectedYear, sortField, sortDirection, filtersHook.filters, selectedMonths, fetchData, pageSize]);
 
+  // Стабилизируем строковые представления фильтров через useMemo, чтобы избежать лишних обновлений
+  const cfoFilterStr = useMemo(() => Array.from(filtersHook.cfoFilter).sort().join(','), [filtersHook.cfoFilter]);
+  const companyFilterStr = useMemo(() => Array.from(filtersHook.companyFilter).sort().join(','), [filtersHook.companyFilter]);
+  const purchaserCompanyFilterStr = useMemo(() => Array.from(filtersHook.purchaserCompanyFilter).sort().join(','), [filtersHook.purchaserCompanyFilter]);
+  const purchaserFilterStr = useMemo(() => Array.from(filtersHook.purchaserFilter).sort().join(','), [filtersHook.purchaserFilter]);
+  const categoryFilterStr = useMemo(() => Array.from(filtersHook.categoryFilter).sort().join(','), [filtersHook.categoryFilter]);
+  const statusFilterStr = useMemo(() => Array.from(filtersHook.statusFilter).sort().join(','), [filtersHook.statusFilter]);
+  const selectedMonthsStr = useMemo(() => Array.from(selectedMonths).sort().join(','), [selectedMonths]);
+
   // Загружаем данные при изменении фильтров, сортировки, года
   // Используем размер Set и строковое представление для правильного отслеживания изменений Set
   useEffect(() => {
+    // Пропускаем первую загрузку, если фильтр по статусу еще не инициализирован
+    // Это предотвращает двойное обновление при инициализации
+    if (isInitialLoadRef.current && filtersHook.statusFilter.size === 0) {
+      // Ждем, пока фильтр по статусу будет инициализирован
+      return;
+    }
+    
+    // После первой инициализации фильтра, сбрасываем флаг
+    if (isInitialLoadRef.current && filtersHook.statusFilter.size > 0) {
+      isInitialLoadRef.current = false;
+    }
+
     setCurrentPage(0);
     setHasMore(true);
     initialTotalElementsRef.current = null; // Сбрасываем при изменении фильтров
@@ -562,19 +583,19 @@ export const usePurchasePlanItemsTable = () => {
     sortDirection, 
     filtersHook.filters, 
     filtersHook.cfoFilter.size,
-    Array.from(filtersHook.cfoFilter).sort().join(','),
+    cfoFilterStr,
     filtersHook.companyFilter.size,
-    Array.from(filtersHook.companyFilter).sort().join(','),
+    companyFilterStr,
     filtersHook.purchaserCompanyFilter.size,
-    Array.from(filtersHook.purchaserCompanyFilter).sort().join(','),
+    purchaserCompanyFilterStr,
     filtersHook.purchaserFilter.size,
-    Array.from(filtersHook.purchaserFilter).sort().join(','),
+    purchaserFilterStr,
     filtersHook.categoryFilter.size,
-    Array.from(filtersHook.categoryFilter).sort().join(','),
+    categoryFilterStr,
     filtersHook.statusFilter.size,
-    Array.from(filtersHook.statusFilter).sort().join(','),
+    statusFilterStr,
     selectedMonths.size,
-    Array.from(selectedMonths).sort().join(',')
+    selectedMonthsStr
   ]);
 
   return {

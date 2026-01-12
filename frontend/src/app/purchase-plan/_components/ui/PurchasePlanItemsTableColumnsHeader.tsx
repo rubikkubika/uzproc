@@ -269,6 +269,13 @@ export default function PurchasePlanItemsTableColumnsHeader({
               isOpen: isStatusFilterOpen,
               onToggle: () => setIsStatusFilterOpen(!isStatusFilterOpen),
             },
+            purchaseRequestStatus: {
+              buttonRef: statusFilterButtonRef,
+              selectedCount: statusFilter.size,
+              selectedValues: statusFilter,
+              isOpen: isStatusFilterOpen,
+              onToggle: () => setIsStatusFilterOpen(!isStatusFilterOpen),
+            },
             purchaser: {
               buttonRef: purchaserFilterButtonRef,
               selectedCount: purchaserFilter.size,

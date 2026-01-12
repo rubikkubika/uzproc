@@ -3,6 +3,7 @@ import { DEFAULT_STATUSES, FILTERS_STORAGE_KEY } from '../constants/purchase-pla
 import { PurchasePlanItem } from '../types/purchase-plan-items.types';
 import { getBackendUrl } from '@/utils/api';
 
+
 // Функция для нормализации названия компании
 const normalizeCompany = (company: string | null): string | null => {
   if (!company) return null;
@@ -31,8 +32,7 @@ export const usePurchasePlanItemsFilters = (
   selectedMonths: Set<number>,
   sortField: any,
   sortDirection: any,
-  pageSize: number,
-  allItems: PurchasePlanItem[] = []
+  pageSize: number
 ) => {
   const [filters, setFilters] = useState<Record<string, string>>({
     id: '',
@@ -58,9 +58,8 @@ export const usePurchasePlanItemsFilters = (
   const [companyFilter, setCompanyFilter] = useState<Set<string>>(new Set());
   const [purchaserCompanyFilter, setPurchaserCompanyFilter] = useState<Set<string>>(new Set(['Market']));
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
-  // Инициализация фильтра статусов: по умолчанию пустой, будет установлен при загрузке данных
-  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set());
   const statusFilterInitializedRef = useRef(false);
+  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set());
   const [purchaserFilter, setPurchaserFilter] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set<string>();
     try {
@@ -82,29 +81,29 @@ export const usePurchasePlanItemsFilters = (
   const [isCompanyFilterOpen, setIsCompanyFilterOpen] = useState(false);
   const [isPurchaserCompanyFilterOpen, setIsPurchaserCompanyFilterOpen] = useState(false);
   const [isCategoryFilterOpen, setIsCategoryFilterOpen] = useState(false);
-  const [isPurchaserFilterOpen, setIsPurchaserFilterOpen] = useState(false);
   const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
+  const [isPurchaserFilterOpen, setIsPurchaserFilterOpen] = useState(false);
 
   const [cfoSearchQuery, setCfoSearchQuery] = useState('');
   const [companySearchQuery, setCompanySearchQuery] = useState('');
   const [purchaserCompanySearchQuery, setPurchaserCompanySearchQuery] = useState('');
   const [categorySearchQuery, setCategorySearchQuery] = useState('');
-  const [purchaserSearchQuery, setPurchaserSearchQuery] = useState('');
   const [statusSearchQuery, setStatusSearchQuery] = useState('');
+  const [purchaserSearchQuery, setPurchaserSearchQuery] = useState('');
 
   const [cfoFilterPosition, setCfoFilterPosition] = useState<{ top: number; left: number } | null>(null);
   const [companyFilterPosition, setCompanyFilterPosition] = useState<{ top: number; left: number } | null>(null);
   const [purchaserCompanyFilterPosition, setPurchaserCompanyFilterPosition] = useState<{ top: number; left: number } | null>(null);
   const [categoryFilterPosition, setCategoryFilterPosition] = useState<{ top: number; left: number } | null>(null);
-  const [purchaserFilterPosition, setPurchaserFilterPosition] = useState<{ top: number; left: number } | null>(null);
   const [statusFilterPosition, setStatusFilterPosition] = useState<{ top: number; left: number } | null>(null);
+  const [purchaserFilterPosition, setPurchaserFilterPosition] = useState<{ top: number; left: number } | null>(null);
 
   const cfoFilterButtonRef = useRef<HTMLButtonElement>(null);
   const companyFilterButtonRef = useRef<HTMLButtonElement>(null);
   const purchaserCompanyFilterButtonRef = useRef<HTMLButtonElement>(null);
   const categoryFilterButtonRef = useRef<HTMLButtonElement>(null);
-  const purchaserFilterButtonRef = useRef<HTMLButtonElement>(null);
   const statusFilterButtonRef = useRef<HTMLButtonElement>(null);
+  const purchaserFilterButtonRef = useRef<HTMLButtonElement>(null);
 
   const [uniqueValues, setUniqueValues] = useState<Record<string, string[]>>({
     cfo: [],
@@ -179,8 +178,10 @@ export const usePurchasePlanItemsFilters = (
   const handleCategorySelectAll = useCallback(() => { setCategoryFilter(new Set(getUniqueValues('category'))); setCurrentPage(0); }, [getUniqueValues, setCurrentPage]);
   const handleCategoryDeselectAll = useCallback(() => { setCategoryFilter(new Set()); setCurrentPage(0); }, [setCurrentPage]);
 
-  const handleStatusToggle = useCallback((status: string) => { setStatusFilter(prev => { const newSet = new Set(prev); newSet.has(status) ? newSet.delete(status) : newSet.add(status); return newSet; }); setCurrentPage(0); }, [setCurrentPage]);
-  const handleStatusSelectAll = useCallback(() => { setStatusFilter(new Set(uniqueValues.status || [])); setCurrentPage(0); }, [uniqueValues.status, setCurrentPage]);
+  const handleStatusToggle = useCallback((status: string) => {
+    setStatusFilter(prev => { const newSet = new Set(prev); newSet.has(status) ? newSet.delete(status) : newSet.add(status); setCurrentPage(0); return newSet; });
+  }, [setCurrentPage]);
+  const handleStatusSelectAll = useCallback(() => { setStatusFilter(new Set(getUniqueValues('status'))); setCurrentPage(0); }, [getUniqueValues, setCurrentPage]);
   const handleStatusDeselectAll = useCallback(() => { setStatusFilter(new Set()); setCurrentPage(0); }, [setCurrentPage]);
 
   const handlePurchaserToggle = useCallback((purchaser: string) => {
@@ -258,8 +259,8 @@ export const usePurchasePlanItemsFilters = (
   const getFilteredCompanyOptions = useMemo(() => getFilteredOptions(uniqueValues.company, companySearchQuery), [companySearchQuery, uniqueValues.company, getFilteredOptions]);
   const getFilteredPurchaserCompanyOptions = useMemo(() => getFilteredOptions(uniqueValues.purchaserCompany, purchaserCompanySearchQuery), [purchaserCompanySearchQuery, uniqueValues.purchaserCompany, getFilteredOptions]);
   const getFilteredCategoryOptions = useMemo(() => getFilteredOptions(uniqueValues.category, categorySearchQuery), [categorySearchQuery, uniqueValues.category, getFilteredOptions]);
-  const getFilteredPurchaserOptions = useMemo(() => getFilteredOptions(uniqueValues.purchaser, purchaserSearchQuery), [purchaserSearchQuery, uniqueValues.purchaser, getFilteredOptions]);
   const getFilteredStatusOptions = useMemo(() => getFilteredOptions(uniqueValues.status, statusSearchQuery), [statusSearchQuery, uniqueValues.status, getFilteredOptions]);
+  const getFilteredPurchaserOptions = useMemo(() => getFilteredOptions(uniqueValues.purchaser, purchaserSearchQuery), [purchaserSearchQuery, uniqueValues.purchaser, getFilteredOptions]);
 
   // Загрузка уникальных значений для всех полей ВКЛЮЧАЯ статусы
   useEffect(() => {
@@ -281,7 +282,9 @@ export const usePurchasePlanItemsFilters = (
             if (item.purchaser) values.purchaser.add(item.purchaser);
             if (item.category) values.category.add(item.category);
 
-            // Извлекаем статусы
+            // Извлекаем статусы из обоих полей:
+            // 1. status (PurchasePlanItemStatus) - статус самого плана закупок
+            // 2. purchaseRequestStatus - статус заявки на закупку (если есть purchaseRequestId)
             if (item.purchaseRequestId !== null && item.purchaseRequestStatus) {
               values.status.add(item.purchaseRequestStatus);
             } else if (item.status) {
@@ -298,7 +301,6 @@ export const usePurchasePlanItemsFilters = (
           const newStatuses = Array.from(values.status).sort((a,b)=>a.localeCompare(b,'ru',{sensitivity:'base'}));
 
           // Обновляем uniqueValues для всех полей
-          // Фильтр статусов будет установлен из текущих данных таблицы (allItems)
           setUniqueValues(prev => ({
             cfo: Array.from(values.cfo).sort((a,b)=>a.localeCompare(b,'ru',{sensitivity:'base'})),
             company: Array.from(values.company).sort((a,b)=>a.localeCompare(b,'ru',{sensitivity:'base'})),
@@ -313,51 +315,31 @@ export const usePurchasePlanItemsFilters = (
     fetchUniqueValues();
   }, []);
 
+
+  // Устанавливаем начальное значение фильтра по статусу: все доступные статусы кроме "Исключена"
+  // Используем useLayoutEffect, чтобы установить фильтр синхронно до рендера и избежать двойного обновления
+  // Это соответствует логике кнопки "Сбросить фильтры"
+  useLayoutEffect(() => {
+    if (!statusFilterInitializedRef.current && uniqueValues.status.length > 0 && statusFilter.size === 0) {
+      const resetStatusFilter = uniqueValues.status.filter(s => s !== 'Исключена');
+      if (resetStatusFilter.length > 0) {
+        setStatusFilter(new Set(resetStatusFilter));
+        statusFilterInitializedRef.current = true;
+      }
+    }
+  }, [uniqueValues.status, statusFilter.size]);
+
   // Позиции фильтров
   useLayoutEffect(() => { setCfoFilterPosition(isCfoFilterOpen ? calculateFilterPosition(cfoFilterButtonRef) : null); }, [isCfoFilterOpen, calculateFilterPosition]);
   useLayoutEffect(() => { setCompanyFilterPosition(isCompanyFilterOpen ? calculateFilterPosition(companyFilterButtonRef) : null); }, [isCompanyFilterOpen, calculateFilterPosition]);
   useLayoutEffect(() => { setPurchaserCompanyFilterPosition(isPurchaserCompanyFilterOpen ? calculateFilterPosition(purchaserCompanyFilterButtonRef) : null); }, [isPurchaserCompanyFilterOpen, calculateFilterPosition]);
   useLayoutEffect(() => { setCategoryFilterPosition(isCategoryFilterOpen ? calculateFilterPosition(categoryFilterButtonRef) : null); }, [isCategoryFilterOpen, calculateFilterPosition]);
-  useLayoutEffect(() => { setPurchaserFilterPosition(isPurchaserFilterOpen ? calculateFilterPosition(purchaserFilterButtonRef) : null); }, [isPurchaserFilterOpen, calculateFilterPosition]);
   useLayoutEffect(() => { setStatusFilterPosition(isStatusFilterOpen ? calculateFilterPosition(statusFilterButtonRef) : null); }, [isStatusFilterOpen, calculateFilterPosition]);
+  useLayoutEffect(() => { setPurchaserFilterPosition(isPurchaserFilterOpen ? calculateFilterPosition(purchaserFilterButtonRef) : null); }, [isPurchaserFilterOpen, calculateFilterPosition]);
 
-  // Извлечение уникальных статусов из текущих данных таблицы (allItems)
-  // Обновляем uniqueValues.status только если статусы изменились
-  useEffect(() => {
-    if (allItems && allItems.length > 0) {
-      const statusSet = new Set<string>();
-      let hasNullStatus = false;
-      
-      allItems.forEach((item: PurchasePlanItem) => {
-        if (item.purchaseRequestId !== null && item.purchaseRequestStatus) {
-          statusSet.add(item.purchaseRequestStatus);
-        } else if (item.status) {
-          statusSet.add(item.status);
-        } else {
-          hasNullStatus = true;
-        }
-      });
-      
-      if (hasNullStatus) {
-        statusSet.add('Пусто');
-      }
-      
-      const newStatuses = Array.from(statusSet).sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' }));
-      
-      // Обновляем uniqueValues.status только если статусы изменились
-      setUniqueValues(prev => {
-        const prevStatusesStr = prev.status.sort().join(',');
-        const newStatusesStr = newStatuses.sort().join(',');
-        if (prevStatusesStr !== newStatusesStr) {
-          return {
-            ...prev,
-            status: newStatuses,
-          };
-        }
-        return prev;
-      });
-    }
-  }, [allItems]);
+  // УБРАНО: Извлечение статусов из allItems
+  // Статусы должны показываться из всех данных плана закупок, а не только из отфильтрованных
+  // Это позволяет видеть все доступные статусы в фильтре, даже если они не видны в текущей выборке
 
   // Debounce текстовых фильтров
   useEffect(() => {
@@ -400,14 +382,14 @@ export const usePurchasePlanItemsFilters = (
     categoryFilter, setCategoryFilter, statusFilter, setStatusFilter, purchaserFilter, setPurchaserFilter,
     isCfoFilterOpen, setIsCfoFilterOpen,
     isCompanyFilterOpen, setIsCompanyFilterOpen, isPurchaserCompanyFilterOpen, setIsPurchaserCompanyFilterOpen, isCategoryFilterOpen, setIsCategoryFilterOpen,
-    isPurchaserFilterOpen, setIsPurchaserFilterOpen, isStatusFilterOpen, setIsStatusFilterOpen,
+    isStatusFilterOpen, setIsStatusFilterOpen, isPurchaserFilterOpen, setIsPurchaserFilterOpen,
     cfoSearchQuery, setCfoSearchQuery,
     companySearchQuery, setCompanySearchQuery, purchaserCompanySearchQuery, setPurchaserCompanySearchQuery, categorySearchQuery, setCategorySearchQuery,
-    purchaserSearchQuery, setPurchaserSearchQuery, statusSearchQuery, setStatusSearchQuery,
+    statusSearchQuery, setStatusSearchQuery, purchaserSearchQuery, setPurchaserSearchQuery,
     cfoFilterPosition, companyFilterPosition, purchaserCompanyFilterPosition, categoryFilterPosition,
-    purchaserFilterPosition, statusFilterPosition,
+    statusFilterPosition, purchaserFilterPosition,
     cfoFilterButtonRef, companyFilterButtonRef, purchaserCompanyFilterButtonRef,
-    categoryFilterButtonRef, purchaserFilterButtonRef, statusFilterButtonRef,
+    categoryFilterButtonRef, statusFilterButtonRef, purchaserFilterButtonRef,
     uniqueValues,
     handleFilterChange, handleFilterChangeForHeader, handleFocusForHeader, handleBlurForHeader,
     handleCfoToggle, handleCfoSelectAll, handleCfoDeselectAll,
@@ -417,7 +399,7 @@ export const usePurchasePlanItemsFilters = (
     handleStatusToggle, handleStatusSelectAll, handleStatusDeselectAll,
     handlePurchaserToggle, handlePurchaserSelectAll, handlePurchaserDeselectAll,
     getFilteredCfoOptions, getFilteredCompanyOptions, getFilteredPurchaserCompanyOptions,
-    getFilteredCategoryOptions, getFilteredPurchaserOptions, getFilteredStatusOptions,
+    getFilteredCategoryOptions, getFilteredStatusOptions, getFilteredPurchaserOptions,
     getUniqueValues
   };
 };
