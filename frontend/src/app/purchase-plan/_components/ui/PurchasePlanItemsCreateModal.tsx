@@ -9,7 +9,6 @@ import { calculateNewContractDate, getWorkingDaysByComplexity } from '../utils/d
 interface PurchasePlanItemsCreateModalProps {
   isOpen: boolean;
   newItemData: Partial<PurchasePlanItem>;
-  availableCompanies: string[];
   uniqueCfoValues: string[];
   onDataChange: (data: Partial<PurchasePlanItem>) => void;
   onCreate: () => void;
@@ -22,7 +21,6 @@ interface PurchasePlanItemsCreateModalProps {
 export default function PurchasePlanItemsCreateModal({
   isOpen,
   newItemData,
-  availableCompanies,
   uniqueCfoValues,
   onDataChange,
   onCreate,
@@ -74,20 +72,6 @@ export default function PurchasePlanItemsCreateModal({
                 className="w-full px-3 py-2 text-sm text-gray-900 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Год"
               />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Компания</label>
-              <select
-                value={newItemData.company || ''}
-                onChange={(e) => handleFieldChange('company', e.target.value || null)}
-                className="w-full px-3 py-2 text-sm text-gray-900 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">-</option>
-                {availableCompanies.map((company) => (
-                  <option key={company} value={company}>{company}</option>
-                ))}
-              </select>
             </div>
             
             <div>

@@ -9,13 +9,14 @@ export const DEFAULT_STATUSES = ALL_STATUSES.filter(s => s !== 'Исключен
 // Определение всех возможных колонок (все поля сущности PurchasePlanItem)
 export const ALL_COLUMNS = [
   { key: 'id', label: 'ID' },
+  { key: 'company', label: 'Заказчик' },
   { key: 'guid', label: 'GUID' },
   { key: 'year', label: 'Год' },
-  { key: 'company', label: 'Заказчик' },
   { key: 'purchaserCompany', label: 'Исполнитель' },
   { key: 'cfo', label: 'ЦФО' },
   { key: 'purchaseSubject', label: 'Предмет закупки' },
   { key: 'budgetAmount', label: 'Бюджет (UZS)' },
+  { key: 'contractEndDate', label: 'Дата окончания договора' },
   { key: 'requestDate', label: 'Дата заявки' },
   { key: 'newContractDate', label: 'Дата завершения закупки' },
   { key: 'purchaser', label: 'Закупщик' },
@@ -32,6 +33,8 @@ export const ALL_COLUMNS = [
   { key: 'category', label: 'Категория' },
   { key: 'status', label: 'Статус' },
   { key: 'purchaseRequestId', label: 'Заявка на закупку' },
+  { key: 'purchaseRequestStatus', label: 'Статус заявки' },
+  { key: 'comment', label: 'Комментарий' },
   { key: 'details', label: 'Детали' },
   { key: 'createdAt', label: 'Дата создания' },
   { key: 'updatedAt', label: 'Дата обновления' },
@@ -61,16 +64,15 @@ export const PAGE_SIZE = 100; // Фиксированный размер стр�
 
 // Дефолтные значения для новых элементов
 export const DEFAULT_NEW_ITEM = {
-  company: 'Market',
   status: 'Проект',
 };
 
 // Дефолтные ширины колонок
 export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   id: 80,
+  company: 179, // 128px * 1.4 = 179.2px (увеличено на 40%)
   guid: 256,
   year: 64, // w-16 = 4rem = 64px
-  company: 128, // w-32 = 8rem = 128px
   cfo: 128, // w-32 = 8rem = 128px
   purchaseSubject: 96, // w-24 = 6rem = 96px (уменьшено на 50%)
   budgetAmount: 112, // w-28 = 7rem = 112px
@@ -89,8 +91,11 @@ export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   complexity: 112, // w-28 = 7rem = 112px
   holding: 128, // w-32 = 8rem = 128px
   category: 128, // w-32 = 8rem = 128px
+  purchaserCompany: 179, // 128px * 1.4 = 179.2px (увеличено на 40%)
   status: 200, // Увеличено для длинных статусов заявки (например, "Заявка на согласовании")
   purchaseRequestId: 160, // w-40 = 10rem = 160px
+  purchaseRequestStatus: 200, // Ширина для статуса заявки
+  comment: 192, // w-48 = 12rem = 192px
   details: 100, // Ширина для колонки с кнопкой деталей
   createdAt: 128, // w-32 = 8rem = 128px
   updatedAt: 128, // w-32 = 8rem = 128px

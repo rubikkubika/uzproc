@@ -188,7 +188,7 @@ export default function PurchasePlanItemsTable() {
   const handleRowClick = useCallback((item: any) => {
     table.modals.setDetailsModalOpen(item.id);
     table.modalData.fetchModalItemData(item.id);
-    table.modals.setActiveTab(prev => ({ ...prev, [item.id]: 'data' }));
+    table.modals.setActiveTab(prev => ({ ...prev, [item.id]: 'comments' }));
   }, [table.modals, table.modalData]);
 
   // Обработчик изменения вкладки в модальном окне
@@ -263,7 +263,6 @@ export default function PurchasePlanItemsTable() {
   // ВАЖНО: Должен быть вызван ДО условных возвратов, чтобы соблюдать правила хуков
   const handleResetFilters = useCallback(() => {
     const emptyFilters = {
-      company: '',
       cfo: '',
       purchaseSubject: '',
       currentContractEndDate: '',
@@ -274,7 +273,7 @@ export default function PurchasePlanItemsTable() {
     table.filters.setFilters(emptyFilters);
     table.filters.setLocalFilters(emptyFilters);
     table.filters.setCfoFilter(new Set());
-    table.filters.setCompanyFilter(new Set(['Market'])); // При сбросе устанавливаем фильтр по умолчанию на "Market"
+    table.filters.setCompanyFilter(new Set());
     table.filters.setPurchaserCompanyFilter(new Set(['Market'])); // При сбросе устанавливаем фильтр по умолчанию на "Market"
     table.filters.setCategoryFilter(new Set());
     table.filters.setPurchaserFilter(new Set());
@@ -289,11 +288,6 @@ export default function PurchasePlanItemsTable() {
     table.setSelectedMonths(new Set());
     table.setSelectedMonthYear(null);
     table.setCurrentPage(0);
-    
-    // Отправляем событие для обновления фильтра компании в диаграмме
-    window.dispatchEvent(new CustomEvent('purchasePlanItemCompanyFilterUpdated', {
-      detail: { companyFilter: ['Market'] }
-    }));
     
     // Устанавливаем просмотр текущей версии
     if (table.selectedYear) {
@@ -439,7 +433,6 @@ export default function PurchasePlanItemsTable() {
     editingDate: table.editing.editingDate,
     editingStatus: table.editing.editingStatus,
     editingHolding: table.editing.editingHolding,
-    editingCompany: table.editing.editingCompany,
     editingPurchaserCompany: table.editing.editingPurchaserCompany,
     editingCfo: table.editing.editingCfo,
     creatingNewCfo: table.editing.creatingNewCfo,
@@ -450,7 +443,6 @@ export default function PurchasePlanItemsTable() {
     animatingDates: table.editing.animatingDates,
     cfoInputValue: table.editing.cfoInputValue,
     availablePurchasers: table.editing.availablePurchasers,
-    availableCompanies: table.editing.availableCompanies,
     availableCfo: table.filters.getUniqueValues('cfo') || [],
     availableHoldings: table.filters.getUniqueValues('holding') || [],
   };
@@ -459,7 +451,6 @@ export default function PurchasePlanItemsTable() {
     onDateUpdate: table.editing.handleDateUpdate,
     onStatusUpdate: table.editing.handleStatusUpdate,
     onHoldingUpdate: table.editing.handleHoldingUpdate,
-    onCompanyUpdate: table.editing.handleCompanyUpdate,
     onPurchaserCompanyUpdate: table.editing.handlePurchaserCompanyUpdate,
     onCfoUpdate: table.editing.handleCfoUpdate,
     onPurchaserUpdate: table.editing.handlePurchaserUpdate,
@@ -468,7 +459,6 @@ export default function PurchasePlanItemsTable() {
     setEditingDate: table.editing.setEditingDate,
     setEditingStatus: table.editing.setEditingStatus,
     setEditingHolding: table.editing.setEditingHolding,
-    setEditingCompany: table.editing.setEditingCompany,
     setEditingPurchaserCompany: table.editing.setEditingPurchaserCompany,
     setEditingCfo: table.editing.setEditingCfo,
     setCreatingNewCfo: table.editing.setCreatingNewCfo,
@@ -514,22 +504,11 @@ export default function PurchasePlanItemsTable() {
         setPurchaserFilter={table.filters.setPurchaserFilter}
         setCurrentPage={table.setCurrentPage}
         totalRecords={table.totalRecords}
-        companyFilter={table.filters.companyFilter}
-        companyFilterButtonRef={table.filters.companyFilterButtonRef}
-        isCompanyFilterOpen={table.filters.isCompanyFilterOpen}
-        companyFilterPosition={table.filters.companyFilterPosition}
-        companySearchQuery={table.filters.companySearchQuery}
-        companyFilterOptions={table.filters.getFilteredCompanyOptions}
-        onCompanyFilterToggle={() => table.filters.setIsCompanyFilterOpen(!table.filters.isCompanyFilterOpen)}
-        onCompanySearchChange={table.filters.setCompanySearchQuery}
-        onCompanyToggle={table.filters.handleCompanyToggle}
-        onCompanySelectAll={table.filters.handleCompanySelectAll}
-        onCompanyDeselectAll={table.filters.handleCompanyDeselectAll}
-        onCompanyFilterClose={() => table.filters.setIsCompanyFilterOpen(false)}
         onResetFilters={handleResetFilters}
         selectedVersionId={table.versions.selectedVersionId}
         onCloseVersion={handleCloseVersion}
         canEdit={true} // TODO: получить из контекста или пропсов
+        columnsMenuButtonRef={table.columns.columnsMenuButtonRef}
       />
 
       {/* Фильтры таблицы: выпадающие списки для множественного выбора */}
@@ -619,7 +598,7 @@ export default function PurchasePlanItemsTable() {
               getCompanyLogoPath={getCompanyLogoPath}
               getPurchaseRequestStatusColor={getPurchaseRequestStatusColor}
               onRowClick={handleRowClick}
-              columnOrder={table.columns.columnOrder}
+              columnOrder={table.columns.filteredColumnOrder}
               tempDates={table.editing.tempDates}
               animatingDates={table.editing.animatingDates}
               performGanttDateUpdate={table.editing.performGanttDateUpdate}
@@ -653,7 +632,7 @@ export default function PurchasePlanItemsTable() {
           itemId={currentModalItemId}
           item={currentModalItem || table.modalData.modalItemData[currentModalItemId]?.data || null}
           purchaseRequest={currentModalItemId ? table.modalData.purchaseRequestData[currentModalItemId]?.data || null : null}
-          activeTab={table.modals.activeTab[currentModalItemId] || 'data'}
+          activeTab={table.modals.activeTab[currentModalItemId] || 'comments'}
           onTabChange={(tab) => handleTabChange(currentModalItemId, tab)}
           onClose={() => table.modals.setDetailsModalOpen(null)}
           comments={[]} // TODO: добавить загрузку комментариев
@@ -666,7 +645,6 @@ export default function PurchasePlanItemsTable() {
       <PurchasePlanItemsCreateModal
         isOpen={table.modals.isCreateModalOpen}
         newItemData={table.newItemData}
-        availableCompanies={table.editing.availableCompanies}
         uniqueCfoValues={table.filters.uniqueValues.cfo || []}
         onDataChange={table.setNewItemData}
         onCreate={() => {

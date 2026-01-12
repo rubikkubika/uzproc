@@ -67,9 +67,77 @@ export const usePurchasePlanItemsColumns = () => {
   const resizeStartWidth = useRef<number>(0);
   const resizeColumn = useRef<string | null>(null);
 
-  const [columnOrder, setColumnOrder] = useState<string[]>(DEFAULT_VISIBLE_COLUMNS);
+  const [columnOrder, setColumnOrder] = useState<string[]>(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('purchasePlanItemsTableColumnOrder');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
+        }
+      }
+    } catch (err) {
+      // Ошибка загрузки из localStorage игнорируется
+    }
+    return DEFAULT_VISIBLE_COLUMNS;
+  });
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
+
+  const saveColumnOrder = useCallback((order: string[]) => {
+    try {
+      localStorage.setItem('purchasePlanItemsTableColumnOrder', JSON.stringify(order));
+    } catch (err) {
+      // Ошибка сохранения в localStorage игнорируется
+    }
+  }, []);
+
+  // Синхронизируем columnOrder с visibleColumns при изменении visibleColumns
+  useEffect(() => {
+    setColumnOrder(prevOrder => {
+      const newOrder = [...prevOrder];
+      let updated = false;
+      
+      // Находим индекс purchaserCompany (Исполнитель) для вставки новых колонок после него
+      const purchaserCompanyIndex = newOrder.indexOf('purchaserCompany');
+      let insertAfterIndex = purchaserCompanyIndex >= 0 ? purchaserCompanyIndex + 1 : newOrder.length;
+      
+      // Собираем колонки, которые нужно добавить
+      const columnsToAdd: string[] = [];
+      visibleColumns.forEach(columnKey => {
+        if (!newOrder.includes(columnKey)) {
+          columnsToAdd.push(columnKey);
+        }
+      });
+      
+      // Добавляем новые колонки после purchaserCompany
+      if (columnsToAdd.length > 0) {
+        newOrder.splice(insertAfterIndex, 0, ...columnsToAdd);
+        updated = true;
+      }
+      
+      // Удаляем колонки из columnOrder, которых нет в visibleColumns (кроме обязательных)
+      const mandatoryColumns = ['details']; // Колонка details всегда должна быть
+      const filteredOrder = newOrder.filter(columnKey => 
+        visibleColumns.has(columnKey) || mandatoryColumns.includes(columnKey)
+      );
+      
+      if (filteredOrder.length !== newOrder.length) {
+        updated = true;
+        saveColumnOrder(filteredOrder);
+        return filteredOrder;
+      }
+      
+      if (updated) {
+        saveColumnOrder(newOrder);
+        return newOrder;
+      }
+      
+      return prevOrder;
+    });
+  }, [visibleColumns, saveColumnOrder]);
 
   const calculateFilterPosition = useCallback((buttonRef: React.RefObject<HTMLButtonElement | null>) => {
     if (buttonRef.current) {
@@ -85,14 +153,6 @@ export const usePurchasePlanItemsColumns = () => {
   const saveColumnWidths = useCallback((widths: Record<string, number>) => {
     try {
       localStorage.setItem('purchasePlanItemsTableColumnWidths', JSON.stringify(widths));
-    } catch (err) {
-      // Ошибка сохранения в localStorage игнорируется
-    }
-  }, []);
-
-  const saveColumnOrder = useCallback((order: string[]) => {
-    try {
-      localStorage.setItem('purchasePlanItemsTableColumnOrder', JSON.stringify(order));
     } catch (err) {
       // Ошибка сохранения в localStorage игнорируется
     }
@@ -195,22 +255,27 @@ export const usePurchasePlanItemsColumns = () => {
 
   // Закрываем меню выбора колонок при клике вне его
   useEffect(() => {
+    if (!isColumnsMenuOpen) return;
+    
     const handleClickOutside = (event: MouseEvent) => {
-      if (isColumnsMenuOpen && columnsMenuButtonRef.current && !columnsMenuButtonRef.current.contains(event.target as Node)) {
-        const menuElement = document.querySelector('.fixed.z-50.w-64.bg-white.border.border-gray-300');
-        if (menuElement && !menuElement.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        columnsMenuButtonRef.current &&
+        !columnsMenuButtonRef.current.contains(target)
+      ) {
+        // Ищем меню по data-атрибуту
+        const menuElement = document.querySelector('[data-columns-menu]');
+        if (menuElement && !menuElement.contains(target)) {
           setIsColumnsMenuOpen(false);
         }
       }
     };
 
-    if (isColumnsMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }
-  }, [isColumnsMenuOpen]);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isColumnsMenuOpen, setIsColumnsMenuOpen]);
 
   // Загружаем сохраненные ширины колонок из localStorage
   useEffect(() => {
@@ -287,7 +352,7 @@ export const usePurchasePlanItemsColumns = () => {
   // Фильтруем columnOrder, чтобы показывать только видимые колонки
   const filteredColumnOrder = useMemo(() => {
     return columnOrder.filter(columnKey => visibleColumns.has(columnKey));
-  }, [columnOrder, visibleColumns]);
+  }, [columnOrder, Array.from(visibleColumns).sort().join(',')]);
 
   return {
     visibleColumns,

@@ -35,7 +35,6 @@ export const usePurchasePlanItemsTable = () => {
   const [summaryData, setSummaryData] = useState<PurchasePlanItem[]>([]);
   const [newItemData, setNewItemData] = useState<Partial<PurchasePlanItem>>({
     year: selectedYear || (new Date().getFullYear() + 1),
-    company: 'Market',
     status: 'Проект',
   });
 
@@ -60,7 +59,6 @@ export const usePurchasePlanItemsTable = () => {
     setAllItems,
     setChartData,
     setSummaryData,
-    filtersHook.companyFilter,
     filtersHook.cfoFilter,
     pageSize
   );
@@ -101,21 +99,21 @@ export const usePurchasePlanItemsTable = () => {
       }
       
       // Добавляем параметры фильтрации
-      if (filtersHook.companyFilter.size > 0) {
-        filtersHook.companyFilter.forEach(company => {
-          if (company === 'Не выбрано') {
-            params.append('company', '__NULL__');
-          } else {
-            params.append('company', company);
-          }
-        });
-      }
       if (filtersHook.cfoFilter.size > 0) {
         filtersHook.cfoFilter.forEach(cfo => {
           if (cfo === 'Не выбрано') {
             params.append('cfo', '__NULL__');
           } else {
             params.append('cfo', cfo);
+          }
+        });
+      }
+      if (filtersHook.companyFilter.size > 0) {
+        filtersHook.companyFilter.forEach(company => {
+          if (company === 'Не выбрано') {
+            params.append('company', '__NULL__');
+          } else {
+            params.append('company', company);
           }
         });
       }
@@ -251,6 +249,15 @@ export const usePurchasePlanItemsTable = () => {
           }
         }
         
+        if (filtersHook.cfoFilter.size > 0) {
+          filtersHook.cfoFilter.forEach(cfo => {
+            if (cfo === 'Не выбрано') {
+              params.append('cfo', '__NULL__');
+            } else {
+              params.append('cfo', cfo);
+            }
+          });
+        }
         if (filtersHook.companyFilter.size > 0) {
           filtersHook.companyFilter.forEach(company => {
             if (company === 'Не выбрано') {
@@ -260,12 +267,12 @@ export const usePurchasePlanItemsTable = () => {
             }
           });
         }
-        if (filtersHook.cfoFilter.size > 0) {
-          filtersHook.cfoFilter.forEach(cfo => {
-            if (cfo === 'Не выбрано') {
-              params.append('cfo', '__NULL__');
+        if (filtersHook.purchaserCompanyFilter.size > 0) {
+          filtersHook.purchaserCompanyFilter.forEach(purchaserCompany => {
+            if (purchaserCompany === 'Не выбрано') {
+              params.append('purchaserCompany', '__NULL__');
             } else {
-              params.append('cfo', cfo);
+              params.append('purchaserCompany', purchaserCompany);
             }
           });
         }
@@ -325,21 +332,21 @@ export const usePurchasePlanItemsTable = () => {
           }
         }
         
-        if (filtersHook.companyFilter.size > 0) {
-          filtersHook.companyFilter.forEach(company => {
-            if (company === 'Не выбрано') {
-              params.append('company', '__NULL__');
-            } else {
-              params.append('company', company);
-            }
-          });
-        }
         if (filtersHook.cfoFilter.size > 0) {
           filtersHook.cfoFilter.forEach(cfo => {
             if (cfo === 'Не выбрано') {
               params.append('cfo', '__NULL__');
             } else {
               params.append('cfo', cfo);
+            }
+          });
+        }
+        if (filtersHook.companyFilter.size > 0) {
+          filtersHook.companyFilter.forEach(company => {
+            if (company === 'Не выбрано') {
+              params.append('company', '__NULL__');
+            } else {
+              params.append('company', company);
             }
           });
         }

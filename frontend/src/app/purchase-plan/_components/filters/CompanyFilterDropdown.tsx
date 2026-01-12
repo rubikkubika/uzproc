@@ -32,7 +32,7 @@ export interface CompanyFilterDropdownProps {
 }
 
 /**
- * Компонент фильтра Компания
+ * Компонент фильтра Компания заказчика
  * 
  * Отвечает только за UI, использует MultiSelectFilterDropdown внутри.
  * Вся бизнес-логика находится в usePurchasePlanItemsFilters.

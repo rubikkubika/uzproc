@@ -9,7 +9,6 @@ export const usePurchasePlanItemsEditing = (
   setAllItems: React.Dispatch<React.SetStateAction<PurchasePlanItem[]>>,
   setChartData: React.Dispatch<React.SetStateAction<PurchasePlanItem[]>>,
   setSummaryData: React.Dispatch<React.SetStateAction<PurchasePlanItem[]>>,
-  companyFilter: Set<string>,
   cfoFilter: Set<string>,
   pageSize: number,
   // Дополнительные зависимости для функций обновления
@@ -43,8 +42,6 @@ export const usePurchasePlanItemsEditing = (
   const statusSelectRef = useRef<HTMLSelectElement | null>(null);
   const [editingHolding, setEditingHolding] = useState<number | null>(null);
   const holdingSelectRef = useRef<HTMLSelectElement | null>(null);
-  const [editingCompany, setEditingCompany] = useState<number | null>(null);
-  const companySelectRef = useRef<HTMLSelectElement | null>(null);
   const [editingPurchaserCompany, setEditingPurchaserCompany] = useState<number | null>(null);
   const purchaserCompanySelectRef = useRef<HTMLSelectElement | null>(null);
   const [editingCfo, setEditingCfo] = useState<number | null>(null);
@@ -58,7 +55,6 @@ export const usePurchasePlanItemsEditing = (
   const purchaseSubjectInputRef = useRef<HTMLTextAreaElement | null>(null);
   const [editingPurchaser, setEditingPurchaser] = useState<number | null>(null);
   const [availablePurchasers, setAvailablePurchasers] = useState<string[]>([]);
-  const [availableCompanies, setAvailableCompanies] = useState<string[]>([]);
 
   // Автоматически открываем календарь при появлении input
   useEffect(() => {
@@ -420,131 +416,7 @@ export const usePurchasePlanItemsEditing = (
     }
   };
 
-  // Функция для обновления компании
-  const handleCompanyUpdate = async (itemId: number, newCompany: string) => {
-    try {
-      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/company`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ company: newCompany || null }),
-      });
-
-      if (response.ok) {
-        const updatedItem = await response.json();
-        setEditingCompany(null);
-        
-        // Обновляем только конкретную строку в локальном состоянии
-        if (data) {
-          // Проверяем, подходит ли обновленная строка под фильтр компании
-          const normalizedNewCompany = newCompany ? newCompany.trim() : null;
-          const shouldShowItem = companyFilter.size === 0 || (normalizedNewCompany && companyFilter.has(normalizedNewCompany));
-          
-          if (shouldShowItem) {
-            // Обновляем строку в таблице
-            setAllItems(prev => {
-              const updated = prev.map(item => 
-                item.id === itemId 
-                  ? { ...item, company: updatedItem.company, updatedAt: updatedItem.updatedAt }
-                  : item
-              );
-              if (data) {
-                setData({ ...data, content: updated });
-              }
-              return updated;
-            });
-          } else {
-            // Удаляем строку из отображаемых данных, так как она не подходит под фильтр
-            setAllItems(prev => {
-              const updated = prev.filter(item => item.id !== itemId);
-              const newTotalElements = Math.max(0, (data?.totalElements || 0) - 1);
-              const newTotalPages = Math.ceil(newTotalElements / pageSize);
-              if (data) {
-                setData({ 
-                  ...data, 
-                  content: updated,
-                  totalElements: newTotalElements,
-                  totalPages: newTotalPages
-                });
-              }
-              return updated;
-            });
-          }
-        }
-        
-        // Обновляем данные для диаграммы в таблице
-        const normalizedNewCompany = newCompany ? newCompany.trim() : null;
-        const shouldShowInChart = companyFilter.size === 0 || (normalizedNewCompany && companyFilter.has(normalizedNewCompany));
-        
-        setChartData(prev => {
-          if (!prev) return prev;
-          
-          if (shouldShowInChart) {
-            // Обновляем строку в chartData
-            return prev.map(item => 
-              item.id === itemId 
-                ? { ...item, company: updatedItem.company, updatedAt: updatedItem.updatedAt }
-                : item
-            );
-          } else {
-            // Удаляем строку из chartData, так как она не подходит под фильтр
-            return prev.filter(item => item.id !== itemId);
-          }
-        });
-        
-        // Обновляем данные для сводной таблицы с учетом фильтра по компании
-        const normalizedNewCompanyForSummary = newCompany ? newCompany.trim() : null;
-        const shouldShowInSummary = companyFilter.size === 0 || (normalizedNewCompanyForSummary && companyFilter.has(normalizedNewCompanyForSummary));
-        
-        setSummaryData(prev => {
-          if (!prev) return prev;
-          
-          // Проверяем, есть ли запись в summaryData
-          const existingItem = prev.find(item => item.id === itemId);
-          
-          if (shouldShowInSummary) {
-            // Если запись должна быть в сводной таблице
-            if (existingItem) {
-              // Обновляем существующую запись
-              return prev.map(item => 
-                item.id === itemId 
-                  ? { ...item, company: updatedItem.company, updatedAt: updatedItem.updatedAt }
-                  : item
-              );
-            } else {
-              // Добавляем новую запись (если её не было, но теперь она соответствует фильтру)
-              // Используем данные из data, если они есть
-              const fullItem = data?.content.find(i => i.id === itemId);
-              if (fullItem) {
-                // Используем полные данные из data и обновляем компанию
-                return [...prev, { ...fullItem, company: updatedItem.company, updatedAt: updatedItem.updatedAt }];
-              }
-              // Если полных данных нет, возвращаем prev (запись будет добавлена при следующей загрузке)
-              return prev;
-            }
-          } else {
-            // Если запись больше не должна быть в сводной таблице, удаляем её
-            return prev.filter(item => item.id !== itemId);
-          }
-        });
-        
-        // Отправляем событие для обновления столбчатой диаграммы (как при изменении дат)
-        window.dispatchEvent(new CustomEvent('purchasePlanItemDatesUpdated', {
-          detail: { itemId, field: 'company', newValue: newCompany }
-        }));
-        
-        // Также отправляем событие с актуальным фильтром компании, чтобы диаграмма использовала правильный фильтр
-        window.dispatchEvent(new CustomEvent('purchasePlanItemCompanyFilterUpdated', {
-          detail: { companyFilter: Array.from(companyFilter) }
-        }));
-      }
-    } catch (error) {
-      // Ошибка обновления компании игнорируется
-    } finally {
-      setEditingHolding(null);
-    }
-  };
+  // Удалено: handleCompanyUpdate - колонка company удалена
 
   // Функция для обновления ЦФО
   const handleCfoUpdate = async (itemId: number, newCfo: string | null) => {
@@ -886,9 +758,6 @@ export const usePurchasePlanItemsEditing = (
     editingHolding,
     setEditingHolding,
     holdingSelectRef,
-    editingCompany,
-    setEditingCompany,
-    companySelectRef,
     editingPurchaserCompany,
     setEditingPurchaserCompany,
     purchaserCompanySelectRef,
@@ -910,14 +779,11 @@ export const usePurchasePlanItemsEditing = (
     setEditingPurchaser,
     availablePurchasers,
     setAvailablePurchasers,
-    availableCompanies,
-    setAvailableCompanies,
     performGanttDateUpdate,
     performDateUpdate,
     handleDateUpdate,
     handleStatusUpdate,
     handleHoldingUpdate,
-    handleCompanyUpdate,
     handlePurchaserCompanyUpdate,
     handleCfoUpdate,
     handlePurchaserUpdate,
