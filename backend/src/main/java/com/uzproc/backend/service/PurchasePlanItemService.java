@@ -1101,6 +1101,7 @@ public class PurchasePlanItemService {
             }
             
             // Фильтр по статусу (поддержка множественного выбора)
+            // Учитывает как статусы плана закупок (PurchasePlanItemStatus), так и статусы заявок (PurchaseRequestStatus)
             if (status != null && !status.isEmpty()) {
                 // Убираем пустые значения и тримим
                 List<String> validStatusValues = status.stream()
@@ -1114,104 +1115,111 @@ public class PurchasePlanItemService {
                         boolean includeNull = validStatusValues.stream()
                             .anyMatch(s -> s.equalsIgnoreCase("Пусто") || s.equalsIgnoreCase("__NULL__") || s.trim().isEmpty());
                         
-                        // Преобразуем строковые значения (displayName) в enum
-                        // Исключаем специальные значения для null ("Пусто", "__NULL__", пустые строки)
-                        List<com.uzproc.backend.entity.PurchasePlanItemStatus> statusEnums = validStatusValues.stream()
-                            .filter(statusValue -> {
-                                // Пропускаем специальные значения для null
-                                return !statusValue.equalsIgnoreCase("Пусто") 
-                                    && !statusValue.equalsIgnoreCase("__NULL__") 
-                                    && !statusValue.trim().isEmpty();
-                            })
-                            .map(statusValue -> {
-                                // Ищем по displayName (отображаемое имя)
-                                String trimmedValue = statusValue.trim();
-                                logger.debug("Processing status value: '{}' (length: {}, bytes: {})", 
-                                    trimmedValue, trimmedValue.length(), 
-                                    java.util.Arrays.toString(trimmedValue.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
-                                
-                                for (com.uzproc.backend.entity.PurchasePlanItemStatus statusEnum : com.uzproc.backend.entity.PurchasePlanItemStatus.values()) {
+                        // Разделяем статусы на два типа:
+                        // 1. PurchasePlanItemStatus - статусы самого плана закупок
+                        // 2. PurchaseRequestStatus - статусы заявок на закупку
+                        List<com.uzproc.backend.entity.PurchasePlanItemStatus> planStatusEnums = new ArrayList<>();
+                        List<com.uzproc.backend.entity.PurchaseRequestStatus> requestStatusEnums = new ArrayList<>();
+                        List<String> unmatchedStatuses = new ArrayList<>();
+                        
+                        for (String statusValue : validStatusValues) {
+                            // Пропускаем специальные значения для null
+                            if (statusValue.equalsIgnoreCase("Пусто") 
+                                || statusValue.equalsIgnoreCase("__NULL__") 
+                                || statusValue.trim().isEmpty()) {
+                                continue;
+                            }
+                            
+                            String trimmedValue = statusValue.trim();
+                            boolean found = false;
+                            
+                            // Ищем в PurchasePlanItemStatus
+                            for (com.uzproc.backend.entity.PurchasePlanItemStatus statusEnum : com.uzproc.backend.entity.PurchasePlanItemStatus.values()) {
+                                String displayName = statusEnum.getDisplayName();
+                                if (displayName.equalsIgnoreCase(trimmedValue) || displayName.equals(trimmedValue)) {
+                                    planStatusEnums.add(statusEnum);
+                                    found = true;
+                                    logger.debug("Found PurchasePlanItemStatus: '{}' for value '{}'", statusEnum, trimmedValue);
+                                    break;
+                                }
+                            }
+                            
+                            // Если не найдено в PurchasePlanItemStatus, ищем в PurchaseRequestStatus
+                            if (!found) {
+                                for (com.uzproc.backend.entity.PurchaseRequestStatus statusEnum : com.uzproc.backend.entity.PurchaseRequestStatus.values()) {
                                     String displayName = statusEnum.getDisplayName();
-                                    logger.debug("Comparing '{}' with '{}' (equals: {}, equalsIgnoreCase: {})", 
-                                        trimmedValue, displayName, 
-                                        displayName.equals(trimmedValue),
-                                        displayName.equalsIgnoreCase(trimmedValue));
-                                    
                                     if (displayName.equalsIgnoreCase(trimmedValue) || displayName.equals(trimmedValue)) {
-                                        logger.info("Found status enum '{}' (displayName: '{}') for value '{}'", statusEnum, displayName, trimmedValue);
-                                        return statusEnum;
+                                        requestStatusEnums.add(statusEnum);
+                                        found = true;
+                                        logger.debug("Found PurchaseRequestStatus: '{}' for value '{}'", statusEnum, trimmedValue);
+                                        break;
                                     }
                                 }
-                                logger.warn("Status value '{}' not found by displayName. Checking enum name...", trimmedValue);
-                                // Если не найдено по displayName, пробуем по имени enum с маппингом
-                                try {
-                                    String enumName = trimmedValue.toUpperCase()
-                                        .replace(" ", "_")
-                                        .replace("НЕ_", "NOT_")
-                                        .replace("ЗАЯВКА", "REQUEST")
-                                        .replace("АКТУАЛЬНАЯ", "ACTUAL")
-                                        .replace("В_ПЛАНЕ", "ACTUAL")
-                                        .replace("ИСКЛЮЧЕНА", "NOT_ACTUAL");
-                                    com.uzproc.backend.entity.PurchasePlanItemStatus foundEnum = com.uzproc.backend.entity.PurchasePlanItemStatus.valueOf(enumName);
-                                    logger.info("Found status enum '{}' by name '{}' for value '{}'", foundEnum, enumName, trimmedValue);
-                                    return foundEnum;
-                                } catch (IllegalArgumentException e) {
-                                    logger.warn("Status value '{}' not found in enum. Available statuses: {}", 
-                                        trimmedValue,
-                                        java.util.Arrays.stream(com.uzproc.backend.entity.PurchasePlanItemStatus.values())
-                                            .map(com.uzproc.backend.entity.PurchasePlanItemStatus::getDisplayName)
-                                            .collect(java.util.stream.Collectors.toList()));
-                                    return null;
-                                }
-                            })
-                            .filter(java.util.Objects::nonNull)
-                            .toList();
-                        
-                        logger.info("Status filter processing - includeNull: {}, statusEnums size: {}, statusEnums: {}, validStatusValues: {}", 
-                            includeNull, statusEnums.size(), statusEnums, validStatusValues);
-                        
-                        // Если выбраны только null значения
-                        if (includeNull && statusEnums.isEmpty()) {
-                            predicates.add(cb.isNull(root.get("status")));
-                            predicateCount++;
-                            logger.info("Added null status filter (only null values selected)");
-                        } 
-                        // Если выбраны только конкретные статусы (без null)
-                        else if (!includeNull && !statusEnums.isEmpty()) {
-                            if (statusEnums.size() == 1) {
-                                predicates.add(cb.equal(root.get("status"), statusEnums.get(0)));
-                                logger.info("Added single status filter: '{}' (enum: {})", statusEnums.get(0).getDisplayName(), statusEnums.get(0));
-                            } else {
-                                predicates.add(root.get("status").in(statusEnums));
-                                logger.info("Added multiple status filter: {} (enums: {})", 
-                                    statusEnums.stream().map(s -> s.getDisplayName()).collect(java.util.stream.Collectors.toList()),
-                                    statusEnums);
                             }
-                            predicateCount++;
+                            
+                            if (!found) {
+                                unmatchedStatuses.add(trimmedValue);
+                                logger.warn("Status value '{}' not found in any enum", trimmedValue);
+                            }
                         }
-                        // Если выбраны и конкретные статусы, и null
-                        else if (includeNull && !statusEnums.isEmpty()) {
-                            if (statusEnums.size() == 1) {
-                                predicates.add(cb.or(
-                                    cb.equal(root.get("status"), statusEnums.get(0)),
-                                    cb.isNull(root.get("status"))
-                                ));
-                                logger.info("Added single status filter with null: '{}' (enum: {})", statusEnums.get(0).getDisplayName(), statusEnums.get(0));
+                        
+                        logger.info("Status filter processing - includeNull: {}, planStatusEnums: {}, requestStatusEnums: {}, unmatchedStatuses: {}", 
+                            includeNull, planStatusEnums, requestStatusEnums, unmatchedStatuses);
+                        
+                        // Строим предикаты для фильтрации
+                        List<Predicate> statusPredicates = new ArrayList<>();
+                        
+                        // Предикаты для статусов плана закупок (PurchasePlanItemStatus)
+                        if (!planStatusEnums.isEmpty()) {
+                            if (planStatusEnums.size() == 1) {
+                                statusPredicates.add(cb.equal(root.get("status"), planStatusEnums.get(0)));
                             } else {
-                                predicates.add(cb.or(
-                                    root.get("status").in(statusEnums),
-                                    cb.isNull(root.get("status"))
+                                statusPredicates.add(root.get("status").in(planStatusEnums));
+                            }
+                        }
+                        
+                        // Предикаты для статусов заявок (PurchaseRequestStatus)
+                        // Делаем join с PurchaseRequest и фильтруем по статусу заявки
+                        if (!requestStatusEnums.isEmpty()) {
+                            jakarta.persistence.criteria.Join<com.uzproc.backend.entity.PurchasePlanItem, com.uzproc.backend.entity.PurchaseRequest> purchaseRequestJoin = 
+                                root.join("purchaseRequest", jakarta.persistence.criteria.JoinType.LEFT);
+                            
+                            if (requestStatusEnums.size() == 1) {
+                                statusPredicates.add(cb.and(
+                                    cb.isNotNull(root.get("purchaseRequestId")),
+                                    cb.equal(purchaseRequestJoin.get("status"), requestStatusEnums.get(0))
                                 ));
-                                logger.info("Added multiple status filter with null: {} (enums: {})", 
-                                    statusEnums.stream().map(s -> s.getDisplayName()).collect(java.util.stream.Collectors.toList()),
-                                    statusEnums);
+                            } else {
+                                statusPredicates.add(cb.and(
+                                    cb.isNotNull(root.get("purchaseRequestId")),
+                                    purchaseRequestJoin.get("status").in(requestStatusEnums)
+                                ));
+                            }
+                        }
+                        
+                        // Предикат для null значений (только для статусов плана закупок)
+                        if (includeNull) {
+                            statusPredicates.add(cb.and(
+                                cb.isNull(root.get("status")),
+                                cb.isNull(root.get("purchaseRequestId"))
+                            ));
+                        }
+                        
+                        // Объединяем все предикаты через OR
+                        if (!statusPredicates.isEmpty()) {
+                            if (statusPredicates.size() == 1) {
+                                predicates.add(statusPredicates.get(0));
+                            } else {
+                                predicates.add(cb.or(statusPredicates.toArray(new Predicate[0])));
                             }
                             predicateCount++;
+                            logger.info("Added combined status filter - planStatuses: {}, requestStatuses: {}, includeNull: {}", 
+                                planStatusEnums, requestStatusEnums, includeNull);
                         } else {
-                            logger.warn("Status filter not applied - includeNull: {}, statusEnums size: {}", includeNull, statusEnums.size());
+                            logger.warn("Status filter not applied - no valid statuses found");
                         }
                     } catch (Exception e) {
-                        logger.warn("Error processing status filter: {}", e.getMessage());
+                        logger.warn("Error processing status filter: {}", e.getMessage(), e);
                     }
                 }
             }
