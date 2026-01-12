@@ -2,16 +2,39 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { getBackendUrl } from '@/utils/api';
-import { ArrowUp, ArrowDown, ArrowUpDown, Search, Settings, Download, Check } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpDown, Search, Settings, Download, Check, X } from 'lucide-react';
 import GanttChart from './GanttChart';
 import { useReactToPrint } from 'react-to-print';
 import * as XLSX from 'xlsx';
+
+// Функция для получения пути к логотипу компании
+const getCompanyLogoPath = (companyName: string | null): string | null => {
+  if (!companyName) return null;
+  
+  const logoMap: Record<string, string> = {
+    'Market': '/images/company logo/market.png',
+    'Holding': '/images/company logo/technologies.svg',
+    'Tezkor': '/images/company logo/tezkor.png',
+    // Старые названия для обратной совместимости
+    'Uzum Market': '/images/company logo/market.png',
+    'Uzum Technologies': '/images/company logo/technologies.svg',
+    'Uzum Tezkor': '/images/company logo/tezkor.png',
+    // Дополнительные компании на случай расширения enum
+    'Uzum Bank': '/images/company logo/bank.png',
+    'Uzum Business': '/images/company logo/business.png',
+    'Uzum Avto': '/images/company logo/avto.png',
+    'Uzum Nasiya': '/images/company logo/nasiya.png',
+  };
+  
+  return logoMap[companyName] || null;
+};
 
 interface PurchasePlanItem {
   id: number;
   guid: string;
   year: number | null;
   company: string | null;
+  purchaserCompany: string | null;
   cfo: string | null;
   purchaseSubject: string | null;
   budgetAmount: number | null;
@@ -90,6 +113,7 @@ const DEFAULT_STATUSES = ['Проект', 'В плане', 'Заявка', 'Пу
 const DEFAULT_VISIBLE_COLUMNS = [
   'id',
   'company',
+  'purchaserCompany',
   'purchaseRequestId',
   'cfo',
   'purchaseSubject',
@@ -104,7 +128,8 @@ const ALL_COLUMNS = [
   { key: 'id', label: 'ID' },
   { key: 'guid', label: 'GUID' },
   { key: 'year', label: 'Год' },
-  { key: 'company', label: 'Компания' },
+  { key: 'company', label: 'Заказчик' },
+  { key: 'purchaserCompany', label: 'Исполнитель' },
   { key: 'cfo', label: 'ЦФО' },
   { key: 'purchaseSubject', label: 'Предмет закупки' },
   { key: 'budgetAmount', label: 'Бюджет (UZS)' },
@@ -134,7 +159,8 @@ const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   id: 64,
   guid: 256,
   year: 64,
-  company: 128,
+  company: 179,
+  purchaserCompany: 179,
   cfo: 128,
   purchaseSubject: 192,
   budgetAmount: 112,
@@ -154,8 +180,8 @@ const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   holding: 128,
   category: 128,
   status: 200, // Увеличено для длинных статусов заявки (например, "Заявка на согласовании")
-  purchaseRequestId: 160,
-  comment: 200,
+  purchaseRequestId: 80, // 160 * 0.5 = 80
+  comment: 100, // 200 * 0.5 = 100
   createdAt: 128,
   updatedAt: 128,
 };
@@ -241,7 +267,8 @@ export default function PublicPurchasePlanTable() {
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
-  const [companyFilter, setCompanyFilter] = useState<Set<string>>(new Set(['Market']));
+  const [companyFilter, setCompanyFilter] = useState<Set<string>>(new Set());
+  const [purchaserCompanyFilter, setPurchaserCompanyFilter] = useState<Set<string>>(new Set(['Market']));
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set(DEFAULT_STATUSES)); // По умолчанию все кроме "Исключена"
   const [statusFilterInitialized, setStatusFilterInitialized] = useState(false); // Флаг инициализации фильтра
@@ -250,12 +277,15 @@ export default function PublicPurchasePlanTable() {
   
   const [isCfoFilterOpen, setIsCfoFilterOpen] = useState(false);
   const [isCompanyFilterOpen, setIsCompanyFilterOpen] = useState(false);
+  const [isPurchaserCompanyFilterOpen, setIsPurchaserCompanyFilterOpen] = useState(false);
   const [isCategoryFilterOpen, setIsCategoryFilterOpen] = useState(false);
   const [isPurchaserFilterOpen, setIsPurchaserFilterOpen] = useState(false);
   const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
   
   const [cfoSearchQuery, setCfoSearchQuery] = useState('');
   const [companySearchQuery, setCompanySearchQuery] = useState('');
+  const [purchaserCompanySearchQuery, setPurchaserCompanySearchQuery] = useState('');
+  const [commentModalOpen, setCommentModalOpen] = useState<number | null>(null);
   const [editingComment, setEditingComment] = useState<number | null>(null);
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -275,9 +305,11 @@ export default function PublicPurchasePlanTable() {
   const [categoryFilterPosition, setCategoryFilterPosition] = useState<{ top: number; left: number } | null>(null);
   const [purchaserFilterPosition, setPurchaserFilterPosition] = useState<{ top: number; left: number } | null>(null);
   const [statusFilterPosition, setStatusFilterPosition] = useState<{ top: number; left: number } | null>(null);
+  const [purchaserCompanyFilterPosition, setPurchaserCompanyFilterPosition] = useState<{ top: number; left: number } | null>(null);
   
   const cfoFilterButtonRef = useRef<HTMLButtonElement>(null);
   const companyFilterButtonRef = useRef<HTMLButtonElement>(null);
+  const purchaserCompanyFilterButtonRef = useRef<HTMLButtonElement>(null);
   const categoryFilterButtonRef = useRef<HTMLButtonElement>(null);
   const purchaserFilterButtonRef = useRef<HTMLButtonElement>(null);
   const printRef = useRef<HTMLDivElement>(null);
@@ -331,8 +363,28 @@ export default function PublicPurchasePlanTable() {
       if (saved) {
         const order = JSON.parse(saved);
         // Проверяем, что все колонки присутствуют и видимы
-        const validOrder = order.filter((col: string) => visibleColumns.has(col));
-        const missingCols = Array.from(visibleColumns).filter(col => !validOrder.includes(col));
+        let validOrder = order.filter((col: string) => visibleColumns.has(col));
+        let missingCols = Array.from(visibleColumns).filter(col => !validOrder.includes(col));
+        
+        // Если purchaserCompany отсутствует, но есть company, вставляем purchaserCompany после company
+        if (missingCols.includes('purchaserCompany') && validOrder.includes('company')) {
+          const companyIndex = validOrder.indexOf('company');
+          if (companyIndex >= 0) {
+            validOrder.splice(companyIndex + 1, 0, 'purchaserCompany');
+            missingCols = missingCols.filter(col => col !== 'purchaserCompany');
+          }
+        }
+        
+        // Если purchaserCompany есть в порядке, но не после company, перемещаем его
+        if (validOrder.includes('purchaserCompany') && validOrder.includes('company')) {
+          const companyIndex = validOrder.indexOf('company');
+          const purchaserCompanyIndex = validOrder.indexOf('purchaserCompany');
+          if (purchaserCompanyIndex !== companyIndex + 1) {
+            validOrder.splice(purchaserCompanyIndex, 1);
+            validOrder.splice(companyIndex + 1, 0, 'purchaserCompany');
+          }
+        }
+        
         if (validOrder.length > 0 || missingCols.length > 0) {
           setColumnOrder([...validOrder, ...missingCols]);
         }
@@ -350,16 +402,43 @@ export default function PublicPurchasePlanTable() {
   useEffect(() => {
     const visibleArray = Array.from(visibleColumns);
     const currentOrder = columnOrder.filter(col => visibleColumns.has(col));
-    const missingCols = visibleArray.filter(col => !currentOrder.includes(col));
+    let missingCols = visibleArray.filter(col => !currentOrder.includes(col));
+    
     if (missingCols.length > 0) {
-      const newOrder = [...currentOrder, ...missingCols];
+      let newOrder = [...currentOrder];
+      
+      // Если добавляется purchaserCompany, вставляем его после company
+      if (missingCols.includes('purchaserCompany') && currentOrder.includes('company')) {
+        const companyIndex = newOrder.indexOf('company');
+        if (companyIndex >= 0) {
+          newOrder.splice(companyIndex + 1, 0, 'purchaserCompany');
+          missingCols = missingCols.filter(col => col !== 'purchaserCompany');
+        }
+      }
+      
+      // Добавляем остальные недостающие колонки в конец
+      newOrder = [...newOrder, ...missingCols];
       setColumnOrder(newOrder);
       saveColumnOrder(newOrder);
     } else if (currentOrder.length !== visibleArray.length) {
       // Если порядок не совпадает с видимыми колонками, обновляем
-      const newOrder = visibleArray.filter(col => currentOrder.includes(col)).concat(
-        visibleArray.filter(col => !currentOrder.includes(col))
-      );
+      let newOrder = visibleArray.filter(col => currentOrder.includes(col));
+      const additionalCols = visibleArray.filter(col => !currentOrder.includes(col));
+      
+      // Если purchaserCompany в дополнительных колонках, вставляем его после company
+      if (additionalCols.includes('purchaserCompany') && newOrder.includes('company')) {
+        const companyIndex = newOrder.indexOf('company');
+        if (companyIndex >= 0) {
+          newOrder.splice(companyIndex + 1, 0, 'purchaserCompany');
+          const remainingCols = additionalCols.filter(col => col !== 'purchaserCompany');
+          newOrder = [...newOrder, ...remainingCols];
+        } else {
+          newOrder = [...newOrder, ...additionalCols];
+        }
+      } else {
+        newOrder = [...newOrder, ...additionalCols];
+      }
+      
       if (newOrder.length === visibleArray.length) {
         setColumnOrder(newOrder);
         saveColumnOrder(newOrder);
@@ -465,6 +544,18 @@ export default function PublicPurchasePlanTable() {
             ),
           });
         }
+        
+        // Обновляем также в allItems
+        setAllItems(prev => 
+          prev.map(item => 
+            item.id === itemId 
+              ? { ...item, comment: updatedItem.comment }
+              : item
+          )
+        );
+        
+        // Закрываем модальное окно после сохранения
+        setCommentModalOpen(null);
       } else {
         const errorText = await response.text();
         console.error('Failed to update comment:', response.status, errorText);
@@ -610,6 +701,15 @@ export default function PublicPurchasePlanTable() {
             }
           });
         }
+        if (purchaserCompanyFilter.size > 0) {
+          purchaserCompanyFilter.forEach(purchaserCompany => {
+            if (purchaserCompany === 'Не выбрано') {
+              params.append('purchaserCompany', '__NULL__');
+            } else {
+              params.append('purchaserCompany', purchaserCompany);
+            }
+          });
+        }
         if (cfoFilter.size > 0) {
           cfoFilter.forEach(cfo => params.append('cfo', cfo));
         }
@@ -637,6 +737,9 @@ export default function PublicPurchasePlanTable() {
         
         // Для диаграммы не применяем фильтр по месяцу, чтобы показать все месяцы
         
+        // Для публичного плана всегда используем текущее состояние, а не версию
+        params.append('versionId', 'null');
+        
         const fetchUrl = `${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`;
         const response = await fetch(fetchUrl);
         if (response.ok) {
@@ -652,7 +755,7 @@ export default function PublicPurchasePlanTable() {
     if (selectedYear !== null) {
       fetchChartData();
     }
-  }, [selectedYear, selectedMonthYear, filters, cfoFilter, companyFilter, purchaserFilter, categoryFilter, statusFilter]);
+  }, [selectedYear, selectedMonthYear, filters, cfoFilter, companyFilter, purchaserCompanyFilter, purchaserFilter, categoryFilter, statusFilter]);
 
   // Загружаем данные для сводной таблицы (без учета фильтра по закупщику)
   useEffect(() => {
@@ -684,14 +787,43 @@ export default function PublicPurchasePlanTable() {
             }
           });
         }
+        if (purchaserCompanyFilter.size > 0) {
+          purchaserCompanyFilter.forEach(purchaserCompany => {
+            if (purchaserCompany === 'Не выбрано') {
+              params.append('purchaserCompany', '__NULL__');
+            } else {
+              params.append('purchaserCompany', purchaserCompany);
+            }
+          });
+        }
         if (cfoFilter.size > 0) {
-          cfoFilter.forEach(cfo => params.append('cfo', cfo));
+          cfoFilter.forEach(cfo => {
+            if (cfo === 'Не выбрано') {
+              params.append('cfo', '__NULL__');
+            } else {
+              params.append('cfo', cfo);
+            }
+          });
         }
         if (filters.purchaseSubject && filters.purchaseSubject.trim() !== '') {
           params.append('purchaseSubject', filters.purchaseSubject.trim());
         }
         if (filters.purchaseRequestId && filters.purchaseRequestId.trim() !== '') {
           params.append('purchaseRequestId', filters.purchaseRequestId.trim());
+        }
+        // Фильтр бюджета
+        const budgetOperator = filters.budgetAmountOperator;
+        const budgetAmount = filters.budgetAmount;
+        if (budgetOperator && budgetOperator.trim() !== '' && budgetAmount && budgetAmount.trim() !== '') {
+          const budgetValue = parseFloat(budgetAmount.replace(/\s/g, '').replace(/,/g, ''));
+          if (!isNaN(budgetValue) && budgetValue >= 0) {
+            params.append('budgetAmountOperator', budgetOperator.trim());
+            params.append('budgetAmount', String(budgetValue));
+          }
+        }
+        if (filters.currentContractEndDate && filters.currentContractEndDate.trim() !== '') {
+          const dateValue = filters.currentContractEndDate.trim();
+          params.append('currentContractEndDate', dateValue);
         }
         if (categoryFilter.size > 0) {
           categoryFilter.forEach(category => params.append('category', category));
@@ -726,6 +858,9 @@ export default function PublicPurchasePlanTable() {
           });
         }
         
+        // Для публичного плана всегда используем текущее состояние, а не версию
+        params.append('versionId', 'null');
+        
         const fetchUrl = `${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`;
         const response = await fetch(fetchUrl);
         if (response.ok) {
@@ -743,7 +878,7 @@ export default function PublicPurchasePlanTable() {
     if (selectedYear !== null) {
       fetchSummaryData();
     }
-  }, [selectedYear, selectedMonths, selectedMonthYear, filters, cfoFilter, companyFilter, categoryFilter, statusFilter]);
+  }, [selectedYear, selectedMonths, selectedMonthYear, filters, cfoFilter, companyFilter, purchaserCompanyFilter, categoryFilter, statusFilter]);
 
   // Функция для подсчета количества закупок по месяцам
   const getMonthlyDistribution = useMemo(() => {
@@ -869,7 +1004,22 @@ export default function PublicPurchasePlanTable() {
       }
       
       if (companyFilter.size > 0) {
-        companyFilter.forEach(company => params.append('company', company));
+        companyFilter.forEach(company => {
+          if (company === 'Не выбрано') {
+            params.append('company', '__NULL__');
+          } else {
+            params.append('company', company);
+          }
+        });
+      }
+      if (purchaserCompanyFilter.size > 0) {
+        purchaserCompanyFilter.forEach(purchaserCompany => {
+          if (purchaserCompany === 'Не выбрано') {
+            params.append('purchaserCompany', '__NULL__');
+          } else {
+            params.append('purchaserCompany', purchaserCompany);
+          }
+        });
       }
       if (cfoFilter.size > 0) {
         cfoFilter.forEach(cfo => params.append('cfo', cfo));
@@ -933,6 +1083,9 @@ export default function PublicPurchasePlanTable() {
         params.append('sortDir', sortDirection);
       }
       
+      // Для публичного плана всегда используем текущее состояние, а не версию
+      params.append('versionId', 'null');
+      
       const fetchUrl = `${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`;
       const response = await fetch(fetchUrl);
       if (!response.ok) {
@@ -946,14 +1099,14 @@ export default function PublicPurchasePlanTable() {
         setAllItems(prev => {
           const newItems = [...prev, ...result.content];
           // Проверяем, есть ли еще данные для загрузки
-          const totalElements = initialTotalElementsRef.current ?? result.totalElements;
-          setHasMore(result.content.length === size && newItems.length < totalElements);
+          // Используем актуальное значение totalElements из текущего ответа
+          setHasMore(result.content.length === size && newItems.length < result.totalElements);
           return newItems;
         });
       } else {
         // Первая загрузка - устанавливаем все данные
         setAllItems(result.content);
-        // Сохраняем totalElements из первой загрузки
+        // Сохраняем totalElements из первой загрузки (для отображения при первой загрузке)
         initialTotalElementsRef.current = result.totalElements;
         // Проверяем, есть ли еще данные для загрузки
         setHasMore(result.content.length === size && result.content.length < result.totalElements);
@@ -974,12 +1127,14 @@ export default function PublicPurchasePlanTable() {
       initialTotalElementsRef.current = null; // Сбрасываем при изменении фильтров
       fetchData(0, pageSize, selectedYear, sortField, sortDirection, filters, purchaserFilter, false);
     }
-  }, [selectedYear, selectedMonthYear, sortField, sortDirection, filters, companyFilter, cfoFilter, purchaserFilter, categoryFilter, statusFilter, selectedMonths]);
+  }, [selectedYear, selectedMonthYear, sortField, sortDirection, filters, companyFilter, purchaserCompanyFilter, cfoFilter, purchaserFilter, categoryFilter, statusFilter, selectedMonths]);
 
   // Intersection Observer для бесконечной прокрутки
   useEffect(() => {
     // Проверяем, есть ли еще данные для загрузки
-    const hasMoreData = hasMore || (data && allItems.length < data.totalElements);
+    // Используем актуальное значение totalElements из data
+    const totalElements = data?.totalElements ?? 0;
+    const hasMoreData = hasMore && allItems.length < totalElements;
     
     if (!loadMoreRef.current || !hasMoreData || loading || loadingMore) {
       return;
@@ -987,7 +1142,8 @@ export default function PublicPurchasePlanTable() {
 
     const observer = new IntersectionObserver(
       (entries) => {
-        const stillHasMore = hasMore || (data && allItems.length < (data.totalElements || 0));
+        const currentTotalElements = data?.totalElements ?? 0;
+        const stillHasMore = hasMore && allItems.length < currentTotalElements;
         if (entries[0].isIntersecting && stillHasMore && !loading && !loadingMore) {
           const nextPage = currentPage + 1;
           setCurrentPage(nextPage);
@@ -1005,7 +1161,7 @@ export default function PublicPurchasePlanTable() {
     return () => {
       observer.disconnect();
     };
-  }, [hasMore, loading, loadingMore, currentPage, pageSize, selectedYear, sortField, sortDirection, filters, companyFilter, cfoFilter, purchaserFilter, categoryFilter, statusFilter, selectedMonths, selectedMonthYear, data, allItems]);
+  }, [hasMore, loading, loadingMore, currentPage, pageSize, selectedYear, sortField, sortDirection, filters, companyFilter, purchaserCompanyFilter, cfoFilter, purchaserFilter, categoryFilter, statusFilter, selectedMonths, selectedMonthYear, data, allItems]);
 
   // Debounce для текстовых фильтров и фильтра бюджета
   const prevLocalFiltersRef = useRef<Record<string, string>>({
@@ -1159,7 +1315,8 @@ export default function PublicPurchasePlanTable() {
       'ID': item.id || '',
       'GUID': item.guid || '',
       'Год': item.year || '',
-      'Компания': item.company || '',
+      'Заказчик': item.company || '',
+      'Исполнитель': item.purchaserCompany || '',
       'ЦФО': item.cfo || '',
       'Предмет закупки': item.purchaseSubject || '',
       'Бюджет (UZS)': item.budgetAmount || '',
@@ -1198,7 +1355,8 @@ export default function PublicPurchasePlanTable() {
         { wch: 8 },  // ID
         { wch: 40 }, // GUID
         { wch: 8 },  // Год
-        { wch: 20 }, // Компания
+        { wch: 20 }, // Заказчик
+        { wch: 20 }, // Исполнитель
         { wch: 20 }, // ЦФО
         { wch: 40 }, // Предмет закупки
         { wch: 15 }, // Бюджет
@@ -1260,6 +1418,24 @@ export default function PublicPurchasePlanTable() {
             }
           });
         }
+        if (purchaserCompanyFilter.size > 0) {
+          purchaserCompanyFilter.forEach(purchaserCompany => {
+            if (purchaserCompany === 'Не выбрано') {
+              params.append('purchaserCompany', '__NULL__');
+            } else {
+              params.append('purchaserCompany', purchaserCompany);
+            }
+          });
+        }
+        if (cfoFilter.size > 0) {
+          purchaserCompanyFilter.forEach(purchaserCompany => {
+            if (purchaserCompany === 'Не выбрано') {
+              params.append('purchaserCompany', '__NULL__');
+            } else {
+              params.append('purchaserCompany', purchaserCompany);
+            }
+          });
+        }
         if (cfoFilter.size > 0) {
           cfoFilter.forEach(cfo => params.append('cfo', cfo));
         }
@@ -1288,6 +1464,9 @@ export default function PublicPurchasePlanTable() {
             }
           });
         }
+        
+        // Для публичного плана всегда используем текущее состояние, а не версию
+        params.append('versionId', 'null');
         
         const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`);
         if (response.ok) {
@@ -1344,7 +1523,7 @@ export default function PublicPurchasePlanTable() {
     if (selectedYear !== null) {
       fetchUniqueValues();
     }
-  }, [selectedYear, selectedMonths, selectedMonthYear, filters, cfoFilter, companyFilter, categoryFilter]);
+  }, [selectedYear, selectedMonths, selectedMonthYear, filters, cfoFilter, companyFilter, purchaserCompanyFilter, categoryFilter]);
 
   // Фильтры
   const calculateFilterPosition = useCallback((buttonRef: React.RefObject<HTMLButtonElement | null>) => {
@@ -1826,7 +2005,7 @@ export default function PublicPurchasePlanTable() {
               {/* Сводная таблица */}
               <div className="bg-white rounded shadow-sm border border-gray-200 overflow-hidden flex-shrink-0">
                 <div className="overflow-x-auto">
-                  <table className="border-collapse table-auto">
+                  <table className="border-collapse table-auto w-full">
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 whitespace-nowrap uppercase">
@@ -1932,7 +2111,7 @@ export default function PublicPurchasePlanTable() {
                   ))}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-700 font-medium">Компания:</span>
+                  <span className="text-sm text-gray-700 font-medium">Заказчик:</span>
                   <div className="relative">
                     <button
                       ref={companyFilterButtonRef}
@@ -2097,7 +2276,8 @@ export default function PublicPurchasePlanTable() {
                         budgetAmountOperator: 'gte',
                       });
                       setCfoFilter(new Set());
-                      setCompanyFilter(new Set(['Market']));
+                      setCompanyFilter(new Set());
+                      setPurchaserCompanyFilter(new Set(['Market']));
                       setCategoryFilter(new Set());
                       setPurchaserFilter(new Set());
                       const resetStatusFilter = (uniqueValues.status || []).filter(s => s !== 'Исключена');
@@ -2142,7 +2322,7 @@ export default function PublicPurchasePlanTable() {
         {data && (
           <div className="px-3 py-2 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
             <div className="text-xs text-gray-700">
-              Показано {allItems.length} из {initialTotalElementsRef.current ?? data?.totalElements ?? 0} записей
+              Показано {allItems.length} из {data?.totalElements ?? initialTotalElementsRef.current ?? 0} записей
             </div>
           </div>
         )}
@@ -2171,7 +2351,10 @@ export default function PublicPurchasePlanTable() {
                       return <SortableHeader key={columnKey} field="id" label="ID" columnKey="id" />;
                     }
                     if (columnKey === 'company') {
-                      return <SortableHeader key={columnKey} field="company" label="Компания" columnKey="company" />;
+                      return <SortableHeader key={columnKey} field="company" label="Заказчик" columnKey="company" />;
+                    }
+                    if (columnKey === 'purchaserCompany') {
+                      return <SortableHeader key={columnKey} field="purchaserCompany" label="Исполнитель" columnKey="purchaserCompany" />;
                     }
                     if (columnKey === 'purchaseRequestId') {
                       return <SortableHeader key={columnKey} field="purchaseRequestId" label="Заявка на закупку" columnKey="purchaseRequestId" filterType="text" />;
@@ -2890,15 +3073,40 @@ export default function PublicPurchasePlanTable() {
                           );
                         }
                         if (columnKey === 'company') {
+                          const companyLogo = getCompanyLogoPath(item.company);
                           return (
-                            <td key={columnKey} className="px-2 py-2 text-xs border-r border-gray-200 relative" style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px` }}>
-                              <span className={`text-xs rounded px-2 py-0.5 font-medium block ${
-                                isInactive
-                                  ? 'bg-gray-100 text-gray-500'
-                                  : 'bg-gray-100 text-gray-800'
-                              }`}>
-                                {item.company || '-'}
-                              </span>
+                            <td key={columnKey} className={`px-2 py-2 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px`, fontSize: '16.8px' }}>
+                              <div className="flex items-center gap-1.5">
+                                {companyLogo && (
+                                  <img src={companyLogo} alt={item.company || ''} style={{ width: '22.4px', height: '22.4px' }} />
+                                )}
+                                <span className={`rounded px-2 py-0.5 font-medium ${
+                                  isInactive
+                                    ? 'bg-gray-100 text-gray-500'
+                                    : 'bg-gray-100 text-gray-800'
+                                }`} style={{ fontSize: '16.8px' }}>
+                                  {item.company || '-'}
+                                </span>
+                              </div>
+                            </td>
+                          );
+                        }
+                        if (columnKey === 'purchaserCompany') {
+                          const purchaserCompanyLogo = getCompanyLogoPath(item.purchaserCompany);
+                          return (
+                            <td key={columnKey} className={`px-2 py-2 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('purchaserCompany')}px`, minWidth: `${getColumnWidth('purchaserCompany')}px`, maxWidth: `${getColumnWidth('purchaserCompany')}px`, fontSize: '16.8px' }}>
+                              <div className="flex items-center gap-1.5">
+                                {purchaserCompanyLogo && (
+                                  <img src={purchaserCompanyLogo} alt={item.purchaserCompany || ''} style={{ width: '22.4px', height: '22.4px' }} />
+                                )}
+                                <span className={`rounded px-2 py-0.5 font-medium ${
+                                  isInactive
+                                    ? 'bg-gray-100 text-gray-500'
+                                    : 'bg-gray-100 text-gray-800'
+                                }`} style={{ fontSize: '16.8px' }}>
+                                  {item.purchaserCompany || '-'}
+                                </span>
+                              </div>
                             </td>
                           );
                         }
@@ -2982,78 +3190,23 @@ export default function PublicPurchasePlanTable() {
                         if (columnKey === 'comment') {
                           return (
                             <td key={columnKey} className={`px-2 py-2 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('comment')}px`, minWidth: `${getColumnWidth('comment')}px`, maxWidth: `${getColumnWidth('comment')}px` }}>
-                              {editingComment === item.id ? (
-                                <div className="relative">
-                                  <textarea
-                                    ref={commentInputRef}
-                                    defaultValue={item.comment || ''}
-                                    onBlur={(e) => {
-                                      const newValue = e.target.value.trim();
-                                      const currentValue = item.comment || '';
-                                      if (newValue !== currentValue) {
-                                        handleCommentUpdate(item.id, newValue);
-                                      } else {
-                                        setEditingComment(null);
-                                      }
-                                    }}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Escape') {
-                                        setEditingComment(null);
-                                      } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                                        e.preventDefault();
-                                        const newValue = e.currentTarget.value.trim();
-                                        const currentValue = item.comment || '';
-                                        if (newValue !== currentValue) {
-                                          handleCommentUpdate(item.id, newValue);
-                                        } else {
-                                          setEditingComment(null);
-                                        }
-                                      }
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="w-full text-xs border border-blue-500 rounded px-2 py-1 pr-8 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-                                    rows={3}
-                                    style={{ minHeight: '60px' }}
-                                  />
-                                  <button
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      if (commentInputRef.current) {
-                                        const newValue = commentInputRef.current.value.trim();
-                                        const currentValue = item.comment || '';
-                                        if (newValue !== currentValue) {
-                                          handleCommentUpdate(item.id, newValue);
-                                        } else {
-                                          setEditingComment(null);
-                                        }
-                                      }
-                                    }}
-                                    className="absolute bottom-2 right-2 p-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center justify-center"
-                                    style={{ width: '24px', height: '24px' }}
-                                    title="Сохранить (Ctrl+Enter)"
-                                  >
-                                    <Check className="w-3 h-3" />
-                                  </button>
-                                </div>
-                              ) : (
-                                <div
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (!isInactive) {
-                                      setEditingComment(item.id);
-                                    }
-                                  }}
-                                  className={`text-xs rounded px-2 py-1 cursor-pointer min-h-[60px] ${
-                                    isInactive
-                                      ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
-                                      : 'bg-gray-50 text-gray-800 hover:bg-gray-100'
-                                  }`}
-                                  style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
-                                >
-                                  {item.comment || '-'}
-                                </div>
-                              )}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setCommentModalOpen(item.id);
+                                }}
+                                className={`w-full text-xs rounded px-2 py-1 text-center transition-colors ${
+                                  isInactive
+                                    ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                                    : item.comment
+                                    ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                    : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                                }`}
+                                disabled={isInactive}
+                                title="Добавить комментарий"
+                              >
+                                +
+                              </button>
                             </td>
                           );
                         }
@@ -3087,7 +3240,8 @@ export default function PublicPurchasePlanTable() {
               </tbody>
               {/* Индикатор загрузки для бесконечной прокрутки */}
               {(() => {
-                const totalElements = initialTotalElementsRef.current ?? data?.totalElements ?? 0;
+                // Используем актуальное значение totalElements из data
+                const totalElements = data?.totalElements ?? 0;
                 return hasMore && allItems.length < totalElements;
               })() && (
                 <tfoot>
@@ -3109,6 +3263,129 @@ export default function PublicPurchasePlanTable() {
           </div>
         )}
       </div>
+
+      {/* Модальное окно комментария */}
+      {commentModalOpen !== null && (() => {
+        const item = allItems.find(i => i.id === commentModalOpen) || data?.content.find(i => i.id === commentModalOpen);
+        if (!item) return null;
+        
+        return (
+          <div 
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+            onClick={() => {
+              setCommentModalOpen(null);
+              setEditingComment(null);
+            }}
+          >
+            <div 
+              className="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Комментарий
+                  </h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    ID: {item.id} {item.purchaseSubject && `- ${item.purchaseSubject}`}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setCommentModalOpen(null);
+                    setEditingComment(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto">
+                {editingComment === item.id ? (
+                  <div className="space-y-4">
+                    <textarea
+                      ref={commentInputRef}
+                      defaultValue={item.comment || ''}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          setEditingComment(null);
+                        } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                          e.preventDefault();
+                          const newValue = e.currentTarget.value.trim();
+                          const currentValue = item.comment || '';
+                          if (newValue !== currentValue) {
+                            handleCommentUpdate(item.id, newValue);
+                          } else {
+                            setEditingComment(null);
+                          }
+                        }
+                      }}
+                      className="w-full text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                      rows={8}
+                      placeholder="Введите комментарий..."
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => setEditingComment(null)}
+                        className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                      >
+                        Отмена
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (commentInputRef.current) {
+                            const newValue = commentInputRef.current.value.trim();
+                            const currentValue = item.comment || '';
+                            if (newValue !== currentValue) {
+                              handleCommentUpdate(item.id, newValue);
+                            } else {
+                              setEditingComment(null);
+                            }
+                          }
+                        }}
+                        className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        Сохранить
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-gray-50 rounded-lg min-h-[200px]">
+                      {item.comment ? (
+                        <p className="text-sm text-gray-900 whitespace-pre-wrap break-words">
+                          {item.comment}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-gray-500 italic">
+                          Комментарий отсутствует
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => {
+                          setEditingComment(item.id);
+                          setTimeout(() => {
+                            if (commentInputRef.current) {
+                              commentInputRef.current.focus();
+                              commentInputRef.current.select();
+                            }
+                          }, 0);
+                        }}
+                        className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        {item.comment ? 'Редактировать' : 'Добавить комментарий'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
