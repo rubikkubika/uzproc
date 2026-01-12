@@ -17,7 +17,6 @@ interface PurchasePlanItemsTableRowProps {
   editingDate: { itemId: number; field: 'requestDate' } | null;
   editingStatus: number | null;
   editingHolding: number | null;
-  editingCompany: number | null;
   editingPurchaserCompany: number | null;
   editingCfo: number | null;
   editingPurchaseRequestId: number | null;
@@ -29,7 +28,6 @@ interface PurchasePlanItemsTableRowProps {
   onDateUpdate?: (itemId: number, field: 'requestDate', newDate: string) => void;
   onStatusUpdate?: (itemId: number, newStatus: string) => void;
   onHoldingUpdate?: (itemId: number, newHolding: string | null) => void;
-  onCompanyUpdate?: (itemId: number, newCompany: string) => void;
   onPurchaserCompanyUpdate?: (itemId: number, newPurchaserCompany: string | null) => void;
   onCfoUpdate?: (itemId: number, newCfo: string | null) => void;
   onPurchaseRequestIdUpdate?: (itemId: number, newPurchaseRequestId: string | null) => void;
@@ -39,7 +37,6 @@ interface PurchasePlanItemsTableRowProps {
   setEditingDate?: (date: { itemId: number; field: 'requestDate' } | null) => void;
   setEditingStatus?: (itemId: number | null) => void;
   setEditingHolding?: (itemId: number | null) => void;
-  setEditingCompany?: (itemId: number | null) => void;
   setEditingPurchaserCompany?: (itemId: number | null) => void;
   setEditingCfo?: (itemId: number | null) => void;
   setEditingPurchaseRequestId?: (itemId: number | null) => void;
@@ -48,7 +45,6 @@ interface PurchasePlanItemsTableRowProps {
   setCreatingNewCfo?: (itemId: number | null) => void;
   setCfoInputValue?: (updater: (prev: Record<number, string>) => Record<number, string>) => void;
   // Пропсы для доступных значений
-  availableCompanies?: string[];
   availablePurchasers?: string[];
   availableCfo?: string[];
   availableHoldings?: string[];
@@ -76,7 +72,6 @@ export default function PurchasePlanItemsTableRow({
   editingDate,
   editingStatus,
   editingHolding,
-  editingCompany,
   editingPurchaserCompany,
   editingCfo,
   editingPurchaseRequestId,
@@ -87,7 +82,6 @@ export default function PurchasePlanItemsTableRow({
   onDateUpdate,
   onStatusUpdate,
   onHoldingUpdate,
-  onCompanyUpdate,
   onPurchaserCompanyUpdate,
   onCfoUpdate,
   onPurchaseRequestIdUpdate,
@@ -96,7 +90,6 @@ export default function PurchasePlanItemsTableRow({
   setEditingDate,
   setEditingStatus,
   setEditingHolding,
-  setEditingCompany,
   setEditingPurchaserCompany,
   setEditingCfo,
   setEditingPurchaseRequestId,
@@ -104,7 +97,6 @@ export default function PurchasePlanItemsTableRow({
   setEditingPurchaser,
   setCreatingNewCfo,
   setCfoInputValue,
-  availableCompanies = [],
   availablePurchasers = [],
   availableCfo = [],
   availableHoldings = [],
@@ -126,8 +118,8 @@ export default function PurchasePlanItemsTableRow({
         return (
           <td
             key={columnKey}
-            className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 whitespace-nowrap"
-            style={{ width: `${width}px` }}
+            className="px-2 py-2 text-gray-900 border-r border-gray-300 whitespace-nowrap"
+            style={{ width: `${width}px`, fontSize: '13.44px' }}
           >
             {item.id}
           </td>
@@ -138,74 +130,21 @@ export default function PurchasePlanItemsTableRow({
         return (
           <td
             key={columnKey}
-            className={`px-2 py-2 text-xs border-r border-gray-300 whitespace-nowrap relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
-            style={{ width: `${width}px` }}
+            className={`px-2 py-2 border-r border-gray-300 whitespace-nowrap relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
+            style={{ width: `${width}px`, fontSize: '16.8px' }}
           >
-            {editingCompany === item.id ? (
-              <select
-                value={item.company || ''}
-                disabled={isInactive || isViewingArchiveVersion || !canEdit}
-                onChange={(e) => {
-                  if (canEdit && e.target.value !== item.company) {
-                    onCompanyUpdate?.(item.id, e.target.value);
-                  }
-                }}
-                onFocus={(e) => {
-                  e.stopPropagation();
-                  if (canEdit) {
-                    setEditingCompany?.(item.id);
-                  }
-                }}
-                onBlur={() => {
-                  setTimeout(() => {
-                    setEditingCompany?.(null);
-                  }, 200);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
-                    setEditingCompany?.(null);
-                  }
-                }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (canEdit) {
-                    setEditingCompany?.(item.id);
-                  }
-                }}
-                className={`text-xs rounded px-2 py-0.5 font-medium cursor-pointer transition-all w-full ${
-                  isInactive
-                    ? 'bg-gray-100 text-gray-500 border-0 cursor-not-allowed'
-                    : 'border border-blue-500 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500'
-                }`}
-                autoFocus
-              >
-                {availableCompanies.map((company) => (
-                  <option key={company} value={company}>{company}</option>
-                ))}
-              </select>
-            ) : (
-              <div 
-                className={`flex items-center gap-1.5 ${isInactive || !canEdit ? '' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors'}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!isInactive && !isViewingArchiveVersion && canEdit) {
-                    setEditingCompany?.(item.id);
-                  }
-                }}
-                title={isInactive || !canEdit ? '' : 'Нажмите для редактирования'}
-              >
-                {companyLogo && (
-                  <img src={companyLogo} alt={item.company || ''} className="w-4 h-4" />
-                )}
-                <span className={`text-xs rounded px-2 py-0.5 font-medium ${
-                  isInactive
-                    ? 'bg-gray-100 text-gray-500'
-                    : 'bg-gray-100 text-gray-800'
-                }`}>
-                  {item.company || '-'}
-                </span>
-              </div>
-            )}
+            <div className="flex items-center gap-1.5">
+              {companyLogo && (
+                <img src={companyLogo} alt={item.company || ''} style={{ width: '22.4px', height: '22.4px' }} />
+              )}
+              <span className={`rounded px-2 py-0.5 font-medium ${
+                isInactive
+                  ? 'bg-gray-100 text-gray-500'
+                  : 'bg-gray-100 text-gray-800'
+              }`} style={{ fontSize: '16.8px' }}>
+                {item.company || '-'}
+              </span>
+            </div>
           </td>
         );
       
@@ -213,9 +152,10 @@ export default function PurchasePlanItemsTableRow({
         return (
           <td
             key={columnKey}
-            className={`px-2 py-2 text-xs border-r border-gray-300 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
+            className={`px-2 py-2 border-r border-gray-300 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
             style={{ 
               width: `${width}px`, 
+              fontSize: '13.44px',
               whiteSpace: 'normal',
               wordWrap: 'break-word',
               overflowWrap: 'break-word'
@@ -262,11 +202,11 @@ export default function PurchasePlanItemsTableRow({
                   textarea.style.height = 'auto';
                   textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
                 }}
-                className="w-full text-xs text-gray-900 bg-white border border-blue-500 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none overflow-hidden"
+                className="w-full text-gray-900 bg-white border border-blue-500 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none overflow-hidden"
                 disabled={isInactive || !canEdit}
                 autoFocus
                 rows={1}
-                style={{ minHeight: '20px', maxHeight: '200px' }}
+                style={{ minHeight: '20px', maxHeight: '200px', fontSize: '13.44px' }}
               />
             ) : (
               <div
@@ -289,8 +229,8 @@ export default function PurchasePlanItemsTableRow({
         return (
           <td
             key={columnKey}
-            className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 whitespace-nowrap text-right"
-            style={{ width: `${width}px` }}
+            className="px-2 py-2 text-gray-900 border-r border-gray-300 whitespace-nowrap text-right"
+            style={{ width: `${width}px`, fontSize: '13.44px' }}
           >
             {formatBudget(item.budgetAmount)}
           </td>
@@ -305,8 +245,8 @@ export default function PurchasePlanItemsTableRow({
         return (
           <td
             key={columnKey}
-            className="px-2 py-2 text-xs border-r border-gray-300"
-            style={{ width: '350px', minWidth: '350px', contain: 'layout style paint' }}
+            className="px-2 py-2 border-r border-gray-300"
+            style={{ width: '350px', minWidth: '350px', fontSize: '13.44px', contain: 'layout style paint' }}
             data-gantt-chart="true"
             onClick={(e) => e.stopPropagation()}
           >
@@ -366,12 +306,63 @@ export default function PurchasePlanItemsTableRow({
         return (
           <td
             key={columnKey}
-            className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 whitespace-nowrap"
-            style={{ width: `${width}px` }}
+            className="px-2 py-2 text-gray-900 border-r border-gray-300 whitespace-nowrap"
+            style={{ width: `${width}px`, fontSize: '13.44px' }}
           >
             {item.newContractDate 
               ? new Date(item.newContractDate).toLocaleDateString('ru-RU')
               : '-'}
+          </td>
+        );
+      
+      case 'contractEndDate':
+        // Для contractEndDate показываем обычную дату
+        return (
+          <td
+            key={columnKey}
+            className="px-2 py-2 text-gray-900 border-r border-gray-300 whitespace-nowrap"
+            style={{ width: `${width}px`, fontSize: '13.44px' }}
+          >
+            {item.contractEndDate 
+              ? new Date(item.contractEndDate).toLocaleDateString('ru-RU')
+              : '-'}
+          </td>
+        );
+      
+      case 'purchaseRequestStatus':
+        // Для purchaseRequestStatus показываем статус заявки с цветом
+        const requestStatusColor = item.purchaseRequestStatus 
+          ? getPurchaseRequestStatusColor(item.purchaseRequestStatus)
+          : 'bg-gray-100 text-gray-800';
+        return (
+          <td
+            key={columnKey}
+            className="px-2 py-2 border-r border-gray-300 whitespace-nowrap"
+            style={{ width: `${width}px`, fontSize: '13.44px' }}
+          >
+            {item.purchaseRequestStatus ? (
+              <span className={`rounded px-2 py-0.5 font-medium ${requestStatusColor}`} style={{ fontSize: '13.44px' }}>
+                {item.purchaseRequestStatus}
+              </span>
+            ) : '-'}
+          </td>
+        );
+      
+      case 'comment':
+        // Для comment показываем текст с возможностью переноса
+        return (
+          <td
+            key={columnKey}
+            className="px-2 py-2 text-gray-900 border-r border-gray-300"
+            style={{ 
+              width: `${width}px`, 
+              fontSize: '13.44px',
+              whiteSpace: 'normal',
+              wordWrap: 'break-word',
+              overflowWrap: 'break-word'
+            }}
+          >
+            {item.comment || '-'}
           </td>
         );
       
@@ -380,8 +371,8 @@ export default function PurchasePlanItemsTableRow({
         return (
           <td
             key={columnKey}
-            className={`px-2 py-2 text-xs border-r border-gray-300 whitespace-nowrap relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
-            style={{ width: `${width}px` }}
+            className={`px-2 py-2 border-r border-gray-300 whitespace-nowrap relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
+            style={{ width: `${width}px`, fontSize: '16.8px' }}
           >
             {editingPurchaserCompany === item.id ? (
               <select
@@ -414,17 +405,18 @@ export default function PurchasePlanItemsTableRow({
                     setEditingPurchaserCompany?.(item.id);
                   }
                 }}
-                className={`text-xs rounded px-2 py-0.5 font-medium cursor-pointer transition-all w-full ${
+                className={`rounded px-2 py-0.5 font-medium cursor-pointer transition-all w-full ${
                   isInactive
                     ? 'bg-gray-100 text-gray-500 border-0 cursor-not-allowed'
                     : 'border border-blue-500 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500'
                 }`}
+                style={{ fontSize: '16.8px' }}
                 autoFocus
               >
                 <option value="">Не выбрано</option>
-                {availableCompanies.map((company) => (
-                  <option key={company} value={company}>{company}</option>
-                ))}
+                <option value="Market">Market</option>
+                <option value="Holding">Holding</option>
+                <option value="Tezkor">Tezkor</option>
               </select>
             ) : (
               <div 
@@ -438,13 +430,13 @@ export default function PurchasePlanItemsTableRow({
                 title={isInactive || !canEdit ? '' : 'Нажмите для редактирования'}
               >
                 {purchaserCompanyLogo && (
-                  <img src={purchaserCompanyLogo} alt={item.purchaserCompany || ''} className="w-4 h-4" />
+                  <img src={purchaserCompanyLogo} alt={item.purchaserCompany || ''} style={{ width: '22.4px', height: '22.4px' }} />
                 )}
-                <span className={`text-xs rounded px-2 py-0.5 font-medium ${
+                <span className={`rounded px-2 py-0.5 font-medium ${
                   isInactive
                     ? 'bg-gray-100 text-gray-500'
                     : 'bg-gray-100 text-gray-800'
-                }`}>
+                }`} style={{ fontSize: '16.8px' }}>
                   {item.purchaserCompany || '-'}
                 </span>
               </div>
@@ -456,8 +448,8 @@ export default function PurchasePlanItemsTableRow({
         return (
           <td
             key={columnKey}
-            className={`px-2 py-2 text-xs border-r border-gray-300 whitespace-nowrap ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
-            style={{ width: `${width}px` }}
+            className={`px-2 py-2 border-r border-gray-300 whitespace-nowrap ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
+            style={{ width: `${width}px`, fontSize: '13.44px' }}
           >
             {editingPurchaser === item.id ? (
               <select
@@ -481,7 +473,8 @@ export default function PurchasePlanItemsTableRow({
                   e.stopPropagation();
                 }}
                 autoFocus
-                className="w-full text-xs text-gray-900 border border-gray-300 rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full text-gray-900 border border-gray-300 rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                style={{ fontSize: '13.44px' }}
               >
                 <option value="">Не назначен</option>
                 {availablePurchasers.length > 0 ? (
@@ -519,8 +512,8 @@ export default function PurchasePlanItemsTableRow({
         return (
           <td
             key={columnKey}
-            className={`px-2 py-2 text-xs border-r border-gray-300 whitespace-nowrap relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
-            style={{ width: `${width}px` }}
+            className={`px-2 py-2 border-r border-gray-300 whitespace-nowrap relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
+            style={{ width: `${width}px`, fontSize: '13.44px' }}
           >
             {creatingNewCfo === item.id ? (
               <input
@@ -548,11 +541,12 @@ export default function PurchasePlanItemsTableRow({
                   }
                 }}
                 onClick={(e) => e.stopPropagation()}
-                className={`text-xs rounded px-2 py-0.5 font-medium transition-all w-full ${
+                className={`rounded px-2 py-0.5 font-medium transition-all w-full ${
                   isInactive
                     ? 'bg-gray-100 text-gray-500 border-0 cursor-not-allowed'
                     : 'border border-blue-500 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500'
                 }`}
+                style={{ fontSize: '13.44px' }}
                 placeholder="Введите новое ЦФО"
                 autoFocus
               />
@@ -590,7 +584,7 @@ export default function PurchasePlanItemsTableRow({
                     setEditingCfo?.(null);
                   }
                 }}
-                className={`text-xs rounded px-2 py-0.5 font-medium cursor-pointer transition-all w-full ${
+                className={`rounded px-2 py-0.5 font-medium cursor-pointer transition-all w-full ${
                   isInactive
                     ? 'bg-gray-100 text-gray-500 border-0 cursor-not-allowed'
                     : editingCfo === item.id
@@ -598,6 +592,7 @@ export default function PurchasePlanItemsTableRow({
                     : 'bg-gray-100 text-gray-800 border-0'
                 }`}
                 style={{
+                  fontSize: '13.44px',
                   ...(isInactive || editingCfo === item.id ? {} : {
                     appearance: 'none',
                     WebkitAppearance: 'none',
@@ -653,8 +648,8 @@ export default function PurchasePlanItemsTableRow({
         return (
           <td
             key={columnKey}
-            className="px-2 py-2 text-xs border-r border-gray-300 whitespace-nowrap relative"
-            style={{ width: `${width}px` }}
+            className="px-2 py-2 border-r border-gray-300 whitespace-nowrap relative"
+            style={{ width: `${width}px`, fontSize: '13.44px' }}
           >
             <select
               value={displayStatus || ''}
@@ -686,8 +681,9 @@ export default function PurchasePlanItemsTableRow({
                   setEditingStatus?.(item.id);
                 }
               }}
-              className={`text-xs rounded px-2 py-0.5 font-medium cursor-pointer transition-all ${statusColor}`}
+              className={`rounded px-2 py-0.5 font-medium cursor-pointer transition-all ${statusColor}`}
               style={{
+                fontSize: '13.44px',
                 ...(editingStatus === item.id ? {} : {
                   appearance: 'none',
                   WebkitAppearance: 'none',
@@ -730,8 +726,8 @@ export default function PurchasePlanItemsTableRow({
         return (
           <td
             key={columnKey}
-            className={`px-2 py-2 text-xs border-r border-gray-300 whitespace-nowrap ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
-            style={{ width: `${width}px` }}
+            className={`px-2 py-2 border-r border-gray-300 whitespace-nowrap ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
+            style={{ width: `${width}px`, fontSize: '13.44px' }}
           >
             {editingPurchaseRequestId === item.id ? (
               <input
@@ -760,7 +756,8 @@ export default function PurchasePlanItemsTableRow({
                     setEditingPurchaseRequestId?.(item.id);
                   }
                 }}
-                className="w-full text-xs text-gray-900 bg-white border border-blue-500 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full text-gray-900 bg-white border border-blue-500 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                style={{ fontSize: '13.44px' }}
                 disabled={isInactive || isViewingArchiveVersion || !canEdit}
                 autoFocus
               />
@@ -785,8 +782,8 @@ export default function PurchasePlanItemsTableRow({
         return (
           <td
             key={columnKey}
-            className="px-2 py-2 text-xs border-r border-gray-300 whitespace-nowrap text-center"
-            style={{ width: `${width}px` }}
+            className="px-2 py-2 border-r border-gray-300 whitespace-nowrap text-center"
+            style={{ width: `${width}px`, fontSize: '13.44px' }}
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -794,7 +791,8 @@ export default function PurchasePlanItemsTableRow({
                 e.stopPropagation();
                 onRowClick?.(item);
               }}
-              className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+              className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+              style={{ fontSize: '9.408px' }}
               title="Открыть детали"
             >
               Открыть
@@ -805,11 +803,13 @@ export default function PurchasePlanItemsTableRow({
       default:
         // Для остальных колонок просто отображаем значение
         const value = item[columnKey as keyof PurchasePlanItem];
+        // Определяем размер шрифта: для company и purchaserCompany оставляем 16.8px, для остальных 13.44px
+        const fontSize = (columnKey === 'company' || columnKey === 'purchaserCompany') ? '16.8px' : '13.44px';
         return (
           <td
             key={columnKey}
-            className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 whitespace-nowrap"
-            style={{ width: `${width}px` }}
+            className="px-2 py-2 text-gray-900 border-r border-gray-300 whitespace-nowrap"
+            style={{ width: `${width}px`, fontSize }}
           >
             {value !== null && value !== undefined ? String(value) : '-'}
           </td>
@@ -819,9 +819,7 @@ export default function PurchasePlanItemsTableRow({
 
   return (
     <tr className="hover:bg-gray-50">
-      {columnOrder
-        .filter(col => visibleColumns.has(col))
-        .map(col => renderCell(col))}
+      {columnOrder.map(col => renderCell(col))}
     </tr>
   );
 }

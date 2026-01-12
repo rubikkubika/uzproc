@@ -3,7 +3,6 @@
 import React from 'react';
 import { Download, Settings, Plus, X, Search } from 'lucide-react';
 import { PurchasePlanItem, SortField, SortDirection } from '../types/purchase-plan-items.types';
-import CompanyFilterDropdown from '../filters/CompanyFilterDropdown';
 
 interface PurchaserSummaryItem {
   purchaser: string;
@@ -37,25 +36,14 @@ interface PurchasePlanItemsTableHeaderProps {
   setPurchaserFilter: (filter: Set<string>) => void;
   setCurrentPage: (page: number) => void;
   totalRecords: number;
-  // Пропсы для фильтра компании
-  companyFilter: Set<string>;
-  companyFilterButtonRef: React.RefObject<HTMLButtonElement | null>;
-  isCompanyFilterOpen: boolean;
-  companyFilterPosition: { top: number; left: number } | null;
-  companySearchQuery: string;
-  companyFilterOptions: string[];
-  onCompanyFilterToggle: () => void;
-  onCompanySearchChange: (query: string) => void;
-  onCompanyToggle: (value: string) => void;
-  onCompanySelectAll: () => void;
-  onCompanyDeselectAll: () => void;
-  onCompanyFilterClose: () => void;
   // Пропсы для сброса фильтров
   onResetFilters: () => void;
   // Пропсы для версий
   selectedVersionId: number | null;
   onCloseVersion: () => void;
   canEdit: boolean;
+  // Ref для кнопки колонок
+  columnsMenuButtonRef?: React.RefObject<HTMLButtonElement | null>;
 }
 
 /**
@@ -87,22 +75,11 @@ export default function PurchasePlanItemsTableHeader({
   setPurchaserFilter,
   setCurrentPage,
   totalRecords,
-  companyFilter,
-  companyFilterButtonRef,
-  isCompanyFilterOpen,
-  companyFilterPosition,
-  companySearchQuery,
-  companyFilterOptions,
-  onCompanyFilterToggle,
-  onCompanySearchChange,
-  onCompanyToggle,
-  onCompanySelectAll,
-  onCompanyDeselectAll,
-  onCompanyFilterClose,
   onResetFilters,
   selectedVersionId,
   onCloseVersion,
   canEdit,
+  columnsMenuButtonRef,
 }: PurchasePlanItemsTableHeaderProps) {
   return (
     <div className="px-3 py-2 border-b border-gray-200 flex-shrink-0">
@@ -266,45 +243,9 @@ export default function PurchasePlanItemsTableHeader({
           <div className="flex items-start gap-2 flex-shrink-0 ml-2">
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-700 font-medium">Заказчик:</span>
-                  <div className="relative company-filter-container">
-                    <button
-                      ref={companyFilterButtonRef}
-                      type="button"
-                      onClick={onCompanyFilterToggle}
-                      className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-left focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center gap-2 hover:bg-gray-50 min-w-[200px]"
-                    >
-                      <span className="text-gray-700 truncate flex-1 text-left">
-                        {companyFilter.size === 0 
-                          ? 'Все компании' 
-                          : companyFilter.size === 1
-                          ? (Array.from(companyFilter)[0] || 'Все компании')
-                          : `${companyFilter.size} выбрано`}
-                      </span>
-                      <svg className={`w-4 h-4 transition-transform flex-shrink-0 ${isCompanyFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                    {isCompanyFilterOpen && companyFilterPosition && (
-                      <CompanyFilterDropdown
-                        isOpen={isCompanyFilterOpen}
-                        position={companyFilterPosition}
-                        searchQuery={companySearchQuery}
-                        options={companyFilterOptions}
-                        selectedValues={companyFilter}
-                        buttonRef={companyFilterButtonRef}
-                        onSearchChange={onCompanySearchChange}
-                        onToggle={onCompanyToggle}
-                        onSelectAll={onCompanySelectAll}
-                        onDeselectAll={onCompanyDeselectAll}
-                        onClose={onCompanyFilterClose}
-                      />
-                    )}
-                  </div>
-                </div>
                 <div className="relative">
                   <button
+                    ref={columnsMenuButtonRef}
                     onClick={onColumnsSettings}
                     className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-2"
                     title="Настройка колонок"

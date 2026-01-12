@@ -220,7 +220,12 @@ export default function MultiSelectFilterDropdown({
               <label
                 key={option}
                 className="flex items-center px-2 py-1.5 hover:bg-gray-50 cursor-pointer"
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                }}
               >
                 <input
                   type="checkbox"
@@ -229,6 +234,12 @@ export default function MultiSelectFilterDropdown({
                     e.stopPropagation();
                     console.log('[MultiSelectFilterDropdown] onToggle called with:', option);
                     onToggle(option);
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                  }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
                   }}
                   className="mr-2 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                 />

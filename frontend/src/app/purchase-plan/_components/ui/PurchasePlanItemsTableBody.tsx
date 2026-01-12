@@ -82,7 +82,6 @@ export default function PurchasePlanItemsTableBody({
           editingDate={editingStates.editingDate}
           editingStatus={editingStates.editingStatus}
           editingHolding={editingStates.editingHolding}
-          editingCompany={editingStates.editingCompany}
           editingPurchaserCompany={editingStates.editingPurchaserCompany}
           editingCfo={editingStates.editingCfo}
           editingPurchaseRequestId={editingStates.editingPurchaseRequestId}
@@ -93,7 +92,6 @@ export default function PurchasePlanItemsTableBody({
           onDateUpdate={editingHandlers.onDateUpdate}
           onStatusUpdate={editingHandlers.onStatusUpdate}
           onHoldingUpdate={editingHandlers.onHoldingUpdate}
-          onCompanyUpdate={editingHandlers.onCompanyUpdate}
           onPurchaserCompanyUpdate={editingHandlers.onPurchaserCompanyUpdate}
           onCfoUpdate={editingHandlers.onCfoUpdate}
           onPurchaseRequestIdUpdate={editingHandlers.onPurchaseRequestIdUpdate}
@@ -102,7 +100,6 @@ export default function PurchasePlanItemsTableBody({
           setEditingDate={editingHandlers.setEditingDate}
           setEditingStatus={editingHandlers.setEditingStatus}
           setEditingHolding={editingHandlers.setEditingHolding}
-          setEditingCompany={editingHandlers.setEditingCompany}
           setEditingPurchaserCompany={editingHandlers.setEditingPurchaserCompany}
           setEditingCfo={editingHandlers.setEditingCfo}
           setEditingPurchaseRequestId={editingHandlers.setEditingPurchaseRequestId}
@@ -110,7 +107,6 @@ export default function PurchasePlanItemsTableBody({
           setEditingPurchaser={editingHandlers.setEditingPurchaser}
           setCreatingNewCfo={editingHandlers.setCreatingNewCfo}
           setCfoInputValue={editingHandlers.setCfoInputValue}
-          availableCompanies={editingStates.availableCompanies}
           availablePurchasers={editingStates.availablePurchasers}
           availableCfo={editingStates.availableCfo}
           availableHoldings={editingStates.availableHoldings}
