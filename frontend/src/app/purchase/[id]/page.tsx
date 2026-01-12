@@ -1149,9 +1149,17 @@ export default function PurchaseDetailPage() {
                         <label className="block text-xs font-semibold text-gray-600 mb-0">
                           Статус
                         </label>
-                        <p className="text-xs text-gray-900">
-                          {purchase.status || '-'}
-                        </p>
+                        {purchase.status ? (
+                          <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${
+                            purchase.status === 'В плане'
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {purchase.status}
+                          </span>
+                        ) : (
+                          <p className="text-xs text-gray-900">-</p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-gray-600 mb-0">

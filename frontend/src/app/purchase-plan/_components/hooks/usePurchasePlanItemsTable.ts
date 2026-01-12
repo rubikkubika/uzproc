@@ -45,7 +45,8 @@ export const usePurchasePlanItemsTable = () => {
     selectedMonths,
     sortField,
     sortDirection,
-    pageSize
+    pageSize,
+    allItems
   );
 
   const columnsHook = usePurchasePlanItemsColumns();

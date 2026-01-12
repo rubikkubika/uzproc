@@ -91,3 +91,35 @@ main::-webkit-scrollbar {
 .animate-fadeIn {
   animation: fadeIn 0.3s ease-in-out;
 }
+
+/* Кастомный скроллбар для таблицы плана закупок */
+.custom-scrollbar {
+  scrollbar-width: thin !important; /* Firefox */
+  scrollbar-color: #cbd5e1 #f1f5f9 !important; /* Firefox: thumb и track */
+  -ms-overflow-style: auto !important; /* Internet Explorer 10+ */
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 12px !important; /* Ширина вертикального скроллбара */
+  height: 12px !important; /* Высота горизонтального скроллбара */
+  display: block !important; /* Показываем скроллбар */
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #f1f5f9 !important; /* Цвет трека */
+  border-radius: 6px !important; /* Скругление трека */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1 !important; /* Цвет ползунка */
+  border-radius: 6px !important; /* Скругление ползунка */
+  border: 2px solid #f1f5f9 !important; /* Отступ вокруг ползунка */
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8 !important; /* Цвет ползунка при наведении */
+}
+
+.custom-scrollbar::-webkit-scrollbar-corner {
+  background: #f1f5f9 !important; /* Цвет угла при наличии обоих скроллбаров */
+}

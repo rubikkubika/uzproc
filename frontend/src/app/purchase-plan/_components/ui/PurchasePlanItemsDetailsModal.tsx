@@ -15,6 +15,11 @@ interface PurchasePlanItemsDetailsModalProps {
   // Дополнительные данные для вкладок
   comments?: any[];
   changes?: any[];
+  changesLoading?: boolean;
+  changesTotalElements?: number;
+  changesTotalPages?: number;
+  changesCurrentPage?: number;
+  onChangesPageChange?: (page: number) => void;
   loadingPurchaseRequest?: boolean;
 }
 
@@ -32,6 +37,11 @@ export default function PurchasePlanItemsDetailsModal({
   onClose,
   comments,
   changes,
+  changesLoading,
+  changesTotalElements,
+  changesTotalPages,
+  changesCurrentPage,
+  onChangesPageChange,
   loadingPurchaseRequest,
 }: PurchasePlanItemsDetailsModalProps) {
   if (!isOpen || !itemId || !item) return null;
@@ -156,17 +166,63 @@ export default function PurchasePlanItemsDetailsModal({
           {activeTab === 'changes' && (
             <div className="space-y-4">
               <h3 className="text-sm font-medium text-gray-700">История изменений</h3>
-              {changes && changes.length > 0 ? (
-                <div className="space-y-2">
-                  {changes.map((change, index) => (
-                    <div key={index} className="p-3 bg-gray-50 rounded-lg">
-                      <p className="text-sm text-gray-900">{change.description || change}</p>
-                      {change.date && (
-                        <p className="text-xs text-gray-500 mt-1">{change.date}</p>
-                      )}
+              {changesLoading ? (
+                <div className="text-center py-4 text-gray-500">Загрузка...</div>
+              ) : changes && changes.length > 0 ? (
+                <>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-200">
+                          <th className="text-left px-3 py-2 text-sm font-semibold text-gray-700 border-r border-gray-200">Поле</th>
+                          <th className="text-left px-3 py-2 text-sm font-semibold text-gray-700 border-r border-gray-200">Было</th>
+                          <th className="text-left px-3 py-2 text-sm font-semibold text-gray-700 border-r border-gray-200">Стало</th>
+                          <th className="text-left px-3 py-2 text-sm font-semibold text-gray-700">Дата</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {changes.map((change: any) => (
+                          <tr key={change.id || change.fieldName} className="bg-white border-b border-gray-100 hover:bg-gray-50">
+                            <td className="px-3 py-2 text-sm text-gray-900 border-r border-gray-100">{change.fieldName || '-'}</td>
+                            <td className="px-3 py-2 text-sm text-red-600 border-r border-gray-100">{change.valueBefore || '-'}</td>
+                            <td className="px-3 py-2 text-sm text-green-600 border-r border-gray-100">{change.valueAfter || '-'}</td>
+                            <td className="px-3 py-2 text-sm text-gray-500">
+                              {change.changeDate ? new Date(change.changeDate).toLocaleString('ru-RU') : '-'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  
+                  {/* Пагинация */}
+                  {changesTotalPages !== undefined && changesTotalPages > 1 && (
+                    <div className="flex items-center justify-between border-t border-gray-200 pt-4 mt-4">
+                      <div className="text-sm text-gray-500">
+                        Показано {changes?.length || 0} из {changesTotalElements || 0}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => onChangesPageChange && changesCurrentPage !== undefined && onChangesPageChange(changesCurrentPage - 1)}
+                          disabled={changesCurrentPage === undefined || changesCurrentPage === 0}
+                          className="px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Назад
+                        </button>
+                        <span className="px-3 py-1 text-sm text-gray-600">
+                          {changesCurrentPage !== undefined ? changesCurrentPage + 1 : 1} / {changesTotalPages || 1}
+                        </span>
+                        <button
+                          onClick={() => onChangesPageChange && changesCurrentPage !== undefined && onChangesPageChange(changesCurrentPage + 1)}
+                          disabled={changesCurrentPage === undefined || changesTotalPages === undefined || changesCurrentPage >= changesTotalPages - 1}
+                          className="px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Вперед
+                        </button>
+                      </div>
                     </div>
-                  ))}
-                </div>
+                  )}
+                </>
               ) : (
                 <p className="text-sm text-gray-500">Изменения отсутствуют</p>
               )}

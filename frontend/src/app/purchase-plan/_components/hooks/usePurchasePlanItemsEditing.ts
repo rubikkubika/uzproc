@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { getBackendUrl } from '@/utils/api';
 import { PurchasePlanItem, PageResponse } from '../types/purchase-plan-items.types';
 import { calculateNewContractDate } from '../utils/date.utils';
@@ -661,11 +661,32 @@ export const usePurchasePlanItemsEditing = (
         const updatedItem = await response.json();
         setEditingPurchaseRequestId(null);
         
+        // Если есть purchaseRequestId, загружаем статус заявки
+        let purchaseRequestStatus: string | null = null;
+        if (purchaseRequestIdValue !== null) {
+          try {
+            const statusResponse = await fetch(`${getBackendUrl()}/api/purchase-requests/by-id-purchase-request/${purchaseRequestIdValue}`);
+            if (statusResponse.ok) {
+              const purchaseRequest = await statusResponse.json();
+              if (purchaseRequest?.status) {
+                purchaseRequestStatus = purchaseRequest.status;
+              }
+            }
+          } catch (error) {
+            // Игнорируем ошибку загрузки статуса
+          }
+        }
+        
         // Обновляем только конкретную строку в локальном состоянии
         setAllItems(prev => {
           const updated = prev.map(item => 
             item.id === itemId 
-              ? { ...item, purchaseRequestId: updatedItem.purchaseRequestId, updatedAt: updatedItem.updatedAt }
+              ? { 
+                  ...item, 
+                  purchaseRequestId: updatedItem.purchaseRequestId, 
+                  purchaseRequestStatus: purchaseRequestStatus,
+                  updatedAt: updatedItem.updatedAt 
+                }
               : item
           );
           if (data) {
@@ -688,6 +709,35 @@ export const usePurchasePlanItemsEditing = (
       setEditingPurchaseRequestId(null);
     }
   };
+
+  // Функция для обновления статуса позиций плана при изменении заявки
+  const updatePurchaseRequestStatusForItems = useCallback(async (purchaseRequestId: number) => {
+    if (!purchaseRequestId) return;
+    
+    try {
+      // Загружаем статус заявки
+      const statusResponse = await fetch(`${getBackendUrl()}/api/purchase-requests/by-id-purchase-request/${purchaseRequestId}`);
+      if (statusResponse.ok) {
+        const purchaseRequest = await statusResponse.json();
+        const newStatus = purchaseRequest?.status || null;
+        
+        // Обновляем статус для всех позиций плана, связанных с этой заявкой
+        setAllItems(prev => {
+          const updated = prev.map(item => 
+            item.purchaseRequestId === purchaseRequestId
+              ? { ...item, purchaseRequestStatus: newStatus }
+              : item
+          );
+          if (data) {
+            setData({ ...data, content: updated });
+          }
+          return updated;
+        });
+      }
+    } catch (error) {
+      // Игнорируем ошибку обновления статуса
+    }
+  }, [setAllItems, data, setData]);
 
   // Функция для создания нового элемента
   const handleCreateItem = async () => {
@@ -790,5 +840,6 @@ export const usePurchasePlanItemsEditing = (
     handlePurchaseSubjectUpdate,
     handlePurchaseRequestIdUpdate,
     handleCreateItem,
+    updatePurchaseRequestStatusForItems,
   };
 };

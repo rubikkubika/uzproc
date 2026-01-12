@@ -109,6 +109,9 @@ export default function PurchasePlanItemsTableRow({
   isViewingArchiveVersion = false,
 }: PurchasePlanItemsTableRowProps) {
   const isInactive = item.status === 'Исключена';
+  const hasPurchaseRequest = item.purchaseRequestId !== null && item.purchaseRequestId !== undefined;
+  // Если позиция связана с заявкой, все поля неактивны, кроме purchaseRequestId
+  const isReadOnly = hasPurchaseRequest;
   
   const renderCell = (columnKey: string) => {
     const width = getColumnWidth(columnKey);
@@ -203,7 +206,7 @@ export default function PurchasePlanItemsTableRow({
                   textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
                 }}
                 className="w-full text-gray-900 bg-white border border-blue-500 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none overflow-hidden"
-                disabled={isInactive || !canEdit}
+                disabled={isInactive || !canEdit || isReadOnly}
                 autoFocus
                 rows={1}
                 style={{ minHeight: '20px', maxHeight: '200px', fontSize: '13.44px' }}
@@ -212,12 +215,12 @@ export default function PurchasePlanItemsTableRow({
               <div
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (!isInactive && !isViewingArchiveVersion && canEdit) {
+                  if (!isInactive && !isViewingArchiveVersion && canEdit && !isReadOnly) {
                     setEditingPurchaseSubject?.(item.id);
                   }
                 }}
-                className={isInactive || !canEdit ? 'break-words' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors break-words'}
-                title={isInactive || !canEdit ? '' : 'Нажмите для редактирования'}
+                className={isInactive || !canEdit || isReadOnly ? 'break-words' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors break-words'}
+                title={isInactive || !canEdit || isReadOnly ? '' : 'Нажмите для редактирования'}
               >
                 {item.purchaseSubject || '-'}
               </div>
@@ -258,7 +261,7 @@ export default function PurchasePlanItemsTableRow({
                 newContractDate={newContractDate}
                 contractEndDate={item.contractEndDate}
                 currentContractEndDate={item.currentContractEndDate}
-                disabled={isInactive || isViewingArchiveVersion || !canEdit}
+                disabled={isInactive || isViewingArchiveVersion || !canEdit || isReadOnly}
                 onDragStart={() => {
                   // Закрываем режим редактирования даты при начале перетаскивания Ганта
                   if (editingDate?.itemId === item.id) {
@@ -377,9 +380,9 @@ export default function PurchasePlanItemsTableRow({
             {editingPurchaserCompany === item.id ? (
               <select
                 value={item.purchaserCompany || ''}
-                disabled={isInactive || isViewingArchiveVersion || !canEdit}
+                disabled={isInactive || isViewingArchiveVersion || !canEdit || isReadOnly}
                 onChange={(e) => {
-                  if (canEdit && e.target.value !== item.purchaserCompany) {
+                  if (canEdit && !isReadOnly && e.target.value !== item.purchaserCompany) {
                     onPurchaserCompanyUpdate?.(item.id, e.target.value || null);
                   }
                 }}
@@ -423,11 +426,11 @@ export default function PurchasePlanItemsTableRow({
                 className={`flex items-center gap-1.5 ${isInactive || !canEdit ? '' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors'}`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (!isInactive && !isViewingArchiveVersion && canEdit) {
+                  if (!isInactive && !isViewingArchiveVersion && canEdit && !isReadOnly) {
                     setEditingPurchaserCompany?.(item.id);
                   }
                 }}
-                title={isInactive || !canEdit ? '' : 'Нажмите для редактирования'}
+                title={isInactive || !canEdit || isReadOnly ? '' : 'Нажмите для редактирования'}
               >
                 {purchaserCompanyLogo && (
                   <img src={purchaserCompanyLogo} alt={item.purchaserCompany || ''} style={{ width: '22.4px', height: '22.4px' }} />
@@ -454,10 +457,13 @@ export default function PurchasePlanItemsTableRow({
             {editingPurchaser === item.id ? (
               <select
                 value={item.purchaser || ''}
+                disabled={isInactive || isViewingArchiveVersion || !canEdit || isReadOnly}
                 onChange={(e) => {
                   e.stopPropagation();
-                  const newValue = e.target.value || null;
-                  onPurchaserUpdate?.(item.id, newValue);
+                  if (!isReadOnly) {
+                    const newValue = e.target.value || null;
+                    onPurchaserUpdate?.(item.id, newValue);
+                  }
                 }}
                 onBlur={() => {
                   setTimeout(() => {
@@ -495,12 +501,12 @@ export default function PurchasePlanItemsTableRow({
               <div
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (!isInactive && !isViewingArchiveVersion && canEdit) {
+                  if (!isInactive && !isViewingArchiveVersion && canEdit && !isReadOnly) {
                     setEditingPurchaser?.(item.id);
                   }
                 }}
-                className={isInactive || !canEdit ? 'truncate' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors truncate'}
-                title={isInactive || !canEdit ? '' : 'Нажмите для редактирования'}
+                className={isInactive || !canEdit || isReadOnly ? 'truncate' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors truncate'}
+                title={isInactive || !canEdit || isReadOnly ? '' : 'Нажмите для редактирования'}
               >
                 {item.purchaser || '-'}
               </div>
@@ -519,12 +525,15 @@ export default function PurchasePlanItemsTableRow({
               <input
                 type="text"
                 value={cfoInputValue?.[item.id] || ''}
+                disabled={isInactive || isViewingArchiveVersion || !canEdit || isReadOnly}
                 onChange={(e) => {
-                  setCfoInputValue?.(prev => ({ ...prev, [item.id]: e.target.value }));
+                  if (!isReadOnly) {
+                    setCfoInputValue?.(prev => ({ ...prev, [item.id]: e.target.value }));
+                  }
                 }}
                 onBlur={(e) => {
                   const newValue = e.target.value.trim();
-                  if (newValue && canEdit) {
+                  if (newValue && canEdit && !isReadOnly) {
                     onCfoUpdate?.(item.id, newValue);
                   }
                   setCreatingNewCfo?.(null);
@@ -532,7 +541,7 @@ export default function PurchasePlanItemsTableRow({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     const newValue = e.currentTarget.value.trim();
-                    if (newValue && canEdit) {
+                    if (newValue && canEdit && !isReadOnly) {
                       onCfoUpdate?.(item.id, newValue);
                     }
                     setCreatingNewCfo?.(null);
@@ -542,7 +551,7 @@ export default function PurchasePlanItemsTableRow({
                 }}
                 onClick={(e) => e.stopPropagation()}
                 className={`rounded px-2 py-0.5 font-medium transition-all w-full ${
-                  isInactive
+                  isInactive || isReadOnly
                     ? 'bg-gray-100 text-gray-500 border-0 cursor-not-allowed'
                     : 'border border-blue-500 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500'
                 }`}
@@ -553,19 +562,19 @@ export default function PurchasePlanItemsTableRow({
             ) : (
               <select
                 value={item.cfo || ''}
-                disabled={isInactive || isViewingArchiveVersion || !canEdit}
+                disabled={isInactive || isViewingArchiveVersion || !canEdit || isReadOnly}
                 onChange={(e) => {
                   e.stopPropagation();
                   if (e.target.value === '__CREATE_NEW__') {
                     setCreatingNewCfo?.(item.id);
                     setCfoInputValue?.(prev => ({ ...prev, [item.id]: '' }));
                     setEditingCfo?.(null);
-                  } else if (canEdit && e.target.value !== item.cfo) {
+                  } else if (canEdit && !isReadOnly && e.target.value !== item.cfo) {
                     onCfoUpdate?.(item.id, e.target.value || null);
                   }
                 }}
                 onMouseDown={(e) => {
-                  if (!isInactive && !isViewingArchiveVersion) {
+                  if (!isInactive && !isViewingArchiveVersion && !isReadOnly) {
                     e.stopPropagation();
                     setEditingCfo?.(item.id);
                   }
@@ -606,9 +615,11 @@ export default function PurchasePlanItemsTableRow({
                 }}
               >
                 <option value="">-</option>
-                <option value="__CREATE_NEW__" style={{ fontStyle: 'italic', color: '#3b82f6' }}>
-                  + Создать новое ЦФО...
-                </option>
+                {!isReadOnly && (
+                  <option value="__CREATE_NEW__" style={{ fontStyle: 'italic', color: '#3b82f6' }}>
+                    + Создать новое ЦФО...
+                  </option>
+                )}
                 {availableCfo
                   .slice()
                   .sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' }))
@@ -634,7 +645,7 @@ export default function PurchasePlanItemsTableRow({
         if (editingStatus === item.id) {
           statusColor = 'border border-blue-500 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500';
         } else if (displayStatus === 'В плане') {
-          statusColor = 'bg-green-100 text-green-800 border-0';
+          statusColor = 'bg-blue-100 text-blue-800 border-0';
         } else if (displayStatus === 'Исключена') {
           statusColor = 'bg-red-100 text-red-800 border-0';
         } else if (displayStatus === 'Проект') {
@@ -655,13 +666,13 @@ export default function PurchasePlanItemsTableRow({
               value={displayStatus || ''}
               onChange={(e) => {
                 e.stopPropagation();
-                if (canEdit && e.target.value !== displayStatus) {
+                if (canEdit && !isReadOnly && e.target.value !== displayStatus) {
                   onStatusUpdate?.(item.id, e.target.value);
                 }
               }}
               onFocus={(e) => {
                 e.stopPropagation();
-                if (canEdit) {
+                if (canEdit && !isReadOnly) {
                   setEditingStatus?.(item.id);
                 }
               }}
@@ -677,10 +688,11 @@ export default function PurchasePlanItemsTableRow({
               }}
               onClick={(e) => {
                 e.stopPropagation();
-                if (canEdit) {
+                if (canEdit && !isReadOnly) {
                   setEditingStatus?.(item.id);
                 }
               }}
+              disabled={isReadOnly}
               className={`rounded px-2 py-0.5 font-medium cursor-pointer transition-all ${statusColor}`}
               style={{
                 fontSize: '13.44px',
@@ -736,7 +748,7 @@ export default function PurchasePlanItemsTableRow({
                 onBlur={(e) => {
                   const newValue = e.target.value.trim();
                   const currentValue = item.purchaseRequestId?.toString() || '';
-                  if (canEdit && newValue !== currentValue) {
+                  if (canEdit && !isReadOnly && newValue !== currentValue) {
                     onPurchaseRequestIdUpdate?.(item.id, newValue || null);
                   } else {
                     setEditingPurchaseRequestId?.(null);
@@ -752,25 +764,25 @@ export default function PurchasePlanItemsTableRow({
                 onClick={(e) => e.stopPropagation()}
                 onFocus={(e) => {
                   e.stopPropagation();
-                  if (canEdit) {
+                  if (canEdit && !isReadOnly) {
                     setEditingPurchaseRequestId?.(item.id);
                   }
                 }}
                 className="w-full text-gray-900 bg-white border border-blue-500 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 style={{ fontSize: '13.44px' }}
-                disabled={isInactive || isViewingArchiveVersion || !canEdit}
+                disabled={isInactive || isViewingArchiveVersion || !canEdit || isReadOnly}
                 autoFocus
               />
             ) : (
               <div
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (!isInactive && !isViewingArchiveVersion && canEdit) {
+                  if (!isInactive && !isViewingArchiveVersion && canEdit && !isReadOnly) {
                     setEditingPurchaseRequestId?.(item.id);
                   }
                 }}
-                className={isInactive || isViewingArchiveVersion || !canEdit ? '' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors'}
-                title={isInactive || isViewingArchiveVersion || !canEdit ? '' : 'Нажмите для редактирования'}
+                className={isInactive || isViewingArchiveVersion || !canEdit || isReadOnly ? '' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors'}
+                title={isInactive || isViewingArchiveVersion || !canEdit || isReadOnly ? '' : 'Нажмите для редактирования'}
               >
                 {item.purchaseRequestId || '-'}
               </div>
@@ -818,7 +830,7 @@ export default function PurchasePlanItemsTableRow({
   };
 
   return (
-    <tr className="hover:bg-gray-50">
+    <tr className={`${isReadOnly ? 'bg-gray-100 opacity-75' : 'hover:bg-gray-50'}`}>
       {columnOrder.map(col => renderCell(col))}
     </tr>
   );
