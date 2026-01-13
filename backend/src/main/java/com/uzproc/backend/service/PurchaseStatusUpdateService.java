@@ -66,9 +66,9 @@ public class PurchaseStatusUpdateService {
 
         // Проверяем, есть ли согласования с "Не согласовано"
         boolean hasNotCoordinated = false;
-        // Проверяем, есть ли успешное согласование "Проверка результата закупочной комиссии"
+        // Проверяем, есть ли успешное согласование "Проверка результата закупочной комиссии" или "Закупочная комиссия"
         boolean hasCompletedCommissionResultCheck = false;
-        // Проверяем, есть ли другие активные согласования (кроме "Проверка результата закупочной комиссии")
+        // Проверяем, есть ли другие активные согласования (кроме "Проверка результата закупочной комиссии" и "Закупочная комиссия")
         boolean hasOtherActiveApprovals = false;
 
         if (!approvals.isEmpty()) {
@@ -101,8 +101,8 @@ public class PurchaseStatusUpdateService {
                     logger.debug("Approval has no completion result or it's empty");
                 }
                 
-                // Проверяем на успешное "Проверка результата закупочной комиссии"
-                if (stage != null && stage.equals("Проверка результата закупочной комиссии")) {
+                // Проверяем на успешное "Проверка результата закупочной комиссии" или "Закупочная комиссия"
+                if (stage != null && (stage.equals("Проверка результата закупочной комиссии") || stage.equals("Закупочная комиссия"))) {
                     // Согласование должно быть завершено
                     if (approval.getCompletionDate() != null) {
                         // Проверяем, что результат положительный (не содержит отрицательных значений)
@@ -131,13 +131,16 @@ public class PurchaseStatusUpdateService {
                         logger.debug("Commission result check approval is not completed (no completionDate): stage={}, role={}", 
                             stage, approval.getRole());
                     }
-                } else {
-                    // Проверяем, есть ли другие активные согласования (не завершенные)
-                    if (approval.getCompletionDate() == null) {
-                        hasOtherActiveApprovals = true;
-                        logger.debug("Found other active approval for purchase {} (purchaseRequestId: {}): stage={}, role={}", 
-                            purchase.getId(), purchaseRequestId, stage, approval.getRole());
-                    }
+                }
+                
+                // Проверяем, есть ли другие активные согласования (не завершенные, кроме "Проверка результата закупочной комиссии" и "Закупочная комиссия")
+                if (stage != null && 
+                    !stage.equals("Проверка результата закупочной комиссии") && 
+                    !stage.equals("Закупочная комиссия") && 
+                    approval.getCompletionDate() == null) {
+                    hasOtherActiveApprovals = true;
+                    logger.debug("Found other active approval for purchase {} (purchaseRequestId: {}): stage={}, role={}", 
+                        purchase.getId(), purchaseRequestId, stage, approval.getRole());
                 }
             }
         } else {
