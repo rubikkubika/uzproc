@@ -299,7 +299,9 @@ public class PurchaseService {
                 if (!validPurchaserValues.isEmpty()) {
                 jakarta.persistence.criteria.Join<Purchase, PurchaseRequest> purchaseRequestJoin = 
                     root.join("purchaseRequest", jakarta.persistence.criteria.JoinType.LEFT);
-                    var purchaserExpr = cb.lower(cb.function("trim", String.class, purchaseRequestJoin.get("purchaser")));
+                    // Используем LOWER для case-insensitive сравнения
+                    // Значения уже тримятся на стороне Java, поэтому используем простое сравнение
+                    var purchaserExpr = cb.lower(purchaseRequestJoin.get("purchaser"));
 
                     if (validPurchaserValues.size() == 1) {
                         predicates.add(cb.equal(

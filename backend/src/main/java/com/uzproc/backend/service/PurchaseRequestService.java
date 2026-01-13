@@ -426,21 +426,58 @@ public class PurchaseRequestService {
                         .toList();
                 
                 if (!validPurchaserValues.isEmpty()) {
-                    var purchaserExpr = cb.lower(cb.function("trim", String.class, root.get("purchaser")));
-                    if (validPurchaserValues.size() == 1) {
-                        predicates.add(cb.equal(
-                                purchaserExpr,
-                                validPurchaserValues.get(0).toLowerCase()
+                    // Проверяем, есть ли среди значений "Не назначен"
+                    boolean hasUnassigned = validPurchaserValues.stream()
+                            .anyMatch(v -> v.equalsIgnoreCase("Не назначен"));
+                    
+                    // Разделяем значения на "Не назначен" и остальные
+                    List<String> assignedPurchasers = validPurchaserValues.stream()
+                            .filter(v -> !v.equalsIgnoreCase("Не назначен"))
+                            .toList();
+                    
+                    List<Predicate> purchaserPredicates = new ArrayList<>();
+                    
+                    // Если есть "Не назначен", добавляем условие для null и пустых строк
+                    if (hasUnassigned) {
+                        purchaserPredicates.add(cb.or(
+                                cb.isNull(root.get("purchaser")),
+                                cb.equal(root.get("purchaser"), "")
                         ));
-                        predicateCount++;
-                        logger.info("Added single purchaser filter: '{}'", validPurchaserValues.get(0));
-                    } else {
-                        List<Predicate> purchaserPredicates = validPurchaserValues.stream()
-                                .map(p -> cb.equal(purchaserExpr, p.toLowerCase()))
+                        logger.info("Added 'Не назначен' filter (null or empty purchaser)");
+                    }
+                    
+                    // Добавляем условия для назначенных закупщиков
+                    if (!assignedPurchasers.isEmpty()) {
+                        var purchaserExpr = cb.lower(root.get("purchaser"));
+                        List<String> lowerPurchaserValues = assignedPurchasers.stream()
+                                .map(String::toLowerCase)
                                 .toList();
-                        predicates.add(cb.or(purchaserPredicates.toArray(new Predicate[0])));
+                        
+                        if (lowerPurchaserValues.size() == 1) {
+                            // Используем LIKE для обработки возможных хвостовых пробелов
+                            purchaserPredicates.add(cb.like(
+                                    purchaserExpr,
+                                    lowerPurchaserValues.get(0) + "%"
+                            ));
+                            logger.info("Added single purchaser filter (using LIKE): '{}'", assignedPurchasers.get(0));
+                        } else {
+                            // Для множественного выбора используем OR с LIKE для каждого значения
+                            List<Predicate> assignedPredicates = lowerPurchaserValues.stream()
+                                    .map(p -> cb.like(purchaserExpr, p + "%"))
+                                    .toList();
+                            purchaserPredicates.add(cb.or(assignedPredicates.toArray(new Predicate[0])));
+                            logger.info("Added multiple purchaser filter (using OR with LIKE): {}", assignedPurchasers);
+                        }
+                    }
+                    
+                    // Объединяем все условия через OR
+                    if (!purchaserPredicates.isEmpty()) {
+                        if (purchaserPredicates.size() == 1) {
+                            predicates.add(purchaserPredicates.get(0));
+                        } else {
+                            predicates.add(cb.or(purchaserPredicates.toArray(new Predicate[0])));
+                        }
                         predicateCount++;
-                        logger.info("Added multiple purchaser filter: {}", validPurchaserValues);
                     }
                 }
             }

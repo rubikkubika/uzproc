@@ -71,8 +71,15 @@ export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) =
 
   useEffect(() => {
     setColumnOrder(prev => {
+      // Фильтруем существующий порядок, оставляя только видимые колонки
       const filtered = prev.filter(col => visibleColumns.has(col));
-      const next = fixColumnOrder(filtered);
+      // Добавляем новые видимые колонки, которых нет в порядке
+      const newColumns = Array.from(visibleColumns).filter(col => !prev.includes(col));
+      // Объединяем: сначала существующий порядок, потом новые колонки
+      const withNewColumns = [...filtered, ...newColumns];
+      // Применяем fixColumnOrder для правильного порядка дефолтных колонок
+      // fixColumnOrder переупорядочит только дефолтные колонки, новые останутся в конце
+      const next = fixColumnOrder(withNewColumns);
       if (JSON.stringify(prev) !== JSON.stringify(next)) {
         saveColumnOrder(next);
         return next;
@@ -235,7 +242,33 @@ export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) =
   const toggleColumnVisibility = (columnKey: string) => {
     setVisibleColumns(prev => {
       const next = new Set(prev);
-      next.has(columnKey) ? next.delete(columnKey) : next.add(columnKey);
+      const wasVisible = next.has(columnKey);
+      if (wasVisible) {
+        next.delete(columnKey);
+      } else {
+        next.add(columnKey);
+        // Если колонка добавляется и её нет в columnOrder, добавляем её после newContractDate
+        setColumnOrder(currentOrder => {
+          if (!currentOrder.includes(columnKey)) {
+            const newContractDateIndex = currentOrder.indexOf('newContractDate');
+            let updated: string[];
+            if (newContractDateIndex !== -1) {
+              // Вставляем после newContractDate
+              updated = [
+                ...currentOrder.slice(0, newContractDateIndex + 1),
+                columnKey,
+                ...currentOrder.slice(newContractDateIndex + 1)
+              ];
+            } else {
+              // Если newContractDate нет, добавляем в конец
+              updated = [...currentOrder, columnKey];
+            }
+            saveColumnOrder(updated);
+            return updated;
+          }
+          return currentOrder;
+        });
+      }
       return next;
     });
   };

@@ -6,6 +6,7 @@ import { getBackendUrl } from '@/utils/api';
 import { ArrowUp, ArrowDown, ArrowUpDown, Search, X, Download, Copy, Clock, Check, Eye, EyeOff, Settings } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
+import PurchaseRequestsSummaryTable from './ui/PurchaseRequestsSummaryTable';
 
 interface Contract {
   id: number;
@@ -145,6 +146,7 @@ export default function PurchaseRequestsTable() {
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [totalRecords, setTotalRecords] = useState<number>(0);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [summaryData, setSummaryData] = useState<PurchaseRequest[]>([]);
   
   // Загружаем роль пользователя при монтировании
   useEffect(() => {
@@ -1096,7 +1098,7 @@ export default function PurchaseRequestsTable() {
     return columnWidths[columnKey] || getDefaultColumnWidth(columnKey);
   };
 
-  const fetchData = async (
+  const fetchData = useCallback(async (
     page: number, 
     size: number, 
     year: number | null = null,
@@ -1222,7 +1224,7 @@ export default function PurchaseRequestsTable() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [cfoFilter, purchaserFilter, statusFilter, activeTab, localFilters]);
 
   // Debounce для текстовых фильтров и фильтра бюджета (как в PurchasePlanItemsTable)
   useEffect(() => {
@@ -1303,7 +1305,7 @@ export default function PurchaseRequestsTable() {
     
     console.log('useEffect fetchData triggered with selectedYear:', selectedYear);
     fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters);
-  }, [currentPage, pageSize, selectedYear, sortField, sortDirection, filters, cfoFilter, statusFilter, purchaserFilter, activeTab, yearRestored]);
+  }, [currentPage, pageSize, selectedYear, sortField, sortDirection, filters, fetchData, yearRestored]);
 
   // Отдельный useEffect для перезапуска fetchData после восстановления года из navigationData
   // Это нужно, чтобы убедиться, что данные загружаются с правильным годом
@@ -1317,7 +1319,7 @@ export default function PurchaseRequestsTable() {
       }, 100);
       return () => clearTimeout(timeoutId);
     }
-  }, [yearRestored, selectedYear]); // Зависимость от yearRestored и selectedYear
+  }, [yearRestored, selectedYear, fetchData, currentPage, pageSize, sortField, sortDirection, filters]); // Зависимость от yearRestored и selectedYear
 
   // Восстановление фокуса после обновления localFilters
   // Отключено, чтобы не прерывать ввод текста - React сам правильно обрабатывает фокус и курсор
@@ -1594,7 +1596,7 @@ export default function PurchaseRequestsTable() {
       try {
         const params = new URLSearchParams();
         params.append('page', '0');
-        params.append('size', '10000'); // Загружаем много данных для получения всех уникальных статусов
+        params.append('size', '1000'); // Уменьшаем размер запроса, чтобы избежать ошибок 500
         
         // Применяем все фильтры, кроме фильтра по статусу
         if (selectedYear !== null) {
@@ -1614,11 +1616,7 @@ export default function PurchaseRequestsTable() {
           });
         }
         
-        if (purchaserFilter.size > 0) {
-          purchaserFilter.forEach(p => {
-            params.append('purchaser', p);
-          });
-        }
+        // НЕ применяем purchaserFilter для загрузки статусов - это не нужно и может вызывать ошибки 500
         
         if (filters.name && filters.name.trim() !== '') {
           params.append('name', filters.name.trim());
@@ -1690,7 +1688,26 @@ export default function PurchaseRequestsTable() {
         const fetchUrl = `${getBackendUrl()}/api/purchase-requests?${params.toString()}`;
         const response = await fetch(fetchUrl);
         if (!response.ok) {
-          throw new Error('Ошибка загрузки статусов');
+          // Если ошибка, не выбрасываем исключение, а просто логируем и используем пустой массив
+          const errorText = await response.text().catch(() => 'Unable to read error response');
+          console.error('Error fetching available statuses:', response.status, response.statusText, errorText);
+          // Используем статусы из основного запроса, если они есть
+          if (data && data.content && data.content.length > 0) {
+            const statusSet = new Set<string>();
+            data.content.forEach((request: PurchaseRequest) => {
+              if (request.status) {
+                const statusStr = String(request.status).trim();
+                if (statusStr) {
+                  statusSet.add(statusStr);
+                }
+              }
+            });
+            const statusesArray = Array.from(statusSet).sort();
+            setAvailableStatuses(statusesArray);
+          } else {
+            setAvailableStatuses([]);
+          }
+          return;
         }
         const result = await response.json();
         
@@ -1711,13 +1728,199 @@ export default function PurchaseRequestsTable() {
         setAvailableStatuses(statusesArray);
       } catch (err) {
         console.error('Error fetching available statuses:', err);
-        // В случае ошибки используем пустой массив
-        setAvailableStatuses([]);
+        // В случае ошибки используем статусы из основного запроса, если они есть
+        if (data && data.content && data.content.length > 0) {
+          const statusSet = new Set<string>();
+          data.content.forEach((request: PurchaseRequest) => {
+            if (request.status) {
+              const statusStr = String(request.status).trim();
+              if (statusStr) {
+                statusSet.add(statusStr);
+              }
+            }
+          });
+          const statusesArray = Array.from(statusSet).sort();
+          setAvailableStatuses(statusesArray);
+        } else {
+          setAvailableStatuses([]);
+        }
       }
     };
     
     fetchAvailableStatuses();
-  }, [selectedYear, filters, cfoFilter, purchaserFilter, localFilters, activeTab]);
+  }, [selectedYear, filters, cfoFilter, localFilters, activeTab, data]); // Убрали purchaserFilter из зависимостей
+
+  // Загружаем данные для сводной таблицы (аналогично purchase-plan)
+  // ВАЖНО: НЕ включаем purchaserFilter - сводная таблица должна показывать всех закупщиков
+  useEffect(() => {
+    if (!filtersLoadedRef.current) {
+      return;
+    }
+
+    const fetchSummaryData = async () => {
+      try {
+        const params = new URLSearchParams();
+        params.append('page', '0');
+        params.append('size', '5000'); // Уменьшаем размер запроса для сводной таблицы
+        
+        if (selectedYear !== null) {
+          params.append('year', String(selectedYear));
+        }
+        
+        if (filters.idPurchaseRequest && filters.idPurchaseRequest.trim() !== '') {
+          const idValue = parseInt(filters.idPurchaseRequest.trim(), 10);
+          if (!isNaN(idValue)) {
+            params.append('idPurchaseRequest', String(idValue));
+          }
+        }
+        
+        if (cfoFilter.size > 0) {
+          cfoFilter.forEach(cfo => {
+            params.append('cfo', cfo);
+          });
+        }
+        
+        // НЕ применяем purchaserFilter - сводная таблица должна показывать всех закупщиков
+        
+        if (filters.name && filters.name.trim() !== '') {
+          params.append('name', filters.name.trim());
+        }
+        
+        const budgetOperator = localFilters.budgetAmountOperator || filters.budgetAmountOperator;
+        if (localFilters.budgetAmount && localFilters.budgetAmount.trim() !== '') {
+          const budgetValue = parseFloat(localFilters.budgetAmount.trim());
+          if (!isNaN(budgetValue)) {
+            params.append('budgetAmount', String(budgetValue));
+            params.append('budgetAmountOperator', budgetOperator || 'gte');
+          }
+        }
+        
+        if (filters.costType && filters.costType.trim() !== '') {
+          params.append('costType', filters.costType.trim());
+        }
+        
+        if (filters.contractType && filters.contractType.trim() !== '') {
+          params.append('contractType', filters.contractType.trim());
+        }
+        
+        if (filters.contractDurationMonths && filters.contractDurationMonths.trim() !== '') {
+          const durationValue = parseInt(filters.contractDurationMonths.trim(), 10);
+          if (!isNaN(durationValue)) {
+            params.append('contractDurationMonths', String(durationValue));
+          }
+        }
+        
+        if (filters.isPlanned && filters.isPlanned.trim() !== '') {
+          const isPlannedValue = filters.isPlanned.trim();
+          if (isPlannedValue === 'Да') {
+            params.append('isPlanned', 'true');
+          } else if (isPlannedValue === 'Нет') {
+            params.append('isPlanned', 'false');
+          }
+        }
+        
+        if (filters.requiresPurchase && filters.requiresPurchase.trim() !== '') {
+          const requiresPurchaseValue = filters.requiresPurchase.trim();
+          if (requiresPurchaseValue === 'Требуется') {
+            params.append('requiresPurchase', 'true');
+          } else if (requiresPurchaseValue === 'Заказ') {
+            params.append('requiresPurchase', 'false');
+          }
+        }
+        
+        if (filters.isStrategicProduct && filters.isStrategicProduct.trim() !== '' && filters.isStrategicProduct.trim() !== 'Все') {
+          const isStrategicProductValue = filters.isStrategicProduct.trim();
+          if (isStrategicProductValue === 'Да') {
+            params.append('isStrategicProduct', 'true');
+          } else if (isStrategicProductValue === 'Нет') {
+            params.append('isStrategicProduct', 'false');
+          }
+        }
+        
+        // Применяем фильтр по статусам активной вкладки для сводной таблицы
+        // Сводная таблица должна показывать только заявки из активной вкладки
+        if (activeTab !== 'all') {
+          const tabStatuses = getStatusesForTab(activeTab);
+          tabStatuses.forEach(status => {
+            params.append('status', status);
+          });
+        }
+        
+        const fetchUrl = `${getBackendUrl()}/api/purchase-requests?${params.toString()}`;
+        console.log('Fetching summary data, URL:', fetchUrl);
+        console.log('Summary data params:', params.toString());
+        const response = await fetch(fetchUrl);
+        if (response.ok) {
+          const result = await response.json();
+          console.log('Summary data received, total:', result.totalElements, 'content length:', result.content?.length);
+          setSummaryData(result.content || []);
+        } else {
+          // Если ошибка, логируем и используем пустой массив
+          const errorText = await response.text().catch(() => 'Unable to read error response');
+          console.error('Error fetching summary data:', response.status, response.statusText, errorText);
+          setSummaryData([]);
+        }
+      } catch (err) {
+        console.error('Error fetching summary data:', err);
+        setSummaryData([]);
+      }
+    };
+    
+    fetchSummaryData();
+  }, [selectedYear, filters, cfoFilter, localFilters, activeTab]); // Включаем activeTab - сводная таблица показывает заявки из активной вкладки
+
+  // Сводная статистика по закупщикам (использует summaryData, который не учитывает фильтр по закупщику)
+  const purchaserSummary = useMemo(() => {
+    if (!summaryData || summaryData.length === 0) {
+      return [];
+    }
+
+    const summaryMap = new Map<string, { 
+      ordersCount: number; 
+      purchasesCount: number; 
+      ordersBudget: number; 
+      purchasesBudget: number;
+    }>();
+
+    summaryData.forEach((item) => {
+      // Исключаем неактуальные заявки из сводной таблицы
+      if (item.status === 'Неактуальна' || item.status === 'Не Актуальная') {
+        return;
+      }
+
+      const purchaser = item.purchaser || 'Не назначен';
+      const budget = item.budgetAmount || 0;
+      const isPurchase = item.requiresPurchase === true; // true = закупка, false/null = заказ
+
+      if (!summaryMap.has(purchaser)) {
+        summaryMap.set(purchaser, { 
+          ordersCount: 0, 
+          purchasesCount: 0, 
+          ordersBudget: 0, 
+          purchasesBudget: 0 
+        });
+      }
+
+      const stats = summaryMap.get(purchaser)!;
+      if (isPurchase) {
+        stats.purchasesCount++;
+        stats.purchasesBudget += budget;
+      } else {
+        stats.ordersCount++;
+        stats.ordersBudget += budget;
+      }
+    });
+
+    return Array.from(summaryMap.entries())
+      .map(([purchaser, stats]) => ({
+        purchaser,
+        ordersCount: stats.ordersCount,
+        purchasesCount: stats.purchasesCount,
+        ordersBudget: stats.ordersBudget,
+        purchasesBudget: stats.purchasesBudget,
+      }))
+      .sort((a, b) => (b.ordersBudget + b.purchasesBudget) - (a.ordersBudget + a.purchasesBudget)); // Сортировка по общей сумме бюджета по убыванию
+  }, [summaryData]);
 
   const handlePageSizeChange = (newSize: number) => {
     setPageSize(newSize);
@@ -2315,6 +2518,13 @@ export default function PurchaseRequestsTable() {
 
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
+      {/* Сводная таблица по закупщикам */}
+      <PurchaseRequestsSummaryTable
+        purchaserSummary={purchaserSummary}
+        purchaserFilter={purchaserFilter}
+        setPurchaserFilter={setPurchaserFilter}
+        setCurrentPage={setCurrentPage}
+      />
       <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
