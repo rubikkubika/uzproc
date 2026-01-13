@@ -388,9 +388,11 @@ public class PurchaseRequestStatusUpdateService {
         if (hasSignedSpecification) {
             // Для заказов (requiresPurchase === false) с подписанной спецификацией
             newStatus = PurchaseRequestStatus.SPECIFICATION_SIGNED;
-        } else if (hasContracts && allContractsSigned) {
-            // Если есть договоры и все они подписаны, устанавливаем статус "Договор подписан"
+        } else if (hasContracts && allContractsSigned && purchaseRequest.getRequiresPurchase() != null && purchaseRequest.getRequiresPurchase() != false) {
+            // Если есть договоры и все они подписаны, и это закупка (requiresPurchase !== false), устанавливаем статус "Договор подписан"
             newStatus = PurchaseRequestStatus.CONTRACT_SIGNED;
+            logger.info("All contracts signed for purchase request {} (requiresPurchase={}), setting status to CONTRACT_SIGNED", 
+                idPurchaseRequest, purchaseRequest.getRequiresPurchase());
         } else if (hasNotCoordinatedSpecification) {
             // Для заказов (requiresPurchase === false) с не согласованной спецификацией
             newStatus = PurchaseRequestStatus.SPECIFICATION_NOT_COORDINATED;

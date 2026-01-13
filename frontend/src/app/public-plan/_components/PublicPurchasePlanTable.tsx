@@ -206,6 +206,7 @@ export default function PublicPurchasePlanTable() {
   const [allYears, setAllYears] = useState<number[]>([]);
   const [chartData, setChartData] = useState<PurchasePlanItem[]>([]);
   const [summaryData, setSummaryData] = useState<PurchasePlanItem[]>([]);
+  const [isSummaryExpanded, setIsSummaryExpanded] = useState(false); // Состояние для сворачивания/разворачивания сводной таблицы
   
   // Состояние для выбранной валюты (по умолчанию UZS)
   const [selectedCurrency, setSelectedCurrency] = useState<'UZS' | 'USD'>('UZS');
@@ -2003,7 +2004,7 @@ export default function PublicPurchasePlanTable() {
           <div className="flex items-start w-full">
             <div className="flex items-start">
               {/* Сводная таблица */}
-              <div className="bg-white rounded shadow-sm border border-gray-200 overflow-hidden flex-shrink-0">
+              <div className="bg-white rounded shadow-sm border border-gray-200 overflow-hidden flex-shrink-0 relative">
                 <div className="overflow-x-auto">
                   <table className="border-collapse table-auto w-full">
                     <thead className="bg-gray-50">
@@ -2021,8 +2022,9 @@ export default function PublicPurchasePlanTable() {
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {cfoSummary.length > 0 ? (
-                        cfoSummary.map((item, index) => {
+                        (isSummaryExpanded ? cfoSummary : cfoSummary.slice(0, 5)).map((item, index) => {
                         const isSelected = cfoFilter.size === 1 && cfoFilter.has(item.cfo);
+                        const isLastInTop5 = !isSummaryExpanded && index === 4 && cfoSummary.length > 5; // Последняя строка в топ 5
                         return (
                           <tr 
                             key={index} 
@@ -2030,7 +2032,7 @@ export default function PublicPurchasePlanTable() {
                               isSelected 
                                 ? 'bg-blue-100 hover:bg-blue-200' 
                                 : 'hover:bg-gray-50'
-                            }`}
+                            } ${isLastInTop5 ? 'border-b-2 border-blue-300' : ''}`}
                             onClick={() => {
                               if (isSelected) {
                                 setCfoFilter(new Set());
@@ -2084,6 +2086,25 @@ export default function PublicPurchasePlanTable() {
                           })}
                         </td>
                   </tr>
+                      {/* Кнопка "Развернуть"/"Свернуть" под итоговой суммой */}
+                      {cfoSummary.length > 5 && (
+                        <tr>
+                          <td colSpan={3} className="px-2 py-2 text-center bg-gray-50 border-t border-gray-200">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setIsSummaryExpanded(!isSummaryExpanded);
+                              }}
+                              className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md transition-colors whitespace-nowrap"
+                            >
+                              {isSummaryExpanded 
+                                ? 'Свернуть' 
+                                : `Показать еще ${cfoSummary.length - 5} ${cfoSummary.length - 5 === 1 ? 'строку' : cfoSummary.length - 5 < 5 ? 'строки' : 'строк'}`
+                              }
+                            </button>
+                          </td>
+                        </tr>
+                      )}
                     </tfoot>
                   </table>
                 </div>
@@ -2094,6 +2115,41 @@ export default function PublicPurchasePlanTable() {
             <div className="flex items-start gap-2 flex-shrink-0 ml-2">
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-1">
+                <button
+                  onClick={() => {
+                    const emptyFilters = {
+                      company: '',
+                      cfo: '',
+                      purchaseSubject: '',
+                      currentContractEndDate: '',
+                      purchaseRequestId: '',
+                      budgetAmount: '',
+                      budgetAmountOperator: 'gte',
+                    };
+                    setFilters(emptyFilters);
+                    setLocalFilters({
+                      budgetAmount: '',
+                      budgetAmountOperator: 'gte',
+                    });
+                    setCfoFilter(new Set());
+                    setCompanyFilter(new Set());
+                    setPurchaserCompanyFilter(new Set(['Market']));
+                    setCategoryFilter(new Set());
+                    setPurchaserFilter(new Set());
+                    const resetStatusFilter = (uniqueValues.status || []).filter(s => s !== 'Исключена');
+                    setStatusFilter(new Set(resetStatusFilter));
+                    setSortField('requestDate');
+                    setSortDirection('asc');
+                    setFocusedField(null);
+                    setSelectedYear(allYears.length > 0 ? allYears[0] : null);
+                    setSelectedMonths(new Set());
+                    setSelectedMonthYear(null);
+                    setCurrentPage(0);
+                  }}
+                  className="px-4 py-2 text-sm font-medium bg-red-50 text-red-700 rounded-lg border-2 border-red-300 hover:bg-red-100 hover:border-red-400 transition-colors shadow-sm"
+                >
+                  Сбросить фильтры
+                </button>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-700 font-medium">Год планирования:</span>
                   {allYears.map((year) => (
@@ -2259,41 +2315,6 @@ export default function PublicPurchasePlanTable() {
                       </div>
                     )}
                   </div>
-                  <button
-                    onClick={() => {
-                      const emptyFilters = {
-                        company: '',
-                        cfo: '',
-                        purchaseSubject: '',
-                        currentContractEndDate: '',
-                        purchaseRequestId: '',
-                        budgetAmount: '',
-                        budgetAmountOperator: 'gte',
-                      };
-                      setFilters(emptyFilters);
-                      setLocalFilters({
-                        budgetAmount: '',
-                        budgetAmountOperator: 'gte',
-                      });
-                      setCfoFilter(new Set());
-                      setCompanyFilter(new Set());
-                      setPurchaserCompanyFilter(new Set(['Market']));
-                      setCategoryFilter(new Set());
-                      setPurchaserFilter(new Set());
-                      const resetStatusFilter = (uniqueValues.status || []).filter(s => s !== 'Исключена');
-                      setStatusFilter(new Set(resetStatusFilter));
-                      setSortField('requestDate');
-                      setSortDirection('asc');
-                      setFocusedField(null);
-                      setSelectedYear(allYears.length > 0 ? allYears[0] : null);
-                      setSelectedMonths(new Set());
-                      setSelectedMonthYear(null);
-                      setCurrentPage(0);
-                    }}
-                    className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors"
-                  >
-                    Сбросить фильтры
-                  </button>
                   <button
                     onClick={exportToPDF}
                     className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-2"

@@ -92,17 +92,24 @@ public class PurchaseRequestService {
         
         // Определяем логику фильтрации по excludeFromInWork:
         // 1. Если excludeFromInWorkParam = true передается как параметр запроса, то фильтруем по excludeFromInWork = true (показываем только скрытые)
-        // 2. Если excludeFromInWorkParam не передан, но переданы статусы для вкладки "В работе", то исключаем записи с excludeFromInWork = true
+        // 2. Если excludeFromInWorkParam = false передается как параметр запроса, то исключаем записи с excludeFromInWork = true (показываем только не скрытые)
+        // 3. Если excludeFromInWorkParam не передан, но переданы статусы для вкладки "В работе", то исключаем записи с excludeFromInWork = true
         Boolean excludeFromInWorkFilter = null; // null = не фильтровать, true = только скрытые, false = только не скрытые
         boolean excludeFromInWork = false; // для исключения записей с excludeFromInWork = true
         
         logger.info("Processing excludeFromInWorkParam: {}", excludeFromInWorkParam);
         
-        if (excludeFromInWorkParam != null && excludeFromInWorkParam) {
-            // Если передан параметр excludeFromInWork = true, фильтруем только скрытые заявки
-            excludeFromInWorkFilter = true;
-            logger.info("Filtering only hidden requests (excludeFromInWork = true)");
-        } else if (status != null && !status.isEmpty() && excludeFromInWorkParam == null) {
+        if (excludeFromInWorkParam != null) {
+            if (excludeFromInWorkParam) {
+                // Если передан параметр excludeFromInWork = true, фильтруем только скрытые заявки
+                excludeFromInWorkFilter = true;
+                logger.info("Filtering only hidden requests (excludeFromInWork = true)");
+            } else {
+                // Если передан параметр excludeFromInWork = false, исключаем скрытые заявки
+                excludeFromInWorkFilter = false;
+                logger.info("Filtering only non-hidden requests (excludeFromInWork = false or null)");
+            }
+        } else if (status != null && !status.isEmpty()) {
             // Если параметр не передан, но переданы статусы для вкладки "В работе", исключаем скрытые заявки
             List<String> inWorkStatuses = List.of(
                 "Заявка на согласовании", "На согласовании",
@@ -567,7 +574,10 @@ public class PurchaseRequestService {
             }
             
             // Фильтр по статусу (множественный выбор)
-            if (status != null && !status.isEmpty()) {
+            // Если excludeFromInWorkFilter = true (вкладка "Скрытые"), не применяем фильтр по статусу
+            // Показываем все скрытые заявки независимо от статуса
+            // Для всех остальных случаев (включая excludeFromInWorkFilter = false) применяем фильтр по статусам
+            if (status != null && !status.isEmpty() && excludeFromInWorkFilter != Boolean.TRUE) {
                 // Убираем пустые значения и тримим
                 List<String> validStatusValues = status.stream()
                     .filter(s -> s != null && !s.trim().isEmpty())

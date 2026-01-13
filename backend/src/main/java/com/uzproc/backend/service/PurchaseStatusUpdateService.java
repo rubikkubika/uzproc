@@ -133,13 +133,12 @@ public class PurchaseStatusUpdateService {
                     }
                 }
                 
-                // Проверяем, есть ли другие активные согласования (не завершенные, кроме "Проверка результата закупочной комиссии" и "Закупочная комиссия")
-                if (stage != null && 
-                    !stage.equals("Проверка результата закупочной комиссии") && 
-                    !stage.equals("Закупочная комиссия") && 
-                    approval.getCompletionDate() == null) {
+                // Проверяем, есть ли другие активные согласования (не завершенные)
+                // Незавершенные согласования "Проверка результата закупочной комиссии" и "Закупочная комиссия" 
+                // тоже считаются активными и должны блокировать установку статуса "Завершена"
+                if (stage != null && approval.getCompletionDate() == null) {
                     hasOtherActiveApprovals = true;
-                    logger.debug("Found other active approval for purchase {} (purchaseRequestId: {}): stage={}, role={}", 
+                    logger.debug("Found active approval for purchase {} (purchaseRequestId: {}): stage={}, role={}", 
                         purchase.getId(), purchaseRequestId, stage, approval.getRole());
                 }
             }
