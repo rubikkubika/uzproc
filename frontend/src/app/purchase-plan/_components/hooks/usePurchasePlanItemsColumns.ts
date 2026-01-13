@@ -5,19 +5,25 @@ import {
   COLUMNS_VISIBILITY_STORAGE_KEY,
   DEFAULT_COLUMN_WIDTHS,
 } from '../constants/purchase-plan-items.constants';
-import { getDefaultColumnWidth, getCompanyLogoPath } from '../utils/purchase-plan-items.utils';
+import { getDefaultColumnWidth } from '../utils/purchase-plan-items.utils';
 import { PurchasePlanItem } from '../types/purchase-plan-items.types';
 
 /**
- * ВАРИАНТ 1:
- * fixColumnOrder НИЧЕГО НЕ ПЕРЕСТАВЛЯЕТ
- * - убирает невалидные колонки
- * - добавляет недостающие в конец (в порядке DEFAULT)
+ * Исправленный fixColumnOrder
+ * - Сохраняет валидные колонки
+ * - Вставляет недостающие на позиции из DEFAULT_VISIBLE_COLUMNS
  */
 const fixColumnOrder = (order: string[]): string[] => {
-  const valid = order.filter(col => DEFAULT_VISIBLE_COLUMNS.includes(col));
-  const missing = DEFAULT_VISIBLE_COLUMNS.filter(col => !valid.includes(col));
-  return [...valid, ...missing];
+  const valid = order.filter(col => ALL_COLUMNS.map(c => c.key).includes(col));
+  const finalOrder = [...valid];
+
+  DEFAULT_VISIBLE_COLUMNS.forEach((col, index) => {
+    if (!finalOrder.includes(col)) {
+      finalOrder.splice(index, 0, col);
+    }
+  });
+
+  return finalOrder;
 };
 
 export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) => {
@@ -25,6 +31,7 @@ export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) =
      ВИДИМОСТЬ КОЛОНОК
      ========================= */
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set(DEFAULT_VISIBLE_COLUMNS);
     try {
       const saved = localStorage.getItem(COLUMNS_VISIBILITY_STORAGE_KEY);
       if (saved) {
@@ -38,9 +45,10 @@ export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) =
   });
 
   /* =========================
-     ПОРЯДОК КОЛОНОК (ВАЖНО)
+     ПОРЯДОК КОЛОНОК
      ========================= */
   const [columnOrder, setColumnOrder] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [...DEFAULT_VISIBLE_COLUMNS];
     try {
       const saved = localStorage.getItem('purchasePlanItemsTableColumnOrder');
       if (saved) {
@@ -54,24 +62,20 @@ export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) =
   });
 
   const saveColumnOrder = useCallback((order: string[]) => {
+    if (typeof window === 'undefined') return;
     try {
       localStorage.setItem('purchasePlanItemsTableColumnOrder', JSON.stringify(order));
     } catch {}
   }, []);
 
-  /**
-   * Единственный эффект, связанный с порядком:
-   * - если колонку скрыли → убираем из order
-   * - если показали → добавляем в конец (как в DEFAULT)
-   * НИКАКИХ ПЕРЕСТАНОВОК
-   */
+  /* =========================
+     Синхронизация видимости и порядка
+     ========================= */
   useEffect(() => {
     setColumnOrder(prev => {
+      // Сначала фильтруем по видимым колонкам
       const filtered = prev.filter(col => visibleColumns.has(col));
-      const missing = DEFAULT_VISIBLE_COLUMNS.filter(
-        col => visibleColumns.has(col) && !filtered.includes(col)
-      );
-      const next = [...filtered, ...missing];
+      const next = fixColumnOrder(filtered);
 
       if (JSON.stringify(prev) !== JSON.stringify(next)) {
         saveColumnOrder(next);
@@ -80,6 +84,19 @@ export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) =
       return prev;
     });
   }, [visibleColumns, saveColumnOrder]);
+
+  /* =========================
+     СОХРАНЕНИЕ ВИДИМОСТИ
+     ========================= */
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(
+        COLUMNS_VISIBILITY_STORAGE_KEY,
+        JSON.stringify(Array.from(visibleColumns))
+      );
+    } catch {}
+  }, [visibleColumns]);
 
   /* =========================
      ШИРИНЫ КОЛОНОК
@@ -91,25 +108,23 @@ export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) =
   const resizeColumn = useRef<string | null>(null);
 
   const saveColumnWidths = useCallback((widths: Record<string, number>) => {
+    if (typeof window === 'undefined') return;
     try {
       localStorage.setItem('purchasePlanItemsTableColumnWidths', JSON.stringify(widths));
     } catch {}
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     try {
       const saved = localStorage.getItem('purchasePlanItemsTableColumnWidths');
-      if (saved) {
-        setColumnWidths(JSON.parse(saved));
-      }
+      if (saved) setColumnWidths(JSON.parse(saved));
     } catch {}
   }, []);
 
   const getColumnWidth = useCallback(
     (columnKey: string) =>
-      columnWidths[columnKey] ||
-      DEFAULT_COLUMN_WIDTHS[columnKey] ||
-      getDefaultColumnWidth(columnKey),
+      columnWidths[columnKey] || DEFAULT_COLUMN_WIDTHS[columnKey] || getDefaultColumnWidth(columnKey),
     [columnWidths]
   );
 
@@ -119,11 +134,9 @@ export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) =
     setIsResizing(columnKey);
     resizeColumn.current = columnKey;
     resizeStartX.current = e.clientX;
-    const currentWidth = columnWidths[columnKey] || getDefaultColumnWidth(columnKey);
-    resizeStartWidth.current = currentWidth;
+    resizeStartWidth.current = columnWidths[columnKey] || getDefaultColumnWidth(columnKey);
   }, [columnWidths]);
 
-  // Обработчик изменения размера
   useEffect(() => {
     if (!isResizing) return;
 
@@ -158,32 +171,24 @@ export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) =
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
 
-  const handleDragStart = (_: React.DragEvent, columnKey: string) => {
-    setDraggedColumn(columnKey);
-  };
+  const handleDragStart = (_: React.DragEvent, columnKey: string) => setDraggedColumn(columnKey);
 
   const handleDragOver = (e: React.DragEvent, columnKey: string) => {
     e.preventDefault();
-    if (draggedColumn && draggedColumn !== columnKey) {
-      setDragOverColumn(columnKey);
-    }
+    if (draggedColumn && draggedColumn !== columnKey) setDragOverColumn(columnKey);
   };
 
   const handleDragLeave = () => setDragOverColumn(null);
 
   const handleDrop = (_: React.DragEvent, targetColumnKey: string) => {
     if (!draggedColumn || draggedColumn === targetColumnKey) return;
-
     const next = [...columnOrder];
     const from = next.indexOf(draggedColumn);
     const to = next.indexOf(targetColumnKey);
-
     next.splice(from, 1);
     next.splice(to, 0, draggedColumn);
-
     setColumnOrder(next);
     saveColumnOrder(next);
-
     setDraggedColumn(null);
     setDragOverColumn(null);
   };
@@ -195,25 +200,16 @@ export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) =
   const [columnsMenuPosition, setColumnsMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const columnsMenuButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Функция для расчета позиции меню
   const calculateMenuPosition = useCallback(() => {
-    if (columnsMenuButtonRef.current) {
-      const rect = columnsMenuButtonRef.current.getBoundingClientRect();
-      return {
-        top: rect.bottom + window.scrollY + 4,
-        left: rect.left + window.scrollX,
-      };
-    }
-    return null;
+    if (!columnsMenuButtonRef.current) return null;
+    const rect = columnsMenuButtonRef.current.getBoundingClientRect();
+    return { top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX };
   }, []);
 
-  // Устанавливаем позицию меню при открытии
   useEffect(() => {
-    if (isColumnsMenuOpen && columnsMenuButtonRef.current) {
-      const position = calculateMenuPosition();
-      if (position) {
-        setColumnsMenuPosition(position);
-      }
+    if (isColumnsMenuOpen) {
+      const pos = calculateMenuPosition();
+      if (pos) setColumnsMenuPosition(pos);
     }
   }, [isColumnsMenuOpen, calculateMenuPosition]);
 
@@ -228,9 +224,7 @@ export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) =
     });
   };
 
-  const selectAllColumns = () => {
-    setVisibleColumns(new Set(ALL_COLUMNS.map(c => c.key)));
-  };
+  const selectAllColumns = () => setVisibleColumns(new Set(ALL_COLUMNS.map(c => c.key)));
 
   const selectDefaultColumns = () => {
     localStorage.removeItem('purchasePlanItemsTableColumnOrder');
@@ -248,10 +242,14 @@ export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) =
     saveColumnWidths(widths);
   };
 
-  const filteredColumnOrder = useMemo(
-    () => columnOrder.filter(col => visibleColumns.has(col)),
-    [columnOrder, visibleColumns]
-  );
+  /* =========================
+     ОТФИЛЬТРОВАННЫЙ ПОРЯДОК ДЛЯ РЕНДЕРА
+     ========================= */
+  const filteredColumnOrder = useMemo(() => {
+    // Берем колонки в порядке columnOrder, фильтруем по видимости, затем фиксируем позиции
+    const visibleOrdered = columnOrder.filter(col => visibleColumns.has(col));
+    return fixColumnOrder(visibleOrdered);
+  }, [columnOrder, visibleColumns]);
 
   return {
     visibleColumns,

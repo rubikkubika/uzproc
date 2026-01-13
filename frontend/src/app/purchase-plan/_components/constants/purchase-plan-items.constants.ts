@@ -50,10 +50,10 @@ export const DEFAULT_VISIBLE_COLUMNS = [
   'purchaseSubject',
   'purchaser',
   'budgetAmount',
-  'requestDate',
   'newContractDate',
   'status',
   'details',
+  'requestDate',
 ];
 
 // Курс валюты
