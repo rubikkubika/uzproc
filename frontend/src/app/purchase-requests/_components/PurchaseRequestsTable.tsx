@@ -195,7 +195,7 @@ export default function PurchaseRequestsTable() {
   const [purchaserFilter, setPurchaserFilter] = useState<Set<string>>(new Set());
   
   // Состояние для вкладок
-  type TabType = 'all' | 'in-work' | 'completed' | 'project-rejected';
+  type TabType = 'all' | 'in-work' | 'completed' | 'project-rejected' | 'hidden';
   const [activeTab, setActiveTab] = useState<TabType>('in-work'); // По умолчанию "В работе"
   
   // Состояние для количества записей по каждой вкладке
@@ -204,6 +204,7 @@ export default function PurchaseRequestsTable() {
     'in-work': null,
     'completed': null,
     'project-rejected': null,
+    'hidden': null,
   });
   
   // Определяем статусы для каждой вкладки
@@ -215,6 +216,8 @@ export default function PurchaseRequestsTable() {
         return ['Спецификация подписана', 'Договор подписан', 'Закупка завершена'];
       case 'project-rejected':
         return ['Проект', 'Заявка не согласована', 'Заявка не утверждена', 'Закупка не согласована', 'Спецификация создана - Архив'];
+      case 'hidden':
+        return []; // Для скрытых заявок не фильтруем по статусу, только по excludeFromInWork
       case 'all':
       default:
         return ALL_STATUSES;
@@ -385,11 +388,31 @@ export default function PurchaseRequestsTable() {
       const response = await fetch(fetchUrl);
       if (response.ok) {
         const result = await response.json();
+        
+        // Отдельный запрос для подсчета скрытых заявок
+        const hiddenParams = new URLSearchParams(params);
+        hiddenParams.append('excludeFromInWork', 'true');
+        hiddenParams.append('size', '1'); // Минимальный размер для подсчета
+        hiddenParams.append('page', '0');
+        const hiddenFetchUrl = `${getBackendUrl()}/api/purchase-requests?${hiddenParams.toString()}`;
+        
+        let hiddenCount = 0;
+        try {
+          const hiddenResponse = await fetch(hiddenFetchUrl);
+          if (hiddenResponse.ok) {
+            const hiddenResult = await hiddenResponse.json();
+            hiddenCount = hiddenResult.totalElements || 0;
+          }
+        } catch (err) {
+          console.error('Error fetching hidden count:', err);
+        }
+        
         setTabCounts({
           'all': result['all'] || 0,
           'in-work': result['in-work'] || 0,
           'completed': result['completed'] || 0,
           'project-rejected': result['project-rejected'] || 0,
+          'hidden': hiddenCount,
         });
       }
     } catch (err) {
@@ -422,8 +445,8 @@ export default function PurchaseRequestsTable() {
     if (allCountsLoaded) {
       // Если активная вкладка имеет 0 записей, переключаемся на первую вкладку с записями
       if (tabCounts[activeTab] === 0) {
-        // Приоритет переключения: in-work -> completed -> all -> project-rejected
-        const tabsOrder: TabType[] = ['in-work', 'completed', 'all', 'project-rejected'];
+        // Приоритет переключения: in-work -> completed -> all -> project-rejected -> hidden
+        const tabsOrder: TabType[] = ['in-work', 'completed', 'all', 'project-rejected', 'hidden'];
         const tabWithRecords = tabsOrder.find(tab => tabCounts[tab] !== null && tabCounts[tab]! > 0);
         
         if (tabWithRecords) {
@@ -1188,14 +1211,20 @@ export default function PurchaseRequestsTable() {
       // Фильтр по статусу - передаем все выбранные значения на бэкенд
       // Если активна вкладка (не "Все"), применяем фильтр по статусам вкладки
       // Если фильтр пустой и вкладка "Все", не передаем параметр (показываем все статусы)
-      const effectiveStatusFilter = activeTab !== 'all' 
-        ? new Set(getStatusesForTab(activeTab))
-        : statusFilter;
-      
-      if (effectiveStatusFilter.size > 0) {
-        effectiveStatusFilter.forEach(status => {
-          params.append('status', status);
-        });
+      // Для вкладки "Скрытые" не фильтруем по статусу, только по excludeFromInWork
+      if (activeTab === 'hidden') {
+        // Для скрытых заявок фильтруем только по excludeFromInWork=true
+        params.append('excludeFromInWork', 'true');
+      } else {
+        const effectiveStatusFilter = activeTab !== 'all' 
+          ? new Set(getStatusesForTab(activeTab))
+          : statusFilter;
+        
+        if (effectiveStatusFilter.size > 0) {
+          effectiveStatusFilter.forEach(status => {
+            params.append('status', status);
+          });
+        }
       }
       
       const fetchUrl = `${getBackendUrl()}/api/purchase-requests?${params.toString()}`;
@@ -2804,6 +2833,23 @@ export default function PurchaseRequestsTable() {
               Проект/Отмена/Не Согласовано/Архив {tabCounts['project-rejected'] !== null ? `(${tabCounts['project-rejected']})` : '(0)'}
             </button>
           )}
+          {/* Показываем вкладку "Скрытые" только если есть записи или количество еще не загружено */}
+          {(tabCounts['hidden'] === null || tabCounts['hidden'] > 0) && (
+            <button
+              onClick={() => {
+                setActiveTab('hidden');
+                setStatusFilter(new Set());
+                setCurrentPage(0);
+              }}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors shadow-sm ${
+                activeTab === 'hidden'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              Скрытые {tabCounts['hidden'] !== null ? `(${tabCounts['hidden']})` : '(0)'}
+            </button>
+          )}
         </div>
         
         {/* Таблица с закрепленными заголовками */}
@@ -3489,6 +3535,57 @@ export default function PurchaseRequestsTable() {
                       console.error('Error saving navigation data:', err);
                     }
                     router.push(`/purchase-request/${request.id}`);
+                  }}
+                  onAuxClick={(e) => {
+                    // Обработка клика колесиком мыши (средняя кнопка)
+                    if (e.button === 1) {
+                      e.preventDefault();
+                      // Не открываем в новой вкладке, если клик был на интерактивном элементе
+                      const target = e.target as HTMLElement;
+                      if (target.closest('input') || target.closest('select') || target.closest('button') || target.closest('.cursor-col-resize')) {
+                        return;
+                      }
+                      // Сохраняем текущие фильтры и позицию для навигации
+                      const globalIndex = currentPage * pageSize + index;
+                      try {
+                        // Сохраняем фильтры перед переходом
+                        const filtersToSave = {
+                          filters,
+                          localFilters,
+                          cfoFilter: Array.from(cfoFilter),
+                          statusFilter: Array.from(statusFilter),
+                          selectedYear,
+                          sortField,
+                          sortDirection,
+                          currentPage,
+                          pageSize,
+                          cfoSearchQuery,
+                          statusSearchQuery,
+                        };
+                        localStorage.setItem('purchaseRequestsTableFilters', JSON.stringify(filtersToSave));
+                        
+                        // Сохраняем данные навигации
+                        const navigationData = {
+                          currentIndex: globalIndex,
+                          page: currentPage,
+                          pageSize: pageSize,
+                          filters: filters,
+                          localFilters: localFilters,
+                          cfoFilter: Array.from(cfoFilter),
+                          statusFilter: Array.from(statusFilter),
+                          selectedYear: selectedYear,
+                          sortField: sortField,
+                          sortDirection: sortDirection,
+                          totalElements: data.totalElements,
+                        };
+                        localStorage.setItem('purchaseRequestNavigation', JSON.stringify(navigationData));
+                        console.log('Navigation data saved with year:', selectedYear, 'navigationData:', navigationData);
+                      } catch (err) {
+                        console.error('Error saving navigation data:', err);
+                      }
+                      // Открываем в новой вкладке
+                      window.open(`/purchase-request/${request.id}`, '_blank');
+                    }
                   }}
                 >
                   {filteredColumnOrder.map(columnKey => {

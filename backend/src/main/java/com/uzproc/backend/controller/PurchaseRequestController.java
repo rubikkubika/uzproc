@@ -50,16 +50,18 @@ public class PurchaseRequestController {
             @RequestParam(required = false) List<String> status,
             @RequestParam(required = false, defaultValue = "false") Boolean excludePendingStatuses,
             @RequestParam(required = false) java.math.BigDecimal budgetAmount,
-            @RequestParam(required = false) String budgetAmountOperator) {
+            @RequestParam(required = false) String budgetAmountOperator,
+            @RequestParam(required = false) Boolean excludeFromInWork) {
         
         logger.info("=== PurchaseRequestController.getAllPurchaseRequests ===");
         logger.info("Received budget filter parameters: budgetAmount={}, budgetAmountOperator='{}'", 
                 budgetAmount, budgetAmountOperator);
+        logger.info("Received excludeFromInWork parameter: {}", excludeFromInWork);
         
         Page<PurchaseRequestDto> purchaseRequests = purchaseRequestService.findAll(
                 page, size, year, month, sortBy, sortDir, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
                 name, costType, contractType, isPlanned, requiresPurchase, status, excludePendingStatuses,
-                budgetAmount, budgetAmountOperator);
+                budgetAmount, budgetAmountOperator, excludeFromInWork);
         
         logger.info("Returned {} purchase requests", purchaseRequests.getTotalElements());
         logger.info("=== End PurchaseRequestController.getAllPurchaseRequests ===\n");

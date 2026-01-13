@@ -83,16 +83,27 @@ public class PurchaseRequestService {
             List<String> status,
             Boolean excludePendingStatuses,
             java.math.BigDecimal budgetAmount,
-            String budgetAmountOperator) {
+            String budgetAmountOperator,
+            Boolean excludeFromInWorkParam) {
         
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, month: {}, idPurchaseRequest: {}, cfo: {}, purchaseRequestInitiator: '{}', purchaser: {}, name: '{}', costType: '{}', contractType: '{}', isPlanned: {}, requiresPurchase: {}, status: {}, excludePendingStatuses: {}, budgetAmount: {}, budgetAmountOperator: '{}'",
-                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, requiresPurchase, status, excludePendingStatuses, budgetAmount, budgetAmountOperator);
+        logger.info("Filter parameters - year: {}, month: {}, idPurchaseRequest: {}, cfo: {}, purchaseRequestInitiator: '{}', purchaser: {}, name: '{}', costType: '{}', contractType: '{}', isPlanned: {}, requiresPurchase: {}, status: {}, excludePendingStatuses: {}, budgetAmount: {}, budgetAmountOperator: '{}', excludeFromInWorkParam: {}",
+                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, requiresPurchase, status, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWorkParam);
         
-        // Определяем, нужно ли исключать записи с excludeFromInWork = true
-        // Это делается, если переданы статусы для вкладки "В работе"
-        boolean excludeFromInWork = false;
-        if (status != null && !status.isEmpty()) {
+        // Определяем логику фильтрации по excludeFromInWork:
+        // 1. Если excludeFromInWorkParam = true передается как параметр запроса, то фильтруем по excludeFromInWork = true (показываем только скрытые)
+        // 2. Если excludeFromInWorkParam не передан, но переданы статусы для вкладки "В работе", то исключаем записи с excludeFromInWork = true
+        Boolean excludeFromInWorkFilter = null; // null = не фильтровать, true = только скрытые, false = только не скрытые
+        boolean excludeFromInWork = false; // для исключения записей с excludeFromInWork = true
+        
+        logger.info("Processing excludeFromInWorkParam: {}", excludeFromInWorkParam);
+        
+        if (excludeFromInWorkParam != null && excludeFromInWorkParam) {
+            // Если передан параметр excludeFromInWork = true, фильтруем только скрытые заявки
+            excludeFromInWorkFilter = true;
+            logger.info("Filtering only hidden requests (excludeFromInWork = true)");
+        } else if (status != null && !status.isEmpty() && excludeFromInWorkParam == null) {
+            // Если параметр не передан, но переданы статусы для вкладки "В работе", исключаем скрытые заявки
             List<String> inWorkStatuses = List.of(
                 "Заявка на согласовании", "На согласовании",
                 "Заявка на утверждении", "На утверждении",
@@ -109,7 +120,7 @@ public class PurchaseRequestService {
         }
         
         Specification<PurchaseRequest> spec = buildSpecification(
-                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, requiresPurchase, status, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWork);
+                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, requiresPurchase, status, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWork, excludeFromInWorkFilter);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -217,7 +228,7 @@ public class PurchaseRequestService {
         Specification<PurchaseRequest> spec = buildSpecification(
             year, null, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
             name, costType, contractType, isPlanned, requiresPurchase, status,
-            false, budgetAmount, budgetAmountOperator, excludeFromInWork);
+            false, budgetAmount, budgetAmountOperator, excludeFromInWork, null);
         
         return purchaseRequestRepository.count(spec);
     }
@@ -349,7 +360,8 @@ public class PurchaseRequestService {
             Boolean excludePendingStatuses,
             java.math.BigDecimal budgetAmount,
             String budgetAmountOperator,
-            boolean excludeFromInWork) {
+            boolean excludeFromInWork,
+            Boolean excludeFromInWorkFilter) {
         
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -662,8 +674,24 @@ public class PurchaseRequestService {
                         budgetAmount, budgetAmountOperator);
             }
             
-            // Фильтр по excludeFromInWork - для вкладки "В работе" исключаем записи с excludeFromInWork = true
-            if (excludeFromInWork) {
+            // Фильтр по excludeFromInWork
+            if (excludeFromInWorkFilter != null) {
+                // Если excludeFromInWorkFilter = true, показываем только скрытые заявки (excludeFromInWork = true)
+                // Если excludeFromInWorkFilter = false, показываем только не скрытые заявки (excludeFromInWork = false или null)
+                if (excludeFromInWorkFilter) {
+                    predicates.add(cb.equal(root.get("excludeFromInWork"), true));
+                    predicateCount++;
+                    logger.info("Filtering only hidden requests (excludeFromInWork = true)");
+                } else {
+                    predicates.add(cb.or(
+                        cb.isNull(root.get("excludeFromInWork")),
+                        cb.equal(root.get("excludeFromInWork"), false)
+                    ));
+                    predicateCount++;
+                    logger.info("Filtering only non-hidden requests (excludeFromInWork = false or null)");
+                }
+            } else if (excludeFromInWork) {
+                // Для вкладки "В работе" исключаем записи с excludeFromInWork = true
                 predicates.add(cb.or(
                     cb.isNull(root.get("excludeFromInWork")),
                     cb.equal(root.get("excludeFromInWork"), false)
