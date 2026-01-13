@@ -1751,7 +1751,10 @@ export default function PurchaseRequestsTable() {
   }, [selectedYear, filters, cfoFilter, localFilters, activeTab, data]); // Убрали purchaserFilter из зависимостей
 
   // Загружаем данные для сводной таблицы (аналогично purchase-plan)
-  // ВАЖНО: НЕ включаем purchaserFilter - сводная таблица должна показывать всех закупщиков
+  // ВАЖНО: НЕ включаем purchaserFilter, selectedYear и activeTab - сводная таблица всегда показывает:
+  // - всех закупщиков
+  // - все годы
+  // - только статусы "в работе"
   useEffect(() => {
     if (!filtersLoadedRef.current) {
       return;
@@ -1763,9 +1766,7 @@ export default function PurchaseRequestsTable() {
         params.append('page', '0');
         params.append('size', '5000'); // Уменьшаем размер запроса для сводной таблицы
         
-        if (selectedYear !== null) {
-          params.append('year', String(selectedYear));
-        }
+        // НЕ применяем фильтр по годам - сводная таблица должна показывать все годы
         
         if (filters.idPurchaseRequest && filters.idPurchaseRequest.trim() !== '') {
           const idValue = parseInt(filters.idPurchaseRequest.trim(), 10);
@@ -1837,14 +1838,12 @@ export default function PurchaseRequestsTable() {
           }
         }
         
-        // Применяем фильтр по статусам активной вкладки для сводной таблицы
-        // Сводная таблица должна показывать только заявки из активной вкладки
-        if (activeTab !== 'all') {
-          const tabStatuses = getStatusesForTab(activeTab);
-          tabStatuses.forEach(status => {
-            params.append('status', status);
-          });
-        }
+        // Применяем фильтр по статусам "в работе" для сводной таблицы
+        // Сводная таблица всегда показывает только заявки "в работе", независимо от активной вкладки
+        const inWorkStatuses = getStatusesForTab('in-work');
+        inWorkStatuses.forEach(status => {
+          params.append('status', status);
+        });
         
         const fetchUrl = `${getBackendUrl()}/api/purchase-requests?${params.toString()}`;
         console.log('Fetching summary data, URL:', fetchUrl);
@@ -1867,7 +1866,7 @@ export default function PurchaseRequestsTable() {
     };
     
     fetchSummaryData();
-  }, [selectedYear, filters, cfoFilter, localFilters, activeTab]); // Включаем activeTab - сводная таблица показывает заявки из активной вкладки
+  }, [filters, cfoFilter, localFilters]); // НЕ включаем selectedYear и activeTab - сводная таблица всегда показывает все годы и только "в работе"
 
   // Сводная статистика по закупщикам (использует summaryData, который не учитывает фильтр по закупщику)
   const purchaserSummary = useMemo(() => {
