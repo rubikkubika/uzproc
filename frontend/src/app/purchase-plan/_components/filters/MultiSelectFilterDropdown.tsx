@@ -75,29 +75,22 @@ export default function MultiSelectFilterDropdown({
   // Устанавливаем флаг при клике на контейнер опций (нативный обработчик с capture)
   useEffect(() => {
     if (!isOpen || !optionsContainerRef.current) {
-      console.log('[MultiSelectFilterDropdown] Skipping capture handler setup - isOpen:', isOpen, 'optionsContainerRef:', optionsContainerRef.current);
       return;
     }
 
     const handleMouseDownCapture = (event: MouseEvent) => {
-      console.log('[MultiSelectFilterDropdown] Native mousedown capture on options');
       setIsToggling(true);
-      console.log('[MultiSelectFilterDropdown] Flag set to TRUE, current value: true');
 
       // Сбрасываем флаг через задержку
       setTimeout(() => {
-        console.log('[MultiSelectFilterDropdown] Resetting flag to false after timeout');
         setIsToggling(false);
-        console.log('[MultiSelectFilterDropdown] isToggling reset to false');
       }, 500);
     };
 
     const container = optionsContainerRef.current;
-    console.log('[MultiSelectFilterDropdown] Setting up capture handler on container:', container);
     container.addEventListener('mousedown', handleMouseDownCapture, true); // capture: true
 
     return () => {
-      console.log('[MultiSelectFilterDropdown] Cleaning up capture handler');
       container.removeEventListener('mousedown', handleMouseDownCapture, true);
     };
   }, [isOpen]);
@@ -109,32 +102,22 @@ export default function MultiSelectFilterDropdown({
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
 
-      console.log('[MultiSelectFilterDropdown] handleClickOutside fired, target:', target);
-      console.log('[MultiSelectFilterDropdown] isToggling:', isToggling);
-
       // ПЕРВАЯ проверка - если в данный момент происходит переключение, игнорируем
       if (isToggling) {
-        console.log('[MultiSelectFilterDropdown] Toggling in progress - ignoring ALL checks');
         return;
       }
 
-      console.log('[MultiSelectFilterDropdown] dropdownRef.current:', dropdownRef.current);
-      console.log('[MultiSelectFilterDropdown] buttonRef.current:', buttonRef.current);
-
       // Проверяем, находится ли клик внутри выпадающего списка
       if (dropdownRef.current && dropdownRef.current.contains(target)) {
-        console.log('[MultiSelectFilterDropdown] Click inside dropdown - not closing');
         return; // Клик внутри выпадающего списка - не закрываем
       }
 
       // Проверяем, находится ли клик на кнопке
       if (buttonRef.current && buttonRef.current.contains(target)) {
-        console.log('[MultiSelectFilterDropdown] Click on button - not closing');
         return; // Клик на кнопке - не закрываем (кнопка сама управляет открытием/закрытием)
       }
 
       // Клик снаружи - закрываем
-      console.log('[MultiSelectFilterDropdown] Click outside - closing');
       onClose();
     };
 
@@ -232,7 +215,6 @@ export default function MultiSelectFilterDropdown({
                   checked={selectedValues.has(option)}
                   onChange={(e) => {
                     e.stopPropagation();
-                    console.log('[MultiSelectFilterDropdown] onToggle called with:', option);
                     onToggle(option);
                   }}
                   onClick={(e) => {
