@@ -160,6 +160,7 @@ public class PurchaseRequestStatusUpdateService {
         // и связаны с заявкой через purchase_request_id
         boolean hasSpecification = false;
         boolean hasSignedSpecification = false;
+        boolean hasOnCoordinationSpecification = false;
         boolean hasNotCoordinatedSpecification = false;
         boolean hasArchivedSpecification = false;
         try {
@@ -191,28 +192,42 @@ public class PurchaseRequestStatusUpdateService {
                     } else {
                         logger.debug("No signed specifications found for purchase request {} (order type)", idPurchaseRequest);
                         
-                        // Проверяем, есть ли спецификация со статусом "Не согласован"
-                        Query notCoordinatedSpecQuery = entityManager.createNativeQuery(
+                        // Проверяем, есть ли спецификация со статусом "На согласовании"
+                        Query onCoordinationSpecQuery = entityManager.createNativeQuery(
                             "SELECT COUNT(*) FROM contracts WHERE purchase_request_id = ? AND document_form = ? AND status = ?"
                         );
-                        notCoordinatedSpecQuery.setParameter(1, idPurchaseRequest);
-                        notCoordinatedSpecQuery.setParameter(2, "Спецификация");
-                        notCoordinatedSpecQuery.setParameter(3, "NOT_COORDINATED"); // Используем имя enum константы
-                        Long notCoordinatedSpecCount = ((Number) notCoordinatedSpecQuery.getSingleResult()).longValue();
-                        if (notCoordinatedSpecCount > 0) {
-                            hasNotCoordinatedSpecification = true;
-                            logger.info("Found {} not coordinated specification(s) for purchase request {} (order type)", notCoordinatedSpecCount, idPurchaseRequest);
+                        onCoordinationSpecQuery.setParameter(1, idPurchaseRequest);
+                        onCoordinationSpecQuery.setParameter(2, "Спецификация");
+                        onCoordinationSpecQuery.setParameter(3, "ON_COORDINATION"); // Используем имя enum константы
+                        Long onCoordinationSpecCount = ((Number) onCoordinationSpecQuery.getSingleResult()).longValue();
+                        if (onCoordinationSpecCount > 0) {
+                            hasOnCoordinationSpecification = true;
+                            logger.info("Found {} on coordination specification(s) for purchase request {} (order type)", onCoordinationSpecCount, idPurchaseRequest);
                         } else {
-                            logger.debug("No not coordinated specifications found for purchase request {} (order type)", idPurchaseRequest);
+                            logger.debug("No on coordination specifications found for purchase request {} (order type)", idPurchaseRequest);
                             
-                            // Проверяем, есть ли спецификация со статусом "Проект"
-                            Query projectQuery = entityManager.createNativeQuery(
+                            // Проверяем, есть ли спецификация со статусом "Не согласован"
+                            Query notCoordinatedSpecQuery = entityManager.createNativeQuery(
                                 "SELECT COUNT(*) FROM contracts WHERE purchase_request_id = ? AND document_form = ? AND status = ?"
                             );
-                            projectQuery.setParameter(1, idPurchaseRequest);
-                            projectQuery.setParameter(2, "Спецификация");
-                            projectQuery.setParameter(3, "PROJECT"); // Используем имя enum константы
-                            Long projectCount = ((Number) projectQuery.getSingleResult()).longValue();
+                            notCoordinatedSpecQuery.setParameter(1, idPurchaseRequest);
+                            notCoordinatedSpecQuery.setParameter(2, "Спецификация");
+                            notCoordinatedSpecQuery.setParameter(3, "NOT_COORDINATED"); // Используем имя enum константы
+                            Long notCoordinatedSpecCount = ((Number) notCoordinatedSpecQuery.getSingleResult()).longValue();
+                            if (notCoordinatedSpecCount > 0) {
+                                hasNotCoordinatedSpecification = true;
+                                logger.info("Found {} not coordinated specification(s) for purchase request {} (order type)", notCoordinatedSpecCount, idPurchaseRequest);
+                            } else {
+                                logger.debug("No not coordinated specifications found for purchase request {} (order type)", idPurchaseRequest);
+                                
+                                // Проверяем, есть ли спецификация со статусом "Проект"
+                                Query projectQuery = entityManager.createNativeQuery(
+                                    "SELECT COUNT(*) FROM contracts WHERE purchase_request_id = ? AND document_form = ? AND status = ?"
+                                );
+                                projectQuery.setParameter(1, idPurchaseRequest);
+                                projectQuery.setParameter(2, "Спецификация");
+                                projectQuery.setParameter(3, "PROJECT"); // Используем имя enum константы
+                                Long projectCount = ((Number) projectQuery.getSingleResult()).longValue();
                             if (projectCount > 0) {
                                 // Проверяем, прошло ли более 60 рабочих дней с даты создания заявки
                                 // Используем purchaseRequestCreationDate, если есть, иначе используем дату создания спецификации
@@ -249,6 +264,7 @@ public class PurchaseRequestStatusUpdateService {
                                 } else {
                                     logger.debug("Purchase request {} has no creation date (neither purchaseRequestCreationDate nor specification creation date), cannot check archive condition", idPurchaseRequest);
                                 }
+                            }
                             }
                         }
                     }
@@ -377,6 +393,7 @@ public class PurchaseRequestStatusUpdateService {
         
         // Приоритет: сначала проверяем подписанную спецификацию (для заказов, самый высокий приоритет),
         // потом не согласованную спецификацию (для заказов, высокий приоритет),
+        // потом спецификацию на согласовании (для заказов, высокий приоритет),
         // потом архивную спецификацию (для заказов с проектной спецификацией старше 60 рабочих дней),
         // потом наличие спецификации (высокий приоритет), 
         // потом проверяем статус закупки (для заявок с requiresPurchase !== false) - если закупка не согласована, то "Закупка не согласована"
@@ -396,6 +413,10 @@ public class PurchaseRequestStatusUpdateService {
         } else if (hasNotCoordinatedSpecification) {
             // Для заказов (requiresPurchase === false) с не согласованной спецификацией
             newStatus = PurchaseRequestStatus.SPECIFICATION_NOT_COORDINATED;
+        } else if (hasOnCoordinationSpecification) {
+            // Для заказов (requiresPurchase === false) со спецификацией на согласовании
+            newStatus = PurchaseRequestStatus.SPECIFICATION_ON_COORDINATION;
+            logger.info("Found on coordination specification for purchase request {} (order type), setting status to SPECIFICATION_ON_COORDINATION", idPurchaseRequest);
         } else if (hasArchivedSpecification) {
             // Для заказов (requiresPurchase === false) с проектной спецификацией старше 60 рабочих дней
             newStatus = PurchaseRequestStatus.SPECIFICATION_CREATED_ARCHIVE;

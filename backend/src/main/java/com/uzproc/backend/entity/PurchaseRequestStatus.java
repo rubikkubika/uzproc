@@ -12,6 +12,7 @@ public enum PurchaseRequestStatus {
     PROJECT("Проект"),
     SPECIFICATION_CREATED("Спецификация создана"),
     SPECIFICATION_CREATED_ARCHIVE("Спецификация создана - Архив"),
+    SPECIFICATION_ON_COORDINATION("Спецификация на согласовании"),
     SPECIFICATION_SIGNED("Спецификация подписана"),
     SPECIFICATION_NOT_COORDINATED("Спецификация не согласована"),
     PURCHASE_CREATED("Закупка создана"),
