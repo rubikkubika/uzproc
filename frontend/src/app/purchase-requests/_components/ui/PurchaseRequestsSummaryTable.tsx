@@ -160,44 +160,16 @@ export default function PurchaseRequestsSummaryTable({
                   Итого
                 </td>
                 <td className="px-2 py-1 text-xs font-semibold text-gray-700 text-right border-l-2 border-t border-b-2 border-r border-gray-400 rounded-bl-lg whitespace-nowrap">
-                  {(() => {
-                    if (purchaserFilter.size === 0) {
-                      return purchaserSummary.reduce((sum, item) => sum + item.ordersCount, 0);
-                    }
-                    return purchaserSummary
-                      .filter(item => purchaserFilter.has(item.purchaser))
-                      .reduce((sum, item) => sum + item.ordersCount, 0);
-                  })()}
+                  {purchaserSummary.reduce((sum, item) => sum + item.ordersCount, 0)}
+                </td>
+                <td className="px-2 py-1 text-xs font-semibold text-gray-700 text-right border-r-2 border-t border-b-2 border-gray-400 whitespace-nowrap">
+                  {formatCompactNumber(purchaserSummary.reduce((sum, item) => sum + item.ordersBudget, 0))}
+                </td>
+                <td className="px-2 py-1 text-xs font-semibold text-gray-700 text-right border-l-2 border-t border-b-2 border-r border-gray-400 whitespace-nowrap">
+                  {purchaserSummary.reduce((sum, item) => sum + item.purchasesCount, 0)}
                 </td>
                 <td className="px-2 py-1 text-xs font-semibold text-gray-700 text-right border-r-2 border-t border-b-2 border-gray-400 rounded-br-lg whitespace-nowrap">
-                  {formatCompactNumber((() => {
-                    if (purchaserFilter.size === 0) {
-                      return purchaserSummary.reduce((sum, item) => sum + item.ordersBudget, 0);
-                    }
-                    return purchaserSummary
-                      .filter(item => purchaserFilter.has(item.purchaser))
-                      .reduce((sum, item) => sum + item.ordersBudget, 0);
-                  })())}
-                </td>
-                <td className="px-2 py-1 text-xs font-semibold text-gray-700 text-right border-l-2 border-t border-b-2 border-r border-gray-400 rounded-bl-lg whitespace-nowrap">
-                  {(() => {
-                    if (purchaserFilter.size === 0) {
-                      return purchaserSummary.reduce((sum, item) => sum + item.purchasesCount, 0);
-                    }
-                    return purchaserSummary
-                      .filter(item => purchaserFilter.has(item.purchaser))
-                      .reduce((sum, item) => sum + item.purchasesCount, 0);
-                  })()}
-                </td>
-                <td className="px-2 py-1 text-xs font-semibold text-gray-700 text-right border-r-2 border-t border-b-2 border-gray-400 rounded-br-lg whitespace-nowrap">
-                  {formatCompactNumber((() => {
-                    if (purchaserFilter.size === 0) {
-                      return purchaserSummary.reduce((sum, item) => sum + item.purchasesBudget, 0);
-                    }
-                    return purchaserSummary
-                      .filter(item => purchaserFilter.has(item.purchaser))
-                      .reduce((sum, item) => sum + item.purchasesBudget, 0);
-                  })())}
+                  {formatCompactNumber(purchaserSummary.reduce((sum, item) => sum + item.purchasesBudget, 0))}
                 </td>
               </tr>
             </tfoot>
