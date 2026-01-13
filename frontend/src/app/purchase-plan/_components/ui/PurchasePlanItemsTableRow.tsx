@@ -161,7 +161,8 @@ export default function PurchasePlanItemsTableRow({
               fontSize: '13.44px',
               whiteSpace: 'normal',
               wordWrap: 'break-word',
-              overflowWrap: 'break-word'
+              overflowWrap: 'break-word',
+              wordBreak: 'break-word'
             }}
           >
             {editingPurchaseSubject === item.id ? (
@@ -220,6 +221,7 @@ export default function PurchasePlanItemsTableRow({
                   }
                 }}
                 className={isInactive || !canEdit || isReadOnly ? 'break-words' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors break-words'}
+                style={{ wordBreak: 'break-word', whiteSpace: 'normal' }}
                 title={isInactive || !canEdit || isReadOnly ? '' : 'Нажмите для редактирования'}
               >
                 {item.purchaseSubject || '-'}

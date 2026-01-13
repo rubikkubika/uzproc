@@ -1,12 +1,12 @@
-// Ключ для сохранения фильтров в localStorage
+// Ключи для localStorage
 export const FILTERS_STORAGE_KEY = 'purchasePlanItems_filters';
 export const COLUMNS_VISIBILITY_STORAGE_KEY = 'purchasePlanItems_columnsVisibility';
 
-// Константы для статусов
+// Статусы
 export const ALL_STATUSES = ['Проект', 'В плане', 'Исключена', 'Заявка', 'Пусто'];
 export const DEFAULT_STATUSES = ALL_STATUSES.filter(s => s !== 'Исключена');
 
-// Определение всех возможных колонок (все поля сущности PurchasePlanItem)
+// Все колонки
 export const ALL_COLUMNS = [
   { key: 'id', label: 'ID' },
   { key: 'company', label: 'Заказчик' },
@@ -40,7 +40,7 @@ export const ALL_COLUMNS = [
   { key: 'updatedAt', label: 'Дата обновления' },
 ] as const;
 
-// Колонки, которые отображаются по умолчанию
+// Дефолтные видимые колонки
 export const DEFAULT_VISIBLE_COLUMNS = [
   'id',
   'company',
@@ -56,47 +56,50 @@ export const DEFAULT_VISIBLE_COLUMNS = [
   'requestDate',
 ];
 
+// Дефолтные ширины колонок
+export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
+  id: 80,
+  company: 179,
+  guid: 256,
+  year: 64,
+  cfo: 128,
+  purchaseSubject: 38,
+  budgetAmount: 112,
+  contractEndDate: 128,
+  requestDate: 112,
+  newContractDate: 128,
+  purchaser: 128,
+  product: 192,
+  hasContract: 112,
+  currentKa: 128,
+  currentAmount: 128,
+  currentContractAmount: 160,
+  currentContractBalance: 160,
+  currentContractEndDate: 160,
+  autoRenewal: 128,
+  complexity: 112,
+  holding: 128,
+  category: 128,
+  purchaserCompany: 179,
+  status: 200,
+  purchaseRequestId: 160,
+  purchaseRequestStatus: 200,
+  comment: 192,
+  details: 100,
+  createdAt: 128,
+  updatedAt: 128,
+};
+
 // Курс валюты
-export const USD_TO_UZS_RATE = 12000; // Курс: 1 USD = 12 000 UZS
+export const USD_TO_UZS_RATE = 12000;
 
 // Размер страницы
-export const PAGE_SIZE = 100; // Фиксированный размер страницы
+export const PAGE_SIZE = 100;
 
-// Дефолтные значения для новых элементов
+// Дефолтный элемент
 export const DEFAULT_NEW_ITEM = {
   status: 'Проект',
 };
 
-// Дефолтные ширины колонок
-export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
-  id: 80,
-  company: 179, // 128px * 1.4 = 179.2px (увеличено на 40%)
-  guid: 256,
-  year: 64, // w-16 = 4rem = 64px
-  cfo: 128, // w-32 = 8rem = 128px
-  purchaseSubject: 96, // w-24 = 6rem = 96px (уменьшено на 50%)
-  budgetAmount: 112, // w-28 = 7rem = 112px
-  contractEndDate: 128, // w-32 = 8rem = 128px
-  requestDate: 112, // w-28 = 7rem = 112px
-  newContractDate: 128, // w-32 = 8rem = 128px
-  purchaser: 128, // w-32 = 8rem = 128px
-  product: 192, // w-48 = 12rem = 192px
-  hasContract: 112, // w-28 = 7rem = 112px
-  currentKa: 128, // w-32 = 8rem = 128px
-  currentAmount: 128, // w-32 = 8rem = 128px
-  currentContractAmount: 160, // w-40 = 10rem = 160px
-  currentContractBalance: 160, // w-40 = 10rem = 160px
-  currentContractEndDate: 160, // w-40 = 10rem = 160px
-  autoRenewal: 128, // w-32 = 8rem = 128px
-  complexity: 112, // w-28 = 7rem = 112px
-  holding: 128, // w-32 = 8rem = 128px
-  category: 128, // w-32 = 8rem = 128px
-  purchaserCompany: 179, // 128px * 1.4 = 179.2px (увеличено на 40%)
-  status: 200, // Увеличено для длинных статусов заявки (например, "Заявка на согласовании")
-  purchaseRequestId: 160, // w-40 = 10rem = 160px
-  purchaseRequestStatus: 200, // Ширина для статуса заявки
-  comment: 192, // w-48 = 12rem = 192px
-  details: 100, // Ширина для колонки с кнопкой деталей
-  createdAt: 128, // w-32 = 8rem = 128px
-  updatedAt: 128, // w-32 = 8rem = 128px
-};
+// Максимальная ширина любой колонки (в пикселях)
+export const MAX_COLUMN_WIDTH = 100;
