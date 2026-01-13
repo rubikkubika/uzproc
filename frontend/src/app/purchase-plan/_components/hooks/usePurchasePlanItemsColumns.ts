@@ -3,6 +3,48 @@ import { DEFAULT_VISIBLE_COLUMNS, ALL_COLUMNS, COLUMNS_VISIBILITY_STORAGE_KEY, D
 import { getDefaultColumnWidth, getCompanyLogoPath } from '../utils/purchase-plan-items.utils';
 import { PurchasePlanItem } from '../types/purchase-plan-items.types';
 
+// Функция для исправления порядка колонок (вынесена вне компонента для использования в useState)
+const fixColumnOrder = (order: string[]): string[] => {
+  // Проверяем, что все колонки присутствуют
+  const validOrder = order.filter((col: string) => DEFAULT_VISIBLE_COLUMNS.includes(col));
+  const missingCols = DEFAULT_VISIBLE_COLUMNS.filter(col => !validOrder.includes(col));
+  
+  // Добавляем недостающие колонки в конец
+  let finalOrder = [...validOrder, ...missingCols];
+  
+  // Исправляем порядок колонок: newContractDate -> status -> details
+  const requiredOrder = ['newContractDate', 'status', 'details'];
+  const hasAllRequired = requiredOrder.every(col => finalOrder.includes(col));
+  
+  if (hasAllRequired) {
+    // Проверяем, правильный ли порядок
+    const newContractDateIndex = finalOrder.indexOf('newContractDate');
+    const statusIndex = finalOrder.indexOf('status');
+    const detailsIndex = finalOrder.indexOf('details');
+    
+    // Если порядок неправильный (не newContractDate -> status -> details подряд)
+    const isOrderCorrect = newContractDateIndex < statusIndex && statusIndex < detailsIndex &&
+                           statusIndex === newContractDateIndex + 1 &&
+                           detailsIndex === statusIndex + 1;
+    
+    if (!isOrderCorrect) {
+      // Удаляем эти три колонки из текущего порядка
+      finalOrder = finalOrder.filter(col => !requiredOrder.includes(col));
+      
+      // Находим позицию, где должны быть эти колонки (перед 'details' в дефолтном порядке)
+      const detailsIndexInDefault = DEFAULT_VISIBLE_COLUMNS.indexOf('details');
+      const insertIndex = detailsIndexInDefault >= 0 && detailsIndexInDefault <= finalOrder.length 
+        ? detailsIndexInDefault 
+        : finalOrder.length;
+      
+      // Вставляем колонки в правильном порядке
+      finalOrder.splice(insertIndex, 0, ...requiredOrder);
+    }
+  }
+  
+  return finalOrder;
+};
+
 export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) => {
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') {
@@ -68,6 +110,7 @@ export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) =
   const resizeStartWidth = useRef<number>(0);
   const resizeColumn = useRef<string | null>(null);
 
+
   const [columnOrder, setColumnOrder] = useState<string[]>(() => {
     try {
       if (typeof window !== 'undefined') {
@@ -75,7 +118,8 @@ export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) =
         if (saved) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed;
+            // Исправляем порядок при загрузке из localStorage
+            return fixColumnOrder(parsed);
           }
         }
       }
@@ -96,6 +140,7 @@ export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) =
   }, []);
 
   // Синхронизируем columnOrder с visibleColumns при изменении visibleColumns
+  // И принудительно исправляем порядок колонок newContractDate -> status -> details
   useEffect(() => {
     setColumnOrder(prevOrder => {
       const newOrder = [...prevOrder];
@@ -127,13 +172,15 @@ export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) =
       
       if (filteredOrder.length !== newOrder.length) {
         updated = true;
-        saveColumnOrder(filteredOrder);
-        return filteredOrder;
       }
       
-      if (updated) {
-        saveColumnOrder(newOrder);
-        return newOrder;
+      // Исправляем порядок колонок newContractDate -> status -> details
+      const finalOrder = fixColumnOrder(updated ? filteredOrder : newOrder);
+      const orderChanged = JSON.stringify(finalOrder) !== JSON.stringify(prevOrder);
+      
+      if (orderChanged) {
+        saveColumnOrder(finalOrder);
+        return finalOrder;
       }
       
       return prevOrder;
@@ -176,12 +223,23 @@ export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) =
   };
 
   const selectDefaultColumns = () => {
+    // Очищаем сохраненные значения из localStorage ПЕРЕД установкой новых значений
+    try {
+      localStorage.removeItem('purchasePlanItemsTableColumnOrder');
+      localStorage.removeItem('purchasePlanItemsTableColumnWidths');
+    } catch (err) {
+      // Ошибка очистки localStorage игнорируется
+    }
+    
     // Восстанавливаем список видимых колонок
     setVisibleColumns(new Set(DEFAULT_VISIBLE_COLUMNS));
     
-    // Восстанавливаем порядок колонок по умолчанию
+    // Восстанавливаем порядок колонок по умолчанию (уже в правильном порядке)
     setColumnOrder([...DEFAULT_VISIBLE_COLUMNS]);
     saveColumnOrder(DEFAULT_VISIBLE_COLUMNS);
+    
+    // Сбрасываем флаги измененных пользователем колонок для автоматического расчета ширины
+    userResizedColumnsRef.current.clear();
     
     // Восстанавливаем ширину колонок по умолчанию
     // Создаем объект с дефолтными ширинами только для видимых колонок
@@ -191,14 +249,6 @@ export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) =
     });
     setColumnWidths(defaultWidths);
     saveColumnWidths(defaultWidths);
-    
-    // Очищаем сохраненные значения из localStorage
-    try {
-      localStorage.removeItem('purchasePlanItemsTableColumnOrder');
-      localStorage.removeItem('purchasePlanItemsTableColumnWidths');
-    } catch (err) {
-      // Ошибка очистки localStorage игнорируется
-    }
   };
 
   const getColumnWidth = useCallback((columnKey: string): number => {
@@ -321,35 +371,44 @@ export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) =
     }
   }, []);
 
-  // Загружаем сохраненный порядок колонок из localStorage
+  // Принудительно исправляем порядок колонок при монтировании
+  const orderFixedRef = useRef(false);
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('purchasePlanItemsTableColumnOrder');
-      if (saved) {
-        const order = JSON.parse(saved);
-        // Проверяем, что все колонки присутствуют
-        const validOrder = order.filter((col: string) => DEFAULT_VISIBLE_COLUMNS.includes(col));
-        const missingCols = DEFAULT_VISIBLE_COLUMNS.filter(col => !validOrder.includes(col));
+    if (orderFixedRef.current) return; // Исправляем только один раз
+    
+    setColumnOrder(prevOrder => {
+      const fixedOrder = fixColumnOrder(prevOrder);
+      
+      // Проверяем, правильный ли порядок
+      const requiredOrder = ['newContractDate', 'status', 'details'];
+      const newContractDateIndex = fixedOrder.indexOf('newContractDate');
+      const statusIndex = fixedOrder.indexOf('status');
+      const detailsIndex = fixedOrder.indexOf('details');
+      
+      const isOrderCorrect = newContractDateIndex >= 0 && statusIndex >= 0 && detailsIndex >= 0 &&
+                             newContractDateIndex < statusIndex && statusIndex < detailsIndex &&
+                             statusIndex === newContractDateIndex + 1 &&
+                             detailsIndex === statusIndex + 1;
+      
+      if (!isOrderCorrect) {
+        // Принудительно устанавливаем правильный порядок
+        const orderWithoutRequired = fixedOrder.filter(col => !requiredOrder.includes(col));
+        const detailsIndexInDefault = DEFAULT_VISIBLE_COLUMNS.indexOf('details');
+        const insertIndex = detailsIndexInDefault >= 0 && detailsIndexInDefault <= orderWithoutRequired.length 
+          ? detailsIndexInDefault 
+          : orderWithoutRequired.length;
+        const correctedOrder = [...orderWithoutRequired];
+        correctedOrder.splice(insertIndex, 0, ...requiredOrder);
         
-        // Добавляем недостающие колонки в конец
-        const finalOrder = [...validOrder, ...missingCols];
-        setColumnOrder(finalOrder);
-        
-        // Сохраняем исправленный порядок
-        try {
-          localStorage.setItem('purchasePlanItemsTableColumnOrder', JSON.stringify(finalOrder));
-        } catch (saveErr) {
-          // Ошибка сохранения в localStorage игнорируется
-        }
-      } else {
-        // Если нет сохраненного порядка, используем дефолтный
-        setColumnOrder(DEFAULT_VISIBLE_COLUMNS);
+        orderFixedRef.current = true;
+        saveColumnOrder(correctedOrder);
+        return correctedOrder;
       }
-    } catch (err) {
-      // В случае ошибки используем дефолтный порядок
-      setColumnOrder(DEFAULT_VISIBLE_COLUMNS);
-    }
-  }, []);
+      
+      orderFixedRef.current = true;
+      return fixedOrder;
+    });
+  }, [saveColumnOrder]);
 
   // Ref для отслеживания того, были ли колонки изменены пользователем вручную
   const userResizedColumnsRef = useRef<Set<string>>(new Set());
