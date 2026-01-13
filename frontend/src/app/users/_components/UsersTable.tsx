@@ -516,7 +516,7 @@ export default function UsersTable() {
         <div className="px-4 py-2 border-b border-gray-200 bg-gray-50">
           <button
             onClick={resetFilters}
-            className="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+            className="px-4 py-2 text-sm font-medium bg-red-50 text-red-700 rounded-lg border-2 border-red-300 hover:bg-red-100 hover:border-red-400 transition-colors shadow-sm"
           >
             Сбросить фильтры
           </button>
