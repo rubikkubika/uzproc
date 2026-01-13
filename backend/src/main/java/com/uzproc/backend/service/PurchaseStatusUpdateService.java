@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -36,6 +37,7 @@ public class PurchaseStatusUpdateService {
      * Обновляет статус закупки на основе согласований
      * Логика (приоритет по убыванию):
      * - Если в согласованиях закупки есть визы "Не согласовано", то статус закупки "Не согласовано"
+     * - Если закупка меньше 250 млн, есть решение закупочной комиссии и нет других активных согласований, то статус "Завершена"
      * - Если есть успешное согласование "Проверка результата закупочной комиссии", то статус закупки "Завершена"
      *
      * @param purchaseRequestId ID закупки (purchase_request_id)
@@ -66,6 +68,8 @@ public class PurchaseStatusUpdateService {
         boolean hasNotCoordinated = false;
         // Проверяем, есть ли успешное согласование "Проверка результата закупочной комиссии"
         boolean hasCompletedCommissionResultCheck = false;
+        // Проверяем, есть ли другие активные согласования (кроме "Проверка результата закупочной комиссии")
+        boolean hasOtherActiveApprovals = false;
 
         if (!approvals.isEmpty()) {
             logger.info("Checking {} approvals for purchase {} (purchaseRequestId: {})", 
@@ -127,6 +131,13 @@ public class PurchaseStatusUpdateService {
                         logger.debug("Commission result check approval is not completed (no completionDate): stage={}, role={}", 
                             stage, approval.getRole());
                     }
+                } else {
+                    // Проверяем, есть ли другие активные согласования (не завершенные)
+                    if (approval.getCompletionDate() == null) {
+                        hasOtherActiveApprovals = true;
+                        logger.debug("Found other active approval for purchase {} (purchaseRequestId: {}): stage={}, role={}", 
+                            purchase.getId(), purchaseRequestId, stage, approval.getRole());
+                    }
                 }
             }
         } else {
@@ -138,9 +149,27 @@ public class PurchaseStatusUpdateService {
             newStatus = PurchaseStatus.NOT_COORDINATED;
             logger.info("Purchase {} has not coordinated approvals, setting status to NOT_COORDINATED", purchaseRequestId);
         } else if (hasCompletedCommissionResultCheck) {
-            // Если есть успешное "Проверка результата закупочной комиссии", устанавливаем статус "Завершена"
-            newStatus = PurchaseStatus.COMPLETED;
-            logger.info("Purchase {} has completed commission result check approval, setting status to COMPLETED", purchaseRequestId);
+            // Проверяем дополнительные условия для закупок меньше 250 млн
+            BigDecimal budgetAmount = purchase.getBudgetAmount();
+            BigDecimal thresholdAmount = new BigDecimal("250000000"); // 250 млн
+            
+            boolean isLessThan250M = budgetAmount != null && budgetAmount.compareTo(thresholdAmount) < 0;
+            
+            if (isLessThan250M && !hasOtherActiveApprovals) {
+                // Если закупка меньше 250 млн, есть решение закупочной комиссии и нет других активных согласований
+                newStatus = PurchaseStatus.COMPLETED;
+                logger.info("Purchase {} (purchaseRequestId: {}) has completed commission result check, amount={} (< 250M), no other active approvals, setting status to COMPLETED", 
+                    purchaseRequestId, purchaseRequestId, budgetAmount);
+            } else if (!isLessThan250M) {
+                // Если закупка >= 250 млн, но есть решение закупочной комиссии, тоже устанавливаем "Завершена"
+                newStatus = PurchaseStatus.COMPLETED;
+                logger.info("Purchase {} (purchaseRequestId: {}) has completed commission result check approval, amount={} (>= 250M), setting status to COMPLETED", 
+                    purchaseRequestId, purchaseRequestId, budgetAmount);
+            } else if (hasOtherActiveApprovals) {
+                // Если есть другие активные согласования, не устанавливаем статус "Завершена"
+                logger.info("Purchase {} (purchaseRequestId: {}) has completed commission result check, but has other active approvals, not setting status to COMPLETED", 
+                    purchaseRequestId, purchaseRequestId);
+            }
         }
 
         // Обновляем статус только если он изменился
