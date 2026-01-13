@@ -595,7 +595,7 @@ function DashboardContent() {
 
         return (
           <div className="flex h-screen bg-gray-100">
-            <div className="w-full max-w-[1920px] mx-auto flex" style={{ gap: 0 }}>
+            <div className="w-full max-w-[1920px] mx-auto flex full-width-on-large-screens" style={{ gap: 0 }}>
               <div suppressHydrationWarning style={{ flexShrink: 0, margin: 0, padding: 0 }}>
                 <Sidebar 
                   activeTab={activeTab} 

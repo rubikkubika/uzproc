@@ -123,3 +123,10 @@ main::-webkit-scrollbar {
 .custom-scrollbar::-webkit-scrollbar-corner {
   background: #f1f5f9 !important; /* Цвет угла при наличии обоих скроллбаров */
 }
+
+/* Для экранов шире 2500px убираем ограничение max-width для всех страниц */
+@media (min-width: 2500px) {
+  .full-width-on-large-screens {
+    max-width: none !important;
+  }
+}
