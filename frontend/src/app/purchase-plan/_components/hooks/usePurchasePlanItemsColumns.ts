@@ -8,18 +8,22 @@ import {
 import { getDefaultColumnWidth } from '../utils/purchase-plan-items.utils';
 import { PurchasePlanItem } from '../types/purchase-plan-items.types';
 
+// Тип для ключей колонок
+type ColumnKey = (typeof ALL_COLUMNS)[number]['key'];
+
 /**
  * Исправленный fixColumnOrder
  * - Сохраняет валидные колонки
  * - Вставляет недостающие на позиции из DEFAULT_VISIBLE_COLUMNS
  */
 const fixColumnOrder = (order: string[]): string[] => {
-  const valid = order.filter(col => ALL_COLUMNS.map(c => c.key).includes(col));
-  const finalOrder = [...valid];
+  const validKeys = new Set(ALL_COLUMNS.map(c => c.key) as ColumnKey[]);
+  const valid = order.filter((col): col is ColumnKey => validKeys.has(col as ColumnKey));
+  const finalOrder: ColumnKey[] = [...valid];
 
   DEFAULT_VISIBLE_COLUMNS.forEach((col, index) => {
-    if (!finalOrder.includes(col)) {
-      finalOrder.splice(index, 0, col);
+    if (!finalOrder.includes(col as ColumnKey)) {
+      finalOrder.splice(index, 0, col as ColumnKey);
     }
   });
 
