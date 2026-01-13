@@ -4,35 +4,62 @@ cd "$(dirname "$0")/.."
 # Остановка процессов
 lsof -ti:8080,3000 2>/dev/null | xargs -r kill -9 2>/dev/null
 
-# Попытка скопировать бэкап с сервера (с коротким таймаутом, так как не всегда сервер доступен)
+# Попытка создать бэкап на сервере и скопировать его (с коротким таймаутом, так как не всегда сервер доступен)
 SERVER="devops@10.123.48.62"
 REMOTE_BACKUP_PATH="/home/devops/uzproc/backup"
 LOCAL_BACKUP_DIR="backup"
 
-echo "Попытка скопировать бэкап с сервера..."
+echo "Попытка создать бэкап на сервере и скопировать его..."
 mkdir -p "$LOCAL_BACKUP_DIR" 2>/dev/null
 
-# Пытаемся найти последний бэкап на сервере и скопировать его (таймаут 5 секунд)
-# Используем ConnectTimeout для ограничения времени ожидания, так как timeout может быть недоступен на macOS
-LATEST_BACKUP=$(ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no "$SERVER" "ls -t ${REMOTE_BACKUP_PATH}/uzproc_backup_*.sql 2>/dev/null | head -1" 2>/dev/null)
+# Проверяем, запущен ли контейнер БД на сервере
+CONTAINER_CHECK=$(ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no "$SERVER" "docker ps --filter name=uzproc-postgres --format '{{.Names}}' 2>/dev/null" 2>/dev/null)
 
-if [ -n "$LATEST_BACKUP" ]; then
-  BACKUP_FILENAME=$(basename "$LATEST_BACKUP")
-  echo "Найден бэкап на сервере: $BACKUP_FILENAME"
+if echo "$CONTAINER_CHECK" | grep -q "uzproc-postgres"; then
+  echo "Контейнер БД на сервере запущен, создаем бэкап..."
   
-  # Копируем бэкап с сервера (таймаут 10 секунд через ConnectTimeout)
-  if scp -o ConnectTimeout=10 -o StrictHostKeyChecking=no "${SERVER}:${LATEST_BACKUP}" "${LOCAL_BACKUP_DIR}/${BACKUP_FILENAME}" 2>/dev/null; then
-    if [ -f "${LOCAL_BACKUP_DIR}/${BACKUP_FILENAME}" ]; then
-      BACKUP_SIZE=$(du -h "${LOCAL_BACKUP_DIR}/${BACKUP_FILENAME}" | cut -f1)
-      echo "✓ Бэкап скопирован с сервера: ${BACKUP_FILENAME} (${BACKUP_SIZE})"
+  # Создаем имя файла бэкапа с датой и временем
+  BACKUP_DATE=$(date +"%Y-%m-%d_%H-%M-%S")
+  BACKUP_FILENAME="uzproc_backup_${BACKUP_DATE}.sql"
+  
+  # Создаем папку backup на сервере, если её нет
+  ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no "$SERVER" "mkdir -p ${REMOTE_BACKUP_PATH}" 2>/dev/null
+  
+  # Создаем бэкап БД через pg_dump внутри контейнера
+  # Используем timeout, если доступен, иначе используем альтернативный подход
+  BACKUP_COMMAND="if command -v timeout >/dev/null 2>&1; then timeout 60 bash -c 'docker exec uzproc-postgres pg_dump -U uzproc_user -d uzproc -F p > ${REMOTE_BACKUP_PATH}/${BACKUP_FILENAME} 2>&1'; else docker exec uzproc-postgres pg_dump -U uzproc_user -d uzproc -F p > ${REMOTE_BACKUP_PATH}/${BACKUP_FILENAME} 2>&1; fi"
+  
+  BACKUP_RESULT=$(ssh -o ConnectTimeout=10 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=no "$SERVER" "$BACKUP_COMMAND" 2>&1)
+  
+  # Проверяем, что бэкап создан и не пустой
+  BACKUP_CHECK=$(ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no "$SERVER" "test -f ${REMOTE_BACKUP_PATH}/${BACKUP_FILENAME} && test -s ${REMOTE_BACKUP_PATH}/${BACKUP_FILENAME} && echo 'OK' || echo 'FAIL'" 2>/dev/null)
+  
+  if [ "$BACKUP_CHECK" = "OK" ]; then
+    echo "✓ Бэкап создан на сервере: ${BACKUP_FILENAME}"
+    
+    # Копируем бэкап с сервера (таймаут 30 секунд через ConnectTimeout, так как файл может быть большим)
+    if scp -o ConnectTimeout=30 -o StrictHostKeyChecking=no "${SERVER}:${REMOTE_BACKUP_PATH}/${BACKUP_FILENAME}" "${LOCAL_BACKUP_DIR}/${BACKUP_FILENAME}" 2>/dev/null; then
+      if [ -f "${LOCAL_BACKUP_DIR}/${BACKUP_FILENAME}" ]; then
+        BACKUP_SIZE=$(du -h "${LOCAL_BACKUP_DIR}/${BACKUP_FILENAME}" | cut -f1)
+        echo "✓ Бэкап скопирован с сервера: ${BACKUP_FILENAME} (${BACKUP_SIZE})"
+        
+        # Удаляем бэкап с сервера после успешного копирования
+        echo "Удаление бэкапа с сервера..."
+        ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no "$SERVER" "rm -f ${REMOTE_BACKUP_PATH}/${BACKUP_FILENAME}" 2>/dev/null
+        echo "✓ Бэкап удален с сервера"
+      else
+        echo "⚠ Не удалось скопировать бэкап с сервера, используем локальный"
+      fi
     else
-      echo "⚠ Не удалось скопировать бэкап с сервера, используем локальный"
+      echo "⚠ Не удалось скопировать бэкап с сервера (таймаут или ошибка), используем локальный"
+      # Удаляем бэкап с сервера, если копирование не удалось
+      ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no "$SERVER" "rm -f ${REMOTE_BACKUP_PATH}/${BACKUP_FILENAME}" 2>/dev/null
     fi
   else
-    echo "⚠ Сервер недоступен или таймаут, используем локальный бэкап"
+    echo "⚠ Не удалось создать бэкап на сервере, используем локальный"
   fi
 else
-  echo "⚠ Бэкап на сервере не найден или сервер недоступен, используем локальный"
+  echo "⚠ Контейнер БД на сервере не запущен или сервер недоступен, используем локальный бэкап"
 fi
 
 # Восстановление БД из последнего доступного бэкапа
