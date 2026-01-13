@@ -18,7 +18,7 @@ import PurchasePlanItemsTableColumnsMenu from './ui/PurchasePlanItemsTableColumn
 import PurchasePlanItemsTableColumnsHeader from './ui/PurchasePlanItemsTableColumnsHeader';
 import PurchasePlanItemsSummaryTable from './ui/PurchasePlanItemsSummaryTable';
 
-// Модальные окна
+// Модальные окнаф
 import PurchasePlanItemsDetailsModal from './ui/PurchasePlanItemsDetailsModal';
 import PurchasePlanItemsCreateModal from './ui/PurchasePlanItemsCreateModal';
 import PurchasePlanItemsAuthModal from './ui/PurchasePlanItemsAuthModal';
