@@ -181,6 +181,14 @@ export default function PurchasePlanItemsTable() {
   }, [table.modals]);
 
   const handleColumnsSettings = useCallback(() => {
+    // Устанавливаем позицию меню перед открытием
+    if (table.columns.columnsMenuButtonRef.current) {
+      const rect = table.columns.columnsMenuButtonRef.current.getBoundingClientRect();
+      table.columns.setColumnsMenuPosition({
+        top: rect.bottom + window.scrollY + 4,
+        left: rect.left + window.scrollX,
+      });
+    }
     table.columns.setIsColumnsMenuOpen(true);
   }, [table.columns]);
 
