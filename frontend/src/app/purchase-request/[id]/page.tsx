@@ -110,6 +110,13 @@ export default function PurchaseRequestDetailPage() {
   const [filteredRequests, setFilteredRequests] = useState<PurchaseRequest[]>([]);
   const [currentRequestIndex, setCurrentRequestIndex] = useState<number>(-1);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [purchaserEditValue, setPurchaserEditValue] = useState<string>('');
+  const [purchaserOriginalValue, setPurchaserOriginalValue] = useState<string>('');
+  const [isSavingPurchaser, setIsSavingPurchaser] = useState(false);
+  const [purchaserSuggestions, setPurchaserSuggestions] = useState<string[]>([]);
+  const [showPurchaserSuggestions, setShowPurchaserSuggestions] = useState(false);
+  const [purchaserInputRef, setPurchaserInputRef] = useState<HTMLInputElement | null>(null);
+  const [isPurchaserEditing, setIsPurchaserEditing] = useState(false);
   
   // Защита от дублирующих запросов
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -181,6 +188,96 @@ export default function PurchaseRequestDetailPage() {
     };
     checkUserRole();
   }, []);
+
+  // Синхронизируем значение поля редактирования закупщика при изменении заявки
+  useEffect(() => {
+    if (purchaseRequest && !isPurchaserEditing) {
+      const purchaserValue = purchaseRequest.purchaser || '';
+      setPurchaserEditValue(purchaserValue);
+      setPurchaserOriginalValue(purchaserValue);
+    }
+  }, [purchaseRequest, isPurchaserEditing]);
+
+  // Загрузка предложений пользователей для автокомплита закупщика
+  useEffect(() => {
+    const loadUserSuggestions = async () => {
+      if (!purchaserEditValue || purchaserEditValue.trim().length < 1) {
+        setPurchaserSuggestions([]);
+        setShowPurchaserSuggestions(false);
+        return;
+      }
+
+      try {
+        const searchQuery = purchaserEditValue.trim().toLowerCase();
+        
+        // Делаем несколько запросов параллельно для поиска по разным полям
+        // (так как на бэкенде AND логика, нужно искать отдельно)
+        const [nameResponse, surnameResponse, usernameResponse] = await Promise.all([
+          fetch(`${getBackendUrl()}/api/users?page=0&size=20&name=${encodeURIComponent(searchQuery)}`),
+          fetch(`${getBackendUrl()}/api/users?page=0&size=20&surname=${encodeURIComponent(searchQuery)}`),
+          fetch(`${getBackendUrl()}/api/users?page=0&size=20&username=${encodeURIComponent(searchQuery)}`)
+        ]);
+
+        const allUsers = new Map<number, any>();
+        
+        // Собираем всех пользователей из всех запросов
+        const responses = [nameResponse, surnameResponse, usernameResponse];
+        for (const response of responses) {
+          if (response.ok) {
+            const data = await response.json();
+            const users = data.content || [];
+            users.forEach((user: any) => {
+              if (!allUsers.has(user.id)) {
+                allUsers.set(user.id, user);
+              }
+            });
+          }
+        }
+
+        // Формируем список предложений: "Фамилия Имя" или "username" или "email"
+        const suggestions = Array.from(allUsers.values()).map((user: any) => {
+          const parts = [];
+          if (user.surname) parts.push(user.surname);
+          if (user.name) parts.push(user.name);
+          if (parts.length > 0) {
+            return parts.join(' ');
+          }
+          // Если нет имени и фамилии, используем username или email
+          return user.username || user.email || '';
+        }).filter((s: string) => s && s.trim().length > 0);
+
+        // Убираем дубликаты и сортируем по релевантности (начинающиеся с запроса - выше)
+        const uniqueSuggestions = Array.from(new Set(suggestions));
+        const sortedSuggestions = uniqueSuggestions.sort((a, b) => {
+          const aLower = a.toLowerCase();
+          const bLower = b.toLowerCase();
+          const query = searchQuery;
+          const aStarts = aLower.startsWith(query);
+          const bStarts = bLower.startsWith(query);
+          if (aStarts && !bStarts) return -1;
+          if (!aStarts && bStarts) return 1;
+          return aLower.localeCompare(bLower);
+        });
+        
+        setPurchaserSuggestions(sortedSuggestions);
+        if (sortedSuggestions.length > 0) {
+          setShowPurchaserSuggestions(true);
+        } else {
+          setShowPurchaserSuggestions(false);
+        }
+      } catch (error) {
+        console.error('Error loading user suggestions:', error);
+        setPurchaserSuggestions([]);
+        setShowPurchaserSuggestions(false);
+      }
+    };
+
+    const debounceTimer = setTimeout(() => {
+      loadUserSuggestions();
+    }, 300); // Задержка 300мс для debounce
+
+    return () => clearTimeout(debounceTimer);
+  }, [purchaserEditValue]);
 
   useEffect(() => {
     if (!id) return;
@@ -523,6 +620,67 @@ export default function PurchaseRequestDetailPage() {
       if (prevRequest) {
         router.push(`/purchase-request/${prevRequest.id}`);
       }
+    }
+  };
+
+  // Функция для сохранения закупщика
+  const handleSavePurchaser = async () => {
+    if (!purchaseRequest || !purchaseRequest.idPurchaseRequest) {
+      setIsPurchaserEditing(false);
+      return;
+    }
+
+    const newValue = purchaserEditValue.trim() || null;
+    const originalValue = purchaserOriginalValue || null;
+    
+    // Сохраняем только если значение изменилось
+    if (newValue === originalValue) {
+      setIsPurchaserEditing(false);
+      return;
+    }
+
+    setIsSavingPurchaser(true);
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/purchase-requests/${purchaseRequest.idPurchaseRequest}/purchaser`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ purchaser: newValue }),
+      });
+
+      if (response.ok) {
+        const updated = await response.json();
+        setPurchaseRequest(prev => prev ? { ...prev, purchaser: updated.purchaser } : null);
+        setPurchaserOriginalValue(newValue || '');
+        setIsPurchaserEditing(false);
+      } else {
+        const errorData = await response.json().catch(() => ({ message: 'Ошибка сервера' }));
+        alert(errorData.message || 'Не удалось обновить закупщика');
+        // Восстанавливаем значение при ошибке
+        setPurchaserEditValue(purchaserOriginalValue);
+        setIsPurchaserEditing(false);
+      }
+    } catch (error) {
+      console.error('Error updating purchaser:', error);
+      alert('Ошибка при обновлении закупщика');
+      // Восстанавливаем значение при ошибке
+      setPurchaserEditValue(purchaserOriginalValue);
+      setIsPurchaserEditing(false);
+    } finally {
+      setIsSavingPurchaser(false);
+    }
+  };
+
+  // Функция для отмены редактирования закупщика
+  const handleCancelPurchaserEdit = () => {
+    const originalValue = purchaserOriginalValue || '';
+    setPurchaserEditValue(originalValue);
+    setIsPurchaserEditing(false);
+    setShowPurchaserSuggestions(false);
+    // Убеждаемся, что значение в состоянии заявки соответствует оригиналу
+    if (purchaseRequest && purchaseRequest.purchaser !== originalValue) {
+      setPurchaseRequest(prev => prev ? { ...prev, purchaser: originalValue || null } : null);
     }
   };
 
@@ -1075,13 +1233,123 @@ export default function PurchaseRequestDetailPage() {
                       {purchaseRequest.purchaseRequestInitiator || '-'}
                     </p>
                   </div>
-                  <div>
+                  <div className="relative">
                     <label className="block text-xs font-semibold text-gray-600 mb-0">
                       Закупщик
                     </label>
-                    <p className="text-xs text-gray-900">
-                      {purchaseRequest.purchaser || '-'}
-                    </p>
+                    <div className="flex items-center gap-1 relative">
+                      <input
+                        ref={(el) => setPurchaserInputRef(el)}
+                        type="text"
+                        value={purchaserEditValue}
+                        onChange={(e) => {
+                          setPurchaserEditValue(e.target.value);
+                          setShowPurchaserSuggestions(true);
+                        }}
+                        onFocus={() => {
+                          // При фокусе сохраняем текущее значение как оригинал и очищаем поле для ввода
+                          if (!isPurchaserEditing) {
+                            // Сохраняем текущее значение как оригинал перед очисткой
+                            const currentValue = purchaseRequest?.purchaser || '';
+                            if (currentValue !== purchaserOriginalValue) {
+                              setPurchaserOriginalValue(currentValue);
+                            }
+                            setIsPurchaserEditing(true);
+                            setPurchaserEditValue('');
+                          }
+                          if (purchaserSuggestions.length > 0) {
+                            setShowPurchaserSuggestions(true);
+                          }
+                        }}
+                        onBlur={(e) => {
+                          // Задержка для обработки клика по предложению
+                          setTimeout(() => {
+                            // Проверяем, не кликнули ли на предложение из автокомплита
+                            const activeElement = document.activeElement as HTMLElement;
+                            const isClickingSuggestion = activeElement && activeElement.closest('.purchaser-suggestions-list');
+                            
+                            if (!isClickingSuggestion) {
+                              setShowPurchaserSuggestions(false);
+                              // Получаем текущие значения
+                              const currentValue = purchaserEditValue.trim();
+                              const originalValue = purchaserOriginalValue || '';
+                              
+                              // Если поле пустое (пользователь ничего не ввел) или значение не изменилось, восстанавливаем оригинал
+                              if (currentValue === '' || currentValue === originalValue) {
+                                // Восстанавливаем оригинальное значение
+                                const valueToRestore = originalValue || '';
+                                setPurchaserEditValue(valueToRestore);
+                                setIsPurchaserEditing(false);
+                                // Убеждаемся, что значение в состоянии заявки соответствует оригиналу
+                                if (purchaseRequest && purchaseRequest.purchaser !== valueToRestore) {
+                                  setPurchaseRequest(prev => prev ? { ...prev, purchaser: valueToRestore || null } : null);
+                                }
+                              } else {
+                                // Значение изменилось, сохраняем
+                                handleSavePurchaser();
+                              }
+                            }
+                          }, 200);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            if (showPurchaserSuggestions && purchaserSuggestions.length > 0) {
+                              // Выбираем первое предложение
+                              setPurchaserEditValue(purchaserSuggestions[0]);
+                              setShowPurchaserSuggestions(false);
+                              e.preventDefault();
+                            } else {
+                              e.currentTarget.blur();
+                              handleSavePurchaser();
+                            }
+                          } else if (e.key === 'Escape') {
+                            handleCancelPurchaserEdit();
+                            e.currentTarget.blur();
+                          } else if (e.key === 'ArrowDown' && showPurchaserSuggestions && purchaserSuggestions.length > 0) {
+                            e.preventDefault();
+                            // Можно добавить навигацию по стрелкам, но пока просто закрываем
+                          }
+                        }}
+                        className="flex-1 text-xs text-gray-900 border border-gray-300 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                        placeholder="Введите закупщика"
+                        disabled={isSavingPurchaser}
+                      />
+                      {isSavingPurchaser && (
+                        <span className="text-xs text-gray-500">...</span>
+                      )}
+                      {/* Выпадающий список предложений */}
+                      {showPurchaserSuggestions && purchaserSuggestions.length > 0 && (
+                        <div 
+                          className="purchaser-suggestions-list absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto"
+                          onMouseDown={(e) => {
+                            // Предотвращаем onBlur при клике на список
+                            e.preventDefault();
+                          }}
+                        >
+                          {purchaserSuggestions.map((suggestion, index) => (
+                            <button
+                              key={index}
+                              type="button"
+                              onClick={() => {
+                                setPurchaserEditValue(suggestion);
+                                setShowPurchaserSuggestions(false);
+                                setIsPurchaserEditing(true);
+                                if (purchaserInputRef) {
+                                  purchaserInputRef.focus();
+                                }
+                              }}
+                              onMouseDown={(e) => {
+                                // Предотвращаем onBlur при клике
+                                e.preventDefault();
+                              }}
+                              className="w-full text-left px-2 py-1.5 text-xs text-gray-900 hover:bg-blue-50 focus:bg-blue-50 focus:outline-none"
+                            >
+                              {suggestion}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-gray-600 mb-0">

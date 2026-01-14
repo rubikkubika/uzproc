@@ -170,6 +170,28 @@ public class PurchaseRequestController {
         }
     }
 
+    @PatchMapping("/{idPurchaseRequest}/purchaser")
+    public ResponseEntity<?> updatePurchaser(
+            @PathVariable Long idPurchaseRequest,
+            @RequestBody Map<String, String> requestBody) {
+        try {
+            String purchaser = requestBody.get("purchaser");
+            // purchaser может быть null или пустой строкой (для очистки поля)
+            
+            PurchaseRequestDto updated = purchaseRequestService.updatePurchaser(idPurchaseRequest, purchaser);
+            if (updated != null) {
+                return ResponseEntity.ok(updated);
+            }
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            logger.error("Error updating purchaser for purchase request {}", idPurchaseRequest, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                "success", false,
+                "message", "Ошибка сервера: " + e.getMessage()
+            ));
+        }
+    }
+
     @PostMapping("/update-status/{idPurchaseRequest}")
     public ResponseEntity<Map<String, Object>> updateStatus(@PathVariable Long idPurchaseRequest) {
         try {
