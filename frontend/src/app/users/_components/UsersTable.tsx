@@ -599,14 +599,14 @@ export default function UsersTable() {
         >
           Создать пользователя
         </button>
-        {hasActiveFilters && (
+      {hasActiveFilters && (
           <button
             onClick={resetFilters}
             className="px-4 py-2 text-sm font-medium bg-red-50 text-red-700 rounded-lg border-2 border-red-300 hover:bg-red-100 hover:border-red-400 transition-colors shadow-sm"
           >
             Сбросить фильтры
           </button>
-        )}
+      )}
       </div>
 
       {/* Таблица */}

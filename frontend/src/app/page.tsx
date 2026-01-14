@@ -23,6 +23,7 @@ import Presentation from './presentation/_components/Presentation';
 import TasksBoard from './tasks/_components/TasksBoard';
 import UsersTable from './users/_components/UsersTable';
 import CSIForm from './csi/_components/CSIForm';
+import RoadmapTimeline from './roadmap/_components/RoadmapTimeline';
 
 // Компонент для тестирования отправки почты
 function TestEmailForm() {
@@ -482,6 +483,13 @@ function DashboardContent() {
         return (
           <div className="space-y-6">
             <CSIForm />
+          </div>
+        );
+
+      case 'roadmap':
+        return (
+          <div className="space-y-6">
+            <RoadmapTimeline />
           </div>
         );
 

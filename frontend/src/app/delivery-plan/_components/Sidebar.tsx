@@ -20,7 +20,8 @@ import {
   Mail,
   FileText,
   CheckSquare,
-  Star
+  Star,
+  Map
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -57,6 +58,7 @@ const menuItems: Array<{ id: string; label: string; icon: any }> = [];
     { id: 'presentation', label: 'Презентация', icon: FileText },
     { id: 'users', label: 'Пользователи', icon: Users },
     { id: 'csi', label: 'Сбор CSI', icon: Star },
+    { id: 'roadmap', label: 'Roadmap', icon: Map },
   ];
 
   const backendItems: Array<{ id: string; label: string; icon: any }> = [];
@@ -384,11 +386,19 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                 {initiatorDevelopmentItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
+                const isExternal = (item as any).isExternal || false;
                 
                 return (
                   <li key={item.id}>
                     <button
-                      onClick={() => handleTabChange(item.id)}
+                      onClick={() => {
+                        if (isExternal) {
+                          router.push('/portal');
+                          setIsMobileMenuOpen(false);
+                        } else {
+                          handleTabChange(item.id);
+                        }
+                      }}
                       className={`w-full flex items-center rounded-lg transition-colors relative text-sm ${
                         isCollapsed ? 'justify-center px-2 py-1.5' : 'px-2 py-1.5'
                       } ${
