@@ -3,7 +3,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, ReactElement } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
-import { ArrowLeft, ArrowRight, Clock, Check, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Clock, Check, X, Eye, EyeOff } from 'lucide-react';
 import Sidebar from './_components/Sidebar';
 
 interface PurchaseRequest {
@@ -32,6 +32,7 @@ interface PurchaseRequest {
   purchaseIds: number[] | null;
   contracts: Contract[] | null;
   status: string | null;
+  excludeFromInWork: boolean | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -108,6 +109,7 @@ export default function PurchaseRequestDetailPage() {
   } | null>(null);
   const [filteredRequests, setFilteredRequests] = useState<PurchaseRequest[]>([]);
   const [currentRequestIndex, setCurrentRequestIndex] = useState<number>(-1);
+  const [userRole, setUserRole] = useState<string | null>(null);
   
   // Защита от дублирующих запросов
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -163,6 +165,22 @@ export default function PurchaseRequestDetailPage() {
     }
     setIsMobileMenuOpen(false);
   };
+
+  // Загружаем роль пользователя при монтировании
+  useEffect(() => {
+    const checkUserRole = async () => {
+      try {
+        const response = await fetch('/api/auth/check');
+        const data = await response.json();
+        if (data.authenticated && data.role) {
+          setUserRole(data.role);
+        }
+      } catch (error) {
+        console.error('Error checking user role:', error);
+      }
+    };
+    checkUserRole();
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -949,8 +967,52 @@ export default function PurchaseRequestDetailPage() {
 
               {/* Раздел: Заявка на закупку */}
             <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-              <div className="px-2 py-1.5 border-b border-gray-300 bg-gray-100">
+              <div className="px-2 py-1.5 border-b border-gray-300 bg-gray-100 flex items-center justify-between">
                 <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Заявка на закупку</h2>
+                {purchaseRequest && (
+                  <button
+                    onClick={async () => {
+                      if (userRole !== 'admin') {
+                        alert('Только администратор может изменять видимость заявки в работе');
+                        return;
+                      }
+                      const newValue = !purchaseRequest.excludeFromInWork;
+                      try {
+                        const response = await fetch(`${getBackendUrl()}/api/purchase-requests/${purchaseRequest.idPurchaseRequest}/exclude-from-in-work`, {
+                          method: 'PATCH',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'X-User-Role': userRole || 'user',
+                          },
+                          body: JSON.stringify({ excludeFromInWork: newValue }),
+                        });
+                        if (response.ok) {
+                          const updated = await response.json();
+                          setPurchaseRequest(prev => prev ? { ...prev, excludeFromInWork: updated.excludeFromInWork } : null);
+                        } else {
+                          const errorData = await response.json().catch(() => ({ message: 'Ошибка сервера' }));
+                          alert(errorData.message || 'Не удалось обновить видимость заявки');
+                        }
+                      } catch (error) {
+                        console.error('Error updating excludeFromInWork:', error);
+                        alert('Ошибка при обновлении видимости заявки');
+                      }
+                    }}
+                    className={`flex items-center justify-center rounded p-1 transition-colors ${userRole === 'admin' ? 'hover:bg-gray-200 cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}
+                    title={userRole === 'admin' 
+                      ? (purchaseRequest.excludeFromInWork 
+                          ? "Скрыто из вкладки 'В работе' (кликните для изменения)" 
+                          : "Отображается во вкладке 'В работе' (кликните для изменения)")
+                      : "Только администратор может изменить видимость заявки"}
+                    disabled={userRole !== 'admin'}
+                  >
+                    {purchaseRequest.excludeFromInWork ? (
+                      <EyeOff className="w-4 h-4 text-gray-400" />
+                    ) : (
+                      <Eye className="w-4 h-4 text-gray-600" />
+                    )}
+                  </button>
+                )}
               </div>
               <div className="p-2">
                 <div className="flex flex-col lg:flex-row gap-4 items-start">

@@ -175,21 +175,22 @@ public class PurchaseRequestStatusUpdateService {
                 hasSpecification = true;
                 logger.debug("Found {} specification(s) for purchase request {}", count, idPurchaseRequest);
                 
-                // Проверяем спецификации для заказов (когда requiresPurchase === false)
-                if (purchaseRequest.getRequiresPurchase() != null && purchaseRequest.getRequiresPurchase() == false) {
-                    // Проверяем, есть ли подписанная спецификация
-                    // В базе данных статус хранится как имя enum константы (SIGNED), а не displayName (Подписан)
-                    Query signedQuery = entityManager.createNativeQuery(
-                        "SELECT COUNT(*) FROM contracts WHERE purchase_request_id = ? AND document_form = ? AND status = ?"
-                    );
-                    signedQuery.setParameter(1, idPurchaseRequest);
-                    signedQuery.setParameter(2, "Спецификация");
-                    signedQuery.setParameter(3, "SIGNED"); // Используем имя enum константы, так как используется @Enumerated(EnumType.STRING)
-                    Long signedCount = ((Number) signedQuery.getSingleResult()).longValue();
-                    if (signedCount > 0) {
-                        hasSignedSpecification = true;
-                        logger.info("Found {} signed specification(s) for purchase request {} (order type)", signedCount, idPurchaseRequest);
-                    } else {
+                // Проверяем, есть ли подписанная спецификация (для заказов и закупок)
+                // В базе данных статус хранится как имя enum константы (SIGNED), а не displayName (Подписан)
+                Query signedQuery = entityManager.createNativeQuery(
+                    "SELECT COUNT(*) FROM contracts WHERE purchase_request_id = ? AND document_form = ? AND status = ?"
+                );
+                signedQuery.setParameter(1, idPurchaseRequest);
+                signedQuery.setParameter(2, "Спецификация");
+                signedQuery.setParameter(3, "SIGNED"); // Используем имя enum константы, так как используется @Enumerated(EnumType.STRING)
+                Long signedCount = ((Number) signedQuery.getSingleResult()).longValue();
+                if (signedCount > 0) {
+                    hasSignedSpecification = true;
+                    boolean isOrder = purchaseRequest.getRequiresPurchase() != null && purchaseRequest.getRequiresPurchase() == false;
+                    logger.info("Found {} signed specification(s) for purchase request {} ({})", signedCount, idPurchaseRequest, isOrder ? "order type" : "purchase type");
+                } else {
+                    // Проверяем спецификации для заказов (когда requiresPurchase === false)
+                    if (purchaseRequest.getRequiresPurchase() != null && purchaseRequest.getRequiresPurchase() == false) {
                         logger.debug("No signed specifications found for purchase request {} (order type)", idPurchaseRequest);
                         
                         // Проверяем, есть ли спецификация со статусом "На согласовании"
@@ -402,9 +403,13 @@ public class PurchaseRequestStatusUpdateService {
         // потом наличие закупки (для заявок с requiresPurchase !== false) - даже если заявка утверждена,
         // потом на не утверждено, потом на не согласованные, 
         // потом на завершенное утверждение, потом на активное утверждение, потом на согласование
-        if (hasSignedSpecification) {
+        if (hasSignedSpecification && purchaseRequest.getRequiresPurchase() != null && purchaseRequest.getRequiresPurchase() == false) {
             // Для заказов (requiresPurchase === false) с подписанной спецификацией
             newStatus = PurchaseRequestStatus.SPECIFICATION_SIGNED;
+        } else if (hasSignedSpecification && purchaseRequest.getRequiresPurchase() != null && purchaseRequest.getRequiresPurchase() != false) {
+            // Для закупок (requiresPurchase !== false) с подписанной спецификацией - статус "Договор подписан"
+            newStatus = PurchaseRequestStatus.CONTRACT_SIGNED;
+            logger.info("Found signed specification for purchase request {} (purchase type), setting status to CONTRACT_SIGNED", idPurchaseRequest);
         } else if (hasContracts && allContractsSigned && purchaseRequest.getRequiresPurchase() != null && purchaseRequest.getRequiresPurchase() != false) {
             // Если есть договоры и все они подписаны, и это закупка (requiresPurchase !== false), устанавливаем статус "Договор подписан"
             newStatus = PurchaseRequestStatus.CONTRACT_SIGNED;
