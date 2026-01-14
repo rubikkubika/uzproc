@@ -77,6 +77,37 @@ public class UserService {
     }
 
     @Transactional
+    public User createUser(String username, String password, String email, String surname, String name, String department, String position, String role) {
+        // Проверяем, что username не пустой
+        if (username == null || username.trim().isEmpty()) {
+            throw new IllegalArgumentException("Username is required");
+        }
+        
+        // Проверяем, что password не пустой
+        if (password == null || password.trim().isEmpty()) {
+            throw new IllegalArgumentException("Password is required");
+        }
+        
+        // Проверяем, что пользователь с таким username не существует
+        if (userRepository.findByUsername(username.trim()).isPresent()) {
+            throw new IllegalArgumentException("User with username '" + username.trim() + "' already exists");
+        }
+        
+        User user = new User();
+        user.setUsername(username.trim());
+        user.setPassword(password);
+        user.setEmail(email != null && !email.trim().isEmpty() ? email.trim() : null);
+        user.setSurname(surname != null && !surname.trim().isEmpty() ? surname.trim() : null);
+        user.setName(name != null && !name.trim().isEmpty() ? name.trim() : null);
+        user.setDepartment(department != null && !department.trim().isEmpty() ? department.trim() : null);
+        user.setPosition(position != null && !position.trim().isEmpty() ? position.trim() : null);
+        user.setRole(role != null && !role.trim().isEmpty() ? UserRole.fromCode(role.trim()) : UserRole.USER);
+        
+        logger.info("Creating new user: username={}, email={}", username, email);
+        return userRepository.save(user);
+    }
+
+    @Transactional
     public User updateUser(Long id, String email, String password, String role) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + id));

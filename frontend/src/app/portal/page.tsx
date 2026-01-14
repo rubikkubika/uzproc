@@ -1,106 +1,177 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { FileText, Calendar, Mail, ExternalLink } from 'lucide-react';
 
 export default function PortalPage() {
   const router = useRouter();
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Заголовок */}
-        <h1 className="text-4xl font-bold text-purple-900 mb-4">
-          Портал закупок uzProc
+    <div className="min-h-screen bg-gray-50 py-6 px-4">
+      <div className="max-w-6xl mx-auto space-y-4">
+        {/* Заголовок страницы */}
+        <h1 className="text-4xl font-bold text-purple-900 mb-3">
+          Функция закупок
         </h1>
 
-        {/* Описание */}
-        <div className="bg-purple-100 rounded-lg p-6 mb-6">
-          <p className="text-gray-800 text-lg leading-relaxed">
-            Портал закупок uzProc — это единая точка доступа к информации о закупках, 
-            планировании и документации. Здесь вы найдете все необходимое для работы с закупками.
-          </p>
+        {/* Блок: Руководитель и описание функции на одном уровне */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Блок: Руководитель */}
+          <div className="bg-white rounded-lg px-6 py-4">
+            <h3 className="text-xl font-bold text-purple-900 mb-3">
+              Руководитель
+            </h3>
+            <ul className="space-y-1 text-gray-700">
+              <li>
+                <a href="mailto:uzproc@uzumteam.uz" className="text-purple-600 hover:text-purple-800 hover:underline">
+                  uzproc@uzumteam.uz
+                </a>
+              </li>
+              <li className="text-sm text-gray-600">
+                По вопросам утверждения заявок и стратегических решений
+              </li>
+            </ul>
+          </div>
+
+          {/* Блок описания функции */}
+          <div className="bg-purple-100 rounded-lg px-6 py-4">
+            <h3 className="text-gray-900 text-base font-semibold mb-2">
+              Направления деятельности:
+            </h3>
+            <ul className="space-y-1 text-gray-800 text-base leading-relaxed">
+              <li className="flex items-start gap-2">
+                <span className="text-purple-700 font-bold">-</span>
+                <span>Закупка товаров работ услуг для нужд Компании</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-purple-700 font-bold">-</span>
+                <span>Заключение договоров, дополнительных соглашений, спецификации</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-purple-700 font-bold">-</span>
+                <span>Контроль поставок</span>
+              </li>
+            </ul>
+          </div>
         </div>
 
-        {/* Контактный менеджер */}
+        {/* Раздел: План закупок */}
         <div>
-          <h2 className="text-2xl font-bold text-purple-900 mb-4">
-            Контактный менеджер
+          <h2 className="text-2xl font-bold text-purple-900 mb-3">
+            План закупок
           </h2>
+          <div className="bg-white rounded-lg px-6 py-4">
+            <p className="text-gray-700 text-base leading-relaxed mb-3">
+              Просмотрите актуальный план закупок и ознакомьтесь с запланированными закупками. 
+              План закупок формируется на год и может быть скорректирован в процессе работы. 
+              Для изменения Плана закупок обращайтесь к менеджерам или в{' '}
+              <a 
+                href="https://uzum-team.slack.com/archives/C09E7UH4ALE" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-purple-600 hover:text-purple-800 hover:underline"
+              >
+                канал Slack
+              </a>.
+            </p>
+            <button
+              onClick={() => router.push('/public-plan')}
+              className="px-6 py-3 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700 transition-colors shadow-sm hover:shadow-md"
+            >
+              Перейти к плану закупок
+            </button>
+          </div>
+        </div>
+
+        {/* Раздел: Документы */}
+        <div>
+          <h2 className="text-2xl font-bold text-purple-900 mb-3">
+            Документы
+          </h2>
+          <div className="bg-white rounded-lg px-6 py-4">
+            <ul className="space-y-1 text-gray-700">
+              <li>
+                <a href="#" className="text-purple-600 hover:text-purple-800 hover:underline">
+                  Регламент по закупкам
+                </a>
+              </li>
+              <li>
+                <a href="#" className="text-purple-600 hover:text-purple-800 hover:underline">
+                  Положение о закупочной деятельности
+                </a>
+              </li>
+              <li>
+                <a href="#" className="text-purple-600 hover:text-purple-800 hover:underline">
+                  One page: Процесс закупок
+                </a>
+              </li>
+              <li>
+                <a href="#" className="text-purple-600 hover:text-purple-800 hover:underline">
+                  Инструкция по работе с заявками
+                </a>
+              </li>
+              <li>
+                <a href="#" className="text-purple-600 hover:text-purple-800 hover:underline">
+                  Политика управления договорами
+                </a>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        {/* Раздел: Контакты */}
+        <div>
+          <h2 className="text-2xl font-bold text-purple-900 mb-3">
+            Контакты
+          </h2>
+          
+          {/* Канал в Slack - текстовая ссылка */}
+          <div className="mb-4">
+            <a 
+              href="https://uzum-team.slack.com/archives/C09E7UH4ALE" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-purple-600 hover:text-purple-800 hover:underline"
+            >
+              Канал в Slack
+            </a>
+          </div>
+
+          {/* Блоки с людьми */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white rounded-lg p-6 shadow-md relative">
-              <h3 className="text-xl font-bold text-gray-900 mb-4">Отдел закупок</h3>
-              <ul className="space-y-2 text-gray-700">
-                <li className="flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-purple-600" />
+            {/* Блок: Менеджеры */}
+            <div className="bg-white rounded-lg px-6 py-4">
+              <h3 className="text-xl font-bold text-purple-900 mb-3">
+                Менеджеры
+              </h3>
+              <ul className="space-y-1 text-gray-700">
+                <li>
                   <a href="mailto:uzproc@uzumteam.uz" className="text-purple-600 hover:text-purple-800 hover:underline">
                     uzproc@uzumteam.uz
                   </a>
                 </li>
+                <li className="text-sm text-gray-600">
+                  По вопросам согласования заявок и оперативного управления закупками
+                </li>
               </ul>
-              <div className="absolute bottom-4 right-4 w-16 h-16 bg-purple-600 rounded-lg flex items-center justify-center">
-                <Mail className="w-8 h-8 text-white" />
-              </div>
+            </div>
+
+            {/* Блок: Договорной отдел */}
+            <div className="bg-white rounded-lg px-6 py-4">
+              <h3 className="text-xl font-bold text-purple-900 mb-3">
+                Договорной отдел
+              </h3>
+              <ul className="space-y-1 text-gray-700">
+                <li>
+                  <a href="mailto:uzproc@uzumteam.uz" className="text-purple-600 hover:text-purple-800 hover:underline">
+                    uzproc@uzumteam.uz
+                  </a>
+                </li>
+                <li className="text-sm text-gray-600">
+                  По вопросам договоров, спецификаций и юридических аспектов закупок
+                </li>
+              </ul>
             </div>
           </div>
-        </div>
-
-        {/* Документы */}
-        <div>
-          <h2 className="text-2xl font-bold text-purple-900 mb-4">
-            Документы
-          </h2>
-          <div className="bg-white rounded-lg p-6 shadow-md">
-            <p className="text-gray-600 mb-4">
-              Документы будут добавлены в ближайшее время.
-            </p>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-gray-400">
-                <FileText className="w-4 h-4" />
-                <span className="text-sm">Документы появятся здесь</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Планирование */}
-        <div>
-          <h2 className="text-2xl font-bold text-purple-900 mb-4">
-            Планирование
-          </h2>
-          <div className="bg-white rounded-lg p-6 shadow-md relative">
-            <p className="text-gray-700 mb-4">
-              Просмотрите актуальный план закупок и ознакомьтесь с запланированными мероприятиями.
-            </p>
-            <button
-              onClick={() => router.push('/public-plan')}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 transition-colors shadow-sm hover:shadow-md"
-            >
-              <Calendar className="w-5 h-5" />
-              <span>Перейти к плану закупок</span>
-              <ExternalLink className="w-4 h-4" />
-            </button>
-            <div className="absolute bottom-4 right-4 w-16 h-16 bg-blue-600 rounded-lg flex items-center justify-center">
-              <Calendar className="w-8 h-8 text-white" />
-            </div>
-          </div>
-        </div>
-
-        {/* Дополнительная информация */}
-        <div className="mt-6">
-          <p className="text-gray-700 mb-2">
-            Если у вас есть вопросы по процессу закупок, обращайтесь к контактному менеджеру.
-          </p>
-          <ul className="space-y-1">
-            <li>
-              <a 
-                href="mailto:uzproc@uzumteam.uz" 
-                className="text-purple-600 hover:text-purple-800 hover:underline"
-              >
-                Связаться с отделом закупок
-              </a>
-            </li>
-          </ul>
         </div>
       </div>
     </div>

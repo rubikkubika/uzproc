@@ -7,6 +7,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 @RestController
 @RequestMapping("/users")
 public class UserController {
@@ -54,6 +56,27 @@ public class UserController {
             return ResponseEntity.ok(new UserDTO(user));
         }
         return ResponseEntity.notFound().build();
+    }
+
+    @PostMapping
+    public ResponseEntity<?> createUser(@RequestBody Map<String, String> requestBody) {
+        try {
+            String username = requestBody.get("username");
+            String password = requestBody.get("password");
+            String email = requestBody.get("email");
+            String surname = requestBody.get("surname");
+            String name = requestBody.get("name");
+            String department = requestBody.get("department");
+            String position = requestBody.get("position");
+            String role = requestBody.get("role");
+            
+            User createdUser = userService.createUser(username, password, email, surname, name, department, position, role);
+            return ResponseEntity.ok(new UserDTO(createdUser));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("error", "Ошибка создания пользователя: " + e.getMessage()));
+        }
     }
 
     @PutMapping("/{id}")
