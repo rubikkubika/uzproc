@@ -70,6 +70,18 @@ export default function UsersTable() {
   const [editRole, setEditRole] = useState('user');
   const [updating, setUpdating] = useState(false);
 
+  // Состояние для модального окна создания пользователя
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
+  const [newUsername, setNewUsername] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newSurname, setNewSurname] = useState('');
+  const [newName, setNewName] = useState('');
+  const [newDepartment, setNewDepartment] = useState('');
+  const [newPosition, setNewPosition] = useState('');
+  const [newRole, setNewRole] = useState('user');
+  const [creating, setCreating] = useState(false);
+
   // Состояние для ширин колонок
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
     id: 80,
@@ -318,6 +330,74 @@ export default function UsersTable() {
     }
   };
 
+  // Функция для открытия модального окна создания пользователя
+  const handleCreateUser = () => {
+    setIsCreatingUser(true);
+    setNewUsername('');
+    setNewPassword('');
+    setNewEmail('');
+    setNewSurname('');
+    setNewName('');
+    setNewDepartment('');
+    setNewPosition('');
+    setNewRole('user');
+  };
+
+  // Функция для закрытия модального окна создания пользователя
+  const handleCloseCreate = () => {
+    setIsCreatingUser(false);
+    setNewUsername('');
+    setNewPassword('');
+    setNewEmail('');
+    setNewSurname('');
+    setNewName('');
+    setNewDepartment('');
+    setNewPosition('');
+    setNewRole('user');
+  };
+
+  // Функция для создания пользователя
+  const handleCreateUserSubmit = async () => {
+    if (!newUsername.trim() || !newPassword.trim()) {
+      alert('Логин и пароль обязательны для заполнения');
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: newUsername.trim(),
+          password: newPassword.trim(),
+          email: newEmail.trim() || null,
+          surname: newSurname.trim() || null,
+          name: newName.trim() || null,
+          department: newDepartment.trim() || null,
+          position: newPosition.trim() || null,
+          role: newRole,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Ошибка создания пользователя' }));
+        throw new Error(errorData.error || 'Ошибка создания пользователя');
+      }
+
+      // Обновляем данные
+      await fetchData();
+      handleCloseCreate();
+    } catch (err: any) {
+      console.error('Error creating user:', err);
+      alert(err.message || 'Ошибка создания пользователя');
+    } finally {
+      setCreating(false);
+    }
+  };
+
   // Debounce для текстовых фильтров
   useEffect(() => {
     // Проверяем, изменились ли текстовые фильтры
@@ -511,17 +591,23 @@ export default function UsersTable() {
 
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
-      {/* Кнопка сброса фильтров */}
-      {hasActiveFilters && (
-        <div className="px-4 py-2 border-b border-gray-200 bg-gray-50">
+      {/* Кнопки управления */}
+      <div className="px-4 py-2 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+        <button
+          onClick={handleCreateUser}
+          className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+        >
+          Создать пользователя
+        </button>
+        {hasActiveFilters && (
           <button
             onClick={resetFilters}
             className="px-4 py-2 text-sm font-medium bg-red-50 text-red-700 rounded-lg border-2 border-red-300 hover:bg-red-100 hover:border-red-400 transition-colors shadow-sm"
           >
             Сбросить фильтры
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Таблица */}
       <div className="flex-1 min-h-0 overflow-auto relative">
@@ -674,6 +760,157 @@ export default function UsersTable() {
             >
               Последняя
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Модальное окно создания пользователя */}
+      {isCreatingUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">
+                Создать пользователя
+              </h2>
+              <button
+                onClick={handleCloseCreate}
+                className="p-1 hover:bg-gray-200 rounded transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="newUsername" className="block text-sm font-medium text-gray-700 mb-1">
+                  Логин <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="newUsername"
+                  type="text"
+                  value={newUsername}
+                  onChange={(e) => setNewUsername(e.target.value)}
+                  className="w-full px-3 py-2 text-sm text-gray-900 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Введите логин"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-1">
+                  Пароль <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="newPassword"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full px-3 py-2 text-sm text-gray-900 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Введите пароль"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="newEmail" className="block text-sm font-medium text-gray-700 mb-1">
+                  Email
+                </label>
+                <input
+                  id="newEmail"
+                  type="email"
+                  value={newEmail}
+                  onChange={(e) => setNewEmail(e.target.value)}
+                  className="w-full px-3 py-2 text-sm text-gray-900 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Введите email"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="newSurname" className="block text-sm font-medium text-gray-700 mb-1">
+                  Фамилия
+                </label>
+                <input
+                  id="newSurname"
+                  type="text"
+                  value={newSurname}
+                  onChange={(e) => setNewSurname(e.target.value)}
+                  className="w-full px-3 py-2 text-sm text-gray-900 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Введите фамилию"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="newName" className="block text-sm font-medium text-gray-700 mb-1">
+                  Имя
+                </label>
+                <input
+                  id="newName"
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  className="w-full px-3 py-2 text-sm text-gray-900 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Введите имя"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="newDepartment" className="block text-sm font-medium text-gray-700 mb-1">
+                  Отдел
+                </label>
+                <input
+                  id="newDepartment"
+                  type="text"
+                  value={newDepartment}
+                  onChange={(e) => setNewDepartment(e.target.value)}
+                  className="w-full px-3 py-2 text-sm text-gray-900 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Введите отдел"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="newPosition" className="block text-sm font-medium text-gray-700 mb-1">
+                  Должность
+                </label>
+                <input
+                  id="newPosition"
+                  type="text"
+                  value={newPosition}
+                  onChange={(e) => setNewPosition(e.target.value)}
+                  className="w-full px-3 py-2 text-sm text-gray-900 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="Введите должность"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="newRole" className="block text-sm font-medium text-gray-700 mb-1">
+                  Роль
+                </label>
+                <select
+                  id="newRole"
+                  value={newRole}
+                  onChange={(e) => setNewRole(e.target.value)}
+                  className="w-full px-3 py-2 text-sm text-gray-900 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="user">Пользователь</option>
+                  <option value="admin">Администратор</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={handleCreateUserSubmit}
+                disabled={creating || !newUsername.trim() || !newPassword.trim()}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {creating ? 'Создание...' : 'Создать'}
+              </button>
+              <button
+                onClick={handleCloseCreate}
+                disabled={creating}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Отмена
+              </button>
+            </div>
           </div>
         </div>
       )}

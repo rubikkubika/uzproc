@@ -747,6 +747,21 @@ public class PurchaseRequestService {
         return toDto(saved);
     }
 
+    @Transactional
+    public PurchaseRequestDto updatePurchaser(Long idPurchaseRequest, String purchaser) {
+        PurchaseRequest purchaseRequest = purchaseRequestRepository.findByIdPurchaseRequest(idPurchaseRequest)
+                .orElse(null);
+        if (purchaseRequest == null) {
+            return null;
+        }
+        // Если purchaser - пустая строка или null, устанавливаем null
+        String purchaserValue = (purchaser != null && !purchaser.trim().isEmpty()) ? purchaser.trim() : null;
+        purchaseRequest.setPurchaser(purchaserValue);
+        PurchaseRequest saved = purchaseRequestRepository.save(purchaseRequest);
+        logger.info("Updated purchaser for purchase request {}: {}", idPurchaseRequest, purchaserValue);
+        return toDto(saved);
+    }
+
     /**
      * Обновляет статус заявки на закупку на основе согласований
      * Делегирует вызов в PurchaseRequestStatusUpdateService
