@@ -46,6 +46,10 @@ export default function PortalPage() {
                 <span className="text-purple-700 font-bold">-</span>
                 <span>Заключение договоров, дополнительных соглашений, спецификации</span>
               </li>
+              <li className="flex items-start gap-2">
+                <span className="text-purple-700 font-bold">-</span>
+                <span>Контроль поставок</span>
+              </li>
             </ul>
           </div>
         </div>
