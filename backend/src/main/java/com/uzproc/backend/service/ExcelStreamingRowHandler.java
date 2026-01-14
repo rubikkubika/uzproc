@@ -1393,11 +1393,18 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             }
         }
         
-        // Обновляем закупщика
+        // Обновляем закупщика только если он еще не установлен
+        // Если закупщик уже установлен, не перезаписываем его при парсинге Excel
         if (newData.getPurchaser() != null && !newData.getPurchaser().trim().isEmpty()) {
-            if (existing.getPurchaser() == null || !existing.getPurchaser().equals(newData.getPurchaser())) {
+            if (existing.getPurchaser() == null || existing.getPurchaser().trim().isEmpty()) {
+                // Закупщик еще не установлен, устанавливаем его
                 existing.setPurchaser(newData.getPurchaser());
                 updated = true;
+                logger.debug("Set purchaser for request {}: {}", existing.getIdPurchaseRequest(), newData.getPurchaser());
+            } else {
+                // Закупщик уже установлен, не перезаписываем
+                logger.debug("Purchaser already set for request {}: '{}', skipping update from Excel: '{}'", 
+                    existing.getIdPurchaseRequest(), existing.getPurchaser(), newData.getPurchaser());
             }
         }
         
