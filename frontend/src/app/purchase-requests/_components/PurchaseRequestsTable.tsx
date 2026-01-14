@@ -1561,7 +1561,11 @@ export default function PurchaseRequestsTable() {
             // Собираем уникальные значения
             if (request.cfo) values.cfo.add(request.cfo);
             if (request.purchaseRequestInitiator) values.purchaseRequestInitiator.add(request.purchaseRequestInitiator);
-            if (request.purchaser) values.purchaser.add(request.purchaser);
+            // Нормализуем имя закупщика для фильтров используя единую функцию
+            if (request.purchaser) {
+              const normalizedPurchaser = normalizePurchaserName(request.purchaser);
+              values.purchaser.add(normalizedPurchaser);
+            }
             if (request.status) {
               // Добавляем статус как строку, убираем пробелы
               const statusStr = String(request.status).trim();
@@ -1692,6 +1696,34 @@ export default function PurchaseRequestsTable() {
   }, [activeTab, filtersLoadedRef]); // Обновляем статусы при изменении вкладки
 
   // Загружаем данные для сводной таблицы (аналогично purchase-plan)
+  // Вспомогательная функция для нормализации имени закупщика
+  // Обрабатывает все виды пробелов, невидимые символы и множественные пробелы
+  // Также извлекает только имя (фамилию и имя) из строк вида "Isakova Anastasiia (Отдел закупок, Менеджер по закупкам)"
+  const normalizePurchaserName = (name: string | null | undefined): string => {
+    if (!name) {
+      return 'Не назначен';
+    }
+    
+    // Сначала нормализуем пробелы и невидимые символы
+    let normalized = name
+      .replace(/[\u00A0\u1680\u2000-\u200B\u202F\u205F\u3000\uFEFF]/g, ' ') // Заменяем все виды пробелов на обычные
+      .replace(/[\u200C\u200D]/g, '') // Убираем невидимые символы
+      .trim()
+      .replace(/\s+/g, ' '); // Заменяем множественные пробелы на одинарные
+    
+    // Извлекаем только имя (фамилию и имя) из строк вида "Isakova Anastasiia (Отдел закупок, Менеджер по закупкам)"
+    // Убираем часть в скобках, если она есть
+    const match = normalized.match(/^([^(]+?)(?:\s*\([^)]*\))?\s*$/);
+    if (match && match[1]) {
+      normalized = match[1].trim();
+    }
+    
+    // Финальная нормализация пробелов
+    normalized = normalized.replace(/\s+/g, ' ').trim();
+    
+    return normalized || 'Не назначен';
+  };
+
   // ВАЖНО: НЕ включаем purchaserFilter, selectedYear и activeTab - сводная таблица всегда показывает:
   // - всех закупщиков
   // - все годы
@@ -1793,7 +1825,13 @@ export default function PurchaseRequestsTable() {
         if (response.ok) {
           const result = await response.json();
           console.log('Summary data received, total:', result.totalElements, 'content length:', result.content?.length);
-          setSummaryData(result.content || []);
+          // Нормализуем имена закупщиков сразу при получении данных с бэкенда
+          // Используем функцию normalizePurchaserName, которая определена выше
+          const normalizedContent = (result.content || []).map((item: any) => ({
+            ...item,
+            purchaser: item.purchaser ? normalizePurchaserName(item.purchaser) : null
+          }));
+          setSummaryData(normalizedContent);
         } else {
           // Если ошибка, логируем и используем пустой массив
           const errorText = await response.text().catch(() => 'Unable to read error response');
@@ -1828,7 +1866,15 @@ export default function PurchaseRequestsTable() {
         return;
       }
 
-      const purchaser = item.purchaser || 'Не назначен';
+      // Нормализуем имя закупщика используя единую функцию
+      const originalPurchaser = item.purchaser;
+      const purchaser = normalizePurchaserName(item.purchaser);
+      
+      // Логируем, если оригинальное и нормализованное имя различаются
+      if (originalPurchaser && originalPurchaser !== purchaser) {
+        console.log('Нормализация закупщика:', { original: originalPurchaser, normalized: purchaser });
+      }
+      
       const budget = item.budgetAmount || 0;
       const isPurchase = item.requiresPurchase === true; // true = закупка, false/null = заказ
 
@@ -1851,7 +1897,7 @@ export default function PurchaseRequestsTable() {
       }
     });
 
-    return Array.from(summaryMap.entries())
+    const result = Array.from(summaryMap.entries())
       .map(([purchaser, stats]) => ({
         purchaser,
         ordersCount: stats.ordersCount,
@@ -1860,6 +1906,34 @@ export default function PurchaseRequestsTable() {
         purchasesBudget: stats.purchasesBudget,
       }))
       .sort((a, b) => (b.ordersBudget + b.purchasesBudget) - (a.ordersBudget + a.purchasesBudget)); // Сортировка по общей сумме бюджета по убыванию
+    
+    // Отладочное логирование для проверки дублирования
+    const purchaserNames = result.map(r => r.purchaser);
+    const duplicates = purchaserNames.filter((name, index) => purchaserNames.indexOf(name) !== index);
+    if (duplicates.length > 0) {
+      console.warn('Обнаружены дубликаты закупщиков в сводной таблице:', duplicates);
+      console.warn('Все имена закупщиков:', purchaserNames);
+    }
+    
+    // Дополнительная проверка: ищем похожие имена (с разницей только в пробелах)
+    const normalizedNames = purchaserNames.map(name => normalizePurchaserName(name));
+    const uniqueNormalized = new Set(normalizedNames);
+    if (normalizedNames.length !== uniqueNormalized.size) {
+      console.warn('Обнаружены похожие имена закупщиков (возможно, проблема с нормализацией):');
+      purchaserNames.forEach((name, index) => {
+        const normalized = normalizedNames[index];
+        if (name !== normalized) {
+          console.warn(`  "${name}" -> "${normalized}"`);
+        }
+      });
+    }
+    
+    // Логируем все имена закупщиков для отладки
+    console.log('Все закупщики в сводной таблице:', purchaserNames);
+    console.log('Количество уникальных закупщиков:', uniqueNormalized.size);
+    console.log('Общее количество записей:', purchaserNames.length);
+    
+    return result;
   }, [summaryData]);
 
   const handlePageSizeChange = (newSize: number) => {

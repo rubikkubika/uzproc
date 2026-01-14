@@ -238,7 +238,8 @@ export default function PurchasePlanItemsTable() {
         return;
       }
 
-      const purchaser = item.purchaser || 'Не назначен';
+      // Нормализуем имя закупщика: убираем лишние пробелы в начале/конце и заменяем множественные пробелы на одинарные
+      const purchaser = (item.purchaser || 'Не назначен').trim().replace(/\s+/g, ' ');
       const budget = item.budgetAmount || 0;
       
       // Парсим сложность как число (если это числовое значение)
