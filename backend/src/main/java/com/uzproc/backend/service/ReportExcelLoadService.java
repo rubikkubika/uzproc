@@ -166,7 +166,6 @@ public class ReportExcelLoadService {
      * Загружает данные из Excel файла отчета
      * Парсит согласования для заявок на закупку
      */
-    @Transactional
     public int loadFromExcel(File excelFile) throws IOException {
         Workbook workbook;
         try (FileInputStream fis = new FileInputStream(excelFile)) {
@@ -270,8 +269,16 @@ public class ReportExcelLoadService {
                         for (Purchase purchase : purchases) {
                             Long purchaseRequestId = purchase.getPurchaseRequestId();
                             if (purchaseRequestId != null) {
+                                // Логирование для закупки 2075
+                                if (purchaseRequestId == 2075L || requestNumber == 2075L) {
+                                    logger.info("=== ОБРАБОТКА ЗАКУПКИ: requestNumber={}, purchaseRequestId={}, purchaseId={} ===", 
+                                        requestNumber, purchaseRequestId, purchase.getId());
+                                }
                                 // Парсим согласования для закупки
                                 int rowPurchaseApprovalsCount = parseApprovalsForPurchase(row, purchaseRequestId, approvalColumnMap);
+                                if (purchaseRequestId == 2075L || requestNumber == 2075L) {
+                                    logger.info("=== ЗАКУПКА {}: спарсено согласований: {} ===", purchaseRequestId, rowPurchaseApprovalsCount);
+                                }
                                 purchaseApprovalsCount += rowPurchaseApprovalsCount;
                                 
                                 // Парсим и обновляем contractInnerId из колонки "Договор.Внутренний номер" в репорте
@@ -283,6 +290,8 @@ public class ReportExcelLoadService {
                                 processedPurchasesCount++;
                             }
                         }
+                    } else if (requestNumber == 2075L) {
+                        logger.warn("=== ЗАКУПКА 2075 НЕ НАЙДЕНА В БАЗЕ ДАННЫХ: requestNumber={} ===", requestNumber);
                     }
                     
                     if (purchaseRequestOpt.isEmpty() && purchases.isEmpty()) {
@@ -296,16 +305,18 @@ public class ReportExcelLoadService {
                 }
             }
             
-            // Сохраняем все оставшиеся согласования и обновления перед обновлением статусов
-            flushAllBatches();
+            // Сохраняем все оставшиеся согласования и обновления в отдельной транзакции
+            // Это гарантирует, что согласования сохранятся даже если обновление статусов завершится с ошибкой
+            saveAllApprovalsInTransaction();
             
             logger.info("Processed {} requests ({} approvals), {} purchases ({} approvals), skipped {} rows from report file {}", 
                 processedRequestsCount, requestApprovalsCount, processedPurchasesCount, purchaseApprovalsCount, skippedCount, excelFile.getName());
             
-            // Обновляем статусы в правильном порядке:
+            // Обновляем статусы в правильном порядке в отдельных транзакциях:
             // 1. Сначала статусы закупок (так как статус заявки зависит от статуса закупки)
             // 2. Затем статусы договоров
             // 3. Затем статусы заявок (которые зависят от статусов закупок и договоров)
+            // Каждое обновление в отдельной транзакции, чтобы ошибка в одном не откатывала все
             
             if (purchaseStatusUpdateService != null) {
                 logger.info("=== Starting status update for all purchases after parsing report file ===");
@@ -314,6 +325,7 @@ public class ReportExcelLoadService {
                     logger.info("=== Purchase status update completed successfully ===");
                 } catch (Exception e) {
                     logger.error("=== ERROR during purchase status update after parsing report file: {} ===", e.getMessage(), e);
+                    // Не прерываем выполнение - согласования уже сохранены
                 }
             } else {
                 logger.warn("=== purchaseStatusUpdateService is NULL, skipping purchase status update ===");
@@ -326,6 +338,7 @@ public class ReportExcelLoadService {
                     logger.info("Contract status update completed successfully");
                 } catch (Exception e) {
                     logger.error("Error during contract status update after parsing report file: {}", e.getMessage(), e);
+                    // Не прерываем выполнение - согласования уже сохранены
                 }
             }
             
@@ -337,6 +350,7 @@ public class ReportExcelLoadService {
                     logger.info("Status update completed successfully");
                 } catch (Exception e) {
                     logger.error("Error during status update after parsing report file: {}", e.getMessage(), e);
+                    // Не прерываем выполнение - согласования уже сохранены
                 }
             }
             
@@ -381,6 +395,11 @@ public class ReportExcelLoadService {
      * Парсит согласования для закупки из строки
      */
     private int parseApprovalsForPurchase(Row row, Long purchaseRequestId, Map<String, Integer> approvalColumnMap) {
+        // Логирование для закупки 2075
+        if (purchaseRequestId == 2075L) {
+            logger.info("=== НАЧАЛО ПАРСИНГА СОГЛАСОВАНИЙ ДЛЯ ЗАКУПКИ {} ===", purchaseRequestId);
+            logger.info("=== Размер карты колонок: {} ===", approvalColumnMap.size());
+        }
         int count = 0;
         
         // Парсим этап "Согласование результатов ЗП"
@@ -394,6 +413,11 @@ public class ReportExcelLoadService {
         // Парсим этап "Проверка результата закупочной комиссии"
         count += parseApprovalStageDynamicForPurchase(row, purchaseRequestId, STAGE_COMMISSION_RESULT_CHECK, 
             COMMISSION_RESULT_CHECK_ROLES, approvalColumnMap);
+        
+        // Логирование для закупки 2075
+        if (purchaseRequestId == 2075L) {
+            logger.info("=== ЗАКУПКА {}: спарсено согласований: {} ===", purchaseRequestId, count);
+        }
         
         return count;
     }
@@ -602,8 +626,11 @@ public class ReportExcelLoadService {
             }
             
             // Сохраняем согласование только если есть хотя бы одно значение
-            if (assignmentDate != null || completionDate != null || daysInWork != null 
-                    || (completionResult != null && !completionResult.trim().isEmpty())) {
+            // (assignmentDate, completionDate, daysInWork, completionResult)
+            boolean hasValue = assignmentDate != null || completionDate != null || daysInWork != null 
+                    || (completionResult != null && !completionResult.trim().isEmpty());
+            
+            if (hasValue) {
                 PurchaseRequestApproval approval = requestApprovalRepository
                     .findByIdPurchaseRequestAndStageAndRole(idPurchaseRequest, stage, role)
                     .orElse(new PurchaseRequestApproval(idPurchaseRequest, stage, role));
@@ -653,14 +680,30 @@ public class ReportExcelLoadService {
                     }
                 }
                 
-                if (updated || approval.getId() == null) {
+                // Добавляем согласование в batch, если:
+                // 1. Оно новое (getId() == null) - создаем только если есть данные (hasValue уже проверено выше)
+                // 2. ИЛИ есть обновления (updated == true) - значения изменились
+                // hasValue уже проверено в условии if выше, поэтому здесь всегда true
+                boolean isNew = approval.getId() == null;
+                boolean shouldAdd = isNew || updated;
+                
+                if (shouldAdd) {
                     requestApprovalBatch.add(approval);
                     count++;
+                    
+                    // Логирование для заявки 2075
+                    if (idPurchaseRequest == 2075L) {
+                        logger.info("=== ЗАЯВКА 2075: Создано/обновлено согласование stage={}, role={}, hasValue={}, updated={}, isNew={}, shouldAdd={} ===", 
+                            stage, role, hasValue, updated, isNew, shouldAdd);
+                    }
                     
                     // Сохраняем batch если он заполнен
                     if (requestApprovalBatch.size() >= BATCH_SIZE) {
                         flushRequestApprovalBatch();
                     }
+                } else if (idPurchaseRequest == 2075L) {
+                    logger.warn("=== ЗАЯВКА 2075: Пропущено согласование stage={}, role={}, hasValue={}, updated={}, isNew={} ===", 
+                        stage, role, hasValue, updated, isNew);
                 }
             }
         }
@@ -704,9 +747,18 @@ public class ReportExcelLoadService {
                 stage, role, assignmentDateCol, completionDateCol, daysInWorkCol, completionResultCol,
                 assignmentDate, completionDate, daysInWork, completionResult);
             
+            // Логирование для закупки 2075
+            if (purchaseRequestId == 2075L) {
+                logger.info("=== ЗАКУПКА 2075: stage={}, role={}, assignmentDate={}, completionDate={}, daysInWork={}, completionResult={} ===", 
+                    stage, role, assignmentDate, completionDate, daysInWork, completionResult);
+            }
+            
             // Сохраняем согласование только если есть хотя бы одно значение
-            if (assignmentDate != null || completionDate != null || daysInWork != null 
-                    || (completionResult != null && !completionResult.trim().isEmpty())) {
+            // (assignmentDate, completionDate, daysInWork, completionResult)
+            boolean hasValue = assignmentDate != null || completionDate != null || daysInWork != null 
+                    || (completionResult != null && !completionResult.trim().isEmpty());
+            
+            if (hasValue) {
                 PurchaseApproval approval = purchaseApprovalRepository
                     .findByPurchaseRequestIdAndStageAndRole(purchaseRequestId, stage, role)
                     .orElse(new PurchaseApproval(purchaseRequestId, stage, role));
@@ -756,15 +808,33 @@ public class ReportExcelLoadService {
                     }
                 }
                 
-                if (updated || approval.getId() == null) {
+                // Добавляем согласование в batch, если:
+                // 1. Оно новое (getId() == null) - создаем только если есть данные (hasValue уже проверено выше)
+                // 2. ИЛИ есть обновления (updated == true) - значения изменились
+                // hasValue уже проверено в условии if выше, поэтому здесь всегда true
+                boolean isNew = approval.getId() == null;
+                boolean shouldAdd = isNew || updated;
+                
+                if (shouldAdd) {
                     purchaseApprovalBatch.add(approval);
                     count++;
+                    
+                    // Логирование для закупки 2075
+                    if (purchaseRequestId == 2075L) {
+                        logger.info("=== ЗАКУПКА 2075: Создано/обновлено согласование stage={}, role={}, hasValue={}, updated={}, isNew={}, shouldAdd={} ===", 
+                            stage, role, hasValue, updated, isNew, shouldAdd);
+                    }
                     
                     // Сохраняем batch если он заполнен
                     if (purchaseApprovalBatch.size() >= BATCH_SIZE) {
                         flushPurchaseApprovalBatch();
                     }
+                } else if (purchaseRequestId == 2075L) {
+                    logger.warn("=== ЗАКУПКА 2075: Пропущено согласование stage={}, role={}, hasValue={}, updated={}, isNew={} ===", 
+                        stage, role, hasValue, updated, isNew);
                 }
+            } else if (purchaseRequestId == 2075L) {
+                logger.warn("=== ЗАКУПКА 2075: Не найдены колонки для stage={}, role={} ===", stage, role);
             }
         }
         
@@ -1352,31 +1422,90 @@ public class ReportExcelLoadService {
     }
     
     /**
+     * Сохраняет все согласования в отдельной транзакции
+     * Это гарантирует, что согласования сохранятся даже если обновление статусов завершится с ошибкой
+     */
+    @Transactional
+    private void saveAllApprovalsInTransaction() {
+        logger.info("Saving all approvals in separate transaction before status update");
+        flushRequestApprovalBatch();
+        flushPurchaseApprovalBatch();
+        flushPurchaseUpdateBatch();
+        logger.info("All approvals saved successfully");
+    }
+    
+    /**
      * Сохраняет накопленные согласования заявок пакетом
+     * Использует save вместо saveAll для правильной обработки существующих записей
      */
     private void flushRequestApprovalBatch() {
         if (!requestApprovalBatch.isEmpty()) {
             try {
-                requestApprovalRepository.saveAll(requestApprovalBatch);
-                logger.debug("Flushed {} request approvals to database", requestApprovalBatch.size());
+                int saved = 0;
+                int skipped = 0;
+                for (PurchaseRequestApproval approval : requestApprovalBatch) {
+                    try {
+                        // Используем save для правильной обработки существующих записей (merge)
+                        requestApprovalRepository.save(approval);
+                        saved++;
+                    } catch (Exception e) {
+                        // Если согласование уже существует, пропускаем его
+                        if (e.getMessage() != null && e.getMessage().contains("unique_approval_per_request")) {
+                            logger.debug("Approval already exists, skipping: idPurchaseRequest={}, stage={}, role={}", 
+                                approval.getIdPurchaseRequest(), approval.getStage(), approval.getRole());
+                            skipped++;
+                        } else {
+                            logger.warn("Error saving approval: idPurchaseRequest={}, stage={}, role={}, error={}", 
+                                approval.getIdPurchaseRequest(), approval.getStage(), approval.getRole(), e.getMessage());
+                            throw e; // Пробрасываем другие ошибки
+                        }
+                    }
+                }
+                logger.info("Flushed {} request approvals to database (saved: {}, skipped: {})", 
+                    requestApprovalBatch.size(), saved, skipped);
                 requestApprovalBatch.clear();
             } catch (Exception e) {
                 logger.error("Error flushing request approval batch: {}", e.getMessage(), e);
+                // Очищаем batch даже при ошибке, чтобы не зациклиться
+                requestApprovalBatch.clear();
             }
         }
     }
     
     /**
      * Сохраняет накопленные согласования закупок пакетом
+     * Использует save вместо saveAll для правильной обработки существующих записей
      */
     private void flushPurchaseApprovalBatch() {
         if (!purchaseApprovalBatch.isEmpty()) {
             try {
-                purchaseApprovalRepository.saveAll(purchaseApprovalBatch);
-                logger.debug("Flushed {} purchase approvals to database", purchaseApprovalBatch.size());
+                int saved = 0;
+                int skipped = 0;
+                for (PurchaseApproval approval : purchaseApprovalBatch) {
+                    try {
+                        // Используем save для правильной обработки существующих записей (merge)
+                        purchaseApprovalRepository.save(approval);
+                        saved++;
+                    } catch (Exception e) {
+                        // Если согласование уже существует, пропускаем его
+                        if (e.getMessage() != null && e.getMessage().contains("unique")) {
+                            logger.debug("Approval already exists, skipping: purchaseRequestId={}, stage={}, role={}", 
+                                approval.getPurchaseRequestId(), approval.getStage(), approval.getRole());
+                            skipped++;
+                        } else {
+                            logger.warn("Error saving approval: purchaseRequestId={}, stage={}, role={}, error={}", 
+                                approval.getPurchaseRequestId(), approval.getStage(), approval.getRole(), e.getMessage());
+                            throw e; // Пробрасываем другие ошибки
+                        }
+                    }
+                }
+                logger.info("Flushed {} purchase approvals to database (saved: {}, skipped: {})", 
+                    purchaseApprovalBatch.size(), saved, skipped);
                 purchaseApprovalBatch.clear();
             } catch (Exception e) {
                 logger.error("Error flushing purchase approval batch: {}", e.getMessage(), e);
+                // Очищаем batch даже при ошибке, чтобы не зациклиться
+                purchaseApprovalBatch.clear();
             }
         }
     }
