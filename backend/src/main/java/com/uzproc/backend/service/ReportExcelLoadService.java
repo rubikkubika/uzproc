@@ -249,13 +249,18 @@ public class ReportExcelLoadService {
                         Long idPurchaseRequest = purchaseRequest.getIdPurchaseRequest();
                         
                         // Парсим согласования для заявки
-                        if (requestNumber == 1944L) {
-                            logger.info("=== ОБРАБОТКА ЗАЯВКИ 1944: requestNumber={}, idPurchaseRequest={} ===", requestNumber, idPurchaseRequest);
+                        if (requestNumber == 1944L || requestNumber == 2075L) {
+                            logger.info("=== ОБРАБОТКА ЗАЯВКИ {}: requestNumber={}, idPurchaseRequest={} ===", requestNumber, requestNumber, idPurchaseRequest);
                         }
                         int rowApprovalsCount = parseApprovalsForRequest(row, idPurchaseRequest, approvalColumnMap);
+                        if (requestNumber == 1944L || requestNumber == 2075L) {
+                            logger.info("=== ЗАЯВКА {}: спарсено согласований: {} ===", requestNumber, rowApprovalsCount);
+                        }
                         requestApprovalsCount += rowApprovalsCount;
                         
                         processedRequestsCount++;
+                    } else if (requestNumber == 2075L) {
+                        logger.warn("=== ЗАЯВКА 2075 НЕ НАЙДЕНА В БАЗЕ ДАННЫХ: requestNumber={} ===", requestNumber);
                     }
                     
                     // Находим закупки по purchaseRequestId (используем номер заявки на закупку)
@@ -346,9 +351,10 @@ public class ReportExcelLoadService {
      * Парсит согласования для заявки на закупку из строки
      */
     private int parseApprovalsForRequest(Row row, Long idPurchaseRequest, Map<String, Integer> approvalColumnMap) {
-        // Логирование для заявки 1944
-        if (idPurchaseRequest == 1944L) {
-            logger.info("=== НАЧАЛО ПАРСИНГА СОГЛАСОВАНИЙ ДЛЯ ЗАЯВКИ 1944 ===");
+        // Логирование для заявки 1944 и 2075
+        if (idPurchaseRequest == 1944L || idPurchaseRequest == 2075L) {
+            logger.info("=== НАЧАЛО ПАРСИНГА СОГЛАСОВАНИЙ ДЛЯ ЗАЯВКИ {} ===", idPurchaseRequest);
+            logger.info("=== Размер карты колонок: {} ===", approvalColumnMap.size());
         }
         int count = 0;
         
@@ -567,6 +573,10 @@ public class ReportExcelLoadService {
             if (assignmentDateCol == null && completionDateCol == null && 
                 daysInWorkCol == null && completionResultCol == null) {
                 logger.debug("No columns found for stage={}, role={}", stage, role);
+                // Логирование для заявки 2075
+                if (idPurchaseRequest == 2075L) {
+                    logger.warn("=== ЗАЯВКА 2075: Не найдены колонки для stage={}, role={} ===", stage, role);
+                }
                 continue;
             }
             
@@ -584,6 +594,12 @@ public class ReportExcelLoadService {
             logger.debug("Parsing approval: stage={}, role={}, assignmentDateCol={}, completionDateCol={}, daysInWorkCol={}, completionResultCol={}, assignmentDate={}, completionDate={}, daysInWork={}, completionResult={}", 
                 stage, role, assignmentDateCol, completionDateCol, daysInWorkCol, completionResultCol,
                 assignmentDate, completionDate, daysInWork, completionResult);
+            
+            // Логирование для заявки 2075
+            if (idPurchaseRequest == 2075L) {
+                logger.info("=== ЗАЯВКА 2075: stage={}, role={}, assignmentDate={}, completionDate={}, daysInWork={}, completionResult={} ===", 
+                    stage, role, assignmentDate, completionDate, daysInWork, completionResult);
+            }
             
             // Сохраняем согласование только если есть хотя бы одно значение
             if (assignmentDate != null || completionDate != null || daysInWork != null 
