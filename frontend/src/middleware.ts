@@ -9,9 +9,10 @@ export function middleware(request: NextRequest) {
   const isAuthenticated = authToken && authToken.value === `authenticated-${PASSWORD_VERSION}`;
   const isLoginPage = request.nextUrl.pathname === '/login';
   const isPublicPlanPage = request.nextUrl.pathname.startsWith('/public-plan');
+  const isPortalPage = request.nextUrl.pathname.startsWith('/portal');
 
-  // Разрешаем доступ к публичной странице плана закупок без аутентификации
-  if (isPublicPlanPage) {
+  // Разрешаем доступ к публичным страницам без аутентификации
+  if (isPublicPlanPage || isPortalPage) {
     return NextResponse.next();
   }
 
