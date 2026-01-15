@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum PurchaseRequestStatus {
     ON_APPROVAL("Заявка на согласовании"),
-    ON_APPROVAL_FINAL("Заявка на утверждении"),
+    ON_APPROVAL_FINAL("Заявка у закупщика"),
     APPROVED("Заявка утверждена"),
     COORDINATED("Согласована"),
     NOT_COORDINATED("Заявка не согласована"),
