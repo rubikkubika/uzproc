@@ -32,8 +32,8 @@ export default function PurchasePlanItemsAuthModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 pointer-events-none">
+      <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md pointer-events-auto">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Подтверждение изменения</h2>
         <p className="text-sm text-gray-600 mb-4">
           Для сохранения изменения необходимо повторно ввести логин и пароль, как при входе в систему.
