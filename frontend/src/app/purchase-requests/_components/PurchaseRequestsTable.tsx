@@ -879,7 +879,7 @@ export default function PurchaseRequestsTable() {
       sortField,
       sortDirection,
       currentPage,
-      // pageSize теперь константа, не сохраняем в ref
+      pageSize: 100, // Константа, но нужна для типа
       cfoSearchQuery,
       statusSearchQuery,
       activeTab,
@@ -3476,7 +3476,7 @@ export default function PurchaseRequestsTable() {
                         selectedYear: selectedYear,
                         sortField: sortField,
                         sortDirection: sortDirection,
-                        totalElements: data.totalElements,
+                        totalElements: data?.totalElements || 0,
                       };
                       localStorage.setItem('purchaseRequestNavigation', JSON.stringify(navigationData));
                       console.log('Navigation data saved with year:', selectedYear, 'navigationData:', navigationData);
@@ -3525,7 +3525,7 @@ export default function PurchaseRequestsTable() {
                           selectedYear: selectedYear,
                           sortField: sortField,
                           sortDirection: sortDirection,
-                          totalElements: data.totalElements,
+                          totalElements: data?.totalElements || 0,
                         };
                         localStorage.setItem('purchaseRequestNavigation', JSON.stringify(navigationData));
                         console.log('Navigation data saved with year:', selectedYear, 'navigationData:', navigationData);
