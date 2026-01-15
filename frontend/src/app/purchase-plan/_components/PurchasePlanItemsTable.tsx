@@ -197,13 +197,20 @@ export default function PurchasePlanItemsTable() {
     table.modals.setDetailsModalOpen(item.id);
     table.modalData.fetchModalItemData(item.id);
     table.modals.setActiveTab(prev => ({ ...prev, [item.id]: 'comments' }));
+    // Загружаем комментарии при открытии модального окна
+    table.modalData.fetchComments(item.id, true); // includePrivate = true для внутреннего плана
   }, [table.modals, table.modalData]);
 
   // Обработчик изменения вкладки в модальном окне
   const handleTabChange = useCallback((itemId: number, tab: any) => {
     table.modals.setActiveTab(prev => ({ ...prev, [itemId]: tab }));
     
-    if (tab === 'changes') {
+    if (tab === 'comments') {
+      const commentsData = table.modalData.commentsData[itemId];
+      if (!commentsData || !commentsData.content || commentsData.content.length === 0) {
+        table.modalData.fetchComments(itemId, true); // includePrivate = true для внутреннего плана
+      }
+    } else if (tab === 'changes') {
       const changesData = table.modalData.changesData[itemId];
       if (!changesData || !changesData.content || changesData.content.length === 0) {
         table.modalData.fetchChanges(itemId, 0);
@@ -215,6 +222,11 @@ export default function PurchasePlanItemsTable() {
       }
     }
   }, [table.modals, table.modalData, table.data]);
+
+  // Обработчик обновления комментариев после добавления нового
+  const handleCommentsRefresh = useCallback((itemId: number) => {
+    table.modalData.fetchComments(itemId, true);
+  }, [table.modalData]);
 
   // Загружаем версии при изменении года
   useEffect(() => {
@@ -647,7 +659,12 @@ export default function PurchasePlanItemsTable() {
           activeTab={table.modals.activeTab[currentModalItemId] || 'comments'}
           onTabChange={(tab) => handleTabChange(currentModalItemId, tab)}
           onClose={() => table.modals.setDetailsModalOpen(null)}
-          comments={[]} // TODO: добавить загрузку комментариев
+          comments={currentModalItemId ? table.modalData.commentsData[currentModalItemId]?.content || [] : []}
+          commentsLoading={currentModalItemId ? table.modalData.commentsData[currentModalItemId]?.loading || false : false}
+          onCommentsRefresh={(itemId: number) => {
+            handleCommentsRefresh(itemId);
+          }}
+          isPublicPlan={false}
           changes={currentModalItemId ? table.modalData.changesData[currentModalItemId]?.content || [] : []}
           changesLoading={currentModalItemId ? table.modalData.changesData[currentModalItemId]?.loading || false : false}
           changesTotalElements={currentModalItemId ? table.modalData.changesData[currentModalItemId]?.totalElements : undefined}

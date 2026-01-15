@@ -87,3 +87,14 @@ export interface Version {
   itemsCount: number;
   isCurrent: boolean;
 }
+
+export interface PurchasePlanItemComment {
+  id: number;
+  purchasePlanItemId: number;
+  text: string;
+  isPublic: boolean;
+  authorId?: number | null;
+  authorName?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}

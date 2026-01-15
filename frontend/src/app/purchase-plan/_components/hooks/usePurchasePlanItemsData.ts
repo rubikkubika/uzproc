@@ -21,6 +21,42 @@ export const usePurchasePlanItemsData = () => {
     loading: boolean;
   }>>({});
 
+  const [commentsData, setCommentsData] = useState<Record<number, {
+    content: any[];
+    loading: boolean;
+  }>>({});
+
+  const fetchComments = useCallback(async (itemId: number, includePrivate: boolean = true) => {
+    setCommentsData(prev => ({
+      ...prev,
+      [itemId]: { ...prev[itemId], loading: true }
+    }));
+    
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/comments?includePrivate=${includePrivate}`);
+      if (response.ok) {
+        const data = await response.json();
+        setCommentsData(prev => ({
+          ...prev,
+          [itemId]: {
+            content: data || [],
+            loading: false
+          }
+        }));
+      } else {
+        setCommentsData(prev => ({
+          ...prev,
+          [itemId]: { content: [], loading: false }
+        }));
+      }
+    } catch (error) {
+      setCommentsData(prev => ({
+        ...prev,
+        [itemId]: { content: [], loading: false }
+      }));
+    }
+  }, []);
+
   const fetchChanges = useCallback(async (itemId: number, page: number) => {
     setChangesData(prev => ({
       ...prev,
@@ -121,8 +157,10 @@ export const usePurchasePlanItemsData = () => {
     modalItemData,
     changesData,
     purchaseRequestData,
+    commentsData,
     fetchChanges,
     fetchModalItemData,
     fetchPurchaseRequest,
+    fetchComments,
   };
 };
