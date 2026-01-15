@@ -52,6 +52,7 @@ interface PurchaseRequest {
   contracts: Contract[] | null;
   createdAt: string;
   updatedAt: string;
+  csiLink: string | null;
 }
 
 interface PageResponse {
@@ -101,6 +102,7 @@ const ALL_COLUMNS = [
   { key: 'createdAt', label: 'Дата создания (системная)' },
   { key: 'updatedAt', label: 'Дата обновления' },
   { key: 'track', label: 'Трэк' },
+  { key: 'rating', label: 'Оценка' },
 ] as const;
 
 // Колонки, которые отображаются по умолчанию
@@ -232,6 +234,206 @@ export default function PurchaseRequestsTable() {
   const [cfoSearchQuery, setCfoSearchQuery] = useState('');
   const [statusSearchQuery, setStatusSearchQuery] = useState('');
   const [purchaserSearchQuery, setPurchaserSearchQuery] = useState('');
+  
+  // Состояние для модального окна оценки
+  const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
+  const [selectedRequestForRating, setSelectedRequestForRating] = useState<PurchaseRequest | null>(null);
+  const [selectedUserEmail, setSelectedUserEmail] = useState<string>('');
+  const [selectedUser, setSelectedUser] = useState<{id: number, username: string, email: string | null, surname: string | null, name: string | null} | null>(null);
+  const [userSearchQuery, setUserSearchQuery] = useState<string>('');
+  const [userSuggestions, setUserSuggestions] = useState<Array<{id: number, username: string, email: string | null, surname: string | null, name: string | null}>>([]);
+  const [showUserSuggestions, setShowUserSuggestions] = useState(false);
+  const [emailText, setEmailText] = useState('');
+  const userSearchRef = useRef<HTMLDivElement>(null);
+  
+  // Загрузка предложений пользователей для поиска
+  useEffect(() => {
+    if (!isRatingModalOpen) return;
+    
+    const loadUserSuggestions = async () => {
+      if (!userSearchQuery || userSearchQuery.trim().length < 1) {
+        setUserSuggestions([]);
+        setShowUserSuggestions(false);
+        return;
+      }
+
+      try {
+        const searchQuery = userSearchQuery.trim().toLowerCase();
+        
+        // Делаем несколько запросов параллельно для поиска по разным полям
+        const [nameResponse, surnameResponse, usernameResponse, emailResponse] = await Promise.all([
+          fetch(`${getBackendUrl()}/api/users?page=0&size=20&name=${encodeURIComponent(searchQuery)}`),
+          fetch(`${getBackendUrl()}/api/users?page=0&size=20&surname=${encodeURIComponent(searchQuery)}`),
+          fetch(`${getBackendUrl()}/api/users?page=0&size=20&username=${encodeURIComponent(searchQuery)}`),
+          fetch(`${getBackendUrl()}/api/users?page=0&size=20&email=${encodeURIComponent(searchQuery)}`)
+        ]);
+
+        const allUsers = new Map<number, any>();
+        
+        // Собираем всех пользователей из всех запросов
+        const responses = [nameResponse, surnameResponse, usernameResponse, emailResponse];
+        for (const response of responses) {
+          if (response.ok) {
+            const data = await response.json();
+            const users = data.content || [];
+            users.forEach((user: any) => {
+              if (!allUsers.has(user.id)) {
+                allUsers.set(user.id, user);
+              }
+            });
+          }
+        }
+
+        // Формируем список предложений: "Фамилия Имя" или "username" или "email"
+        const suggestions = Array.from(allUsers.values()).map((user: any) => ({
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          surname: user.surname,
+          name: user.name,
+          displayName: user.surname && user.name 
+            ? `${user.surname} ${user.name}${user.email ? ` (${user.email})` : ''}`
+            : user.email 
+            ? `${user.email}${user.username ? ` (${user.username})` : ''}`
+            : user.username
+        }));
+
+        setUserSuggestions(suggestions);
+        setShowUserSuggestions(suggestions.length > 0);
+      } catch (error) {
+        console.error('Error loading user suggestions:', error);
+        setUserSuggestions([]);
+        setShowUserSuggestions(false);
+      }
+    };
+
+    const timer = setTimeout(() => {
+      loadUserSuggestions();
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [userSearchQuery, isRatingModalOpen]);
+  
+  // Генерируем текст письма сразу при открытии модального окна
+  useEffect(() => {
+    if (isRatingModalOpen && selectedRequestForRating) {
+      // Генерируем текст письма сразу, даже если получатель еще не выбран
+      generateEmailText('', selectedRequestForRating);
+    }
+  }, [isRatingModalOpen, selectedRequestForRating]);
+  
+  // Устанавливаем инициатора заявки по умолчанию при открытии модального окна
+  useEffect(() => {
+    if (isRatingModalOpen && selectedRequestForRating?.purchaseRequestInitiator && !selectedUser) {
+      const loadInitiator = async () => {
+        try {
+          const initiatorName = selectedRequestForRating.purchaseRequestInitiator.trim();
+          
+          // Пробуем разные варианты поиска
+          const [nameResponse, surnameResponse, usernameResponse, emailResponse] = await Promise.all([
+            fetch(`${getBackendUrl()}/api/users?page=0&size=50&name=${encodeURIComponent(initiatorName)}`),
+            fetch(`${getBackendUrl()}/api/users?page=0&size=50&surname=${encodeURIComponent(initiatorName)}`),
+            fetch(`${getBackendUrl()}/api/users?page=0&size=50&username=${encodeURIComponent(initiatorName)}`),
+            fetch(`${getBackendUrl()}/api/users?page=0&size=50&email=${encodeURIComponent(initiatorName)}`)
+          ]);
+
+          const allUsers = new Map<number, any>();
+          const responses = [nameResponse, surnameResponse, usernameResponse, emailResponse];
+          for (const response of responses) {
+            if (response.ok) {
+              const data = await response.json();
+              const users = data.content || [];
+              users.forEach((user: any) => {
+                if (!allUsers.has(user.id)) {
+                  allUsers.set(user.id, user);
+                }
+              });
+            }
+          }
+
+          // Ищем точное совпадение по разным вариантам
+          let initiator = Array.from(allUsers.values()).find((u: any) => {
+            const fullName = u.surname && u.name ? `${u.surname} ${u.name}`.trim() : null;
+            const reverseName = u.name && u.surname ? `${u.name} ${u.surname}`.trim() : null;
+            
+            return u.username === initiatorName ||
+                   u.email === initiatorName ||
+                   fullName === initiatorName ||
+                   reverseName === initiatorName ||
+                   (u.surname && u.surname.trim() === initiatorName) ||
+                   (u.name && u.name.trim() === initiatorName);
+          });
+          
+          // Если точного совпадения нет, берем первое из найденных (если есть)
+          if (!initiator && allUsers.size > 0) {
+            initiator = Array.from(allUsers.values())[0];
+          }
+          
+          if (initiator) {
+            const user = {
+              id: initiator.id,
+              username: initiator.username,
+              email: initiator.email,
+              surname: initiator.surname,
+              name: initiator.name
+            };
+            setSelectedUser(user);
+            const displayName = user.surname && user.name 
+              ? `${user.surname} ${user.name}${user.email ? ` (${user.email})` : ''}`
+              : user.email || user.username;
+            setUserSearchQuery(displayName);
+            setSelectedUserEmail(initiator.email || initiator.username);
+            // Текст письма уже сгенерирован, не нужно генерировать снова
+          } else {
+            // Если инициатор не найден, все равно устанавливаем его имя в поле поиска
+            setUserSearchQuery(initiatorName);
+          }
+        } catch (error) {
+          console.error('Error loading initiator:', error);
+          // В случае ошибки все равно устанавливаем имя инициатора в поле поиска
+          if (selectedRequestForRating?.purchaseRequestInitiator) {
+            setUserSearchQuery(selectedRequestForRating.purchaseRequestInitiator);
+          }
+        }
+      };
+      loadInitiator();
+    }
+  }, [isRatingModalOpen, selectedRequestForRating, selectedUser]);
+  
+  // Закрытие выпадающего списка при клике вне его
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userSearchRef.current && !userSearchRef.current.contains(event.target as Node)) {
+        setShowUserSuggestions(false);
+      }
+    };
+
+    if (showUserSuggestions) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showUserSuggestions]);
+  
+  // Функция генерации текста письма
+  const generateEmailText = (userEmail: string, request: PurchaseRequest | null) => {
+    if (!request || !request.csiLink) {
+      setEmailText('');
+      return;
+    }
+    
+    const fullUrl = typeof window !== 'undefined' ? `${window.location.origin}${request.csiLink}` : request.csiLink;
+    const text = `Здравствуйте!
+
+Вы инициировали заявку на закупку. Мы хотим улучшить сервис, пожалуйста пройдите опрос по ссылке:
+
+${fullUrl}
+
+Спасибо за ваше время!`;
+    
+    setEmailText(text);
+  };
   
   // Позиции для выпадающих списков
   const [cfoFilterPosition, setCfoFilterPosition] = useState<{ top: number; left: number } | null>(null);
@@ -448,6 +650,23 @@ export default function PurchaseRequestsTable() {
       }
     }
   }, [tabCounts, activeTab]);
+  
+  // Автоматическое управление видимостью колонки "rating" при переключении вкладок
+  useEffect(() => {
+    setVisibleColumns(prev => {
+      const newSet = new Set(prev);
+      if (activeTab === 'completed') {
+        // Для вкладки "Завершенные" добавляем колонку "rating" и убираем "track" и "daysSinceCreation"
+        newSet.add('rating');
+        newSet.delete('track');
+        newSet.delete('daysSinceCreation');
+      } else {
+        // Для других вкладок убираем колонку "rating"
+        newSet.delete('rating');
+      }
+      return newSet;
+    });
+  }, [activeTab]);
 
   // Состояние для ширин колонок
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
@@ -458,7 +677,7 @@ export default function PurchaseRequestsTable() {
   const resizeColumn = useRef<string | null>(null);
 
   // Состояние для порядка колонок
-  const [columnOrder, setColumnOrder] = useState<string[]>(['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'daysSinceCreation', 'track']);
+  const [columnOrder, setColumnOrder] = useState<string[]>(['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'daysSinceCreation', 'track', 'rating']);
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
 
@@ -566,7 +785,7 @@ export default function PurchaseRequestsTable() {
   useEffect(() => {
     try {
       const saved = localStorage.getItem('purchaseRequestsTableColumnOrder');
-      const defaultOrder = ['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'daysSinceCreation', 'track'];
+      const defaultOrder = ['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'daysSinceCreation', 'track', 'rating'];
       
       if (saved) {
         const order = JSON.parse(saved);
@@ -607,7 +826,7 @@ export default function PurchaseRequestsTable() {
     } catch (err) {
       console.error('Error loading column order:', err);
       // В случае ошибки используем дефолтный порядок
-      const defaultOrder = ['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'daysSinceCreation', 'track'];
+      const defaultOrder = ['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'daysSinceCreation', 'track', 'rating'];
       setColumnOrder(defaultOrder);
     }
   }, []);
@@ -2171,8 +2390,22 @@ export default function PurchaseRequestsTable() {
 
   // Фильтруем columnOrder, чтобы показывать только видимые колонки
   const filteredColumnOrder = useMemo(() => {
-    return columnOrder.filter(columnKey => visibleColumns.has(columnKey));
-  }, [columnOrder, visibleColumns]);
+    let filtered = columnOrder.filter(columnKey => visibleColumns.has(columnKey));
+    
+    // Для вкладки "Завершенные" убираем колонки "track" и "daysSinceCreation", добавляем "rating"
+    if (activeTab === 'completed') {
+      filtered = filtered.filter(col => col !== 'track' && col !== 'daysSinceCreation');
+      if (!filtered.includes('rating') && visibleColumns.has('rating')) {
+        // Добавляем колонку "rating" в конец, если она видима
+        filtered.push('rating');
+      }
+    } else {
+      // Для других вкладок убираем колонку "rating"
+      filtered = filtered.filter(col => col !== 'rating');
+    }
+    
+    return filtered;
+  }, [columnOrder, visibleColumns, activeTab]);
 
   const getFilteredStatusOptions = useMemo(() => {
     // Используем только статусы, которые есть в текущих данных таблицы (с учетом вкладки и всех фильтров, кроме фильтра по статусу)
@@ -3371,6 +3604,10 @@ export default function PurchaseRequestsTable() {
                 }
                 
                 if (columnKey === 'daysSinceCreation') {
+                  // Не показываем колонку "Срок с даты создания" для вкладки "Завершенные"
+                  if (activeTab === 'completed') {
+                    return null;
+                  }
                   return (
                     <th
                       key={columnKey}
@@ -3409,6 +3646,10 @@ export default function PurchaseRequestsTable() {
                 }
                 
                 if (columnKey === 'track') {
+                  // Не показываем колонку "Трэк" для вкладки "Завершенные"
+                  if (activeTab === 'completed') {
+                    return null;
+                  }
                   return (
                     <th
                       key={columnKey}
@@ -3423,6 +3664,22 @@ export default function PurchaseRequestsTable() {
                       <div className="flex flex-col gap-1">
                         <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}></div>
                         <span className="normal-case min-h-[20px] flex items-center">Трэк</span>
+                      </div>
+                    </th>
+                  );
+                }
+                
+                // Колонка "Оценка" только для вкладки "Завершенные"
+                if (columnKey === 'rating' && activeTab === 'completed') {
+                  return (
+                    <th
+                      key={columnKey}
+                      className="px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300"
+                      style={{ verticalAlign: 'top' }}
+                    >
+                      <div className="flex flex-col gap-1">
+                        <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}></div>
+                        <span className="normal-case min-h-[20px] flex items-center">Оценка</span>
                       </div>
                     </th>
                   );
@@ -3876,6 +4133,10 @@ export default function PurchaseRequestsTable() {
                     }
                     
                     if (columnKey === 'daysSinceCreation') {
+                      // Не показываем колонку "Срок с даты создания" для вкладки "Завершенные"
+                      if (activeTab === 'completed') {
+                        return null;
+                      }
                       return (
                         <td 
                           key={columnKey} 
@@ -3918,6 +4179,10 @@ export default function PurchaseRequestsTable() {
                     }
                     
                     if (columnKey === 'track') {
+                      // Не показываем колонку "Трэк" для вкладки "Завершенные"
+                      if (activeTab === 'completed') {
+                        return null;
+                      }
                       return (
                         <td key={columnKey} className="px-2 py-0.5 text-xs border-r border-gray-200">
                     <div className="flex items-end gap-2">
@@ -4053,6 +4318,39 @@ export default function PurchaseRequestsTable() {
                       );
                     }
                     
+                    // Колонка "Оценка" только для вкладки "Завершенные"
+                    if (columnKey === 'rating' && activeTab === 'completed') {
+                      return (
+                        <td 
+                          key={columnKey} 
+                          className="px-2 py-0.5 text-xs border-r border-gray-200"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {request.csiLink ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                // Сбрасываем состояние перед открытием модального окна
+                                setSelectedUser(null);
+                                setUserSearchQuery('');
+                                setSelectedUserEmail('');
+                                setEmailText('');
+                                setUserSuggestions([]);
+                                setShowUserSuggestions(false);
+                                setSelectedRequestForRating(request);
+                                setIsRatingModalOpen(true);
+                              }}
+                              className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                            >
+                              Оценка
+                            </button>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </td>
+                      );
+                    }
+                    
                     return null;
                   })}
                 </tr>
@@ -4076,6 +4374,151 @@ export default function PurchaseRequestsTable() {
           </div>
         )}
       </div>
+      
+      {/* Модальное окно для отправки письма с оценкой */}
+      {isRatingModalOpen && selectedRequestForRating && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => {
+          setIsRatingModalOpen(false);
+          setSelectedRequestForRating(null);
+          setSelectedUser(null);
+          setSelectedUserEmail('');
+          setUserSearchQuery('');
+          setEmailText('');
+          setUserSuggestions([]);
+          setShowUserSuggestions(false);
+        }}>
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Отправка письма для оценки</h2>
+              <button
+                onClick={() => {
+                  setIsRatingModalOpen(false);
+                  setSelectedRequestForRating(null);
+                  setSelectedUser(null);
+                  setSelectedUserEmail('');
+                  setUserSearchQuery('');
+                  setEmailText('');
+                  setUserSuggestions([]);
+                  setShowUserSuggestions(false);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Получатель
+                </label>
+                <div ref={userSearchRef} className="relative">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={userSearchQuery}
+                      onChange={(e) => {
+                        setUserSearchQuery(e.target.value);
+                        setSelectedUser(null);
+                        setSelectedUserEmail('');
+                        if (selectedRequestForRating) {
+                          generateEmailText('', selectedRequestForRating);
+                        }
+                      }}
+                      onFocus={() => {
+                        if (userSuggestions.length > 0) {
+                          setShowUserSuggestions(true);
+                        }
+                      }}
+                      placeholder="Начните вводить имя, фамилию, username или email"
+                      className="w-full pl-8 pr-3 py-2 text-sm text-gray-900 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  
+                  {showUserSuggestions && userSuggestions.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      {userSuggestions.map((user) => {
+                        const displayName = user.surname && user.name 
+                          ? `${user.surname} ${user.name}${user.email ? ` (${user.email})` : ''}`
+                          : user.email 
+                          ? `${user.email}${user.username ? ` (${user.username})` : ''}`
+                          : user.username;
+                        
+                        return (
+                          <button
+                            key={user.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedUser(user);
+                              setUserSearchQuery(displayName);
+                              setSelectedUserEmail(user.email || user.username);
+                              setShowUserSuggestions(false);
+                              if (selectedRequestForRating) {
+                                generateEmailText(user.email || user.username, selectedRequestForRating);
+                              }
+                            }}
+                            className="w-full text-left px-3 py-2 text-sm text-gray-900 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
+                          >
+                            {displayName}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  
+                  {selectedUser && (
+                    <div className="mt-2 px-3 py-2 text-sm bg-blue-50 text-blue-900 rounded-lg">
+                      Выбран: {selectedUser.surname && selectedUser.name 
+                        ? `${selectedUser.surname} ${selectedUser.name}${selectedUser.email ? ` (${selectedUser.email})` : ''}`
+                        : selectedUser.email || selectedUser.username}
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Текст письма
+                </label>
+                <textarea
+                  value={emailText}
+                  onChange={(e) => setEmailText(e.target.value)}
+                  rows={8}
+                  className="w-full px-3 py-2 text-sm text-gray-900 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                />
+              </div>
+              
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(emailText);
+                    alert('Письмо скопировано в буфер обмена');
+                  }}
+                  className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  Скопировать в буфер
+                </button>
+                <button
+                  onClick={() => {
+                    setIsRatingModalOpen(false);
+                    setSelectedRequestForRating(null);
+                    setSelectedUser(null);
+                    setSelectedUserEmail('');
+                    setUserSearchQuery('');
+                    setEmailText('');
+                    setUserSuggestions([]);
+                    setShowUserSuggestions(false);
+                  }}
+                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Закрыть
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

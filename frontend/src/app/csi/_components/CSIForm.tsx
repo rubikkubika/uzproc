@@ -274,7 +274,7 @@ export default function CSIForm() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Общая удовлетворенность
+                  Работа закупщика (коммуникация и бизнес-ориентированность)
                 </label>
                 <StarRating
                   rating={formData.satisfactionRating}

@@ -10,9 +10,10 @@ export function middleware(request: NextRequest) {
   const isLoginPage = request.nextUrl.pathname === '/login';
   const isPublicPlanPage = request.nextUrl.pathname.startsWith('/public-plan');
   const isPortalPage = request.nextUrl.pathname.startsWith('/portal');
+  const isCSIFeedbackPage = request.nextUrl.pathname.startsWith('/csi/feedback');
 
   // Разрешаем доступ к публичным страницам без аутентификации
-  if (isPublicPlanPage || isPortalPage) {
+  if (isPublicPlanPage || isPortalPage || isCSIFeedbackPage) {
     return NextResponse.next();
   }
 

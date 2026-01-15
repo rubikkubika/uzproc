@@ -18,5 +18,6 @@ public interface PurchaseRequestRepository extends JpaRepository<PurchaseRequest
     Optional<PurchaseRequest> findByIdPurchaseRequest(Long idPurchaseRequest);
     boolean existsByIdPurchaseRequest(Long idPurchaseRequest);
     Page<PurchaseRequest> findByPurchaseRequestCreationDateBetween(LocalDateTime start, LocalDateTime end, Pageable pageable);
+    Optional<PurchaseRequest> findByCsiToken(String csiToken);
 }
 

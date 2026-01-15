@@ -44,6 +44,8 @@ public class PurchaseRequestDto {
     private Boolean hasCompletedPurchase;
     // Список связанных договоров
     private java.util.List<ContractDto> contracts;
+    // Ссылка на форму CSI обратной связи
+    private String csiLink;
 
     // Constructors
     public PurchaseRequestDto() {
@@ -304,6 +306,14 @@ public class PurchaseRequestDto {
 
     public void setContracts(java.util.List<ContractDto> contracts) {
         this.contracts = contracts;
+    }
+
+    public String getCsiLink() {
+        return csiLink;
+    }
+
+    public void setCsiLink(String csiLink) {
+        this.csiLink = csiLink;
     }
 }
 

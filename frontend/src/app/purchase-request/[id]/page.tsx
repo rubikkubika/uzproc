@@ -3,7 +3,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, ReactElement } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
-import { ArrowLeft, ArrowRight, Clock, Check, X, Eye, EyeOff } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Clock, Check, X, Eye, EyeOff, Copy } from 'lucide-react';
 import Sidebar from './_components/Sidebar';
 
 interface PurchaseRequest {
@@ -33,6 +33,7 @@ interface PurchaseRequest {
   contracts: Contract[] | null;
   status: string | null;
   excludeFromInWork: boolean | null;
+  csiLink: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -1158,8 +1159,29 @@ export default function PurchaseRequestDetailPage() {
               <div className="px-2 py-1.5 border-b border-gray-300 bg-gray-100 flex items-center justify-between">
                 <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Заявка на закупку</h2>
                 {purchaseRequest && (
-                  <button
-                    onClick={async () => {
+                  <div className="flex items-center gap-1">
+                    {/* Кнопка CSI - копирование ссылки */}
+                    {purchaseRequest.csiLink && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            const fullUrl = `${window.location.origin}${purchaseRequest.csiLink}`;
+                            await navigator.clipboard.writeText(fullUrl);
+                            alert('Ссылка на форму CSI скопирована в буфер обмена');
+                          } catch (error) {
+                            console.error('Error copying to clipboard:', error);
+                            alert('Не удалось скопировать ссылку');
+                          }
+                        }}
+                        className="flex items-center justify-center rounded p-1 transition-colors hover:bg-gray-200 cursor-pointer"
+                        title="Скопировать ссылку на форму CSI"
+                      >
+                        <Copy className="w-4 h-4 text-gray-600" />
+                      </button>
+                    )}
+                    {/* Кнопка скрыть из в работе */}
+                    <button
+                      onClick={async () => {
                       if (userRole !== 'admin') {
                         alert('Только администратор может изменять видимость заявки в работе');
                         return;
@@ -1194,12 +1216,13 @@ export default function PurchaseRequestDetailPage() {
                       : "Только администратор может изменить видимость заявки"}
                     disabled={userRole !== 'admin'}
                   >
-                    {purchaseRequest.excludeFromInWork ? (
+                      {purchaseRequest.excludeFromInWork ? (
                       <EyeOff className="w-4 h-4 text-gray-400" />
                     ) : (
                       <Eye className="w-4 h-4 text-gray-600" />
                     )}
                   </button>
+                  </div>
                 )}
               </div>
               <div className="p-2">

@@ -373,7 +373,28 @@ export default function PurchasePlanItemsDetailsModal({
 
           {activeTab === 'purchaseRequest' && (
             <div className="space-y-4">
-              <h3 className="text-sm font-medium text-gray-700">Заявка на закупку</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium text-gray-700">Заявка на закупку</h3>
+                {!isPublicPlan && purchaseRequest && (
+                  <button
+                    onClick={() => {
+                      // Переход на страницу заявок с фильтром по номеру заявки
+                      // Сохраняем фильтр в localStorage для восстановления на странице заявок
+                      const existingFilters = localStorage.getItem('purchaseRequestsTableFilters');
+                      const filters = existingFilters ? JSON.parse(existingFilters) : {};
+                      filters.idPurchaseRequest = String(purchaseRequest.idPurchaseRequest);
+                      localStorage.setItem('purchaseRequestsTableFilters', JSON.stringify(filters));
+                      
+                      const url = new URL(window.location.origin);
+                      url.searchParams.set('tab', 'purchase-requests');
+                      window.open(url.toString(), '_blank');
+                    }}
+                    className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Редактировать заявку
+                  </button>
+                )}
+              </div>
               {loadingPurchaseRequest ? (
                 <p className="text-sm text-gray-500">Загрузка...</p>
               ) : purchaseRequest ? (
@@ -395,6 +416,26 @@ export default function PurchasePlanItemsDetailsModal({
                   <div>
                     <label className="text-xs font-medium text-gray-500">Инициатор</label>
                     <p className="text-sm text-gray-900">{purchaseRequest.purchaseRequestInitiator || '-'}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500">Закупщик</label>
+                    <p className="text-sm text-gray-900">{purchaseRequest.purchaser || '-'}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500">Статус</label>
+                    <p className="text-sm text-gray-900">{purchaseRequest.status || '-'}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500">ЦФО</label>
+                    <p className="text-sm text-gray-900">{purchaseRequest.cfo || '-'}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500">Дата создания</label>
+                    <p className="text-sm text-gray-900">
+                      {purchaseRequest.purchaseRequestCreationDate 
+                        ? new Date(purchaseRequest.purchaseRequestCreationDate).toLocaleDateString('ru-RU')
+                        : '-'}
+                    </p>
                   </div>
                 </div>
               ) : (

@@ -122,7 +122,7 @@ export const usePurchasePlanItemsData = () => {
     }
   }, []);
   
-  const fetchPurchaseRequest = useCallback(async (itemId: number, purchaseRequestId: number) => {
+  const fetchPurchaseRequest = useCallback(async (itemId: number, purchaseRequestId: number, updateStatusCallback?: (status: string | null) => void) => {
     setPurchaseRequestData(prev => ({
       ...prev,
       [itemId]: { ...prev[itemId], loading: true }
@@ -139,6 +139,10 @@ export const usePurchasePlanItemsData = () => {
             loading: false
           }
         }));
+        // Обновляем статус в плане закупок, если передан callback
+        if (updateStatusCallback && data?.status) {
+          updateStatusCallback(data.status);
+        }
       } else {
         setPurchaseRequestData(prev => ({
           ...prev,

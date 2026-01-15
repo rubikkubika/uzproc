@@ -94,6 +94,10 @@ public class PurchaseRequest {
     @Column(name = "is_strategic_product")
     private Boolean isStrategicProduct;
 
+    // Уникальный токен для ссылки на форму CSI обратной связи
+    @Column(name = "csi_token", unique = true, length = 255)
+    private String csiToken;
+
     // Обратная связь с Purchase (одна заявка может иметь много закупок)
     @OneToMany(mappedBy = "purchaseRequest", fetch = FetchType.LAZY)
     private java.util.List<Purchase> purchases;
@@ -120,6 +124,10 @@ public class PurchaseRequest {
     protected void onCreate() {
         if (isPlanned == null) {
             isPlanned = false;
+        }
+        // Генерируем уникальный токен для CSI ссылки, если его еще нет
+        if (csiToken == null || csiToken.isEmpty()) {
+            csiToken = java.util.UUID.randomUUID().toString();
         }
     }
 
@@ -353,5 +361,13 @@ public class PurchaseRequest {
 
     public void setPurchases(java.util.List<Purchase> purchases) {
         this.purchases = purchases;
+    }
+
+    public String getCsiToken() {
+        return csiToken;
+    }
+
+    public void setCsiToken(String csiToken) {
+        this.csiToken = csiToken;
     }
 }

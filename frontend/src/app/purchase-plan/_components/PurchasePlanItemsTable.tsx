@@ -217,8 +217,28 @@ export default function PurchasePlanItemsTable() {
       }
     } else if (tab === 'purchaseRequest') {
       const item = table.data?.content.find(i => i.id === itemId);
-      if (item?.purchaseRequestId && !table.modalData.purchaseRequestData[itemId]?.data) {
-        table.modalData.fetchPurchaseRequest(itemId, item.purchaseRequestId);
+      if (item?.purchaseRequestId) {
+        // Всегда обновляем заявку при открытии вкладки, чтобы получить актуальный статус
+        table.modalData.fetchPurchaseRequest(itemId, item.purchaseRequestId, (newStatus) => {
+          // Обновляем статус в данных плана закупок
+          table.setAllItems((prev: any[]) => 
+            prev.map((planItem: any) => 
+              planItem.id === itemId && planItem.purchaseRequestId === item.purchaseRequestId
+                ? { ...planItem, purchaseRequestStatus: newStatus }
+                : planItem
+            )
+          );
+          if (table.data) {
+            table.setData({
+              ...table.data,
+              content: table.data.content.map((planItem: any) =>
+                planItem.id === itemId && planItem.purchaseRequestId === item.purchaseRequestId
+                  ? { ...planItem, purchaseRequestStatus: newStatus }
+                  : planItem
+              )
+            });
+          }
+        });
       }
     }
   }, [table.modals, table.modalData, table.data]);
