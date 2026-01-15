@@ -17,6 +17,7 @@ import jakarta.persistence.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.DayOfWeek;
@@ -33,7 +34,6 @@ import java.util.Set;
  * Проверяет согласования и наличие спецификаций для определения статуса
  */
 @Service
-@Transactional(readOnly = false)
 public class PurchaseRequestStatusUpdateService {
 
     private static final Logger logger = LoggerFactory.getLogger(PurchaseRequestStatusUpdateService.class);
@@ -460,6 +460,8 @@ public class PurchaseRequestStatusUpdateService {
         if (newStatus != null && currentStatus != newStatus) {
             purchaseRequest.setStatus(newStatus);
             purchaseRequestRepository.save(purchaseRequest);
+            // Явно синхронизируем изменения с БД
+            entityManager.flush();
             logger.info("Status updated for purchase request {}: {} -> {}", 
                 idPurchaseRequest, 
                 currentStatus != null ? currentStatus.getDisplayName() : "null",
@@ -474,13 +476,14 @@ public class PurchaseRequestStatusUpdateService {
     /**
      * Массовое обновление статусов для всех заявок на закупку
      * Используется после парсинга данных для обновления всех статусов
+     * Каждая обработка записи выполняется в отдельной транзакции с явным flush для освобождения соединения
      */
-    @Transactional
+    @Transactional(readOnly = true)
     public void updateAllStatuses() {
         logger.info("Starting mass status update for all purchase requests");
         long startTime = System.currentTimeMillis();
         
-        // Получаем все заявки на закупку
+        // Получаем все заявки на закупку (read-only транзакция)
         List<PurchaseRequest> allRequests = purchaseRequestRepository.findAll();
         logger.info("Found {} purchase requests to update", allRequests.size());
         
@@ -490,7 +493,8 @@ public class PurchaseRequestStatusUpdateService {
         for (PurchaseRequest request : allRequests) {
             try {
                 PurchaseRequestStatus oldStatus = request.getStatus();
-                updateStatus(request.getIdPurchaseRequest());
+                // Каждый вызов updateStatus выполняется в отдельной транзакции
+                updateStatusInNewTransaction(request.getIdPurchaseRequest());
                 
                 // Проверяем, изменился ли статус
                 request = purchaseRequestRepository.findByIdPurchaseRequest(request.getIdPurchaseRequest())
@@ -509,13 +513,21 @@ public class PurchaseRequestStatusUpdateService {
         logger.info("Mass status update completed: {} requests processed, {} updated, {} errors, time: {} ms", 
             allRequests.size(), updatedCount, errorCount, processingTime);
     }
+    
+    /**
+     * Обновляет статус в новой транзакции (для массовых обновлений)
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    private void updateStatusInNewTransaction(Long idPurchaseRequest) {
+        updateStatus(idPurchaseRequest);
+    }
 
     /**
      * Обновление статусов для заявок с указанными ID
+     * Каждая обработка записи выполняется в отдельной транзакции
      * 
      * @param idPurchaseRequests список ID заявок для обновления
      */
-    @Transactional
     public void updateStatuses(List<Long> idPurchaseRequests) {
         logger.info("Starting status update for {} purchase requests", idPurchaseRequests.size());
         long startTime = System.currentTimeMillis();

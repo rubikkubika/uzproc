@@ -43,6 +43,10 @@ public class CsiFeedback {
     @Column(name = "comment", columnDefinition = "text")
     private String comment;
 
+    // Получатель письма (email или username того, кому была отправлена ссылка)
+    @Column(name = "recipient", length = 255)
+    private String recipient;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -121,6 +125,14 @@ public class CsiFeedback {
 
     public void setComment(String comment) {
         this.comment = comment;
+    }
+
+    public String getRecipient() {
+        return recipient;
+    }
+
+    public void setRecipient(String recipient) {
+        this.recipient = recipient;
     }
 
     public LocalDateTime getCreatedAt() {

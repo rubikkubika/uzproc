@@ -4,6 +4,7 @@ import com.uzproc.backend.dto.CsiFeedbackCreateDto;
 import com.uzproc.backend.dto.CsiFeedbackDto;
 import com.uzproc.backend.dto.PurchaseRequestInfoDto;
 import com.uzproc.backend.entity.CsiFeedback;
+import com.uzproc.backend.entity.CsiFeedbackInvitation;
 import com.uzproc.backend.entity.PurchaseRequest;
 import com.uzproc.backend.repository.CsiFeedbackRepository;
 import com.uzproc.backend.repository.PurchaseRequestRepository;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @Transactional(readOnly = true)
@@ -29,12 +31,15 @@ public class CsiFeedbackService {
 
     private final CsiFeedbackRepository csiFeedbackRepository;
     private final PurchaseRequestRepository purchaseRequestRepository;
+    private final CsiFeedbackInvitationService invitationService;
 
     public CsiFeedbackService(
             CsiFeedbackRepository csiFeedbackRepository,
-            PurchaseRequestRepository purchaseRequestRepository) {
+            PurchaseRequestRepository purchaseRequestRepository,
+            CsiFeedbackInvitationService invitationService) {
         this.csiFeedbackRepository = csiFeedbackRepository;
         this.purchaseRequestRepository = purchaseRequestRepository;
+        this.invitationService = invitationService;
     }
 
     @Transactional
@@ -77,6 +82,18 @@ public class CsiFeedbackService {
             validateRating(createDto.getUzprocRating(), "узпрока");
         }
 
+        // Ищем приглашение по токену и получателю (если получатель указан)
+        String recipient = null;
+        if (createDto.getRecipient() != null && !createDto.getRecipient().trim().isEmpty()) {
+            recipient = createDto.getRecipient().trim();
+        } else {
+            // Если получатель не указан, пытаемся найти приглашение только по токену
+            Optional<CsiFeedbackInvitation> invitationOpt = invitationService.findByToken(createDto.getCsiToken());
+            if (invitationOpt.isPresent()) {
+                recipient = invitationOpt.get().getRecipient();
+            }
+        }
+
         // Создаем новую обратную связь
         CsiFeedback feedback = new CsiFeedback(purchaseRequest);
         feedback.setUsedUzproc(createDto.getUsedUzproc());
@@ -85,9 +102,20 @@ public class CsiFeedbackService {
         feedback.setQualityRating(createDto.getQualityRating());
         feedback.setSatisfactionRating(createDto.getSatisfactionRating());
         feedback.setComment(createDto.getComment());
+        feedback.setRecipient(recipient);
 
         CsiFeedback saved = csiFeedbackRepository.save(feedback);
         logger.info("CSI feedback created with ID: {} for purchase request ID: {}", saved.getId(), purchaseRequest.getId());
+
+        // Связываем приглашение с обратной связью, если приглашение найдено
+        if (recipient != null) {
+            invitationService.findByTokenAndRecipient(createDto.getCsiToken(), recipient)
+                    .ifPresent(invitation -> {
+                        invitation.setCsiFeedback(saved);
+                        invitationService.saveInvitation(invitation);
+                        logger.info("Linked invitation ID: {} with CSI feedback ID: {}", invitation.getId(), saved.getId());
+                    });
+        }
 
         return toDto(saved);
     }
@@ -102,6 +130,11 @@ public class CsiFeedbackService {
         // Проверяем, был ли уже оставлен отзыв
         List<CsiFeedback> existingFeedbacks = csiFeedbackRepository.findByPurchaseRequestId(purchaseRequest.getId());
         boolean alreadySubmitted = !existingFeedbacks.isEmpty();
+
+        // Ищем приглашение по токену (берем первое найденное)
+        String recipient = invitationService.findByToken(token)
+                .map(inv -> inv.getRecipient())
+                .orElse(null);
 
         PurchaseRequestInfoDto dto = new PurchaseRequestInfoDto();
         dto.setId(purchaseRequest.getId());
@@ -120,6 +153,7 @@ public class CsiFeedbackService {
         dto.setCurrency(purchaseRequest.getCurrency());
         dto.setPurchaser(purchaseRequest.getPurchaser());
         dto.setAlreadySubmitted(alreadySubmitted);
+        dto.setRecipient(recipient);
         return dto;
     }
 
@@ -195,6 +229,7 @@ public class CsiFeedbackService {
         CsiFeedbackDto dto = new CsiFeedbackDto();
         dto.setId(feedback.getId());
         dto.setPurchaseRequestId(feedback.getPurchaseRequest().getId());
+        dto.setIdPurchaseRequest(feedback.getPurchaseRequest().getIdPurchaseRequest());
         dto.setPurchaseRequestInnerId(feedback.getPurchaseRequest().getInnerId());
         dto.setUsedUzproc(feedback.getUsedUzproc());
         dto.setUzprocRating(feedback.getUzprocRating());
@@ -202,6 +237,7 @@ public class CsiFeedbackService {
         dto.setQualityRating(feedback.getQualityRating());
         dto.setSatisfactionRating(feedback.getSatisfactionRating());
         dto.setComment(feedback.getComment());
+        dto.setRecipient(feedback.getRecipient());
         dto.setCreatedAt(feedback.getCreatedAt());
         dto.setUpdatedAt(feedback.getUpdatedAt());
         return dto;

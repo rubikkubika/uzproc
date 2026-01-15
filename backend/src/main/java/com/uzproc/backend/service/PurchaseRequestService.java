@@ -9,9 +9,11 @@ import com.uzproc.backend.entity.PurchaseRequest;
 import com.uzproc.backend.entity.PurchaseRequestApproval;
 import com.uzproc.backend.entity.PurchaseRequestStatus;
 import com.uzproc.backend.repository.ContractRepository;
+import com.uzproc.backend.repository.CsiFeedbackRepository;
 import com.uzproc.backend.repository.PurchaseRequestApprovalRepository;
 import com.uzproc.backend.repository.PurchaseRequestRepository;
 import com.uzproc.backend.repository.PurchaseRepository;
+import com.uzproc.backend.entity.CsiFeedback;
 import java.util.stream.Collectors;
 import jakarta.persistence.criteria.Predicate;
 import org.slf4j.Logger;
@@ -48,6 +50,7 @@ public class PurchaseRequestService {
     private final ContractRepository contractRepository;
     private final ContractService contractService;
     private final PurchaseRequestStatusUpdateService statusUpdateService;
+    private final CsiFeedbackRepository csiFeedbackRepository;
 
     public PurchaseRequestService(
             PurchaseRequestRepository purchaseRequestRepository,
@@ -55,13 +58,15 @@ public class PurchaseRequestService {
             PurchaseRepository purchaseRepository,
             ContractRepository contractRepository,
             ContractService contractService,
-            PurchaseRequestStatusUpdateService statusUpdateService) {
+            PurchaseRequestStatusUpdateService statusUpdateService,
+            CsiFeedbackRepository csiFeedbackRepository) {
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.approvalRepository = approvalRepository;
         this.purchaseRepository = purchaseRepository;
         this.contractRepository = contractRepository;
         this.contractService = contractService;
         this.statusUpdateService = statusUpdateService;
+        this.csiFeedbackRepository = csiFeedbackRepository;
     }
 
     public Page<PurchaseRequestDto> findAll(
@@ -355,6 +360,37 @@ public class PurchaseRequestService {
         if (entity.getCsiToken() != null && !entity.getCsiToken().isEmpty()) {
             // Формируем ссылку вида: /csi/feedback/{token}
             dto.setCsiLink("/csi/feedback/" + entity.getCsiToken());
+        }
+        
+        // Проверяем наличие оценки CSI и вычисляем среднюю оценку (без uzprocRating)
+        List<CsiFeedback> feedbacks = csiFeedbackRepository.findByPurchaseRequestId(entity.getId());
+        if (!feedbacks.isEmpty()) {
+            dto.setHasFeedback(true);
+            // Вычисляем среднюю оценку по всем вопросам кроме uzprocRating
+            double sum = 0.0;
+            int count = 0;
+            for (CsiFeedback feedback : feedbacks) {
+                if (feedback.getSpeedRating() != null) {
+                    sum += feedback.getSpeedRating();
+                    count++;
+                }
+                if (feedback.getQualityRating() != null) {
+                    sum += feedback.getQualityRating();
+                    count++;
+                }
+                if (feedback.getSatisfactionRating() != null) {
+                    sum += feedback.getSatisfactionRating();
+                    count++;
+                }
+            }
+            if (count > 0) {
+                dto.setAverageRating(sum / count);
+            } else {
+                dto.setAverageRating(null);
+            }
+        } else {
+            dto.setHasFeedback(false);
+            dto.setAverageRating(null);
         }
         
         return dto;
