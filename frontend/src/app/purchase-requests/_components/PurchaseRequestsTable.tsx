@@ -2223,7 +2223,7 @@ export default function PurchaseRequestsTable() {
         onDragOver={columnKey ? (e) => handleDragOver(e, columnKey) : undefined}
         onDragLeave={columnKey ? handleDragLeave : undefined}
         onDrop={columnKey ? (e) => handleDrop(e, columnKey) : undefined}
-        className={`px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${width || ''} ${columnKey ? 'cursor-move' : ''} ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`} 
+        className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${width || ''} ${columnKey ? 'cursor-move' : ''} ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`} 
         style={{ ...style, verticalAlign: 'top', overflow: 'hidden' }}
       >
         <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
@@ -2533,49 +2533,53 @@ export default function PurchaseRequestsTable() {
 
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
-      {/* Сводная таблица по закупщикам */}
-      <PurchaseRequestsSummaryTable
-        purchaserSummary={purchaserSummary}
-        purchaserFilter={purchaserFilter}
-        setPurchaserFilter={setPurchaserFilter}
-        setCurrentPage={setCurrentPage}
-      />
-      <div className="px-6 py-4 border-b border-gray-200 flex-shrink-0">
-        <div className="flex items-center gap-4">
+      {/* Сводная таблица по закупщикам и фильтры/кнопки в одной строке */}
+      <div className="flex items-start gap-4 px-3 py-2 border-b border-gray-200 flex-shrink-0">
+        {/* Сводная таблица по закупщикам - слева */}
+        <div className="flex-1">
+          <PurchaseRequestsSummaryTable
+            purchaserSummary={purchaserSummary}
+            purchaserFilter={purchaserFilter}
+            setPurchaserFilter={setPurchaserFilter}
+            setCurrentPage={setCurrentPage}
+          />
+        </div>
+        {/* Фильтр по году и кнопки - справа */}
+        <div className="flex flex-col gap-3 flex-shrink-0">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-700 font-medium">Фильтр по году создания:</span>
-              <button
-                onClick={() => {
+            <span className="text-sm text-gray-700 font-medium whitespace-nowrap">Фильтр по году создания:</span>
+            <button
+              onClick={() => {
                 setSelectedYear(null);
                 setCurrentPage(0); // Сбрасываем на первую страницу при сбросе фильтра
-                }}
-                className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                selectedYear === null
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-              Все
-              </button>
-            {allYears.map((year) => (
-            <button
-                key={year}
-              onClick={() => {
-                  setSelectedYear(year);
-                  setCurrentPage(0); // Сбрасываем на первую страницу при изменении года
               }}
               className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                  selectedYear === year
+                selectedYear === null
                   ? 'bg-blue-600 text-white border-blue-600'
                   : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
               }`}
             >
-                {year}
+              Все
             </button>
+            {allYears.map((year) => (
+              <button
+                key={year}
+                onClick={() => {
+                  setSelectedYear(year);
+                  setCurrentPage(0); // Сбрасываем на первую страницу при изменении года
+                }}
+                className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                  selectedYear === year
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                {year}
+              </button>
             ))}
           </div>
-          <div className="flex items-center gap-4">
-            <p className="text-sm text-gray-500">
+          <div className="flex items-center gap-4 flex-wrap">
+            <p className="text-sm text-gray-500 whitespace-nowrap">
               Всего записей: {totalRecords}
             </p>
             <div className="relative">
@@ -2666,7 +2670,7 @@ export default function PurchaseRequestsTable() {
                 setFocusedField(null);
                 setActiveTab('in-work'); // Сбрасываем вкладку на "В работе" (по умолчанию)
               }}
-              className="px-4 py-2 text-sm font-medium bg-red-50 text-red-700 rounded-lg border-2 border-red-300 hover:bg-red-100 hover:border-red-400 transition-colors shadow-sm"
+              className="px-4 py-2 text-sm font-medium bg-red-50 text-red-700 rounded-lg border-2 border-red-300 hover:bg-red-100 hover:border-red-400 transition-colors shadow-sm whitespace-nowrap"
             >
               Сбросить фильтры
             </button>
@@ -2851,7 +2855,7 @@ export default function PurchaseRequestsTable() {
                   return (
                     <th 
                       key={columnKey}
-                      className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative w-12"
+                      className="px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative w-12"
                     >
                       <div className="flex items-center justify-center">
                         <Eye className="w-4 h-4 text-gray-400" />
@@ -2893,7 +2897,7 @@ export default function PurchaseRequestsTable() {
                       onDragOver={(e) => handleDragOver(e, columnKey)}
                       onDragLeave={handleDragLeave}
                       onDrop={(e) => handleDrop(e, columnKey)}
-                      className={`px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                      className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
                       style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px`, verticalAlign: 'top' }}
                     >
                 <div className="flex flex-col gap-1">
@@ -3017,7 +3021,7 @@ export default function PurchaseRequestsTable() {
                       onDragOver={(e) => handleDragOver(e, columnKey)}
                       onDragLeave={handleDragLeave}
                       onDrop={(e) => handleDrop(e, columnKey)}
-                      className={`px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                      className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
                       style={{ width: `${getColumnWidth('purchaser')}px`, minWidth: `${getColumnWidth('purchaser')}px`, maxWidth: `${getColumnWidth('purchaser')}px`, verticalAlign: 'top' }}
                     >
                       <div className="flex flex-col gap-1">
@@ -3149,7 +3153,7 @@ export default function PurchaseRequestsTable() {
                       onDragOver={(e) => handleDragOver(e, columnKey)}
                       onDragLeave={handleDragLeave}
                       onDrop={(e) => handleDrop(e, columnKey)}
-                      className={`px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''} cursor-move`}
+                      className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''} cursor-move`}
                       style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px`, verticalAlign: 'top' }}
                     >
                       <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
@@ -3285,7 +3289,7 @@ export default function PurchaseRequestsTable() {
                       onDragOver={(e) => handleDragOver(e, columnKey)}
                       onDragLeave={handleDragLeave}
                       onDrop={(e) => handleDrop(e, columnKey)}
-                      className={`px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                      className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
                       style={{ verticalAlign: 'top' }}
                     >
                 <div className="flex flex-col gap-1">
@@ -3393,7 +3397,7 @@ export default function PurchaseRequestsTable() {
                       onDragOver={(e) => handleDragOver(e, columnKey)}
                       onDragLeave={handleDragLeave}
                       onDrop={(e) => handleDrop(e, columnKey)}
-                      className={`px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                      className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
                       style={{ verticalAlign: 'top' }}
                     >
                       <div className="flex flex-col gap-1">
@@ -3417,7 +3421,7 @@ export default function PurchaseRequestsTable() {
                       onDragOver={(e) => handleDragOver(e, columnKey)}
                       onDragLeave={handleDragLeave}
                       onDrop={(e) => handleDrop(e, columnKey)}
-                      className={`px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 cursor-move relative ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                      className={`px-2 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 cursor-move relative ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
                       style={{ 
                         verticalAlign: 'top',
                         width: `${getColumnWidth(columnKey)}px`,
@@ -3455,7 +3459,7 @@ export default function PurchaseRequestsTable() {
                       onDragOver={(e) => handleDragOver(e, columnKey)}
                       onDragLeave={handleDragLeave}
                       onDrop={(e) => handleDrop(e, columnKey)}
-                      className={`px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                      className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
                       style={{ verticalAlign: 'top' }}
                     >
                       <div className="flex flex-col gap-1">
@@ -3620,7 +3624,7 @@ export default function PurchaseRequestsTable() {
                       return (
                         <td 
                           key={columnKey}
-                          className={`px-2 py-2 whitespace-nowrap border-r border-gray-200 ${canEditExcludeFromInWork ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+                          className={`px-2 py-0.5 whitespace-nowrap border-r border-gray-200 ${canEditExcludeFromInWork ? 'cursor-pointer' : 'cursor-not-allowed'}`}
                           style={{ width: '48px', minWidth: '48px', maxWidth: '48px' }}
                           onClick={canEditExcludeFromInWork ? handleToggleExclude : undefined}
                         >
@@ -3643,7 +3647,7 @@ export default function PurchaseRequestsTable() {
                       return (
                         <td 
                           key={columnKey}
-                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+                          className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
                           style={{ width: `${getColumnWidth('idPurchaseRequest')}px`, minWidth: `${getColumnWidth('idPurchaseRequest')}px`, maxWidth: `${getColumnWidth('idPurchaseRequest')}px` }}
                         >
                           {request.idPurchaseRequest || '-'}
@@ -3655,7 +3659,7 @@ export default function PurchaseRequestsTable() {
                       return (
                         <td 
                           key={columnKey}
-                          className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" 
+                          className="px-2 py-0.5 text-xs text-gray-900 truncate border-r border-gray-200" 
                           style={{ width: `${getColumnWidth('guid')}px`, minWidth: `${getColumnWidth('guid')}px`, maxWidth: `${getColumnWidth('guid')}px` }}
                           title={request.guid ? String(request.guid) : ''}
                         >
@@ -3668,7 +3672,7 @@ export default function PurchaseRequestsTable() {
                       return (
                         <td 
                           key={columnKey}
-                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+                          className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
                           style={{ width: `${getColumnWidth('purchaseRequestPlanYear')}px`, minWidth: `${getColumnWidth('purchaseRequestPlanYear')}px`, maxWidth: `${getColumnWidth('purchaseRequestPlanYear')}px` }}
                         >
                           {request.purchaseRequestPlanYear || '-'}
@@ -3680,7 +3684,7 @@ export default function PurchaseRequestsTable() {
                       return (
                         <td 
                           key={columnKey}
-                          className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" 
+                          className="px-2 py-0.5 text-xs text-gray-900 truncate border-r border-gray-200" 
                           style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px` }}
                           title={request.company || ''}
                         >
@@ -3693,7 +3697,7 @@ export default function PurchaseRequestsTable() {
                       return (
                         <td 
                           key={columnKey}
-                          className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" 
+                          className="px-2 py-0.5 text-xs text-gray-900 truncate border-r border-gray-200" 
                           style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px` }}
                           title={request.cfo || ''}
                         >
@@ -3706,7 +3710,7 @@ export default function PurchaseRequestsTable() {
                       return (
                         <td 
                           key={columnKey}
-                          className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" 
+                          className="px-2 py-0.5 text-xs text-gray-900 truncate border-r border-gray-200" 
                           style={{ width: `${getColumnWidth('mcc')}px`, minWidth: `${getColumnWidth('mcc')}px`, maxWidth: `${getColumnWidth('mcc')}px` }}
                           title={request.mcc || ''}
                         >
@@ -3719,7 +3723,7 @@ export default function PurchaseRequestsTable() {
                       return (
                         <td 
                           key={columnKey}
-                          className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" 
+                          className="px-2 py-0.5 text-xs text-gray-900 truncate border-r border-gray-200" 
                           style={{ width: `${getColumnWidth('purchaseRequestInitiator')}px`, minWidth: `${getColumnWidth('purchaseRequestInitiator')}px`, maxWidth: `${getColumnWidth('purchaseRequestInitiator')}px` }}
                           title={request.purchaseRequestInitiator || ''}
                         >
@@ -3732,7 +3736,7 @@ export default function PurchaseRequestsTable() {
                       return (
                         <td
                           key={columnKey}
-                          className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200"
+                          className="px-2 py-0.5 text-xs text-gray-900 truncate border-r border-gray-200"
                           style={{ width: `${getColumnWidth('purchaser')}px`, minWidth: `${getColumnWidth('purchaser')}px`, maxWidth: `${getColumnWidth('purchaser')}px` }}
                           title={request.purchaser || ''}
                         >
@@ -3745,7 +3749,7 @@ export default function PurchaseRequestsTable() {
                       return (
                         <td 
                           key={columnKey}
-                          className="px-2 py-2 text-xs text-gray-900 break-words border-r border-gray-200" 
+                          className="px-2 py-0.5 text-xs text-gray-900 break-words border-r border-gray-200" 
                           style={{ width: `${getColumnWidth('name')}px`, minWidth: `${getColumnWidth('name')}px`, maxWidth: `${getColumnWidth('name')}px` }}
                         >
                           {request.name || '-'}
@@ -3757,7 +3761,7 @@ export default function PurchaseRequestsTable() {
                       return (
                         <td 
                           key={columnKey}
-                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+                          className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
                           style={{ width: `${getColumnWidth('purchaseRequestCreationDate')}px`, minWidth: `${getColumnWidth('purchaseRequestCreationDate')}px`, maxWidth: `${getColumnWidth('purchaseRequestCreationDate')}px` }}
                         >
                           {request.purchaseRequestCreationDate ? new Date(request.purchaseRequestCreationDate).toLocaleDateString('ru-RU') : '-'}
@@ -3769,7 +3773,7 @@ export default function PurchaseRequestsTable() {
                       return (
                         <td 
                           key={columnKey}
-                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+                          className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
                           style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px` }}
                         >
                           {request.budgetAmount ? (
@@ -3789,7 +3793,7 @@ export default function PurchaseRequestsTable() {
                       return (
                         <td 
                           key={columnKey}
-                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+                          className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
                           style={{ width: `${getColumnWidth('currency')}px`, minWidth: `${getColumnWidth('currency')}px`, maxWidth: `${getColumnWidth('currency')}px` }}
                         >
                           {request.currency ? (
@@ -3805,7 +3809,7 @@ export default function PurchaseRequestsTable() {
                       return (
                         <td 
                           key={columnKey}
-                          className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" 
+                          className="px-2 py-0.5 text-xs text-gray-900 truncate border-r border-gray-200" 
                           style={{ width: `${getColumnWidth('costType')}px`, minWidth: `${getColumnWidth('costType')}px`, maxWidth: `${getColumnWidth('costType')}px` }}
                           title={request.costType || ''}
                         >
@@ -3818,7 +3822,7 @@ export default function PurchaseRequestsTable() {
                       return (
                         <td 
                           key={columnKey}
-                          className="px-2 py-2 text-xs text-gray-900 truncate border-r border-gray-200" 
+                          className="px-2 py-0.5 text-xs text-gray-900 truncate border-r border-gray-200" 
                           style={{ width: `${getColumnWidth('contractType')}px`, minWidth: `${getColumnWidth('contractType')}px`, maxWidth: `${getColumnWidth('contractType')}px` }}
                           title={request.contractType || ''}
                         >
@@ -3831,7 +3835,7 @@ export default function PurchaseRequestsTable() {
                       return (
                         <td 
                           key={columnKey}
-                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center" 
+                          className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center" 
                           style={{ width: `${getColumnWidth('contractDurationMonths')}px`, minWidth: `${getColumnWidth('contractDurationMonths')}px`, maxWidth: `${getColumnWidth('contractDurationMonths')}px` }}
                         >
                           {request.contractDurationMonths !== null && request.contractDurationMonths !== undefined ? (
@@ -3845,7 +3849,7 @@ export default function PurchaseRequestsTable() {
                       return (
                         <td 
                           key={columnKey}
-                          className="px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200" 
+                          className="px-2 py-0.5 whitespace-nowrap text-xs border-r border-gray-200" 
                           style={{ width: `${getColumnWidth('isPlanned')}px`, minWidth: `${getColumnWidth('isPlanned')}px`, maxWidth: `${getColumnWidth('isPlanned')}px` }}
                         >
                           {request.isPlanned ? (
@@ -3869,7 +3873,7 @@ export default function PurchaseRequestsTable() {
                       return (
                         <td 
                           key={columnKey}
-                          className="px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200" 
+                          className="px-2 py-0.5 whitespace-nowrap text-xs border-r border-gray-200" 
                           style={{ width: `${getColumnWidth('requiresPurchase')}px`, minWidth: `${getColumnWidth('requiresPurchase')}px`, maxWidth: `${getColumnWidth('requiresPurchase')}px` }}
                         >
                           {request.requiresPurchase ? (
@@ -3891,7 +3895,7 @@ export default function PurchaseRequestsTable() {
                     
                     if (columnKey === 'status') {
                       return (
-                        <td key={columnKey} className="px-2 py-2 text-xs border-r border-gray-200">
+                        <td key={columnKey} className="px-2 py-0.5 text-xs border-r border-gray-200">
                           {request.status ? (
                             <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                               request.status === 'Согласована' || request.status === 'Спецификация подписана' || request.status === 'Договор подписан'
@@ -3925,7 +3929,7 @@ export default function PurchaseRequestsTable() {
                       return (
                         <td 
                           key={columnKey} 
-                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center"
+                          className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center"
                         >
                           {request.requiresPurchase !== false && request.daysInStatus !== null && request.daysInStatus !== undefined ? (
                             <span>{request.daysInStatus}</span>
@@ -3938,7 +3942,7 @@ export default function PurchaseRequestsTable() {
                       return (
                         <td 
                           key={columnKey} 
-                          className="px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200" 
+                          className="px-2 py-0.5 whitespace-nowrap text-xs border-r border-gray-200" 
                           style={{ width: `${getColumnWidth('isStrategicProduct')}px`, minWidth: `${getColumnWidth('isStrategicProduct')}px`, maxWidth: `${getColumnWidth('isStrategicProduct')}px` }}
                         >
                           {request.isStrategicProduct ? (
@@ -3962,7 +3966,7 @@ export default function PurchaseRequestsTable() {
                       return (
                         <td 
                           key={columnKey} 
-                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center"
+                          className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center"
                           style={{ 
                             width: `${getColumnWidth(columnKey)}px`,
                             minWidth: `${getColumnWidth(columnKey)}px`,
@@ -3980,7 +3984,7 @@ export default function PurchaseRequestsTable() {
                       return (
                         <td 
                           key={columnKey}
-                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+                          className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
                           style={{ width: `${getColumnWidth('createdAt')}px`, minWidth: `${getColumnWidth('createdAt')}px`, maxWidth: `${getColumnWidth('createdAt')}px` }}
                         >
                           {request.createdAt ? new Date(request.createdAt).toLocaleString('ru-RU') : '-'}
@@ -3992,7 +3996,7 @@ export default function PurchaseRequestsTable() {
                       return (
                         <td 
                           key={columnKey}
-                          className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+                          className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
                           style={{ width: `${getColumnWidth('updatedAt')}px`, minWidth: `${getColumnWidth('updatedAt')}px`, maxWidth: `${getColumnWidth('updatedAt')}px` }}
                         >
                           {request.updatedAt ? new Date(request.updatedAt).toLocaleString('ru-RU') : '-'}
@@ -4002,7 +4006,7 @@ export default function PurchaseRequestsTable() {
                     
                     if (columnKey === 'track') {
                       return (
-                        <td key={columnKey} className="px-2 py-2 text-xs border-r border-gray-200">
+                        <td key={columnKey} className="px-2 py-0.5 text-xs border-r border-gray-200">
                     <div className="flex items-end gap-2">
                       {/* Проверяем, есть ли спецификация на согласовании (для заказов) */}
                       {(() => {

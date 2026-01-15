@@ -59,7 +59,7 @@ export default function PurchaseRequestsSummaryTable({
   const hasMoreRows = purchaserSummary.length > MAX_VISIBLE_ROWS;
 
   return (
-    <div className="px-3 py-2 border-b border-gray-200 flex-shrink-0">
+    <div className="flex-shrink-0">
       <div className="bg-white rounded shadow-sm border border-gray-200 overflow-hidden flex-shrink-0 relative">
         <div className="overflow-x-auto">
           <table className="border-separate table-auto" style={{ borderSpacing: 0 }}>

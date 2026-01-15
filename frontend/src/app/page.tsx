@@ -645,7 +645,7 @@ function DashboardContent() {
               <main className="flex-1 overflow-y-auto p-2 sm:p-3 lg:p-4 pt-16 sm:pt-20 lg:pt-4 safari-main-content relative" style={{ marginLeft: 0, flexShrink: 1, minWidth: 0 }}>
                 {/* Компонент пользователя в правом верхнем углу */}
                 {isMounted && currentUser && (
-                  <div className="fixed top-4 right-4 z-40 bg-white rounded-lg shadow-md px-4 py-2 flex items-center gap-3 border border-gray-200">
+                  <div className="fixed top-4 right-4 z-10 bg-white rounded-lg shadow-md px-4 py-2 flex items-center gap-3 border border-gray-200">
                     <div className="flex flex-col items-end">
                       <span className="text-sm font-medium text-gray-900">{currentUser}</span>
                       {userRole && (
