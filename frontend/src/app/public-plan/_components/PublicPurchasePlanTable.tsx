@@ -6,6 +6,7 @@ import { ArrowUp, ArrowDown, ArrowUpDown, Search, Settings, Download, Check, X }
 import GanttChart from './GanttChart';
 import { useReactToPrint } from 'react-to-print';
 import * as XLSX from 'xlsx';
+import PurchasePlanItemsDetailsModal from '../../purchase-plan/_components/ui/PurchasePlanItemsDetailsModal';
 
 // Функция для получения пути к логотипу компании
 const getCompanyLogoPath = (companyName: string | null): string | null => {
@@ -287,16 +288,87 @@ export default function PublicPurchasePlanTable() {
   const [companySearchQuery, setCompanySearchQuery] = useState('');
   const [purchaserCompanySearchQuery, setPurchaserCompanySearchQuery] = useState('');
   const [commentModalOpen, setCommentModalOpen] = useState<number | null>(null);
-  const [editingComment, setEditingComment] = useState<number | null>(null);
-  const commentInputRef = useRef<HTMLTextAreaElement>(null);
+  const [commentsData, setCommentsData] = useState<Record<number, {
+    content: any[];
+    loading: boolean;
+  }>>({});
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const loadedCommentsRef = useRef<Set<number>>(new Set());
+  const fetchingCommentsRef = useRef<Set<number>>(new Set());
 
-  // Фокус на textarea при редактировании комментария
   useEffect(() => {
-    if (editingComment !== null && commentInputRef.current) {
-      commentInputRef.current.focus();
-      commentInputRef.current.select();
+    // Загружаем email пользователя из cookie
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/auth/check');
+        const data = await response.json();
+        if (data.authenticated && data.email) {
+          setUserEmail(data.email);
+        }
+      } catch (error) {
+        // Игнорируем ошибку
+      }
+    };
+    checkAuth();
+  }, []);
+
+  const fetchComments = useCallback(async (itemId: number) => {
+    // Проверяем, не загружаются ли уже комментарии для этого элемента
+    if (fetchingCommentsRef.current.has(itemId)) {
+      return;
     }
-  }, [editingComment]);
+    
+    fetchingCommentsRef.current.add(itemId);
+    setCommentsData(prev => ({
+      ...prev,
+      [itemId]: { ...prev[itemId], loading: true }
+    }));
+    
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/comments?includePrivate=false`);
+      if (response.ok) {
+        const data = await response.json();
+        setCommentsData(prev => ({
+          ...prev,
+          [itemId]: {
+            content: data || [],
+            loading: false
+          }
+        }));
+        loadedCommentsRef.current.add(itemId);
+      } else {
+        setCommentsData(prev => ({
+          ...prev,
+          [itemId]: { content: [], loading: false }
+        }));
+      }
+    } catch (error) {
+      setCommentsData(prev => ({
+        ...prev,
+        [itemId]: { content: [], loading: false }
+      }));
+    } finally {
+      // Удаляем из множества загружающихся после завершения
+      fetchingCommentsRef.current.delete(itemId);
+    }
+  }, []);
+
+  // Обработчик обновления комментариев после добавления нового
+  const handleCommentsRefresh = useCallback((itemId: number) => {
+    // Удаляем из множества загруженных, чтобы принудительно перезагрузить
+    loadedCommentsRef.current.delete(itemId);
+    fetchComments(itemId);
+  }, [fetchComments]);
+
+  useEffect(() => {
+    if (commentModalOpen !== null) {
+      // Загружаем только если еще не загружены и не загружаются
+      if (!loadedCommentsRef.current.has(commentModalOpen) && !fetchingCommentsRef.current.has(commentModalOpen)) {
+        fetchComments(commentModalOpen);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [commentModalOpen]);
   const [categorySearchQuery, setCategorySearchQuery] = useState('');
   const [purchaserSearchQuery, setPurchaserSearchQuery] = useState('');
   const [statusSearchQuery, setStatusSearchQuery] = useState('');
@@ -520,51 +592,6 @@ export default function PublicPurchasePlanTable() {
     setDragOverColumn(null);
   };
 
-  const handleCommentUpdate = async (itemId: number, newComment: string) => {
-    try {
-      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/comment`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ comment: newComment || null }),
-      });
-
-      if (response.ok) {
-        const updatedItem = await response.json();
-        setEditingComment(null);
-        
-        // Обновляем только конкретную строку в локальном состоянии
-        if (data) {
-          setData({
-            ...data,
-            content: data.content.map(item => 
-              item.id === itemId 
-                ? { ...item, comment: updatedItem.comment }
-                : item
-            ),
-          });
-        }
-        
-        // Обновляем также в allItems
-        setAllItems(prev => 
-          prev.map(item => 
-            item.id === itemId 
-              ? { ...item, comment: updatedItem.comment }
-              : item
-          )
-        );
-        
-        // Закрываем модальное окно после сохранения
-        setCommentModalOpen(null);
-      } else {
-        const errorText = await response.text();
-        console.error('Failed to update comment:', response.status, errorText);
-      }
-    } catch (error) {
-      console.error('Error updating comment:', error);
-    }
-  };
 
   // Обработчик начала изменения размера
   const handleResizeStart = useCallback((e: React.MouseEvent, columnKey: string) => {
@@ -3285,126 +3312,28 @@ export default function PublicPurchasePlanTable() {
         )}
       </div>
 
-      {/* Модальное окно комментария */}
+      {/* Модальное окно комментариев */}
       {commentModalOpen !== null && (() => {
         const item = allItems.find(i => i.id === commentModalOpen) || data?.content.find(i => i.id === commentModalOpen);
         if (!item) return null;
         
         return (
-          <div 
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-            onClick={() => {
-              setCommentModalOpen(null);
-              setEditingComment(null);
-            }}
-          >
-            <div 
-              className="bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900">
-                    Комментарий
-                  </h2>
-                  <p className="text-sm text-gray-500 mt-1">
-                    ID: {item.id} {item.purchaseSubject && `- ${item.purchaseSubject}`}
-                  </p>
-                </div>
-                <button
-                  onClick={() => {
-                    setCommentModalOpen(null);
-                    setEditingComment(null);
-                  }}
-                  className="text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto">
-                {editingComment === item.id ? (
-                  <div className="space-y-4">
-                    <textarea
-                      ref={commentInputRef}
-                      defaultValue={item.comment || ''}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') {
-                          setEditingComment(null);
-                        } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                          e.preventDefault();
-                          const newValue = e.currentTarget.value.trim();
-                          const currentValue = item.comment || '';
-                          if (newValue !== currentValue) {
-                            handleCommentUpdate(item.id, newValue);
-                          } else {
-                            setEditingComment(null);
-                          }
-                        }
-                      }}
-                      className="w-full text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                      rows={8}
-                      placeholder="Введите комментарий..."
-                    />
-                    <div className="flex justify-end gap-2">
-                      <button
-                        onClick={() => setEditingComment(null)}
-                        className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                      >
-                        Отмена
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (commentInputRef.current) {
-                            const newValue = commentInputRef.current.value.trim();
-                            const currentValue = item.comment || '';
-                            if (newValue !== currentValue) {
-                              handleCommentUpdate(item.id, newValue);
-                            } else {
-                              setEditingComment(null);
-                            }
-                          }
-                        }}
-                        className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-                      >
-                        Сохранить
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="p-4 bg-gray-50 rounded-lg min-h-[200px]">
-                      {item.comment ? (
-                        <p className="text-sm text-gray-900 whitespace-pre-wrap break-words">
-                          {item.comment}
-                        </p>
-                      ) : (
-                        <p className="text-sm text-gray-500 italic">
-                          Комментарий отсутствует
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex justify-end">
-                      <button
-                        onClick={() => {
-                          setEditingComment(item.id);
-                          setTimeout(() => {
-                            if (commentInputRef.current) {
-                              commentInputRef.current.focus();
-                              commentInputRef.current.select();
-                            }
-                          }, 0);
-                        }}
-                        className="px-4 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-                      >
-                        {item.comment ? 'Редактировать' : 'Добавить комментарий'}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          <PurchasePlanItemsDetailsModal
+            isOpen={commentModalOpen !== null}
+            itemId={commentModalOpen}
+            item={item}
+            purchaseRequest={null}
+            activeTab="comments"
+            onTabChange={() => {}} // На публичном плане только вкладка комментариев
+            onClose={() => setCommentModalOpen(null)}
+            comments={commentsData[commentModalOpen]?.content || []}
+            commentsLoading={commentsData[commentModalOpen]?.loading || false}
+            onCommentsRefresh={() => handleCommentsRefresh(commentModalOpen)}
+            isPublicPlan={true}
+            changes={[]}
+            changesLoading={false}
+            loadingPurchaseRequest={false}
+          />
         );
       })()}
     </div>
