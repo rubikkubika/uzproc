@@ -46,6 +46,10 @@ public class PurchaseRequestDto {
     private java.util.List<ContractDto> contracts;
     // Ссылка на форму CSI обратной связи
     private String csiLink;
+    // Флаг, указывающий есть ли оценка CSI
+    private Boolean hasFeedback;
+    // Средняя оценка по всем вопросам (кроме узпрок)
+    private Double averageRating;
 
     // Constructors
     public PurchaseRequestDto() {
@@ -314,6 +318,22 @@ public class PurchaseRequestDto {
 
     public void setCsiLink(String csiLink) {
         this.csiLink = csiLink;
+    }
+
+    public Boolean getHasFeedback() {
+        return hasFeedback;
+    }
+
+    public void setHasFeedback(Boolean hasFeedback) {
+        this.hasFeedback = hasFeedback;
+    }
+
+    public Double getAverageRating() {
+        return averageRating;
+    }
+
+    public void setAverageRating(Double averageRating) {
+        this.averageRating = averageRating;
     }
 }
 

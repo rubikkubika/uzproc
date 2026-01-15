@@ -8,6 +8,7 @@ import com.uzproc.backend.repository.PurchaseRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -18,7 +19,6 @@ import java.util.List;
  * Проверяет согласования для определения статуса
  */
 @Service
-@Transactional(readOnly = false)
 public class PurchaseStatusUpdateService {
 
     private static final Logger logger = LoggerFactory.getLogger(PurchaseStatusUpdateService.class);
@@ -178,6 +178,8 @@ public class PurchaseStatusUpdateService {
         if (newStatus != null && currentStatus != newStatus) {
             purchase.setStatus(newStatus);
             purchaseRepository.save(purchase);
+            // Явно синхронизируем изменения с БД
+            purchaseRepository.flush();
             logger.info("Status updated for purchase {}: {} -> {}", 
                 purchaseRequestId, 
                 currentStatus != null ? currentStatus.getDisplayName() : "null",
@@ -192,8 +194,9 @@ public class PurchaseStatusUpdateService {
     /**
      * Массовое обновление статусов для всех закупок
      * Используется после парсинга данных для обновления всех статусов
+     * Каждая обработка записи выполняется в отдельной транзакции с явным flush для освобождения соединения
      */
-    @Transactional
+    @Transactional(readOnly = true)
     public void updateAllStatuses() {
         logger.info("Starting mass status update for all purchases");
         long startTime = System.currentTimeMillis();
@@ -208,7 +211,8 @@ public class PurchaseStatusUpdateService {
             try {
                 PurchaseStatus oldStatus = purchase.getStatus();
                 if (purchase.getPurchaseRequestId() != null) {
-                    updateStatus(purchase.getPurchaseRequestId());
+                    // Каждый вызов updateStatus выполняется в отдельной транзакции
+                    updateStatusInNewTransaction(purchase.getPurchaseRequestId());
                     // Re-fetch to check if status actually changed
                     Purchase updatedPurchase = purchaseRepository.findFirstByPurchaseRequestId(purchase.getPurchaseRequestId()).orElse(null);
                     if (updatedPurchase != null && updatedPurchase.getStatus() != oldStatus) {
@@ -226,13 +230,21 @@ public class PurchaseStatusUpdateService {
         logger.info("Mass purchase status update completed: {} purchases processed, {} updated, {} errors, time: {} ms",
             allPurchases.size(), updatedCount, errorCount, processingTime);
     }
+    
+    /**
+     * Обновляет статус в новой транзакции (для массовых обновлений)
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    private void updateStatusInNewTransaction(Long purchaseRequestId) {
+        updateStatus(purchaseRequestId);
+    }
 
     /**
      * Обновление статусов для закупок с указанными purchaseRequestId
+     * Каждая обработка записи выполняется в отдельной транзакции
      *
      * @param purchaseRequestIds список purchaseRequestId закупок для обновления
      */
-    @Transactional
     public void updateStatuses(List<Long> purchaseRequestIds) {
         logger.info("Starting status update for {} purchases", purchaseRequestIds.size());
         long startTime = System.currentTimeMillis();

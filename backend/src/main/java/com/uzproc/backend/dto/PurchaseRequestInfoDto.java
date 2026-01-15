@@ -14,6 +14,7 @@ public class PurchaseRequestInfoDto {
     private String currency;
     private String purchaser;
     private boolean alreadySubmitted; // Уже был оставлен отзыв
+    private String recipient; // Получатель из приглашения
 
     public PurchaseRequestInfoDto() {
     }
@@ -81,5 +82,13 @@ public class PurchaseRequestInfoDto {
 
     public void setAlreadySubmitted(boolean alreadySubmitted) {
         this.alreadySubmitted = alreadySubmitted;
+    }
+
+    public String getRecipient() {
+        return recipient;
+    }
+
+    public void setRecipient(String recipient) {
+        this.recipient = recipient;
     }
 }

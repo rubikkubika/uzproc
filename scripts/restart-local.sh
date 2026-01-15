@@ -66,7 +66,13 @@ fi
 BACKUP=$(ls -t backup/uzproc_backup_*.sql 2>/dev/null | head -1)
 if [ -n "$BACKUP" ]; then
   echo "Восстановление БД из: $(basename "$BACKUP")"
-  docker exec -i uzproc-postgres psql -U uzproc_user -d postgres -c "DROP DATABASE IF EXISTS uzproc;" -c "CREATE DATABASE uzproc WITH ENCODING='UTF8' LC_COLLATE='ru_RU.UTF-8' LC_CTYPE='ru_RU.UTF-8' TEMPLATE=template0;" >/dev/null
+  # Закрываем все активные соединения с базой данных
+  echo "Закрытие активных соединений с БД..."
+  docker exec -i uzproc-postgres psql -U uzproc_user -d postgres -c "SELECT pg_terminate_backend(pg_stat_activity.pid) FROM pg_stat_activity WHERE pg_stat_activity.datname = 'uzproc' AND pid <> pg_backend_pid();" >/dev/null 2>&1
+  sleep 1
+  # Удаляем и пересоздаем базу данных
+  docker exec -i uzproc-postgres psql -U uzproc_user -d postgres -c "DROP DATABASE IF EXISTS uzproc;" >/dev/null 2>&1
+  docker exec -i uzproc-postgres psql -U uzproc_user -d postgres -c "CREATE DATABASE uzproc WITH ENCODING='UTF8' LC_COLLATE='ru_RU.UTF-8' LC_CTYPE='ru_RU.UTF-8' TEMPLATE=template0;" >/dev/null
   docker exec -i uzproc-postgres psql -U uzproc_user -d uzproc < "$BACKUP" >/dev/null 2>&1
   echo "✓ БД восстановлена"
 else

@@ -4,6 +4,7 @@ import com.uzproc.backend.dto.CsiFeedbackCreateDto;
 import com.uzproc.backend.dto.CsiFeedbackDto;
 import com.uzproc.backend.dto.PurchaseRequestInfoDto;
 import com.uzproc.backend.service.CsiFeedbackService;
+import com.uzproc.backend.service.CsiFeedbackInvitationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -22,9 +23,13 @@ public class CsiFeedbackController {
     private static final Logger logger = LoggerFactory.getLogger(CsiFeedbackController.class);
 
     private final CsiFeedbackService csiFeedbackService;
+    private final CsiFeedbackInvitationService invitationService;
 
-    public CsiFeedbackController(CsiFeedbackService csiFeedbackService) {
+    public CsiFeedbackController(
+            CsiFeedbackService csiFeedbackService,
+            CsiFeedbackInvitationService invitationService) {
         this.csiFeedbackService = csiFeedbackService;
+        this.invitationService = invitationService;
     }
 
     @PostMapping
@@ -105,5 +110,31 @@ public class CsiFeedbackController {
     public ResponseEntity<List<CsiFeedbackDto>> getByPurchaseRequestId(@PathVariable Long purchaseRequestId) {
         List<CsiFeedbackDto> feedbacks = csiFeedbackService.findByPurchaseRequestId(purchaseRequestId);
         return ResponseEntity.ok(feedbacks);
+    }
+
+    /**
+     * Создает приглашение для получателя (вызывается при генерации письма)
+     */
+    @PostMapping("/invitation")
+    public ResponseEntity<?> createInvitation(
+            @RequestParam String csiToken,
+            @RequestParam String recipient) {
+        try {
+            logger.info("Creating invitation for token: {}, recipient: {}", csiToken, recipient);
+            invitationService.createInvitation(csiToken, recipient);
+            return ResponseEntity.ok(Map.of("success", true, "message", "Приглашение создано"));
+        } catch (IllegalArgumentException e) {
+            logger.error("Validation error: {}", e.getMessage());
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+        } catch (Exception e) {
+            logger.error("Error creating invitation", e);
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("message", "Ошибка при создании приглашения: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
     }
 }

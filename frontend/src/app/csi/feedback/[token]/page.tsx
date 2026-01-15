@@ -5,16 +5,6 @@ import { useParams } from 'next/navigation';
 import { Star } from 'lucide-react';
 import { getBackendUrl } from '@/utils/api';
 
-interface PurchaseRequestInfo {
-  id: number;
-  idPurchaseRequest: number | null;
-  innerId: string | null;
-  purchaseRequestSubject: string | null;
-  budgetAmount: number | null;
-  currency: string | null;
-  purchaser: string | null;
-  alreadySubmitted: boolean;
-}
 
 interface CSIFormData {
   csiToken: string;
@@ -24,6 +14,19 @@ interface CSIFormData {
   qualityRating: number;
   satisfactionRating: number;
   comment: string;
+  recipient: string | null;
+}
+
+interface PurchaseRequestInfo {
+  id: number;
+  idPurchaseRequest: number | null;
+  innerId: string | null;
+  purchaseRequestSubject: string | null;
+  budgetAmount: number | null;
+  currency: string | null;
+  purchaser: string | null;
+  alreadySubmitted: boolean;
+  recipient: string | null; // Получатель из приглашения
 }
 
 export default function CSIFeedbackPage() {
@@ -44,6 +47,7 @@ export default function CSIFeedbackPage() {
     qualityRating: 0,
     satisfactionRating: 0,
     comment: '',
+    recipient: null,
   });
 
   // Загружаем данные заявки по токену
@@ -69,6 +73,14 @@ export default function CSIFeedbackPage() {
 
         const data = await response.json();
         setPurchaseRequestInfo(data);
+
+        // Устанавливаем получателя из приглашения
+        if (data.recipient) {
+          setFormData(prev => ({
+            ...prev,
+            recipient: data.recipient,
+          }));
+        }
 
         // Если отзыв уже был оставлен, показываем сообщение
         if (data.alreadySubmitted) {
@@ -136,11 +148,12 @@ export default function CSIFeedbackPage() {
 
     setSubmitting(true);
     try {
-      // Подготавливаем данные для отправки: если не пользовались узпроком, не отправляем рейтинг
-      const submitData = {
-        ...formData,
-        uzprocRating: formData.usedUzproc === true ? formData.uzprocRating : null,
-      };
+    // Подготавливаем данные для отправки: если не пользовались узпроком, не отправляем рейтинг
+    const submitData = {
+      ...formData,
+      uzprocRating: formData.usedUzproc === true ? formData.uzprocRating : null,
+      recipient: formData.recipient || null,
+    };
 
       const response = await fetch(`${getBackendUrl()}/api/csi-feedback`, {
         method: 'POST',

@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
-import { ArrowUp, ArrowDown, ArrowUpDown, Search, X, Download, Copy, Clock, Check, Eye, EyeOff, Settings } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpDown, Search, X, Download, Copy, Clock, Check, Eye, EyeOff, Settings, Star } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 import PurchaseRequestsSummaryTable from './ui/PurchaseRequestsSummaryTable';
+import LatestCsiFeedback from './ui/LatestCsiFeedback';
 
 interface Contract {
   id: number;
@@ -53,6 +54,9 @@ interface PurchaseRequest {
   createdAt: string;
   updatedAt: string;
   csiLink: string | null;
+  csiToken: string | null;
+  hasFeedback: boolean | null;
+  averageRating: number | null;
 }
 
 interface PageResponse {
@@ -245,6 +249,21 @@ export default function PurchaseRequestsTable() {
   const [showUserSuggestions, setShowUserSuggestions] = useState(false);
   const [emailText, setEmailText] = useState('');
   const userSearchRef = useRef<HTMLDivElement>(null);
+  // Состояние для отслеживания отправленных приглашений (Set с ID заявок)
+  const [sentInvitations, setSentInvitations] = useState<Set<number>>(new Set());
+  // Состояние для модального окна просмотра оценки
+  const [isFeedbackDetailsModalOpen, setIsFeedbackDetailsModalOpen] = useState(false);
+  const [selectedRequestForFeedback, setSelectedRequestForFeedback] = useState<PurchaseRequest | null>(null);
+  const [feedbackDetails, setFeedbackDetails] = useState<{
+    recipient: string | null;
+    speedRating: number | null;
+    qualityRating: number | null;
+    satisfactionRating: number | null;
+    uzprocRating: number | null;
+    usedUzproc: boolean | null;
+    comment: string | null;
+  } | null>(null);
+  const [loadingFeedbackDetails, setLoadingFeedbackDetails] = useState(false);
   
   // Загрузка предложений пользователей для поиска
   useEffect(() => {
@@ -314,13 +333,15 @@ export default function PurchaseRequestsTable() {
     return () => clearTimeout(timer);
   }, [userSearchQuery, isRatingModalOpen]);
   
-  // Генерируем текст письма сразу при открытии модального окна
+  // Генерируем текст письма при изменении выбранного получателя или открытии модального окна
   useEffect(() => {
     if (isRatingModalOpen && selectedRequestForRating) {
-      // Генерируем текст письма сразу, даже если получатель еще не выбран
-      generateEmailText('', selectedRequestForRating);
+      // Генерируем текст письма с учетом выбранного получателя
+      generateEmailText(selectedUserEmail, selectedRequestForRating).catch(err => {
+        console.error('Error generating email text:', err);
+      });
     }
-  }, [isRatingModalOpen, selectedRequestForRating]);
+  }, [isRatingModalOpen, selectedRequestForRating, selectedUserEmail]);
   
   // Устанавливаем инициатора заявки по умолчанию при открытии модального окна
   useEffect(() => {
@@ -383,7 +404,10 @@ export default function PurchaseRequestsTable() {
               : user.email || user.username;
             setUserSearchQuery(displayName);
             setSelectedUserEmail(initiator.email || initiator.username);
-            // Текст письма уже сгенерирован, не нужно генерировать снова
+            // Генерируем текст письма (приглашение создастся автоматически)
+            generateEmailText(initiator.email || initiator.username, selectedRequestForRating).catch(err => {
+              console.error('Error generating email text:', err);
+            });
           } else {
             // Если инициатор не найден, все равно устанавливаем его имя в поле поиска
             setUserSearchQuery(initiatorName);
@@ -417,13 +441,15 @@ export default function PurchaseRequestsTable() {
   }, [showUserSuggestions]);
   
   // Функция генерации текста письма
-  const generateEmailText = (userEmail: string, request: PurchaseRequest | null) => {
+  const generateEmailText = async (userEmail: string, request: PurchaseRequest | null) => {
     if (!request || !request.csiLink) {
       setEmailText('');
       return;
     }
     
+    // Генерируем ссылку БЕЗ recipient в URL
     const fullUrl = typeof window !== 'undefined' ? `${window.location.origin}${request.csiLink}` : request.csiLink;
+    
     const text = `Здравствуйте!
 
 Вы инициировали заявку на закупку. Мы хотим улучшить сервис, пожалуйста пройдите опрос по ссылке:
@@ -2803,6 +2829,8 @@ ${fullUrl}
             setCurrentPage={setCurrentPage}
           />
         </div>
+        {/* Последние оценки CSI feedback - справа от сводной таблицы */}
+        <LatestCsiFeedback />
         {/* Фильтр по году и кнопки - справа */}
         <div className="flex flex-col gap-3 flex-shrink-0">
           <div className="flex items-center gap-2">
@@ -4327,23 +4355,85 @@ ${fullUrl}
                           onClick={(e) => e.stopPropagation()}
                         >
                           {request.csiLink ? (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // Сбрасываем состояние перед открытием модального окна
-                                setSelectedUser(null);
-                                setUserSearchQuery('');
-                                setSelectedUserEmail('');
-                                setEmailText('');
-                                setUserSuggestions([]);
-                                setShowUserSuggestions(false);
-                                setSelectedRequestForRating(request);
-                                setIsRatingModalOpen(true);
-                              }}
-                              className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                            >
-                              Оценка
-                            </button>
+                            request.hasFeedback ? (
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  setSelectedRequestForFeedback(request);
+                                  setIsFeedbackDetailsModalOpen(true);
+                                  setLoadingFeedbackDetails(true);
+                                  try {
+                                    const response = await fetch(`${getBackendUrl()}/api/csi-feedback/by-purchase-request/${request.id}`);
+                                    if (response.ok) {
+                                      const data = await response.json();
+                                      if (Array.isArray(data) && data.length > 0) {
+                                        const feedback = data[0];
+                                        setFeedbackDetails({
+                                          recipient: feedback.recipient || null,
+                                          speedRating: feedback.speedRating || null,
+                                          qualityRating: feedback.qualityRating || null,
+                                          satisfactionRating: feedback.satisfactionRating || null,
+                                          uzprocRating: feedback.uzprocRating || null,
+                                          usedUzproc: feedback.usedUzproc || null,
+                                          comment: feedback.comment || null,
+                                        });
+                                      }
+                                    }
+                                  } catch (error) {
+                                    console.error('Error loading feedback details:', error);
+                                  } finally {
+                                    setLoadingFeedbackDetails(false);
+                                  }
+                                }}
+                                className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded hover:bg-yellow-200 transition-colors flex items-center gap-1"
+                              >
+                                {request.averageRating ? (() => {
+                                  const rating = request.averageRating;
+                                  const fullStars = Math.floor(rating);
+                                  const hasHalfStar = rating % 1 >= 0.5;
+                                  const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+                                  return (
+                                    <div className="flex items-center gap-0.5">
+                                      {Array.from({ length: fullStars }).map((_, i) => (
+                                        <Star key={`full-${i}`} className="w-3 h-3 fill-yellow-500 text-yellow-500" />
+                                      ))}
+                                      {hasHalfStar && (
+                                        <Star className="w-3 h-3 fill-yellow-500 text-yellow-500 opacity-50" />
+                                      )}
+                                      {Array.from({ length: emptyStars }).map((_, i) => (
+                                        <Star key={`empty-${i}`} className="w-3 h-3 text-gray-300" />
+                                      ))}
+                                      <span className="ml-1">{rating.toFixed(1)}</span>
+                                    </div>
+                                  );
+                                })() : '-'}
+                              </button>
+                            ) : sentInvitations.has(request.id) ? (
+                              <button
+                                disabled
+                                className="px-2 py-1 text-xs bg-gray-400 text-white rounded cursor-not-allowed"
+                              >
+                                Оценка отправлена
+                              </button>
+                            ) : (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // Сбрасываем состояние перед открытием модального окна
+                                  setSelectedUser(null);
+                                  setUserSearchQuery('');
+                                  setSelectedUserEmail('');
+                                  setEmailText('');
+                                  setUserSuggestions([]);
+                                  setShowUserSuggestions(false);
+                                  setSelectedRequestForRating(request);
+                                  setIsRatingModalOpen(true);
+                                }}
+                                className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                              >
+                                Оценка
+                              </button>
+                            )
                           ) : (
                             <span className="text-gray-400">-</span>
                           )}
@@ -4423,7 +4513,9 @@ ${fullUrl}
                         setSelectedUser(null);
                         setSelectedUserEmail('');
                         if (selectedRequestForRating) {
-                          generateEmailText('', selectedRequestForRating);
+                          generateEmailText('', selectedRequestForRating).catch(err => {
+                            console.error('Error generating email text:', err);
+                          });
                         }
                       }}
                       onFocus={() => {
@@ -4452,11 +4544,13 @@ ${fullUrl}
                             onClick={() => {
                               setSelectedUser(user);
                               setUserSearchQuery(displayName);
-                              setSelectedUserEmail(user.email || user.username);
-                              setShowUserSuggestions(false);
-                              if (selectedRequestForRating) {
-                                generateEmailText(user.email || user.username, selectedRequestForRating);
-                              }
+                            const userEmail = user.email || user.username;
+                            setSelectedUserEmail(userEmail);
+                            setShowUserSuggestions(false);
+                            if (selectedRequestForRating) {
+                              // Генерируем текст письма (приглашение создастся автоматически)
+                              generateEmailText(userEmail, selectedRequestForRating);
+                            }
                             }}
                             className="w-full text-left px-3 py-2 text-sm text-gray-900 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
                           >
@@ -4500,7 +4594,33 @@ ${fullUrl}
                   Скопировать в буфер
                 </button>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
+                    if (selectedRequestForRating && selectedUserEmail) {
+                      try {
+                        // Извлекаем токен из ссылки
+                        const token = selectedRequestForRating.csiLink?.replace('/csi/feedback/', '').split('?')[0];
+                        if (token) {
+                          // Отправляем приглашение на бэкенд
+                          const response = await fetch(`${getBackendUrl()}/api/csi-feedback/invitation?csiToken=${encodeURIComponent(token)}&recipient=${encodeURIComponent(selectedUserEmail)}`, {
+                            method: 'POST',
+                          });
+                          
+                          if (response.ok) {
+                            // Добавляем ID заявки в Set отправленных приглашений
+                            setSentInvitations(prev => new Set(prev).add(selectedRequestForRating.id));
+                          } else {
+                            alert('Ошибка при отправке приглашения');
+                            return;
+                          }
+                        }
+                      } catch (error) {
+                        console.error('Error sending invitation:', error);
+                        alert('Ошибка при отправке приглашения');
+                        return;
+                      }
+                    }
+                    
+                    // Закрываем модальное окно
                     setIsRatingModalOpen(false);
                     setSelectedRequestForRating(null);
                     setSelectedUser(null);
@@ -4510,12 +4630,199 @@ ${fullUrl}
                     setUserSuggestions([]);
                     setShowUserSuggestions(false);
                   }}
-                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  disabled={!selectedUserEmail || !selectedRequestForRating}
+                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Закрыть
+                  Отправить
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Модальное окно для просмотра деталей оценки */}
+      {isFeedbackDetailsModalOpen && selectedRequestForFeedback && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => {
+          setIsFeedbackDetailsModalOpen(false);
+          setSelectedRequestForFeedback(null);
+          setFeedbackDetails(null);
+        }}>
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Детали оценки</h2>
+              <button
+                onClick={() => {
+                  setIsFeedbackDetailsModalOpen(false);
+                  setSelectedRequestForFeedback(null);
+                  setFeedbackDetails(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            {loadingFeedbackDetails ? (
+              <div className="text-center py-8">
+                <p className="text-gray-500">Загрузка...</p>
+              </div>
+            ) : feedbackDetails ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Получатель
+                  </label>
+                  <p className="text-sm text-gray-900 bg-gray-50 px-3 py-2 rounded-lg">
+                    {feedbackDetails.recipient || '-'}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Оценка скорости проведения закупки
+                    </label>
+                    <div className="flex items-center gap-2">
+                      {feedbackDetails.speedRating ? (() => {
+                        const rating = feedbackDetails.speedRating;
+                        const fullStars = Math.floor(rating);
+                        const hasHalfStar = rating % 1 >= 0.5;
+                        const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+                        return (
+                          <div className="flex items-center gap-0.5">
+                            {Array.from({ length: fullStars }).map((_, i) => (
+                              <Star key={`full-${i}`} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                            ))}
+                            {hasHalfStar && (
+                              <Star className="w-4 h-4 fill-yellow-400 text-yellow-400 opacity-50" />
+                            )}
+                            {Array.from({ length: emptyStars }).map((_, i) => (
+                              <Star key={`empty-${i}`} className="w-4 h-4 text-gray-300" />
+                            ))}
+                            <span className="ml-1 text-sm text-gray-900">{rating.toFixed(1)}</span>
+                          </div>
+                        );
+                      })() : <span className="text-sm text-gray-900">-</span>}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Оценка качества результата
+                    </label>
+                    <div className="flex items-center gap-2">
+                      {feedbackDetails.qualityRating ? (() => {
+                        const rating = feedbackDetails.qualityRating;
+                        const fullStars = Math.floor(rating);
+                        const hasHalfStar = rating % 1 >= 0.5;
+                        const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+                        return (
+                          <div className="flex items-center gap-0.5">
+                            {Array.from({ length: fullStars }).map((_, i) => (
+                              <Star key={`full-${i}`} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                            ))}
+                            {hasHalfStar && (
+                              <Star className="w-4 h-4 fill-yellow-400 text-yellow-400 opacity-50" />
+                            )}
+                            {Array.from({ length: emptyStars }).map((_, i) => (
+                              <Star key={`empty-${i}`} className="w-4 h-4 text-gray-300" />
+                            ))}
+                            <span className="ml-1 text-sm text-gray-900">{rating.toFixed(1)}</span>
+                          </div>
+                        );
+                      })() : <span className="text-sm text-gray-900">-</span>}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Оценка работы закупщика
+                    </label>
+                    <div className="flex items-center gap-2">
+                      {feedbackDetails.satisfactionRating ? (() => {
+                        const rating = feedbackDetails.satisfactionRating;
+                        const fullStars = Math.floor(rating);
+                        const hasHalfStar = rating % 1 >= 0.5;
+                        const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+                        return (
+                          <div className="flex items-center gap-0.5">
+                            {Array.from({ length: fullStars }).map((_, i) => (
+                              <Star key={`full-${i}`} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                            ))}
+                            {hasHalfStar && (
+                              <Star className="w-4 h-4 fill-yellow-400 text-yellow-400 opacity-50" />
+                            )}
+                            {Array.from({ length: emptyStars }).map((_, i) => (
+                              <Star key={`empty-${i}`} className="w-4 h-4 text-gray-300" />
+                            ))}
+                            <span className="ml-1 text-sm text-gray-900">{rating.toFixed(1)}</span>
+                          </div>
+                        );
+                      })() : <span className="text-sm text-gray-900">-</span>}
+                    </div>
+                  </div>
+
+                  {feedbackDetails.usedUzproc && feedbackDetails.uzprocRating && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Оценка узпрок
+                      </label>
+                      <div className="flex items-center gap-2">
+                        {(() => {
+                          const rating = feedbackDetails.uzprocRating!;
+                          const fullStars = Math.floor(rating);
+                          const hasHalfStar = rating % 1 >= 0.5;
+                          const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+                          return (
+                            <div className="flex items-center gap-0.5">
+                              {Array.from({ length: fullStars }).map((_, i) => (
+                                <Star key={`full-${i}`} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                              ))}
+                              {hasHalfStar && (
+                                <Star className="w-4 h-4 fill-yellow-400 text-yellow-400 opacity-50" />
+                              )}
+                              {Array.from({ length: emptyStars }).map((_, i) => (
+                                <Star key={`empty-${i}`} className="w-4 h-4 text-gray-300" />
+                              ))}
+                              <span className="ml-1 text-sm text-gray-900">{rating.toFixed(1)}</span>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {feedbackDetails.comment && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Комментарий
+                    </label>
+                    <p className="text-sm text-gray-900 bg-gray-50 px-3 py-2 rounded-lg whitespace-pre-wrap">
+                      {feedbackDetails.comment}
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2 mt-6">
+                  <button
+                    onClick={() => {
+                      setIsFeedbackDetailsModalOpen(false);
+                      setSelectedRequestForFeedback(null);
+                      setFeedbackDetails(null);
+                    }}
+                    className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Закрыть
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-gray-500">Оценка не найдена</p>
+              </div>
+            )}
           </div>
         </div>
       )}

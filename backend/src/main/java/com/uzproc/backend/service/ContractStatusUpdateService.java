@@ -6,6 +6,7 @@ import com.uzproc.backend.repository.ContractRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -15,7 +16,6 @@ import java.util.List;
  * Проверяет поле state для определения статуса
  */
 @Service
-@Transactional(readOnly = false)
 public class ContractStatusUpdateService {
 
     private static final Logger logger = LoggerFactory.getLogger(ContractStatusUpdateService.class);
@@ -104,6 +104,8 @@ public class ContractStatusUpdateService {
         if (newStatus != null && currentStatus != newStatus) {
             contract.setStatus(newStatus);
             contractRepository.save(contract);
+            // Явно синхронизируем изменения с БД
+            contractRepository.flush();
             logger.info("Status updated for contract {}: {} -> {}", 
                 contractId, 
                 currentStatus != null ? currentStatus.getDisplayName() : "null",
@@ -118,13 +120,14 @@ public class ContractStatusUpdateService {
     /**
      * Массовое обновление статусов для всех договоров
      * Используется после парсинга данных для обновления всех статусов
+     * Каждая обработка записи выполняется в отдельной транзакции с явным flush для освобождения соединения
      */
-    @Transactional
+    @Transactional(readOnly = true)
     public void updateAllStatuses() {
         logger.info("Starting mass status update for all contracts");
         long startTime = System.currentTimeMillis();
         
-        // Получаем все договоры
+        // Получаем все договоры (read-only транзакция)
         List<Contract> allContracts = contractRepository.findAll();
         logger.info("Found {} contracts to update", allContracts.size());
         
@@ -134,7 +137,8 @@ public class ContractStatusUpdateService {
         for (Contract contract : allContracts) {
             try {
                 ContractStatus oldStatus = contract.getStatus();
-                updateStatus(contract.getId());
+                // Каждый вызов updateStatus выполняется в отдельной транзакции
+                updateStatusInNewTransaction(contract.getId());
                 
                 // Проверяем, изменился ли статус
                 contract = contractRepository.findById(contract.getId()).orElse(null);
@@ -152,13 +156,21 @@ public class ContractStatusUpdateService {
         logger.info("Mass status update completed: {} contracts processed, {} updated, {} errors, time: {} ms", 
             allContracts.size(), updatedCount, errorCount, processingTime);
     }
+    
+    /**
+     * Обновляет статус в новой транзакции (для массовых обновлений)
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    private void updateStatusInNewTransaction(Long contractId) {
+        updateStatus(contractId);
+    }
 
     /**
      * Обновление статусов для договоров с указанными ID
+     * Каждая обработка записи выполняется в отдельной транзакции
      * 
      * @param contractIds список ID договоров для обновления
      */
-    @Transactional
     public void updateStatuses(List<Long> contractIds) {
         logger.info("Starting status update for {} contracts", contractIds.size());
         long startTime = System.currentTimeMillis();

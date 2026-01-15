@@ -8,6 +8,7 @@ public class CsiFeedbackCreateDto {
     private Double qualityRating;
     private Double satisfactionRating;
     private String comment;
+    private String recipient; // Получатель письма (email или username)
 
     public CsiFeedbackCreateDto() {
     }
@@ -67,5 +68,13 @@ public class CsiFeedbackCreateDto {
 
     public void setComment(String comment) {
         this.comment = comment;
+    }
+
+    public String getRecipient() {
+        return recipient;
+    }
+
+    public void setRecipient(String recipient) {
+        this.recipient = recipient;
     }
 }
