@@ -379,14 +379,36 @@ public class EntityExcelLoadService {
             Integer requiresPurchaseColumnIndex, String requiresPurchaseColumnName, Integer planColumnIndex, 
             String planColumnName, Integer preparedByColumnIndex, Integer purchaserColumnIndex, Integer statusColumnIndex) {
         try {
+            // Сначала получаем номер заявки, чтобы проверить существующую запись
+            Cell requestNumberCell = row.getCell(requestNumberColumnIndex);
+            Long requestNumber = parseLongCell(requestNumberCell);
+            if (requestNumber == null) {
+                logger.warn("Empty or invalid request number in row {}", row.getRowNum() + 1);
+                return false;
+            }
+            
+            // Проверяем существующую запись и сохраняем информацию о закупщике
+            Optional<PurchaseRequest> existingOpt = purchaseRequestRepository.findByIdPurchaseRequest(requestNumber);
+            boolean shouldParsePurchaser = true;
+            if (existingOpt.isPresent()) {
+                PurchaseRequest existing = existingOpt.get();
+                String existingPurchaser = existing.getPurchaser();
+                // Если закупщик уже установлен, не будем парсить его из Excel
+                if (existingPurchaser != null && !existingPurchaser.trim().isEmpty()) {
+                    shouldParsePurchaser = false;
+                    logger.debug("Row {}: Purchaser already set for request {}: '{}', will skip parsing from Excel", 
+                        row.getRowNum() + 1, requestNumber, existingPurchaser);
+                }
+            }
+            
+            // Парсим строку, передавая информацию о том, нужно ли парсить закупщик
             PurchaseRequest pr = parsePurchaseRequestRow(row, requestNumberColumnIndex, creationDateColumnIndex, 
                 innerIdColumnIndex, cfoColumnIndex, nameColumnIndex, titleColumnIndex, 
                 requiresPurchaseColumnIndex, requiresPurchaseColumnName, planColumnIndex, planColumnName, 
-                preparedByColumnIndex, purchaserColumnIndex, statusColumnIndex);
+                preparedByColumnIndex, shouldParsePurchaser ? purchaserColumnIndex : null, statusColumnIndex);
             if (pr != null && pr.getIdPurchaseRequest() != null) {
-                Optional<PurchaseRequest> existing = purchaseRequestRepository.findByIdPurchaseRequest(pr.getIdPurchaseRequest());
-                if (existing.isPresent()) {
-                    PurchaseRequest existingPr = existing.get();
+                if (existingOpt.isPresent()) {
+                    PurchaseRequest existingPr = existingOpt.get();
                     PurchaseRequestStatus oldStatus = existingPr.getStatus();
                     boolean updated = updatePurchaseRequestFields(existingPr, pr);
                     if (updated) {
@@ -594,15 +616,25 @@ public class EntityExcelLoadService {
         // Обновляем закупщика только если он еще не установлен
         // Если закупщик уже установлен, не перезаписываем его при парсинге Excel
         if (newData.getPurchaser() != null && !newData.getPurchaser().trim().isEmpty()) {
-            if (existing.getPurchaser() == null || existing.getPurchaser().trim().isEmpty()) {
+            String existingPurchaser = existing.getPurchaser();
+            boolean hasExistingPurchaser = existingPurchaser != null && !existingPurchaser.trim().isEmpty();
+            
+            if (!hasExistingPurchaser) {
                 // Закупщик еще не установлен, устанавливаем его
-                existing.setPurchaser(newData.getPurchaser());
+                existing.setPurchaser(newData.getPurchaser().trim());
                 updated = true;
-                logger.debug("Set purchaser for request {}: {}", existing.getIdPurchaseRequest(), newData.getPurchaser());
+                logger.info("Set purchaser for request {}: '{}'", existing.getIdPurchaseRequest(), newData.getPurchaser().trim());
             } else {
                 // Закупщик уже установлен, не перезаписываем
-                logger.debug("Purchaser already set for request {}: '{}', skipping update from Excel: '{}'", 
-                    existing.getIdPurchaseRequest(), existing.getPurchaser(), newData.getPurchaser());
+                logger.info("Purchaser already set for request {}: '{}', skipping update from Excel: '{}'", 
+                    existing.getIdPurchaseRequest(), existingPurchaser, newData.getPurchaser().trim());
+            }
+        } else {
+            // newData.getPurchaser() is null or empty - это нормально, если закупщик уже установлен
+            // и мы не устанавливали его в pr при парсинге
+            if (existing.getPurchaser() != null && !existing.getPurchaser().trim().isEmpty()) {
+                logger.debug("Purchaser preserved for request {}: '{}' (no new value from Excel)", 
+                    existing.getIdPurchaseRequest(), existing.getPurchaser());
             }
         }
         
