@@ -70,7 +70,7 @@ const CACHE_KEY = 'purchaseRequests_metadata';
 const CACHE_TTL = 5 * 60 * 1000; // 5 минут
 
 // Константы для статусов (соответствуют PurchaseRequestStatus enum)
-const ALL_STATUSES = ['Заявка на согласовании', 'На согласовании', 'Заявка на утверждении', 'На утверждении', 'Утверждена', 'Заявка утверждена', 'Согласована', 'Заявка не согласована', 'Заявка не утверждена', 'Проект', 'Неактуальна', 'Не Актуальная', 'Спецификация создана', 'Спецификация создана - Архив', 'Спецификация на согласовании', 'Спецификация подписана', 'Договор создан', 'Договор подписан', 'Закупка создана', 'Закупка не согласована', 'Закупка завершена'];
+const ALL_STATUSES = ['Заявка на согласовании', 'На согласовании', 'Заявка у закупщика', 'На утверждении', 'Утверждена', 'Заявка утверждена', 'Согласована', 'Заявка не согласована', 'Заявка не утверждена', 'Проект', 'Неактуальна', 'Не Актуальная', 'Спецификация создана', 'Спецификация создана - Архив', 'Спецификация на согласовании', 'Спецификация подписана', 'Договор создан', 'Договор подписан', 'Закупка создана', 'Закупка не согласована', 'Закупка завершена'];
 const DEFAULT_STATUSES = ALL_STATUSES.filter(s => s !== 'Неактуальна' && s !== 'Не Актуальная');
 
 // Ключ для сохранения видимости колонок в localStorage
@@ -97,8 +97,6 @@ const ALL_COLUMNS = [
   { key: 'isPlanned', label: 'План' },
   { key: 'requiresPurchase', label: 'Закупка' },
   { key: 'status', label: 'Статус' },
-  { key: 'daysInStatus', label: 'Срок в статусе' },
-  { key: 'isStrategicProduct', label: 'Стратегическая продукция' },
   { key: 'daysSinceCreation', label: 'Срок с даты создания' },
   { key: 'createdAt', label: 'Дата создания (системная)' },
   { key: 'updatedAt', label: 'Дата обновления' },
@@ -115,8 +113,6 @@ const DEFAULT_VISIBLE_COLUMNS = [
   'budgetAmount',
   'requiresPurchase',
   'status',
-  'daysInStatus',
-  'isStrategicProduct',
   'daysSinceCreation',
   'track',
 ];
@@ -138,10 +134,14 @@ const getCurrencyIcon = (currency: string | null) => {
 export default function PurchaseRequestsTable() {
   const router = useRouter();
   const [data, setData] = useState<PageResponse | null>(null);
+  const [allItems, setAllItems] = useState<PurchaseRequest[]>([]); // Все загруженные элементы
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false); // Загрузка следующей страницы
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
-  const [pageSize, setPageSize] = useState(100);
+  const [pageSize] = useState(100); // Фиксированный размер страницы
+  const [hasMore, setHasMore] = useState(true); // Есть ли еще данные для загрузки
+  const loadMoreRef = useRef<HTMLDivElement>(null); // Ref для отслеживания прокрутки
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [totalRecords, setTotalRecords] = useState<number>(0);
@@ -186,7 +186,6 @@ export default function PurchaseRequestsTable() {
     isPlanned: '',
     requiresPurchase: '',
     status: '',
-    isStrategicProduct: '',
   });
 
   // Состояние для множественных фильтров (чекбоксы)
@@ -211,7 +210,7 @@ export default function PurchaseRequestsTable() {
   const getStatusesForTab = (tab: TabType): string[] => {
     switch (tab) {
       case 'in-work':
-        return ['Заявка на согласовании', 'На согласовании', 'Заявка на утверждении', 'На утверждении', 'Спецификация создана', 'Спецификация на согласовании', 'Закупка создана', 'Договор создан', 'Заявка утверждена', 'Утверждена', 'Закупка завершена'];
+        return ['Заявка на согласовании', 'На согласовании', 'Заявка у закупщика', 'На утверждении', 'Спецификация создана', 'Спецификация на согласовании', 'Закупка создана', 'Договор создан', 'Заявка утверждена', 'Утверждена', 'Закупка завершена'];
       case 'completed':
         return ['Спецификация подписана', 'Договор подписан'];
       case 'project-rejected':
@@ -374,15 +373,6 @@ export default function PurchaseRequestsTable() {
           params.append('requiresPurchase', 'false');
         }
       }
-      if (filters.isStrategicProduct && filters.isStrategicProduct.trim() !== '' && filters.isStrategicProduct.trim() !== 'Все') {
-        const isStrategicProductValue = filters.isStrategicProduct.trim();
-        // Преобразуем "Да" в "true", "Нет" в "false"
-        if (isStrategicProductValue === 'Да') {
-          params.append('isStrategicProduct', 'true');
-        } else if (isStrategicProductValue === 'Нет') {
-          params.append('isStrategicProduct', 'false');
-        }
-      }
       
       const fetchUrl = `${getBackendUrl()}/api/purchase-requests/tab-counts?${params.toString()}`;
       const response = await fetch(fetchUrl);
@@ -453,6 +443,7 @@ export default function PurchaseRequestsTable() {
           setActiveTab(tabWithRecords);
           setStatusFilter(new Set());
           setCurrentPage(0);
+          setAllItems([]);
         }
       }
     }
@@ -467,7 +458,7 @@ export default function PurchaseRequestsTable() {
   const resizeColumn = useRef<string | null>(null);
 
   // Состояние для порядка колонок
-  const [columnOrder, setColumnOrder] = useState<string[]>(['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'daysInStatus', 'isStrategicProduct', 'daysSinceCreation', 'track']);
+  const [columnOrder, setColumnOrder] = useState<string[]>(['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'daysSinceCreation', 'track']);
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
 
@@ -575,7 +566,7 @@ export default function PurchaseRequestsTable() {
   useEffect(() => {
     try {
       const saved = localStorage.getItem('purchaseRequestsTableColumnOrder');
-      const defaultOrder = ['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'daysInStatus', 'isStrategicProduct', 'daysSinceCreation', 'track'];
+      const defaultOrder = ['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'daysSinceCreation', 'track'];
       
       if (saved) {
         const order = JSON.parse(saved);
@@ -583,23 +574,22 @@ export default function PurchaseRequestsTable() {
         const validOrder = order.filter((col: string) => defaultOrder.includes(col));
         const missingCols = defaultOrder.filter(col => !validOrder.includes(col));
         
-        // Убеждаемся, что daysInStatus и daysSinceCreation идут перед track
+        // Убеждаемся, что daysSinceCreation идет перед track
         let finalOrder = [...validOrder, ...missingCols];
         const trackIndex = finalOrder.indexOf('track');
-        const daysInStatusIndex = finalOrder.indexOf('daysInStatus');
         const daysSinceCreationIndex = finalOrder.indexOf('daysSinceCreation');
         
-        // Если track найден, а колонки сроков не перед ним, перемещаем их
-        if (trackIndex !== -1 && (daysInStatusIndex === -1 || daysSinceCreationIndex === -1 || daysInStatusIndex >= trackIndex || daysSinceCreationIndex >= trackIndex)) {
-          // Удаляем колонки сроков из текущей позиции
-          finalOrder = finalOrder.filter(col => col !== 'daysInStatus' && col !== 'daysSinceCreation');
-          // Вставляем их перед track
+        // Если track найден, а колонка срока не перед ним, перемещаем её
+        if (trackIndex !== -1 && (daysSinceCreationIndex === -1 || daysSinceCreationIndex >= trackIndex)) {
+          // Удаляем колонку срока из текущей позиции
+          finalOrder = finalOrder.filter(col => col !== 'daysSinceCreation');
+          // Вставляем её перед track
           const newTrackIndex = finalOrder.indexOf('track');
           if (newTrackIndex !== -1) {
-            finalOrder.splice(newTrackIndex, 0, 'daysInStatus', 'daysSinceCreation');
+            finalOrder.splice(newTrackIndex, 0, 'daysSinceCreation');
           } else {
             // Если track не найден, добавляем в конец
-            finalOrder.push('daysInStatus', 'daysSinceCreation');
+            finalOrder.push('daysSinceCreation');
           }
         }
         
@@ -617,7 +607,7 @@ export default function PurchaseRequestsTable() {
     } catch (err) {
       console.error('Error loading column order:', err);
       // В случае ошибки используем дефолтный порядок
-      const defaultOrder = ['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'daysInStatus', 'daysSinceCreation', 'track'];
+      const defaultOrder = ['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'daysSinceCreation', 'track'];
       setColumnOrder(defaultOrder);
     }
   }, []);
@@ -739,9 +729,7 @@ export default function PurchaseRequestsTable() {
         if (savedFilters.currentPage !== undefined) {
           setCurrentPage(savedFilters.currentPage);
         }
-        if (savedFilters.pageSize !== undefined) {
-          setPageSize(savedFilters.pageSize);
-        }
+        // pageSize теперь константа, не восстанавливаем из localStorage
         
         // Восстанавливаем поисковые запросы в фильтрах
         if (savedFilters.cfoSearchQuery !== undefined) {
@@ -849,7 +837,7 @@ export default function PurchaseRequestsTable() {
         sortField,
         sortDirection,
         currentPage,
-        pageSize,
+        // pageSize теперь константа, не сохраняем
         cfoSearchQuery, // Сохраняем поисковые запросы
         statusSearchQuery,
         activeTab,
@@ -864,13 +852,12 @@ export default function PurchaseRequestsTable() {
         cfoFilterSize: cfoFilter.size,
         statusFilterSize: statusFilter.size,
         selectedYear,
-        currentPage,
-        pageSize
+        currentPage
       });
     } catch (err) {
       console.error('Error saving filters to localStorage:', err);
     }
-  }, [filters, localFilters, cfoFilter, statusFilter, selectedYear, sortField, sortDirection, currentPage, pageSize, cfoSearchQuery, statusSearchQuery]);
+  }, [filters, localFilters, cfoFilter, statusFilter, selectedYear, sortField, sortDirection, currentPage, cfoSearchQuery, statusSearchQuery]);
 
   // Обновляем ref с актуальными значениями фильтров при каждом изменении
   useEffect(() => {
@@ -892,18 +879,18 @@ export default function PurchaseRequestsTable() {
       sortField,
       sortDirection,
       currentPage,
-      pageSize,
+      // pageSize теперь константа, не сохраняем в ref
       cfoSearchQuery,
       statusSearchQuery,
       activeTab,
     };
-  }, [filters, localFilters, cfoFilter, statusFilter, selectedYear, sortField, sortDirection, currentPage, pageSize, cfoSearchQuery, statusSearchQuery, activeTab]);
+  }, [filters, localFilters, cfoFilter, statusFilter, selectedYear, sortField, sortDirection, currentPage, cfoSearchQuery, statusSearchQuery, activeTab]);
 
   // Сохраняем фильтры в localStorage при их изменении (только после загрузки)
   // selectedYear не сохраняется - при переходе на страницу всегда "Все"
   useEffect(() => {
     saveFiltersToLocalStorage();
-  }, [filters, cfoFilter, statusFilter, sortField, sortDirection, currentPage, pageSize, cfoSearchQuery, statusSearchQuery, activeTab, saveFiltersToLocalStorage]);
+  }, [filters, cfoFilter, statusFilter, sortField, sortDirection, currentPage, cfoSearchQuery, statusSearchQuery, activeTab, saveFiltersToLocalStorage]);
 
   // Сохраняем localFilters с debounce для текстовых полей (чтобы сохранять промежуточные значения)
   useEffect(() => {
@@ -933,7 +920,7 @@ export default function PurchaseRequestsTable() {
           sortField: state.sortField,
           sortDirection: state.sortDirection,
           currentPage: state.currentPage,
-          pageSize: state.pageSize,
+          // pageSize теперь константа, не сохраняем
           cfoSearchQuery: state.cfoSearchQuery,
           statusSearchQuery: state.statusSearchQuery,
         };
@@ -960,7 +947,7 @@ export default function PurchaseRequestsTable() {
           sortField: state.sortField,
           sortDirection: state.sortDirection,
           currentPage: state.currentPage,
-          pageSize: state.pageSize,
+          // pageSize теперь константа, не сохраняем
           cfoSearchQuery: state.cfoSearchQuery,
           statusSearchQuery: state.statusSearchQuery,
         };
@@ -1102,9 +1089,7 @@ export default function PurchaseRequestsTable() {
       costType: 128, // w-32 = 8rem = 128px
       contractType: 128, // w-32 = 8rem = 128px
       contractDurationMonths: 128, // w-32 = 8rem = 128px
-      daysInStatus: 120,
       daysSinceCreation: 140, // Срок с даты создания - немного шире для переноса текста
-      isStrategicProduct: 160, // Стратегическая продукция - w-40 = 10rem = 160px
       guid: 192, // w-48 = 12rem = 192px
       purchaseRequestPlanYear: 96, // w-24 = 6rem = 96px
       company: 128, // w-32 = 8rem = 128px
@@ -1127,9 +1112,15 @@ export default function PurchaseRequestsTable() {
     year: number | null = null,
     sortField: SortField = null,
     sortDirection: SortDirection = null,
-    filters: Record<string, string> = {}
+    filters: Record<string, string> = {},
+    append: boolean = false // Флаг для добавления данных вместо замены
   ) => {
-    setLoading(true);
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+      setAllItems([]); // Очищаем при новой загрузке
+    }
     setError(null);
     try {
       const params = new URLSearchParams();
@@ -1198,15 +1189,6 @@ export default function PurchaseRequestsTable() {
           params.append('requiresPurchase', 'false');
         }
       }
-      if (filters.isStrategicProduct && filters.isStrategicProduct.trim() !== '' && filters.isStrategicProduct.trim() !== 'Все') {
-        const isStrategicProductValue = filters.isStrategicProduct.trim();
-        // Преобразуем "Да" в "true", "Нет" в "false"
-        if (isStrategicProductValue === 'Да') {
-          params.append('isStrategicProduct', 'true');
-        } else if (isStrategicProductValue === 'Нет') {
-          params.append('isStrategicProduct', 'false');
-        }
-      }
       
       // Фильтр по статусу - передаем все выбранные значения на бэкенд
       // Если пользователь выбрал статусы в фильтре, используем их (приоритет фильтра)
@@ -1259,6 +1241,17 @@ export default function PurchaseRequestsTable() {
       // totalElements и totalPages уже учитывают все примененные фильтры
       setData(result);
       
+      // Накапливаем данные для бесконечной прокрутки
+      if (append) {
+        setAllItems(prev => [...prev, ...result.content]);
+      } else {
+        setAllItems(result.content);
+      }
+      
+      // Проверяем, есть ли еще данные для загрузки
+      const hasMoreData = result.content.length === size && (page + 1) * size < result.totalElements;
+      setHasMore(hasMoreData);
+      
       // Обновляем количество для активной вкладки из результата
       setTabCounts(prev => ({
         ...prev,
@@ -1271,7 +1264,11 @@ export default function PurchaseRequestsTable() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Произошла ошибка');
     } finally {
-      setLoading(false);
+      if (append) {
+        setLoadingMore(false);
+      } else {
+        setLoading(false);
+      }
     }
   }, [cfoFilter, purchaserFilter, statusFilter, activeTab, localFilters]);
 
@@ -1322,6 +1319,7 @@ export default function PurchaseRequestsTable() {
           return updated;
         });
         setCurrentPage(0); // Сбрасываем на первую страницу после применения фильтра
+        setAllItems([]); // Очищаем накопленные данные
       }, hasBudgetOperatorChange && hasBudgetValue ? 0 : 500); // Для оператора без задержки, для значения с задержкой
 
       return () => clearTimeout(timer);
@@ -1353,8 +1351,41 @@ export default function PurchaseRequestsTable() {
     }
     
     console.log('useEffect fetchData triggered with selectedYear:', selectedYear);
-    fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters);
+    // При изменении фильтров или сбросе начинаем с первой страницы
+    if (currentPage === 0) {
+      fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters, false);
+    }
   }, [currentPage, pageSize, selectedYear, sortField, sortDirection, filters, fetchData, yearRestored]);
+
+  // Infinite scroll
+  useEffect(() => {
+    if (!loadMoreRef.current || loading || loadingMore || !hasMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+          const nextPage = currentPage + 1;
+          fetchData(
+            nextPage,
+            pageSize,
+            selectedYear,
+            sortField,
+            sortDirection,
+            filters,
+            true // append = true для добавления данных
+          );
+          setCurrentPage(nextPage);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(loadMoreRef.current);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [currentPage, hasMore, loading, loadingMore, selectedYear, sortField, sortDirection, filters, fetchData, pageSize]);
 
   // Отдельный useEffect для перезапуска fetchData после восстановления года из navigationData
   // Это нужно, чтобы убедиться, что данные загружаются с правильным годом
@@ -1802,15 +1833,6 @@ export default function PurchaseRequestsTable() {
           }
         }
         
-        if (filters.isStrategicProduct && filters.isStrategicProduct.trim() !== '' && filters.isStrategicProduct.trim() !== 'Все') {
-          const isStrategicProductValue = filters.isStrategicProduct.trim();
-          if (isStrategicProductValue === 'Да') {
-            params.append('isStrategicProduct', 'true');
-          } else if (isStrategicProductValue === 'Нет') {
-            params.append('isStrategicProduct', 'false');
-          }
-        }
-        
         // Применяем фильтр по статусам "в работе" для сводной таблицы
         // Сводная таблица всегда показывает только заявки "в работе", независимо от активной вкладки
         const inWorkStatuses = getStatusesForTab('in-work');
@@ -1936,10 +1958,6 @@ export default function PurchaseRequestsTable() {
     return result;
   }, [summaryData]);
 
-  const handlePageSizeChange = (newSize: number) => {
-    setPageSize(newSize);
-    setCurrentPage(0); // Сбрасываем на первую страницу при изменении размера
-  };
 
   // Обработка сортировки
   const handleSort = (field: SortField) => {
@@ -1978,6 +1996,7 @@ export default function PurchaseRequestsTable() {
         [field]: value,
       }));
       setCurrentPage(0); // Сбрасываем на первую страницу при изменении фильтра
+      setAllItems([]); // Очищаем накопленные данные
     }
   };
 
@@ -2028,12 +2047,14 @@ export default function PurchaseRequestsTable() {
     setCfoFilter(newSet);
     setFilters(prev => ({ ...prev, cfo: allCfo.join(',') }));
     setCurrentPage(0);
+    setAllItems([]); // Очищаем накопленные данные
   };
 
   const handleCfoDeselectAll = () => {
     setCfoFilter(new Set());
     setFilters(prev => ({ ...prev, cfo: '' }));
     setCurrentPage(0);
+    setAllItems([]); // Очищаем накопленные данные
   };
 
   const handlePurchaserToggle = (purchaser: string) => {
@@ -2045,17 +2066,20 @@ export default function PurchaseRequestsTable() {
     }
     setPurchaserFilter(newSet);
     setCurrentPage(0);
+    setAllItems([]); // Очищаем накопленные данные
   };
 
   const handlePurchaserSelectAll = () => {
     const allPurchasers = getUniqueValues('purchaser');
     setPurchaserFilter(new Set(allPurchasers));
     setCurrentPage(0);
+    setAllItems([]); // Очищаем накопленные данные
   };
 
   const handlePurchaserDeselectAll = () => {
     setPurchaserFilter(new Set());
     setCurrentPage(0);
+    setAllItems([]); // Очищаем накопленные данные
   };
 
   const handleStatusSelectAll = () => {
@@ -2063,12 +2087,14 @@ export default function PurchaseRequestsTable() {
     const newSet = new Set(allStatuses);
     setStatusFilter(newSet);
     setCurrentPage(0);
+    setAllItems([]); // Очищаем накопленные данные
   };
 
   const handleStatusDeselectAll = () => {
     setStatusFilter(new Set());
     setStatusSearchQuery(''); // Очищаем поисковый запрос, чтобы показать все статусы
     setCurrentPage(0);
+    setAllItems([]); // Очищаем накопленные данные
   };
 
   // Закрываем выпадающие списки при клике вне их
@@ -2334,7 +2360,7 @@ export default function PurchaseRequestsTable() {
 
     try {
       // Подготавливаем данные для экспорта
-      const exportData = data.content.map((request) => ({
+      const exportData = allItems.map((request) => ({
         'Номер заявки': request.idPurchaseRequest || '',
         'Дата создания': request.purchaseRequestCreationDate 
           ? new Date(request.purchaseRequestCreationDate).toLocaleDateString('ru-RU')
@@ -2411,7 +2437,7 @@ export default function PurchaseRequestsTable() {
       ];
 
       // Создаем строки данных
-      const rows = data.content.map((request) => [
+      const rows = allItems.map((request) => [
         request.idPurchaseRequest || '',
         request.purchaseRequestCreationDate 
           ? new Date(request.purchaseRequestCreationDate).toLocaleDateString('ru-RU')
@@ -2529,7 +2555,7 @@ export default function PurchaseRequestsTable() {
   };
 
   // Проверяем, есть ли данные для отображения
-  const hasData = data && data.content && data.content.length > 0;
+  const hasData = allItems && allItems.length > 0;
 
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
@@ -2552,6 +2578,7 @@ export default function PurchaseRequestsTable() {
               onClick={() => {
                 setSelectedYear(null);
                 setCurrentPage(0); // Сбрасываем на первую страницу при сбросе фильтра
+                setAllItems([]); // Очищаем накопленные данные
               }}
               className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
                 selectedYear === null
@@ -2567,6 +2594,7 @@ export default function PurchaseRequestsTable() {
                 onClick={() => {
                   setSelectedYear(year);
                   setCurrentPage(0); // Сбрасываем на первую страницу при изменении года
+                  setAllItems([]); // Очищаем накопленные данные
                 }}
                 className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
                   selectedYear === year
@@ -2578,20 +2606,21 @@ export default function PurchaseRequestsTable() {
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-4 flex-wrap">
-            <p className="text-sm text-gray-500 whitespace-nowrap">
-              Всего записей: {totalRecords}
-            </p>
-            <div className="relative">
-              <button
-                ref={columnsMenuButtonRef}
-                onClick={() => setIsColumnsMenuOpen(!isColumnsMenuOpen)}
-                className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-2"
-                title="Настройка колонок"
-              >
-                <Settings className="w-4 h-4" />
-                Колонки
-              </button>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-4 flex-wrap">
+              <p className="text-sm text-gray-500 whitespace-nowrap">
+                Всего записей: {totalRecords}
+              </p>
+              <div className="relative">
+                <button
+                  ref={columnsMenuButtonRef}
+                  onClick={() => setIsColumnsMenuOpen(!isColumnsMenuOpen)}
+                  className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-2"
+                  title="Настройка колонок"
+                >
+                  <Settings className="w-4 h-4" />
+                  Колонки
+                </button>
               {isColumnsMenuOpen && columnsMenuPosition && (
                 <div 
                   data-columns-menu="true"
@@ -2637,51 +2666,45 @@ export default function PurchaseRequestsTable() {
                   </div>
                 </div>
               )}
-            </div>
-            <button
-              onClick={() => {
-                const emptyFilters = {
-                  idPurchaseRequest: '',
-                  cfo: '',
-                  purchaseRequestInitiator: '',
-                  purchaser: '',
-                  name: '',
-                  budgetAmount: '',
-                  budgetAmountOperator: 'gte',
-                  costType: '',
-                  contractType: '',
-                  contractDurationMonths: '',
-                  isPlanned: '',
+              </div>
+              <button
+                onClick={() => {
+                  const emptyFilters = {
+                    idPurchaseRequest: '',
+                    cfo: '',
+                    purchaseRequestInitiator: '',
+                    purchaser: '',
+                    name: '',
+                    budgetAmount: '',
+                    budgetAmountOperator: 'gte',
+                    costType: '',
+                    contractType: '',
+                    contractDurationMonths: '',
+                    isPlanned: '',
                   requiresPurchase: '',
                   status: '',
-                  isStrategicProduct: '',
                 };
-                setFilters(emptyFilters);
-                setLocalFilters(emptyFilters);
-                setCfoFilter(new Set());
-                setStatusFilter(new Set()); // По умолчанию пустой, как для ЦФО
-                setCfoSearchQuery('');
-                setStatusSearchQuery('');
-                setPurchaserFilter(new Set());
-                setPurchaserSearchQuery('');
-                setSelectedYear(null); // Сбрасываем фильтр по году на "Все"
-                setSortField('idPurchaseRequest');
-                setSortDirection('desc');
-                setFocusedField(null);
-                setActiveTab('in-work'); // Сбрасываем вкладку на "В работе" (по умолчанию)
-              }}
-              className="px-4 py-2 text-sm font-medium bg-red-50 text-red-700 rounded-lg border-2 border-red-300 hover:bg-red-100 hover:border-red-400 transition-colors shadow-sm whitespace-nowrap"
-            >
-              Сбросить фильтры
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Пагинация */}
-      {data && (
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
-          <div className="flex items-center gap-4">
+                  setFilters(emptyFilters);
+                  setLocalFilters(emptyFilters);
+                  setCfoFilter(new Set());
+                  setStatusFilter(new Set()); // По умолчанию пустой, как для ЦФО
+                  setCfoSearchQuery('');
+                  setStatusSearchQuery('');
+                  setPurchaserFilter(new Set());
+                  setPurchaserSearchQuery('');
+                  setSelectedYear(null); // Сбрасываем фильтр по году на "Все"
+                  setSortField('idPurchaseRequest');
+                  setSortDirection('desc');
+                  setFocusedField(null);
+                  setActiveTab('in-work'); // Сбрасываем вкладку на "В работе" (по умолчанию)
+                  setAllItems([]); // Очищаем накопленные данные
+                }}
+                className="px-4 py-2 text-sm font-medium bg-red-50 text-red-700 rounded-lg border-2 border-red-300 hover:bg-red-100 hover:border-red-400 transition-colors shadow-sm whitespace-nowrap"
+              >
+                Сбросить фильтры
+              </button>
+            </div>
+            {/* Кнопки экспорта и копирования */}
             <div className="flex items-center gap-2">
               <button
                 onClick={handleExportToExcel}
@@ -2698,57 +2721,15 @@ export default function PurchaseRequestsTable() {
                 <Copy className="w-4 h-4" />
               </button>
             </div>
-            <div className="text-sm text-gray-700">
-              Показано {data?.content.length || 0} из {data?.totalElements || 0} записей
-            </div>
-            <div className="flex items-center gap-2">
-              <label htmlFor="pageSize" className="text-sm text-gray-700">
-                Элементов на странице:
-              </label>
-              <select
-                id="pageSize"
-                value={pageSize}
-                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-            </div>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setCurrentPage(0)}
-              disabled={currentPage === 0}
-              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Первая
-            </button>
-            <button
-              onClick={() => setCurrentPage(currentPage - 1)}
-              disabled={currentPage === 0}
-              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Назад
-            </button>
-            <span className="px-4 py-2 text-sm font-medium text-gray-700">
-              Страница {currentPage + 1} из {data?.totalPages || 0}
-            </span>
-            <button
-              onClick={() => setCurrentPage(currentPage + 1)}
-              disabled={currentPage >= (data?.totalPages || 0) - 1}
-              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Вперед
-            </button>
-            <button
-              onClick={() => setCurrentPage((data?.totalPages || 0) - 1)}
-              disabled={currentPage >= (data?.totalPages || 0) - 1}
-              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Последняя
-            </button>
+        </div>
+      </div>
+
+      {/* Счетчик записей */}
+      {data && (
+        <div className="px-6 py-2 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
+          <div className="text-sm text-gray-700">
+            Показано {allItems.length || 0} из {data?.totalElements || 0} записей
           </div>
         </div>
       )}
@@ -2763,6 +2744,7 @@ export default function PurchaseRequestsTable() {
                 setActiveTab('in-work');
                 setStatusFilter(new Set());
                 setCurrentPage(0);
+                setAllItems([]); // Очищаем накопленные данные
               }}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors shadow-sm ${
                 activeTab === 'in-work'
@@ -2780,6 +2762,7 @@ export default function PurchaseRequestsTable() {
                 setActiveTab('completed');
                 setStatusFilter(new Set());
                 setCurrentPage(0);
+                setAllItems([]); // Очищаем накопленные данные
               }}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors shadow-sm ${
                 activeTab === 'completed'
@@ -2797,6 +2780,7 @@ export default function PurchaseRequestsTable() {
                 setActiveTab('all');
                 setStatusFilter(new Set());
                 setCurrentPage(0);
+                setAllItems([]); // Очищаем накопленные данные
               }}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors shadow-sm ${
                 activeTab === 'all'
@@ -2814,6 +2798,7 @@ export default function PurchaseRequestsTable() {
                 setActiveTab('project-rejected');
                 setStatusFilter(new Set());
                 setCurrentPage(0);
+                setAllItems([]); // Очищаем накопленные данные
               }}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors shadow-sm ${
                 activeTab === 'project-rejected'
@@ -2831,6 +2816,7 @@ export default function PurchaseRequestsTable() {
                 setActiveTab('hidden');
                 setStatusFilter(new Set());
                 setCurrentPage(0);
+                setAllItems([]); // Очищаем накопленные данные
               }}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors shadow-sm ${
                 activeTab === 'hidden'
@@ -3384,34 +3370,6 @@ export default function PurchaseRequestsTable() {
                   );
                 }
                 
-                if (columnKey === 'daysInStatus') {
-                  // Показываем только для закупок на вкладке "в работе"
-                  if (activeTab !== 'in-work') {
-                    return null;
-                  }
-                  return (
-                    <th
-                      key={columnKey}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, columnKey)}
-                      onDragOver={(e) => handleDragOver(e, columnKey)}
-                      onDragLeave={handleDragLeave}
-                      onDrop={(e) => handleDrop(e, columnKey)}
-                      className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
-                      style={{ verticalAlign: 'top' }}
-                    >
-                      <div className="flex flex-col gap-1">
-                        <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}></div>
-                        <span className="normal-case min-h-[20px] flex items-center">Срок в статусе</span>
-                      </div>
-                    </th>
-                  );
-                }
-                
-                if (columnKey === 'isStrategicProduct') {
-                  return <SortableHeader key={columnKey} field="isStrategicProduct" label="Стратегическая продукция" filterType="select" filterOptions={['Да', 'Нет', 'Все']} width="w-40" columnKey="isStrategicProduct" />;
-                }
-                
                 if (columnKey === 'daysSinceCreation') {
                   return (
                     <th
@@ -3476,7 +3434,7 @@ export default function PurchaseRequestsTable() {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {hasData ? (
-              data?.content.map((request, index) => (
+              allItems.map((request, index) => (
                 <tr 
                   key={request.id} 
                   className="hover:bg-gray-50 cursor-pointer"
@@ -3487,8 +3445,8 @@ export default function PurchaseRequestsTable() {
                       return;
                     }
                     // Сохраняем текущие фильтры и позицию для навигации
-                    // Вычисляем глобальный индекс: индекс на текущей странице + смещение страницы
-                    const globalIndex = currentPage * pageSize + index;
+                    // Используем индекс из массива allItems
+                    const globalIndex = index;
                     try {
                       // Сохраняем фильтры перед переходом
                       const filtersToSave = {
@@ -3599,17 +3557,13 @@ export default function PurchaseRequestsTable() {
                           });
                           if (response.ok) {
                             const updated = await response.json();
-                            setData(prev => {
-                              if (!prev) return null;
-                              return {
-                                ...prev,
-                                content: prev.content.map(item => 
-                                  item.idPurchaseRequest === request.idPurchaseRequest 
-                                    ? { ...item, excludeFromInWork: updated.excludeFromInWork }
-                                    : item
-                                ),
-                              };
-                            });
+                            setAllItems(prev => 
+                              prev.map(item => 
+                                item.idPurchaseRequest === request.idPurchaseRequest 
+                                  ? { ...item, excludeFromInWork: updated.excludeFromInWork }
+                                  : item
+                              )
+                            );
                           } else {
                             const errorData = await response.json().catch(() => ({ message: 'Ошибка сервера' }));
                             alert(errorData.message || 'Не удалось обновить видимость заявки');
@@ -3906,7 +3860,7 @@ export default function PurchaseRequestsTable() {
                                 ? 'bg-yellow-100 text-yellow-800'
                                 : request.status === 'Заявка не согласована' || request.status === 'Заявка не утверждена' || request.status === 'Закупка не согласована'
                                 ? 'bg-red-100 text-red-800'
-                                : request.status === 'На согласовании' || request.status === 'Заявка на согласовании' || request.status === 'На утверждении' || request.status === 'Заявка на утверждении'
+                                : request.status === 'На согласовании' || request.status === 'Заявка на согласовании' || request.status === 'На утверждении' || request.status === 'Заявка у закупщика'
                                 ? 'bg-yellow-100 text-yellow-800'
                                 : 'bg-gray-100 text-gray-800'
                             }`}>
@@ -3914,47 +3868,6 @@ export default function PurchaseRequestsTable() {
                             </span>
                           ) : (
                             <span className="px-2 py-1 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
-                              -
-                            </span>
-                          )}
-                        </td>
-                      );
-                    }
-                    
-                    if (columnKey === 'daysInStatus') {
-                      // Показываем только для закупок на вкладке "в работе"
-                      if (activeTab !== 'in-work') {
-                        return null;
-                      }
-                      return (
-                        <td 
-                          key={columnKey} 
-                          className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center"
-                        >
-                          {request.requiresPurchase !== false && request.daysInStatus !== null && request.daysInStatus !== undefined ? (
-                            <span>{request.daysInStatus}</span>
-                          ) : '-'}
-                        </td>
-                      );
-                    }
-                    
-                    if (columnKey === 'isStrategicProduct') {
-                      return (
-                        <td 
-                          key={columnKey} 
-                          className="px-2 py-0.5 whitespace-nowrap text-xs border-r border-gray-200" 
-                          style={{ width: `${getColumnWidth('isStrategicProduct')}px`, minWidth: `${getColumnWidth('isStrategicProduct')}px`, maxWidth: `${getColumnWidth('isStrategicProduct')}px` }}
-                        >
-                          {request.isStrategicProduct ? (
-                            <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">
-                              Да
-                            </span>
-                          ) : request.isStrategicProduct === false ? (
-                            <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
-                              Нет
-                            </span>
-                          ) : (
-                            <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
                               -
                             </span>
                           )}
@@ -4153,6 +4066,15 @@ export default function PurchaseRequestsTable() {
             )}
           </tbody>
         </table>
+
+        {/* Infinite scroll индикатор */}
+        {hasMore && (
+          <div ref={loadMoreRef} className="h-4 flex items-center justify-center py-1">
+            {loadingMore && (
+              <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
