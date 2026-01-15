@@ -351,6 +351,12 @@ public class PurchaseRequestService {
             dto.setContracts(new ArrayList<>());
         }
         
+        // Генерируем ссылку на форму CSI обратной связи
+        if (entity.getCsiToken() != null && !entity.getCsiToken().isEmpty()) {
+            // Формируем ссылку вида: /csi/feedback/{token}
+            dto.setCsiLink("/csi/feedback/" + entity.getCsiToken());
+        }
+        
         return dto;
     }
 

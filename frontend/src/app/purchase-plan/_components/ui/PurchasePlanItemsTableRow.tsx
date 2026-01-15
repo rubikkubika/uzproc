@@ -111,6 +111,7 @@ export default function PurchasePlanItemsTableRow({
   const isInactive = item.status === 'Исключена';
   const hasPurchaseRequest = item.purchaseRequestId !== null && item.purchaseRequestId !== undefined;
   // Если позиция связана с заявкой, все поля неактивны, кроме purchaseRequestId
+  // purchaseRequestId всегда можно редактировать
   const isReadOnly = hasPurchaseRequest;
   
   const renderCell = (columnKey: string) => {
@@ -737,6 +738,8 @@ export default function PurchasePlanItemsTableRow({
         );
       
       case 'purchaseRequestId':
+        // purchaseRequestId всегда можно редактировать, даже если оно уже установлено
+        const canEditPurchaseRequestId = canEdit && !isInactive && !isViewingArchiveVersion;
         return (
           <td
             key={columnKey}
@@ -750,7 +753,7 @@ export default function PurchasePlanItemsTableRow({
                 onBlur={(e) => {
                   const newValue = e.target.value.trim();
                   const currentValue = item.purchaseRequestId?.toString() || '';
-                  if (canEdit && !isReadOnly && newValue !== currentValue) {
+                  if (canEditPurchaseRequestId && newValue !== currentValue) {
                     onPurchaseRequestIdUpdate?.(item.id, newValue || null);
                   } else {
                     setEditingPurchaseRequestId?.(null);
@@ -766,25 +769,25 @@ export default function PurchasePlanItemsTableRow({
                 onClick={(e) => e.stopPropagation()}
                 onFocus={(e) => {
                   e.stopPropagation();
-                  if (canEdit && !isReadOnly) {
+                  if (canEditPurchaseRequestId) {
                     setEditingPurchaseRequestId?.(item.id);
                   }
                 }}
                 className="w-full text-gray-900 bg-white border border-blue-500 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 style={{ fontSize: '13.44px' }}
-                disabled={isInactive || isViewingArchiveVersion || !canEdit || isReadOnly}
+                disabled={!canEditPurchaseRequestId}
                 autoFocus
               />
             ) : (
               <div
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (!isInactive && !isViewingArchiveVersion && canEdit && !isReadOnly) {
+                  if (canEditPurchaseRequestId) {
                     setEditingPurchaseRequestId?.(item.id);
                   }
                 }}
-                className={isInactive || isViewingArchiveVersion || !canEdit || isReadOnly ? '' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors'}
-                title={isInactive || isViewingArchiveVersion || !canEdit || isReadOnly ? '' : 'Нажмите для редактирования'}
+                className={!canEditPurchaseRequestId ? '' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors'}
+                title={!canEditPurchaseRequestId ? '' : 'Нажмите для редактирования'}
               >
                 {item.purchaseRequestId || '-'}
               </div>

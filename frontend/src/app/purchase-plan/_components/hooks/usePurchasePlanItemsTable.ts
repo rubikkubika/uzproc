@@ -203,12 +203,69 @@ export const usePurchasePlanItemsTable = () => {
       
       const result = await response.json();
       
+      // Обновляем статусы из связанных заявок
+      const itemsWithPurchaseRequest = result.content.filter((item: PurchasePlanItem) => 
+        item.purchaseRequestId !== null && item.purchaseRequestId !== undefined
+      );
+      
+      if (itemsWithPurchaseRequest.length > 0) {
+        // Загружаем актуальные статусы для всех связанных заявок параллельно
+        const statusUpdates = await Promise.allSettled(
+          itemsWithPurchaseRequest.map(async (item: PurchasePlanItem) => {
+            try {
+              const response = await fetch(`${getBackendUrl()}/api/purchase-requests/by-id-purchase-request/${item.purchaseRequestId}`);
+              if (response.ok) {
+                const purchaseRequest = await response.json();
+                return {
+                  itemId: item.id,
+                  purchaseRequestId: item.purchaseRequestId,
+                  status: purchaseRequest?.status || null
+                };
+              }
+            } catch (error) {
+              // Игнорируем ошибки загрузки статуса
+            }
+            return null;
+          })
+        );
+        
+        // Создаем карту обновлений статусов
+        const statusMap = new Map<number, string | null>();
+        statusUpdates.forEach((result) => {
+          if (result.status === 'fulfilled' && result.value) {
+            statusMap.set(result.value.itemId, result.value.status);
+          }
+        });
+        
+        // Обновляем статусы в данных
+        if (statusMap.size > 0) {
+          result.content = result.content.map((item: PurchasePlanItem) => {
+            const newStatus = statusMap.get(item.id);
+            if (newStatus !== undefined) {
+              return { ...item, purchaseRequestStatus: newStatus };
+            }
+            return item;
+          });
+        }
+      }
+      
       if (append) {
         // Фильтруем дубликаты при добавлении данных
         setAllItems(prev => {
           const existingIds = new Set(prev.map((item: PurchasePlanItem) => item.id));
           const newItems = result.content.filter((item: PurchasePlanItem) => !existingIds.has(item.id));
-          return [...prev, ...newItems];
+          // Обновляем статусы для новых элементов
+          const updatedNewItems = newItems.map((item: PurchasePlanItem) => {
+            const existingItem = prev.find((prevItem: PurchasePlanItem) => 
+              prevItem.purchaseRequestId === item.purchaseRequestId && 
+              prevItem.purchaseRequestId !== null
+            );
+            if (existingItem && existingItem.purchaseRequestStatus) {
+              return { ...item, purchaseRequestStatus: existingItem.purchaseRequestStatus };
+            }
+            return item;
+          });
+          return [...prev, ...updatedNewItems];
         });
         if (data) {
           const existingIds = new Set((data.content || []).map((item: PurchasePlanItem) => item.id));
