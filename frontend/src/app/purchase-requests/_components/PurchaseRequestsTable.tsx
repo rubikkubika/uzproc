@@ -670,6 +670,8 @@ ${fullUrl}
         if (tabWithRecords) {
           setActiveTab(tabWithRecords);
           setStatusFilter(new Set());
+          setPurchaserFilter(new Set());
+          setCfoFilter(new Set());
           setCurrentPage(0);
           setAllItems([]);
         }
@@ -1475,17 +1477,37 @@ ${fullUrl}
       }
       
       const fetchUrl = `${getBackendUrl()}/api/purchase-requests?${params.toString()}`;
+      console.log('=== fetchData запрос ===');
+      console.log('URL:', fetchUrl);
+      console.log('Параметры:', {
+        activeTab,
+        cfoFilter: Array.from(cfoFilter),
+        purchaserFilter: Array.from(purchaserFilter),
+        statusFilter: Array.from(statusFilter),
+        page,
+        size,
+        selectedYear
+      });
       const response = await fetch(fetchUrl);
       if (!response.ok) {
         throw new Error('Ошибка загрузки данных');
       }
       const result = await response.json();
+      console.log('=== fetchData ответ ===');
+      console.log('Получено записей:', result.content?.length || 0);
+      console.log('Всего записей:', result.totalElements || 0);
       
       // Все фильтры, включая статус, применяются на бэкенде
       // Пагинация тоже на бэкенде
       // totalElements и totalPages уже учитывают все примененные фильтры
       setData(result);
-      
+
+      console.log('Устанавливаем данные в state:', {
+        append,
+        newItemsCount: result.content?.length || 0,
+        resultContent: result.content
+      });
+
       // Накапливаем данные для бесконечной прокрутки
       if (append) {
         setAllItems(prev => [...prev, ...result.content]);
@@ -1515,11 +1537,10 @@ ${fullUrl}
         setLoading(false);
       }
     }
-  }, [cfoFilter, purchaserFilter, statusFilter, activeTab, localFilters]);
+  }, [cfoFilter, purchaserFilter, statusFilter, activeTab]);
 
   // Debounce для текстовых фильтров и фильтра бюджета (как в PurchasePlanItemsTable)
   useEffect(() => {
-    // Проверяем, изменились ли текстовые фильтры
     const textFields = [
       'idPurchaseRequest', 
       'name', 
@@ -1533,45 +1554,39 @@ ${fullUrl}
       'createdAt',
       'updatedAt',
       'title',
-      'innerId'
+      'innerId',
+      'budgetAmount'
     ];
-    const hasTextChanges = textFields.some(field => localFilters[field] !== filters[field]);
-    // Для бюджета проверяем изменение значения
-    const hasBudgetValueChange = localFilters.budgetAmount !== filters.budgetAmount;
-    // Проверяем изменение оператора (если значение бюджета уже есть, нужно обновить запрос)
-    const hasBudgetOperatorChange = localFilters.budgetAmountOperator !== filters.budgetAmountOperator;
-    // Проверяем наличие значения бюджета в localFilters (а не в filters), так как оно может еще не попасть в filters из-за debounce
-    const hasBudgetValue = localFilters.budgetAmount && localFilters.budgetAmount.trim() !== '';
-    
-    if (hasTextChanges || hasBudgetValueChange || (hasBudgetOperatorChange && hasBudgetValue)) {
+    const hasTextChanges = textFields.some(f => localFilters[f] !== filters[f]);
+    if (hasTextChanges) {
+      const input = focusedField ? document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement : null;
+      const cursorPosition = input ? input.selectionStart || 0 : null;
+
       const timer = setTimeout(() => {
-        setFilters(prev => {
-          // Обновляем только измененные текстовые поля и поля бюджета
-          const updated = { ...prev };
-          textFields.forEach(field => {
-            updated[field] = localFilters[field];
-          });
-          // Обновляем значение бюджета и оператор вместе
-          // Сохраняем значение бюджета только если оно не пустое
-          if (localFilters.budgetAmount && localFilters.budgetAmount.trim() !== '') {
-            updated.budgetAmount = localFilters.budgetAmount;
-          } else if (localFilters.budgetAmount === '') {
-            // Если значение явно очищено, сохраняем пустую строку
-            updated.budgetAmount = '';
-          }
-          // Оператор всегда обновляем
-          updated.budgetAmountOperator = localFilters.budgetAmountOperator;
-          return updated;
-        });
-        setCurrentPage(0); // Сбрасываем на первую страницу после применения фильтра
-        setAllItems([]); // Очищаем накопленные данные
-      }, hasBudgetOperatorChange && hasBudgetValue ? 0 : 500); // Для оператора без задержки, для значения с задержкой
+        setFilters(prev => { const updated = {...prev}; textFields.forEach(f => updated[f] = localFilters[f] || ''); return updated; });
+        setCurrentPage(0);
+
+        if (focusedField && cursorPosition !== null) {
+          setTimeout(() => {
+            const inputAfter = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
+            if (inputAfter) { inputAfter.focus(); const pos = Math.min(cursorPosition, inputAfter.value.length); inputAfter.setSelectionRange(pos,pos); }
+          },0);
+        }
+      }, 500);
 
       return () => clearTimeout(timer);
     }
-  }, [localFilters]);
+  }, [localFilters, filters, setCurrentPage, focusedField]);
 
   // Убрали useEffect, который устанавливал DEFAULT_STATUSES - теперь фильтр по умолчанию пустой
+
+  // Стабилизируем строковые представления фильтров через useMemo, чтобы избежать лишних обновлений
+  const cfoFilterStr = useMemo(() => Array.from(cfoFilter).sort().join(','), [cfoFilter]);
+  const purchaserFilterStr = useMemo(() => Array.from(purchaserFilter).sort().join(','), [purchaserFilter]);
+  const statusFilterStr = useMemo(() => Array.from(statusFilter).sort().join(','), [statusFilter]);
+
+  // Стабилизируем объект filters через JSON.stringify для корректного сравнения
+  const filtersStr = useMemo(() => JSON.stringify(filters), [filters]);
 
   useEffect(() => {
     // Не загружаем данные до тех пор, пока фильтры не загружены из localStorage
@@ -1595,12 +1610,27 @@ ${fullUrl}
       }
     }
     
-    console.log('useEffect fetchData triggered with selectedYear:', selectedYear);
+    console.log('useEffect fetchData triggered with selectedYear:', selectedYear, 'activeTab:', activeTab);
     // При изменении фильтров или сбросе начинаем с первой страницы
-    if (currentPage === 0) {
-      fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, filters, false);
-    }
-  }, [currentPage, pageSize, selectedYear, sortField, sortDirection, filters, fetchData, yearRestored]);
+    setCurrentPage(0);
+    setAllItems([]); // Очищаем накопленные данные
+    fetchData(0, pageSize, selectedYear, sortField, sortDirection, filters, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    pageSize,
+    selectedYear,
+    sortField,
+    sortDirection,
+    filtersStr,
+    yearRestored,
+    cfoFilter.size,
+    cfoFilterStr,
+    purchaserFilter.size,
+    purchaserFilterStr,
+    statusFilter.size,
+    statusFilterStr,
+    activeTab, // ВАЖНО: добавлен activeTab, чтобы fetchData вызывался при переключении вкладок
+  ]);
 
   // Infinite scroll
   useEffect(() => {
@@ -1630,7 +1660,8 @@ ${fullUrl}
     return () => {
       observer.disconnect();
     };
-  }, [currentPage, hasMore, loading, loadingMore, selectedYear, sortField, sortDirection, filters, fetchData, pageSize]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, hasMore, loading, loadingMore, selectedYear, sortField, sortDirection, filtersStr, pageSize]);
 
   // Отдельный useEffect для перезапуска fetchData после восстановления года из navigationData
   // Это нужно, чтобы убедиться, что данные загружаются с правильным годом
@@ -1644,7 +1675,8 @@ ${fullUrl}
       }, 100);
       return () => clearTimeout(timeoutId);
     }
-  }, [yearRestored, selectedYear, fetchData, currentPage, pageSize, sortField, sortDirection, filters]); // Зависимость от yearRestored и selectedYear
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [yearRestored, selectedYear, currentPage, pageSize, sortField, sortDirection, filtersStr]); // Зависимость от yearRestored и selectedYear
 
   // Восстановление фокуса после обновления localFilters
   // Отключено, чтобы не прерывать ввод текста - React сам правильно обрабатывает фокус и курсор
@@ -1685,51 +1717,16 @@ ${fullUrl}
   //   }
   // }, [localFilters, focusedField]);
 
-  // Синхронизация localFilters.budgetAmount с filters после загрузки данных
-  // НО только если поле не в фокусе, чтобы сохранить форматирование
+  // Восстановление фокуса после загрузки данных
   useEffect(() => {
-    if (!loading && data && focusedField !== 'budgetAmount') {
-      // Синхронизируем значение бюджета из filters в localFilters после загрузки данных
-      // Это нужно для сохранения значения после поиска
-      setLocalFilters(prev => {
-        // Если в filters есть значение бюджета, и оно отличается от localFilters, обновляем
-        if (filters.budgetAmount !== undefined && filters.budgetAmount !== prev.budgetAmount) {
-          return { ...prev, budgetAmount: filters.budgetAmount };
-        }
-        return prev;
-      });
-    }
-  }, [loading, data, focusedField, filters.budgetAmount]);
-
-  // Восстановление фокуса после завершения загрузки данных с сервера
-  useEffect(() => {
-    if (focusedField && !loading && data) {
-      // Небольшая задержка, чтобы дать React время отрендерить обновленные данные
+    if (focusedField) {
       const timer = setTimeout(() => {
         const input = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
-        if (input) {
-          const currentValue = localFilters[focusedField] || '';
-          // Для фильтра бюджета проверяем неотформатированное значение
-          if (focusedField === 'budgetAmount') {
-            const inputRawValue = input.value.replace(/\s/g, '').replace(/,/g, '');
-            if (inputRawValue === currentValue) {
-              input.focus();
-              // Устанавливаем курсор в конец текста
-              const length = input.value.length;
-              input.setSelectionRange(length, length);
-            }
-          } else if (input.value === currentValue) {
-            input.focus();
-            // Устанавливаем курсор в конец текста
-            const length = input.value.length;
-            input.setSelectionRange(length, length);
-          }
-        }
-      }, 50);
-
+        if (input) { const val = localFilters[focusedField] || ''; if (input.value === val) { input.focus(); input.setSelectionRange(val.length,val.length); } }
+      },50);
       return () => clearTimeout(timer);
     }
-  }, [data, loading, focusedField, localFilters]);
+  }, [focusedField, localFilters]);
 
   // Получаем список уникальных годов из данных
   const getAvailableYears = (): number[] => {
@@ -2537,11 +2534,20 @@ ${fullUrl}
                 autoFocus={focusedField === fieldKey}
                 onChange={(e) => {
                   const newValue = e.target.value;
+                  const cursorPos = e.target.selectionStart || 0;
                   // Напрямую обновляем localFilters, как в PurchasePlanItemsTable
                   setLocalFilters(prev => ({
                     ...prev,
                     [fieldKey]: newValue,
                   }));
+                  // Сохраняем позицию курсора после обновления
+                  requestAnimationFrame(() => {
+                    const input = e.target as HTMLInputElement;
+                    if (input && document.activeElement === input) {
+                      const newPos = Math.min(cursorPos, newValue.length);
+                      input.setSelectionRange(newPos, newPos);
+                    }
+                  });
                 }}
                 onFocus={(e) => {
                   e.stopPropagation();
@@ -3002,8 +3008,11 @@ ${fullUrl}
           {(tabCounts['in-work'] === null || tabCounts['in-work'] > 0) && (
             <button
               onClick={() => {
+                console.log('=== Переключение на вкладку "В работе" ===');
                 setActiveTab('in-work');
                 setStatusFilter(new Set());
+                setPurchaserFilter(new Set());
+                setCfoFilter(new Set());
                 setCurrentPage(0);
                 setAllItems([]); // Очищаем накопленные данные
               }}
@@ -3022,6 +3031,8 @@ ${fullUrl}
               onClick={() => {
                 setActiveTab('completed');
                 setStatusFilter(new Set());
+                setPurchaserFilter(new Set());
+                setCfoFilter(new Set());
                 setCurrentPage(0);
                 setAllItems([]); // Очищаем накопленные данные
               }}
@@ -3040,6 +3051,8 @@ ${fullUrl}
               onClick={() => {
                 setActiveTab('all');
                 setStatusFilter(new Set());
+                setPurchaserFilter(new Set());
+                setCfoFilter(new Set());
                 setCurrentPage(0);
                 setAllItems([]); // Очищаем накопленные данные
               }}
@@ -3058,6 +3071,8 @@ ${fullUrl}
               onClick={() => {
                 setActiveTab('project-rejected');
                 setStatusFilter(new Set());
+                setPurchaserFilter(new Set());
+                setCfoFilter(new Set());
                 setCurrentPage(0);
                 setAllItems([]); // Очищаем накопленные данные
               }}
@@ -3076,6 +3091,8 @@ ${fullUrl}
               onClick={() => {
                 setActiveTab('hidden');
                 setStatusFilter(new Set());
+                setPurchaserFilter(new Set());
+                setCfoFilter(new Set());
                 setCurrentPage(0);
                 setAllItems([]); // Очищаем накопленные данные
               }}
