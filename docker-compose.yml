@@ -47,6 +47,7 @@ services:
       - MAIL_IMAP_PORT=993
       - MAIL_USERNAME=uzproc@uzumteam.uz
       - MAIL_PASSWORD=79gDaV:LxQ
+      - FRONTEND_BASE_URL=${FRONTEND_BASE_URL:-http://uzproc.uzum.io}
     volumes:
       # Монтируем CSV файл для загрузки данных
       - ./data/purchase-plan.csv:/app/data/purchase-plan.csv:ro

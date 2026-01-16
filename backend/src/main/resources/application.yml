@@ -81,9 +81,13 @@ server:
     connection-timeout: 60000
 
 # Настройки фронтенда
+# Базовый URL определяется автоматически в зависимости от окружения:
+# - Если FRONTEND_BASE_URL установлена - используется она
+# - В Docker/production - определяется автоматически (uzproc.uzum.io)
+# - Локально - используется localhost:3000
 app:
   frontend:
-    base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
+    base-url: ${FRONTEND_BASE_URL:}
 
 management:
   endpoints:
