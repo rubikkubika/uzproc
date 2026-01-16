@@ -4763,13 +4763,13 @@ ${fullUrl}
                             try {
                               // Создаем canvas для конвертации SVG в PNG
                               const canvas = document.createElement('canvas');
-                              canvas.width = 33.6;
-                              canvas.height = 33.6;
+                              canvas.width = 34;
+                              canvas.height = 34;
                               const ctx = canvas.getContext('2d');
                               
                               if (ctx) {
                                 // Рисуем изображение на canvas
-                                ctx.drawImage(img, 0, 0, 33.6, 33.6);
+                                ctx.drawImage(img, 0, 0, 34, 34);
                                 // Конвертируем canvas в base64 PNG
                                 logoBase64 = canvas.toDataURL('image/png');
                                 resolve();
@@ -4794,17 +4794,17 @@ ${fullUrl}
                         ? `<table cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, sans-serif !important; margin: 0 !important; margin-bottom: 16px !important; padding: 0 !important; border-collapse: collapse !important; mso-table-lspace: 0pt; mso-table-rspace: 0pt;">
   <tr>
     <td style="padding: 0 !important; padding-right: 8px !important; vertical-align: middle !important; font-family: Arial, sans-serif !important; color: #000000 !important; mso-line-height-rule: exactly;">
-      <img src="${logoBase64}" alt="uzProc" style="width: 33.6px !important; height: 33.6px !important; display: block !important; margin: 0 !important; padding: 0 !important; border: none !important;" />
+      <img src="${logoBase64}" alt="uzProc" style="width: 34px !important; height: 34px !important; display: block !important; margin: 0 !important; padding: 0 !important; border: none !important;" />
     </td>
     <td style="padding: 0 !important; vertical-align: middle !important; font-family: Arial, sans-serif !important; color: #000000 !important; mso-line-height-rule: exactly;">
-      <span style="font-weight: bold !important; font-size: 25.2px !important; color: #000000 !important; margin: 0 !important; padding: 0 !important; mso-line-height-rule: exactly;">uzProc</span>
+      <span style="font-weight: bold !important; font-size: 19pt !important; color: #000000 !important; margin: 0 !important; padding: 0 !important; mso-line-height-rule: exactly;">uzProc</span>
     </td>
   </tr>
 </table>`
                         : `<table cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, sans-serif !important; margin: 0 !important; margin-bottom: 16px !important; padding: 0 !important; border-collapse: collapse !important; mso-table-lspace: 0pt; mso-table-rspace: 0pt;">
   <tr>
     <td style="padding: 0 !important; vertical-align: middle !important; font-family: Arial, sans-serif !important; color: #000000 !important; mso-line-height-rule: exactly;">
-      <span style="font-weight: bold !important; font-size: 25.2px !important; color: #000000 !important; margin: 0 !important; padding: 0 !important; mso-line-height-rule: exactly;">uzProc</span>
+      <span style="font-weight: bold !important; font-size: 19pt !important; color: #000000 !important; margin: 0 !important; padding: 0 !important; mso-line-height-rule: exactly;">uzProc</span>
     </td>
   </tr>
 </table>`;
@@ -4816,7 +4816,7 @@ ${fullUrl}
                       const htmlText = textLines
                         .map(line => {
                           if (line.trim() === '') {
-                            return '<p style="margin: 0 !important; padding: 0 !important; font-family: Arial, sans-serif !important; font-size: 14px !important; line-height: 1.5 !important; color: #000000 !important; mso-line-height-rule: exactly; mso-margin-top-alt: 0; mso-margin-bottom-alt: 0;">&nbsp;</p>';
+                            return '<p style="margin: 0 !important; padding: 0 !important; font-family: Arial, sans-serif !important; font-size: 11pt !important; line-height: 1.5 !important; color: #000000 !important; mso-line-height-rule: exactly; mso-margin-top-alt: 0; mso-margin-bottom-alt: 0;">&nbsp;</p>';
                           }
                           // Экранируем HTML символы
                           const escaped = line
@@ -4825,7 +4825,7 @@ ${fullUrl}
                             .replace(/>/g, '&gt;');
                           // Каждая строка в отдельном <p> с явными стилями и !important для единообразия
                           // Используем <p> вместо <div> для лучшей совместимости с Outlook
-                          return `<p style="margin: 0 !important; padding: 0 !important; font-family: Arial, sans-serif !important; font-size: 14px !important; line-height: 1.5 !important; color: #000000 !important; mso-line-height-rule: exactly; mso-margin-top-alt: 0; mso-margin-bottom-alt: 0;">${escaped}</p>`;
+                          return `<p style="margin: 0 !important; padding: 0 !important; font-family: Arial, sans-serif !important; font-size: 11pt !important; line-height: 1.5 !important; color: #000000 !important; mso-line-height-rule: exactly; mso-margin-top-alt: 0; mso-margin-bottom-alt: 0;">${escaped}</p>`;
                         })
                         .join('');
                       
@@ -4841,7 +4841,7 @@ ${fullUrl}
   <style type="text/css">
     body, table, td, div, p, span {
       font-family: Arial, sans-serif !important;
-      font-size: 14px !important;
+      font-size: 11pt !important;
       line-height: 1.5 !important;
       color: #000000 !important;
     }
@@ -4850,15 +4850,15 @@ ${fullUrl}
   <style type="text/css">
     body, table, td, div, p, span {
       font-family: Arial, sans-serif !important;
-      font-size: 14px !important;
+      font-size: 11pt !important;
       line-height: 1.5 !important;
       color: #000000 !important;
     }
   </style>
 </head>
-<body style="margin: 0 !important; padding: 0 !important; font-family: Arial, sans-serif !important; font-size: 14px !important; line-height: 1.5 !important; color: #000000 !important; background-color: #ffffff !important; mso-line-height-rule: exactly;">
+<body style="margin: 0 !important; padding: 0 !important; font-family: Arial, sans-serif !important; font-size: 11pt !important; line-height: 1.5 !important; color: #000000 !important; background-color: #ffffff !important; mso-line-height-rule: exactly;">
   ${logoHtml}
-  <div style="font-family: Arial, sans-serif !important; font-size: 14px !important; line-height: 1.5 !important; color: #000000 !important; margin: 0 !important; padding: 0 !important; mso-line-height-rule: exactly;">
+  <div style="font-family: Arial, sans-serif !important; font-size: 11pt !important; line-height: 1.5 !important; color: #000000 !important; margin: 0 !important; padding: 0 !important; mso-line-height-rule: exactly;">
     ${htmlText}
   </div>
 </body>
