@@ -33,6 +33,7 @@ export function getBackendUrl(): string {
   
   // Client-side: check if we're on the server IP or domain
   const hostname = window.location.hostname;
+  const port = window.location.port;
   
   // Если используем домен uzproc.uzum.io или IP 10.123.48.62, бэкенд доступен через nginx
   // nginx проксирует /api на backend:8080/api, который имеет context-path: /api
@@ -42,7 +43,19 @@ export function getBackendUrl(): string {
     return `${window.location.protocol}//${hostname}`;
   }
   
-  // Default to localhost for development
+  // Для локальной разработки (localhost:3000) используем прямой URL бэкенда
+  if (hostname === 'localhost' && (port === '3000' || port === '')) {
+    return process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
+  }
+  
+  // Если порт 80 или нет порта (стандартный HTTP), значит работаем через nginx в Docker
+  // В этом случае используем относительные пути через nginx
+  if (port === '80' || port === '') {
+    // Используем относительный путь или текущий origin для работы через nginx
+    return window.location.origin;
+  }
+  
+  // Default to localhost:8080 for local development (not in Docker)
   return process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
 }
 
