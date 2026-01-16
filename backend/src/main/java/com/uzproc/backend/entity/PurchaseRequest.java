@@ -98,6 +98,10 @@ public class PurchaseRequest {
     @Column(name = "csi_token", unique = true, length = 255)
     private String csiToken;
 
+    // Флаг отправки приглашения на оценку CSI
+    @Column(name = "csi_invitation_sent")
+    private Boolean csiInvitationSent;
+
     // Обратная связь с Purchase (одна заявка может иметь много закупок)
     @OneToMany(mappedBy = "purchaseRequest", fetch = FetchType.LAZY)
     private java.util.List<Purchase> purchases;
@@ -369,5 +373,13 @@ public class PurchaseRequest {
 
     public void setCsiToken(String csiToken) {
         this.csiToken = csiToken;
+    }
+
+    public Boolean getCsiInvitationSent() {
+        return csiInvitationSent;
+    }
+
+    public void setCsiInvitationSent(Boolean csiInvitationSent) {
+        this.csiInvitationSent = csiInvitationSent;
     }
 }

@@ -55,6 +55,7 @@ interface PurchaseRequest {
   updatedAt: string;
   csiLink: string | null;
   csiToken: string | null;
+  csiInvitationSent: boolean | null;
   hasFeedback: boolean | null;
   averageRating: number | null;
 }
@@ -249,8 +250,9 @@ export default function PurchaseRequestsTable() {
   const [showUserSuggestions, setShowUserSuggestions] = useState(false);
   const [emailText, setEmailText] = useState('');
   const userSearchRef = useRef<HTMLDivElement>(null);
-  // Состояние для отслеживания отправленных приглашений (Set с ID заявок)
-  const [sentInvitations, setSentInvitations] = useState<Set<number>>(new Set());
+  // Состояние для модального окна просмотра отправленного приглашения
+  const [isSentInvitationModalOpen, setIsSentInvitationModalOpen] = useState(false);
+  const [sentInvitationDetails, setSentInvitationDetails] = useState<{recipient: string, emailText: string} | null>(null);
   // Состояние для модального окна просмотра оценки
   const [isFeedbackDetailsModalOpen, setIsFeedbackDetailsModalOpen] = useState(false);
   const [selectedRequestForFeedback, setSelectedRequestForFeedback] = useState<PurchaseRequest | null>(null);
@@ -341,8 +343,8 @@ export default function PurchaseRequestsTable() {
         console.error('Error generating email text:', err);
       });
     }
-  }, [isRatingModalOpen, selectedRequestForRating, selectedUserEmail]);
-  
+  }, [isRatingModalOpen, selectedRequestForRating, selectedUserEmail, selectedUser]);
+
   // Устанавливаем инициатора заявки по умолчанию при открытии модального окна
   useEffect(() => {
     if (isRatingModalOpen && selectedRequestForRating?.purchaseRequestInitiator && !selectedUser) {
@@ -446,18 +448,23 @@ export default function PurchaseRequestsTable() {
       setEmailText('');
       return;
     }
-    
+
     // Генерируем ссылку БЕЗ recipient в URL
     const fullUrl = typeof window !== 'undefined' ? `${window.location.origin}${request.csiLink}` : request.csiLink;
-    
-    const text = `Здравствуйте!
 
-Вы инициировали заявку на закупку. Мы хотим улучшить сервис, пожалуйста пройдите опрос по ссылке:
+    // Получаем имя получателя из selectedUser
+    const recipientName = selectedUser && selectedUser.name ? selectedUser.name : '';
+
+    const text = `Здравствуйте${recipientName ? ' ' + recipientName : ''}!
+
+Вы инициировали заявку на закупку № ${request.innerId || ''} на ${request.purchaseRequestName || ''}. Мы хотим улучшить сервис проведения закупок, пожалуйста пройдите опрос по ссылке:
 
 ${fullUrl}
 
+(ссылка именная и работает один раз)
+
 Спасибо за ваше время!`;
-    
+
     setEmailText(text);
   };
   
@@ -4425,10 +4432,41 @@ ${fullUrl}
                                   );
                                 })() : '-'}
                               </button>
-                            ) : sentInvitations.has(request.id) ? (
+                            ) : request.csiInvitationSent ? (
                               <button
-                                disabled
-                                className="px-2 py-1 text-xs bg-gray-400 text-white rounded cursor-not-allowed"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  // Загружаем детали отправленного приглашения
+                                  try {
+                                    const token = request.csiLink?.replace('/csi/feedback/', '').split('?')[0];
+                                    if (token) {
+                                      const response = await fetch(`${getBackendUrl()}/api/csi-feedback/invitation/details?csiToken=${encodeURIComponent(token)}`);
+                                      if (response.ok) {
+                                        const data = await response.json();
+                                        // Генерируем текст письма для отображения
+                                        const fullUrl = typeof window !== 'undefined' ? `${window.location.origin}${request.csiLink}` : request.csiLink;
+                                        const recipientName = data.recipientName || '';
+                                        const generatedText = `Здравствуйте${recipientName ? ' ' + recipientName : ''}!
+
+Вы инициировали заявку на закупку № ${request.innerId || ''} на ${request.name || ''}. Мы хотим улучшить сервис проведения закупок, пожалуйста пройдите опрос по ссылке:
+
+${fullUrl}
+
+(ссылка именная и работает один раз)
+
+Спасибо за ваше время!`;
+                                        setSentInvitationDetails({
+                                          recipient: data.recipient || 'Не указан',
+                                          emailText: generatedText
+                                        });
+                                        setIsSentInvitationModalOpen(true);
+                                      }
+                                    }
+                                  } catch (error) {
+                                    console.error('Error loading invitation details:', error);
+                                  }
+                                }}
+                                className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors cursor-pointer"
                               >
                                 Оценка отправлена
                               </button>
@@ -4522,6 +4560,9 @@ ${fullUrl}
                 <div ref={userSearchRef} className="relative">
                   <div className="relative">
                     <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    {selectedUser && (
+                      <Check className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-green-600" />
+                    )}
                     <input
                       type="text"
                       value={userSearchQuery}
@@ -4540,8 +4581,8 @@ ${fullUrl}
                           setShowUserSuggestions(true);
                         }
                       }}
-                      placeholder="Начните вводить имя, фамилию, username или email"
-                      className="w-full pl-8 pr-3 py-2 text-sm text-gray-900 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder={selectedUser ? "Инициатор выбран автоматически" : "Начните вводить имя, фамилию, username или email"}
+                      className={`w-full pl-8 ${selectedUser ? 'pr-8' : 'pr-3'} py-2 text-sm text-gray-900 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${selectedUser ? 'border-green-500 bg-green-50' : 'border-gray-300'}`}
                     />
                   </div>
                   
@@ -4612,29 +4653,41 @@ ${fullUrl}
                 </button>
                 <button
                   onClick={async () => {
-                    if (selectedRequestForRating && selectedUserEmail) {
-                      try {
-                        // Извлекаем токен из ссылки
-                        const token = selectedRequestForRating.csiLink?.replace('/csi/feedback/', '').split('?')[0];
-                        if (token) {
-                          // Отправляем приглашение на бэкенд
-                          const response = await fetch(`${getBackendUrl()}/api/csi-feedback/invitation?csiToken=${encodeURIComponent(token)}&recipient=${encodeURIComponent(selectedUserEmail)}`, {
-                            method: 'POST',
-                          });
-                          
-                          if (response.ok) {
-                            // Добавляем ID заявки в Set отправленных приглашений
-                            setSentInvitations(prev => new Set(prev).add(selectedRequestForRating.id));
-                          } else {
-                            alert('Ошибка при отправке приглашения');
-                            return;
-                          }
+                    if (!selectedRequestForRating) return;
+
+                    // Используем selectedUserEmail если он есть, иначе берем из userSearchQuery
+                    const recipientEmail = selectedUserEmail || userSearchQuery;
+
+                    if (!recipientEmail) {
+                      alert('Пожалуйста, выберите получателя');
+                      return;
+                    }
+
+                    try {
+                      // Извлекаем токен из ссылки
+                      const token = selectedRequestForRating.csiLink?.replace('/csi/feedback/', '').split('?')[0];
+                      if (token) {
+                        // Отправляем приглашение на бэкенд
+                        const response = await fetch(`${getBackendUrl()}/api/csi-feedback/invitation?csiToken=${encodeURIComponent(token)}&recipient=${encodeURIComponent(recipientEmail)}`, {
+                          method: 'POST',
+                        });
+
+                        if (response.ok) {
+                          // Обновляем статус отправки в данных заявки
+                          setAllItems(prev => prev.map(req =>
+                            req.id === selectedRequestForRating.id
+                              ? { ...req, csiInvitationSent: true }
+                              : req
+                          ));
+                        } else {
+                          alert('Ошибка при отправке приглашения');
+                          return;
                         }
-                      } catch (error) {
-                        console.error('Error sending invitation:', error);
-                        alert('Ошибка при отправке приглашения');
-                        return;
                       }
+                    } catch (error) {
+                      console.error('Error sending invitation:', error);
+                      alert('Ошибка при отправке приглашения');
+                      return;
                     }
                     
                     // Закрываем модальное окно
@@ -4647,7 +4700,7 @@ ${fullUrl}
                     setUserSuggestions([]);
                     setShowUserSuggestions(false);
                   }}
-                  disabled={!selectedUserEmail || !selectedRequestForRating}
+                  disabled={!selectedRequestForRating}
                   className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Отправить
@@ -4840,6 +4893,49 @@ ${fullUrl}
                 <p className="text-gray-500">Оценка не найдена</p>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Модальное окно для просмотра отправленного приглашения */}
+      {isSentInvitationModalOpen && sentInvitationDetails && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => {
+          setIsSentInvitationModalOpen(false);
+          setSentInvitationDetails(null);
+        }}>
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">Отправленное приглашение на оценку</h2>
+              <button
+                onClick={() => {
+                  setIsSentInvitationModalOpen(false);
+                  setSentInvitationDetails(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Получатель
+                </label>
+                <p className="text-sm text-gray-900 bg-gray-50 px-3 py-2 rounded-lg">
+                  {sentInvitationDetails.recipient}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Текст письма
+                </label>
+                <div className="text-sm text-gray-900 bg-gray-50 px-3 py-2 rounded-lg whitespace-pre-wrap">
+                  {sentInvitationDetails.emailText}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -137,4 +137,32 @@ public class CsiFeedbackController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
+
+    /**
+     * Получает детали отправленного приглашения
+     */
+    @GetMapping("/invitation/details")
+    public ResponseEntity<?> getInvitationDetails(@RequestParam String csiToken) {
+        try {
+            logger.info("Getting invitation details for token: {}", csiToken);
+            var invitation = invitationService.findByToken(csiToken);
+            if (invitation.isPresent()) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("recipient", invitation.get().getRecipient());
+                response.put("createdAt", invitation.get().getCreatedAt());
+                return ResponseEntity.ok(response);
+            } else {
+                Map<String, Object> errorResponse = new HashMap<>();
+                errorResponse.put("success", false);
+                errorResponse.put("message", "Приглашение не найдено");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
+            }
+        } catch (Exception e) {
+            logger.error("Error getting invitation details", e);
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("message", "Ошибка при получении деталей приглашения: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
 }

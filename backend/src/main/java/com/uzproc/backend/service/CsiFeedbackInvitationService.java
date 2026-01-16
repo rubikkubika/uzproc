@@ -40,18 +40,30 @@ public class CsiFeedbackInvitationService {
         // Проверяем, нет ли уже приглашения для этого получателя
         Optional<CsiFeedbackInvitation> existing = invitationRepository
                 .findByPurchaseRequestIdAndRecipient(purchaseRequest.getId(), recipient);
-        
+
         if (existing.isPresent()) {
-            logger.info("Invitation already exists for purchase request {} and recipient {}", 
+            logger.info("Invitation already exists for purchase request {} and recipient {}",
                     purchaseRequest.getId(), recipient);
+
+            // Устанавливаем флаг отправки приглашения, если он еще не установлен
+            if (purchaseRequest.getCsiInvitationSent() == null || !purchaseRequest.getCsiInvitationSent()) {
+                purchaseRequest.setCsiInvitationSent(true);
+                purchaseRequestRepository.save(purchaseRequest);
+            }
+
             return existing.get();
         }
 
         CsiFeedbackInvitation invitation = new CsiFeedbackInvitation(purchaseRequest, recipient);
         CsiFeedbackInvitation saved = invitationRepository.save(invitation);
-        logger.info("Invitation created with ID: {} for purchase request ID: {}, recipient: {}", 
+
+        // Устанавливаем флаг отправки приглашения
+        purchaseRequest.setCsiInvitationSent(true);
+        purchaseRequestRepository.save(purchaseRequest);
+
+        logger.info("Invitation created with ID: {} for purchase request ID: {}, recipient: {}",
                 saved.getId(), purchaseRequest.getId(), recipient);
-        
+
         return saved;
     }
 

@@ -46,6 +46,8 @@ public class PurchaseRequestDto {
     private java.util.List<ContractDto> contracts;
     // Ссылка на форму CSI обратной связи
     private String csiLink;
+    // Флаг отправки приглашения на оценку CSI
+    private Boolean csiInvitationSent;
     // Флаг, указывающий есть ли оценка CSI
     private Boolean hasFeedback;
     // Средняя оценка по всем вопросам (кроме узпрок)
@@ -318,6 +320,14 @@ public class PurchaseRequestDto {
 
     public void setCsiLink(String csiLink) {
         this.csiLink = csiLink;
+    }
+
+    public Boolean getCsiInvitationSent() {
+        return csiInvitationSent;
+    }
+
+    public void setCsiInvitationSent(Boolean csiInvitationSent) {
+        this.csiInvitationSent = csiInvitationSent;
     }
 
     public Boolean getHasFeedback() {
