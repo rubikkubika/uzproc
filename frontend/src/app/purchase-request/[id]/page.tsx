@@ -1165,7 +1165,8 @@ export default function PurchaseRequestDetailPage() {
                       <button
                         onClick={async () => {
                           try {
-                            const fullUrl = `${window.location.origin}${purchaseRequest.csiLink}`;
+                            // Используем полный URL, который приходит с бэкенда (уже учитывает окружение)
+                            const fullUrl = purchaseRequest.csiLink;
                             await navigator.clipboard.writeText(fullUrl);
                             alert('Ссылка на форму CSI скопирована в буфер обмена');
                           } catch (error) {
