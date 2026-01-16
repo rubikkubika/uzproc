@@ -344,14 +344,17 @@ public class ReportExcelLoadService {
             
             // Обновляем статусы всех заявок на закупку после парсинга (после обновления статусов закупок и договоров)
             if (statusUpdateService != null) {
-                logger.info("Starting status update for all purchase requests after parsing report file");
+                logger.info("=== Starting status update for all purchase requests after parsing report file ===");
                 try {
                     statusUpdateService.updateAllStatuses();
-                    logger.info("Status update completed successfully");
+                    logger.info("=== Status update completed successfully ===");
                 } catch (Exception e) {
-                    logger.error("Error during status update after parsing report file: {}", e.getMessage(), e);
+                    logger.error("=== ERROR during status update after parsing report file: {} ===", e.getMessage(), e);
+                    logger.error("=== Stack trace ===", e);
                     // Не прерываем выполнение - согласования уже сохранены
                 }
+            } else {
+                logger.warn("=== statusUpdateService is NULL, skipping purchase request status update after parsing report file ===");
             }
             
             return processedRequestsCount + processedPurchasesCount;

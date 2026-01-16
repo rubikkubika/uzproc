@@ -150,6 +150,8 @@ export default function PurchaseRequestsTable() {
   const [pageSize] = useState(100); // Фиксированный размер страницы
   const [hasMore, setHasMore] = useState(true); // Есть ли еще данные для загрузки
   const loadMoreRef = useRef<HTMLDivElement>(null); // Ref для отслеживания прокрутки
+  const activeTabRef = useRef<TabType>('in-work'); // Ref для отслеживания активной вкладки во время запроса
+  const abortControllerRef = useRef<AbortController | null>(null); // Ref для отмены предыдущих запросов
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [totalRecords, setTotalRecords] = useState<number>(0);
@@ -204,6 +206,11 @@ export default function PurchaseRequestsTable() {
   // Состояние для вкладок
   type TabType = 'all' | 'in-work' | 'completed' | 'project-rejected' | 'hidden';
   const [activeTab, setActiveTab] = useState<TabType>('in-work'); // По умолчанию "В работе"
+  
+  // Синхронизируем ref с состоянием activeTab
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
   
   // Состояние для количества записей по каждой вкладке
   const [tabCounts, setTabCounts] = useState<Record<TabType, number | null>>({
@@ -1371,6 +1378,18 @@ ${fullUrl}
     filters: Record<string, string> = {},
     append: boolean = false // Флаг для добавления данных вместо замены
   ) => {
+    // Отменяем предыдущий запрос, если он еще выполняется
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // Создаем новый AbortController для этого запроса
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+    
+    // Сохраняем текущую активную вкладку для проверки после завершения запроса
+    const currentTab = activeTabRef.current;
+    
     if (append) {
       setLoadingMore(true);
     } else {
@@ -1451,37 +1470,42 @@ ${fullUrl}
       // Если фильтр пустой и активна вкладка (не "Все"), применяем фильтр по статусам вкладки
       // Если фильтр пустой и вкладка "Все", не передаем параметр (показываем все статусы)
       // Для вкладки "Скрытые" НЕ фильтруем по статусу вообще, только по excludeFromInWork=true
-      if (activeTab === 'hidden') {
+      
+      // Определяем effectiveStatusFilter для всех случаев (выносим за пределы if-else)
+      let effectiveStatusFilter: Set<string>;
+      if (currentTab === 'hidden') {
+        // Для скрытых заявок не применяем фильтр по статусу
+        effectiveStatusFilter = new Set();
+      } else if (statusFilter.size > 0) {
+        // Пользователь выбрал статусы в фильтре - используем их
+        effectiveStatusFilter = statusFilter;
+      } else if (currentTab !== 'all') {
+        // Фильтр пустой, но активна вкладка - используем статусы вкладки
+        effectiveStatusFilter = new Set(getStatusesForTab(currentTab));
+      } else {
+        // Фильтр пустой и вкладка "Все" - не применяем фильтр по статусу
+        effectiveStatusFilter = new Set();
+      }
+      
+      if (currentTab === 'hidden') {
         // Для скрытых заявок фильтруем ТОЛЬКО по excludeFromInWork=true
         // НЕ передаем статусы, даже если они выбраны в фильтре
         params.append('excludeFromInWork', 'true');
         console.log('Hidden tab: filtering only by excludeFromInWork=true, not applying status filter');
       } else {
-        // Если пользователь выбрал статусы в фильтре, используем их (приоритет фильтра над вкладкой)
-        let effectiveStatusFilter: Set<string>;
-        if (statusFilter.size > 0) {
-          // Пользователь выбрал статусы в фильтре - используем их
-          effectiveStatusFilter = statusFilter;
-        } else if (activeTab !== 'all') {
-          // Фильтр пустой, но активна вкладка - используем статусы вкладки
-          effectiveStatusFilter = new Set(getStatusesForTab(activeTab));
-        } else {
-          // Фильтр пустой и вкладка "Все" - не применяем фильтр по статусу
-          effectiveStatusFilter = new Set();
-        }
-        
         if (effectiveStatusFilter.size > 0) {
           effectiveStatusFilter.forEach(status => {
             params.append('status', status);
           });
         }
         
-        // Для вкладки "В работе" явно исключаем записи с excludeFromInWork=true
-        if (activeTab === 'in-work') {
-          // Передаем параметр excludeFromInWork=false, чтобы бэкенд исключил записи с excludeFromInWork=true
-          // Бэкенд интерпретирует это как: показать только записи где excludeFromInWork=false или null
+        // Для вкладки "В работе" явно передаем параметр excludeFromInWork=false
+        // чтобы бэкенд исключил записи с excludeFromInWork=true
+        // Это гарантирует правильную фильтрацию, даже если бэкенд не распознает статусы автоматически
+        if (currentTab === 'in-work') {
           params.append('excludeFromInWork', 'false');
-          console.log('In-work tab: excluding records with excludeFromInWork=true');
+          console.log('In-work tab: explicitly setting excludeFromInWork=false to exclude hidden records');
+          console.log('Statuses for in-work tab:', Array.from(effectiveStatusFilter));
         }
       }
       
@@ -1489,15 +1513,17 @@ ${fullUrl}
       console.log('=== fetchData запрос ===');
       console.log('URL:', fetchUrl);
       console.log('Параметры:', {
-        activeTab,
+        activeTab: currentTab,
         cfoFilter: Array.from(cfoFilter),
         purchaserFilter: Array.from(purchaserFilter),
         statusFilter: Array.from(statusFilter),
+        effectiveStatusFilter: Array.from(effectiveStatusFilter),
         page,
         size,
-        selectedYear
+        selectedYear: year,
+        excludeFromInWork: currentTab === 'in-work' ? 'false' : (currentTab === 'hidden' ? 'true' : undefined)
       });
-      const response = await fetch(fetchUrl);
+      const response = await fetch(fetchUrl, { signal: abortController.signal });
       if (!response.ok) {
         throw new Error('Ошибка загрузки данных');
       }
@@ -1505,6 +1531,35 @@ ${fullUrl}
       console.log('=== fetchData ответ ===');
       console.log('Получено записей:', result.content?.length || 0);
       console.log('Всего записей:', result.totalElements || 0);
+      console.log('Текущая вкладка при запросе:', currentTab);
+      console.log('Текущая вкладка в ref:', activeTabRef.current);
+      console.log('Запрос отменен?', abortController.signal.aborted);
+      console.log('Содержимое result.content (первые 3):', result.content?.slice(0, 3));
+      console.log('Полный URL запроса:', fetchUrl);
+      console.log('Параметры запроса:', {
+        page,
+        size,
+        currentTab,
+        statuses: Array.from(effectiveStatusFilter),
+        excludeFromInWork: currentTab === 'in-work' ? 'false' : (currentTab === 'hidden' ? 'true' : undefined)
+      });
+      
+      // Проверяем, что запрос не был отменен и вкладка не изменилась
+      if (abortController.signal.aborted) {
+        console.log('Запрос был отменен, не обновляем данные');
+        return;
+      }
+      
+      if (activeTabRef.current !== currentTab) {
+        console.log('Вкладка изменилась во время выполнения запроса:', {
+          currentTab,
+          activeTabRef: activeTabRef.current
+        });
+        console.log('НЕ обновляем данные для старой вкладки');
+        return;
+      }
+      
+      console.log('Вкладка не изменилась, обновляем данные');
       
       // Все фильтры, включая статус, применяются на бэкенде
       // Пагинация тоже на бэкенде
@@ -1514,32 +1569,72 @@ ${fullUrl}
       console.log('Устанавливаем данные в state:', {
         append,
         newItemsCount: result.content?.length || 0,
-        resultContent: result.content
+        resultContent: result.content,
+        currentTab,
+        activeTabRef: activeTabRef.current
       });
 
       // Накапливаем данные для бесконечной прокрутки
       if (append) {
-        setAllItems(prev => [...prev, ...result.content]);
+        // Дедупликация: используем Map для исключения дубликатов по id или guid
+        setAllItems(prev => {
+          const existingMap = new Map<string | number, PurchaseRequest>();
+          prev.forEach((item: PurchaseRequest) => {
+            const key = item.guid || item.id;
+            if (key) existingMap.set(key, item);
+          });
+          result.content.forEach((item: PurchaseRequest) => {
+            const key = item.guid || item.id;
+            if (key) existingMap.set(key, item);
+          });
+          const newItems = Array.from(existingMap.values());
+          console.log('Добавляем данные (append=true), всего элементов:', newItems.length);
+          return newItems;
+        });
       } else {
-        setAllItems(result.content);
+        console.log('Устанавливаем новые данные (append=false), количество элементов:', result.content?.length || 0);
+        setAllItems(result.content || []);
       }
       
       // Проверяем, есть ли еще данные для загрузки
-      const hasMoreData = result.content.length === size && (page + 1) * size < result.totalElements;
+      // ВАЖНО: если result.content пустой, но totalElements > 0, это может быть ошибка на бэкенде
+      // В этом случае не устанавливаем hasMore = true, чтобы не пытаться загружать пустые страницы
+      const hasMoreData = result.content.length > 0 && result.content.length === size && (page + 1) * size < result.totalElements;
       setHasMore(hasMoreData);
       
+      if (result.content.length === 0 && result.totalElements > 0) {
+        console.warn('WARNING: Backend returned empty content but totalElements > 0:', {
+          page,
+          size,
+          totalElements: result.totalElements,
+          currentTab
+        });
+      }
+      
       // Обновляем количество для активной вкладки из результата
-      setTabCounts(prev => ({
-        ...prev,
-        [activeTab]: result.totalElements || 0,
-      }));
+      // ВАЖНО: проверяем, что вкладка не изменилась во время выполнения запроса
+      if (activeTabRef.current === currentTab && !abortController.signal.aborted) {
+        setTabCounts(prev => ({
+          ...prev,
+          [currentTab]: result.totalElements || 0,
+        }));
+      }
       
       // Согласования загружаются только при открытии конкретной заявки на закупку
       // Здесь используем только статус из самой заявки
       
     } catch (err) {
+      // Игнорируем ошибки отмены запроса
+      if (err instanceof Error && err.name === 'AbortError') {
+        console.log('Запрос был отменен');
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Произошла ошибка');
     } finally {
+      // Очищаем AbortController, если это был последний запрос
+      if (abortControllerRef.current === abortController) {
+        abortControllerRef.current = null;
+      }
       if (append) {
         setLoadingMore(false);
       } else {
@@ -1643,12 +1738,17 @@ ${fullUrl}
 
   // Infinite scroll
   useEffect(() => {
-    if (!loadMoreRef.current || loading || loadingMore || !hasMore) return;
+    // Не запускаем бесконечную прокрутку, если нет данных или данные еще загружаются
+    if (!loadMoreRef.current || loading || loadingMore || !hasMore || allItems.length === 0) {
+      return;
+    }
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+        // Проверяем, что есть данные перед загрузкой следующей страницы
+        if (entries[0].isIntersecting && hasMore && !loadingMore && allItems.length > 0) {
           const nextPage = currentPage + 1;
+          console.log('Loading next page:', nextPage, 'current items:', allItems.length);
           fetchData(
             nextPage,
             pageSize,
@@ -1670,7 +1770,7 @@ ${fullUrl}
       observer.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, hasMore, loading, loadingMore, selectedYear, sortField, sortDirection, filtersStr, pageSize]);
+  }, [currentPage, hasMore, loading, loadingMore, selectedYear, sortField, sortDirection, filtersStr, pageSize, allItems.length]);
 
   // Отдельный useEffect для перезапуска fetchData после восстановления года из navigationData
   // Это нужно, чтобы убедиться, что данные загружаются с правильным годом
@@ -2833,7 +2933,7 @@ ${fullUrl}
 
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
-      {/* Сводная таблица по закупщикам и фильтры/кнопки в одной строке */}
+      {/* Сводная таблица по закупщикам */}
       <div className="flex items-start gap-4 px-3 py-2 border-b border-gray-200 flex-shrink-0">
         {/* Сводная таблица по закупщикам - слева */}
         <div className="flex-1">
@@ -2846,57 +2946,100 @@ ${fullUrl}
         </div>
         {/* Последние оценки CSI feedback - справа от сводной таблицы */}
         <LatestCsiFeedback />
-        {/* Фильтр по году и кнопки - справа */}
-        <div className="flex flex-col gap-3 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-700 font-medium whitespace-nowrap">Фильтр по году создания:</span>
+      </div>
+
+      {/* Счетчик записей и все кнопки/фильтры в одной строке */}
+      {data && (
+        <div className="px-6 py-2 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0 gap-3 flex-wrap">
+          <div className="text-sm text-gray-700">
+            Показано {allItems.length || 0} из {data?.totalElements || 0} записей
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Первая кнопка - Сбросить фильтры */}
             <button
               onClick={() => {
-                setSelectedYear(null);
-                setCurrentPage(0); // Сбрасываем на первую страницу при сбросе фильтра
+                const emptyFilters = {
+                  idPurchaseRequest: '',
+                  cfo: '',
+                  purchaseRequestInitiator: '',
+                  purchaser: '',
+                  name: '',
+                  budgetAmount: '',
+                  budgetAmountOperator: 'gte',
+                  costType: '',
+                  contractType: '',
+                  contractDurationMonths: '',
+                  isPlanned: '',
+                  requiresPurchase: '',
+                  status: '',
+                };
+                setFilters(emptyFilters);
+                setLocalFilters(emptyFilters);
+                setCfoFilter(new Set());
+                setStatusFilter(new Set()); // По умолчанию пустой, как для ЦФО
+                setCfoSearchQuery('');
+                setStatusSearchQuery('');
+                setPurchaserFilter(new Set());
+                setPurchaserSearchQuery('');
+                setSelectedYear(null); // Сбрасываем фильтр по году на "Все"
+                setSortField('idPurchaseRequest');
+                setSortDirection('desc');
+                setFocusedField(null);
+                setActiveTab('in-work'); // Сбрасываем вкладку на "В работе" (по умолчанию)
                 setAllItems([]); // Очищаем накопленные данные
               }}
-              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                selectedYear === null
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-              }`}
+              className="px-4 py-1.5 text-sm font-medium bg-red-50 text-red-700 rounded-lg border-2 border-red-300 hover:bg-red-100 hover:border-red-400 transition-colors shadow-sm whitespace-nowrap"
             >
-              Все
+              Сбросить фильтры
             </button>
-            {allYears.map((year) => (
+            
+            {/* Фильтр по году */}
+            <div className="flex items-center gap-2 border-l border-gray-300 pl-2">
+              <span className="text-sm text-gray-700 font-medium whitespace-nowrap">Год:</span>
               <button
-                key={year}
                 onClick={() => {
-                  setSelectedYear(year);
-                  setCurrentPage(0); // Сбрасываем на первую страницу при изменении года
+                  setSelectedYear(null);
+                  setCurrentPage(0); // Сбрасываем на первую страницу при сбросе фильтра
                   setAllItems([]); // Очищаем накопленные данные
                 }}
                 className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                  selectedYear === year
+                  selectedYear === null
                     ? 'bg-blue-600 text-white border-blue-600'
                     : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                 }`}
               >
-                {year}
+                Все
               </button>
-            ))}
-          </div>
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-4 flex-wrap">
-              <p className="text-sm text-gray-500 whitespace-nowrap">
-                Всего записей: {totalRecords}
-              </p>
-              <div className="relative">
+              {allYears.map((year) => (
                 <button
-                  ref={columnsMenuButtonRef}
-                  onClick={() => setIsColumnsMenuOpen(!isColumnsMenuOpen)}
-                  className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-2"
-                  title="Настройка колонок"
+                  key={year}
+                  onClick={() => {
+                    setSelectedYear(year);
+                    setCurrentPage(0); // Сбрасываем на первую страницу при изменении года
+                    setAllItems([]); // Очищаем накопленные данные
+                  }}
+                  className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                    selectedYear === year
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                  }`}
                 >
-                  <Settings className="w-4 h-4" />
-                  Колонки
+                  {year}
                 </button>
+              ))}
+            </div>
+            
+            {/* Кнопка настройки колонок */}
+            <div className="relative border-l border-gray-300 pl-2">
+              <button
+                ref={columnsMenuButtonRef}
+                onClick={() => setIsColumnsMenuOpen(!isColumnsMenuOpen)}
+                className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-2"
+                title="Настройка колонок"
+              >
+                <Settings className="w-4 h-4" />
+                Колонки
+              </button>
               {isColumnsMenuOpen && columnsMenuPosition && (
                 <div 
                   data-columns-menu="true"
@@ -2942,46 +3085,10 @@ ${fullUrl}
                   </div>
                 </div>
               )}
-              </div>
-              <button
-                onClick={() => {
-                  const emptyFilters = {
-                    idPurchaseRequest: '',
-                    cfo: '',
-                    purchaseRequestInitiator: '',
-                    purchaser: '',
-                    name: '',
-                    budgetAmount: '',
-                    budgetAmountOperator: 'gte',
-                    costType: '',
-                    contractType: '',
-                    contractDurationMonths: '',
-                    isPlanned: '',
-                  requiresPurchase: '',
-                  status: '',
-                };
-                  setFilters(emptyFilters);
-                  setLocalFilters(emptyFilters);
-                  setCfoFilter(new Set());
-                  setStatusFilter(new Set()); // По умолчанию пустой, как для ЦФО
-                  setCfoSearchQuery('');
-                  setStatusSearchQuery('');
-                  setPurchaserFilter(new Set());
-                  setPurchaserSearchQuery('');
-                  setSelectedYear(null); // Сбрасываем фильтр по году на "Все"
-                  setSortField('idPurchaseRequest');
-                  setSortDirection('desc');
-                  setFocusedField(null);
-                  setActiveTab('in-work'); // Сбрасываем вкладку на "В работе" (по умолчанию)
-                  setAllItems([]); // Очищаем накопленные данные
-                }}
-                className="px-4 py-2 text-sm font-medium bg-red-50 text-red-700 rounded-lg border-2 border-red-300 hover:bg-red-100 hover:border-red-400 transition-colors shadow-sm whitespace-nowrap"
-              >
-                Сбросить фильтры
-              </button>
             </div>
+            
             {/* Кнопки экспорта и копирования */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 border-l border-gray-300 pl-2">
               <button
                 onClick={handleExportToExcel}
                 className="p-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
@@ -2997,15 +3104,6 @@ ${fullUrl}
                 <Copy className="w-4 h-4" />
               </button>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Счетчик записей */}
-      {data && (
-        <div className="px-6 py-2 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
-          <div className="text-sm text-gray-700">
-            Показано {allItems.length || 0} из {data?.totalElements || 0} записей
           </div>
         </div>
       )}
@@ -3747,7 +3845,7 @@ ${fullUrl}
             {hasData ? (
               allItems.map((request, index) => (
                 <tr 
-                  key={request.id} 
+                  key={request.guid || `${request.id}-${index}`} 
                   className="hover:bg-gray-50 cursor-pointer"
                   onClick={(e) => {
                     // Не переходим на страницу, если клик был на интерактивном элементе
@@ -4648,11 +4746,143 @@ ${fullUrl}
                 <button
                   onClick={async () => {
                     try {
-                      await copyToClipboard(emailText);
-                      alert('Письмо скопировано в буфер обмена');
+                      // Загружаем SVG логотип и конвертируем в PNG base64 для лучшей совместимости с Outlook
+                      // Outlook не поддерживает SVG, поэтому конвертируем в PNG
+                      let logoBase64 = '';
+                      try {
+                        const logoUrl = typeof window !== 'undefined' 
+                          ? `${window.location.origin}/images/logo-small.svg`
+                          : '/images/logo-small.svg';
+                        
+                        // Создаем временный img элемент для загрузки SVG
+                        const img = new Image();
+                        img.crossOrigin = 'anonymous';
+                        
+                        await new Promise<void>((resolve, reject) => {
+                          img.onload = () => {
+                            try {
+                              // Создаем canvas для конвертации SVG в PNG
+                              const canvas = document.createElement('canvas');
+                              canvas.width = 33.6;
+                              canvas.height = 33.6;
+                              const ctx = canvas.getContext('2d');
+                              
+                              if (ctx) {
+                                // Рисуем изображение на canvas
+                                ctx.drawImage(img, 0, 0, 33.6, 33.6);
+                                // Конвертируем canvas в base64 PNG
+                                logoBase64 = canvas.toDataURL('image/png');
+                                resolve();
+                              } else {
+                                reject(new Error('Не удалось получить контекст canvas'));
+                              }
+                            } catch (err) {
+                              reject(err);
+                            }
+                          };
+                          img.onerror = () => reject(new Error('Не удалось загрузить изображение'));
+                          img.src = logoUrl;
+                        });
+                      } catch (logoError) {
+                        console.warn('Не удалось загрузить и конвертировать логотип, используем без него:', logoError);
+                      }
+                      
+                      // Создаем HTML с логотипом и названием для вставки в начало письма
+                      const logoHtml = logoBase64 
+                        ? `<table cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, sans-serif; margin-bottom: 16px;">
+  <tr>
+    <td style="padding-right: 8px; vertical-align: middle;">
+      <img src="${logoBase64}" alt="uzProc" style="width: 33.6px; height: 33.6px; display: block;" />
+    </td>
+    <td style="vertical-align: middle;">
+      <span style="font-weight: bold; font-size: 25.2px; color: #000000;">uzProc</span>
+    </td>
+  </tr>
+</table>`
+                        : `<table cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, sans-serif; margin-bottom: 16px;">
+  <tr>
+    <td style="vertical-align: middle;">
+      <span style="font-weight: bold; font-size: 25.2px; color: #000000;">uzProc</span>
+    </td>
+  </tr>
+</table>`;
+                      
+                      // Преобразуем текст письма в HTML (заменяем переносы строк на <br> и экранируем HTML символы)
+                      const textLines = emailText.split('\n');
+                      const htmlText = textLines
+                        .map(line => {
+                          if (line.trim() === '') {
+                            return '<br>';
+                          }
+                          // Экранируем HTML символы
+                          const escaped = line
+                            .replace(/&/g, '&amp;')
+                            .replace(/</g, '&lt;')
+                            .replace(/>/g, '&gt;');
+                          return escaped + '<br>';
+                        })
+                        .join('');
+                      
+                      const fullHtml = `<html><body style="font-family: Arial, sans-serif;">${logoHtml}${htmlText}</body></html>`;
+                      
+                      // Пытаемся скопировать HTML через ClipboardItem API
+                      if (navigator.clipboard && window.ClipboardItem) {
+                        try {
+                          const htmlBlob = new Blob([fullHtml], { type: 'text/html' });
+                          const textBlob = new Blob([emailText], { type: 'text/plain' });
+                          const clipboardItem = new ClipboardItem({
+                            'text/html': htmlBlob,
+                            'text/plain': textBlob
+                          });
+                          await navigator.clipboard.write([clipboardItem]);
+                          alert('Письмо с логотипом скопировано в буфер обмена');
+                          return;
+                        } catch (clipboardErr) {
+                          console.warn('ClipboardItem API failed, trying fallback:', clipboardErr);
+                        }
+                      }
+                      
+                      // Fallback: используем старый метод через временный элемент
+                      const tempDiv = document.createElement('div');
+                      tempDiv.innerHTML = fullHtml;
+                      tempDiv.style.position = 'fixed';
+                      tempDiv.style.left = '-9999px';
+                      document.body.appendChild(tempDiv);
+                      
+                      const range = document.createRange();
+                      range.selectNodeContents(tempDiv);
+                      const selection = window.getSelection();
+                      if (selection) {
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+                        
+                        try {
+                          const successful = document.execCommand('copy');
+                          if (successful) {
+                            alert('Письмо с логотипом скопировано в буфер обмена');
+                          } else {
+                            throw new Error('execCommand failed');
+                          }
+                        } catch (execErr) {
+                          console.error('execCommand failed:', execErr);
+                          // Последний fallback: копируем только текст
+                          await copyToClipboard(emailText);
+                          alert('Письмо скопировано в буфер обмена (без форматирования)');
+                        }
+                        
+                        selection.removeAllRanges();
+                      }
+                      
+                      document.body.removeChild(tempDiv);
                     } catch (error) {
                       console.error('Error copying to clipboard:', error);
-                      alert(error instanceof Error ? error.message : 'Не удалось скопировать письмо');
+                      // Fallback: копируем только текст
+                      try {
+                        await copyToClipboard(emailText);
+                        alert('Письмо скопировано в буфер обмена (без форматирования)');
+                      } catch (textErr) {
+                        alert(error instanceof Error ? error.message : 'Не удалось скопировать письмо');
+                      }
                     }
                   }}
                   className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"

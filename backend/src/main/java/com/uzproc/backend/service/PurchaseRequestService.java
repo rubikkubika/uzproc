@@ -53,7 +53,7 @@ public class PurchaseRequestService {
     private final PurchaseRequestStatusUpdateService statusUpdateService;
     private final CsiFeedbackRepository csiFeedbackRepository;
     
-    @Value("${app.frontend.base-url:http://localhost:3000}")
+    @Value("${app.frontend.base-url:}")
     private String frontendBaseUrl;
 
     public PurchaseRequestService(
@@ -363,10 +363,14 @@ public class PurchaseRequestService {
         // Генерируем ссылку на форму CSI обратной связи
         if (entity.getCsiToken() != null && !entity.getCsiToken().isEmpty()) {
             // Формируем полную ссылку с учетом окружения: {baseUrl}/csi/feedback/{token}
+            // baseUrl берется из переменной окружения FRONTEND_BASE_URL или из application.yml
             String csiPath = "/csi/feedback/" + entity.getCsiToken();
             // Убираем завершающий слэш из baseUrl, если он есть
-            String baseUrl = frontendBaseUrl != null ? frontendBaseUrl.replaceAll("/$", "") : "http://localhost:3000";
-            dto.setCsiLink(baseUrl + csiPath);
+            String baseUrl = determineFrontendBaseUrl();
+            String csiLink = baseUrl + csiPath;
+            dto.setCsiLink(csiLink);
+            logger.debug("Generated CSI link for request {}: {} (using baseUrl: {})", 
+                entity.getIdPurchaseRequest(), csiLink, baseUrl);
         }
 
         // Устанавливаем флаг отправки приглашения на оценку CSI
@@ -1397,6 +1401,66 @@ public class PurchaseRequestService {
         }
         
         return workingDays;
+    }
+    
+    /**
+     * Определяет базовый URL фронтенда в зависимости от окружения
+     * - Если переменная FRONTEND_BASE_URL установлена явно - использует её
+     * - Если запущено в Docker (определяется по переменным окружения) - использует продакшн URL
+     * - Иначе - использует localhost для локальной разработки
+     */
+    private String determineFrontendBaseUrl() {
+        // Если переменная окружения установлена явно - используем её
+        if (frontendBaseUrl != null && !frontendBaseUrl.trim().isEmpty()) {
+            return frontendBaseUrl.replaceAll("/$", "");
+        }
+        
+        // Определяем окружение по переменным окружения
+        String env = System.getenv("ENV");
+        String nodeEnv = System.getenv("NODE_ENV");
+        String dockerEnv = System.getenv("DOCKER_ENV");
+        
+        // Проверяем, запущено ли приложение в Docker контейнере
+        // В Docker обычно есть переменные DB_HOST=postgres (имя сервиса) или другие Docker-специфичные переменные
+        boolean isDocker = System.getenv("DB_HOST") != null && 
+                          (System.getenv("DB_HOST").equals("postgres") || 
+                           System.getenv("DB_HOST").contains("."));
+        
+        // Если явно указано, что мы в Docker или в продакшене
+        boolean isProduction = "production".equalsIgnoreCase(env) || 
+                               "production".equalsIgnoreCase(nodeEnv) ||
+                               "true".equalsIgnoreCase(dockerEnv) ||
+                               isDocker;
+        
+        // Если запущено в Docker или продакшене
+        if (isProduction) {
+            // Используем продакшн URL из nginx конфигурации
+            // Можно также определить по переменной окружения HOST или SERVER_NAME
+            String host = System.getenv("HOST");
+            String serverName = System.getenv("SERVER_NAME");
+            
+            if (host != null && !host.trim().isEmpty()) {
+                String url = host.trim().replaceAll("/$", "");
+                // Если URL не содержит протокол, добавляем http://
+                if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                    url = "http://" + url;
+                }
+                return url;
+            } else if (serverName != null && !serverName.trim().isEmpty()) {
+                String url = serverName.trim().replaceAll("/$", "");
+                // Если URL не содержит протокол, добавляем http://
+                if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                    url = "http://" + url;
+                }
+                return url;
+            } else {
+                // Значение по умолчанию для продакшена из nginx.conf
+                return "http://uzproc.uzum.io";
+            }
+        }
+        
+        // Для локальной разработки
+        return "http://localhost:3000";
     }
 }
 
