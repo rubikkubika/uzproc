@@ -350,7 +350,8 @@ export default function PurchaseRequestsTable() {
     if (isRatingModalOpen && selectedRequestForRating?.purchaseRequestInitiator && !selectedUser) {
       const loadInitiator = async () => {
         try {
-          const initiatorName = selectedRequestForRating.purchaseRequestInitiator.trim();
+          const initiatorName = selectedRequestForRating?.purchaseRequestInitiator?.trim();
+          if (!initiatorName) return;
           
           // Пробуем разные варианты поиска
           const [nameResponse, surnameResponse, usernameResponse, emailResponse] = await Promise.all([
@@ -449,15 +450,15 @@ export default function PurchaseRequestsTable() {
       return;
     }
 
-    // Генерируем ссылку БЕЗ recipient в URL
-    const fullUrl = typeof window !== 'undefined' ? `${window.location.origin}${request.csiLink}` : request.csiLink;
+    // Используем полный URL, который приходит с бэкенда (уже учитывает окружение)
+    const fullUrl = request.csiLink;
 
     // Получаем имя получателя из selectedUser
     const recipientName = selectedUser && selectedUser.name ? selectedUser.name : '';
 
     const text = `Здравствуйте${recipientName ? ' ' + recipientName : ''}!
 
-Вы инициировали заявку на закупку № ${request.innerId || ''} на ${request.purchaseRequestName || ''}. Мы хотим улучшить сервис проведения закупок, пожалуйста пройдите опрос по ссылке:
+Вы инициировали заявку на закупку № ${request.idPurchaseRequest || ''} на ${request.name || ''}. Мы хотим улучшить сервис проведения закупок, пожалуйста пройдите опрос по ссылке:
 
 ${fullUrl}
 
@@ -4438,17 +4439,18 @@ ${fullUrl}
                                   e.stopPropagation();
                                   // Загружаем детали отправленного приглашения
                                   try {
-                                    const token = request.csiLink?.replace('/csi/feedback/', '').split('?')[0];
+                                    // Извлекаем токен из полного URL (например, http://localhost:3000/csi/feedback/{token})
+                                    const token = request.csiLink?.split('/csi/feedback/')[1]?.split('?')[0]?.split('#')[0];
                                     if (token) {
                                       const response = await fetch(`${getBackendUrl()}/api/csi-feedback/invitation/details?csiToken=${encodeURIComponent(token)}`);
                                       if (response.ok) {
                                         const data = await response.json();
-                                        // Генерируем текст письма для отображения
-                                        const fullUrl = typeof window !== 'undefined' ? `${window.location.origin}${request.csiLink}` : request.csiLink;
+                                        // Используем полный URL, который приходит с бэкенда (уже учитывает окружение)
+                                        const fullUrl = request.csiLink;
                                         const recipientName = data.recipientName || '';
                                         const generatedText = `Здравствуйте${recipientName ? ' ' + recipientName : ''}!
 
-Вы инициировали заявку на закупку № ${request.innerId || ''} на ${request.name || ''}. Мы хотим улучшить сервис проведения закупок, пожалуйста пройдите опрос по ссылке:
+Вы инициировали заявку на закупку № ${request.idPurchaseRequest || ''} на ${request.name || ''}. Мы хотим улучшить сервис проведения закупок, пожалуйста пройдите опрос по ссылке:
 
 ${fullUrl}
 
@@ -4664,8 +4666,8 @@ ${fullUrl}
                     }
 
                     try {
-                      // Извлекаем токен из ссылки
-                      const token = selectedRequestForRating.csiLink?.replace('/csi/feedback/', '').split('?')[0];
+                      // Извлекаем токен из полного URL (например, http://localhost:3000/csi/feedback/{token})
+                      const token = selectedRequestForRating.csiLink?.split('/csi/feedback/')[1]?.split('?')[0]?.split('#')[0];
                       if (token) {
                         // Отправляем приглашение на бэкенд
                         const response = await fetch(`${getBackendUrl()}/api/csi-feedback/invitation?csiToken=${encodeURIComponent(token)}&recipient=${encodeURIComponent(recipientEmail)}`, {

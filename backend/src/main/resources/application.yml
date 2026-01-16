@@ -80,6 +80,11 @@ server:
     max-swallow-size: 50MB
     connection-timeout: 60000
 
+# Настройки фронтенда
+app:
+  frontend:
+    base-url: ${FRONTEND_BASE_URL:http://localhost:3000}
+
 management:
   endpoints:
     web:

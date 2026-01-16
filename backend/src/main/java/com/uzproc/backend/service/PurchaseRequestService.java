@@ -23,6 +23,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -51,6 +52,9 @@ public class PurchaseRequestService {
     private final ContractService contractService;
     private final PurchaseRequestStatusUpdateService statusUpdateService;
     private final CsiFeedbackRepository csiFeedbackRepository;
+    
+    @Value("${app.frontend.base-url:http://localhost:3000}")
+    private String frontendBaseUrl;
 
     public PurchaseRequestService(
             PurchaseRequestRepository purchaseRequestRepository,
@@ -358,8 +362,11 @@ public class PurchaseRequestService {
         
         // Генерируем ссылку на форму CSI обратной связи
         if (entity.getCsiToken() != null && !entity.getCsiToken().isEmpty()) {
-            // Формируем ссылку вида: /csi/feedback/{token}
-            dto.setCsiLink("/csi/feedback/" + entity.getCsiToken());
+            // Формируем полную ссылку с учетом окружения: {baseUrl}/csi/feedback/{token}
+            String csiPath = "/csi/feedback/" + entity.getCsiToken();
+            // Убираем завершающий слэш из baseUrl, если он есть
+            String baseUrl = frontendBaseUrl != null ? frontendBaseUrl.replaceAll("/$", "") : "http://localhost:3000";
+            dto.setCsiLink(baseUrl + csiPath);
         }
 
         // Устанавливаем флаг отправки приглашения на оценку CSI
