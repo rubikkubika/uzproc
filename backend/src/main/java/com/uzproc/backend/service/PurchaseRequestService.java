@@ -1454,8 +1454,8 @@ public class PurchaseRequestService {
                 }
                 return url;
             } else {
-                // Значение по умолчанию для продакшена из nginx.conf
-                return "http://uzproc.uzum.io";
+                // Значение по умолчанию для продакшена - используем IP адрес
+                return "http://10.123.48.62";
             }
         }
         
