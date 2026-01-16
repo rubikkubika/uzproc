@@ -3,6 +3,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, ReactElement } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
+import { copyToClipboard } from '@/utils/clipboard';
 import { ArrowLeft, ArrowRight, Clock, Check, X, Eye, EyeOff, Copy } from 'lucide-react';
 import Sidebar from './_components/Sidebar';
 
@@ -1166,12 +1167,13 @@ export default function PurchaseRequestDetailPage() {
                         onClick={async () => {
                           try {
                             // Используем полный URL, который приходит с бэкенда (уже учитывает окружение)
-                            const fullUrl = purchaseRequest.csiLink;
-                            await navigator.clipboard.writeText(fullUrl);
+                            const fullUrl = purchaseRequest.csiLink || '';
+                            if (!fullUrl) return;
+                            await copyToClipboard(fullUrl);
                             alert('Ссылка на форму CSI скопирована в буфер обмена');
                           } catch (error) {
                             console.error('Error copying to clipboard:', error);
-                            alert('Не удалось скопировать ссылку');
+                            alert(error instanceof Error ? error.message : 'Не удалось скопировать ссылку');
                           }
                         }}
                         className="flex items-center justify-center rounded p-1 transition-colors hover:bg-gray-200 cursor-pointer"

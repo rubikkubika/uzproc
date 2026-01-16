@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
+import { copyToClipboard } from '@/utils/clipboard';
 import { ArrowUp, ArrowDown, ArrowUpDown, Search, X, Download, Copy, Clock, Check, Eye, EyeOff, Settings, Star } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
@@ -2734,7 +2735,7 @@ ${fullUrl}
       const tsvContent = allRows.map(row => row.join('\t')).join('\n');
 
       // Копируем в буфер обмена
-      await navigator.clipboard.writeText(tsvContent);
+      await copyToClipboard(tsvContent);
       alert('Данные скопированы в буфер обмена');
     } catch (error) {
       console.error('Ошибка при копировании в буфер обмена:', error);
@@ -4645,9 +4646,14 @@ ${fullUrl}
               
               <div className="flex justify-end gap-2">
                 <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(emailText);
-                    alert('Письмо скопировано в буфер обмена');
+                  onClick={async () => {
+                    try {
+                      await copyToClipboard(emailText);
+                      alert('Письмо скопировано в буфер обмена');
+                    } catch (error) {
+                      console.error('Error copying to clipboard:', error);
+                      alert(error instanceof Error ? error.message : 'Не удалось скопировать письмо');
+                    }
                   }}
                   className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
                 >
