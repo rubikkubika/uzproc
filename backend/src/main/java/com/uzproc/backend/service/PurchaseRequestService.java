@@ -361,7 +361,10 @@ public class PurchaseRequestService {
             // Формируем ссылку вида: /csi/feedback/{token}
             dto.setCsiLink("/csi/feedback/" + entity.getCsiToken());
         }
-        
+
+        // Устанавливаем флаг отправки приглашения на оценку CSI
+        dto.setCsiInvitationSent(entity.getCsiInvitationSent());
+
         // Проверяем наличие оценки CSI и вычисляем среднюю оценку (без uzprocRating)
         List<CsiFeedback> feedbacks = csiFeedbackRepository.findByPurchaseRequestId(entity.getId());
         if (!feedbacks.isEmpty()) {
