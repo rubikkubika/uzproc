@@ -4789,50 +4789,64 @@ ${fullUrl}
                       
                       // Создаем HTML с логотипом и названием для вставки в начало письма
                       // Используем явные стили с !important для единообразия на всех окружениях
+                      // Добавляем mso- стили для совместимости с Outlook
                       const logoHtml = logoBase64 
-                        ? `<table cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, sans-serif !important; margin: 0; margin-bottom: 16px; padding: 0; border-collapse: collapse;">
+                        ? `<table cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, sans-serif !important; margin: 0 !important; margin-bottom: 16px !important; padding: 0 !important; border-collapse: collapse !important; mso-table-lspace: 0pt; mso-table-rspace: 0pt;">
   <tr>
-    <td style="padding: 0; padding-right: 8px; vertical-align: middle; font-family: Arial, sans-serif !important;">
+    <td style="padding: 0 !important; padding-right: 8px !important; vertical-align: middle !important; font-family: Arial, sans-serif !important; color: #000000 !important; mso-line-height-rule: exactly;">
       <img src="${logoBase64}" alt="uzProc" style="width: 33.6px !important; height: 33.6px !important; display: block !important; margin: 0 !important; padding: 0 !important; border: none !important;" />
     </td>
-    <td style="padding: 0; vertical-align: middle; font-family: Arial, sans-serif !important;">
-      <span style="font-weight: bold !important; font-size: 25.2px !important; color: #000000 !important; margin: 0 !important; padding: 0 !important;">uzProc</span>
+    <td style="padding: 0 !important; vertical-align: middle !important; font-family: Arial, sans-serif !important; color: #000000 !important; mso-line-height-rule: exactly;">
+      <span style="font-weight: bold !important; font-size: 25.2px !important; color: #000000 !important; margin: 0 !important; padding: 0 !important; mso-line-height-rule: exactly;">uzProc</span>
     </td>
   </tr>
 </table>`
-                        : `<table cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, sans-serif !important; margin: 0; margin-bottom: 16px; padding: 0; border-collapse: collapse;">
+                        : `<table cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, sans-serif !important; margin: 0 !important; margin-bottom: 16px !important; padding: 0 !important; border-collapse: collapse !important; mso-table-lspace: 0pt; mso-table-rspace: 0pt;">
   <tr>
-    <td style="padding: 0; vertical-align: middle; font-family: Arial, sans-serif !important;">
-      <span style="font-weight: bold !important; font-size: 25.2px !important; color: #000000 !important; margin: 0 !important; padding: 0 !important;">uzProc</span>
+    <td style="padding: 0 !important; vertical-align: middle !important; font-family: Arial, sans-serif !important; color: #000000 !important; mso-line-height-rule: exactly;">
+      <span style="font-weight: bold !important; font-size: 25.2px !important; color: #000000 !important; margin: 0 !important; padding: 0 !important; mso-line-height-rule: exactly;">uzProc</span>
     </td>
   </tr>
 </table>`;
                       
                       // Преобразуем текст письма в HTML с явными стилями для единообразия
                       // Используем единые стили для всех окружений (локальное и деплой)
+                      // Используем <p> вместо <div> для лучшей совместимости с Outlook
                       const textLines = emailText.split('\n');
                       const htmlText = textLines
                         .map(line => {
                           if (line.trim() === '') {
-                            return '<div style="height: 1em; margin: 0 !important; padding: 0 !important; font-family: Arial, sans-serif !important; font-size: 14px !important; line-height: 1.5 !important; color: #000000 !important;"></div>';
+                            return '<p style="margin: 0 !important; padding: 0 !important; font-family: Arial, sans-serif !important; font-size: 14px !important; line-height: 1.5 !important; color: #000000 !important; mso-line-height-rule: exactly; mso-margin-top-alt: 0; mso-margin-bottom-alt: 0;">&nbsp;</p>';
                           }
                           // Экранируем HTML символы
                           const escaped = line
                             .replace(/&/g, '&amp;')
                             .replace(/</g, '&lt;')
                             .replace(/>/g, '&gt;');
-                          // Каждая строка в отдельном div с явными стилями и !important для единообразия
-                          return `<div style="margin: 0 !important; padding: 0 !important; font-family: Arial, sans-serif !important; font-size: 14px !important; line-height: 1.5 !important; color: #000000 !important;">${escaped}</div>`;
+                          // Каждая строка в отдельном <p> с явными стилями и !important для единообразия
+                          // Используем <p> вместо <div> для лучшей совместимости с Outlook
+                          return `<p style="margin: 0 !important; padding: 0 !important; font-family: Arial, sans-serif !important; font-size: 14px !important; line-height: 1.5 !important; color: #000000 !important; mso-line-height-rule: exactly; mso-margin-top-alt: 0; mso-margin-bottom-alt: 0;">${escaped}</p>`;
                         })
                         .join('');
                       
                       // Создаем полный HTML с явными стилями для единообразия на всех окружениях
                       // Все стили должны быть inline для максимальной совместимости с Outlook
+                      // Добавляем mso- стили для совместимости с Outlook
                       const fullHtml = `<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!--[if mso]>
+  <style type="text/css">
+    body, table, td, div, p, span {
+      font-family: Arial, sans-serif !important;
+      font-size: 14px !important;
+      line-height: 1.5 !important;
+      color: #000000 !important;
+    }
+  </style>
+  <![endif]-->
   <style type="text/css">
     body, table, td, div, p, span {
       font-family: Arial, sans-serif !important;
@@ -4842,9 +4856,9 @@ ${fullUrl}
     }
   </style>
 </head>
-<body style="margin: 0; padding: 0; font-family: Arial, sans-serif !important; font-size: 14px !important; line-height: 1.5 !important; color: #000000 !important; background-color: #ffffff;">
+<body style="margin: 0 !important; padding: 0 !important; font-family: Arial, sans-serif !important; font-size: 14px !important; line-height: 1.5 !important; color: #000000 !important; background-color: #ffffff !important; mso-line-height-rule: exactly;">
   ${logoHtml}
-  <div style="font-family: Arial, sans-serif !important; font-size: 14px !important; line-height: 1.5 !important; color: #000000 !important; margin: 0; padding: 0;">
+  <div style="font-family: Arial, sans-serif !important; font-size: 14px !important; line-height: 1.5 !important; color: #000000 !important; margin: 0 !important; padding: 0 !important; mso-line-height-rule: exactly;">
     ${htmlText}
   </div>
 </body>
