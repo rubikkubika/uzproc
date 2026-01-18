@@ -2,7 +2,7 @@ package com.uzproc.backend.controller;
 
 import com.uzproc.backend.dto.UserDTO;
 import com.uzproc.backend.entity.User;
-import com.uzproc.backend.service.UserService;
+import com.uzproc.backend.service.user.UserService;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

@@ -1,8 +1,8 @@
 package com.uzproc.backend.config;
 
-import com.uzproc.backend.service.EntityExcelLoadService;
-import com.uzproc.backend.service.ReportExcelLoadService;
-import com.uzproc.backend.service.PurchasePlanExcelLoadService;
+import com.uzproc.backend.service.excel.EntityExcelLoadService;
+import com.uzproc.backend.service.excel.ReportExcelLoadService;
+import com.uzproc.backend.service.purchaseplan.PurchasePlanExcelLoadService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;

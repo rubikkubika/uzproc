@@ -1,4 +1,4 @@
-package com.uzproc.backend.service;
+package com.uzproc.backend.service.contract;
 
 import com.uzproc.backend.dto.ContractDto;
 import com.uzproc.backend.entity.Contract;

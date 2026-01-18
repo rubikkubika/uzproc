@@ -1,4 +1,4 @@
-package com.uzproc.backend.service;
+package com.uzproc.backend.service.csifeedback;
 
 import com.uzproc.backend.dto.CsiFeedbackCreateDto;
 import com.uzproc.backend.dto.CsiFeedbackDto;

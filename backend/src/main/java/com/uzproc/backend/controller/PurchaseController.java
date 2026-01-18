@@ -1,7 +1,7 @@
 package com.uzproc.backend.controller;
 
 import com.uzproc.backend.dto.PurchaseDto;
-import com.uzproc.backend.service.PurchaseService;
+import com.uzproc.backend.service.purchase.PurchaseService;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

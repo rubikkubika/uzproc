@@ -1,8 +1,8 @@
 package com.uzproc.backend.controller;
 
 import com.uzproc.backend.dto.ContractDto;
-import com.uzproc.backend.service.ContractService;
-import com.uzproc.backend.service.ContractStatusUpdateService;
+import com.uzproc.backend.service.contract.ContractService;
+import com.uzproc.backend.service.contract.ContractStatusUpdateService;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

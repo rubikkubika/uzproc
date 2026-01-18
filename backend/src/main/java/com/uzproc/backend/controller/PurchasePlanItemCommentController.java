@@ -1,7 +1,7 @@
 package com.uzproc.backend.controller;
 
 import com.uzproc.backend.dto.PurchasePlanItemCommentDto;
-import com.uzproc.backend.service.PurchasePlanItemCommentService;
+import com.uzproc.backend.service.purchaseplan.PurchasePlanItemCommentService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;

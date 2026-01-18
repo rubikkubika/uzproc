@@ -1,4 +1,4 @@
-package com.uzproc.backend.service;
+package com.uzproc.backend.service.excel;
 
 import com.uzproc.backend.entity.Purchase;
 import com.uzproc.backend.entity.PurchaseRequest;
@@ -9,7 +9,10 @@ import com.uzproc.backend.repository.PurchaseApprovalRepository;
 import com.uzproc.backend.repository.PurchaseRequestApprovalRepository;
 import com.uzproc.backend.repository.PurchaseRepository;
 import com.uzproc.backend.repository.PurchaseRequestRepository;
-import com.uzproc.backend.service.PurchaseRequestService;
+import com.uzproc.backend.service.purchaserequest.PurchaseRequestService;
+import com.uzproc.backend.service.purchaserequest.PurchaseRequestStatusUpdateService;
+import com.uzproc.backend.service.contract.ContractStatusUpdateService;
+import com.uzproc.backend.service.purchase.PurchaseStatusUpdateService;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.usermodel.DataFormatter;

@@ -1,4 +1,4 @@
-package com.uzproc.backend.service;
+package com.uzproc.backend.service.purchaserequest;
 
 import com.uzproc.backend.dto.ContractDto;
 import com.uzproc.backend.dto.PurchaseRequestDto;
@@ -14,6 +14,8 @@ import com.uzproc.backend.repository.PurchaseRequestApprovalRepository;
 import com.uzproc.backend.repository.PurchaseRequestRepository;
 import com.uzproc.backend.repository.PurchaseRepository;
 import com.uzproc.backend.entity.CsiFeedback;
+import com.uzproc.backend.service.contract.ContractService;
+import com.uzproc.backend.service.purchaserequest.PurchaseRequestStatusUpdateService;
 import java.util.stream.Collectors;
 import jakarta.persistence.criteria.Predicate;
 import org.slf4j.Logger;

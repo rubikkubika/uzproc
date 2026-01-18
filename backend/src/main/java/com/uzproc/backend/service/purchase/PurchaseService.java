@@ -1,4 +1,4 @@
-package com.uzproc.backend.service;
+package com.uzproc.backend.service.purchase;
 
 import com.uzproc.backend.dto.PurchaseDto;
 import com.uzproc.backend.entity.Purchase;

@@ -2,8 +2,8 @@ package com.uzproc.backend.controller;
 
 import com.uzproc.backend.dto.PurchasePlanItemChangeDto;
 import com.uzproc.backend.dto.PurchasePlanItemDto;
-import com.uzproc.backend.service.PurchasePlanItemChangeService;
-import com.uzproc.backend.service.PurchasePlanItemService;
+import com.uzproc.backend.service.purchaseplan.PurchasePlanItemChangeService;
+import com.uzproc.backend.service.purchaseplan.PurchasePlanItemService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
