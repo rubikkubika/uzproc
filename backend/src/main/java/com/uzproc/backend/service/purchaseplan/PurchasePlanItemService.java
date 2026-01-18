@@ -1,14 +1,16 @@
 package com.uzproc.backend.service.purchaseplan;
 
-import com.uzproc.backend.dto.PurchasePlanItemDto;
+import com.uzproc.backend.dto.purchaseplan.PurchasePlanItemDto;
 import com.uzproc.backend.entity.Company;
 import com.uzproc.backend.entity.Cfo;
 import com.uzproc.backend.entity.PlanPurchaser;
-import com.uzproc.backend.entity.PurchasePlanItem;
-import com.uzproc.backend.entity.PurchasePlanItemStatus;
+import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
+import com.uzproc.backend.entity.purchaserequest.PurchaseRequestStatus;
+import com.uzproc.backend.entity.purchaseplan.PurchasePlanItem;
+import com.uzproc.backend.entity.purchaseplan.PurchasePlanItemStatus;
 import com.uzproc.backend.repository.CfoRepository;
-import com.uzproc.backend.repository.PurchasePlanItemRepository;
-import com.uzproc.backend.repository.PurchaseRequestRepository;
+import com.uzproc.backend.repository.purchaseplan.PurchasePlanItemRepository;
+import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
 import jakarta.persistence.criteria.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -96,11 +98,11 @@ public class PurchasePlanItemService {
         Map<Long, String> purchaseRequestStatusMap = new HashMap<>();
         if (!purchaseRequestIds.isEmpty()) {
             // Используем Specification для загрузки заявок по idPurchaseRequest
-            Specification<com.uzproc.backend.entity.PurchaseRequest> prSpec = 
+            Specification<com.uzproc.backend.entity.purchaserequest.PurchaseRequest> prSpec = 
                     (root, query, cb) -> root.get("idPurchaseRequest").in(purchaseRequestIds);
-            List<com.uzproc.backend.entity.PurchaseRequest> purchaseRequests = 
+            List<com.uzproc.backend.entity.purchaserequest.PurchaseRequest> purchaseRequests = 
                     purchaseRequestRepository.findAll(prSpec);
-            for (com.uzproc.backend.entity.PurchaseRequest pr : purchaseRequests) {
+            for (com.uzproc.backend.entity.purchaserequest.PurchaseRequest pr : purchaseRequests) {
                 if (pr.getStatus() != null && pr.getIdPurchaseRequest() != null) {
                     purchaseRequestStatusMap.put(pr.getIdPurchaseRequest(), pr.getStatus().getDisplayName());
                 }
@@ -124,7 +126,7 @@ public class PurchasePlanItemService {
         // Загружаем статус заявки, если есть purchaseRequestId
         Map<Long, String> purchaseRequestStatusMap = null;
         if (item.getPurchaseRequestId() != null) {
-            Optional<com.uzproc.backend.entity.PurchaseRequest> purchaseRequest = 
+            Optional<PurchaseRequest> purchaseRequest = 
                     purchaseRequestRepository.findByIdPurchaseRequest(item.getPurchaseRequestId());
             if (purchaseRequest.isPresent() && purchaseRequest.get().getStatus() != null) {
                 purchaseRequestStatusMap = new HashMap<>();
@@ -427,7 +429,7 @@ public class PurchasePlanItemService {
                     }
                     
                     Long oldPurchaseRequestId = item.getPurchaseRequestId();
-                    com.uzproc.backend.entity.PurchasePlanItemStatus oldStatus = item.getStatus();
+                    PurchasePlanItemStatus oldStatus = item.getStatus();
                     
                     // Логируем изменение перед обновлением
                     if ((oldPurchaseRequestId == null && purchaseRequestId != null) || 
@@ -446,27 +448,27 @@ public class PurchasePlanItemService {
                     // Если присваивается номер заявки (purchaseRequestId не null), устанавливаем статус "Заявка"
                     if (purchaseRequestId != null && oldPurchaseRequestId == null) {
                         // Присваивается номер заявки впервые - устанавливаем статус "Заявка"
-                        item.setStatus(com.uzproc.backend.entity.PurchasePlanItemStatus.REQUEST);
-                        if (oldStatus != com.uzproc.backend.entity.PurchasePlanItemStatus.REQUEST) {
+                        item.setStatus(PurchasePlanItemStatus.REQUEST);
+                        if (oldStatus != PurchasePlanItemStatus.REQUEST) {
                             purchasePlanItemChangeService.logChange(
                                 item.getId(),
                                 item.getGuid(),
                                 "status",
                                 oldStatus != null ? oldStatus.getDisplayName() : null,
-                                com.uzproc.backend.entity.PurchasePlanItemStatus.REQUEST.getDisplayName()
+                                PurchasePlanItemStatus.REQUEST.getDisplayName()
                             );
                             logger.info("Set status to REQUEST for purchase plan item {} when assigning purchaseRequestId={}",
                                     id, purchaseRequestId);
                         }
                     } else if (purchaseRequestId == null && oldPurchaseRequestId != null) {
                         // Номер заявки удаляется - сбрасываем статус "Заявка" (если он был установлен)
-                        if (oldStatus == com.uzproc.backend.entity.PurchasePlanItemStatus.REQUEST) {
+                        if (oldStatus == PurchasePlanItemStatus.REQUEST) {
                             item.setStatus(null);
                             purchasePlanItemChangeService.logChange(
                                 item.getId(),
                                 item.getGuid(),
                                 "status",
-                                com.uzproc.backend.entity.PurchasePlanItemStatus.REQUEST.getDisplayName(),
+                                PurchasePlanItemStatus.REQUEST.getDisplayName(),
                                 null
                             );
                             logger.info("Cleared status REQUEST for purchase plan item {} when removing purchaseRequestId",
@@ -1118,8 +1120,8 @@ public class PurchasePlanItemService {
                         // Разделяем статусы на два типа:
                         // 1. PurchasePlanItemStatus - статусы самого плана закупок
                         // 2. PurchaseRequestStatus - статусы заявок на закупку
-                        List<com.uzproc.backend.entity.PurchasePlanItemStatus> planStatusEnums = new ArrayList<>();
-                        List<com.uzproc.backend.entity.PurchaseRequestStatus> requestStatusEnums = new ArrayList<>();
+                        List<PurchasePlanItemStatus> planStatusEnums = new ArrayList<>();
+                        List<PurchaseRequestStatus> requestStatusEnums = new ArrayList<>();
                         List<String> unmatchedStatuses = new ArrayList<>();
                         
                         for (String statusValue : validStatusValues) {
@@ -1134,7 +1136,7 @@ public class PurchasePlanItemService {
                             boolean found = false;
                             
                             // Ищем в PurchasePlanItemStatus
-                            for (com.uzproc.backend.entity.PurchasePlanItemStatus statusEnum : com.uzproc.backend.entity.PurchasePlanItemStatus.values()) {
+                            for (PurchasePlanItemStatus statusEnum : PurchasePlanItemStatus.values()) {
                                 String displayName = statusEnum.getDisplayName();
                                 if (displayName.equalsIgnoreCase(trimmedValue) || displayName.equals(trimmedValue)) {
                                     planStatusEnums.add(statusEnum);
@@ -1146,7 +1148,7 @@ public class PurchasePlanItemService {
                             
                             // Если не найдено в PurchasePlanItemStatus, ищем в PurchaseRequestStatus
                             if (!found) {
-                                for (com.uzproc.backend.entity.PurchaseRequestStatus statusEnum : com.uzproc.backend.entity.PurchaseRequestStatus.values()) {
+                                for (PurchaseRequestStatus statusEnum : PurchaseRequestStatus.values()) {
                                     String displayName = statusEnum.getDisplayName();
                                     if (displayName.equalsIgnoreCase(trimmedValue) || displayName.equals(trimmedValue)) {
                                         requestStatusEnums.add(statusEnum);
@@ -1181,7 +1183,7 @@ public class PurchasePlanItemService {
                         // Предикаты для статусов заявок (PurchaseRequestStatus)
                         // Делаем join с PurchaseRequest и фильтруем по статусу заявки
                         if (!requestStatusEnums.isEmpty()) {
-                            jakarta.persistence.criteria.Join<com.uzproc.backend.entity.PurchasePlanItem, com.uzproc.backend.entity.PurchaseRequest> purchaseRequestJoin = 
+                            jakarta.persistence.criteria.Join<PurchasePlanItem, PurchaseRequest> purchaseRequestJoin = 
                                 root.join("purchaseRequest", jakarta.persistence.criteria.JoinType.LEFT);
                             
                             if (requestStatusEnums.size() == 1) {

@@ -1,12 +1,15 @@
 package com.uzproc.backend.service.purchaseplan;
 
-import com.uzproc.backend.dto.PurchasePlanItemDto;
-import com.uzproc.backend.dto.PurchasePlanVersionDto;
-import com.uzproc.backend.entity.*;
+import com.uzproc.backend.dto.purchaseplan.PurchasePlanItemDto;
+import com.uzproc.backend.dto.purchaseplan.PurchasePlanVersionDto;
+import com.uzproc.backend.entity.PlanPurchaser;
+import com.uzproc.backend.entity.purchaseplan.PurchasePlanItem;
+import com.uzproc.backend.entity.purchaseplan.PurchasePlanItemVersion;
+import com.uzproc.backend.entity.purchaseplan.PurchasePlanVersion;
 import com.uzproc.backend.repository.CfoRepository;
-import com.uzproc.backend.repository.PurchasePlanItemRepository;
-import com.uzproc.backend.repository.PurchasePlanItemVersionRepository;
-import com.uzproc.backend.repository.PurchasePlanVersionRepository;
+import com.uzproc.backend.repository.purchaseplan.PurchasePlanItemRepository;
+import com.uzproc.backend.repository.purchaseplan.PurchasePlanItemVersionRepository;
+import com.uzproc.backend.repository.purchaseplan.PurchasePlanVersionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;

@@ -1,8 +1,8 @@
 package com.uzproc.backend.service.purchase;
 
-import com.uzproc.backend.dto.PurchaseApprovalDto;
-import com.uzproc.backend.entity.PurchaseApproval;
-import com.uzproc.backend.repository.PurchaseApprovalRepository;
+import com.uzproc.backend.dto.purchase.PurchaseApprovalDto;
+import com.uzproc.backend.entity.purchase.PurchaseApproval;
+import com.uzproc.backend.repository.purchase.PurchaseApprovalRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

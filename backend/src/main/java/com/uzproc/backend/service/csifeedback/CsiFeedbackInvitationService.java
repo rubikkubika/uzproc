@@ -1,9 +1,9 @@
 package com.uzproc.backend.service.csifeedback;
 
-import com.uzproc.backend.entity.CsiFeedbackInvitation;
-import com.uzproc.backend.entity.PurchaseRequest;
-import com.uzproc.backend.repository.CsiFeedbackInvitationRepository;
-import com.uzproc.backend.repository.PurchaseRequestRepository;
+import com.uzproc.backend.entity.csifeedback.CsiFeedbackInvitation;
+import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
+import com.uzproc.backend.repository.csifeedback.CsiFeedbackInvitationRepository;
+import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;

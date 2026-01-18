@@ -1,11 +1,11 @@
 package com.uzproc.backend.service.purchase;
 
-import com.uzproc.backend.dto.PurchaseDto;
-import com.uzproc.backend.entity.Purchase;
-import com.uzproc.backend.entity.PurchaseRequest;
-import com.uzproc.backend.entity.PurchaseApproval;
-import com.uzproc.backend.repository.PurchaseRepository;
-import com.uzproc.backend.repository.PurchaseApprovalRepository;
+import com.uzproc.backend.dto.purchase.PurchaseDto;
+import com.uzproc.backend.entity.purchase.Purchase;
+import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
+import com.uzproc.backend.entity.purchase.PurchaseApproval;
+import com.uzproc.backend.repository.purchase.PurchaseRepository;
+import com.uzproc.backend.repository.purchase.PurchaseApprovalRepository;
 import jakarta.persistence.criteria.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,7 +17,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.uzproc.backend.entity.PurchaseStatus;
+import com.uzproc.backend.entity.purchase.PurchaseStatus;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;

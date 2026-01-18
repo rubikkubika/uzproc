@@ -1,10 +1,10 @@
 package com.uzproc.backend.service.purchaseplan;
 
-import com.uzproc.backend.dto.PurchasePlanItemCommentDto;
-import com.uzproc.backend.entity.PurchasePlanItemComment;
-import com.uzproc.backend.entity.User;
-import com.uzproc.backend.repository.PurchasePlanItemCommentRepository;
-import com.uzproc.backend.repository.UserRepository;
+import com.uzproc.backend.dto.purchaseplan.PurchasePlanItemCommentDto;
+import com.uzproc.backend.entity.purchaseplan.PurchasePlanItemComment;
+import com.uzproc.backend.entity.user.User;
+import com.uzproc.backend.repository.purchaseplan.PurchasePlanItemCommentRepository;
+import com.uzproc.backend.repository.user.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;

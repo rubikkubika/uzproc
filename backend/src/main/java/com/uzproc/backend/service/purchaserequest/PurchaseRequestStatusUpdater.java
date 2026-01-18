@@ -1,6 +1,6 @@
 package com.uzproc.backend.service.purchaserequest;
 
-import com.uzproc.backend.entity.PurchaseRequestStatus;
+import com.uzproc.backend.entity.purchaserequest.PurchaseRequestStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;

@@ -1,8 +1,8 @@
 package com.uzproc.backend.service.contract;
 
-import com.uzproc.backend.entity.Contract;
-import com.uzproc.backend.entity.ContractStatus;
-import com.uzproc.backend.repository.ContractRepository;
+import com.uzproc.backend.entity.contract.Contract;
+import com.uzproc.backend.entity.contract.ContractStatus;
+import com.uzproc.backend.repository.contract.ContractRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;

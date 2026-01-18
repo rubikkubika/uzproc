@@ -1,19 +1,19 @@
 package com.uzproc.backend.service.purchaserequest;
 
-import com.uzproc.backend.dto.ContractDto;
-import com.uzproc.backend.dto.PurchaseRequestDto;
-import com.uzproc.backend.dto.PurchaserStatsDto;
-import com.uzproc.backend.entity.Contract;
-import com.uzproc.backend.entity.Purchase;
-import com.uzproc.backend.entity.PurchaseRequest;
-import com.uzproc.backend.entity.PurchaseRequestApproval;
-import com.uzproc.backend.entity.PurchaseRequestStatus;
-import com.uzproc.backend.repository.ContractRepository;
-import com.uzproc.backend.repository.CsiFeedbackRepository;
-import com.uzproc.backend.repository.PurchaseRequestApprovalRepository;
-import com.uzproc.backend.repository.PurchaseRequestRepository;
-import com.uzproc.backend.repository.PurchaseRepository;
-import com.uzproc.backend.entity.CsiFeedback;
+import com.uzproc.backend.dto.contract.ContractDto;
+import com.uzproc.backend.dto.purchaserequest.PurchaseRequestDto;
+import com.uzproc.backend.dto.purchaserequest.PurchaserStatsDto;
+import com.uzproc.backend.entity.contract.Contract;
+import com.uzproc.backend.entity.purchase.Purchase;
+import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
+import com.uzproc.backend.entity.purchaserequest.PurchaseRequestApproval;
+import com.uzproc.backend.entity.purchaserequest.PurchaseRequestStatus;
+import com.uzproc.backend.repository.contract.ContractRepository;
+import com.uzproc.backend.repository.csifeedback.CsiFeedbackRepository;
+import com.uzproc.backend.repository.purchaserequest.PurchaseRequestApprovalRepository;
+import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
+import com.uzproc.backend.repository.purchase.PurchaseRepository;
+import com.uzproc.backend.entity.csifeedback.CsiFeedback;
 import com.uzproc.backend.service.contract.ContractService;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestStatusUpdateService;
 import java.util.stream.Collectors;
@@ -310,9 +310,9 @@ public class PurchaseRequestService {
         
         // Загружаем связанные закупки по idPurchaseRequest
         if (entity.getIdPurchaseRequest() != null) {
-            List<com.uzproc.backend.entity.Purchase> purchases = purchaseRepository.findByPurchaseRequestId(entity.getIdPurchaseRequest());
+            List<com.uzproc.backend.entity.purchase.Purchase> purchases = purchaseRepository.findByPurchaseRequestId(entity.getIdPurchaseRequest());
             List<Long> purchaseIds = purchases.stream()
-                    .map(com.uzproc.backend.entity.Purchase::getId)
+                    .map(com.uzproc.backend.entity.purchase.Purchase::getId)
                     .collect(Collectors.toList());
             dto.setPurchaseIds(purchaseIds);
             
@@ -328,7 +328,7 @@ public class PurchaseRequestService {
             
             // 2. Через закупки по contractInnerIds (договоры связаны с закупками через innerId)
             Set<Long> contractIds = new HashSet<>();
-            for (com.uzproc.backend.entity.Purchase purchase : purchases) {
+            for (com.uzproc.backend.entity.purchase.Purchase purchase : purchases) {
                 // Обрабатываем множественные договоры для каждой закупки
                 if (purchase.getContractInnerIds() != null && !purchase.getContractInnerIds().isEmpty()) {
                     for (String contractInnerId : purchase.getContractInnerIds()) {

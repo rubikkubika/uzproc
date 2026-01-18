@@ -3,9 +3,10 @@ package com.uzproc.backend.service.purchaseplan;
 import com.uzproc.backend.entity.Cfo;
 import com.uzproc.backend.entity.Company;
 import com.uzproc.backend.entity.PlanPurchaser;
-import com.uzproc.backend.entity.PurchasePlanItem;
+import com.uzproc.backend.entity.purchaseplan.PurchasePlanItem;
+import com.uzproc.backend.entity.purchaseplan.PurchasePlanItemStatus;
 import com.uzproc.backend.repository.CfoRepository;
-import com.uzproc.backend.repository.PurchasePlanItemRepository;
+import com.uzproc.backend.repository.purchaseplan.PurchasePlanItemRepository;
 import com.uzproc.backend.service.excel.FileProcessingStatsService;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
@@ -698,7 +699,7 @@ public class PurchasePlanExcelLoadService {
                     logger.debug("Row {}: parsed state value: '{}' and saved to state field for purchase plan item", row.getRowNum() + 1, trimmedStatus);
                     // Если "Состояние" = "Проект" (case-insensitive), то устанавливаем статус = PROJECT
                     if ("Проект".equalsIgnoreCase(trimmedStatus)) {
-                        item.setStatus(com.uzproc.backend.entity.PurchasePlanItemStatus.PROJECT);
+                        item.setStatus(PurchasePlanItemStatus.PROJECT);
                         logger.info("Row {}: parsed state '{}', set status to PROJECT for purchase plan item", row.getRowNum() + 1, trimmedStatus);
                     } else {
                         logger.debug("Row {}: state value '{}' is not 'Проект' (case-insensitive), skipping status update", row.getRowNum() + 1, trimmedStatus);
