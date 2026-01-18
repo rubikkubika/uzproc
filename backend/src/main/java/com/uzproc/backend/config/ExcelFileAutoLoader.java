@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -21,6 +22,7 @@ public class ExcelFileAutoLoader {
     private static final Logger logger = LoggerFactory.getLogger(ExcelFileAutoLoader.class);
 
     @Bean
+    @Order(0) // Запускаем первым, до StatusUpdateRunner (Order = 1000)
     public CommandLineRunner autoLoadExcelFile(EntityExcelLoadService excelLoadService) {
         return args -> {
             try {
@@ -117,6 +119,7 @@ public class ExcelFileAutoLoader {
     }
 
     @Bean
+    @Order(100) // Запускаем после загрузки основных данных, но до обновления статусов (Order = 1000)
     public CommandLineRunner autoLoadReportFile(ReportExcelLoadService reportExcelLoadService) {
         return args -> {
             try {
@@ -204,6 +207,7 @@ public class ExcelFileAutoLoader {
     }
 
     @Bean
+    @Order(200) // Запускаем после загрузки отчётов, но до обновления статусов (Order = 1000)
     public CommandLineRunner autoLoadPurchasePlanFile(PurchasePlanExcelLoadService purchasePlanExcelLoadService) {
         return args -> {
             try {

@@ -14,7 +14,7 @@
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_FILE}</file>
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss} - %msg%n</pattern>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n</pattern>
         </encoder>
         
         <!-- Политика ротации: один файл, при достижении размера перезаписывается -->
@@ -38,6 +38,7 @@
     
     <logger name="com.uzproc" level="DEBUG"/>
     <logger name="com.uzproc.backend.service.PurchaseStatusUpdateService" level="INFO"/>
+    <logger name="com.uzproc.backend.service.PurchaseRequestStatusUpdateService" level="DEBUG"/>
     <logger name="org.springframework.web" level="INFO"/>
     <logger name="org.hibernate.SQL" level="DEBUG"/>
     <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="TRACE"/>

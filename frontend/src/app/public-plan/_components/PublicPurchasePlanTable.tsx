@@ -2027,7 +2027,7 @@ export default function PublicPurchasePlanTable() {
         </div>
 
         {/* Сводная таблица и элементы управления */}
-        <div className="px-3 py-2 border-b border-gray-200 flex-shrink-0">
+        <div className="px-3 py-1 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-start w-full">
             <div className="flex items-start">
               {/* Сводная таблица */}
@@ -2049,9 +2049,9 @@ export default function PublicPurchasePlanTable() {
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {cfoSummary.length > 0 ? (
-                        (isSummaryExpanded ? cfoSummary : cfoSummary.slice(0, 5)).map((item, index) => {
+                        (isSummaryExpanded ? cfoSummary : cfoSummary.slice(0, 3)).map((item, index) => {
                         const isSelected = cfoFilter.size === 1 && cfoFilter.has(item.cfo);
-                        const isLastInTop5 = !isSummaryExpanded && index === 4 && cfoSummary.length > 5; // Последняя строка в топ 5
+                        const isLastInTop3 = !isSummaryExpanded && index === 2 && cfoSummary.length > 3; // Последняя строка в топ 3
                         return (
                           <tr 
                             key={index} 
@@ -2059,7 +2059,7 @@ export default function PublicPurchasePlanTable() {
                               isSelected 
                                 ? 'bg-blue-100 hover:bg-blue-200' 
                                 : 'hover:bg-gray-50'
-                            } ${isLastInTop5 ? 'border-b-2 border-blue-300' : ''}`}
+                            } ${isLastInTop3 ? 'border-b-2 border-blue-300' : ''}`}
                             onClick={() => {
                               if (isSelected) {
                                 setCfoFilter(new Set());
@@ -2114,9 +2114,9 @@ export default function PublicPurchasePlanTable() {
                         </td>
                   </tr>
                       {/* Кнопка "Развернуть"/"Свернуть" под итоговой суммой */}
-                      {cfoSummary.length > 5 && (
+                      {cfoSummary.length > 3 && (
                         <tr>
-                          <td colSpan={3} className="px-2 py-2 text-center bg-gray-50 border-t border-gray-200">
+                          <td colSpan={3} className="px-2 py-1 text-center bg-gray-50 border-t border-gray-200">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -2124,9 +2124,9 @@ export default function PublicPurchasePlanTable() {
                               }}
                               className="px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md transition-colors whitespace-nowrap"
                             >
-                              {isSummaryExpanded 
-                                ? 'Свернуть' 
-                                : `Показать еще ${cfoSummary.length - 5} ${cfoSummary.length - 5 === 1 ? 'строку' : cfoSummary.length - 5 < 5 ? 'строки' : 'строк'}`
+                              {isSummaryExpanded
+                                ? 'Свернуть'
+                                : `Показать еще ${cfoSummary.length - 3} ${cfoSummary.length - 3 === 1 ? 'строку' : cfoSummary.length - 3 < 5 ? 'строки' : 'строк'}`
                               }
                             </button>
                           </td>
@@ -2137,240 +2137,235 @@ export default function PublicPurchasePlanTable() {
                 </div>
               </div>
             </div>
-            
-            {/* Элементы управления */}
-            <div className="flex items-start gap-2 flex-shrink-0 ml-2">
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => {
-                    const emptyFilters = {
-                      company: '',
-                      cfo: '',
-                      purchaseSubject: '',
-                      currentContractEndDate: '',
-                      purchaseRequestId: '',
-                      budgetAmount: '',
-                      budgetAmountOperator: 'gte',
-                    };
-                    setFilters(emptyFilters);
-                    setLocalFilters({
-                      budgetAmount: '',
-                      budgetAmountOperator: 'gte',
-                    });
-                    setCfoFilter(new Set());
-                    setCompanyFilter(new Set());
-                    setPurchaserCompanyFilter(new Set(['Market']));
-                    setCategoryFilter(new Set());
-                    setPurchaserFilter(new Set());
-                    const resetStatusFilter = (uniqueValues.status || []).filter(s => s !== 'Исключена');
-                    setStatusFilter(new Set(resetStatusFilter));
-                    setSortField('requestDate');
-                    setSortDirection('asc');
-                    setFocusedField(null);
-                    setSelectedYear(allYears.length > 0 ? allYears[0] : null);
-                    setSelectedMonths(new Set());
-                    setSelectedMonthYear(null);
-                    setCurrentPage(0);
-                  }}
-                  className="px-4 py-2 text-sm font-medium bg-red-50 text-red-700 rounded-lg border-2 border-red-300 hover:bg-red-100 hover:border-red-400 transition-colors shadow-sm"
-                >
-                  Сбросить фильтры
-                </button>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-700 font-medium">Год планирования:</span>
-                  {allYears.map((year) => (
-                    <button
-                      key={year}
-                      onClick={() => setSelectedYear(year)}
-                      className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                        selectedYear === year
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      {year}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-700 font-medium">Заказчик:</span>
-                  <div className="relative">
-                    <button
-                      ref={companyFilterButtonRef}
-                      type="button"
-                      onClick={() => setIsCompanyFilterOpen(!isCompanyFilterOpen)}
-                      className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-left focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center gap-2 hover:bg-gray-50 min-w-[200px]"
-                    >
-                      <span className="text-gray-700 truncate flex-1 text-left">
-                        {companyFilter.size === 0 
-                          ? 'Все компании' 
-                          : companyFilter.size === 1
-                          ? (Array.from(companyFilter)[0] || 'Все компании')
-                          : `${companyFilter.size} выбрано`}
-                      </span>
-                      <svg className={`w-4 h-4 transition-transform flex-shrink-0 ${isCompanyFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                    
-                    {isCompanyFilterOpen && companyFilterPosition && (
-                      <div 
-                        data-company-filter-menu="true"
-                        className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden"
-                        style={{
-                          top: `${companyFilterPosition.top}px`,
-                          left: `${companyFilterPosition.left}px`,
-                        }}
-                      >
-                        <div className="p-2 border-b border-gray-200">
-                          <div className="relative">
-                            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
-                            <input
-                              type="text"
-                              value={companySearchQuery}
-                              onChange={(e) => {
-                                e.stopPropagation();
-                                setCompanySearchQuery(e.target.value);
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                              onFocus={(e) => e.stopPropagation()}
-                              className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-                              placeholder="Поиск..."
-                            />
-                          </div>
-                        </div>
-                        <div className="p-2 border-b border-gray-200 flex gap-2">
-                          <button
-                            onClick={() => handleCompanySelectAll()}
-                            className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                          >
-                            Все
-                          </button>
-                          <button
-                            onClick={() => handleCompanyDeselectAll()}
-                            className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
-                          >
-                            Снять
-                          </button>
-                        </div>
-                        <div className="max-h-48 overflow-y-auto">
-                          {getFilteredCompanyOptions.length === 0 ? (
-                            <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
-                          ) : (
-                            getFilteredCompanyOptions.map((company) => (
-                              <label
-                                key={company}
-                                className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={companyFilter.has(company)}
-                                  onChange={() => handleCompanyToggle(company)}
-                                  className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
-                                />
-                                <span className="ml-2 text-xs text-gray-700 flex-1">{company}</span>
-                              </label>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <button
-                      ref={columnsMenuButtonRef}
-                      type="button"
-                      onClick={() => setIsColumnsMenuOpen(!isColumnsMenuOpen)}
-                      className="px-3 py-1.5 text-xs rounded-lg bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-1"
-                    >
-                      <Settings className="w-3 h-3" />
-                      Колонки
-                    </button>
-                    
-                    {isColumnsMenuOpen && columnsMenuPosition && (
-                      <div
-                        data-columns-menu="true"
-                        className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-96 overflow-hidden"
-                        style={{
-                          top: `${columnsMenuPosition.top}px`,
-                          left: `${columnsMenuPosition.left}px`,
-                        }}
-                      >
-                        <div className="p-2 border-b border-gray-200">
-                          <div className="text-sm font-medium text-gray-700">Выберите колонки</div>
-                        </div>
-                        <div className="max-h-80 overflow-y-auto">
-                          {ALL_COLUMNS.map((column) => (
-                            <label
-                              key={column.key}
-                              className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={visibleColumns.has(column.key)}
-                                onChange={() => toggleColumnVisibility(column.key)}
-                                className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
-                              />
-                              <span className="ml-2 text-xs text-gray-700 flex-1">{column.label}</span>
-                            </label>
-                          ))}
-                        </div>
-                        <div className="p-2 border-t border-gray-200">
-                          <button
-                            onClick={() => {
-                              // Сбрасываем видимые колонки к значениям по умолчанию
-                              setVisibleColumns(new Set(DEFAULT_VISIBLE_COLUMNS));
-                              // Сбрасываем порядок колонок к значениям по умолчанию
-                              setColumnOrder(DEFAULT_VISIBLE_COLUMNS);
-                              // Сохраняем в localStorage
-                              if (typeof window !== 'undefined') {
-                                localStorage.setItem('publicPurchasePlan_columnsVisibility', JSON.stringify(DEFAULT_VISIBLE_COLUMNS));
-                                localStorage.setItem('publicPurchasePlan_columnOrder', JSON.stringify(DEFAULT_VISIBLE_COLUMNS));
-                              }
-                              // Сбрасываем ширины колонок к значениям по умолчанию
-                              setColumnWidths(DEFAULT_COLUMN_WIDTHS);
-                              if (typeof window !== 'undefined') {
-                                localStorage.setItem('publicPurchasePlan_columnWidths', JSON.stringify(DEFAULT_COLUMN_WIDTHS));
-                              }
-                            }}
-                            className="w-full px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors"
-                          >
-                            По умолчанию
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    onClick={exportToPDF}
-                    className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-2"
-                    title="Экспорт в PDF"
-                  >
-                    <Download className="w-4 h-4" />
-                    Экспорт в PDF
-                  </button>
-                  <button
-                    onClick={handleExportToExcelWithFilters}
-                    className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Экспорт в Excel с фильтрами"
-                    disabled={!data || !data.content || data.content.length === 0}
-                  >
-                    <Download className="w-4 h-4" />
-                    Excel (с фильтрами)
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
           </div>
         </div>
 
         {/* Информация о количестве записей */}
         {data && (
-          <div className="px-3 py-2 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
+          <div className="px-3 py-1 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
             <div className="text-xs text-gray-700">
               Показано {allItems.length} из {data?.totalElements ?? initialTotalElementsRef.current ?? 0} записей
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  const emptyFilters = {
+                    company: '',
+                    cfo: '',
+                    purchaseSubject: '',
+                    currentContractEndDate: '',
+                    purchaseRequestId: '',
+                    budgetAmount: '',
+                    budgetAmountOperator: 'gte',
+                  };
+                  setFilters(emptyFilters);
+                  setLocalFilters({
+                    budgetAmount: '',
+                    budgetAmountOperator: 'gte',
+                  });
+                  setCfoFilter(new Set());
+                  setCompanyFilter(new Set());
+                  setPurchaserCompanyFilter(new Set(['Market']));
+                  setCategoryFilter(new Set());
+                  setPurchaserFilter(new Set());
+                  const resetStatusFilter = (uniqueValues.status || []).filter(s => s !== 'Исключена');
+                  setStatusFilter(new Set(resetStatusFilter));
+                  setSortField('requestDate');
+                  setSortDirection('asc');
+                  setFocusedField(null);
+                  setSelectedYear(allYears.length > 0 ? allYears[0] : null);
+                  setSelectedMonths(new Set());
+                  setSelectedMonthYear(null);
+                  setCurrentPage(0);
+                }}
+                className="px-3 py-1 text-xs font-medium bg-red-50 text-red-700 rounded-lg border border-red-300 hover:bg-red-100 hover:border-red-400 transition-colors"
+              >
+                Сбросить фильтры
+              </button>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-700 font-medium">Год:</span>
+                {allYears.map((year) => (
+                  <button
+                    key={year}
+                    onClick={() => setSelectedYear(year)}
+                    className={`px-2 py-1 text-xs rounded border transition-colors ${
+                      selectedYear === year
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {year}
+                  </button>
+                ))}
+              </div>
+
+              {/* Фильтр по компании */}
+              <div className="relative">
+                <button
+                  ref={companyFilterButtonRef}
+                  type="button"
+                  onClick={() => setIsCompanyFilterOpen(!isCompanyFilterOpen)}
+                  className="px-2 py-1 text-xs border border-gray-300 rounded-lg bg-white text-left focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center gap-1 hover:bg-gray-50 min-w-[140px]"
+                >
+                  <span className="text-gray-700 truncate flex-1 text-left">
+                    {companyFilter.size === 0
+                      ? 'Заказчик'
+                      : companyFilter.size === 1
+                      ? (Array.from(companyFilter)[0] || 'Заказчик')
+                      : `${companyFilter.size} выбрано`}
+                  </span>
+                  <svg className={`w-3 h-3 transition-transform flex-shrink-0 ${isCompanyFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {isCompanyFilterOpen && companyFilterPosition && (
+                  <div
+                    data-company-filter-menu="true"
+                    className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden"
+                    style={{
+                      top: `${companyFilterPosition.top}px`,
+                      left: `${companyFilterPosition.left}px`,
+                    }}
+                  >
+                    <div className="p-2 border-b border-gray-200">
+                      <div className="relative">
+                        <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
+                        <input
+                          type="text"
+                          value={companySearchQuery}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            setCompanySearchQuery(e.target.value);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          onFocus={(e) => e.stopPropagation()}
+                          className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          placeholder="Поиск..."
+                        />
+                      </div>
+                    </div>
+                    <div className="p-2 border-b border-gray-200 flex gap-2">
+                      <button
+                        onClick={() => handleCompanySelectAll()}
+                        className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                      >
+                        Все
+                      </button>
+                      <button
+                        onClick={() => handleCompanyDeselectAll()}
+                        className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                      >
+                        Снять
+                      </button>
+                    </div>
+                    <div className="max-h-48 overflow-y-auto">
+                      {getFilteredCompanyOptions.length === 0 ? (
+                        <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
+                      ) : (
+                        getFilteredCompanyOptions.map((company) => (
+                          <label
+                            key={company}
+                            className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={companyFilter.has(company)}
+                              onChange={() => handleCompanyToggle(company)}
+                              className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                            />
+                            <span className="ml-2 text-xs text-gray-700 flex-1">{company}</span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Настройки колонок */}
+              <div className="relative">
+                <button
+                  ref={columnsMenuButtonRef}
+                  type="button"
+                  onClick={() => setIsColumnsMenuOpen(!isColumnsMenuOpen)}
+                  className="px-2 py-1 text-xs rounded-lg bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-1"
+                >
+                  <Settings className="w-3 h-3" />
+                  Колонки
+                </button>
+
+                {isColumnsMenuOpen && columnsMenuPosition && (
+                  <div
+                    data-columns-menu="true"
+                    className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-96 overflow-hidden"
+                    style={{
+                      top: `${columnsMenuPosition.top}px`,
+                      left: `${columnsMenuPosition.left}px`,
+                    }}
+                  >
+                    <div className="p-2 border-b border-gray-200">
+                      <div className="text-sm font-medium text-gray-700">Выберите колонки</div>
+                    </div>
+                    <div className="max-h-80 overflow-y-auto">
+                      {ALL_COLUMNS.map((column) => (
+                        <label
+                          key={column.key}
+                          className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={visibleColumns.has(column.key)}
+                            onChange={() => toggleColumnVisibility(column.key)}
+                            className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                          />
+                          <span className="ml-2 text-xs text-gray-700 flex-1">{column.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <div className="p-2 border-t border-gray-200">
+                      <button
+                        onClick={() => {
+                          setVisibleColumns(new Set(DEFAULT_VISIBLE_COLUMNS));
+                          setColumnOrder(DEFAULT_VISIBLE_COLUMNS);
+                          if (typeof window !== 'undefined') {
+                            localStorage.setItem('publicPurchasePlan_columnsVisibility', JSON.stringify(DEFAULT_VISIBLE_COLUMNS));
+                            localStorage.setItem('publicPurchasePlan_columnOrder', JSON.stringify(DEFAULT_VISIBLE_COLUMNS));
+                          }
+                          setColumnWidths(DEFAULT_COLUMN_WIDTHS);
+                          if (typeof window !== 'undefined') {
+                            localStorage.setItem('publicPurchasePlan_columnWidths', JSON.stringify(DEFAULT_COLUMN_WIDTHS));
+                          }
+                        }}
+                        className="w-full px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors"
+                      >
+                        По умолчанию
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Экспорт в PDF */}
+              <button
+                onClick={exportToPDF}
+                className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-1"
+                title="Экспорт в PDF"
+              >
+                <Download className="w-3 h-3" />
+                PDF
+              </button>
+
+              {/* Экспорт в Excel */}
+              <button
+                onClick={handleExportToExcelWithFilters}
+                className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Экспорт в Excel с фильтрами"
+                disabled={!data || !data.content || data.content.length === 0}
+              >
+                <Download className="w-3 h-3" />
+                Excel
+              </button>
             </div>
           </div>
         )}
@@ -3115,7 +3110,7 @@ export default function PublicPurchasePlanTable() {
                       {columnOrder.filter(col => visibleColumns.has(col)).map((columnKey) => {
                         if (columnKey === 'id') {
                           return (
-                            <td key={columnKey} className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 text-center ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('id')}px`, minWidth: `${getColumnWidth('id')}px`, maxWidth: `${getColumnWidth('id')}px` }}>
+                            <td key={columnKey} className={`px-2 py-1 whitespace-nowrap text-xs border-r border-gray-200 text-center ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('id')}px`, minWidth: `${getColumnWidth('id')}px`, maxWidth: `${getColumnWidth('id')}px` }}>
                               {item.id}
                             </td>
                           );
@@ -3123,7 +3118,7 @@ export default function PublicPurchasePlanTable() {
                         if (columnKey === 'company') {
                           const companyLogo = getCompanyLogoPath(item.company);
                           return (
-                            <td key={columnKey} className={`px-2 py-2 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px`, fontSize: '16.8px' }}>
+                            <td key={columnKey} className={`px-2 py-1 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px`, fontSize: '16.8px' }}>
                               <div className="flex items-center gap-1.5">
                                 {companyLogo && (
                                   <img src={companyLogo} alt={item.company || ''} style={{ width: '22.4px', height: '22.4px' }} />
@@ -3142,7 +3137,7 @@ export default function PublicPurchasePlanTable() {
                         if (columnKey === 'purchaserCompany') {
                           const purchaserCompanyLogo = getCompanyLogoPath(item.purchaserCompany);
                           return (
-                            <td key={columnKey} className={`px-2 py-2 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('purchaserCompany')}px`, minWidth: `${getColumnWidth('purchaserCompany')}px`, maxWidth: `${getColumnWidth('purchaserCompany')}px`, fontSize: '16.8px' }}>
+                            <td key={columnKey} className={`px-2 py-1 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('purchaserCompany')}px`, minWidth: `${getColumnWidth('purchaserCompany')}px`, maxWidth: `${getColumnWidth('purchaserCompany')}px`, fontSize: '16.8px' }}>
                               <div className="flex items-center gap-1.5">
                                 {purchaserCompanyLogo && (
                                   <img src={purchaserCompanyLogo} alt={item.purchaserCompany || ''} style={{ width: '22.4px', height: '22.4px' }} />
@@ -3160,14 +3155,14 @@ export default function PublicPurchasePlanTable() {
                         }
                         if (columnKey === 'purchaseRequestId') {
                           return (
-                            <td key={columnKey} className={`px-2 py-2 text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('purchaseRequestId')}px`, minWidth: `${getColumnWidth('purchaseRequestId')}px`, maxWidth: `${getColumnWidth('purchaseRequestId')}px` }}>
+                            <td key={columnKey} className={`px-2 py-1 text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('purchaseRequestId')}px`, minWidth: `${getColumnWidth('purchaseRequestId')}px`, maxWidth: `${getColumnWidth('purchaseRequestId')}px` }}>
                               {item.purchaseRequestId || '-'}
                             </td>
                           );
                         }
                         if (columnKey === 'cfo') {
                           return (
-                            <td key={columnKey} className="px-2 py-2 text-xs border-r border-gray-200 relative" style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px` }}>
+                            <td key={columnKey} className="px-2 py-1 text-xs border-r border-gray-200 relative" style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px` }}>
                               <span className={`text-xs rounded px-2 py-0.5 font-medium block ${
                                 isInactive
                                   ? 'bg-gray-100 text-gray-500'
@@ -3180,35 +3175,35 @@ export default function PublicPurchasePlanTable() {
                         }
                         if (columnKey === 'purchaseSubject') {
                           return (
-                            <td key={columnKey} className={`px-2 py-2 text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('purchaseSubject')}px`, minWidth: `${getColumnWidth('purchaseSubject')}px`, maxWidth: `${getColumnWidth('purchaseSubject')}px` }}>
+                            <td key={columnKey} className={`px-2 py-1 text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('purchaseSubject')}px`, minWidth: `${getColumnWidth('purchaseSubject')}px`, maxWidth: `${getColumnWidth('purchaseSubject')}px` }}>
                               {item.purchaseSubject || '-'}
                             </td>
                           );
                         }
                         if (columnKey === 'budgetAmount') {
                           return (
-                            <td key={columnKey} className={`px-2 py-2 whitespace-nowrap text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px` }}>
+                            <td key={columnKey} className={`px-2 py-1 whitespace-nowrap text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px` }}>
                               {formatBudget(item.budgetAmount)}
                             </td>
                           );
                         }
                         if (columnKey === 'requestDate') {
                           return (
-                            <td key={columnKey} className={`px-2 py-2 text-xs border-l-2 border-r-2 ${isFirstRow ? 'border-t-2' : ''} border-red-500 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('requestDate')}px`, minWidth: `${getColumnWidth('requestDate')}px`, maxWidth: `${getColumnWidth('requestDate')}px` }}>
+                            <td key={columnKey} className={`px-2 py-1 text-xs border-l-2 border-r-2 ${isFirstRow ? 'border-t-2' : ''} border-red-500 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('requestDate')}px`, minWidth: `${getColumnWidth('requestDate')}px`, maxWidth: `${getColumnWidth('requestDate')}px` }}>
                               {formatDate(item.requestDate)}
                             </td>
                           );
                         }
                         if (columnKey === 'newContractDate') {
                           return (
-                            <td key={columnKey} className={`px-2 py-2 text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('newContractDate')}px`, minWidth: `${getColumnWidth('newContractDate')}px`, maxWidth: `${getColumnWidth('newContractDate')}px` }}>
+                            <td key={columnKey} className={`px-2 py-1 text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('newContractDate')}px`, minWidth: `${getColumnWidth('newContractDate')}px`, maxWidth: `${getColumnWidth('newContractDate')}px` }}>
                               {formatDate(item.newContractDate)}
                             </td>
                           );
                         }
                         if (columnKey === 'status') {
                           return (
-                            <td key={columnKey} className="px-2 py-2 text-xs border-r border-gray-200 relative" style={{ width: `${getColumnWidth('status')}px`, minWidth: `${getColumnWidth('status')}px`, maxWidth: `${getColumnWidth('status')}px`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <td key={columnKey} className="px-2 py-1 text-xs border-r border-gray-200 relative" style={{ width: `${getColumnWidth('status')}px`, minWidth: `${getColumnWidth('status')}px`, maxWidth: `${getColumnWidth('status')}px`, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {(() => {
                                 // Если есть purchaseRequestId, показываем статус заявки
                                 const hasPurchaseRequest = item.purchaseRequestId !== null;
@@ -3237,7 +3232,7 @@ export default function PublicPurchasePlanTable() {
                         }
                         if (columnKey === 'comment') {
                           return (
-                            <td key={columnKey} className={`px-2 py-2 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('comment')}px`, minWidth: `${getColumnWidth('comment')}px`, maxWidth: `${getColumnWidth('comment')}px` }}>
+                            <td key={columnKey} className={`px-2 py-1 text-xs border-r border-gray-200 relative ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('comment')}px`, minWidth: `${getColumnWidth('comment')}px`, maxWidth: `${getColumnWidth('comment')}px` }}>
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();

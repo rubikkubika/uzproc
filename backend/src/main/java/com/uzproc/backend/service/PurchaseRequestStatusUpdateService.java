@@ -45,16 +45,19 @@ public class PurchaseRequestStatusUpdateService {
     private final PurchaseRequestApprovalRepository approvalRepository;
     private final ContractRepository contractRepository;
     private final PurchaseRepository purchaseRepository;
+    private final PurchaseRequestStatusUpdater statusUpdater;
 
     public PurchaseRequestStatusUpdateService(
             PurchaseRequestRepository purchaseRequestRepository,
             PurchaseRequestApprovalRepository approvalRepository,
             ContractRepository contractRepository,
-            PurchaseRepository purchaseRepository) {
+            PurchaseRepository purchaseRepository,
+            PurchaseRequestStatusUpdater statusUpdater) {
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.approvalRepository = approvalRepository;
         this.contractRepository = contractRepository;
         this.purchaseRepository = purchaseRepository;
+        this.statusUpdater = statusUpdater;
     }
 
     /**
@@ -458,14 +461,14 @@ public class PurchaseRequestStatusUpdateService {
         
         // Обновляем статус только если он изменился
         if (newStatus != null && currentStatus != newStatus) {
-            purchaseRequest.setStatus(newStatus);
-            purchaseRequestRepository.save(purchaseRequest);
-            // Явно синхронизируем изменения с БД
-            entityManager.flush();
-            logger.info("Status updated for purchase request {}: {} -> {}", 
-                idPurchaseRequest, 
+            // Используем отдельный сервис для обновления в новой транзакции
+            int updated = statusUpdater.updateStatusInNewTransaction(idPurchaseRequest, newStatus);
+
+            logger.info("Status updated for purchase request {}: {} -> {} (SQL rows updated: {})",
+                idPurchaseRequest,
                 currentStatus != null ? currentStatus.getDisplayName() : "null",
-                newStatus.getDisplayName());
+                newStatus.getDisplayName(),
+                updated);
         } else if (newStatus == null) {
             logger.debug("No status change needed for request {} (no active approvals or not coordinated)", idPurchaseRequest);
         } else {
@@ -478,7 +481,7 @@ public class PurchaseRequestStatusUpdateService {
      * Используется после парсинга данных для обновления всех статусов
      * Каждая обработка записи выполняется в отдельной транзакции с явным flush для освобождения соединения
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public void updateAllStatuses() {
         logger.info("Starting mass status update for all purchase requests");
         long startTime = System.currentTimeMillis();
@@ -493,9 +496,9 @@ public class PurchaseRequestStatusUpdateService {
         for (PurchaseRequest request : allRequests) {
             try {
                 PurchaseRequestStatus oldStatus = request.getStatus();
-                // Каждый вызов updateStatus выполняется в отдельной транзакции
-                updateStatusInNewTransaction(request.getIdPurchaseRequest());
-                
+                // Обновляем статус
+                updateStatus(request.getIdPurchaseRequest());
+
                 // Проверяем, изменился ли статус
                 request = purchaseRequestRepository.findByIdPurchaseRequest(request.getIdPurchaseRequest())
                     .orElse(null);
@@ -504,7 +507,7 @@ public class PurchaseRequestStatusUpdateService {
                 }
             } catch (Exception e) {
                 errorCount++;
-                logger.error("Error updating status for purchase request {}: {}", 
+                logger.error("Error updating status for purchase request {}: {}",
                     request.getIdPurchaseRequest(), e.getMessage(), e);
             }
         }
