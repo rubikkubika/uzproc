@@ -1,8 +1,8 @@
 package com.uzproc.backend.service.user;
 
-import com.uzproc.backend.entity.User;
-import com.uzproc.backend.entity.UserRole;
-import com.uzproc.backend.repository.UserRepository;
+import com.uzproc.backend.entity.user.User;
+import com.uzproc.backend.entity.user.UserRole;
+import com.uzproc.backend.repository.user.UserRepository;
 import jakarta.persistence.criteria.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

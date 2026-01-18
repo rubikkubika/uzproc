@@ -1,16 +1,16 @@
 package com.uzproc.backend.service.purchaserequest;
 
-import com.uzproc.backend.entity.Contract;
-import com.uzproc.backend.entity.ContractStatus;
-import com.uzproc.backend.entity.Purchase;
-import com.uzproc.backend.entity.PurchaseRequest;
-import com.uzproc.backend.entity.PurchaseRequestApproval;
-import com.uzproc.backend.entity.PurchaseRequestStatus;
-import com.uzproc.backend.entity.PurchaseStatus;
-import com.uzproc.backend.repository.ContractRepository;
-import com.uzproc.backend.repository.PurchaseRequestApprovalRepository;
-import com.uzproc.backend.repository.PurchaseRequestRepository;
-import com.uzproc.backend.repository.PurchaseRepository;
+import com.uzproc.backend.entity.contract.Contract;
+import com.uzproc.backend.entity.contract.ContractStatus;
+import com.uzproc.backend.entity.purchase.Purchase;
+import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
+import com.uzproc.backend.entity.purchaserequest.PurchaseRequestApproval;
+import com.uzproc.backend.entity.purchaserequest.PurchaseRequestStatus;
+import com.uzproc.backend.entity.purchase.PurchaseStatus;
+import com.uzproc.backend.repository.contract.ContractRepository;
+import com.uzproc.backend.repository.purchaserequest.PurchaseRequestApprovalRepository;
+import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
+import com.uzproc.backend.repository.purchase.PurchaseRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;

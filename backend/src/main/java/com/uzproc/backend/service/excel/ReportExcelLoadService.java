@@ -1,14 +1,14 @@
 package com.uzproc.backend.service.excel;
 
-import com.uzproc.backend.entity.Purchase;
-import com.uzproc.backend.entity.PurchaseRequest;
-import com.uzproc.backend.entity.PurchaseApproval;
-import com.uzproc.backend.entity.PurchaseRequestApproval;
-import com.uzproc.backend.repository.ContractRepository;
-import com.uzproc.backend.repository.PurchaseApprovalRepository;
-import com.uzproc.backend.repository.PurchaseRequestApprovalRepository;
-import com.uzproc.backend.repository.PurchaseRepository;
-import com.uzproc.backend.repository.PurchaseRequestRepository;
+import com.uzproc.backend.entity.purchase.Purchase;
+import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
+import com.uzproc.backend.entity.purchase.PurchaseApproval;
+import com.uzproc.backend.entity.purchaserequest.PurchaseRequestApproval;
+import com.uzproc.backend.repository.contract.ContractRepository;
+import com.uzproc.backend.repository.purchase.PurchaseApprovalRepository;
+import com.uzproc.backend.repository.purchaserequest.PurchaseRequestApprovalRepository;
+import com.uzproc.backend.repository.purchase.PurchaseRepository;
+import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestService;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestStatusUpdateService;
 import com.uzproc.backend.service.contract.ContractStatusUpdateService;

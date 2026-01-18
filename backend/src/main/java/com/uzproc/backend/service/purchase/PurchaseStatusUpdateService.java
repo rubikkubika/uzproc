@@ -1,10 +1,10 @@
 package com.uzproc.backend.service.purchase;
 
-import com.uzproc.backend.entity.Purchase;
-import com.uzproc.backend.entity.PurchaseApproval;
-import com.uzproc.backend.entity.PurchaseStatus;
-import com.uzproc.backend.repository.PurchaseApprovalRepository;
-import com.uzproc.backend.repository.PurchaseRepository;
+import com.uzproc.backend.entity.purchase.Purchase;
+import com.uzproc.backend.entity.purchase.PurchaseApproval;
+import com.uzproc.backend.entity.purchase.PurchaseStatus;
+import com.uzproc.backend.repository.purchase.PurchaseApprovalRepository;
+import com.uzproc.backend.repository.purchase.PurchaseRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;

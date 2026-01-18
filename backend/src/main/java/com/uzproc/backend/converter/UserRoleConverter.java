@@ -1,6 +1,6 @@
 package com.uzproc.backend.converter;
 
-import com.uzproc.backend.entity.UserRole;
+import com.uzproc.backend.entity.user.UserRole;
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
 

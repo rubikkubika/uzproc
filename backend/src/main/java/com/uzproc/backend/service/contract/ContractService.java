@@ -1,8 +1,8 @@
 package com.uzproc.backend.service.contract;
 
-import com.uzproc.backend.dto.ContractDto;
-import com.uzproc.backend.entity.Contract;
-import com.uzproc.backend.repository.ContractRepository;
+import com.uzproc.backend.dto.contract.ContractDto;
+import com.uzproc.backend.entity.contract.Contract;
+import com.uzproc.backend.repository.contract.ContractRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;

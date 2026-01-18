@@ -1,13 +1,13 @@
 package com.uzproc.backend.service.csifeedback;
 
-import com.uzproc.backend.dto.CsiFeedbackCreateDto;
-import com.uzproc.backend.dto.CsiFeedbackDto;
-import com.uzproc.backend.dto.PurchaseRequestInfoDto;
-import com.uzproc.backend.entity.CsiFeedback;
-import com.uzproc.backend.entity.CsiFeedbackInvitation;
-import com.uzproc.backend.entity.PurchaseRequest;
-import com.uzproc.backend.repository.CsiFeedbackRepository;
-import com.uzproc.backend.repository.PurchaseRequestRepository;
+import com.uzproc.backend.dto.csifeedback.CsiFeedbackCreateDto;
+import com.uzproc.backend.dto.csifeedback.CsiFeedbackDto;
+import com.uzproc.backend.dto.purchaserequest.PurchaseRequestInfoDto;
+import com.uzproc.backend.entity.csifeedback.CsiFeedback;
+import com.uzproc.backend.entity.csifeedback.CsiFeedbackInvitation;
+import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
+import com.uzproc.backend.repository.csifeedback.CsiFeedbackRepository;
+import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
 import jakarta.persistence.criteria.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
