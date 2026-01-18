@@ -1,4 +1,4 @@
-package com.uzproc.backend.service;
+package com.uzproc.backend.service.purchaserequest;
 
 import com.uzproc.backend.entity.PurchaseRequestStatus;
 import org.springframework.stereotype.Service;

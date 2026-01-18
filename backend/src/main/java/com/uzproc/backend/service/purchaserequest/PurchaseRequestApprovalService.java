@@ -1,4 +1,4 @@
-package com.uzproc.backend.service;
+package com.uzproc.backend.service.purchaserequest;
 
 import com.uzproc.backend.dto.PurchaseRequestApprovalDto;
 import com.uzproc.backend.entity.PurchaseRequestApproval;

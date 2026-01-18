@@ -1,6 +1,6 @@
 package com.uzproc.backend.controller;
 
-import com.uzproc.backend.service.EmailService;
+import com.uzproc.backend.service.email.EmailService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;

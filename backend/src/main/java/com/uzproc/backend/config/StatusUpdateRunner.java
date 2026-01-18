@@ -1,8 +1,8 @@
 package com.uzproc.backend.config;
 
-import com.uzproc.backend.service.ContractStatusUpdateService;
-import com.uzproc.backend.service.PurchaseRequestStatusUpdateService;
-import com.uzproc.backend.service.PurchaseStatusUpdateService;
+import com.uzproc.backend.service.contract.ContractStatusUpdateService;
+import com.uzproc.backend.service.purchaserequest.PurchaseRequestStatusUpdateService;
+import com.uzproc.backend.service.purchase.PurchaseStatusUpdateService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;

@@ -2,8 +2,8 @@ package com.uzproc.backend.controller;
 
 import com.uzproc.backend.dto.PurchaseRequestDto;
 import com.uzproc.backend.dto.PurchaserStatsDto;
-import com.uzproc.backend.service.PurchaseRequestService;
-import com.uzproc.backend.service.EntityExcelLoadService;
+import com.uzproc.backend.service.purchaserequest.PurchaseRequestService;
+import com.uzproc.backend.service.excel.EntityExcelLoadService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;

@@ -1,4 +1,4 @@
-package com.uzproc.backend.service;
+package com.uzproc.backend.service.csifeedback;
 
 import com.uzproc.backend.entity.CsiFeedbackInvitation;
 import com.uzproc.backend.entity.PurchaseRequest;

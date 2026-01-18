@@ -2,8 +2,8 @@ package com.uzproc.backend.controller;
 
 import com.uzproc.backend.dto.PurchaseRequestApprovalDto;
 import com.uzproc.backend.dto.PurchaseRequestDto;
-import com.uzproc.backend.service.PurchaseRequestApprovalService;
-import com.uzproc.backend.service.PurchaseRequestService;
+import com.uzproc.backend.service.purchaserequest.PurchaseRequestApprovalService;
+import com.uzproc.backend.service.purchaserequest.PurchaseRequestService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 

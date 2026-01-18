@@ -1,4 +1,4 @@
-package com.uzproc.backend.service;
+package com.uzproc.backend.service.user;
 
 import com.uzproc.backend.entity.User;
 import com.uzproc.backend.entity.UserRole;

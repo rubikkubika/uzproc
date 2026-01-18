@@ -1,4 +1,4 @@
-package com.uzproc.backend.service;
+package com.uzproc.backend.service.purchaseplan;
 
 import com.uzproc.backend.dto.PurchasePlanItemChangeDto;
 import com.uzproc.backend.entity.PurchasePlanItemChange;
