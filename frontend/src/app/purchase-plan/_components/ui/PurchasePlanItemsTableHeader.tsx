@@ -36,6 +36,7 @@ interface PurchasePlanItemsTableHeaderProps {
   setPurchaserFilter: (filter: Set<string>) => void;
   setCurrentPage: (page: number) => void;
   totalRecords: number;
+  allItemsCount: number;
   // Пропсы для сброса фильтров
   onResetFilters: () => void;
   // Пропсы для версий
@@ -75,6 +76,7 @@ export default function PurchasePlanItemsTableHeader({
   setPurchaserFilter,
   setCurrentPage,
   totalRecords,
+  allItemsCount,
   onResetFilters,
   selectedVersionId,
   onCloseVersion,
@@ -83,12 +85,9 @@ export default function PurchasePlanItemsTableHeader({
 }: PurchasePlanItemsTableHeaderProps) {
   return (
     <div className="px-3 py-2 border-b border-gray-200 flex-shrink-0">
-      {/* Сводная таблица по закупщикам и элементы управления */}
+      {/* Сводная таблица по закупщикам */}
       <div className="flex items-start w-full">
-        {/* Сводная таблица и элементы управления в одной строке */}
-        <div className="flex items-start">
-          {/* Сводная таблица */}
-          <div className="bg-white rounded shadow-sm border border-gray-200 overflow-hidden flex-shrink-0">
+        <div className="bg-white rounded shadow-sm border border-gray-200 overflow-hidden flex-shrink-0">
             <div className="overflow-x-auto">
               <table className="border-collapse table-auto">
                 <thead className="bg-gray-50">
@@ -238,144 +237,7 @@ export default function PurchasePlanItemsTableHeader({
               </table>
             </div>
           </div>
-            
-          {/* Элементы управления справа от сводной таблицы */}
-          <div className="flex items-start gap-2 flex-shrink-0 ml-2">
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-1">
-                <div className="relative">
-                  <button
-                    ref={columnsMenuButtonRef}
-                    onClick={onColumnsSettings}
-                    className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-2"
-                    title="Настройка колонок"
-                  >
-                    <Settings className="w-4 h-4" />
-                    Колонки
-                  </button>
-                </div>
-                <button
-                  onClick={onResetFilters}
-                  className="px-4 py-2 text-sm font-medium bg-red-50 text-red-700 rounded-lg border-2 border-red-300 hover:bg-red-100 hover:border-red-400 transition-colors shadow-sm"
-                >
-                  Сбросить фильтры
-                </button>
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="text-sm text-gray-700 font-medium">Год планирования:</span>
-                {allYears.map((year) => (
-                  <button
-                    key={year}
-                    onClick={() => setSelectedYear(year)}
-                    className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                      selectedYear === year
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    {year}
-                  </button>
-                ))}
-                <button
-                  onClick={() => setSelectedYear(null)}
-                  className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
-                    selectedYear === null
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  Все
-                </button>
-              </div>
-            </div>
-            <div className="flex items-center gap-1 flex-wrap">
-              {selectedVersionId && (
-                <div className={`px-3 py-1.5 text-xs rounded-lg border flex items-center gap-2 ${
-                  selectedVersionInfo?.isCurrent 
-                    ? 'bg-green-100 text-green-800 border-green-300' 
-                    : 'bg-yellow-100 text-yellow-800 border-yellow-300'
-                }`}>
-                  <span>
-                    {selectedVersionInfo?.isCurrent 
-                      ? 'Просмотр текущей редакции' 
-                      : `Просмотр редакции #${selectedVersionInfo?.versionNumber}`}
-                  </span>
-                  <button
-                    onClick={onCloseVersion}
-                    className={selectedVersionInfo?.isCurrent 
-                      ? 'text-green-800 hover:text-green-900' 
-                      : 'text-yellow-800 hover:text-yellow-900'}
-                    title="Вернуться к текущей версии"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
-              {canEdit && (
-                <button
-                  onClick={onCreateItem}
-                  className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Создать новую строку плана закупок"
-                  disabled={selectedVersionId !== null && !selectedVersionInfo?.isCurrent}
-                >
-                  <Plus className="w-4 h-4" />
-                  Создать строку
-                </button>
-              )}
-              {canEdit && (
-                <button
-                  onClick={onCreateVersion}
-                  className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Создать редакцию плана закупок"
-                  disabled={selectedVersionId !== null && !selectedVersionInfo?.isCurrent}
-                >
-                  <Plus className="w-4 h-4" />
-                  Создать редакцию
-                </button>
-              )}
-              <button
-                onClick={onViewVersions}
-                className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-2"
-                title="Просмотр редакций плана закупок"
-              >
-                <Settings className="w-4 h-4" />
-                Редакции
-              </button>
-              <button
-                onClick={onExportPDF}
-                className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-2"
-                title="Экспорт в PDF"
-              >
-                <Download className="w-4 h-4" />
-                Экспорт в PDF
-              </button>
-              <button
-                onClick={onExportExcel}
-                className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Экспорт в Excel с фильтрами"
-              >
-                <Download className="w-4 h-4" />
-                Excel (с фильтрами)
-              </button>
-              <button
-                onClick={onExportExcelAll}
-                className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Экспорт в Excel всех данных"
-              >
-                <Download className="w-4 h-4" />
-                Excel (все данные)
-              </button>
-            </div>
-          </div>
-          <div className="relative flex items-center">
-            <div className="absolute -top-6 left-0">
-              <p className="text-sm text-gray-500">
-                Всего записей: {totalRecords}
-              </p>
-            </div>
-          </div>
         </div>
-      </div>
     </div>
   );
 }

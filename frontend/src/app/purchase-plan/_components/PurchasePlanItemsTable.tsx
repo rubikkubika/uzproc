@@ -3,11 +3,13 @@
 import React, { useRef, useCallback, useEffect, useMemo } from 'react';
 import { useReactToPrint } from 'react-to-print';
 import * as XLSX from 'xlsx';
+import { Settings, Download, Plus, X } from 'lucide-react';
 import { usePurchasePlanItemsTable } from './hooks/usePurchasePlanItemsTable';
 import { getCompanyLogoPath, getPurchaseRequestStatusColor } from './utils/purchase-plan-items.utils';
 import { prepareExportData } from './utils/export.utils';
 import { getBackendUrl } from '@/utils/api';
 import { calculateNewContractDate } from './utils/date.utils';
+import { FILTERS_STORAGE_KEY } from './constants/purchase-plan-items.constants';
 
 // UI компоненты
 import PurchasePlanItemsTableHeader from './ui/PurchasePlanItemsTableHeader';
@@ -332,6 +334,11 @@ export default function PurchasePlanItemsTable() {
     table.setSelectedMonths(new Set());
     table.setSelectedMonthYear(null);
     table.setCurrentPage(0);
+    
+    // Очищаем сохранённые фильтры в localStorage
+    try {
+      localStorage.removeItem(FILTERS_STORAGE_KEY);
+    } catch { }
 
     // Устанавливаем просмотр текущей версии
     if (table.selectedYear) {
@@ -548,12 +555,142 @@ export default function PurchasePlanItemsTable() {
         setPurchaserFilter={table.filters.setPurchaserFilter}
         setCurrentPage={table.setCurrentPage}
         totalRecords={table.totalRecords}
+        allItemsCount={table.allItems.length}
         onResetFilters={handleResetFilters}
         selectedVersionId={table.versions.selectedVersionId}
         onCloseVersion={handleCloseVersion}
         canEdit={true} // TODO: получить из контекста или пропсов
         columnsMenuButtonRef={table.columns.columnsMenuButtonRef}
       />
+
+      {/* Блок с кнопками управления и информацией о записях */}
+      <div className="px-3 py-1 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={handleResetFilters}
+            className="px-3 py-1 text-xs font-medium bg-red-50 text-red-700 rounded-lg border border-red-300 hover:bg-red-100 hover:border-red-400 transition-colors"
+          >
+            Сбросить фильтры
+          </button>
+          <div className="relative">
+            <button
+              ref={table.columns.columnsMenuButtonRef}
+              onClick={handleColumnsSettings}
+              className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-1"
+              title="Настройка колонок"
+            >
+              <Settings className="w-3 h-3" />
+              Колонки
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-700 font-medium">Год:</span>
+            {table.allYears.map((year) => (
+              <button
+                key={year}
+                onClick={() => table.setSelectedYear(year)}
+                className={`px-2 py-1 text-xs rounded border transition-colors ${
+                  table.selectedYear === year
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                {year}
+              </button>
+            ))}
+            <button
+              onClick={() => table.setSelectedYear(null)}
+              className={`px-2 py-1 text-xs rounded border transition-colors ${
+                table.selectedYear === null
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              Все
+            </button>
+          </div>
+          {table.versions.selectedVersionId && (
+            <div className={`px-2 py-1 text-xs rounded border flex items-center gap-1 ${
+              table.versions.selectedVersionInfo?.isCurrent 
+                ? 'bg-green-100 text-green-800 border-green-300' 
+                : 'bg-yellow-100 text-yellow-800 border-yellow-300'
+            }`}>
+              <span>
+                {table.versions.selectedVersionInfo?.isCurrent 
+                  ? 'Просмотр текущей редакции' 
+                  : `Просмотр редакции #${table.versions.selectedVersionInfo?.versionNumber}`}
+              </span>
+              <button
+                onClick={handleCloseVersion}
+                className={table.versions.selectedVersionInfo?.isCurrent 
+                  ? 'text-green-800 hover:text-green-900' 
+                  : 'text-yellow-800 hover:text-yellow-900'}
+                title="Вернуться к текущей версии"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+          {true && (
+            <button
+              onClick={handleCreateItem}
+              className="px-2 py-1 text-xs bg-blue-600 text-white rounded border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Создать новую строку плана закупок"
+              disabled={table.versions.selectedVersionId !== null && !table.versions.selectedVersionInfo?.isCurrent}
+            >
+              <Plus className="w-3 h-3" />
+              Создать строку
+            </button>
+          )}
+          {true && (
+            <button
+              onClick={handleCreateVersion}
+              className="px-2 py-1 text-xs bg-blue-600 text-white rounded border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Создать редакцию плана закупок"
+              disabled={table.versions.selectedVersionId !== null && !table.versions.selectedVersionInfo?.isCurrent}
+            >
+              <Plus className="w-3 h-3" />
+              Создать редакцию
+            </button>
+          )}
+          <button
+            onClick={handleViewVersions}
+            className="px-2 py-1 text-xs bg-blue-600 text-white rounded border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-1"
+            title="Просмотр редакций плана закупок"
+          >
+            <Settings className="w-3 h-3" />
+            Редакции
+          </button>
+          <button
+            onClick={handleExportPDF}
+            className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-1"
+            title="Экспорт в PDF"
+          >
+            <Download className="w-3 h-3" />
+            PDF
+          </button>
+          <button
+            onClick={handleExportExcel}
+            className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Экспорт в Excel с фильтрами"
+          >
+            <Download className="w-3 h-3" />
+            Excel
+          </button>
+          <button
+            onClick={handleExportExcelAll}
+            className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Экспорт в Excel всех данных"
+          >
+            <Download className="w-3 h-3" />
+            Excel (все)
+          </button>
+        </div>
+        {/* Информация о количестве записей справа */}
+        <div className="text-xs text-gray-700 flex-shrink-0">
+          Показано {table.allItems.length} из {table.totalRecords} записей
+        </div>
+      </div>
 
       {/* Фильтры таблицы: выпадающие списки для множественного выбора */}
       <PurchasePlanItemsTableFilters filters={filtersData} />

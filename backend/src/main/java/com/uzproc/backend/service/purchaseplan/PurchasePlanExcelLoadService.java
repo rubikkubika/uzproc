@@ -2,11 +2,12 @@ package com.uzproc.backend.service.purchaseplan;
 
 import com.uzproc.backend.entity.Cfo;
 import com.uzproc.backend.entity.Company;
-import com.uzproc.backend.entity.PlanPurchaser;
+import com.uzproc.backend.entity.user.User;
 import com.uzproc.backend.entity.purchaseplan.PurchasePlanItem;
 import com.uzproc.backend.entity.purchaseplan.PurchasePlanItemStatus;
 import com.uzproc.backend.repository.CfoRepository;
 import com.uzproc.backend.repository.purchaseplan.PurchasePlanItemRepository;
+import com.uzproc.backend.repository.user.UserRepository;
 import com.uzproc.backend.service.excel.FileProcessingStatsService;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
@@ -72,6 +73,7 @@ public class PurchasePlanExcelLoadService {
 
     private final PurchasePlanItemRepository purchasePlanItemRepository;
     private final CfoRepository cfoRepository;
+    private final UserRepository userRepository;
     private final DataFormatter dataFormatter = new DataFormatter();
     private final FileProcessingStatsService statsService;
     
@@ -86,9 +88,11 @@ public class PurchasePlanExcelLoadService {
     public PurchasePlanExcelLoadService(
             PurchasePlanItemRepository purchasePlanItemRepository,
             CfoRepository cfoRepository,
+            UserRepository userRepository,
             FileProcessingStatsService statsService) {
         this.purchasePlanItemRepository = purchasePlanItemRepository;
         this.cfoRepository = cfoRepository;
+        this.userRepository = userRepository;
         this.statsService = statsService;
     }
 
@@ -568,23 +572,35 @@ public class PurchasePlanExcelLoadService {
                 String purchaserStr = getCellValueAsString(purchaserCell);
                 if (purchaserStr != null && !purchaserStr.trim().isEmpty()) {
                     String trimmedPurchaser = purchaserStr.trim();
-                    PlanPurchaser purchaser = PlanPurchaser.fromDisplayName(trimmedPurchaser);
-                    if (purchaser == null) {
-                        // Пробуем найти по имени enum (NASTYA, ABDULAZIZ, ELENA)
-                        try {
-                            String enumName = trimmedPurchaser.toUpperCase()
-                                .replace(" ", "_")
-                                .replace("НАСТЯ_АБДУЛАЗИЗ", "NASTYA")  // Старое значение -> Настя
-                                .replace("АБДУЛАЗИЗ", "ABDULAZIZ");
-                            purchaser = PlanPurchaser.valueOf(enumName);
-                        } catch (IllegalArgumentException e) {
-                            logger.warn("Cannot convert purchaser '{}' to enum, skipping", trimmedPurchaser);
+                    User purchaserUser = null;
+                    
+                    // Парсим строку "Фамилия Имя" или ищем по частичному совпадению
+                    String[] parts = trimmedPurchaser.split("\\s+");
+                    if (parts.length >= 2) {
+                        // Есть фамилия и имя - ищем точное совпадение
+                        purchaserUser = userRepository.findBySurnameAndName(parts[0], parts[1]).orElse(null);
+                    }
+                    if (purchaserUser == null) {
+                        // Ищем по частичному совпадению фамилии или имени
+                        List<User> users = userRepository.findAll().stream()
+                            .filter(u -> {
+                                String fullName = (u.getSurname() != null ? u.getSurname() : "") + " " + 
+                                                (u.getName() != null ? u.getName() : "");
+                                return fullName.toLowerCase().contains(trimmedPurchaser.toLowerCase()) ||
+                                       (u.getSurname() != null && u.getSurname().toLowerCase().contains(trimmedPurchaser.toLowerCase())) ||
+                                       (u.getName() != null && u.getName().toLowerCase().contains(trimmedPurchaser.toLowerCase()));
+                            })
+                            .limit(1)
+                            .toList();
+                        if (!users.isEmpty()) {
+                            purchaserUser = users.get(0);
                         }
                     }
-                    if (purchaser != null) {
-                        item.setPurchaser(purchaser);
+                    
+                    if (purchaserUser != null) {
+                        item.setPurchaser(purchaserUser);
                     } else {
-                        logger.debug("Purchaser '{}' not recognized, setting to null", trimmedPurchaser);
+                        logger.debug("Purchaser '{}' not found in users, setting to null", trimmedPurchaser);
                     }
                 }
             }

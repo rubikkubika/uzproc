@@ -9,6 +9,7 @@ import { usePurchasePlanItemsData } from './usePurchasePlanItemsData';
 import { usePurchasePlanItemsEditing } from './usePurchasePlanItemsEditing';
 import { usePurchasePlanItemsModals } from './usePurchasePlanItemsModals';
 import { usePurchasePlanItemsVersions } from './usePurchasePlanItemsVersions';
+import { useFocusRestoreAfterFetch } from '../../../purchase-requests/_components/hooks/useFocusRestoreAfterFetch';
 
 export const usePurchasePlanItemsTable = () => {
   const printRef = useRef<HTMLDivElement>(null);
@@ -291,6 +292,13 @@ export const usePurchasePlanItemsTable = () => {
       setLoadingMore(false);
     }
   }, [filtersHook, selectedMonthYear, pageSize]);
+
+  // Восстановление фокуса после загрузки данных
+  useFocusRestoreAfterFetch({
+    focusedField: filtersHook.focusedField,
+    loading,
+    data,
+  });
 
   // Загружаем данные для диаграммы
   useEffect(() => {

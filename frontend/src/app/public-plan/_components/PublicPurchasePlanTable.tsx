@@ -2143,9 +2143,6 @@ export default function PublicPurchasePlanTable() {
         {/* Информация о количестве записей */}
         {data && (
           <div className="px-3 py-1 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
-            <div className="text-xs text-gray-700">
-              Показано {allItems.length} из {data?.totalElements ?? initialTotalElementsRef.current ?? 0} записей
-            </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => {
@@ -2366,6 +2363,9 @@ export default function PublicPurchasePlanTable() {
                 <Download className="w-3 h-3" />
                 Excel
               </button>
+            </div>
+            <div className="text-xs text-gray-700">
+              Показано {allItems.length} из {data?.totalElements ?? initialTotalElementsRef.current ?? 0} записей
             </div>
           </div>
         )}

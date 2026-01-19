@@ -346,35 +346,15 @@ export const usePurchasePlanItemsFilters = (
     const textFields = ['id','purchaseSubject','currentContractEndDate','purchaseRequestId','budgetAmount'];
     const hasTextChanges = textFields.some(f => localFilters[f] !== filters[f]);
     if (hasTextChanges) {
-      const input = focusedField ? document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement : null;
-      const cursorPosition = input ? input.selectionStart || 0 : null;
-
       const timer = setTimeout(() => {
         setFilters(prev => { const updated = {...prev}; textFields.forEach(f => updated[f] = localFilters[f] || ''); return updated; });
         setCurrentPage(0);
-
-        if (focusedField && cursorPosition !== null) {
-          setTimeout(() => {
-            const inputAfter = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
-            if (inputAfter) { inputAfter.focus(); const pos = Math.min(cursorPosition, inputAfter.value.length); inputAfter.setSelectionRange(pos,pos); }
-          },0);
-        }
+        // Восстановление фокуса теперь обрабатывается хуком useFocusRestoreAfterFetch
       }, 500);
 
       return () => clearTimeout(timer);
     }
-  }, [localFilters, filters, setCurrentPage, focusedField]);
-
-  // Восстановление фокуса после загрузки данных
-  useEffect(() => {
-    if (focusedField) {
-      const timer = setTimeout(() => {
-        const input = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
-        if (input) { const val = localFilters[focusedField] || ''; if (input.value === val) { input.focus(); input.setSelectionRange(val.length,val.length); } }
-      },50);
-      return () => clearTimeout(timer);
-    }
-  }, [focusedField, localFilters]);
+  }, [localFilters, filters, setCurrentPage]);
 
   return {
     filters, setFilters, localFilters, setLocalFilters, focusedField, setFocusedField,

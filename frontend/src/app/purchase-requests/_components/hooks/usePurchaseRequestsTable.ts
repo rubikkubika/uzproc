@@ -6,16 +6,12 @@ import { TAB_STATUSES } from '../constants/status.constants';
 import { usePurchaseRequestFilters } from './usePurchaseRequestFilters';
 import { useTableColumns } from './useTableColumns';
 import { usePurchaseRequestsModals } from './usePurchaseRequestsModals';
+import { useFocusRestoreAfterFetch } from './useFocusRestoreAfterFetch';
 
 export function usePurchaseRequestsTable() {
   const router = useRouter();
 
-  // Используем существующие хуки
-  const filtersHook = usePurchaseRequestFilters();
-  const columnsHook = useTableColumns();
-  const modalsHook = usePurchaseRequestsModals();
-
-  // Состояние для данных
+  // Состояние для данных - создаём currentPage и setCurrentPage ПЕРВЫМИ
   const [data, setData] = useState<PageResponse | null>(null);
   const [allItems, setAllItems] = useState<PurchaseRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -23,6 +19,11 @@ export function usePurchaseRequestsTable() {
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [pageSize] = useState(100);
+
+  // Используем существующие хуки - передаём setCurrentPage для debounce
+  const filtersHook = usePurchaseRequestFilters(setCurrentPage);
+  const columnsHook = useTableColumns();
+  const modalsHook = usePurchaseRequestsModals();
   const [hasMore, setHasMore] = useState(true);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -32,7 +33,7 @@ export function usePurchaseRequestsTable() {
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [totalRecords, setTotalRecords] = useState<number>(0);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [summaryData, setSummaryData] = useState<PurchaseRequest[]>([]);
+  // summaryData теперь в хуке useSummary
 
   // Состояние для сортировки (по умолчанию сортировка по номеру по убыванию)
   const [sortField, setSortField] = useState<SortField>('idPurchaseRequest');
@@ -125,8 +126,8 @@ export function usePurchaseRequestsTable() {
       }
 
       // Фильтр по бюджету
-      const budgetOperator = filtersHook.localFilters.budgetAmountOperator || filters.budgetAmountOperator;
-      const budgetAmount = filtersHook.localFilters.budgetAmount || filters.budgetAmount;
+      const budgetOperator = filters.budgetAmountOperator;
+      const budgetAmount = filters.budgetAmount;
       if (budgetOperator && budgetOperator.trim() !== '' && budgetAmount && budgetAmount.trim() !== '') {
         const budgetValue = parseFloat(budgetAmount.replace(/\s/g, '').replace(/,/g, ''));
         if (!isNaN(budgetValue) && budgetValue >= 0) {
@@ -218,7 +219,14 @@ export function usePurchaseRequestsTable() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [filtersHook.activeTabRef, filtersHook.cfoFilter, filtersHook.purchaserFilter, filtersHook.statusFilter, filtersHook.localFilters]);
+  }, [filtersHook.activeTabRef, filtersHook.cfoFilter, filtersHook.purchaserFilter, filtersHook.statusFilter]);
+
+  // Восстановление фокуса после загрузки данных
+  useFocusRestoreAfterFetch({
+    focusedField: filtersHook.focusedField,
+    loading,
+    data,
+  });
 
   // Функция для обработки сортировки
   const handleSort = (field: SortField) => {
@@ -250,8 +258,6 @@ export function usePurchaseRequestsTable() {
     setTotalRecords,
     userRole,
     setUserRole,
-    summaryData,
-    setSummaryData,
     sortField,
     setSortField,
     sortDirection,

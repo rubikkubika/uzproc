@@ -54,7 +54,29 @@ export const usePurchasePlanItemsEditing = (
   const [editingPurchaseSubject, setEditingPurchaseSubject] = useState<number | null>(null);
   const purchaseSubjectInputRef = useRef<HTMLTextAreaElement | null>(null);
   const [editingPurchaser, setEditingPurchaser] = useState<number | null>(null);
-  const [availablePurchasers, setAvailablePurchasers] = useState<string[]>([]);
+  const [availablePurchasers, setAvailablePurchasers] = useState<Array<{ id: number; name: string }>>([]);
+  
+  // Загружаем список пользователей при монтировании компонента
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const response = await fetch(`${getBackendUrl()}/api/users?page=0&size=1000`);
+        if (response.ok) {
+          const data = await response.json();
+          const users = data.content.map((user: any) => ({
+            id: user.id,
+            name: user.surname && user.name 
+              ? `${user.surname} ${user.name}` 
+              : user.username || 'Пользователь'
+          }));
+          setAvailablePurchasers(users);
+        }
+      } catch (error) {
+        console.error('Ошибка загрузки пользователей:', error);
+      }
+    };
+    loadUsers();
+  }, []);
 
   // Автоматически открываем календарь при появлении input
   useEffect(() => {
@@ -548,14 +570,14 @@ export const usePurchasePlanItemsEditing = (
   };
 
   // Функция для обновления закупщика
-  const handlePurchaserUpdate = async (itemId: number, newPurchaser: string | null) => {
+  const handlePurchaserUpdate = async (itemId: number, newPurchaserId: number | null) => {
     try {
       const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/purchaser`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ purchaser: newPurchaser || null }),
+        body: JSON.stringify({ purchaser: newPurchaserId || null }),
       });
 
       if (response.ok) {
@@ -685,6 +707,8 @@ export const usePurchasePlanItemsEditing = (
                   ...item, 
                   purchaseRequestId: updatedItem.purchaseRequestId, 
                   purchaseRequestStatus: purchaseRequestStatus,
+                  purchaser: updatedItem.purchaser, // Обновляем закупщика из ответа бэкенда
+                  status: updatedItem.status, // Обновляем статус позиции плана
                   updatedAt: updatedItem.updatedAt 
                 }
               : item
@@ -693,6 +717,21 @@ export const usePurchasePlanItemsEditing = (
             setData({ ...data, content: updated });
           }
           return updated;
+        });
+        
+        // Обновляем сводную таблицу (summaryData) с новым закупщиком
+        setSummaryData(prev => {
+          return prev.map(item => 
+            item.id === itemId 
+              ? { 
+                  ...item, 
+                  purchaseRequestId: updatedItem.purchaseRequestId, 
+                  purchaser: updatedItem.purchaser, 
+                  status: updatedItem.status,
+                  updatedAt: updatedItem.updatedAt 
+                }
+              : item
+          );
         });
       } else {
         const errorText = await response.text();
