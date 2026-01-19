@@ -13,20 +13,56 @@ import type { Contract, PurchaseRequest, PageResponse, SortField, SortDirection,
 import { ALL_COLUMNS, DEFAULT_VISIBLE_COLUMNS, COLUMNS_VISIBILITY_STORAGE_KEY } from '../constants/columns.constants';
 import { ALL_STATUSES, DEFAULT_STATUSES, TAB_STATUSES, CACHE_KEY, CACHE_TTL } from '../constants/status.constants';
 import { getCurrencyIcon } from '../utils/currency.utils';
+import { usePurchaseRequestFilters } from '../hooks/usePurchaseRequestFilters';
 
 export default function PurchaseRequestsTable() {
   const router = useRouter();
+
+  // Используем хук для фильтров и вкладок
+  const {
+    activeTab,
+    setActiveTab,
+    activeTabRef,
+    tabCounts,
+    setTabCounts,
+    filters,
+    setFilters,
+    localFilters,
+    setLocalFilters,
+    cfoFilter,
+    setCfoFilter,
+    statusFilter,
+    setStatusFilter,
+    purchaserFilter,
+    setPurchaserFilter,
+    isCfoFilterOpen,
+    setIsCfoFilterOpen,
+    isStatusFilterOpen,
+    setIsStatusFilterOpen,
+    isPurchaserFilterOpen,
+    setIsPurchaserFilterOpen,
+    cfoSearchQuery,
+    setCfoSearchQuery,
+    statusSearchQuery,
+    setStatusSearchQuery,
+    purchaserSearchQuery,
+    setPurchaserSearchQuery,
+    focusedField,
+    setFocusedField,
+    forceReload,
+    setForceReload,
+  } = usePurchaseRequestFilters();
+
   const [data, setData] = useState<PageResponse | null>(null);
-  const [allItems, setAllItems] = useState<PurchaseRequest[]>([]); // Все загруженные элементы
+  const [allItems, setAllItems] = useState<PurchaseRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false); // Загрузка следующей страницы
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
-  const [pageSize] = useState(100); // Фиксированный размер страницы
-  const [hasMore, setHasMore] = useState(true); // Есть ли еще данные для загрузки
-  const loadMoreRef = useRef<HTMLDivElement>(null); // Ref для отслеживания прокрутки
-  const activeTabRef = useRef<TabType>('in-work'); // Ref для отслеживания активной вкладки во время запроса
-  const abortControllerRef = useRef<AbortController | null>(null); // Ref для отмены предыдущих запросов
+  const [pageSize] = useState(100);
+  const [hasMore, setHasMore] = useState(true);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [totalRecords, setTotalRecords] = useState<number>(0);
@@ -56,56 +92,8 @@ export default function PurchaseRequestsTable() {
   const [sortField, setSortField] = useState<SortField>('idPurchaseRequest');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   
-  // Состояние для фильтров
-  const [filters, setFilters] = useState<Record<string, string>>({
-    idPurchaseRequest: '',
-    cfo: '',
-    purchaseRequestInitiator: '',
-    purchaser: '',
-    name: '',
-    budgetAmount: '',
-    budgetAmountOperator: 'gte', // По умолчанию "больше равно"
-    costType: '',
-    contractType: '',
-    contractDurationMonths: '',
-    isPlanned: '',
-    requiresPurchase: '',
-    status: '',
-  });
-
-  // Состояние для множественных фильтров (чекбоксы)
-  const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
-  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set()); // По умолчанию пустой, как для ЦФО
-  const [purchaserFilter, setPurchaserFilter] = useState<Set<string>>(new Set());
-
-  // Состояние для вкладок
-  const [activeTab, setActiveTab] = useState<TabType>('in-work'); // По умолчанию "В работе"
-  
-  // Синхронизируем ref с состоянием activeTab
-  useEffect(() => {
-    activeTabRef.current = activeTab;
-  }, [activeTab]);
-  
-  // Состояние для количества записей по каждой вкладке
-  const [tabCounts, setTabCounts] = useState<Record<TabType, number | null>>({
-    'all': null,
-    'in-work': null,
-    'completed': null,
-    'project-rejected': null,
-    'hidden': null,
-  });
 
 
-  // Состояние для открытия/закрытия выпадающих списков
-  const [isCfoFilterOpen, setIsCfoFilterOpen] = useState(false);
-  const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
-  const [isPurchaserFilterOpen, setIsPurchaserFilterOpen] = useState(false);
-  
-  // Поиск внутри фильтров
-  const [cfoSearchQuery, setCfoSearchQuery] = useState('');
-  const [statusSearchQuery, setStatusSearchQuery] = useState('');
-  const [purchaserSearchQuery, setPurchaserSearchQuery] = useState('');
-  
   // Состояние для модального окна оценки
   const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
   const [selectedRequestForRating, setSelectedRequestForRating] = useState<PurchaseRequest | null>(null);
@@ -349,10 +337,8 @@ ${fullUrl}
   
   // Флаг для отслеживания восстановления года из navigationData (используем состояние для реактивности)
   const [yearRestored, setYearRestored] = useState(false);
-  
-  // Флаг для принудительной перезагрузки данных (например, при сбросе фильтров)
-  const [forceReload, setForceReload] = useState(0);
-  
+
+
   // Ref для хранения функции fetchTabCounts, чтобы избежать бесконечных циклов
   const fetchTabCountsRef = useRef<(() => Promise<void>) | undefined>(undefined);
   
@@ -408,23 +394,6 @@ ${fullUrl}
     }
   }, [isPurchaserFilterOpen, calculateFilterPosition]);
 
-  // Локальное состояние для текстовых фильтров (для сохранения фокуса)
-  const [localFilters, setLocalFilters] = useState<Record<string, string>>({
-    idPurchaseRequest: '',
-    cfo: '',
-    purchaseRequestInitiator: '',
-    name: '',
-    budgetAmount: '',
-    costType: '',
-    contractType: '',
-    contractDurationMonths: '',
-    isPlanned: '',
-    requiresPurchase: '',
-    status: '',
-  });
-
-  // ID активного поля для восстановления фокуса
-  const [focusedField, setFocusedField] = useState<string | null>(null);
   
   // Функция для загрузки количества записей по всем вкладкам с бэкенда
   const fetchTabCounts = useCallback(async () => {
