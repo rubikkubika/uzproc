@@ -15,9 +15,16 @@ import PurchaseRequestsTableColumnsHeader from './ui/PurchaseRequestsTableColumn
 import PurchaseRequestsTableBody from './ui/PurchaseRequestsTableBody';
 import type { Contract, PurchaseRequest, PageResponse, SortField, SortDirection, TabType } from './types/purchase-request.types';
 import { ALL_COLUMNS, DEFAULT_VISIBLE_COLUMNS, COLUMNS_VISIBILITY_STORAGE_KEY } from './constants/columns.constants';
-import { ALL_STATUSES, DEFAULT_STATUSES, TAB_STATUSES, CACHE_KEY, CACHE_TTL } from './constants/status.constants';
+import { ALL_STATUSES, DEFAULT_STATUSES, TAB_STATUSES } from './constants/status.constants';
 import { getCurrencyIcon } from './utils/currency.utils';
+import { normalizePurchaserName } from './utils/normalizePurchaser';
 import { usePurchaseRequestsTable } from './hooks/usePurchaseRequestsTable';
+import { useUserRole } from './hooks/useUserRole';
+import { useRatingModal } from './hooks/useRatingModal';
+import { useLocalStorageSync } from './hooks/useLocalStorageSync';
+import { useMetadata } from './hooks/useMetadata';
+import { useSummary } from './hooks/useSummary';
+import { useInfiniteScroll } from './hooks/useInfiniteScroll';
 
 export default function PurchaseRequestsTable() {
   // Используем главный композиционный хук
@@ -36,7 +43,6 @@ export default function PurchaseRequestsTable() {
     selectedYear, setSelectedYear,
     totalRecords, setTotalRecords,
     userRole, setUserRole,
-    summaryData, setSummaryData,
     sortField, setSortField,
     sortDirection, setSortDirection,
     currentYear,
@@ -103,226 +109,33 @@ export default function PurchaseRequestsTable() {
     loadingFeedbackDetails, setLoadingFeedbackDetails,
   } = modalsHook;
 
-  // Загружаем роль пользователя при монтировании
-  useEffect(() => {
-    const checkUserRole = async () => {
-      try {
-        const response = await fetch('/api/auth/check');
-        const data = await response.json();
-        if (data.authenticated && data.role) {
-          setUserRole(data.role);
-        }
-      } catch (error) {
-        console.error('Error checking user role:', error);
-      }
-    };
-    checkUserRole();
-  }, []);
-
-  // Проверка, может ли пользователь изменять видимость заявки (только admin)
-  const canEditExcludeFromInWork = userRole === 'admin';
+  // Используем хук для работы с ролью пользователя
+  const { userRole: userRoleFromHook, setUserRole: setUserRoleFromHook, canEditExcludeFromInWork } = useUserRole();
   
-  // Загрузка предложений пользователей для поиска
+  // Синхронизируем с состоянием из usePurchaseRequestsTable
   useEffect(() => {
-    if (!isRatingModalOpen) return;
-    
-    const loadUserSuggestions = async () => {
-      if (!userSearchQuery || userSearchQuery.trim().length < 1) {
-        setUserSuggestions([]);
-        setShowUserSuggestions(false);
-        return;
-      }
-
-      try {
-        const searchQuery = userSearchQuery.trim().toLowerCase();
-        
-        // Делаем несколько запросов параллельно для поиска по разным полям
-        const [nameResponse, surnameResponse, usernameResponse, emailResponse] = await Promise.all([
-          fetch(`${getBackendUrl()}/api/users?page=0&size=20&name=${encodeURIComponent(searchQuery)}`),
-          fetch(`${getBackendUrl()}/api/users?page=0&size=20&surname=${encodeURIComponent(searchQuery)}`),
-          fetch(`${getBackendUrl()}/api/users?page=0&size=20&username=${encodeURIComponent(searchQuery)}`),
-          fetch(`${getBackendUrl()}/api/users?page=0&size=20&email=${encodeURIComponent(searchQuery)}`)
-        ]);
-
-        const allUsers = new Map<number, any>();
-        
-        // Собираем всех пользователей из всех запросов
-        const responses = [nameResponse, surnameResponse, usernameResponse, emailResponse];
-        for (const response of responses) {
-          if (response.ok) {
-            const data = await response.json();
-            const users = data.content || [];
-            users.forEach((user: any) => {
-              if (!allUsers.has(user.id)) {
-                allUsers.set(user.id, user);
-              }
-            });
-          }
-        }
-
-        // Формируем список предложений: "Фамилия Имя" или "username" или "email"
-        const suggestions = Array.from(allUsers.values()).map((user: any) => ({
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          surname: user.surname,
-          name: user.name,
-          displayName: user.surname && user.name 
-            ? `${user.surname} ${user.name}${user.email ? ` (${user.email})` : ''}`
-            : user.email 
-            ? `${user.email}${user.username ? ` (${user.username})` : ''}`
-            : user.username
-        }));
-
-        setUserSuggestions(suggestions);
-        setShowUserSuggestions(suggestions.length > 0);
-      } catch (error) {
-        console.error('Error loading user suggestions:', error);
-        setUserSuggestions([]);
-        setShowUserSuggestions(false);
-      }
-    };
-
-    const timer = setTimeout(() => {
-      loadUserSuggestions();
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [userSearchQuery, isRatingModalOpen]);
+    if (userRoleFromHook !== null && userRoleFromHook !== userRole) {
+      setUserRole(userRoleFromHook);
+    }
+  }, [userRoleFromHook, userRole, setUserRole]);
   
-  // Генерируем текст письма при изменении выбранного получателя или открытии модального окна
-  useEffect(() => {
-    if (isRatingModalOpen && selectedRequestForRating) {
-      // Генерируем текст письма с учетом выбранного получателя
-      generateEmailText(selectedUserEmail, selectedRequestForRating).catch(err => {
-        console.error('Error generating email text:', err);
-      });
-    }
-  }, [isRatingModalOpen, selectedRequestForRating, selectedUserEmail, selectedUser]);
-
-  // Устанавливаем инициатора заявки по умолчанию при открытии модального окна
-  useEffect(() => {
-    if (isRatingModalOpen && selectedRequestForRating?.purchaseRequestInitiator && !selectedUser) {
-      const loadInitiator = async () => {
-        try {
-          const initiatorName = selectedRequestForRating?.purchaseRequestInitiator?.trim();
-          if (!initiatorName) return;
-          
-          // Пробуем разные варианты поиска
-          const [nameResponse, surnameResponse, usernameResponse, emailResponse] = await Promise.all([
-            fetch(`${getBackendUrl()}/api/users?page=0&size=50&name=${encodeURIComponent(initiatorName)}`),
-            fetch(`${getBackendUrl()}/api/users?page=0&size=50&surname=${encodeURIComponent(initiatorName)}`),
-            fetch(`${getBackendUrl()}/api/users?page=0&size=50&username=${encodeURIComponent(initiatorName)}`),
-            fetch(`${getBackendUrl()}/api/users?page=0&size=50&email=${encodeURIComponent(initiatorName)}`)
-          ]);
-
-          const allUsers = new Map<number, any>();
-          const responses = [nameResponse, surnameResponse, usernameResponse, emailResponse];
-          for (const response of responses) {
-            if (response.ok) {
-              const data = await response.json();
-              const users = data.content || [];
-              users.forEach((user: any) => {
-                if (!allUsers.has(user.id)) {
-                  allUsers.set(user.id, user);
-                }
-              });
-            }
-          }
-
-          // Ищем точное совпадение по разным вариантам
-          let initiator = Array.from(allUsers.values()).find((u: any) => {
-            const fullName = u.surname && u.name ? `${u.surname} ${u.name}`.trim() : null;
-            const reverseName = u.name && u.surname ? `${u.name} ${u.surname}`.trim() : null;
-            
-            return u.username === initiatorName ||
-                   u.email === initiatorName ||
-                   fullName === initiatorName ||
-                   reverseName === initiatorName ||
-                   (u.surname && u.surname.trim() === initiatorName) ||
-                   (u.name && u.name.trim() === initiatorName);
-          });
-          
-          // Если точного совпадения нет, берем первое из найденных (если есть)
-          if (!initiator && allUsers.size > 0) {
-            initiator = Array.from(allUsers.values())[0];
-          }
-          
-          if (initiator) {
-            const user = {
-              id: initiator.id,
-              username: initiator.username,
-              email: initiator.email,
-              surname: initiator.surname,
-              name: initiator.name
-            };
-            setSelectedUser(user);
-            const displayName = user.surname && user.name 
-              ? `${user.surname} ${user.name}${user.email ? ` (${user.email})` : ''}`
-              : user.email || user.username;
-            setUserSearchQuery(displayName);
-            setSelectedUserEmail(initiator.email || initiator.username);
-            // Генерируем текст письма (приглашение создастся автоматически)
-            generateEmailText(initiator.email || initiator.username, selectedRequestForRating).catch(err => {
-              console.error('Error generating email text:', err);
-            });
-          } else {
-            // Если инициатор не найден, все равно устанавливаем его имя в поле поиска
-            setUserSearchQuery(initiatorName);
-          }
-        } catch (error) {
-          console.error('Error loading initiator:', error);
-          // В случае ошибки все равно устанавливаем имя инициатора в поле поиска
-          if (selectedRequestForRating?.purchaseRequestInitiator) {
-            setUserSearchQuery(selectedRequestForRating.purchaseRequestInitiator);
-          }
-        }
-      };
-      loadInitiator();
-    }
-  }, [isRatingModalOpen, selectedRequestForRating, selectedUser]);
-  
-  // Закрытие выпадающего списка при клике вне его
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (userSearchRef.current && !userSearchRef.current.contains(event.target as Node)) {
-        setShowUserSuggestions(false);
-      }
-    };
-
-    if (showUserSuggestions) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }
-  }, [showUserSuggestions]);
-  
-  // Функция генерации текста письма
-  const generateEmailText = async (userEmail: string, request: PurchaseRequest | null) => {
-    if (!request || !request.csiLink) {
-      setEmailText('');
-      return;
-    }
-
-    // Используем полный URL, который приходит с бэкенда (уже учитывает окружение)
-    const fullUrl = request.csiLink;
-
-    // Получаем имя получателя из selectedUser
-    const recipientName = selectedUser && selectedUser.name ? selectedUser.name : '';
-
-    const text = `Здравствуйте${recipientName ? ' ' + recipientName : ''}!
-
-Вы инициировали заявку на закупку № ${request.idPurchaseRequest || ''} на ${request.name || ''}. Мы хотим улучшить сервис проведения закупок, пожалуйста пройдите опрос по ссылке:
-
-${fullUrl}
-
-(ссылка именная и работает один раз)
-
-Спасибо за ваше время!`;
-
-    setEmailText(text);
-  };
+  // Используем хук для работы с модалкой рейтинга
+  const { generateEmailText } = useRatingModal(
+    isRatingModalOpen,
+    selectedRequestForRating,
+    selectedUser,
+    selectedUserEmail,
+    userSearchQuery,
+    userSuggestions,
+    showUserSuggestions,
+    setUserSuggestions,
+    setShowUserSuggestions,
+    setSelectedUser,
+    setUserSearchQuery,
+    setSelectedUserEmail,
+    setEmailText,
+    userSearchRef
+  );
   
   // Позиции для выпадающих списков
   const [cfoFilterPosition, setCfoFilterPosition] = useState<{ top: number; left: number } | null>(null);
@@ -333,11 +146,32 @@ ${fullUrl}
   const statusFilterButtonRef = useRef<HTMLButtonElement>(null);
   const purchaserFilterButtonRef = useRef<HTMLButtonElement>(null);
   
-  // Флаг для отслеживания загрузки фильтров из localStorage
-  const filtersLoadedRef = useRef(false);
-  
-  // Флаг для отслеживания восстановления года из navigationData (используем состояние для реактивности)
-  const [yearRestored, setYearRestored] = useState(false);
+  // Используем хук для синхронизации с localStorage
+  const { filtersLoadedRef, yearRestored, setYearRestored } = useLocalStorageSync({
+    filtersFromHook,
+    localFilters,
+    cfoFilter,
+    statusFilter,
+    selectedYear,
+    sortField,
+    sortDirection,
+    currentPage,
+    cfoSearchQuery,
+    statusSearchQuery,
+    activeTab,
+    setFilters,
+    setLocalFilters,
+    setCfoFilter,
+    setStatusFilter,
+    setSelectedYear,
+    setSortField,
+    setSortDirection,
+    setCurrentPage,
+    setCfoSearchQuery,
+    setStatusSearchQuery,
+    setActiveTab,
+    filtersStateRef,
+  });
 
 
   // Ref для хранения функции fetchTabCounts, чтобы избежать бесконечных циклов
@@ -529,356 +363,7 @@ ${fullUrl}
   }, [activeTab]);
 
 
-  // Загружаем сохраненные фильтры из localStorage при монтировании и при возврате с детальной страницы
-  useEffect(() => {
-    try {
-      // Проверяем, есть ли данные навигации (возврат с детальной страницы)
-      const navigationDataStr = localStorage.getItem('purchaseRequestNavigation');
-      console.log('Checking navigation data on mount/update:', navigationDataStr);
-      let yearFromNavigation: number | null = null;
-      let hasNavigationData = false;
-      
-      if (navigationDataStr) {
-        try {
-          const navigationData = JSON.parse(navigationDataStr);
-          console.log('Parsed navigation data:', navigationData);
-          if (navigationData.selectedYear !== undefined && navigationData.selectedYear !== null) {
-            yearFromNavigation = navigationData.selectedYear;
-            hasNavigationData = true;
-            console.log('Found year in navigation data:', yearFromNavigation);
-            // НЕ удаляем navigationData здесь - удалим после применения года
-          } else {
-            console.log('No year in navigation data');
-          }
-        } catch (err) {
-          console.error('Error parsing navigation data:', err);
-        }
-      } else {
-        console.log('No navigation data found in localStorage');
-      }
-      
-      const saved = localStorage.getItem('purchaseRequestsTableFilters');
-      if (saved) {
-        const savedFilters = JSON.parse(saved);
-        
-        // Инициализируем дефолтные значения для всех полей фильтров
-        const defaultFilters: Record<string, string> = {
-          idPurchaseRequest: '',
-          cfo: '',
-          purchaseRequestInitiator: '',
-          purchaser: '',
-          name: '',
-          budgetAmount: '',
-          budgetAmountOperator: 'gte', // По умолчанию "больше равно"
-          costType: '',
-          contractType: '',
-          contractDurationMonths: '',
-          isPlanned: '',
-          requiresPurchase: '',
-          status: '',
-        };
-        
-        // Восстанавливаем текстовые фильтры, объединяя с дефолтными значениями
-        if (savedFilters.filters) {
-          const mergedFilters = { ...defaultFilters, ...savedFilters.filters };
-          setFilters(mergedFilters);
-          setLocalFilters(mergedFilters);
-        } else if (savedFilters.localFilters) {
-          // Если filters нет, но есть localFilters, используем их
-          const mergedFilters = { ...defaultFilters, ...savedFilters.localFilters };
-          setFilters(mergedFilters);
-          setLocalFilters(mergedFilters);
-        } else {
-          // Если ничего нет, используем дефолтные значения
-          setFilters(defaultFilters);
-          setLocalFilters(defaultFilters);
-        }
-        
-        // Восстанавливаем множественные фильтры (Set нужно преобразовать из массива)
-        if (savedFilters.cfoFilter && Array.isArray(savedFilters.cfoFilter)) {
-          setCfoFilter(new Set(savedFilters.cfoFilter));
-        }
-        if (savedFilters.statusFilter && Array.isArray(savedFilters.statusFilter) && savedFilters.statusFilter.length > 0) {
-          console.log('Loading statusFilter from localStorage:', savedFilters.statusFilter);
-          const loadedStatusFilter = new Set<string>(savedFilters.statusFilter || []);
-          setStatusFilter(loadedStatusFilter);
-        } else {
-          // Если статус фильтр не найден или пустой, оставляем пустым (по умолчанию)
-          setStatusFilter(new Set());
-        }
-        
-        // Восстанавливаем год:
-        // 1. Если есть данные навигации (возврат с детальной страницы) - используем год из навигации
-        // 2. Иначе - устанавливаем null (обновление страницы или переход из меню)
-        if (hasNavigationData && yearFromNavigation !== null) {
-          console.log('Restoring year from navigation data:', yearFromNavigation);
-          setYearRestored(true); // Помечаем, что год был восстановлен
-          // Устанавливаем год и ждем, чтобы useEffect с fetchData успел перезапуститься
-          setSelectedYear(yearFromNavigation);
-          // Удаляем navigationData после небольшой задержки, чтобы избежать повторных проверок
-          setTimeout(() => {
-            localStorage.removeItem('purchaseRequestNavigation');
-            console.log('Navigation data removed after year restoration in main useEffect');
-          }, 100);
-        } else {
-          console.log('No navigation data or year is null, setting year to null');
-          // При обновлении страницы или переходе из меню год всегда "Все"
-          // НО только если год еще не был восстановлен из navigationData
-          if (!yearRestored) {
-            setSelectedYear(null);
-          }
-          // Удаляем navigationData, если он есть, но год не был восстановлен
-          if (navigationDataStr && !yearRestored) {
-            localStorage.removeItem('purchaseRequestNavigation');
-            console.log('Navigation data removed (no year to restore)');
-          }
-        }
-        
-        // Восстанавливаем сортировку
-        if (savedFilters.sortField) {
-          setSortField(savedFilters.sortField);
-        }
-        if (savedFilters.sortDirection) {
-          setSortDirection(savedFilters.sortDirection);
-        }
-        
-        // Восстанавливаем пагинацию
-        if (savedFilters.currentPage !== undefined) {
-          setCurrentPage(savedFilters.currentPage);
-        }
-        // pageSize теперь константа, не восстанавливаем из localStorage
-        
-        // Восстанавливаем поисковые запросы в фильтрах
-        if (savedFilters.cfoSearchQuery !== undefined) {
-          setCfoSearchQuery(savedFilters.cfoSearchQuery);
-        }
-        if (savedFilters.statusSearchQuery !== undefined) {
-          setStatusSearchQuery(savedFilters.statusSearchQuery);
-        }
-        
-        // Восстанавливаем активную вкладку (если не сохранена, используем "В работе" по умолчанию)
-        if (savedFilters.activeTab !== undefined) {
-          setActiveTab(savedFilters.activeTab);
-        } else {
-          setActiveTab('in-work'); // По умолчанию "В работе"
-        }
-        
-        console.log('Filters loaded from localStorage:', {
-          filters: savedFilters.filters || savedFilters.localFilters,
-          requiresPurchase: savedFilters.filters?.requiresPurchase || savedFilters.localFilters?.requiresPurchase,
-        });
-      } else {
-        console.log('No saved filters found in localStorage');
-        // При первой загрузке устанавливаем значения по умолчанию для statusFilter
-        // По умолчанию фильтр пустой (как для ЦФО)
-        setStatusFilter(new Set());
-        // Если год не был восстановлен из navigationData, устанавливаем null
-        if (!yearRestored) {
-          setSelectedYear(null);
-        }
-      }
-      
-      // Помечаем, что загрузка завершена
-      filtersLoadedRef.current = true;
-    } catch (err) {
-      console.error('Error loading filters from localStorage:', err);
-      // При ошибке загрузки устанавливаем значения по умолчанию для statusFilter
-      if (statusFilter.size === 0) {
-        // По умолчанию фильтр пустой (как для ЦФО)
-        setStatusFilter(new Set());
-      }
-      filtersLoadedRef.current = true; // Помечаем как загруженное даже при ошибке
-    }
-  }, []); // Пустой массив зависимостей - выполняется только один раз при монтировании
-
-  // Отдельный useEffect для проверки navigationData при возврате с детальной страницы
-  // Это резервный механизм на случай, если основной useEffect не сработал
-  useEffect(() => {
-    // Используем небольшую задержку, чтобы основной useEffect успел выполниться первым
-    const timeoutId = setTimeout(() => {
-      // Проверяем только если год еще не был восстановлен
-      if (yearRestored) {
-        console.log('Year already restored, skipping backup check');
-        return;
-      }
-      
-      try {
-        const navigationDataStr = localStorage.getItem('purchaseRequestNavigation');
-        if (navigationDataStr) {
-          const navigationData = JSON.parse(navigationDataStr);
-          if (navigationData.selectedYear !== undefined && navigationData.selectedYear !== null) {
-            // Проверяем, отличается ли год от текущего
-            if (selectedYear !== navigationData.selectedYear) {
-              console.log('Year changed from navigation data (backup check):', navigationData.selectedYear, 'current:', selectedYear);
-              setSelectedYear(navigationData.selectedYear);
-              setYearRestored(true); // Помечаем, что год был восстановлен
-              // Удаляем navigationData после применения
-              localStorage.removeItem('purchaseRequestNavigation');
-              console.log('Navigation data removed after year restoration (backup check)');
-            }
-          }
-        }
-      } catch (err) {
-        console.error('Error checking navigation data:', err);
-      }
-    }, 200); // Небольшая задержка, чтобы основной useEffect успел выполниться
-
-    return () => clearTimeout(timeoutId);
-  }, []); // Пустой массив - выполняется только при монтировании
-
-  // Функция для сохранения всех фильтров в localStorage
-  const saveFiltersToLocalStorage = useCallback(() => {
-    // Не сохраняем, если фильтры еще не загружены из localStorage (чтобы не перезаписать при первой загрузке)
-    if (!filtersLoadedRef.current) {
-      console.log('Skipping save - filters not loaded yet');
-      return;
-    }
-    
-    try {
-      // Для select-типа фильтров (requiresPurchase, isPlanned) используем filters, для текстовых - localFilters
-      const mergedFilters = { ...filtersFromHook };
-      // Объединяем с localFilters для текстовых полей, но приоритет у filters для select-полей
-      Object.keys(localFilters).forEach(key => {
-        // Если в filters есть значение для select-поля, используем его, иначе localFilters
-        if (mergedFilters[key] === undefined || mergedFilters[key] === '') {
-          mergedFilters[key] = localFilters[key];
-        }
-      });
-      
-      const filtersToSave = {
-        filtersFromHook: mergedFilters, // Сохраняем объединенные фильтры
-        localFilters: localFilters, // Сохраняем также localFilters для текстовых полей с debounce
-        cfoFilter: Array.from(cfoFilter),
-        statusFilter: Array.from(statusFilter),
-        // selectedYear НЕ сохраняем - при переходе на страницу всегда "Все"
-        sortField,
-        sortDirection,
-        currentPage,
-        // pageSize теперь константа, не сохраняем
-        cfoSearchQuery, // Сохраняем поисковые запросы
-        statusSearchQuery,
-        activeTab,
-      };
-      localStorage.setItem('purchaseRequestsTableFilters', JSON.stringify(filtersToSave));
-      console.log('Filters saved to localStorage:', {
-        filtersCount: Object.keys(mergedFilters).length,
-        requiresPurchase: mergedFilters.requiresPurchase,
-        isPlanned: mergedFilters.isPlanned,
-        budgetAmount: mergedFilters.budgetAmount,
-        budgetAmountOperator: mergedFilters.budgetAmountOperator,
-        cfoFilterSize: cfoFilter.size,
-        statusFilterSize: statusFilter.size,
-        selectedYear,
-        currentPage
-      });
-    } catch (err) {
-      console.error('Error saving filters to localStorage:', err);
-    }
-  }, [filtersFromHook, localFilters, cfoFilter, statusFilter, selectedYear, sortField, sortDirection, currentPage, cfoSearchQuery, statusSearchQuery, activeTab]);
-
-  // Обновляем ref с актуальными значениями фильтров при каждом изменении
-  useEffect(() => {
-    // Объединяем filters и localFilters для сохранения актуальных значений
-    const mergedFilters = { ...filtersFromHook };
-    Object.keys(localFilters).forEach(key => {
-      // Если в filters есть значение для select-поля, используем его, иначе localFilters
-      if (mergedFilters[key] === undefined || mergedFilters[key] === '') {
-        mergedFilters[key] = localFilters[key];
-      }
-    });
-    
-    filtersStateRef.current = {
-      filtersFromHook: mergedFilters,
-      localFilters,
-      cfoFilter,
-      statusFilter,
-      selectedYear,
-      sortField,
-      sortDirection,
-      currentPage,
-      pageSize: 100, // Константа, но нужна для типа
-      cfoSearchQuery,
-      statusSearchQuery,
-      activeTab,
-    };
-  }, [filtersFromHook, localFilters, cfoFilter, statusFilter, selectedYear, sortField, sortDirection, currentPage, cfoSearchQuery, statusSearchQuery, activeTab]);
-
-  // Сохраняем фильтры в localStorage при их изменении (только после загрузки)
-  // selectedYear не сохраняется - при переходе на страницу всегда "Все"
-  useEffect(() => {
-    saveFiltersToLocalStorage();
-  }, [filtersFromHook, cfoFilter, statusFilter, sortField, sortDirection, currentPage, cfoSearchQuery, statusSearchQuery, activeTab, saveFiltersToLocalStorage]);
-
-  // Сохраняем localFilters с debounce для текстовых полей (чтобы сохранять промежуточные значения)
-  useEffect(() => {
-    if (!filtersLoadedRef.current) {
-      return;
-    }
-    
-    const timer = setTimeout(() => {
-      saveFiltersToLocalStorage();
-    }, 300); // Небольшая задержка для текстовых полей
-    
-    return () => clearTimeout(timer);
-  }, [localFilters, saveFiltersToLocalStorage]);
-
-  // Сохраняем фильтры при размонтировании компонента (перед переходом на другую страницу)
-  useEffect(() => {
-    return () => {
-      // Используем ref для получения актуальных значений
-      const state = filtersStateRef.current;
-      try {
-        const filtersToSave = {
-          filters: state.filtersFromHook,
-          localFilters: state.localFilters,
-          cfoFilter: Array.from(state.cfoFilter),
-          statusFilter: Array.from(state.statusFilter),
-          selectedYear: state.selectedYear,
-          sortField: state.sortField,
-          sortDirection: state.sortDirection,
-          currentPage: state.currentPage,
-          // pageSize теперь константа, не сохраняем
-          cfoSearchQuery: state.cfoSearchQuery,
-          statusSearchQuery: state.statusSearchQuery,
-        };
-        localStorage.setItem('purchaseRequestsTableFilters', JSON.stringify(filtersToSave));
-        console.log('Filters saved on unmount:', filtersToSave);
-      } catch (err) {
-        console.error('Error saving filters on unmount:', err);
-      }
-    };
-  }, []); // Пустой массив зависимостей - эффект создается один раз
-
-  // Сохраняем фильтры при уходе со страницы (beforeunload)
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      // Используем ref для получения актуальных значений
-      const state = filtersStateRef.current;
-      try {
-        const filtersToSave = {
-          filters: state.filtersFromHook,
-          localFilters: state.localFilters,
-          cfoFilter: Array.from(state.cfoFilter),
-          statusFilter: Array.from(state.statusFilter),
-          selectedYear: state.selectedYear,
-          sortField: state.sortField,
-          sortDirection: state.sortDirection,
-          currentPage: state.currentPage,
-          // pageSize теперь константа, не сохраняем
-          cfoSearchQuery: state.cfoSearchQuery,
-          statusSearchQuery: state.statusSearchQuery,
-        };
-        localStorage.setItem('purchaseRequestsTableFilters', JSON.stringify(filtersToSave));
-      } catch (err) {
-        console.error('Error saving filters on beforeunload:', err);
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, []); // Пустой массив зависимостей
+  // Логика восстановления и сохранения фильтров теперь в хуке useLocalStorageSync
 
 
 
@@ -976,43 +461,29 @@ ${fullUrl}
     forceReload, // Добавлен forceReload для принудительной перезагрузки при сбросе фильтров
   ]);
 
-  // Infinite scroll
-  useEffect(() => {
-    // Не запускаем бесконечную прокрутку, если нет данных или данные еще загружаются
-    if (!loadMoreRef.current || loading || loadingMore || !hasMore || allItems.length === 0) {
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        // Проверяем, что есть данные перед загрузкой следующей страницы
-        if (entries[0].isIntersecting && hasMore && !loadingMore && allItems.length > 0) {
-          const nextPage = currentPage + 1;
-          console.log('Loading next page:', nextPage, 'current items:', allItems.length);
-          // Объединяем filtersFromHook и localFilters
-          const mergedFilters = { ...filtersFromHook, ...localFilters };
-          fetchData(
-            nextPage,
-            pageSize,
-            selectedYear,
-            sortField,
-            sortDirection,
-            mergedFilters,
-            true // append = true для добавления данных
-          );
-          setCurrentPage(nextPage);
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    observer.observe(loadMoreRef.current);
-
-    return () => {
-      observer.disconnect();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, hasMore, loading, loadingMore, selectedYear, sortField, sortDirection, filtersStr, pageSize, allItems.length]);
+  // Infinite scroll - используем хук
+  useInfiniteScroll(loadMoreRef, {
+    enabled: !loading && !loadingMore && hasMore && allItems.length > 0,
+    onLoadMore: useCallback(() => {
+      if (hasMore && !loadingMore && allItems.length > 0) {
+        const nextPage = currentPage + 1;
+        console.log('Loading next page:', nextPage, 'current items:', allItems.length);
+        // Объединяем filtersFromHook и localFilters
+        const mergedFilters = { ...filtersFromHook, ...localFilters };
+        fetchData(
+          nextPage,
+          pageSize,
+          selectedYear,
+          sortField,
+          sortDirection,
+          mergedFilters,
+          true // append = true для добавления данных
+        );
+        setCurrentPage(nextPage);
+      }
+    }, [hasMore, loadingMore, allItems.length, currentPage, filtersFromHook, localFilters, selectedYear, sortField, sortDirection, pageSize, fetchData, setCurrentPage]),
+    threshold: 0.1,
+  });
 
   // Отдельный useEffect для перезапуска fetchData после восстановления года из navigationData
   // Это нужно, чтобы убедиться, что данные загружаются с правильным годом
@@ -1097,15 +568,13 @@ ${fullUrl}
     return Array.from(years).sort((a, b) => b - a); // Сортируем по убыванию
   };
 
-  // Получаем все годы из всех данных (нужно загрузить все данные для этого)
-  const [allYears, setAllYears] = useState<number[]>([]);
-  
-  // Получение уникальных значений для фильтров (загружаем все данные для этого)
-  const [uniqueValues, setUniqueValues] = useState<Record<string, string[]>>({
-    cfo: [],
-    purchaseRequestInitiator: [],
-    purchaser: [],
-    status: [],
+  // Используем хуки для метаданных и summary
+  const { allYears, uniqueValues } = useMetadata();
+  const { summaryData, setSummaryData, purchaserSummary } = useSummary({
+    filtersFromHook,
+    localFilters,
+    cfoFilter,
+    filtersLoadedRef,
   });
   
   // Уникальные статусы из текущих данных (с учетом вкладки и фильтров)
@@ -1127,398 +596,140 @@ ${fullUrl}
     fetchTotalRecords();
   }, []);
 
+  // Логика метаданных теперь в хуке useMetadata
+
+  // Получаем уникальные статусы из данных на текущей вкладке БЕЗ учета фильтра по статусу
+  // Это гарантирует, что в фильтре показываются только те статусы, которые реально есть в данных текущей вкладки
   useEffect(() => {
-    // Загружаем все данные для получения списка годов и уникальных значений
-    // Используем кэширование, чтобы не загружать каждый раз при монтировании
-    const fetchMetadata = async () => {
-      try {
-        // Проверяем кэш
-        const cached = localStorage.getItem(CACHE_KEY);
-        if (cached) {
-          const { data, timestamp } = JSON.parse(cached);
-          const now = Date.now();
-          if (now - timestamp < CACHE_TTL) {
-            // Используем кэшированные данные, но проверяем наличие статусов
-            setAllYears(data.years);
-            // Если в кэше нет статусов, добавляем пустой массив (они загрузятся при следующем запросе)
-            const cachedUniqueValues = {
-              ...data.uniqueValues,
-              status: data.uniqueValues.status || []
-            };
-            setUniqueValues(cachedUniqueValues);
-            console.log('Loaded from cache - uniqueValues:', cachedUniqueValues);
-            // Проверяем, что в кэше есть статус "Утверждена"
-            if (cachedUniqueValues.status && !cachedUniqueValues.status.includes('Утверждена')) {
-              console.warn('WARNING: Cache does not contain "Утверждена" status, clearing cache and reloading');
-              localStorage.removeItem(CACHE_KEY);
-              // Продолжаем загрузку данных
-            } else if (!cachedUniqueValues.status || cachedUniqueValues.status.length === 0) {
-              console.log('Status values not in cache, will load from API');
-            } else {
-            return;
-            }
-          }
-        }
-
-        // Загружаем данные, если кэш отсутствует или устарел
-        // Увеличиваем размер запроса, чтобы получить все записи для сбора уникальных значений
-        const response = await fetch(`${getBackendUrl()}/api/purchase-requests?page=0&size=50000`);
-        if (response.ok) {
-          const result = await response.json();
-          const years = new Set<number>();
-          const values: Record<string, Set<string>> = {
-            cfo: new Set(),
-            purchaseRequestInitiator: new Set(),
-            costType: new Set(),
-            contractType: new Set(),
-            purchaser: new Set(),
-            status: new Set(),
-          };
-          
-          result.content.forEach((request: PurchaseRequest) => {
-            // Собираем годы
-            if (request.purchaseRequestCreationDate) {
-              const date = new Date(request.purchaseRequestCreationDate);
-              const year = date.getFullYear();
-              if (!isNaN(year)) {
-                years.add(year);
-              }
-            }
-            // Собираем уникальные значения
-            if (request.cfo) values.cfo.add(request.cfo);
-            if (request.purchaseRequestInitiator) values.purchaseRequestInitiator.add(request.purchaseRequestInitiator);
-            // Нормализуем имя закупщика для фильтров используя единую функцию
-            if (request.purchaser) {
-              const normalizedPurchaser = normalizePurchaserName(request.purchaser);
-              values.purchaser.add(normalizedPurchaser);
-            }
-            if (request.status) {
-              // Добавляем статус как строку, убираем пробелы
-              const statusStr = String(request.status).trim();
-              if (statusStr) {
-                values.status.add(statusStr);
-                // Логируем для отладки
-                if (statusStr === 'Утверждена') {
-                  console.log('Found status "Утверждена" in request:', request.id, request.idPurchaseRequest);
-                }
-              }
-            }
-          });
-          
-          // Дополнительная проверка статуса "Утверждена"
-          const hasApproved = Array.from(values.status).includes('Утверждена');
-          console.log('Status "Утверждена" found in unique values:', hasApproved);
-          console.log('All unique statuses before sorting:', Array.from(values.status));
-          
-          const yearsArray = Array.from(years).sort((a, b) => b - a);
-          const uniqueValuesData = {
-            cfo: Array.from(values.cfo).sort(),
-            purchaseRequestInitiator: Array.from(values.purchaseRequestInitiator).sort(),
-            purchaser: Array.from(values.purchaser).sort(),
-            status: Array.from(values.status).sort(),
-          };
-          
-          console.log('Loaded unique statuses from data:', uniqueValuesData.status);
-          console.log('Total requests processed:', result.content.length);
-          console.log('Status values found:', Array.from(values.status));
-          
-          // Проверяем, что статус "Утверждена" присутствует
-          if (!uniqueValuesData.status.includes('Утверждена')) {
-            console.warn('WARNING: Status "Утверждена" not found in unique values!');
-            console.warn('All statuses:', uniqueValuesData.status);
-            // Пересчитываем статусы для проверки
-            const statusCounts: Record<string, number> = {};
-            result.content.forEach((req: PurchaseRequest) => {
-              if (req.status) {
-                const statusStr = String(req.status).trim();
-                statusCounts[statusStr] = (statusCounts[statusStr] || 0) + 1;
-              }
-            });
-            console.warn('Status counts:', statusCounts);
-            
-            // Если статус "Утверждена" есть в данных, но не в уникальных значениях, добавляем его вручную
-            if (statusCounts['Утверждена'] && statusCounts['Утверждена'] > 0) {
-              console.warn('FIXING: Adding "Утверждена" to unique values manually');
-              uniqueValuesData.status.push('Утверждена');
-              uniqueValuesData.status.sort();
-              // Очищаем кэш, чтобы перезагрузить данные
-              localStorage.removeItem(CACHE_KEY);
-            }
-          }
-          
-          setAllYears(yearsArray);
-          setUniqueValues(uniqueValuesData);
-          
-          // Сохраняем в кэш
-          localStorage.setItem(CACHE_KEY, JSON.stringify({
-            data: {
-              years: yearsArray,
-              uniqueValues: uniqueValuesData,
-            },
-            timestamp: Date.now(),
-          }));
-        }
-      } catch (err) {
-        console.error('Error fetching metadata:', err);
-      }
-    };
-    fetchMetadata();
-  }, []);
-
-  // Получаем уникальные статусы из текущих данных таблицы (с учетом всех фильтров и вкладки)
-  // Это гарантирует, что в фильтре показываются только те статусы, которые реально есть в текущих данных
-  useEffect(() => {
-    if (!data || !data.content) {
-      setAvailableStatuses([]);
-      return;
-    }
-
-    // Извлекаем уникальные статусы из текущих данных таблицы
-    const statusSet = new Set<string>();
-    data.content.forEach((request: PurchaseRequest) => {
-      if (request.status) {
-        const statusStr = String(request.status).trim();
-        if (statusStr) {
-          statusSet.add(statusStr);
-        }
-      }
-    });
-    
-    const statusesArray = Array.from(statusSet).sort();
-    setAvailableStatuses(statusesArray);
-  }, [data]); // Обновляем статусы при изменении данных
-
-  // Загружаем данные для сводной таблицы (аналогично purchase-plan)
-  // Вспомогательная функция для нормализации имени закупщика
-  // Обрабатывает все виды пробелов, невидимые символы и множественные пробелы
-  // Также извлекает только имя (фамилию и имя) из строк вида "Isakova Anastasiia (Отдел закупок, Менеджер по закупкам)"
-  const normalizePurchaserName = (name: string | null | undefined): string => {
-    if (!name) {
-      return 'Не назначен';
-    }
-    
-    // Сначала нормализуем пробелы и невидимые символы
-    let normalized = name
-      .replace(/[\u00A0\u1680\u2000-\u200B\u202F\u205F\u3000\uFEFF]/g, ' ') // Заменяем все виды пробелов на обычные
-      .replace(/[\u200C\u200D]/g, '') // Убираем невидимые символы
-      .trim()
-      .replace(/\s+/g, ' '); // Заменяем множественные пробелы на одинарные
-    
-    // Извлекаем только имя (фамилию и имя) из строк вида "Isakova Anastasiia (Отдел закупок, Менеджер по закупкам)"
-    // Убираем часть в скобках, если она есть
-    const match = normalized.match(/^([^(]+?)(?:\s*\([^)]*\))?\s*$/);
-    if (match && match[1]) {
-      normalized = match[1].trim();
-    }
-    
-    // Финальная нормализация пробелов
-    normalized = normalized.replace(/\s+/g, ' ').trim();
-    
-    return normalized || 'Не назначен';
-  };
-
-  // ВАЖНО: НЕ включаем purchaserFilter, selectedYear и activeTab - сводная таблица всегда показывает:
-  // - всех закупщиков
-  // - все годы
-  // - только статусы "в работе"
-  useEffect(() => {
-    if (!filtersLoadedRef.current) {
-      return;
-    }
-
-    const fetchSummaryData = async () => {
+    const fetchAvailableStatuses = async () => {
       try {
         const params = new URLSearchParams();
         params.append('page', '0');
-        params.append('size', '5000'); // Уменьшаем размер запроса для сводной таблицы
-        
-        // НЕ применяем фильтр по годам - сводная таблица должна показывать все годы
-        
+        params.append('size', '10000'); // Загружаем достаточно данных для получения всех статусов
+
+        // Учитываем год, если выбран
+        if (selectedYear !== null) {
+          params.append('year', String(selectedYear));
+        }
+
+        // Добавляем все фильтры, КРОМЕ фильтра по статусу
         if (filtersFromHook.idPurchaseRequest && filtersFromHook.idPurchaseRequest.trim() !== '') {
           const idValue = parseInt(filtersFromHook.idPurchaseRequest.trim(), 10);
           if (!isNaN(idValue)) {
             params.append('idPurchaseRequest', String(idValue));
           }
         }
-        
+
+        // Фильтр по ЦФО
         if (cfoFilter.size > 0) {
           cfoFilter.forEach(cfo => {
             params.append('cfo', cfo);
           });
         }
-        
-        // НЕ применяем purchaserFilter - сводная таблица должна показывать всех закупщиков
-        
+
+        // Фильтр по закупщику
+        if (purchaserFilter.size > 0) {
+          purchaserFilter.forEach(p => {
+            params.append('purchaser', p);
+          });
+        }
+
         if (filtersFromHook.name && filtersFromHook.name.trim() !== '') {
           params.append('name', filtersFromHook.name.trim());
         }
-        
+
+        // Фильтр по бюджету
         const budgetOperator = localFilters.budgetAmountOperator || filtersFromHook.budgetAmountOperator;
-        if (localFilters.budgetAmount && localFilters.budgetAmount.trim() !== '') {
-          const budgetValue = parseFloat(localFilters.budgetAmount.trim());
-          if (!isNaN(budgetValue)) {
+        const budgetAmount = localFilters.budgetAmount || filtersFromHook.budgetAmount;
+        if (budgetOperator && budgetOperator.trim() !== '' && budgetAmount && budgetAmount.trim() !== '') {
+          const budgetValue = parseFloat(budgetAmount.replace(/\s/g, '').replace(/,/g, ''));
+          if (!isNaN(budgetValue) && budgetValue >= 0) {
+            params.append('budgetAmountOperator', budgetOperator.trim());
             params.append('budgetAmount', String(budgetValue));
-            params.append('budgetAmountOperator', budgetOperator || 'gte');
           }
         }
-        
+
         if (filtersFromHook.costType && filtersFromHook.costType.trim() !== '') {
           params.append('costType', filtersFromHook.costType.trim());
         }
-        
+
         if (filtersFromHook.contractType && filtersFromHook.contractType.trim() !== '') {
           params.append('contractType', filtersFromHook.contractType.trim());
         }
-        
-        if (filtersFromHook.contractDurationMonths && filtersFromHook.contractDurationMonths.trim() !== '') {
-          const durationValue = parseInt(filtersFromHook.contractDurationMonths.trim(), 10);
-          if (!isNaN(durationValue)) {
-            params.append('contractDurationMonths', String(durationValue));
-          }
-        }
-        
-        if (filtersFromHook.isPlanned && filtersFromHook.isPlanned.trim() !== '') {
-          const isPlannedValue = filtersFromHook.isPlanned.trim();
-          if (isPlannedValue === 'Да') {
-            params.append('isPlanned', 'true');
-          } else if (isPlannedValue === 'Нет') {
-            params.append('isPlanned', 'false');
-          }
-        }
-        
+
         if (filtersFromHook.requiresPurchase && filtersFromHook.requiresPurchase.trim() !== '') {
           const requiresPurchaseValue = filtersFromHook.requiresPurchase.trim();
-          if (requiresPurchaseValue === 'Требуется') {
+          if (requiresPurchaseValue === 'Закупка') {
             params.append('requiresPurchase', 'true');
           } else if (requiresPurchaseValue === 'Заказ') {
             params.append('requiresPurchase', 'false');
           }
         }
 
-        // Применяем фильтр по статусам "в работе" для сводной таблицы
-        // Сводная таблица всегда показывает только заявки "в работе", независимо от активной вкладки
-        const inWorkStatuses = TAB_STATUSES['in-work'];
-        inWorkStatuses.forEach(status => {
-          params.append('status', status);
-        });
-        
+        // Учитываем текущую вкладку (но НЕ фильтр по статусу)
+        if (activeTab === 'hidden') {
+          params.append('excludeFromInWork', 'true');
+        } else {
+          // Для вкладок, кроме 'all', применяем фильтр по статусам вкладки
+          if (activeTab !== 'all') {
+            TAB_STATUSES[activeTab].forEach(status => {
+              params.append('status', status);
+            });
+          }
+
+          if (activeTab === 'in-work') {
+            params.append('excludeFromInWork', 'false');
+          }
+        }
+
         const fetchUrl = `${getBackendUrl()}/api/purchase-requests?${params.toString()}`;
-        console.log('Fetching summary data, URL:', fetchUrl);
-        console.log('Summary data params:', params.toString());
         const response = await fetch(fetchUrl);
+
         if (response.ok) {
           const result = await response.json();
-          console.log('Summary data received, total:', result.totalElements, 'content length:', result.content?.length);
-          // Нормализуем имена закупщиков сразу при получении данных с бэкенда
-          // Используем функцию normalizePurchaserName, которая определена выше
-          const normalizedContent = (result.content || []).map((item: any) => ({
-            ...item,
-            purchaser: item.purchaser ? normalizePurchaserName(item.purchaser) : null
-          }));
-          setSummaryData(normalizedContent);
+          const items = result.content || [];
+
+          // Извлекаем уникальные статусы из полученных данных
+          const statusSet = new Set<string>();
+          items.forEach((request: PurchaseRequest) => {
+            if (request.status) {
+              const statusStr = String(request.status).trim();
+              if (statusStr) {
+                statusSet.add(statusStr);
+              }
+            }
+          });
+
+          const statusesArray = Array.from(statusSet).sort();
+          setAvailableStatuses(statusesArray);
         } else {
-          // Если ошибка, логируем и используем пустой массив
-          const errorText = await response.text().catch(() => 'Unable to read error response');
-          console.error('Error fetching summary data:', response.status, response.statusText, errorText);
-          setSummaryData([]);
+          setAvailableStatuses([]);
         }
       } catch (err) {
-        console.error('Error fetching summary data:', err);
-        setSummaryData([]);
+        console.error('Error fetching available statuses:', err);
+        setAvailableStatuses([]);
       }
     };
-    
-    fetchSummaryData();
-  }, [filtersFromHook, cfoFilter, localFilters]); // НЕ включаем selectedYear и activeTab - сводная таблица всегда показывает все годы и только "в работе"
 
-  // Сводная статистика по закупщикам (использует summaryData, который не учитывает фильтр по закупщику)
-  const purchaserSummary = useMemo(() => {
-    if (!summaryData || summaryData.length === 0) {
-      return [];
-    }
+    fetchAvailableStatuses();
+  }, [
+    activeTab,
+    selectedYear,
+    filtersFromHook.idPurchaseRequest,
+    filtersFromHook.name,
+    filtersFromHook.costType,
+    filtersFromHook.contractType,
+    filtersFromHook.requiresPurchase,
+    localFilters.budgetAmount,
+    localFilters.budgetAmountOperator,
+    cfoFilterStr,
+    purchaserFilterStr,
+    // НЕ включаем statusFilterStr в зависимости, чтобы статусы обновлялись независимо от фильтра по статусу
+  ]);
 
-    const summaryMap = new Map<string, { 
-      ordersCount: number; 
-      purchasesCount: number; 
-      ordersBudget: number; 
-      purchasesBudget: number;
-    }>();
+  // Загружаем данные для сводной таблицы (аналогично purchase-plan)
 
-    summaryData.forEach((item) => {
-      // Исключаем неактуальные заявки из сводной таблицы
-      if (item.status === 'Неактуальна' || item.status === 'Не Актуальная') {
-        return;
-      }
-
-      // Нормализуем имя закупщика используя единую функцию
-      const originalPurchaser = item.purchaser;
-      const purchaser = normalizePurchaserName(item.purchaser);
-      
-      // Логируем, если оригинальное и нормализованное имя различаются
-      if (originalPurchaser && originalPurchaser !== purchaser) {
-        console.log('Нормализация закупщика:', { original: originalPurchaser, normalized: purchaser });
-      }
-      
-      const budget = item.budgetAmount || 0;
-      const isPurchase = item.requiresPurchase === true; // true = закупка, false/null = заказ
-
-      if (!summaryMap.has(purchaser)) {
-        summaryMap.set(purchaser, { 
-          ordersCount: 0, 
-          purchasesCount: 0, 
-          ordersBudget: 0, 
-          purchasesBudget: 0 
-        });
-      }
-
-      const stats = summaryMap.get(purchaser)!;
-      if (isPurchase) {
-        stats.purchasesCount++;
-        stats.purchasesBudget += budget;
-      } else {
-        stats.ordersCount++;
-        stats.ordersBudget += budget;
-      }
-    });
-
-    const result = Array.from(summaryMap.entries())
-      .map(([purchaser, stats]) => ({
-        purchaser,
-        ordersCount: stats.ordersCount,
-        purchasesCount: stats.purchasesCount,
-        ordersBudget: stats.ordersBudget,
-        purchasesBudget: stats.purchasesBudget,
-      }))
-      .sort((a, b) => (b.ordersBudget + b.purchasesBudget) - (a.ordersBudget + a.purchasesBudget)); // Сортировка по общей сумме бюджета по убыванию
-    
-    // Отладочное логирование для проверки дублирования
-    const purchaserNames = result.map(r => r.purchaser);
-    const duplicates = purchaserNames.filter((name, index) => purchaserNames.indexOf(name) !== index);
-    if (duplicates.length > 0) {
-      console.warn('Обнаружены дубликаты закупщиков в сводной таблице:', duplicates);
-      console.warn('Все имена закупщиков:', purchaserNames);
-    }
-    
-    // Дополнительная проверка: ищем похожие имена (с разницей только в пробелах)
-    const normalizedNames = purchaserNames.map(name => normalizePurchaserName(name));
-    const uniqueNormalized = new Set(normalizedNames);
-    if (normalizedNames.length !== uniqueNormalized.size) {
-      console.warn('Обнаружены похожие имена закупщиков (возможно, проблема с нормализацией):');
-      purchaserNames.forEach((name, index) => {
-        const normalized = normalizedNames[index];
-        if (name !== normalized) {
-          console.warn(`  "${name}" -> "${normalized}"`);
-        }
-      });
-    }
-    
-    // Логируем все имена закупщиков для отладки
-    console.log('Все закупщики в сводной таблице:', purchaserNames);
-    console.log('Количество уникальных закупщиков:', uniqueNormalized.size);
-    console.log('Общее количество записей:', purchaserNames.length);
-    
-    return result;
-  }, [summaryData]);
+  // Логика summary теперь в хуке useSummary
 
 
 

@@ -32,7 +32,7 @@ export function usePurchaseRequestsTable() {
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [totalRecords, setTotalRecords] = useState<number>(0);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [summaryData, setSummaryData] = useState<PurchaseRequest[]>([]);
+  // summaryData теперь в хуке useSummary
 
   // Состояние для сортировки (по умолчанию сортировка по номеру по убыванию)
   const [sortField, setSortField] = useState<SortField>('idPurchaseRequest');
@@ -250,8 +250,6 @@ export function usePurchaseRequestsTable() {
     setTotalRecords,
     userRole,
     setUserRole,
-    summaryData,
-    setSummaryData,
     sortField,
     setSortField,
     sortDirection,
