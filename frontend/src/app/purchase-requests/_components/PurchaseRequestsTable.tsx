@@ -94,24 +94,8 @@ export default function PurchaseRequestsTable() {
     'project-rejected': null,
     'hidden': null,
   });
-  
-  // Определяем статусы для каждой вкладки
-  const getStatusesForTab = (tab: TabType): string[] => {
-    switch (tab) {
-      case 'in-work':
-        return ['Заявка на согласовании', 'На согласовании', 'Заявка у закупщика', 'На утверждении', 'Спецификация создана', 'Спецификация на согласовании', 'Закупка создана', 'Договор создан', 'Заявка утверждена', 'Утверждена', 'Закупка завершена'];
-      case 'completed':
-        return ['Спецификация подписана', 'Договор подписан'];
-      case 'project-rejected':
-        return ['Проект', 'Заявка не согласована', 'Заявка не утверждена', 'Закупка не согласована', 'Спецификация создана - Архив'];
-      case 'hidden':
-        return []; // Для скрытых заявок не фильтруем по статусу, только по excludeFromInWork
-      case 'all':
-      default:
-        return ALL_STATUSES;
-    }
-  };
-  
+
+
   // Состояние для открытия/закрытия выпадающих списков
   const [isCfoFilterOpen, setIsCfoFilterOpen] = useState(false);
   const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
@@ -1357,8 +1341,8 @@ ${fullUrl}
         // Пользователь выбрал статусы в фильтре - используем их
         effectiveStatusFilter = statusFilter;
       } else if (currentTab !== 'all') {
-        // Фильтр пустой, но активна вкладка - используем статусы вкладки
-        effectiveStatusFilter = new Set(getStatusesForTab(currentTab));
+        // Фильтр пустой, но активна вкладка (не "Все" и не "Скрытые") - используем статусы вкладки
+        effectiveStatusFilter = new Set(TAB_STATUSES[currentTab]);
       } else {
         // Фильтр пустой и вкладка "Все" - не применяем фильтр по статусу
         effectiveStatusFilter = new Set();
@@ -2028,10 +2012,10 @@ ${fullUrl}
             params.append('requiresPurchase', 'false');
           }
         }
-        
+
         // Применяем фильтр по статусам "в работе" для сводной таблицы
         // Сводная таблица всегда показывает только заявки "в работе", независимо от активной вкладки
-        const inWorkStatuses = getStatusesForTab('in-work');
+        const inWorkStatuses = TAB_STATUSES['in-work'];
         inWorkStatuses.forEach(status => {
           params.append('status', status);
         });
