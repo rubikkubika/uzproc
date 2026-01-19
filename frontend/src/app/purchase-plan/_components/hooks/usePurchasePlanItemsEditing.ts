@@ -707,6 +707,8 @@ export const usePurchasePlanItemsEditing = (
                   ...item, 
                   purchaseRequestId: updatedItem.purchaseRequestId, 
                   purchaseRequestStatus: purchaseRequestStatus,
+                  purchaser: updatedItem.purchaser, // Обновляем закупщика из ответа бэкенда
+                  status: updatedItem.status, // Обновляем статус позиции плана
                   updatedAt: updatedItem.updatedAt 
                 }
               : item
@@ -715,6 +717,21 @@ export const usePurchasePlanItemsEditing = (
             setData({ ...data, content: updated });
           }
           return updated;
+        });
+        
+        // Обновляем сводную таблицу (summaryData) с новым закупщиком
+        setSummaryData(prev => {
+          return prev.map(item => 
+            item.id === itemId 
+              ? { 
+                  ...item, 
+                  purchaseRequestId: updatedItem.purchaseRequestId, 
+                  purchaser: updatedItem.purchaser, 
+                  status: updatedItem.status,
+                  updatedAt: updatedItem.updatedAt 
+                }
+              : item
+          );
         });
       } else {
         const errorText = await response.text();

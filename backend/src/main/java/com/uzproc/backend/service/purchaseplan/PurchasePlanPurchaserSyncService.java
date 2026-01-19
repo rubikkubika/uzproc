@@ -9,8 +9,10 @@ import com.uzproc.backend.repository.user.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -197,6 +199,123 @@ public class PurchasePlanPurchaserSyncService {
         }
 
         return false;
+    }
+
+    /**
+     * Синхронизирует закупщика для одной позиции плана в НОВОЙ транзакции.
+     * Используется из read-only транзакции для сохранения изменений в БД.
+     * 
+     * @param planItemId ID позиции плана
+     * @param purchaserFromRequestId ID закупщика из заявки
+     * @return true если закупщик был обновлен
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean syncPurchaserInNewTransaction(Long planItemId, Long purchaserFromRequestId) {
+        if (planItemId == null) {
+            return false;
+        }
+
+        Optional<PurchasePlanItem> planItemOpt = purchasePlanItemRepository.findById(planItemId);
+        if (planItemOpt.isEmpty()) {
+            return false;
+        }
+
+        PurchasePlanItem planItem = planItemOpt.get();
+        User currentPurchaser = planItem.getPurchaser();
+        Long currentPurchaserId = currentPurchaser != null ? currentPurchaser.getId() : null;
+
+        // Проверяем, нужно ли обновление
+        boolean needsUpdate = false;
+        if (purchaserFromRequestId == null && currentPurchaserId != null) {
+            needsUpdate = true;
+        } else if (purchaserFromRequestId != null && currentPurchaserId == null) {
+            needsUpdate = true;
+        } else if (purchaserFromRequestId != null && currentPurchaserId != null 
+                   && !purchaserFromRequestId.equals(currentPurchaserId)) {
+            needsUpdate = true;
+        }
+
+        if (!needsUpdate) {
+            return false;
+        }
+
+        // Получаем нового закупщика
+        User newPurchaser = purchaserFromRequestId != null 
+            ? userRepository.findById(purchaserFromRequestId).orElse(null) 
+            : null;
+
+        // Формируем имена для логирования
+        String oldPurchaserName = formatUserName(currentPurchaser);
+        String newPurchaserName = formatUserName(newPurchaser);
+
+        // Логируем изменение
+        purchasePlanItemChangeService.logChange(
+            planItem.getId(),
+            planItem.getGuid(),
+            "purchaser",
+            oldPurchaserName,
+            newPurchaserName
+        );
+
+        planItem.setPurchaser(newPurchaser);
+        purchasePlanItemRepository.save(planItem);
+        
+        logger.info("Auto-synced purchaser for plan item {} in new transaction: {} -> {} (from purchaseRequest {})",
+            planItem.getId(), oldPurchaserName, newPurchaserName, planItem.getPurchaseRequestId());
+        
+        return true;
+    }
+
+    /**
+     * Синхронизирует закупщиков для списка позиций плана.
+     * Каждая позиция обрабатывается в отдельной транзакции.
+     * 
+     * @param syncRequests список пар (planItemId, purchaserFromRequestId)
+     * @return количество обновленных позиций
+     */
+    public int syncPurchasersInBatch(List<PurchaserSyncRequest> syncRequests) {
+        if (syncRequests == null || syncRequests.isEmpty()) {
+            return 0;
+        }
+
+        int updatedCount = 0;
+        for (PurchaserSyncRequest request : syncRequests) {
+            try {
+                if (syncPurchaserInNewTransaction(request.getPlanItemId(), request.getPurchaserUserId())) {
+                    updatedCount++;
+                }
+            } catch (Exception e) {
+                logger.error("Error syncing purchaser for plan item {}: {}", 
+                    request.getPlanItemId(), e.getMessage());
+            }
+        }
+
+        if (updatedCount > 0) {
+            logger.info("Batch synced {} purchasers from {} requests", updatedCount, syncRequests.size());
+        }
+
+        return updatedCount;
+    }
+
+    /**
+     * Класс для запроса синхронизации закупщика.
+     */
+    public static class PurchaserSyncRequest {
+        private final Long planItemId;
+        private final Long purchaserUserId;
+
+        public PurchaserSyncRequest(Long planItemId, Long purchaserUserId) {
+            this.planItemId = planItemId;
+            this.purchaserUserId = purchaserUserId;
+        }
+
+        public Long getPlanItemId() {
+            return planItemId;
+        }
+
+        public Long getPurchaserUserId() {
+            return purchaserUserId;
+        }
     }
 
     /**
