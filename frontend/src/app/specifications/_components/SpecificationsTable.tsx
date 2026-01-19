@@ -81,7 +81,7 @@ export default function SpecificationsTable() {
         </div>
       </div>
       
-      <div className="overflow-x-auto relative">
+      <div className="overflow-x-auto relative custom-scrollbar">
         <table className="w-full border-collapse">
           <thead className="bg-gray-50">
             <tr>

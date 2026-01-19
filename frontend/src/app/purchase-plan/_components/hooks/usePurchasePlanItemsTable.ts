@@ -300,7 +300,9 @@ export const usePurchasePlanItemsTable = () => {
     data,
   });
 
-  // Загружаем данные для диаграммы
+  // Загружаем данные для столбчатой диаграммы (распределение по месяцам)
+  // ВАЖНО: Фильтр по месяцам (selectedMonths) НЕ применяется, чтобы показать все месяцы
+  // и пользователь мог видеть распределение даже при выборе конкретного месяца
   useEffect(() => {
     const fetchChartData = async () => {
       try {
@@ -309,12 +311,10 @@ export const usePurchasePlanItemsTable = () => {
         params.append('size', '10000');
         
         if (selectedYear !== null) {
-          const hasCurrentYearMonths = Array.from(selectedMonths).some(monthKey => monthKey >= 0 && monthKey <= 11 && monthKey !== -1 && monthKey !== -2);
-          if (selectedMonthYear === null || hasCurrentYearMonths) {
-            params.append('year', String(selectedYear));
-          }
+          params.append('year', String(selectedYear));
         }
         
+        // Фильтр по ЦФО
         if (filtersHook.cfoFilter.size > 0) {
           filtersHook.cfoFilter.forEach(cfo => {
             if (cfo === 'Не выбрано') {
@@ -324,6 +324,7 @@ export const usePurchasePlanItemsTable = () => {
             }
           });
         }
+        // Фильтр по компании заказчика
         if (filtersHook.companyFilter.size > 0) {
           filtersHook.companyFilter.forEach(company => {
             if (company === 'Не выбрано') {
@@ -333,6 +334,7 @@ export const usePurchasePlanItemsTable = () => {
             }
           });
         }
+        // Фильтр по компании закупщика
         if (filtersHook.purchaserCompanyFilter.size > 0) {
           filtersHook.purchaserCompanyFilter.forEach(purchaserCompany => {
             if (purchaserCompany === 'Не выбрано') {
@@ -342,9 +344,38 @@ export const usePurchasePlanItemsTable = () => {
             }
           });
         }
+        // Фильтр по ID
+        if (filtersHook.filters.id && filtersHook.filters.id.trim() !== '') {
+          params.append('id', filtersHook.filters.id.trim());
+        }
+        // Фильтр по предмету закупки
         if (filtersHook.filters.purchaseSubject && filtersHook.filters.purchaseSubject.trim() !== '') {
           params.append('purchaseSubject', filtersHook.filters.purchaseSubject.trim());
         }
+        // Фильтр по номеру заявки
+        if (filtersHook.filters.purchaseRequestId && filtersHook.filters.purchaseRequestId.trim() !== '') {
+          params.append('purchaseRequestId', filtersHook.filters.purchaseRequestId.trim());
+        }
+        // Фильтр по бюджету
+        const budgetOperator = filtersHook.filters.budgetAmountOperator;
+        const budgetAmount = filtersHook.filters.budgetAmount;
+        if (budgetOperator && budgetOperator.trim() !== '' && budgetAmount && budgetAmount.trim() !== '') {
+          const budgetValue = parseFloat(budgetAmount.replace(/\s/g, '').replace(/,/g, ''));
+          if (!isNaN(budgetValue) && budgetValue >= 0) {
+            params.append('budgetAmountOperator', budgetOperator.trim());
+            params.append('budgetAmount', String(budgetValue));
+          }
+        }
+        // Фильтр по дате окончания договора
+        if (filtersHook.filters.currentContractEndDate && filtersHook.filters.currentContractEndDate.trim() !== '') {
+          const dateValue = filtersHook.filters.currentContractEndDate.trim();
+          if (dateValue === '-') {
+            params.append('currentContractEndDate', 'null');
+          } else {
+            params.append('currentContractEndDate', dateValue);
+          }
+        }
+        // Фильтр по закупщику
         if (filtersHook.purchaserFilter.size > 0) {
           filtersHook.purchaserFilter.forEach(purchaser => {
             if (purchaser === 'Не назначен') {
@@ -354,11 +385,13 @@ export const usePurchasePlanItemsTable = () => {
             }
           });
         }
+        // Фильтр по категории
         if (filtersHook.categoryFilter.size > 0) {
           filtersHook.categoryFilter.forEach(category => {
             params.append('category', category);
           });
         }
+        // Фильтр по статусу
         if (filtersHook.statusFilter.size > 0) {
           filtersHook.statusFilter.forEach(status => {
             if (status === 'Пусто') {
@@ -368,6 +401,7 @@ export const usePurchasePlanItemsTable = () => {
             }
           });
         }
+        // ВАЖНО: Фильтр по месяцу НЕ применяется для диаграммы, чтобы показать все месяцы
         
         const fetchUrl = `${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`;
         const response = await fetch(fetchUrl);
@@ -381,9 +415,10 @@ export const usePurchasePlanItemsTable = () => {
     };
     
     fetchChartData();
-  }, [selectedYear, selectedMonthYear, filtersHook.filters, filtersHook.cfoFilter, filtersHook.companyFilter, filtersHook.purchaserCompanyFilter, filtersHook.purchaserFilter, filtersHook.categoryFilter, filtersHook.statusFilter, selectedMonths]);
+  }, [selectedYear, filtersHook.filters, filtersHook.cfoFilter, filtersHook.companyFilter, filtersHook.purchaserCompanyFilter, filtersHook.purchaserFilter, filtersHook.categoryFilter, filtersHook.statusFilter]);
 
-  // Загружаем данные для сводной таблицы
+  // Загружаем данные для сводной таблицы закупщиков
+  // ВАЖНО: Фильтр по закупщику (purchaserFilter) НЕ применяется, т.к. сводная таблица показывает статистику по ВСЕМ закупщикам
   useEffect(() => {
     const fetchSummaryData = async () => {
       try {
@@ -398,6 +433,7 @@ export const usePurchasePlanItemsTable = () => {
           }
         }
         
+        // Фильтр по ЦФО
         if (filtersHook.cfoFilter.size > 0) {
           filtersHook.cfoFilter.forEach(cfo => {
             if (cfo === 'Не выбрано') {
@@ -407,6 +443,7 @@ export const usePurchasePlanItemsTable = () => {
             }
           });
         }
+        // Фильтр по компании заказчика
         if (filtersHook.companyFilter.size > 0) {
           filtersHook.companyFilter.forEach(company => {
             if (company === 'Не выбрано') {
@@ -416,6 +453,7 @@ export const usePurchasePlanItemsTable = () => {
             }
           });
         }
+        // Фильтр по компании закупщика
         if (filtersHook.purchaserCompanyFilter.size > 0) {
           filtersHook.purchaserCompanyFilter.forEach(purchaserCompany => {
             if (purchaserCompany === 'Не выбрано') {
@@ -425,14 +463,45 @@ export const usePurchasePlanItemsTable = () => {
             }
           });
         }
+        // Фильтр по ID
+        if (filtersHook.filters.id && filtersHook.filters.id.trim() !== '') {
+          params.append('id', filtersHook.filters.id.trim());
+        }
+        // Фильтр по предмету закупки
         if (filtersHook.filters.purchaseSubject && filtersHook.filters.purchaseSubject.trim() !== '') {
           params.append('purchaseSubject', filtersHook.filters.purchaseSubject.trim());
         }
+        // Фильтр по номеру заявки
+        if (filtersHook.filters.purchaseRequestId && filtersHook.filters.purchaseRequestId.trim() !== '') {
+          params.append('purchaseRequestId', filtersHook.filters.purchaseRequestId.trim());
+        }
+        // Фильтр по бюджету
+        const budgetOperator = filtersHook.filters.budgetAmountOperator;
+        const budgetAmount = filtersHook.filters.budgetAmount;
+        if (budgetOperator && budgetOperator.trim() !== '' && budgetAmount && budgetAmount.trim() !== '') {
+          const budgetValue = parseFloat(budgetAmount.replace(/\s/g, '').replace(/,/g, ''));
+          if (!isNaN(budgetValue) && budgetValue >= 0) {
+            params.append('budgetAmountOperator', budgetOperator.trim());
+            params.append('budgetAmount', String(budgetValue));
+          }
+        }
+        // Фильтр по дате окончания договора
+        if (filtersHook.filters.currentContractEndDate && filtersHook.filters.currentContractEndDate.trim() !== '') {
+          const dateValue = filtersHook.filters.currentContractEndDate.trim();
+          if (dateValue === '-') {
+            params.append('currentContractEndDate', 'null');
+          } else {
+            params.append('currentContractEndDate', dateValue);
+          }
+        }
+        // НЕ применяем фильтр по закупщику (purchaserFilter) — сводная таблица показывает статистику по всем закупщикам
+        // Фильтр по категории
         if (filtersHook.categoryFilter.size > 0) {
           filtersHook.categoryFilter.forEach(category => {
             params.append('category', category);
           });
         }
+        // Фильтр по статусу
         if (filtersHook.statusFilter.size > 0) {
           filtersHook.statusFilter.forEach(status => {
             if (status === 'Пусто') {
@@ -442,6 +511,7 @@ export const usePurchasePlanItemsTable = () => {
             }
           });
         }
+        // Фильтр по месяцу
         if (selectedMonths.size > 0) {
           selectedMonths.forEach(monthKey => {
             if (monthKey === -1) {

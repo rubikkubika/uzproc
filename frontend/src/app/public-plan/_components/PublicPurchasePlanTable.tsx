@@ -2385,7 +2385,7 @@ export default function PublicPurchasePlanTable() {
             </div>
           </div>
         ) : (
-          <div ref={printRef} className="flex-1 min-h-0 overflow-auto print-container">
+          <div ref={printRef} className="flex-1 min-h-0 overflow-auto print-container custom-scrollbar">
             <table className="w-full border-collapse">
               <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>

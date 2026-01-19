@@ -493,7 +493,7 @@ export default function ContractsTable() {
       {loading ? (
         <div className="px-6 py-8 text-center text-gray-500">Загрузка...</div>
       ) : (
-      <div className="flex-1 overflow-auto relative">
+      <div className="flex-1 overflow-auto relative custom-scrollbar">
         <table className="w-full border-collapse">
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>

@@ -2215,7 +2215,7 @@ export default function PurchasesTable() {
         </div>
       </div>
       
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto custom-scrollbar">
         <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
