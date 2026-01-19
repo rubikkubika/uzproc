@@ -96,15 +96,16 @@ public class PurchasePlanItemService {
                 items.getContent().size(), page, size, items.getTotalElements());
         logger.info("=== END FILTER REQUEST ===\n");
         
-        // Собираем все purchaseRequestId для загрузки статусов заявок одним запросом
+        // Собираем все purchaseRequestId для загрузки статусов заявок и закупщиков одним запросом
         List<Long> purchaseRequestIds = items.getContent().stream()
                 .map(PurchasePlanItem::getPurchaseRequestId)
                 .filter(id -> id != null)
                 .distinct()
                 .collect(Collectors.toList());
         
-        // Загружаем статусы заявок одним запросом
+        // Загружаем статусы заявок и закупщиков одним запросом
         Map<Long, String> purchaseRequestStatusMap = new HashMap<>();
+        Map<Long, String> purchaseRequestPurchaserMap = new HashMap<>(); // purchaseRequestId -> purchaser name
         if (!purchaseRequestIds.isEmpty()) {
             // Используем Specification для загрузки заявок по idPurchaseRequest
             Specification<com.uzproc.backend.entity.purchaserequest.PurchaseRequest> prSpec = 
@@ -112,8 +113,14 @@ public class PurchasePlanItemService {
             List<com.uzproc.backend.entity.purchaserequest.PurchaseRequest> purchaseRequests = 
                     purchaseRequestRepository.findAll(prSpec);
             for (com.uzproc.backend.entity.purchaserequest.PurchaseRequest pr : purchaseRequests) {
-                if (pr.getStatus() != null && pr.getIdPurchaseRequest() != null) {
-                    purchaseRequestStatusMap.put(pr.getIdPurchaseRequest(), pr.getStatus().getDisplayName());
+                if (pr.getIdPurchaseRequest() != null) {
+                    if (pr.getStatus() != null) {
+                        purchaseRequestStatusMap.put(pr.getIdPurchaseRequest(), pr.getStatus().getDisplayName());
+                    }
+                    // Сохраняем закупщика из заявки для последующей синхронизации
+                    if (pr.getPurchaser() != null && !pr.getPurchaser().trim().isEmpty()) {
+                        purchaseRequestPurchaserMap.put(pr.getIdPurchaseRequest(), pr.getPurchaser().trim());
+                    }
                 }
             }
         }
@@ -166,15 +173,46 @@ public class PurchasePlanItemService {
             }
         }
         
-        // Устанавливаем загруженных пользователей в entity
+        // Устанавливаем загруженных пользователей в entity и подтягиваем закупщика из заявки
         final Map<Long, Long> finalItemPurchaserMap = itemPurchaserMap;
         final Map<Long, User> finalPurchaserMap = purchaserMap;
+        final Map<Long, String> finalPurchaseRequestPurchaserMap = purchaseRequestPurchaserMap;
+        
         items.getContent().forEach(item -> {
             Long purchaserId = finalItemPurchaserMap.get(item.getId());
             if (purchaserId != null) {
                 User purchaserUser = finalPurchaserMap.get(purchaserId);
                 if (purchaserUser != null) {
                     item.setPurchaser(purchaserUser);
+                }
+            }
+            
+            // Если есть связанная заявка и в заявке есть закупщик - подтягиваем его в DTO
+            // Это не обновляет базу данных, только отображает актуального закупщика из заявки
+            if (item.getPurchaseRequestId() != null) {
+                String purchaserFromRequest = finalPurchaseRequestPurchaserMap.get(item.getPurchaseRequestId());
+                if (purchaserFromRequest != null) {
+                    // Проверяем, нужно ли обновить закупщика в позиции плана
+                    User currentPurchaser = item.getPurchaser();
+                    String currentPurchaserName = currentPurchaser != null 
+                        ? (currentPurchaser.getSurname() != null && currentPurchaser.getName() != null 
+                            ? currentPurchaser.getSurname() + " " + currentPurchaser.getName() 
+                            : currentPurchaser.getUsername())
+                        : null;
+                    
+                    // Если закупщики отличаются - синхронизируем в фоне (асинхронно не нужно, просто обновим)
+                    if (currentPurchaserName == null || !purchaserFromRequest.equalsIgnoreCase(currentPurchaserName)) {
+                        // Ищем пользователя по имени закупщика из заявки
+                        User purchaserFromRequestUser = findUserByPurchaserName(purchaserFromRequest);
+                        if (purchaserFromRequestUser != null) {
+                            // Обновляем позицию плана с новым закупщиком
+                            // Логирование и сохранение в фоне без изменения текущей транзакции
+                            // Для read-only транзакции просто устанавливаем для отображения
+                            item.setPurchaser(purchaserFromRequestUser);
+                            logger.debug("Set purchaser from request for plan item {}: {} (from request {})",
+                                item.getId(), purchaserFromRequest, item.getPurchaseRequestId());
+                        }
+                    }
                 }
             }
         });
@@ -1545,6 +1583,48 @@ public class PurchasePlanItemService {
         Map<String, Object> result = new HashMap<>();
         result.put("monthCounts", monthCounts);
         return result;
+    }
+
+    /**
+     * Ищет пользователя по имени закупщика (строка "Фамилия Имя" или частичное совпадение).
+     * Используется для синхронизации закупщика из заявки в позицию плана.
+     */
+    private User findUserByPurchaserName(String purchaserName) {
+        if (purchaserName == null || purchaserName.trim().isEmpty()) {
+            return null;
+        }
+
+        String trimmedName = purchaserName.trim();
+        String[] parts = trimmedName.split("\\s+");
+
+        // Сначала пробуем найти по точному совпадению фамилии и имени
+        if (parts.length >= 2) {
+            java.util.Optional<User> userOpt = userRepository.findBySurnameAndName(parts[0], parts[1]);
+            if (userOpt.isPresent()) {
+                return userOpt.get();
+            }
+        }
+
+        // Если не нашли по точному совпадению, ищем по частичному совпадению
+        List<User> allUsers = userRepository.findAll();
+        for (User user : allUsers) {
+            String fullName = user.getSurname() != null && user.getName() != null
+                ? user.getSurname() + " " + user.getName()
+                : user.getUsername();
+            if (fullName != null && fullName.toLowerCase().contains(trimmedName.toLowerCase())) {
+                return user;
+            }
+            // Также проверяем по частичному совпадению фамилии или имени
+            if (user.getSurname() != null && user.getSurname().toLowerCase().contains(trimmedName.toLowerCase())) {
+                return user;
+            }
+            if (user.getName() != null && user.getName().toLowerCase().contains(trimmedName.toLowerCase())) {
+                return user;
+            }
+        }
+
+        logger.debug("User not found for purchaser name: {}", purchaserName);
+        return null;
     }
 }
 

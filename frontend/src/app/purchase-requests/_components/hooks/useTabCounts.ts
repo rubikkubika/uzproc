@@ -15,7 +15,6 @@ interface Filters {
 interface UseTabCountsOptions {
   selectedYear: number | null;
   filtersFromHook: Filters;
-  localFilters: Filters;
   cfoFilter: Set<string>;
   purchaserFilter: Set<string>;
   filtersLoadedRef: React.RefObject<boolean>;
@@ -26,7 +25,6 @@ interface UseTabCountsOptions {
 export function useTabCounts({
   selectedYear,
   filtersFromHook,
-  localFilters,
   cfoFilter,
   purchaserFilter,
   filtersLoadedRef,
@@ -62,9 +60,9 @@ export function useTabCounts({
       if (filtersFromHook.name && filtersFromHook.name.trim() !== '') {
         params.append('name', filtersFromHook.name.trim());
       }
-      const budgetOperator = localFilters.budgetAmountOperator || filtersFromHook.budgetAmountOperator;
-      const budgetAmount = localFilters.budgetAmount || filtersFromHook.budgetAmount;
-      if (budgetOperator && budgetOperator.trim() !== '' && budgetAmount && budgetAmount.trim() !== '') {
+      const budgetOperator = filtersFromHook.budgetAmountOperator || 'gte';
+      const budgetAmount = filtersFromHook.budgetAmount;
+      if (budgetAmount && budgetAmount.trim() !== '') {
         const budgetValue = parseFloat(budgetAmount.replace(/\s/g, '').replace(/,/g, ''));
         if (!isNaN(budgetValue) && budgetValue >= 0) {
           params.append('budgetAmountOperator', budgetOperator.trim());
@@ -120,7 +118,7 @@ export function useTabCounts({
     } catch (err) {
       console.error('Error fetching tab counts:', err);
     }
-  }, [selectedYear, filtersFromHook, cfoFilter, purchaserFilter, localFilters]);
+  }, [selectedYear, filtersFromHook, cfoFilter, purchaserFilter, setTabCounts]);
 
   // Загружаем количество для всех вкладок
   useEffect(() => {

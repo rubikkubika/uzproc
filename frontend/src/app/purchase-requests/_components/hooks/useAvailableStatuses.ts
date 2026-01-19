@@ -17,7 +17,6 @@ interface UseAvailableStatusesOptions {
   activeTab: TabType;
   selectedYear: number | null;
   filtersFromHook: Filters;
-  localFilters: Filters;
   cfoFilter: Set<string>;
   purchaserFilter: Set<string>;
 }
@@ -26,7 +25,6 @@ export function useAvailableStatuses({
   activeTab,
   selectedYear,
   filtersFromHook,
-  localFilters,
   cfoFilter,
   purchaserFilter,
 }: UseAvailableStatusesOptions): string[] {
@@ -70,10 +68,10 @@ export function useAvailableStatuses({
           params.append('name', filtersFromHook.name.trim());
         }
 
-        // Фильтр по бюджету
-        const budgetOperator = localFilters.budgetAmountOperator || filtersFromHook.budgetAmountOperator;
-        const budgetAmount = localFilters.budgetAmount || filtersFromHook.budgetAmount;
-        if (budgetOperator && budgetOperator.trim() !== '' && budgetAmount && budgetAmount.trim() !== '') {
+        // Фильтр по бюджету (используем только filtersFromHook, который обновляется после debounce)
+        const budgetOperator = filtersFromHook.budgetAmountOperator || 'gte';
+        const budgetAmount = filtersFromHook.budgetAmount;
+        if (budgetAmount && budgetAmount.trim() !== '') {
           const budgetValue = parseFloat(budgetAmount.replace(/\s/g, '').replace(/,/g, ''));
           if (!isNaN(budgetValue) && budgetValue >= 0) {
             params.append('budgetAmountOperator', budgetOperator.trim());
@@ -152,8 +150,8 @@ export function useAvailableStatuses({
     filtersFromHook.costType,
     filtersFromHook.contractType,
     filtersFromHook.requiresPurchase,
-    localFilters.budgetAmount,
-    localFilters.budgetAmountOperator,
+    filtersFromHook.budgetAmount,
+    filtersFromHook.budgetAmountOperator,
     // Преобразуем Set в строку для сравнения в зависимостях
     Array.from(cfoFilter).sort().join(','),
     Array.from(purchaserFilter).sort().join(','),

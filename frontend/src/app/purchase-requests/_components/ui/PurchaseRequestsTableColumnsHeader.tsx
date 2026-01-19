@@ -22,10 +22,11 @@ interface PurchaseRequestsTableColumnsHeaderProps {
   // Фильтры
   filtersFromHook: Record<string, string>;
   localFilters: Record<string, string>;
-  onFilterChange: (field: string, value: string, debounce?: boolean) => void;
+  handleFilterChangeForHeader: (columnKey: string, value: string) => void;
+  handleSelectFilterChange: (field: string, value: string) => void;
   focusedField: string | null;
-  onFocus: (field: string) => void;
-  onBlur: (e: React.FocusEvent<HTMLInputElement>) => void;
+  handleFocusForHeader: (columnKey: string) => void;
+  handleBlurForHeader: (e: React.FocusEvent<HTMLInputElement>, columnKey: string) => void;
   
   // Множественные фильтры
   cfoFilter: Set<string>;
@@ -99,10 +100,11 @@ export default function PurchaseRequestsTableColumnsHeader({
   onSort,
   filtersFromHook,
   localFilters,
-  onFilterChange,
+  handleFilterChangeForHeader,
+  handleSelectFilterChange,
   focusedField,
-  onFocus,
-  onBlur,
+  handleFocusForHeader,
+  handleBlurForHeader,
   cfoFilter,
   statusFilter,
   purchaserFilter,
@@ -180,10 +182,9 @@ export default function PurchaseRequestsTableColumnsHeader({
                 sortDirection={sortDirection}
                 onSort={onSort}
                 filterValue={localFilters.idPurchaseRequest || ''}
-                onFilterChange={onFilterChange}
-                onFocus={onFocus}
-                onBlur={onBlur}
-                focusedField={focusedField}
+                onFilterChange={(value) => handleFilterChangeForHeader('idPurchaseRequest', value)}
+                onFocus={() => handleFocusForHeader('idPurchaseRequest')}
+                onBlur={(e) => handleBlurForHeader(e, 'idPurchaseRequest')}
                 onDragStart={onDragStart}
                 onDragOver={onDragOver}
                 onDragLeave={onDragLeave}
@@ -207,10 +208,9 @@ export default function PurchaseRequestsTableColumnsHeader({
                 sortDirection={sortDirection}
                 onSort={onSort}
                 filterValue={localFilters.guid || ''}
-                onFilterChange={onFilterChange}
-                onFocus={onFocus}
-                onBlur={onBlur}
-                focusedField={focusedField}
+                onFilterChange={(value) => handleFilterChangeForHeader('guid', value)}
+                onFocus={() => handleFocusForHeader('guid')}
+                onBlur={(e) => handleBlurForHeader(e, 'guid')}
                 onDragStart={onDragStart}
                 onDragOver={onDragOver}
                 onDragLeave={onDragLeave}
@@ -234,10 +234,9 @@ export default function PurchaseRequestsTableColumnsHeader({
                 sortDirection={sortDirection}
                 onSort={onSort}
                 filterValue={localFilters.purchaseRequestPlanYear || ''}
-                onFilterChange={onFilterChange}
-                onFocus={onFocus}
-                onBlur={onBlur}
-                focusedField={focusedField}
+                onFilterChange={(value) => handleFilterChangeForHeader('purchaseRequestPlanYear', value)}
+                onFocus={() => handleFocusForHeader('purchaseRequestPlanYear')}
+                onBlur={(e) => handleBlurForHeader(e, 'purchaseRequestPlanYear')}
                 onDragStart={onDragStart}
                 onDragOver={onDragOver}
                 onDragLeave={onDragLeave}
@@ -261,10 +260,9 @@ export default function PurchaseRequestsTableColumnsHeader({
                 sortDirection={sortDirection}
                 onSort={onSort}
                 filterValue={localFilters.company || ''}
-                onFilterChange={onFilterChange}
-                onFocus={onFocus}
-                onBlur={onBlur}
-                focusedField={focusedField}
+                onFilterChange={(value) => handleFilterChangeForHeader('company', value)}
+                onFocus={() => handleFocusForHeader('company')}
+                onBlur={(e) => handleBlurForHeader(e, 'company')}
                 onDragStart={onDragStart}
                 onDragOver={onDragOver}
                 onDragLeave={onDragLeave}
@@ -288,10 +286,9 @@ export default function PurchaseRequestsTableColumnsHeader({
                 sortDirection={sortDirection}
                 onSort={onSort}
                 filterValue={localFilters.mcc || ''}
-                onFilterChange={onFilterChange}
-                onFocus={onFocus}
-                onBlur={onBlur}
-                focusedField={focusedField}
+                onFilterChange={(value) => handleFilterChangeForHeader('mcc', value)}
+                onFocus={() => handleFocusForHeader('mcc')}
+                onBlur={(e) => handleBlurForHeader(e, 'mcc')}
                 onDragStart={onDragStart}
                 onDragOver={onDragOver}
                 onDragLeave={onDragLeave}
@@ -315,10 +312,9 @@ export default function PurchaseRequestsTableColumnsHeader({
                 sortDirection={sortDirection}
                 onSort={onSort}
                 filterValue={localFilters.purchaseRequestInitiator || ''}
-                onFilterChange={onFilterChange}
-                onFocus={onFocus}
-                onBlur={onBlur}
-                focusedField={focusedField}
+                onFilterChange={(value) => handleFilterChangeForHeader('purchaseRequestInitiator', value)}
+                onFocus={() => handleFocusForHeader('purchaseRequestInitiator')}
+                onBlur={(e) => handleBlurForHeader(e, 'purchaseRequestInitiator')}
                 onDragStart={onDragStart}
                 onDragOver={onDragOver}
                 onDragLeave={onDragLeave}
@@ -342,10 +338,9 @@ export default function PurchaseRequestsTableColumnsHeader({
                 sortDirection={sortDirection}
                 onSort={onSort}
                 filterValue={localFilters.name || ''}
-                onFilterChange={onFilterChange}
-                onFocus={onFocus}
-                onBlur={onBlur}
-                focusedField={focusedField}
+                onFilterChange={(value) => handleFilterChangeForHeader('name', value)}
+                onFocus={() => handleFocusForHeader('name')}
+                onBlur={(e) => handleBlurForHeader(e, 'name')}
                 onDragStart={onDragStart}
                 onDragOver={onDragOver}
                 onDragLeave={onDragLeave}
@@ -369,10 +364,9 @@ export default function PurchaseRequestsTableColumnsHeader({
                 sortDirection={sortDirection}
                 onSort={onSort}
                 filterValue={localFilters.purchaseRequestCreationDate || ''}
-                onFilterChange={onFilterChange}
-                onFocus={onFocus}
-                onBlur={onBlur}
-                focusedField={focusedField}
+                onFilterChange={(value) => handleFilterChangeForHeader('purchaseRequestCreationDate', value)}
+                onFocus={() => handleFocusForHeader('purchaseRequestCreationDate')}
+                onBlur={(e) => handleBlurForHeader(e, 'purchaseRequestCreationDate')}
                 onDragStart={onDragStart}
                 onDragOver={onDragOver}
                 onDragLeave={onDragLeave}
@@ -398,10 +392,7 @@ export default function PurchaseRequestsTableColumnsHeader({
                 sortDirection={sortDirection}
                 onSort={onSort}
                 filterValue={filtersFromHook.requiresPurchase || ''}
-                onFilterChange={onFilterChange}
-                onFocus={onFocus}
-                onBlur={onBlur}
-                focusedField={focusedField}
+                onFilterChange={(value) => handleSelectFilterChange('requiresPurchase', value)}
                 onDragStart={onDragStart}
                 onDragOver={onDragOver}
                 onDragLeave={onDragLeave}
@@ -425,10 +416,9 @@ export default function PurchaseRequestsTableColumnsHeader({
                 sortDirection={sortDirection}
                 onSort={onSort}
                 filterValue={localFilters.createdAt || ''}
-                onFilterChange={onFilterChange}
-                onFocus={onFocus}
-                onBlur={onBlur}
-                focusedField={focusedField}
+                onFilterChange={(value) => handleFilterChangeForHeader('createdAt', value)}
+                onFocus={() => handleFocusForHeader('createdAt')}
+                onBlur={(e) => handleBlurForHeader(e, 'createdAt')}
                 onDragStart={onDragStart}
                 onDragOver={onDragOver}
                 onDragLeave={onDragLeave}
@@ -452,10 +442,9 @@ export default function PurchaseRequestsTableColumnsHeader({
                 sortDirection={sortDirection}
                 onSort={onSort}
                 filterValue={localFilters.updatedAt || ''}
-                onFilterChange={onFilterChange}
-                onFocus={onFocus}
-                onBlur={onBlur}
-                focusedField={focusedField}
+                onFilterChange={(value) => handleFilterChangeForHeader('updatedAt', value)}
+                onFocus={() => handleFocusForHeader('updatedAt')}
+                onBlur={(e) => handleBlurForHeader(e, 'updatedAt')}
                 onDragStart={onDragStart}
                 onDragOver={onDragOver}
                 onDragLeave={onDragLeave}
@@ -746,7 +735,7 @@ export default function PurchaseRequestsTableColumnsHeader({
                         }}
                         onFocus={(e) => {
                           e.stopPropagation();
-                          onFocus('budgetAmount');
+                          handleFocusForHeader('budgetAmount');
                           const value = localFilters.budgetAmount || '';
                           if (value) {
                             const numValue = value.replace(/\s/g, '').replace(/,/g, '');
@@ -757,7 +746,7 @@ export default function PurchaseRequestsTableColumnsHeader({
                           setTimeout(() => {
                             const activeElement = document.activeElement as HTMLElement;
                             if (activeElement && activeElement !== e.target && !activeElement.closest('th')) {
-                              onBlur(e);
+                              handleBlurForHeader(e, 'budgetAmount');
                             }
                           }, 200);
                         }}
@@ -882,10 +871,9 @@ export default function PurchaseRequestsTableColumnsHeader({
                 sortDirection={sortDirection}
                 onSort={onSort}
                 filterValue={localFilters.currency || ''}
-                onFilterChange={onFilterChange}
-                onFocus={onFocus}
-                onBlur={onBlur}
-                focusedField={focusedField}
+                onFilterChange={(value) => handleFilterChangeForHeader('currency', value)}
+                onFocus={() => handleFocusForHeader('currency')}
+                onBlur={(e) => handleBlurForHeader(e, 'currency')}
                 onDragStart={onDragStart}
                 onDragOver={onDragOver}
                 onDragLeave={onDragLeave}
@@ -910,10 +898,9 @@ export default function PurchaseRequestsTableColumnsHeader({
                 sortDirection={sortDirection}
                 onSort={onSort}
                 filterValue={localFilters.costType || ''}
-                onFilterChange={onFilterChange}
-                onFocus={onFocus}
-                onBlur={onBlur}
-                focusedField={focusedField}
+                onFilterChange={(value) => handleFilterChangeForHeader('costType', value)}
+                onFocus={() => handleFocusForHeader('costType')}
+                onBlur={(e) => handleBlurForHeader(e, 'costType')}
                 onDragStart={onDragStart}
                 onDragOver={onDragOver}
                 onDragLeave={onDragLeave}
@@ -938,10 +925,9 @@ export default function PurchaseRequestsTableColumnsHeader({
                 sortDirection={sortDirection}
                 onSort={onSort}
                 filterValue={localFilters.contractType || ''}
-                onFilterChange={onFilterChange}
-                onFocus={onFocus}
-                onBlur={onBlur}
-                focusedField={focusedField}
+                onFilterChange={(value) => handleFilterChangeForHeader('contractType', value)}
+                onFocus={() => handleFocusForHeader('contractType')}
+                onBlur={(e) => handleBlurForHeader(e, 'contractType')}
                 onDragStart={onDragStart}
                 onDragOver={onDragOver}
                 onDragLeave={onDragLeave}
@@ -966,10 +952,9 @@ export default function PurchaseRequestsTableColumnsHeader({
                 sortDirection={sortDirection}
                 onSort={onSort}
                 filterValue={localFilters.contractDurationMonths || ''}
-                onFilterChange={onFilterChange}
-                onFocus={onFocus}
-                onBlur={onBlur}
-                focusedField={focusedField}
+                onFilterChange={(value) => handleFilterChangeForHeader('contractDurationMonths', value)}
+                onFocus={() => handleFocusForHeader('contractDurationMonths')}
+                onBlur={(e) => handleBlurForHeader(e, 'contractDurationMonths')}
                 onDragStart={onDragStart}
                 onDragOver={onDragOver}
                 onDragLeave={onDragLeave}
@@ -996,10 +981,7 @@ export default function PurchaseRequestsTableColumnsHeader({
                 sortDirection={sortDirection}
                 onSort={onSort}
                 filterValue={filtersFromHook.isPlanned || ''}
-                onFilterChange={onFilterChange}
-                onFocus={onFocus}
-                onBlur={onBlur}
-                focusedField={focusedField}
+                onFilterChange={(value) => handleSelectFilterChange('isPlanned', value)}
                 onDragStart={onDragStart}
                 onDragOver={onDragOver}
                 onDragLeave={onDragLeave}

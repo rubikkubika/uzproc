@@ -8,7 +8,6 @@ interface UsePurchaseRequestsFetchControllerProps {
   activeTab: TabType;
   forceReload: number;
   filtersFromHook: Record<string, string>;
-  localFilters: Record<string, string>;
   cfoFilter: Set<string>;
   purchaserFilter: Set<string>;
   statusFilter: Set<string>;
@@ -35,7 +34,6 @@ export function usePurchaseRequestsFetchController({
   activeTab,
   forceReload,
   filtersFromHook,
-  localFilters,
   cfoFilter,
   purchaserFilter,
   statusFilter,
@@ -111,9 +109,7 @@ export function usePurchaseRequestsFetchController({
       console.log('Year was restored, re-fetching data with selectedYear:', selectedYear);
       // Небольшая задержка, чтобы убедиться, что selectedYear обновился
       const timeoutId = setTimeout(() => {
-        // Объединяем filtersFromHook и localFilters
-        const mergedFilters = { ...filtersFromHook, ...localFilters };
-        fetchData(0, pageSize, selectedYear, sortField, sortDirection, mergedFilters);
+        fetchData(0, pageSize, selectedYear, sortField, sortDirection, filtersFromHook);
       }, 100);
       return () => clearTimeout(timeoutId);
     }
