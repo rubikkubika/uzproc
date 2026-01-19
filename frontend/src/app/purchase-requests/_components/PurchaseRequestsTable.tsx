@@ -9,135 +9,10 @@ import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 import PurchaseRequestsSummaryTable from './ui/PurchaseRequestsSummaryTable';
 import LatestCsiFeedback from './ui/LatestCsiFeedback';
-
-interface Contract {
-  id: number;
-  innerId: string | null;
-  name: string | null;
-  title: string | null;
-  cfo: string | null;
-  contractCreationDate: string | null;
-  budgetAmount: number | null;
-  currency: string | null;
-  purchaseRequestId: number | null;
-  parentContractId: number | null;
-  documentForm: string | null;
-  status: string | null;
-  state: string | null;
-}
-
-interface PurchaseRequest {
-  id: number;
-  idPurchaseRequest: number | null;
-  guid: string;
-  purchaseRequestPlanYear: number | null;
-  company: string | null;
-  cfo: string | null;
-  mcc: string | null;
-  purchaseRequestInitiator: string | null;
-  purchaser: string | null;
-  name: string | null;
-  purchaseRequestCreationDate: string | null;
-  budgetAmount: number | null;
-  currency: string | null;
-  costType: string | null;
-  contractType: string | null;
-  contractDurationMonths: number | null;
-  isPlanned: boolean | null;
-  requiresPurchase: boolean | null;
-  status: string | null;
-  excludeFromInWork: boolean | null;
-  daysInStatus: number | null;
-  daysSinceCreation: number | null;
-  isStrategicProduct: boolean | null;
-  hasCompletedPurchase: boolean | null;
-  contracts: Contract[] | null;
-  createdAt: string;
-  updatedAt: string;
-  csiLink: string | null;
-  csiToken: string | null;
-  csiInvitationSent: boolean | null;
-  hasFeedback: boolean | null;
-  averageRating: number | null;
-}
-
-interface PageResponse {
-  content: PurchaseRequest[];
-  totalElements: number;
-  totalPages: number;
-  size: number;
-  number: number;
-}
-
-type SortField = keyof PurchaseRequest | null;
-type SortDirection = 'asc' | 'desc' | null;
-
-// Кэш для метаданных (годы и уникальные значения)
-const CACHE_KEY = 'purchaseRequests_metadata';
-const CACHE_TTL = 5 * 60 * 1000; // 5 минут
-
-// Константы для статусов (соответствуют PurchaseRequestStatus enum)
-const ALL_STATUSES = ['Заявка на согласовании', 'На согласовании', 'Заявка у закупщика', 'На утверждении', 'Утверждена', 'Заявка утверждена', 'Согласована', 'Заявка не согласована', 'Заявка не утверждена', 'Проект', 'Неактуальна', 'Не Актуальная', 'Спецификация создана', 'Спецификация создана - Архив', 'Спецификация на согласовании', 'Спецификация подписана', 'Договор создан', 'Договор подписан', 'Закупка создана', 'Закупка не согласована', 'Закупка завершена'];
-const DEFAULT_STATUSES = ALL_STATUSES.filter(s => s !== 'Неактуальна' && s !== 'Не Актуальная');
-
-// Ключ для сохранения видимости колонок в localStorage
-const COLUMNS_VISIBILITY_STORAGE_KEY = 'purchaseRequests_columnsVisibility';
-
-// Определение всех возможных колонок
-const ALL_COLUMNS = [
-  { key: 'excludeFromInWork', label: 'Скрыть из вкладки' },
-  { key: 'idPurchaseRequest', label: 'Номер' },
-  { key: 'guid', label: 'GUID' },
-  { key: 'purchaseRequestPlanYear', label: 'Год плана' },
-  { key: 'company', label: 'Компания' },
-  { key: 'cfo', label: 'ЦФО' },
-  { key: 'mcc', label: 'МЦК' },
-  { key: 'purchaseRequestInitiator', label: 'Инициатор' },
-  { key: 'purchaser', label: 'Закупщик' },
-  { key: 'name', label: 'Название' },
-  { key: 'purchaseRequestCreationDate', label: 'Дата создания' },
-  { key: 'budgetAmount', label: 'Бюджет' },
-  { key: 'currency', label: 'Валюта' },
-  { key: 'costType', label: 'Тип затрат' },
-  { key: 'contractType', label: 'Тип договора' },
-  { key: 'contractDurationMonths', label: 'Длительность (мес)' },
-  { key: 'isPlanned', label: 'План' },
-  { key: 'requiresPurchase', label: 'Закупка' },
-  { key: 'status', label: 'Статус' },
-  { key: 'daysSinceCreation', label: 'Срок с даты создания' },
-  { key: 'createdAt', label: 'Дата создания (системная)' },
-  { key: 'updatedAt', label: 'Дата обновления' },
-  { key: 'track', label: 'Трэк' },
-  { key: 'rating', label: 'Оценка' },
-] as const;
-
-// Колонки, которые отображаются по умолчанию
-const DEFAULT_VISIBLE_COLUMNS = [
-  'excludeFromInWork',
-  'idPurchaseRequest',
-  'cfo',
-  'purchaser',
-  'name',
-  'budgetAmount',
-  'requiresPurchase',
-  'status',
-  'daysSinceCreation',
-  'track',
-];
-
-// Функция для получения символа валюты
-const getCurrencyIcon = (currency: string | null) => {
-  if (!currency) return null;
-  const currencyUpper = currency.toUpperCase();
-  if (currencyUpper === 'USD' || currencyUpper === 'ДОЛЛАР' || currencyUpper === '$') {
-    return <span className="ml-0.5">$</span>;
-  } else if (currencyUpper === 'EUR' || currencyUpper === 'ЕВРО' || currencyUpper === '€') {
-    return <span className="ml-0.5">€</span>;
-  } else if (currencyUpper === 'UZS' || currencyUpper === 'СУМ' || currencyUpper === 'СУММ') {
-    return <span className="ml-0.5 text-xs">UZS</span>;
-  }
-  return <span className="ml-0.5 text-xs">{currency}</span>;
-};
+import type { Contract, PurchaseRequest, PageResponse, SortField, SortDirection, TabType } from '../types/purchase-request.types';
+import { ALL_COLUMNS, DEFAULT_VISIBLE_COLUMNS, COLUMNS_VISIBILITY_STORAGE_KEY } from '../constants/columns.constants';
+import { ALL_STATUSES, DEFAULT_STATUSES, TAB_STATUSES, CACHE_KEY, CACHE_TTL } from '../constants/status.constants';
+import { getCurrencyIcon } from '../utils/currency.utils';
 
 export default function PurchaseRequestsTable() {
   const router = useRouter();
@@ -202,9 +77,8 @@ export default function PurchaseRequestsTable() {
   const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
   const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set()); // По умолчанию пустой, как для ЦФО
   const [purchaserFilter, setPurchaserFilter] = useState<Set<string>>(new Set());
-  
+
   // Состояние для вкладок
-  type TabType = 'all' | 'in-work' | 'completed' | 'project-rejected' | 'hidden';
   const [activeTab, setActiveTab] = useState<TabType>('in-work'); // По умолчанию "В работе"
   
   // Синхронизируем ref с состоянием activeTab
