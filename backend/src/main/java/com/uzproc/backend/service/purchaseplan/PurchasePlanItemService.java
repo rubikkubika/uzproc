@@ -193,12 +193,13 @@ public class PurchasePlanItemService {
                 }
             }
             
-            // Если есть связанная заявка и в заявке есть закупщик - проверяем синхронизацию
+            // Если есть связанная заявка - проверяем синхронизацию закупщика
             if (item.getPurchaseRequestId() != null) {
                 String purchaserFromRequest = finalPurchaseRequestPurchaserMap.get(item.getPurchaseRequestId());
+                User currentPurchaser = item.getPurchaser();
+                
                 if (purchaserFromRequest != null) {
-                    // Проверяем, нужно ли обновить закупщика в позиции плана
-                    User currentPurchaser = item.getPurchaser();
+                    // В заявке есть закупщик - проверяем, нужно ли обновить в позиции плана
                     String currentPurchaserName = currentPurchaser != null 
                         ? (currentPurchaser.getSurname() != null && currentPurchaser.getName() != null 
                             ? currentPurchaser.getSurname() + " " + currentPurchaser.getName() 
@@ -213,30 +214,40 @@ public class PurchasePlanItemService {
                             // Устанавливаем для отображения в текущем запросе
                             item.setPurchaser(purchaserFromRequestUser);
                             
-                            // Добавляем в список для синхронизации в БД
+                            // Добавляем в список для синхронизации в БД (установка закупщика)
                             syncRequests.add(new PurchasePlanPurchaserSyncService.PurchaserSyncRequest(
                                 item.getId(), 
                                 purchaserFromRequestUser.getId()
                             ));
                             
-                            logger.debug("Queued purchaser sync for plan item {}: {} (from request {})",
+                            logger.debug("Queued purchaser sync (SET) for plan item {}: {} (from request {})",
                                 item.getId(), purchaserFromRequest, item.getPurchaseRequestId());
                         }
                     }
+                } else if (currentPurchaser != null) {
+                    // В заявке закупщик очищен (null), но в позиции плана ещё есть - очищаем
+                    // Устанавливаем для отображения в текущем запросе
+                    item.setPurchaser(null);
+                    
+                    // Добавляем в список для синхронизации в БД (очистка закупщика)
+                    syncRequests.add(new PurchasePlanPurchaserSyncService.PurchaserSyncRequest(
+                        item.getId(), 
+                        null,
+                        true  // clearPurchaser = true
+                    ));
+                    
+                    logger.debug("Queued purchaser sync (CLEAR) for plan item {} (from request {})",
+                        item.getId(), item.getPurchaseRequestId());
                 }
             }
         });
         
-        // Синхронизируем закупщиков в отдельных транзакциях (сохраняем в БД)
+        // Синхронизация закупщиков: обновляем БД, если закупщик в заявке изменился
+        // Каждая позиция обновляется в отдельной REQUIRES_NEW транзакции через PurchasePlanPurchaserSyncTxService
         if (!syncRequests.isEmpty()) {
-            try {
-                int syncedCount = purchaserSyncService.syncPurchasersInBatch(syncRequests);
-                if (syncedCount > 0) {
-                    logger.info("Auto-synced {} purchasers from requests during findAll", syncedCount);
-                }
-            } catch (Exception e) {
-                // Не прерываем основной запрос при ошибке синхронизации
-                logger.error("Error during batch purchaser sync: {}", e.getMessage());
+            int syncedCount = purchaserSyncService.syncPurchasersInBatch(syncRequests);
+            if (syncedCount > 0) {
+                logger.info("Auto-synced {} purchasers from {} requests during findAll", syncedCount, syncRequests.size());
             }
         }
         
@@ -1654,6 +1665,7 @@ public class PurchasePlanItemService {
     /**
      * Ищет пользователя по имени закупщика (строка "Фамилия Имя" или частичное совпадение).
      * Используется для синхронизации закупщика из заявки в позицию плана.
+     * Обрабатывает формат "Имя Фамилия (Должность, Отдел)" - извлекает только имя и фамилию.
      */
     private User findUserByPurchaserName(String purchaserName) {
         if (purchaserName == null || purchaserName.trim().isEmpty()) {
@@ -1661,30 +1673,48 @@ public class PurchasePlanItemService {
         }
 
         String trimmedName = purchaserName.trim();
+        
+        // Если в строке есть скобка, берём только часть до скобки (это имя и фамилия)
+        // Например: "Dinara Fayzraxmanova (Отдел закупок, Менеджер)" -> "Dinara Fayzraxmanova"
+        if (trimmedName.contains("(")) {
+            trimmedName = trimmedName.substring(0, trimmedName.indexOf("(")).trim();
+        }
+        
         String[] parts = trimmedName.split("\\s+");
 
-        // Сначала пробуем найти по точному совпадению фамилии и имени
+        // Сначала пробуем найти по точному совпадению фамилии и имени (первые два слова)
         if (parts.length >= 2) {
+            // Пробуем parts[0] как фамилию, parts[1] как имя
             java.util.Optional<User> userOpt = userRepository.findBySurnameAndName(parts[0], parts[1]);
+            if (userOpt.isPresent()) {
+                return userOpt.get();
+            }
+            // Пробуем наоборот: parts[1] как фамилию, parts[0] как имя
+            userOpt = userRepository.findBySurnameAndName(parts[1], parts[0]);
             if (userOpt.isPresent()) {
                 return userOpt.get();
             }
         }
 
         // Если не нашли по точному совпадению, ищем по частичному совпадению
+        final String searchName = trimmedName.toLowerCase();
         List<User> allUsers = userRepository.findAll();
         for (User user : allUsers) {
             String fullName = user.getSurname() != null && user.getName() != null
                 ? user.getSurname() + " " + user.getName()
                 : user.getUsername();
-            if (fullName != null && fullName.toLowerCase().contains(trimmedName.toLowerCase())) {
-                return user;
+            // Проверяем, содержит ли искомое имя полное имя пользователя или наоборот
+            if (fullName != null) {
+                String fullNameLower = fullName.toLowerCase();
+                if (fullNameLower.contains(searchName) || searchName.contains(fullNameLower)) {
+                    return user;
+                }
             }
             // Также проверяем по частичному совпадению фамилии или имени
-            if (user.getSurname() != null && user.getSurname().toLowerCase().contains(trimmedName.toLowerCase())) {
+            if (user.getSurname() != null && searchName.contains(user.getSurname().toLowerCase())) {
                 return user;
             }
-            if (user.getName() != null && user.getName().toLowerCase().contains(trimmedName.toLowerCase())) {
+            if (user.getName() != null && searchName.contains(user.getName().toLowerCase())) {
                 return user;
             }
         }

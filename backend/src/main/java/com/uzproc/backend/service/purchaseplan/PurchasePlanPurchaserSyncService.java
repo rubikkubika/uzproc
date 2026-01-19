@@ -9,10 +9,8 @@ import com.uzproc.backend.repository.user.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -31,16 +29,19 @@ public class PurchasePlanPurchaserSyncService {
     private final PurchaseRequestRepository purchaseRequestRepository;
     private final UserRepository userRepository;
     private final PurchasePlanItemChangeService purchasePlanItemChangeService;
+    private final PurchasePlanPurchaserSyncTxService purchaserSyncTxService;
 
     public PurchasePlanPurchaserSyncService(
             PurchasePlanItemRepository purchasePlanItemRepository,
             PurchaseRequestRepository purchaseRequestRepository,
             UserRepository userRepository,
-            PurchasePlanItemChangeService purchasePlanItemChangeService) {
+            PurchasePlanItemChangeService purchasePlanItemChangeService,
+            PurchasePlanPurchaserSyncTxService purchaserSyncTxService) {
         this.purchasePlanItemRepository = purchasePlanItemRepository;
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.userRepository = userRepository;
         this.purchasePlanItemChangeService = purchasePlanItemChangeService;
+        this.purchaserSyncTxService = purchaserSyncTxService;
     }
 
     /**
@@ -205,72 +206,35 @@ public class PurchasePlanPurchaserSyncService {
      * Синхронизирует закупщика для одной позиции плана в НОВОЙ транзакции.
      * Используется из read-only транзакции для сохранения изменений в БД.
      * 
+     * Делегирует выполнение в отдельный Spring Bean (PurchasePlanPurchaserSyncTxService)
+     * для корректной работы @Transactional(propagation = REQUIRES_NEW).
+     * 
+     * @param planItemId ID позиции плана
+     * @param purchaserFromRequestId ID закупщика из заявки (null = очистить, если clearPurchaser == true)
+     * @param clearPurchaser если true и purchaserFromRequestId == null, то очищает закупщика
+     * @return true если закупщик был обновлен или очищен
+     */
+    public boolean syncPurchaserInNewTransaction(Long planItemId, Long purchaserFromRequestId, boolean clearPurchaser) {
+        return purchaserSyncTxService.syncPurchaserInNewTransaction(planItemId, purchaserFromRequestId, clearPurchaser);
+    }
+
+    /**
+     * Упрощенная версия для обратной совместимости.
+     * Устанавливает закупщика, если purchaserFromRequestId != null.
+     * 
      * @param planItemId ID позиции плана
      * @param purchaserFromRequestId ID закупщика из заявки
      * @return true если закупщик был обновлен
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean syncPurchaserInNewTransaction(Long planItemId, Long purchaserFromRequestId) {
-        if (planItemId == null) {
-            return false;
-        }
-
-        Optional<PurchasePlanItem> planItemOpt = purchasePlanItemRepository.findById(planItemId);
-        if (planItemOpt.isEmpty()) {
-            return false;
-        }
-
-        PurchasePlanItem planItem = planItemOpt.get();
-        User currentPurchaser = planItem.getPurchaser();
-        Long currentPurchaserId = currentPurchaser != null ? currentPurchaser.getId() : null;
-
-        // Проверяем, нужно ли обновление
-        boolean needsUpdate = false;
-        if (purchaserFromRequestId == null && currentPurchaserId != null) {
-            needsUpdate = true;
-        } else if (purchaserFromRequestId != null && currentPurchaserId == null) {
-            needsUpdate = true;
-        } else if (purchaserFromRequestId != null && currentPurchaserId != null 
-                   && !purchaserFromRequestId.equals(currentPurchaserId)) {
-            needsUpdate = true;
-        }
-
-        if (!needsUpdate) {
-            return false;
-        }
-
-        // Получаем нового закупщика
-        User newPurchaser = purchaserFromRequestId != null 
-            ? userRepository.findById(purchaserFromRequestId).orElse(null) 
-            : null;
-
-        // Формируем имена для логирования
-        String oldPurchaserName = formatUserName(currentPurchaser);
-        String newPurchaserName = formatUserName(newPurchaser);
-
-        // Логируем изменение
-        purchasePlanItemChangeService.logChange(
-            planItem.getId(),
-            planItem.getGuid(),
-            "purchaser",
-            oldPurchaserName,
-            newPurchaserName
-        );
-
-        planItem.setPurchaser(newPurchaser);
-        purchasePlanItemRepository.save(planItem);
-        
-        logger.info("Auto-synced purchaser for plan item {} in new transaction: {} -> {} (from purchaseRequest {})",
-            planItem.getId(), oldPurchaserName, newPurchaserName, planItem.getPurchaseRequestId());
-        
-        return true;
+        return purchaserSyncTxService.syncPurchaserInNewTransaction(planItemId, purchaserFromRequestId);
     }
 
     /**
      * Синхронизирует закупщиков для списка позиций плана.
-     * Каждая позиция обрабатывается в отдельной транзакции.
+     * Каждая позиция обрабатывается в отдельной транзакции через отдельный Spring Bean.
      * 
-     * @param syncRequests список пар (planItemId, purchaserFromRequestId)
+     * @param syncRequests список пар (planItemId, purchaserFromRequestId, clearPurchaser)
      * @return количество обновленных позиций
      */
     public int syncPurchasersInBatch(List<PurchaserSyncRequest> syncRequests) {
@@ -281,7 +245,13 @@ public class PurchasePlanPurchaserSyncService {
         int updatedCount = 0;
         for (PurchaserSyncRequest request : syncRequests) {
             try {
-                if (syncPurchaserInNewTransaction(request.getPlanItemId(), request.getPurchaserUserId())) {
+                // Делегируем в отдельный Spring Bean для корректной работы REQUIRES_NEW
+                boolean updated = purchaserSyncTxService.syncPurchaserInNewTransaction(
+                        request.getPlanItemId(), 
+                        request.getPurchaserUserId(),
+                        request.isClearPurchaser()
+                );
+                if (updated) {
                     updatedCount++;
                 }
             } catch (Exception e) {
@@ -299,14 +269,34 @@ public class PurchasePlanPurchaserSyncService {
 
     /**
      * Класс для запроса синхронизации закупщика.
+     * Поддерживает три сценария:
+     * 1. Установка закупщика (purchaserUserId != null)
+     * 2. Очистка закупщика (purchaserUserId == null, clearPurchaser == true)
+     * 3. Пропуск (purchaserUserId == null, clearPurchaser == false)
      */
     public static class PurchaserSyncRequest {
         private final Long planItemId;
         private final Long purchaserUserId;
+        private final boolean clearPurchaser;
 
+        /**
+         * Конструктор для установки закупщика (purchaserUserId != null) или пропуска (purchaserUserId == null).
+         */
         public PurchaserSyncRequest(Long planItemId, Long purchaserUserId) {
+            this(planItemId, purchaserUserId, false);
+        }
+
+        /**
+         * Конструктор с поддержкой очистки закупщика.
+         * 
+         * @param planItemId ID позиции плана
+         * @param purchaserUserId ID закупщика (null = очистить, если clearPurchaser == true)
+         * @param clearPurchaser если true и purchaserUserId == null, то очищает закупщика
+         */
+        public PurchaserSyncRequest(Long planItemId, Long purchaserUserId, boolean clearPurchaser) {
             this.planItemId = planItemId;
             this.purchaserUserId = purchaserUserId;
+            this.clearPurchaser = clearPurchaser;
         }
 
         public Long getPlanItemId() {
@@ -316,10 +306,15 @@ public class PurchasePlanPurchaserSyncService {
         public Long getPurchaserUserId() {
             return purchaserUserId;
         }
+
+        public boolean isClearPurchaser() {
+            return clearPurchaser;
+        }
     }
 
     /**
      * Ищет пользователя по имени закупщика (строка "Фамилия Имя" или частичное совпадение).
+     * Обрабатывает формат "Имя Фамилия (Должность, Отдел)" - извлекает только имя и фамилию.
      */
     private User findUserByPurchaserName(String purchaserName) {
         if (purchaserName == null || purchaserName.trim().isEmpty()) {
@@ -327,28 +322,46 @@ public class PurchasePlanPurchaserSyncService {
         }
 
         String trimmedName = purchaserName.trim();
+        
+        // Если в строке есть скобка, берём только часть до скобки (это имя и фамилия)
+        // Например: "Dinara Fayzraxmanova (Отдел закупок, Менеджер)" -> "Dinara Fayzraxmanova"
+        if (trimmedName.contains("(")) {
+            trimmedName = trimmedName.substring(0, trimmedName.indexOf("(")).trim();
+        }
+        
         String[] parts = trimmedName.split("\\s+");
 
-        // Сначала пробуем найти по точному совпадению фамилии и имени
+        // Сначала пробуем найти по точному совпадению фамилии и имени (первые два слова)
         if (parts.length >= 2) {
+            // Пробуем parts[0] как фамилию, parts[1] как имя
             Optional<User> userOpt = userRepository.findBySurnameAndName(parts[0], parts[1]);
+            if (userOpt.isPresent()) {
+                return userOpt.get();
+            }
+            // Пробуем наоборот: parts[1] как фамилию, parts[0] как имя
+            userOpt = userRepository.findBySurnameAndName(parts[1], parts[0]);
             if (userOpt.isPresent()) {
                 return userOpt.get();
             }
         }
 
         // Если не нашли по точному совпадению, ищем по частичному совпадению
+        final String searchName = trimmedName.toLowerCase();
         List<User> allUsers = userRepository.findAll();
         for (User user : allUsers) {
             String fullName = formatUserName(user);
-            if (fullName != null && fullName.toLowerCase().contains(trimmedName.toLowerCase())) {
-                return user;
+            // Проверяем, содержит ли искомое имя полное имя пользователя или наоборот
+            if (fullName != null) {
+                String fullNameLower = fullName.toLowerCase();
+                if (fullNameLower.contains(searchName) || searchName.contains(fullNameLower)) {
+                    return user;
+                }
             }
             // Также проверяем по частичному совпадению фамилии или имени
-            if (user.getSurname() != null && user.getSurname().toLowerCase().contains(trimmedName.toLowerCase())) {
+            if (user.getSurname() != null && searchName.contains(user.getSurname().toLowerCase())) {
                 return user;
             }
-            if (user.getName() != null && user.getName().toLowerCase().contains(trimmedName.toLowerCase())) {
+            if (user.getName() != null && searchName.contains(user.getName().toLowerCase())) {
                 return user;
             }
         }
