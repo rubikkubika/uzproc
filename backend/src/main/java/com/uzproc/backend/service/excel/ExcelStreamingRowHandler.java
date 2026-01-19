@@ -514,33 +514,15 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 }
             }
             
-            // Закупщик (опционально)
-            // Устанавливаем закупщика только если заявка новая или закупщик еще не установлен
+            // Закупщик (опционально) - всегда обновляем из Excel
             Integer purchaserCol = columnIndices.get(PURCHASER_COLUMN);
             if (purchaserCol != null) {
                 String purchaser = currentRowData.get(purchaserCol);
                 if (purchaser != null && !purchaser.trim().isEmpty()) {
                     String purchaserTrimmed = purchaser.trim();
-                    // Проверяем, существует ли заявка и есть ли у неё уже закупщик
-                    boolean isExisting = existingOpt.isPresent();
-                    boolean hasPurchaser = originalPurchaser != null && !originalPurchaser.trim().isEmpty();
-                    
-                    logger.debug("Row {}: Processing purchaser for request {}: existing={}, hasPurchaser={}, originalPurchaser='{}', excelPurchaser='{}'", 
-                        currentRowNum + 1, requestNumber, isExisting, hasPurchaser, originalPurchaser, purchaserTrimmed);
-                    
-                    if (!hasPurchaser) {
-                        // Закупщик еще не установлен, устанавливаем его
-                        pr.setPurchaser(purchaserTrimmed);
-                        logger.info("Row {}: Set purchaser for request {}: '{}' (existing: {})", 
-                            currentRowNum + 1, requestNumber, purchaserTrimmed, isExisting);
-                    } else {
-                        // Закупщик уже установлен, не перезаписываем
-                        // Важно: НЕ устанавливаем purchaser в pr, чтобы updatePurchaseRequestFields не перезаписал его
-                        // pr.getPurchaser() останется null, и в updatePurchaseRequestFields проверка не сработает
-                        logger.info("Row {}: Purchaser already set for request {}: '{}', skipping update from Excel: '{}'", 
-                            currentRowNum + 1, requestNumber, originalPurchaser, purchaserTrimmed);
-                        // Явно НЕ устанавливаем purchaser в pr
-                    }
+                    pr.setPurchaser(purchaserTrimmed);
+                    logger.info("Row {}: Set purchaser for request {}: '{}' (will update if different from existing: '{}')", 
+                        currentRowNum + 1, requestNumber, purchaserTrimmed, originalPurchaser);
                 } else {
                     logger.debug("Row {}: Purchaser column is empty or null for request {}", 
                         currentRowNum + 1, requestNumber);
@@ -1432,28 +1414,20 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             }
         }
         
-        // Обновляем закупщика только если он еще не установлен
-        // Если закупщик уже установлен, не перезаписываем его при парсинге Excel
+        // Обновляем закупщика из Excel (всегда обновляем, если значение есть в Excel)
         if (newData.getPurchaser() != null && !newData.getPurchaser().trim().isEmpty()) {
             String existingPurchaser = existing.getPurchaser();
-            boolean hasExistingPurchaser = existingPurchaser != null && !existingPurchaser.trim().isEmpty();
+            String newPurchaser = newData.getPurchaser().trim();
             
-            if (!hasExistingPurchaser) {
-                // Закупщик еще не установлен, устанавливаем его
-                existing.setPurchaser(newData.getPurchaser().trim());
+            if (existingPurchaser == null || !existingPurchaser.equals(newPurchaser)) {
+                // Закупщик обновляется из Excel
+                existing.setPurchaser(newPurchaser);
                 updated = true;
-                logger.info("Set purchaser for request {}: '{}'", existing.getIdPurchaseRequest(), newData.getPurchaser().trim());
+                logger.info("Updated purchaser for request {}: '{}' -> '{}'", 
+                    existing.getIdPurchaseRequest(), existingPurchaser, newPurchaser);
             } else {
-                // Закупщик уже установлен, не перезаписываем
-                logger.info("Purchaser already set for request {}: '{}', skipping update from Excel: '{}'", 
-                    existing.getIdPurchaseRequest(), existingPurchaser, newData.getPurchaser().trim());
-            }
-        } else {
-            // newData.getPurchaser() is null or empty - это нормально, если закупщик уже установлен
-            // и мы не устанавливали его в pr при парсинге
-            if (existing.getPurchaser() != null && !existing.getPurchaser().trim().isEmpty()) {
-                logger.debug("Purchaser preserved for request {}: '{}' (no new value from Excel)", 
-                    existing.getIdPurchaseRequest(), existing.getPurchaser());
+                logger.debug("Purchaser unchanged for request {}: '{}'", 
+                    existing.getIdPurchaseRequest(), existingPurchaser);
             }
         }
         
