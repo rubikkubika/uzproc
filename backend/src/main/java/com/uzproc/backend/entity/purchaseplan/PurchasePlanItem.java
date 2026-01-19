@@ -2,7 +2,7 @@ package com.uzproc.backend.entity.purchaseplan;
 
 import com.uzproc.backend.entity.Cfo;
 import com.uzproc.backend.entity.Company;
-import com.uzproc.backend.entity.PlanPurchaser;
+import com.uzproc.backend.entity.user.User;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -55,9 +55,10 @@ public class PurchasePlanItem {
     @Column(name = "new_contract_date")
     private LocalDate newContractDate;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "purchaser", length = 255)
-    private PlanPurchaser purchaser;
+    // Связь с User (закупщик)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "purchaser_id")
+    private User purchaser;
 
     @Column(name = "product", length = 500)
     private String product;
@@ -230,11 +231,11 @@ public class PurchasePlanItem {
         this.newContractDate = newContractDate;
     }
 
-    public PlanPurchaser getPurchaser() {
+    public User getPurchaser() {
         return purchaser;
     }
 
-    public void setPurchaser(PlanPurchaser purchaser) {
+    public void setPurchaser(User purchaser) {
         this.purchaser = purchaser;
     }
 

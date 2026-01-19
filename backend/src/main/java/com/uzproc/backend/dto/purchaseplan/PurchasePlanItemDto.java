@@ -1,7 +1,6 @@
 package com.uzproc.backend.dto.purchaseplan;
 
 import com.uzproc.backend.entity.Company;
-import com.uzproc.backend.entity.PlanPurchaser;
 import com.uzproc.backend.entity.purchaseplan.PurchasePlanItemStatus;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -20,7 +19,7 @@ public class PurchasePlanItemDto {
     private LocalDate contractEndDate;
     private LocalDate requestDate;
     private LocalDate newContractDate;
-    private PlanPurchaser purchaser;
+    private String purchaser; // Фамилия и имя пользователя (закупщика)
     private String product;
     private Boolean hasContract;
     private String currentKa;
@@ -133,11 +132,11 @@ public class PurchasePlanItemDto {
         this.newContractDate = newContractDate;
     }
 
-    public PlanPurchaser getPurchaser() {
+    public String getPurchaser() {
         return purchaser;
     }
 
-    public void setPurchaser(PlanPurchaser purchaser) {
+    public void setPurchaser(String purchaser) {
         this.purchaser = purchaser;
     }
 

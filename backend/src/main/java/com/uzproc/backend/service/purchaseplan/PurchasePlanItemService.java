@@ -3,7 +3,7 @@ package com.uzproc.backend.service.purchaseplan;
 import com.uzproc.backend.dto.purchaseplan.PurchasePlanItemDto;
 import com.uzproc.backend.entity.Company;
 import com.uzproc.backend.entity.Cfo;
-import com.uzproc.backend.entity.PlanPurchaser;
+import com.uzproc.backend.entity.user.User;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequestStatus;
 import com.uzproc.backend.entity.purchaseplan.PurchasePlanItem;
@@ -11,6 +11,7 @@ import com.uzproc.backend.entity.purchaseplan.PurchasePlanItemStatus;
 import com.uzproc.backend.repository.CfoRepository;
 import com.uzproc.backend.repository.purchaseplan.PurchasePlanItemRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
+import com.uzproc.backend.repository.user.UserRepository;
 import jakarta.persistence.criteria.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,6 +22,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -40,16 +43,22 @@ public class PurchasePlanItemService {
     private final PurchasePlanItemChangeService purchasePlanItemChangeService;
     private final PurchaseRequestRepository purchaseRequestRepository;
     private final CfoRepository cfoRepository;
+    private final UserRepository userRepository;
+    
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public PurchasePlanItemService(
             PurchasePlanItemRepository purchasePlanItemRepository, 
             PurchasePlanItemChangeService purchasePlanItemChangeService,
             PurchaseRequestRepository purchaseRequestRepository,
-            CfoRepository cfoRepository) {
+            CfoRepository cfoRepository,
+            UserRepository userRepository) {
         this.purchasePlanItemRepository = purchasePlanItemRepository;
         this.purchasePlanItemChangeService = purchasePlanItemChangeService;
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.cfoRepository = cfoRepository;
+        this.userRepository = userRepository;
     }
 
     public Page<PurchasePlanItemDto> findAll(
@@ -108,6 +117,67 @@ public class PurchasePlanItemService {
                 }
             }
         }
+        
+        // Загружаем всех пользователей (закупщиков) одним запросом
+        // Получаем purchaser_id из всех элементов через нативный запрос
+        List<Long> itemIds = items.getContent().stream()
+                .map(PurchasePlanItem::getId)
+                .collect(Collectors.toList());
+        
+        // Получаем purchaser_id через нативный запрос
+        List<Long> purchaserIds = new ArrayList<>();
+        if (!itemIds.isEmpty()) {
+            @SuppressWarnings("unchecked")
+            List<Object[]> results = entityManager.createNativeQuery(
+                "SELECT id, purchaser_id FROM purchase_plan_items WHERE id IN :ids AND purchaser_id IS NOT NULL"
+            )
+            .setParameter("ids", itemIds)
+            .getResultList();
+            
+            for (Object[] result : results) {
+                Long purchaserId = ((Number) result[1]).longValue();
+                purchaserIds.add(purchaserId);
+            }
+        }
+        
+        // Загружаем пользователей одним запросом
+        Map<Long, User> purchaserMap = new HashMap<>();
+        if (!purchaserIds.isEmpty()) {
+            List<User> purchasers = userRepository.findAllById(purchaserIds);
+            for (User user : purchasers) {
+                purchaserMap.put(user.getId(), user);
+            }
+        }
+        
+        // Создаем Map для связи itemId -> purchaserId
+        Map<Long, Long> itemPurchaserMap = new HashMap<>();
+        if (!itemIds.isEmpty()) {
+            @SuppressWarnings("unchecked")
+            List<Object[]> results = entityManager.createNativeQuery(
+                "SELECT id, purchaser_id FROM purchase_plan_items WHERE id IN :ids AND purchaser_id IS NOT NULL"
+            )
+            .setParameter("ids", itemIds)
+            .getResultList();
+            
+            for (Object[] result : results) {
+                Long itemId = ((Number) result[0]).longValue();
+                Long purchaserId = ((Number) result[1]).longValue();
+                itemPurchaserMap.put(itemId, purchaserId);
+            }
+        }
+        
+        // Устанавливаем загруженных пользователей в entity
+        final Map<Long, Long> finalItemPurchaserMap = itemPurchaserMap;
+        final Map<Long, User> finalPurchaserMap = purchaserMap;
+        items.getContent().forEach(item -> {
+            Long purchaserId = finalItemPurchaserMap.get(item.getId());
+            if (purchaserId != null) {
+                User purchaserUser = finalPurchaserMap.get(purchaserId);
+                if (purchaserUser != null) {
+                    item.setPurchaser(purchaserUser);
+                }
+            }
+        });
         
         // Конвертируем entity в DTO с использованием Map статусов
         final Map<Long, String> statusMap = purchaseRequestStatusMap;
@@ -556,27 +626,43 @@ public class PurchasePlanItemService {
     }
 
     @Transactional
-    public PurchasePlanItemDto updatePurchaser(Long id, PlanPurchaser purchaser) {
+    public PurchasePlanItemDto updatePurchaser(Long id, Long purchaserId) {
         return purchasePlanItemRepository.findById(id)
                 .map(item -> {
-                    PlanPurchaser oldPurchaser = item.getPurchaser();
+                    User oldPurchaser = item.getPurchaser();
+                    String oldPurchaserName = oldPurchaser != null 
+                        ? (oldPurchaser.getSurname() != null && oldPurchaser.getName() != null 
+                            ? oldPurchaser.getSurname() + " " + oldPurchaser.getName() 
+                            : oldPurchaser.getUsername())
+                        : null;
+                    
+                    User newPurchaser = null;
+                    String newPurchaserName = null;
+                    if (purchaserId != null) {
+                        newPurchaser = userRepository.findById(purchaserId).orElse(null);
+                        if (newPurchaser != null) {
+                            newPurchaserName = newPurchaser.getSurname() != null && newPurchaser.getName() != null
+                                ? newPurchaser.getSurname() + " " + newPurchaser.getName()
+                                : newPurchaser.getUsername();
+                        }
+                    }
                     
                     // Логируем изменение перед обновлением
-                    if ((oldPurchaser == null && purchaser != null) || 
-                        (oldPurchaser != null && !oldPurchaser.equals(purchaser))) {
+                    if ((oldPurchaser == null && newPurchaser != null) || 
+                        (oldPurchaser != null && !oldPurchaser.equals(newPurchaser))) {
                         purchasePlanItemChangeService.logChange(
                             item.getId(),
                             item.getGuid(),
                             "purchaser",
-                            oldPurchaser != null ? oldPurchaser.getDisplayName() : null,
-                            purchaser != null ? purchaser.getDisplayName() : null
+                            oldPurchaserName,
+                            newPurchaserName
                         );
                     }
                     
-                    item.setPurchaser(purchaser);
+                    item.setPurchaser(newPurchaser);
                     PurchasePlanItem saved = purchasePlanItemRepository.save(item);
                     logger.info("Updated purchaser for purchase plan item {}: purchaser={}",
-                            id, purchaser != null ? purchaser.getDisplayName() : null);
+                            id, newPurchaserName);
                     return toDto(saved);
                 })
                 .orElse(null);
@@ -660,7 +746,36 @@ public class PurchasePlanItemService {
         item.setContractEndDate(dto.getContractEndDate());
         item.setRequestDate(dto.getRequestDate());
         item.setNewContractDate(dto.getNewContractDate());
-        item.setPurchaser(dto.getPurchaser());
+        // Устанавливаем закупщика из DTO (строка "Фамилия Имя" или null)
+        if (dto.getPurchaser() != null && !dto.getPurchaser().trim().isEmpty()) {
+            String purchaserName = dto.getPurchaser().trim();
+            // Парсим строку "Фамилия Имя" или ищем по частичному совпадению
+            String[] parts = purchaserName.split("\\s+");
+            User purchaserUser = null;
+            if (parts.length >= 2) {
+                // Есть фамилия и имя - ищем точное совпадение
+                purchaserUser = userRepository.findBySurnameAndName(parts[0], parts[1]).orElse(null);
+            }
+            if (purchaserUser == null) {
+                // Ищем по частичному совпадению фамилии или имени
+                List<User> users = userRepository.findAll().stream()
+                    .filter(u -> {
+                        String fullName = (u.getSurname() != null ? u.getSurname() : "") + " " + 
+                                        (u.getName() != null ? u.getName() : "");
+                        return fullName.toLowerCase().contains(purchaserName.toLowerCase()) ||
+                               (u.getSurname() != null && u.getSurname().toLowerCase().contains(purchaserName.toLowerCase())) ||
+                               (u.getName() != null && u.getName().toLowerCase().contains(purchaserName.toLowerCase()));
+                    })
+                    .limit(1)
+                    .toList();
+                if (!users.isEmpty()) {
+                    purchaserUser = users.get(0);
+                }
+            }
+            item.setPurchaser(purchaserUser);
+        } else {
+            item.setPurchaser(null);
+        }
         item.setProduct(dto.getProduct());
         item.setHasContract(dto.getHasContract());
         item.setCurrentKa(dto.getCurrentKa());
@@ -721,7 +836,16 @@ public class PurchasePlanItemService {
         dto.setContractEndDate(entity.getContractEndDate());
         dto.setRequestDate(entity.getRequestDate());
         dto.setNewContractDate(entity.getNewContractDate());
-        dto.setPurchaser(entity.getPurchaser());
+        // Конвертируем User в строку (фамилия + имя)
+        if (entity.getPurchaser() != null) {
+            User purchaser = entity.getPurchaser();
+            String purchaserName = purchaser.getSurname() != null && purchaser.getName() != null
+                ? purchaser.getSurname() + " " + purchaser.getName()
+                : purchaser.getUsername();
+            dto.setPurchaser(purchaserName);
+        } else {
+            dto.setPurchaser(null);
+        }
         dto.setProduct(entity.getProduct());
         dto.setHasContract(entity.getHasContract());
         dto.setCurrentKa(entity.getCurrentKa());
@@ -934,7 +1058,7 @@ public class PurchasePlanItemService {
                 logger.info("Added purchaseSubject filter: '{}'", purchaseSubject);
             }
             
-            // Фильтр по закупщику (поддержка множественного выбора - точное совпадение)
+            // Фильтр по закупщику (поддержка множественного выбора - поиск по фамилии и имени пользователя)
             if (purchaser != null && !purchaser.isEmpty()) {
                 // Убираем пустые значения и тримим
                 List<String> validPurchaserValues = purchaser.stream()
@@ -967,26 +1091,40 @@ public class PurchasePlanItemService {
                     List<Predicate> purchaserPredicates = new java.util.ArrayList<>();
                     
                     // Добавляем фильтр по конкретным закупщикам (если есть)
-                    // Конвертируем строковые значения в enum PlanPurchaser
+                    // Ищем пользователей по фамилии и имени
                     if (!nonNullPurchaserValues.isEmpty()) {
+                        jakarta.persistence.criteria.Join<PurchasePlanItem, User> purchaserJoin = 
+                            root.join("purchaser", jakarta.persistence.criteria.JoinType.LEFT);
+                        
+                        List<Predicate> userPredicates = new java.util.ArrayList<>();
                         for (String purchaserValue : nonNullPurchaserValues) {
-                            // Пробуем найти enum по displayName (поддерживает конвертацию старых значений)
-                            PlanPurchaser purchaserEnum = PlanPurchaser.fromDisplayName(purchaserValue);
-                            if (purchaserEnum == null) {
-                                // Пробуем найти по имени enum (NASTYA, ABDULAZIZ, ELENA)
-                                try {
-                                    String enumName = purchaserValue.toUpperCase()
-                                        .replace(" ", "_")
-                                        .replace("НАСТЯ_АБДУЛАЗИЗ", "NASTYA")  // Старое значение -> Настя
-                                        .replace("АБДУЛАЗИЗ", "ABDULAZIZ");
-                                    purchaserEnum = PlanPurchaser.valueOf(enumName);
-                                } catch (IllegalArgumentException e) {
-                                    logger.warn("Cannot convert purchaser value '{}' to enum, skipping", purchaserValue);
-                                    continue;
-                                }
+                            // Парсим строку "Фамилия Имя" или ищем по частичному совпадению
+                            String[] parts = purchaserValue.split("\\s+");
+                            if (parts.length >= 2) {
+                                // Есть фамилия и имя
+                                String surname = parts[0];
+                                String name = parts[1];
+                                userPredicates.add(cb.and(
+                                    cb.equal(cb.lower(purchaserJoin.get("surname")), surname.toLowerCase()),
+                                    cb.equal(cb.lower(purchaserJoin.get("name")), name.toLowerCase())
+                                ));
+                            } else {
+                                // Ищем по частичному совпадению фамилии или имени
+                                String searchValue = "%" + purchaserValue.toLowerCase() + "%";
+                                userPredicates.add(cb.or(
+                                    cb.like(cb.lower(purchaserJoin.get("surname")), searchValue),
+                                    cb.like(cb.lower(purchaserJoin.get("name")), searchValue),
+                                    cb.like(cb.lower(purchaserJoin.get("username")), searchValue)
+                                ));
                             }
-                            purchaserPredicates.add(cb.equal(root.get("purchaser"), purchaserEnum));
-                            logger.debug("Added purchaser predicate for enum: '{}'", purchaserEnum);
+                        }
+                        
+                        if (!userPredicates.isEmpty()) {
+                            if (userPredicates.size() == 1) {
+                                purchaserPredicates.add(userPredicates.get(0));
+                            } else {
+                                purchaserPredicates.add(cb.or(userPredicates.toArray(new Predicate[0])));
+                            }
                         }
                     }
                     
