@@ -492,6 +492,9 @@ ${fullUrl}
   // Флаг для отслеживания восстановления года из navigationData (используем состояние для реактивности)
   const [yearRestored, setYearRestored] = useState(false);
   
+  // Флаг для принудительной перезагрузки данных (например, при сбросе фильтров)
+  const [forceReload, setForceReload] = useState(0);
+  
   // Ref для хранения функции fetchTabCounts, чтобы избежать бесконечных циклов
   const fetchTabCountsRef = useRef<(() => Promise<void>) | undefined>(undefined);
   
@@ -1734,6 +1737,7 @@ ${fullUrl}
     statusFilter.size,
     statusFilterStr,
     activeTab, // ВАЖНО: добавлен activeTab, чтобы fetchData вызывался при переключении вкладок
+    forceReload, // Добавлен forceReload для принудительной перезагрузки при сбросе фильтров
   ]);
 
   // Infinite scroll
@@ -2021,61 +2025,28 @@ ${fullUrl}
     fetchMetadata();
   }, []);
 
-  // Получаем все доступные статусы на текущей вкладке (без учета других фильтров, кроме фильтра по статусу вкладки)
-  // Это гарантирует, что в фильтре показываются все статусы, которые есть на текущей вкладке
+  // Получаем уникальные статусы из текущих данных таблицы (с учетом всех фильтров и вкладки)
+  // Это гарантирует, что в фильтре показываются только те статусы, которые реально есть в текущих данных
   useEffect(() => {
-    if (!filtersLoadedRef.current) {
+    if (!data || !data.content) {
+      setAvailableStatuses([]);
       return;
     }
 
-    const fetchAvailableStatuses = async () => {
-      try {
-        const params = new URLSearchParams();
-        params.append('page', '0');
-        params.append('size', '10000'); // Большой размер, чтобы получить все записи на вкладке
-        
-        // Применяем только фильтр по статусам вкладки (если вкладка не "Все" и не "Скрытые")
-        // НЕ применяем другие фильтры, чтобы получить все статусы на вкладке
-        if (activeTab === 'hidden') {
-          // Для скрытых заявок фильтруем только по excludeFromInWork=true
-          params.append('excludeFromInWork', 'true');
-        } else if (activeTab !== 'all') {
-          // Для других вкладок применяем фильтр по статусам вкладки
-          const tabStatuses = getStatusesForTab(activeTab);
-          tabStatuses.forEach(status => {
-            params.append('status', status);
-          });
+    // Извлекаем уникальные статусы из текущих данных таблицы
+    const statusSet = new Set<string>();
+    data.content.forEach((request: PurchaseRequest) => {
+      if (request.status) {
+        const statusStr = String(request.status).trim();
+        if (statusStr) {
+          statusSet.add(statusStr);
         }
-        // Для вкладки "Все" не применяем фильтр по статусу - получим все статусы
-        
-        const fetchUrl = `${getBackendUrl()}/api/purchase-requests?${params.toString()}`;
-        const response = await fetch(fetchUrl);
-        if (response.ok) {
-          const result = await response.json();
-          // Извлекаем уникальные статусы из всех данных на вкладке
-          const statusSet = new Set<string>();
-          if (result.content && Array.isArray(result.content)) {
-            result.content.forEach((request: PurchaseRequest) => {
-              if (request.status) {
-                const statusStr = String(request.status).trim();
-                if (statusStr) {
-                  statusSet.add(statusStr);
-                }
-              }
-            });
-          }
-          const statusesArray = Array.from(statusSet).sort();
-          setAvailableStatuses(statusesArray);
-        } else {
-          console.error('Error fetching available statuses:', response.status, response.statusText);
-        }
-      } catch (err) {
-        console.error('Error fetching available statuses:', err);
       }
-    };
-
-    fetchAvailableStatuses();
-  }, [activeTab, filtersLoadedRef]); // Обновляем статусы при изменении вкладки
+    });
+    
+    const statusesArray = Array.from(statusSet).sort();
+    setAvailableStatuses(statusesArray);
+  }, [data]); // Обновляем статусы при изменении данных
 
   // Загружаем данные для сводной таблицы (аналогично purchase-plan)
   // Вспомогательная функция для нормализации имени закупщика
@@ -2949,11 +2920,10 @@ ${fullUrl}
       </div>
 
       {/* Счетчик записей и все кнопки/фильтры в одной строке */}
-      {data && (
-        <div className="px-6 py-2 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0 gap-3 flex-wrap">
-          <div className="text-sm text-gray-700">
-            Показано {allItems.length || 0} из {data?.totalElements || 0} записей
-          </div>
+      <div className="px-6 py-2 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0 gap-3 flex-wrap">
+        <div className="text-sm text-gray-700">
+          Показано {allItems.length || 0} из {data?.totalElements || 0} записей
+        </div>
           <div className="flex items-center gap-2 flex-wrap">
             {/* Первая кнопка - Сбросить фильтры */}
             <button
@@ -2973,6 +2943,8 @@ ${fullUrl}
                   requiresPurchase: '',
                   status: '',
                 };
+                // Очищаем navigationData из localStorage, чтобы не блокировать загрузку
+                localStorage.removeItem('purchaseRequestNavigation');
                 setFilters(emptyFilters);
                 setLocalFilters(emptyFilters);
                 setCfoFilter(new Set());
@@ -2985,8 +2957,16 @@ ${fullUrl}
                 setSortField('idPurchaseRequest');
                 setSortDirection('desc');
                 setFocusedField(null);
-                setActiveTab('in-work'); // Сбрасываем вкладку на "В работе" (по умолчанию)
+                setCurrentPage(0); // Сбрасываем на первую страницу
                 setAllItems([]); // Очищаем накопленные данные
+                // Сбрасываем yearRestored, чтобы не блокировать загрузку данных
+                setYearRestored(false);
+                const newTab = 'in-work';
+                setActiveTab(newTab); // Сбрасываем вкладку на "В работе" (по умолчанию)
+                // Обновляем ref сразу, чтобы fetchData использовал правильную вкладку
+                activeTabRef.current = newTab;
+                // Увеличиваем forceReload для принудительной перезагрузки данных
+                setForceReload(prev => prev + 1);
               }}
               className="px-4 py-1.5 text-sm font-medium bg-red-50 text-red-700 rounded-lg border-2 border-red-300 hover:bg-red-100 hover:border-red-400 transition-colors shadow-sm whitespace-nowrap"
             >
@@ -3106,7 +3086,6 @@ ${fullUrl}
             </div>
           </div>
         </div>
-      )}
       
       <div className="flex-1 overflow-auto relative">
         {/* Вкладки - слева в углу над заголовками, закреплены при прокрутке */}
