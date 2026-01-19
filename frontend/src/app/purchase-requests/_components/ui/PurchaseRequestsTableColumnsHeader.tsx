@@ -1,0 +1,1019 @@
+'use client';
+
+import React from 'react';
+import { ArrowUp, ArrowDown, ArrowUpDown, Eye, Search } from 'lucide-react';
+import { SortField, SortDirection, TabType } from '../types/purchase-request.types';
+import SortableHeader from './SortableHeader';
+import CfoFilterDropdown from '../filters/CfoFilterDropdown';
+import StatusFilterDropdown from '../filters/StatusFilterDropdown';
+import PurchaserFilterDropdown from '../filters/PurchaserFilterDropdown';
+
+interface PurchaseRequestsTableColumnsHeaderProps {
+  // Колонки
+  filteredColumnOrder: string[];
+  visibleColumns: Set<string>;
+  activeTab: TabType;
+  
+  // Сортировка
+  sortField: SortField;
+  sortDirection: SortDirection;
+  onSort: (field: SortField) => void;
+  
+  // Фильтры
+  filtersFromHook: Record<string, string>;
+  localFilters: Record<string, string>;
+  onFilterChange: (field: string, value: string, debounce?: boolean) => void;
+  focusedField: string | null;
+  onFocus: (field: string) => void;
+  onBlur: (e: React.FocusEvent<HTMLInputElement>) => void;
+  
+  // Множественные фильтры
+  cfoFilter: Set<string>;
+  statusFilter: Set<string>;
+  purchaserFilter: Set<string>;
+  
+  // Фильтры - открытие/закрытие
+  isCfoFilterOpen: boolean;
+  isStatusFilterOpen: boolean;
+  isPurchaserFilterOpen: boolean;
+  cfoFilterPosition: { top: number; left: number } | null;
+  statusFilterPosition: { top: number; left: number } | null;
+  purchaserFilterPosition: { top: number; left: number } | null;
+  cfoFilterButtonRef: React.RefObject<HTMLButtonElement | null>;
+  statusFilterButtonRef: React.RefObject<HTMLButtonElement | null>;
+  purchaserFilterButtonRef: React.RefObject<HTMLButtonElement | null>;
+  
+  // Фильтры - поиск
+  cfoSearchQuery: string;
+  statusSearchQuery: string;
+  purchaserSearchQuery: string;
+  onCfoSearchChange: (query: string) => void;
+  onStatusSearchChange: (query: string) => void;
+  onPurchaserSearchChange: (query: string) => void;
+  
+  // Фильтры - обработчики
+  onCfoToggle: (value: string) => void;
+  onStatusToggle: (value: string) => void;
+  onPurchaserToggle: (value: string) => void;
+  onCfoSelectAll: () => void;
+  onCfoDeselectAll: () => void;
+  onStatusSelectAll: () => void;
+  onStatusDeselectAll: () => void;
+  onPurchaserSelectAll: () => void;
+  onPurchaserDeselectAll: () => void;
+  onCfoFilterToggle: () => void;
+  onStatusFilterToggle: () => void;
+  onPurchaserFilterToggle: () => void;
+  
+  // Опции фильтров
+  getFilteredCfoOptions: string[];
+  getFilteredStatusOptions: string[];
+  getFilteredPurchaserOptions: string[];
+  
+  // Drag and drop
+  draggedColumn: string | null;
+  dragOverColumn: string | null;
+  onDragStart: (e: React.DragEvent, columnKey: string) => void;
+  onDragOver: (e: React.DragEvent, columnKey: string) => void;
+  onDragLeave: () => void;
+  onDrop: (e: React.DragEvent, columnKey: string) => void;
+  
+  // Resize
+  getColumnWidth: (columnKey: string) => number;
+  onResizeStart: (e: React.MouseEvent, columnKey: string) => void;
+  
+  // Локальные фильтры - обновление
+  onLocalFiltersChange: (updater: (prev: Record<string, string>) => Record<string, string>) => void;
+}
+
+/**
+ * Компонент заголовка таблицы заявок на закупку
+ * Рендерит все колонки с фильтрами и сортировкой
+ */
+export default function PurchaseRequestsTableColumnsHeader({
+  filteredColumnOrder,
+  visibleColumns,
+  activeTab,
+  sortField,
+  sortDirection,
+  onSort,
+  filtersFromHook,
+  localFilters,
+  onFilterChange,
+  focusedField,
+  onFocus,
+  onBlur,
+  cfoFilter,
+  statusFilter,
+  purchaserFilter,
+  isCfoFilterOpen,
+  isStatusFilterOpen,
+  isPurchaserFilterOpen,
+  cfoFilterPosition,
+  statusFilterPosition,
+  purchaserFilterPosition,
+  cfoFilterButtonRef,
+  statusFilterButtonRef,
+  purchaserFilterButtonRef,
+  cfoSearchQuery,
+  statusSearchQuery,
+  purchaserSearchQuery,
+  onCfoSearchChange,
+  onStatusSearchChange,
+  onPurchaserSearchChange,
+  onCfoToggle,
+  onStatusToggle,
+  onPurchaserToggle,
+  onCfoSelectAll,
+  onCfoDeselectAll,
+  onStatusSelectAll,
+  onStatusDeselectAll,
+  onPurchaserSelectAll,
+  onPurchaserDeselectAll,
+  onCfoFilterToggle,
+  onStatusFilterToggle,
+  onPurchaserFilterToggle,
+  getFilteredCfoOptions,
+  getFilteredStatusOptions,
+  getFilteredPurchaserOptions,
+  draggedColumn,
+  dragOverColumn,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  getColumnWidth,
+  onResizeStart,
+  onLocalFiltersChange,
+}: PurchaseRequestsTableColumnsHeaderProps) {
+  return (
+    <thead className="bg-gray-50 sticky top-[44px] z-20">
+      <tr>
+        {filteredColumnOrder.map(columnKey => {
+          const isDragging = draggedColumn === columnKey;
+          const isDragOver = dragOverColumn === columnKey;
+          
+          // Колонка "excludeFromInWork" - иконка Eye
+          if (columnKey === 'excludeFromInWork') {
+            return (
+              <th 
+                key={columnKey}
+                className="px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative w-12"
+              >
+                <div className="flex items-center justify-center">
+                  <Eye className="w-4 h-4 text-gray-400" />
+                </div>
+              </th>
+            );
+          }
+          
+          // Простые колонки через SortableHeader
+          if (columnKey === 'idPurchaseRequest') {
+            return (
+              <SortableHeader
+                key={columnKey}
+                field="idPurchaseRequest"
+                label="Номер"
+                columnKey="idPurchaseRequest"
+                width={getColumnWidth('idPurchaseRequest')}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={onSort}
+                filterValue={localFilters.idPurchaseRequest || ''}
+                onFilterChange={onFilterChange}
+                onFocus={onFocus}
+                onBlur={onBlur}
+                focusedField={focusedField}
+                onDragStart={onDragStart}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+                isDragged={isDragging}
+                isDragOver={isDragOver}
+                onResizeStart={onResizeStart}
+              />
+            );
+          }
+          
+          if (columnKey === 'guid') {
+            return (
+              <SortableHeader
+                key={columnKey}
+                field="guid"
+                label="GUID"
+                columnKey="guid"
+                width={getColumnWidth('guid')}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={onSort}
+                filterValue={localFilters.guid || ''}
+                onFilterChange={onFilterChange}
+                onFocus={onFocus}
+                onBlur={onBlur}
+                focusedField={focusedField}
+                onDragStart={onDragStart}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+                isDragged={isDragging}
+                isDragOver={isDragOver}
+                onResizeStart={onResizeStart}
+              />
+            );
+          }
+          
+          if (columnKey === 'purchaseRequestPlanYear') {
+            return (
+              <SortableHeader
+                key={columnKey}
+                field="purchaseRequestPlanYear"
+                label="Год плана"
+                columnKey="purchaseRequestPlanYear"
+                width={getColumnWidth('purchaseRequestPlanYear')}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={onSort}
+                filterValue={localFilters.purchaseRequestPlanYear || ''}
+                onFilterChange={onFilterChange}
+                onFocus={onFocus}
+                onBlur={onBlur}
+                focusedField={focusedField}
+                onDragStart={onDragStart}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+                isDragged={isDragging}
+                isDragOver={isDragOver}
+                onResizeStart={onResizeStart}
+              />
+            );
+          }
+          
+          if (columnKey === 'company') {
+            return (
+              <SortableHeader
+                key={columnKey}
+                field="company"
+                label="Компания"
+                columnKey="company"
+                width={getColumnWidth('company')}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={onSort}
+                filterValue={localFilters.company || ''}
+                onFilterChange={onFilterChange}
+                onFocus={onFocus}
+                onBlur={onBlur}
+                focusedField={focusedField}
+                onDragStart={onDragStart}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+                isDragged={isDragging}
+                isDragOver={isDragOver}
+                onResizeStart={onResizeStart}
+              />
+            );
+          }
+          
+          if (columnKey === 'mcc') {
+            return (
+              <SortableHeader
+                key={columnKey}
+                field="mcc"
+                label="МЦК"
+                columnKey="mcc"
+                width={getColumnWidth('mcc')}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={onSort}
+                filterValue={localFilters.mcc || ''}
+                onFilterChange={onFilterChange}
+                onFocus={onFocus}
+                onBlur={onBlur}
+                focusedField={focusedField}
+                onDragStart={onDragStart}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+                isDragged={isDragging}
+                isDragOver={isDragOver}
+                onResizeStart={onResizeStart}
+              />
+            );
+          }
+          
+          if (columnKey === 'purchaseRequestInitiator') {
+            return (
+              <SortableHeader
+                key={columnKey}
+                field="purchaseRequestInitiator"
+                label="Инициатор"
+                columnKey="purchaseRequestInitiator"
+                width={getColumnWidth('purchaseRequestInitiator')}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={onSort}
+                filterValue={localFilters.purchaseRequestInitiator || ''}
+                onFilterChange={onFilterChange}
+                onFocus={onFocus}
+                onBlur={onBlur}
+                focusedField={focusedField}
+                onDragStart={onDragStart}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+                isDragged={isDragging}
+                isDragOver={isDragOver}
+                onResizeStart={onResizeStart}
+              />
+            );
+          }
+          
+          if (columnKey === 'name') {
+            return (
+              <SortableHeader
+                key={columnKey}
+                field="name"
+                label="Наименование"
+                columnKey="name"
+                width={getColumnWidth('name')}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={onSort}
+                filterValue={localFilters.name || ''}
+                onFilterChange={onFilterChange}
+                onFocus={onFocus}
+                onBlur={onBlur}
+                focusedField={focusedField}
+                onDragStart={onDragStart}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+                isDragged={isDragging}
+                isDragOver={isDragOver}
+                onResizeStart={onResizeStart}
+              />
+            );
+          }
+          
+          if (columnKey === 'purchaseRequestCreationDate') {
+            return (
+              <SortableHeader
+                key={columnKey}
+                field="purchaseRequestCreationDate"
+                label="Дата создания"
+                columnKey="purchaseRequestCreationDate"
+                width={getColumnWidth('purchaseRequestCreationDate')}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={onSort}
+                filterValue={localFilters.purchaseRequestCreationDate || ''}
+                onFilterChange={onFilterChange}
+                onFocus={onFocus}
+                onBlur={onBlur}
+                focusedField={focusedField}
+                onDragStart={onDragStart}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+                isDragged={isDragging}
+                isDragOver={isDragOver}
+                onResizeStart={onResizeStart}
+              />
+            );
+          }
+          
+          if (columnKey === 'requiresPurchase') {
+            return (
+              <SortableHeader
+                key={columnKey}
+                field="requiresPurchase"
+                label="Закупка"
+                filterType="select"
+                filterOptions={['Закупка', 'Заказ']}
+                columnKey="requiresPurchase"
+                width={getColumnWidth('requiresPurchase')}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={onSort}
+                filterValue={filtersFromHook.requiresPurchase || ''}
+                onFilterChange={onFilterChange}
+                onFocus={onFocus}
+                onBlur={onBlur}
+                focusedField={focusedField}
+                onDragStart={onDragStart}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+                isDragged={isDragging}
+                isDragOver={isDragOver}
+                onResizeStart={onResizeStart}
+              />
+            );
+          }
+          
+          if (columnKey === 'createdAt') {
+            return (
+              <SortableHeader
+                key={columnKey}
+                field="createdAt"
+                label="Дата создания (системная)"
+                columnKey="createdAt"
+                width={getColumnWidth('createdAt')}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={onSort}
+                filterValue={localFilters.createdAt || ''}
+                onFilterChange={onFilterChange}
+                onFocus={onFocus}
+                onBlur={onBlur}
+                focusedField={focusedField}
+                onDragStart={onDragStart}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+                isDragged={isDragging}
+                isDragOver={isDragOver}
+                onResizeStart={onResizeStart}
+              />
+            );
+          }
+          
+          if (columnKey === 'updatedAt') {
+            return (
+              <SortableHeader
+                key={columnKey}
+                field="updatedAt"
+                label="Дата обновления"
+                columnKey="updatedAt"
+                width={getColumnWidth('updatedAt')}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={onSort}
+                filterValue={localFilters.updatedAt || ''}
+                onFilterChange={onFilterChange}
+                onFocus={onFocus}
+                onBlur={onBlur}
+                focusedField={focusedField}
+                onDragStart={onDragStart}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+                isDragged={isDragging}
+                isDragOver={isDragOver}
+                onResizeStart={onResizeStart}
+              />
+            );
+          }
+          
+          // Колонка ЦФО с выпадающим фильтром
+          if (columnKey === 'cfo') {
+            return (
+              <th
+                key={columnKey}
+                draggable
+                onDragStart={(e) => onDragStart(e, columnKey)}
+                onDragOver={(e) => onDragOver(e, columnKey)}
+                onDragLeave={onDragLeave}
+                onDrop={(e) => onDrop(e, columnKey)}
+                className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px`, verticalAlign: 'top' }}
+              >
+                <div className="flex flex-col gap-1">
+                  <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}>
+                    <div className="relative cfo-filter-container w-full h-full">
+                      <button
+                        ref={cfoFilterButtonRef}
+                        type="button"
+                        onClick={onCfoFilterToggle}
+                        className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded bg-white text-left focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center gap-1 hover:bg-gray-50"
+                        style={{ height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
+                      >
+                        <span className="text-gray-600 truncate flex-1 min-w-0 text-left">
+                          {cfoFilter.size === 0 
+                            ? 'Все' 
+                            : cfoFilter.size === 1
+                            ? (Array.from(cfoFilter)[0] || 'Все')
+                            : `${cfoFilter.size} выбрано`}
+                        </span>
+                        <svg className={`w-3 h-3 transition-transform flex-shrink-0 ${isCfoFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      <CfoFilterDropdown
+                        isOpen={isCfoFilterOpen}
+                        position={cfoFilterPosition}
+                        searchQuery={cfoSearchQuery}
+                        options={getFilteredCfoOptions}
+                        selectedValues={cfoFilter}
+                        onSearchChange={onCfoSearchChange}
+                        onToggle={onCfoToggle}
+                        onSelectAll={onCfoSelectAll}
+                        onDeselectAll={onCfoDeselectAll}
+                        onClose={onCfoFilterToggle}
+                        buttonRef={cfoFilterButtonRef}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 min-h-[20px]">
+                    <button
+                      onClick={() => onSort('cfo')}
+                      className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                      style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                    >
+                      {sortField === 'cfo' ? (
+                        sortDirection === 'asc' ? (
+                          <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                        ) : (
+                          <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                      )}
+                    </button>
+                    <span className="uppercase text-xs font-medium text-gray-500 tracking-wider">ЦФО</span>
+                  </div>
+                </div>
+                <div
+                  className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+                  onMouseDown={(e) => onResizeStart(e, 'cfo')}
+                  style={{ zIndex: 10 }}
+                />
+              </th>
+            );
+          }
+          
+          // Колонка Закупщик с выпадающим фильтром
+          if (columnKey === 'purchaser') {
+            return (
+              <th
+                key={columnKey}
+                draggable
+                onDragStart={(e) => onDragStart(e, columnKey)}
+                onDragOver={(e) => onDragOver(e, columnKey)}
+                onDragLeave={onDragLeave}
+                onDrop={(e) => onDrop(e, columnKey)}
+                className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                style={{ width: `${getColumnWidth('purchaser')}px`, minWidth: `${getColumnWidth('purchaser')}px`, maxWidth: `${getColumnWidth('purchaser')}px`, verticalAlign: 'top' }}
+              >
+                <div className="flex flex-col gap-1">
+                  <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}>
+                    <div className="relative purchaser-filter-container w-full h-full">
+                      <button
+                        ref={purchaserFilterButtonRef}
+                        type="button"
+                        onClick={onPurchaserFilterToggle}
+                        className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded bg-white text-left focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center gap-1 hover:bg-gray-50"
+                        style={{ height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
+                      >
+                        <span className="text-gray-600 truncate flex-1 min-w-0 text-left">
+                          {purchaserFilter.size === 0
+                            ? 'Все'
+                            : purchaserFilter.size === 1
+                            ? (Array.from(purchaserFilter)[0] || 'Все')
+                            : `${purchaserFilter.size} выбрано`}
+                        </span>
+                        <svg className={`w-3 h-3 transition-transform flex-shrink-0 ${isPurchaserFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      <PurchaserFilterDropdown
+                        isOpen={isPurchaserFilterOpen}
+                        position={purchaserFilterPosition}
+                        searchQuery={purchaserSearchQuery}
+                        options={getFilteredPurchaserOptions}
+                        selectedValues={purchaserFilter}
+                        onSearchChange={onPurchaserSearchChange}
+                        onToggle={onPurchaserToggle}
+                        onSelectAll={onPurchaserSelectAll}
+                        onDeselectAll={onPurchaserDeselectAll}
+                        onClose={onPurchaserFilterToggle}
+                        buttonRef={purchaserFilterButtonRef}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 min-h-[20px]">
+                    <button
+                      onClick={() => onSort('purchaser')}
+                      className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                      style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                    >
+                      {sortField === 'purchaser' ? (
+                        sortDirection === 'asc' ? (
+                          <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                        ) : (
+                          <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                      )}
+                    </button>
+                    <span className="text-xs font-medium text-gray-500 tracking-wider">Закупщик</span>
+                  </div>
+                </div>
+                <div
+                  className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+                  onMouseDown={(e) => onResizeStart(e, 'purchaser')}
+                  style={{ zIndex: 10 }}
+                />
+              </th>
+            );
+          }
+          
+          // Колонка Статус с выпадающим фильтром
+          if (columnKey === 'status') {
+            return (
+              <th
+                key={columnKey}
+                draggable
+                onDragStart={(e) => onDragStart(e, columnKey)}
+                onDragOver={(e) => onDragOver(e, columnKey)}
+                onDragLeave={onDragLeave}
+                onDrop={(e) => onDrop(e, columnKey)}
+                className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                style={{ verticalAlign: 'top' }}
+              >
+                <div className="flex flex-col gap-1">
+                  <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}>
+                    <div className="relative status-filter-container w-full h-full">
+                      <button
+                        ref={statusFilterButtonRef}
+                        type="button"
+                        onClick={onStatusFilterToggle}
+                        className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded bg-white text-left focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center justify-between hover:bg-gray-50"
+                        style={{ height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
+                      >
+                        <span className="text-gray-600 truncate">
+                          {statusFilter.size === 0 
+                            ? 'Все' 
+                            : statusFilter.size === 1
+                            ? Array.from(statusFilter)[0]
+                            : `${statusFilter.size} выбрано`}
+                        </span>
+                        <svg className={`w-3 h-3 transition-transform flex-shrink-0 ${isStatusFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      <StatusFilterDropdown
+                        isOpen={isStatusFilterOpen}
+                        position={statusFilterPosition}
+                        searchQuery={statusSearchQuery}
+                        options={getFilteredStatusOptions}
+                        selectedValues={statusFilter}
+                        onSearchChange={onStatusSearchChange}
+                        onToggle={onStatusToggle}
+                        onSelectAll={onStatusSelectAll}
+                        onDeselectAll={onStatusDeselectAll}
+                        onClose={onStatusFilterToggle}
+                        buttonRef={statusFilterButtonRef}
+                      />
+                    </div>
+                  </div>
+                  <span className="normal-case min-h-[20px] flex items-center">Статус</span>
+                </div>
+              </th>
+            );
+          }
+          
+          // Колонка Бюджет с оператором и числовым фильтром
+          if (columnKey === 'budgetAmount') {
+            return (
+              <th
+                key={columnKey}
+                draggable
+                onDragStart={(e) => onDragStart(e, columnKey)}
+                onDragOver={(e) => onDragOver(e, columnKey)}
+                onDragLeave={onDragLeave}
+                onDrop={(e) => onDrop(e, columnKey)}
+                className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''} cursor-move`}
+                style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px`, verticalAlign: 'top' }}
+              >
+                <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                  <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                    <div className="relative flex-1" style={{ minWidth: 0 }}>
+                      <select
+                        value={localFilters.budgetAmountOperator || 'gte'}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          onLocalFiltersChange(prev => ({
+                            ...prev,
+                            budgetAmountOperator: e.target.value,
+                          }));
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        onFocus={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        className={`absolute left-0 top-0 h-full text-xs border-0 border-r border-gray-300 rounded-l px-1 py-0 focus:outline-none focus:ring-0 appearance-none cursor-pointer z-10 transition-colors ${
+                          localFilters.budgetAmountOperator && ['gt', 'gte', 'lt', 'lte'].includes(localFilters.budgetAmountOperator)
+                            ? 'bg-blue-500 text-white font-semibold'
+                            : 'bg-gray-50 text-gray-700'
+                        }`}
+                        style={{ width: '42px', minWidth: '42px', paddingRight: '4px', height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
+                      >
+                        <option value="gt">&gt;</option>
+                        <option value="gte">&gt;=</option>
+                        <option value="lt">&lt;</option>
+                        <option value="lte">&lt;=</option>
+                      </select>
+                      <input
+                        type="text"
+                        data-filter-field="budgetAmount"
+                        value={(() => {
+                          const value = localFilters.budgetAmount || filtersFromHook.budgetAmount || '';
+                          if (!value) return '';
+                          const numValue = value.toString().replace(/\s/g, '').replace(/,/g, '');
+                          const num = parseFloat(numValue);
+                          if (isNaN(num)) return value;
+                          return new Intl.NumberFormat('ru-RU', {
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 0
+                          }).format(num);
+                        })()}
+                        onChange={(e) => {
+                          const newValue = e.target.value.replace(/\s/g, '').replace(/,/g, '');
+                          onLocalFiltersChange(prev => ({
+                            ...prev,
+                            budgetAmount: newValue,
+                          }));
+                          requestAnimationFrame(() => {
+                            const input = e.target as HTMLInputElement;
+                            if (input && document.activeElement === input) {
+                              const length = input.value.length;
+                              input.setSelectionRange(length, length);
+                            }
+                          });
+                        }}
+                        onFocus={(e) => {
+                          e.stopPropagation();
+                          onFocus('budgetAmount');
+                          const value = localFilters.budgetAmount || '';
+                          if (value) {
+                            const numValue = value.replace(/\s/g, '').replace(/,/g, '');
+                            e.target.value = numValue;
+                          }
+                        }}
+                        onBlur={(e) => {
+                          setTimeout(() => {
+                            const activeElement = document.activeElement as HTMLElement;
+                            if (activeElement && activeElement !== e.target && !activeElement.closest('th')) {
+                              onBlur(e);
+                            }
+                          }, 200);
+                        }}
+                        placeholder="Число"
+                        className="w-full text-xs border border-gray-300 rounded px-1 py-0.5 pl-11 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 min-h-[20px]">
+                    <button
+                      onClick={() => onSort('budgetAmount')}
+                      className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                      style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                    >
+                      {sortField === 'budgetAmount' ? (
+                        sortDirection === 'asc' ? (
+                          <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                        ) : (
+                          <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                      )}
+                    </button>
+                    <span className="text-xs font-medium text-gray-500 tracking-wider">Бюджет</span>
+                  </div>
+                </div>
+                <div
+                  className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+                  onMouseDown={(e) => onResizeStart(e, 'budgetAmount')}
+                  style={{ zIndex: 10 }}
+                />
+              </th>
+            );
+          }
+          
+          // Колонка "Срок с даты создания" - только для вкладок кроме "Завершенные"
+          if (columnKey === 'daysSinceCreation') {
+            if (activeTab === 'completed') {
+              return null;
+            }
+            return (
+              <th
+                key={columnKey}
+                draggable
+                onDragStart={(e) => onDragStart(e, columnKey)}
+                onDragOver={(e) => onDragOver(e, columnKey)}
+                onDragLeave={onDragLeave}
+                onDrop={(e) => onDrop(e, columnKey)}
+                className={`px-2 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 cursor-move relative ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                style={{ 
+                  verticalAlign: 'top',
+                  width: `${getColumnWidth(columnKey)}px`,
+                  minWidth: `${getColumnWidth(columnKey)}px`,
+                  maxWidth: `${getColumnWidth(columnKey)}px`
+                }}
+              >
+                <div className="flex flex-col gap-1">
+                  <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}></div>
+                  <span className="normal-case min-h-[20px] flex items-center break-words" style={{ wordBreak: 'break-word', lineHeight: '1.2' }}>Срок с даты создания</span>
+                </div>
+                <div
+                  className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+                  onMouseDown={(e) => onResizeStart(e, columnKey)}
+                  style={{ zIndex: 10 }}
+                />
+              </th>
+            );
+          }
+          
+          // Колонка "Трэк" - только для вкладок кроме "Завершенные"
+          if (columnKey === 'track') {
+            if (activeTab === 'completed') {
+              return null;
+            }
+            return (
+              <th
+                key={columnKey}
+                draggable
+                onDragStart={(e) => onDragStart(e, columnKey)}
+                onDragOver={(e) => onDragOver(e, columnKey)}
+                onDragLeave={onDragLeave}
+                onDrop={(e) => onDrop(e, columnKey)}
+                className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                style={{ verticalAlign: 'top' }}
+              >
+                <div className="flex flex-col gap-1">
+                  <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}></div>
+                  <span className="normal-case min-h-[20px] flex items-center">Трэк</span>
+                </div>
+              </th>
+            );
+          }
+          
+          // Колонка "Оценка" - только для вкладки "Завершенные"
+          if (columnKey === 'rating' && activeTab === 'completed') {
+            return (
+              <th
+                key={columnKey}
+                className="px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300"
+                style={{ verticalAlign: 'top' }}
+              >
+                <div className="flex flex-col gap-1">
+                  <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}></div>
+                  <span className="normal-case min-h-[20px] flex items-center">Оценка</span>
+                </div>
+              </th>
+            );
+          }
+          
+          // Колонка "Валюта"
+          if (columnKey === 'currency') {
+            return (
+              <SortableHeader
+                key={columnKey}
+                field="currency"
+                label="Валюта"
+                columnKey="currency"
+                width={getColumnWidth('currency')}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={onSort}
+                filterValue={localFilters.currency || ''}
+                onFilterChange={onFilterChange}
+                onFocus={onFocus}
+                onBlur={onBlur}
+                focusedField={focusedField}
+                onDragStart={onDragStart}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+                isDragged={isDragging}
+                isDragOver={isDragOver}
+                onResizeStart={onResizeStart}
+              />
+            );
+          }
+          
+          // Колонка "Тип затрат"
+          if (columnKey === 'costType') {
+            return (
+              <SortableHeader
+                key={columnKey}
+                field="costType"
+                label="Тип затрат"
+                columnKey="costType"
+                width={getColumnWidth('costType')}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={onSort}
+                filterValue={localFilters.costType || ''}
+                onFilterChange={onFilterChange}
+                onFocus={onFocus}
+                onBlur={onBlur}
+                focusedField={focusedField}
+                onDragStart={onDragStart}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+                isDragged={isDragging}
+                isDragOver={isDragOver}
+                onResizeStart={onResizeStart}
+              />
+            );
+          }
+          
+          // Колонка "Тип договора"
+          if (columnKey === 'contractType') {
+            return (
+              <SortableHeader
+                key={columnKey}
+                field="contractType"
+                label="Тип договора"
+                columnKey="contractType"
+                width={getColumnWidth('contractType')}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={onSort}
+                filterValue={localFilters.contractType || ''}
+                onFilterChange={onFilterChange}
+                onFocus={onFocus}
+                onBlur={onBlur}
+                focusedField={focusedField}
+                onDragStart={onDragStart}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+                isDragged={isDragging}
+                isDragOver={isDragOver}
+                onResizeStart={onResizeStart}
+              />
+            );
+          }
+          
+          // Колонка "Длительность договора (мес)"
+          if (columnKey === 'contractDurationMonths') {
+            return (
+              <SortableHeader
+                key={columnKey}
+                field="contractDurationMonths"
+                label="Длительность (мес)"
+                columnKey="contractDurationMonths"
+                width={getColumnWidth('contractDurationMonths')}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={onSort}
+                filterValue={localFilters.contractDurationMonths || ''}
+                onFilterChange={onFilterChange}
+                onFocus={onFocus}
+                onBlur={onBlur}
+                focusedField={focusedField}
+                onDragStart={onDragStart}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+                isDragged={isDragging}
+                isDragOver={isDragOver}
+                onResizeStart={onResizeStart}
+              />
+            );
+          }
+          
+          // Колонка "Плановая/Внеплановая"
+          if (columnKey === 'isPlanned') {
+            return (
+              <SortableHeader
+                key={columnKey}
+                field="isPlanned"
+                label="План"
+                filterType="select"
+                filterOptions={['Плановая', 'Внеплановая']}
+                columnKey="isPlanned"
+                width={getColumnWidth('isPlanned')}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={onSort}
+                filterValue={filtersFromHook.isPlanned || ''}
+                onFilterChange={onFilterChange}
+                onFocus={onFocus}
+                onBlur={onBlur}
+                focusedField={focusedField}
+                onDragStart={onDragStart}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+                isDragged={isDragging}
+                isDragOver={isDragOver}
+                onResizeStart={onResizeStart}
+              />
+            );
+          }
+          
+          return null;
+        })}
+      </tr>
+    </thead>
+  );
+}
