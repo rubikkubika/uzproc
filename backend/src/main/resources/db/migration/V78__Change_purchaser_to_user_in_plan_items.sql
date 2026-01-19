@@ -6,32 +6,48 @@ ALTER TABLE purchase_plan_items
 ADD COLUMN IF NOT EXISTS purchaser_id BIGINT;
 
 -- 2. Создаем временную функцию для поиска пользователя по фамилии и имени
+-- ВАЖНО: Поиск осуществляется и по "surname + name", и по "name + surname" 
+-- (на случай если данные в базе перепутаны местами, например Elena Shakirova вместо Shakirova Elena)
 DO $$
 DECLARE
     nastya_user_id BIGINT;
     abdulaziz_user_id BIGINT;
     elena_user_id BIGINT;
 BEGIN
-    -- Ищем пользователей по фамилии и имени
-    -- Настя -> Иссакова Настя
+    -- Ищем пользователей по фамилии и имени (или наоборот, если данные перепутаны)
+    
+    -- Настя -> Иссакова Настя (или Настя Иссакова)
     SELECT id INTO nastya_user_id 
     FROM users 
-    WHERE LOWER(TRIM(surname)) = LOWER('Иссакова') 
-      AND LOWER(TRIM(name)) = LOWER('Настя')
+    WHERE (LOWER(TRIM(surname)) = LOWER('Иссакова') AND LOWER(TRIM(name)) = LOWER('Настя'))
+       OR (LOWER(TRIM(surname)) = LOWER('Настя') AND LOWER(TRIM(name)) = LOWER('Иссакова'))
+       -- Также проверяем латинские варианты
+       OR (LOWER(TRIM(surname)) = LOWER('Isakova') AND LOWER(TRIM(name)) = LOWER('Anastasiia'))
+       OR (LOWER(TRIM(surname)) = LOWER('Anastasiia') AND LOWER(TRIM(name)) = LOWER('Isakova'))
+       OR (LOWER(TRIM(surname)) = LOWER('Isakova') AND LOWER(TRIM(name)) = LOWER('Nastya'))
+       OR (LOWER(TRIM(surname)) = LOWER('Nastya') AND LOWER(TRIM(name)) = LOWER('Isakova'))
     LIMIT 1;
     
-    -- Абдулазиз -> Акбаров Абдулазиз
+    -- Абдулазиз -> Акбаров Абдулазиз (или Абдулазиз Акбаров)
     SELECT id INTO abdulaziz_user_id 
     FROM users 
-    WHERE LOWER(TRIM(surname)) = LOWER('Акбаров') 
-      AND LOWER(TRIM(name)) = LOWER('Абдулазиз')
+    WHERE (LOWER(TRIM(surname)) = LOWER('Акбаров') AND LOWER(TRIM(name)) = LOWER('Абдулазиз'))
+       OR (LOWER(TRIM(surname)) = LOWER('Абдулазиз') AND LOWER(TRIM(name)) = LOWER('Акбаров'))
+       -- Также проверяем латинские варианты
+       OR (LOWER(TRIM(surname)) = LOWER('Akbarov') AND LOWER(TRIM(name)) = LOWER('Abdulaziz'))
+       OR (LOWER(TRIM(surname)) = LOWER('Abdulaziz') AND LOWER(TRIM(name)) = LOWER('Akbarov'))
+       OR (LOWER(TRIM(surname)) = LOWER('AKBAROV') AND LOWER(TRIM(name)) = LOWER('ABDULAZIZ'))
+       OR (LOWER(TRIM(surname)) = LOWER('ABDULAZIZ') AND LOWER(TRIM(name)) = LOWER('AKBAROV'))
     LIMIT 1;
     
-    -- Елена -> Шакирова Елена
+    -- Елена -> Шакирова Елена (или Елена Шакирова)
     SELECT id INTO elena_user_id 
     FROM users 
-    WHERE LOWER(TRIM(surname)) = LOWER('Шакирова') 
-      AND LOWER(TRIM(name)) = LOWER('Елена')
+    WHERE (LOWER(TRIM(surname)) = LOWER('Шакирова') AND LOWER(TRIM(name)) = LOWER('Елена'))
+       OR (LOWER(TRIM(surname)) = LOWER('Елена') AND LOWER(TRIM(name)) = LOWER('Шакирова'))
+       -- Также проверяем латинские варианты (Elena Shakirova или Shakirova Elena)
+       OR (LOWER(TRIM(surname)) = LOWER('Shakirova') AND LOWER(TRIM(name)) = LOWER('Elena'))
+       OR (LOWER(TRIM(surname)) = LOWER('Elena') AND LOWER(TRIM(name)) = LOWER('Shakirova'))
     LIMIT 1;
     
     -- Обновляем purchaser_id на основе старых значений purchaser

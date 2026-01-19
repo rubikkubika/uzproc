@@ -65,6 +65,20 @@ export function useFilterHandlers({
     }
   }, [setFilters, setLocalFilters, setCurrentPage, setAllItems]);
 
+  // Обработчик для select-фильтров (обновляет оба состояния сразу)
+  const handleSelectFilterChange = useCallback((field: string, value: string) => {
+    setFilters(prev => ({
+      ...prev,
+      [field]: value,
+    }));
+    setLocalFilters(prev => ({
+      ...prev,
+      [field]: value,
+    }));
+    setCurrentPage(0);
+    setAllItems([]);
+  }, [setFilters, setLocalFilters, setCurrentPage, setAllItems]);
+
   const getUniqueValues = useCallback((field: keyof PurchaseRequest): string[] => {
     const fieldMap: Record<string, keyof typeof uniqueValues> = {
       cfo: 'cfo',
@@ -203,6 +217,7 @@ export function useFilterHandlers({
 
   return {
     handleFilterChange,
+    handleSelectFilterChange,
     handleCfoToggle,
     handleStatusToggle,
     handlePurchaserToggle,

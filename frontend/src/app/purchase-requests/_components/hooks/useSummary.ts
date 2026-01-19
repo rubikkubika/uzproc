@@ -15,7 +15,6 @@ interface PurchaserSummaryItem {
 
 interface UseSummaryParams {
   filtersFromHook: Record<string, string>;
-  localFilters: Record<string, string>;
   cfoFilter: Set<string>;
   filtersLoadedRef: React.MutableRefObject<boolean>;
 }
@@ -25,7 +24,7 @@ interface UseSummaryParams {
  * Загружает данные для сводной таблицы и вычисляет статистику по закупщикам
  */
 export function useSummary(params: UseSummaryParams) {
-  const { filtersFromHook, localFilters, cfoFilter, filtersLoadedRef } = params;
+  const { filtersFromHook, cfoFilter, filtersLoadedRef } = params;
   const [summaryData, setSummaryData] = useState<PurchaseRequest[]>([]);
 
   // Загрузка данных для сводной таблицы
@@ -61,12 +60,12 @@ export function useSummary(params: UseSummaryParams) {
           params.append('name', filtersFromHook.name.trim());
         }
 
-        const budgetOperator = localFilters.budgetAmountOperator || filtersFromHook.budgetAmountOperator;
-        if (localFilters.budgetAmount && localFilters.budgetAmount.trim() !== '') {
-          const budgetValue = parseBudgetAmount(localFilters.budgetAmount);
+        const budgetOperator = filtersFromHook.budgetAmountOperator || 'gte';
+        if (filtersFromHook.budgetAmount && filtersFromHook.budgetAmount.trim() !== '') {
+          const budgetValue = parseBudgetAmount(filtersFromHook.budgetAmount);
           if (budgetValue !== null) {
             params.append('budgetAmount', String(budgetValue));
-            params.append('budgetAmountOperator', budgetOperator || 'gte');
+            params.append('budgetAmountOperator', budgetOperator);
           }
         }
 
@@ -127,7 +126,7 @@ export function useSummary(params: UseSummaryParams) {
     };
 
     fetchSummaryData();
-  }, [filtersFromHook, cfoFilter, localFilters, filtersLoadedRef]); // НЕ включаем selectedYear и activeTab - сводная таблица всегда показывает все годы и только "в работе"
+  }, [filtersFromHook, cfoFilter, filtersLoadedRef]); // НЕ включаем selectedYear и activeTab - сводная таблица всегда показывает все годы и только "в работе"
 
   // Сводная статистика по закупщикам (использует summaryData, который не учитывает фильтр по закупщику)
   const purchaserSummary = useMemo(() => {

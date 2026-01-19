@@ -26,5 +26,8 @@ public interface PurchasePlanItemRepository extends JpaRepository<PurchasePlanIt
     // Поиск всех уникальных годов
     @org.springframework.data.jpa.repository.Query("SELECT DISTINCT p.year FROM PurchasePlanItem p WHERE p.year IS NOT NULL ORDER BY p.year DESC")
     List<Integer> findDistinctYears();
+    
+    // Поиск позиций плана по purchaseRequestId (номер заявки на закупку)
+    List<PurchasePlanItem> findByPurchaseRequestId(Long purchaseRequestId);
 }
 

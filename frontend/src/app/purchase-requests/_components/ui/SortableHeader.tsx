@@ -14,11 +14,10 @@ interface SortableHeaderProps {
   sortDirection: SortDirection;
   onSort: (field: SortField) => void;
   filterValue?: string;
-  onFilterChange?: (field: string, value: string, debounce?: boolean) => void;
-  onFocus?: (field: string) => void;
+  onFilterChange?: (value: string) => void;
+  onFocus?: () => void;
   onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void;
   width?: number;
-  focusedField?: string | null;
   // Drag and drop
   onDragStart?: (e: React.DragEvent, columnKey: string) => void;
   onDragOver?: (e: React.DragEvent, columnKey: string) => void;
@@ -48,7 +47,6 @@ export default function SortableHeader({
   onFocus,
   onBlur,
   width,
-  focusedField,
   onDragStart,
   onDragOver,
   onDragLeave,
@@ -59,7 +57,6 @@ export default function SortableHeader({
 }: SortableHeaderProps) {
   const fieldKey = field || '';
   const isSorted = sortField === field;
-  const isFocused = focusedField === fieldKey;
   
   const style: React.CSSProperties = width 
     ? { width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px`, verticalAlign: 'top', overflow: 'hidden' }
@@ -83,7 +80,7 @@ export default function SortableHeader({
               value={filterValue}
               onChange={(e) => {
                 e.stopPropagation();
-                onFilterChange?.(fieldKey, e.target.value, false);
+                onFilterChange?.(e.target.value);
               }}
               onClick={(e) => e.stopPropagation()}
               onFocus={(e) => e.stopPropagation()}
@@ -103,34 +100,15 @@ export default function SortableHeader({
               type="text"
               data-filter-field={fieldKey}
               value={filterValue}
-              autoFocus={isFocused}
               onChange={(e) => {
-                const newValue = e.target.value;
-                const cursorPos = e.target.selectionStart || 0;
-                onFilterChange(fieldKey, newValue, false);
-                // Сохраняем позицию курсора после обновления
-                requestAnimationFrame(() => {
-                  const input = e.target as HTMLInputElement;
-                  if (input && document.activeElement === input) {
-                    const newPos = Math.min(cursorPos, newValue.length);
-                    input.setSelectionRange(newPos, newPos);
-                  }
-                });
+                onFilterChange(e.target.value);
               }}
               onFocus={(e) => {
                 e.stopPropagation();
-                onFocus?.(fieldKey);
+                onFocus?.();
               }}
               onBlur={(e) => {
-                setTimeout(() => {
-                  const activeElement = document.activeElement as HTMLElement;
-                  if (activeElement && 
-                      activeElement !== e.target && 
-                      !activeElement.closest('input[data-filter-field]') &&
-                      !activeElement.closest('select')) {
-                    onBlur?.(e);
-                  }
-                }, 200);
+                onBlur?.(e);
               }}
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => {

@@ -8,6 +8,28 @@ interface UseDebouncedFiltersSyncProps {
   setCurrentPage: (page: number) => void;
 }
 
+const TEXT_FIELDS = [
+  'idPurchaseRequest',
+  'name',
+  'contractDurationMonths',
+  'guid',
+  'purchaseRequestPlanYear',
+  'company',
+  'mcc',
+  'purchaseRequestInitiator',
+  'purchaseRequestCreationDate',
+  'createdAt',
+  'updatedAt',
+  'title',
+  'innerId',
+  'budgetAmount',
+  'budgetAmountOperator',
+  'currency',
+  'costType',
+  'contractType',
+  'requiresPurchase',
+];
+
 export function useDebouncedFiltersSync({
   localFilters,
   filtersFromHook,
@@ -15,24 +37,9 @@ export function useDebouncedFiltersSync({
   setFilters,
   setCurrentPage,
 }: UseDebouncedFiltersSyncProps) {
+  // Debounce текстовых фильтров - точная копия логики из плана закупок
   useEffect(() => {
-    const textFields = [
-      'idPurchaseRequest', 
-      'name', 
-      'contractDurationMonths',
-      'guid',
-      'purchaseRequestPlanYear',
-      'company',
-      'mcc',
-      'purchaseRequestInitiator',
-      'purchaseRequestCreationDate',
-      'createdAt',
-      'updatedAt',
-      'title',
-      'innerId',
-      'budgetAmount'
-    ];
-    const hasTextChanges = textFields.some(f => localFilters[f] !== filtersFromHook[f]);
+    const hasTextChanges = TEXT_FIELDS.some(f => localFilters[f] !== filtersFromHook[f]);
     if (hasTextChanges) {
       const input = focusedField ? document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement : null;
       const cursorPosition = input ? input.selectionStart || 0 : null;
@@ -40,7 +47,7 @@ export function useDebouncedFiltersSync({
       const timer = setTimeout(() => {
         setFilters(prev => { 
           const updated = {...prev}; 
-          textFields.forEach(f => updated[f] = localFilters[f] || ''); 
+          TEXT_FIELDS.forEach(f => updated[f] = localFilters[f] || ''); 
           return updated; 
         });
         setCurrentPage(0);

@@ -34,9 +34,7 @@ import { useClickOutsideMany } from './hooks/useClickOutsideMany';
 import { useCsiActions } from './hooks/useCsiActions';
 import { useAutoTabFallback } from './hooks/useAutoTabFallback';
 import { useColumnsByTab } from './hooks/useColumnsByTab';
-import { useDebouncedFiltersSync } from './hooks/useDebouncedFiltersSync';
 import { usePurchaseRequestsFetchController } from './hooks/usePurchaseRequestsFetchController';
-import { useFocusRestore } from './hooks/useFocusRestore';
 import { useTotalRecords } from './hooks/useTotalRecords';
 import { useFilterHandlers } from './hooks/useFilterHandlers';
 import { useExcludeFromInWork } from './hooks/useExcludeFromInWork';
@@ -88,6 +86,9 @@ export default function PurchaseRequestsTable() {
     purchaserSearchQuery, setPurchaserSearchQuery,
     focusedField, setFocusedField,
     forceReload, setForceReload,
+    handleFilterChangeForHeader,
+    handleFocusForHeader,
+    handleBlurForHeader,
   } = filtersHook;
 
   const {
@@ -202,7 +203,6 @@ export default function PurchaseRequestsTable() {
   useTabCounts({
     selectedYear,
     filtersFromHook,
-    localFilters,
     cfoFilter,
     purchaserFilter,
     filtersLoadedRef,
@@ -275,17 +275,7 @@ export default function PurchaseRequestsTable() {
 
 
   // Логика восстановления и сохранения фильтров теперь в хуке useLocalStorageSync
-
-
-
-  // Используем хук для debounce фильтров
-  useDebouncedFiltersSync({
-    localFilters,
-    filtersFromHook,
-    focusedField,
-    setFilters,
-    setCurrentPage,
-  });
+  // Логика debounce и восстановления фокуса теперь встроена в usePurchaseRequestFilters
 
   // Убрали useEffect, который устанавливал DEFAULT_STATUSES - теперь фильтр по умолчанию пустой
 
@@ -297,7 +287,6 @@ export default function PurchaseRequestsTable() {
     activeTab,
     forceReload,
     filtersFromHook,
-    localFilters,
     cfoFilter,
     purchaserFilter,
     statusFilter,
@@ -333,12 +322,6 @@ export default function PurchaseRequestsTable() {
     threshold: 0.1,
   });
 
-  // Используем хук для восстановления фокуса
-  useFocusRestore({
-    focusedField,
-    localFilters,
-  });
-
   // Получаем список уникальных годов из данных
   const getAvailableYears = (): number[] => {
     if (!data || !data.content) return [];
@@ -359,7 +342,6 @@ export default function PurchaseRequestsTable() {
   const { allYears, uniqueValues } = useMetadata();
   const { summaryData, setSummaryData, purchaserSummary } = useSummary({
     filtersFromHook,
-    localFilters,
     cfoFilter,
     filtersLoadedRef,
   });
@@ -369,7 +351,6 @@ export default function PurchaseRequestsTable() {
     activeTab,
     selectedYear,
     filtersFromHook,
-    localFilters,
     cfoFilter,
     purchaserFilter,
   });
@@ -381,7 +362,7 @@ export default function PurchaseRequestsTable() {
 
   // Используем хук для обработчиков фильтров
   const {
-    handleFilterChange,
+    handleSelectFilterChange,
     handleCfoToggle,
     handleStatusToggle,
     handlePurchaserToggle,
@@ -472,12 +453,20 @@ export default function PurchaseRequestsTable() {
   const handleResetFilters = useCallback(() => {
     const emptyFilters = {
       idPurchaseRequest: '',
+      guid: '',
+      purchaseRequestPlanYear: '',
+      company: '',
+      mcc: '',
       cfo: '',
       purchaseRequestInitiator: '',
       purchaser: '',
       name: '',
+      purchaseRequestCreationDate: '',
+      createdAt: '',
+      updatedAt: '',
       budgetAmount: '',
       budgetAmountOperator: 'gte',
+      currency: '',
       costType: '',
       contractType: '',
       contractDurationMonths: '',
@@ -523,23 +512,6 @@ export default function PurchaseRequestsTable() {
     setCurrentPage(0);
     setAllItems([]);
   }, [setActiveTab, setStatusFilter, setPurchaserFilter, setCfoFilter, setCurrentPage, setAllItems]);
-
-  // Обработчики для фокуса в полях фильтров
-  const handleFocus = useCallback((field: string) => {
-    setFocusedField(field);
-  }, [setFocusedField]);
-
-  const handleBlur = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
-    setTimeout(() => {
-      const activeElement = document.activeElement as HTMLElement;
-      if (activeElement && 
-          activeElement !== e.target && 
-          !activeElement.closest('input[data-filter-field]') &&
-          !activeElement.closest('select')) {
-        setFocusedField(null);
-      }
-    }, 200);
-  }, [setFocusedField]);
 
   // Обработчик для изменения локальных фильтров
   const handleLocalFiltersChange = useCallback((updater: (prev: Record<string, string>) => Record<string, string>) => {
@@ -740,10 +712,11 @@ export default function PurchaseRequestsTable() {
             onSort={handleSort}
             filtersFromHook={filtersFromHook}
             localFilters={localFilters}
-            onFilterChange={handleFilterChange}
+            handleFilterChangeForHeader={handleFilterChangeForHeader}
+            handleSelectFilterChange={handleSelectFilterChange}
             focusedField={focusedField}
-            onFocus={handleFocus}
-            onBlur={handleBlur}
+            handleFocusForHeader={handleFocusForHeader}
+            handleBlurForHeader={handleBlurForHeader}
             cfoFilter={cfoFilter}
             statusFilter={statusFilter}
             purchaserFilter={purchaserFilter}

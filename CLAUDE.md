@@ -149,6 +149,7 @@ docker compose ps              # Check service status
 - Every table column should have a filter (text input or select)
 - Table styling must match `PurchaseRequestsTable` standard unless explicitly requested otherwise
 - Input fields must use dark text: `text-gray-900 bg-white`
+- **КРИТИЧЕСКИ ВАЖНО:** При создании фильтров таблиц **ОБЯЗАТЕЛЬНО** следовать паттерну debounce с разделением состояний (см. раздел "Архитектура фильтров с debounce" ниже)
 
 **Local Development Workflow:**
 - PostgreSQL always runs in Docker (`docker compose up -d postgres`)
@@ -297,6 +298,361 @@ const [focusedField, setFocusedField] = useState<string | null>(null);
 - Пагинация применяется ПОСЛЕ фильтрации
 - Стили ячеек: `px-2 py-2 text-xs text-gray-900 border-r border-gray-300`
 - Для полей ввода: `text-gray-900 bg-white`
+
+## Архитектура фильтров с debounce (ОБЯЗАТЕЛЬНО к применению)
+
+**КРИТИЧЕСКИ ВАЖНО:** При создании любых фильтров таблиц **ОБЯЗАТЕЛЬНО** следовать этой архитектуре, чтобы избежать "дёргания" таблицы и лишних запросов на сервер.
+
+### Ключевые принципы
+
+1. **Разделение состояний:**
+   - `localFilters` - обновляется **мгновенно** при каждом вводе (для UI)
+   - `filters` - обновляется **через debounce** (для запросов на сервер)
+   - **НИКОГДА** не смешивать эти состояния в зависимостях `fetchData`
+
+2. **Debounce 500мс:**
+   - Все текстовые фильтры должны применяться через debounce
+   - Стандартная задержка: **500 мс**
+   - Можно использовать 300-400мс, но не менее 300мс
+
+3. **Сохранение фокуса и позиции курсора:**
+   - Использовать `data-filter-field` атрибут на input
+   - Отслеживать `focusedField` состояние
+   - Восстанавливать фокус после загрузки данных с каре ткой в КОНЦЕ текста
+
+4. **Стабильные зависимости:**
+   - `fetchData` **НЕ ДОЛЖНА** зависеть от `localFilters`
+   - `fetchData` должна зависеть только от **применённых** фильтров через `filters`
+   - Избегать прямого использования `localFilters` внутри `fetchData`
+
+### Структура хуков (обязательная)
+
+```
+hooks/
+├── use[Feature]Table.ts           # Главный хук, создаёт fetchData
+├── use[Feature]Filters.ts         # Управление localFilters и filters
+├── useDebouncedFiltersSync.ts     # Debounce логика (500мс)
+├── useFocusRestore.ts             # Восстановление фокуса
+└── use[Feature]FetchController.ts # Контроллер запросов
+```
+
+### 1. Хук фильтров (use[Feature]Filters.ts)
+
+**Обязательная структура:**
+
+```typescript
+export function use[Feature]Filters(setCurrentPage: (page: number) => void) {
+  // ДВА состояния: localFilters (UI) и filters (данные)
+  const [localFilters, setLocalFilters] = useState<Record<string, string>>({});
+  const [filters, setFilters] = useState<Record<string, string>>({});
+  const [focusedField, setFocusedField] = useState<string | null>(null);
+
+  // Другие фильтры (дропдауны, мультиселект)
+  const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
+  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set());
+
+  // Debounce хук
+  useDebouncedFiltersSync({
+    localFilters,
+    filtersFromHook: filters,
+    focusedField,
+    setFilters,
+    setCurrentPage,
+  });
+
+  // Восстановление фокуса
+  useFocusRestore({ focusedField, localFilters });
+
+  // Обработчики изменений
+  const handleFilterChange = useCallback((field: string, value: string) => {
+    setLocalFilters(prev => ({ ...prev, [field]: value }));
+  }, []);
+
+  return {
+    localFilters,     // Для UI (input value)
+    filters,          // Для fetchData
+    focusedField,
+    setFocusedField,
+    handleFilterChange,
+    cfoFilter,
+    setCfoFilter,
+    statusFilter,
+    setStatusFilter,
+    // ... другие фильтры
+  };
+}
+```
+
+**ВАЖНО:**
+- `localFilters` - только для отображения в UI
+- `filters` - только для fetchData и запросов
+- Никогда не передавать `localFilters` в зависимости `fetchData`
+
+### 2. Debounce хук (useDebouncedFiltersSync.ts)
+
+**Обязательная структура:**
+
+```typescript
+const TEXT_FIELDS = [
+  'field1',
+  'field2',
+  'field3',
+  // Добавляйте ВСЕ текстовые поля фильтров
+];
+
+export function useDebouncedFiltersSync({
+  localFilters,
+  filtersFromHook,
+  focusedField,
+  setFilters,
+  setCurrentPage,
+}: UseDebouncedFiltersSyncProps) {
+  useEffect(() => {
+    const hasTextChanges = TEXT_FIELDS.some(f => localFilters[f] !== filtersFromHook[f]);
+    if (hasTextChanges) {
+      const input = focusedField ? document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement : null;
+      const cursorPosition = input ? input.selectionStart || 0 : null;
+
+      const timer = setTimeout(() => {
+        setFilters(prev => {
+          const updated = {...prev};
+          TEXT_FIELDS.forEach(f => updated[f] = localFilters[f] || '');
+          return updated;
+        });
+        setCurrentPage(0);
+
+        // Восстановление фокуса и курсора
+        if (focusedField && cursorPosition !== null) {
+          setTimeout(() => {
+            const inputAfter = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
+            if (inputAfter) {
+              inputAfter.focus();
+              const pos = Math.min(cursorPosition, inputAfter.value.length);
+              inputAfter.setSelectionRange(pos, pos);
+            }
+          }, 0);
+        }
+      }, 500); // 500мс debounce
+
+      return () => clearTimeout(timer);
+    }
+  }, [localFilters, filtersFromHook, focusedField, setFilters, setCurrentPage]);
+}
+```
+
+**КРИТИЧЕСКИ ВАЖНО:**
+- Список `TEXT_FIELDS` должен включать **ВСЕ** текстовые поля фильтров
+- Debounce: **500 мс** (стандарт)
+- Обязательно восстанавливать позицию курсора
+
+### 3. Главный хук таблицы (use[Feature]Table.ts)
+
+**ПРАВИЛЬНАЯ структура fetchData:**
+
+```typescript
+export function use[Feature]Table() {
+  const filtersHook = use[Feature]Filters(setCurrentPage);
+
+  const fetchData = useCallback(async (
+    page: number,
+    size: number,
+    filters: Record<string, string> = {},  // Параметр filters
+    // ... другие параметры
+  ) => {
+    // ... логика запроса
+
+    // ✅ ПРАВИЛЬНО: используем параметр filters
+    if (filters.field1 && filters.field1.trim() !== '') {
+      params.append('field1', filters.field1.trim());
+    }
+
+    // ❌ НЕПРАВИЛЬНО: НЕ использовать filtersHook.localFilters
+    // const value = filtersHook.localFilters.field1;  // ЗАПРЕЩЕНО!
+
+    // ✅ ПРАВИЛЬНО: для фильтров типа Set/Array используем filtersHook напрямую
+    if (filtersHook.cfoFilter.size > 0) {
+      filtersHook.cfoFilter.forEach(cfo => params.append('cfo', cfo));
+    }
+
+  // ✅ ПРАВИЛЬНО: зависимости НЕ включают localFilters
+  }, [filtersHook.activeTabRef, filtersHook.cfoFilter, filtersHook.statusFilter]);
+  //   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  //   НЕТ filtersHook.localFilters! ✅
+
+  return {
+    fetchData,
+    filters: filtersHook,
+    // ...
+  };
+}
+```
+
+**КРИТИЧЕСКИ ВАЖНО:**
+- ❌ **ЗАПРЕЩЕНО:** `}, [filtersHook.localFilters]);`
+- ❌ **ЗАПРЕЩЕНО:** `const value = filtersHook.localFilters.field1 || filters.field1;`
+- ✅ **ПРАВИЛЬНО:** `const value = filters.field1;`
+- ✅ **ПРАВИЛЬНО:** зависимости только для стабильных полей (Set, ref, и т.д.)
+
+### 4. Контроллер запросов (use[Feature]FetchController.ts)
+
+**Правильная структура:**
+
+```typescript
+export function use[Feature]FetchController({
+  fetchData,
+  filters,
+  // ...
+}) {
+  // Стабилизация filters через JSON.stringify
+  const filtersStr = JSON.stringify(filters.filters);
+  const cfoFilterStr = JSON.stringify(Array.from(filters.cfoFilter));
+  const statusFilterStr = JSON.stringify(Array.from(filters.statusFilter));
+
+  useEffect(() => {
+    // Сброс на первую страницу и вызов fetchData
+    setCurrentPage(0);
+    setAllItems([]);
+    fetchData(0, pageSize, selectedYear, sortField, sortDirection, filters.filters, false);
+
+  }, [
+    pageSize,
+    selectedYear,
+    sortField,
+    sortDirection,
+    filtersStr,           // ✅ Стабилизированные через JSON.stringify
+    cfoFilterStr,         // ✅ Стабилизированные через JSON.stringify
+    statusFilterStr,      // ✅ Стабилизированные через JSON.stringify
+    fetchData,            // ✅ fetchData стабильна (не зависит от localFilters)
+    // ...
+  ]);
+}
+```
+
+**ВАЖНО:**
+- Используем `JSON.stringify` для стабилизации объектов и массивов
+- `fetchData` стабильна, потому что не зависит от `localFilters`
+
+### 5. UI компоненты - правильное использование
+
+**Правильная структура input с фильтром:**
+
+```typescript
+<input
+  type="text"
+  data-filter-field="field1"                        // ✅ Для восстановления фокуса
+  value={filters.localFilters.field1 || ''}         // ✅ Отображаем localFilters
+  onChange={(e) => {
+    const value = e.target.value;
+    const cursorPos = e.target.selectionStart || 0;
+    filters.handleFilterChange('field1', value);    // ✅ Обновляем localFilters
+
+    // Восстановление позиции курсора при вводе
+    requestAnimationFrame(() => {
+      e.target.setSelectionRange(cursorPos, cursorPos);
+    });
+  }}
+  onFocus={() => filters.setFocusedField('field1')} // ✅ Отслеживаем фокус
+  className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+/>
+```
+
+**ВАЖНО:**
+- `value` берётся из `localFilters` (для мгновенного обновления UI)
+- `onChange` обновляет `localFilters` (не `filters`)
+- `data-filter-field` для восстановления фокуса
+- `onFocus` для отслеживания активного поля
+
+### Частые ошибки (ИЗБЕГАТЬ!)
+
+#### ❌ Ошибка 1: fetchData зависит от localFilters
+```typescript
+// НЕПРАВИЛЬНО!
+}, [filtersHook.localFilters]);  // ❌ Вызывает ререндеры при каждом вводе
+```
+
+**Исправление:**
+```typescript
+// ПРАВИЛЬНО!
+}, [filtersHook.activeTabRef, filtersHook.cfoFilter, filtersHook.statusFilter]);  // ✅
+```
+
+#### ❌ Ошибка 2: Использование localFilters внутри fetchData
+```typescript
+// НЕПРАВИЛЬНО!
+const value = filtersHook.localFilters.field1 || filters.field1;  // ❌
+```
+
+**Исправление:**
+```typescript
+// ПРАВИЛЬНО!
+const value = filters.field1;  // ✅ Только применённые фильтры
+```
+
+#### ❌ Ошибка 3: Забыли добавить поле в TEXT_FIELDS
+```typescript
+// НЕПРАВИЛЬНО!
+const TEXT_FIELDS = ['field1', 'field2'];  // ❌ Забыли field3
+```
+
+**Исправление:**
+```typescript
+// ПРАВИЛЬНО!
+const TEXT_FIELDS = ['field1', 'field2', 'field3'];  // ✅ Все поля
+```
+
+#### ❌ Ошибка 4: Не восстанавливается фокус
+```typescript
+// НЕПРАВИЛЬНО!
+<input
+  value={filters.localFilters.field1 || ''}
+  onChange={(e) => filters.handleFilterChange('field1', e.target.value)}
+  // ❌ Нет data-filter-field, нет onFocus
+/>
+```
+
+**Исправление:**
+```typescript
+// ПРАВИЛЬНО!
+<input
+  data-filter-field="field1"                         // ✅
+  value={filters.localFilters.field1 || ''}
+  onChange={(e) => {
+    const value = e.target.value;
+    const cursorPos = e.target.selectionStart || 0;
+    filters.handleFilterChange('field1', value);
+    requestAnimationFrame(() => {
+      e.target.setSelectionRange(cursorPos, cursorPos);
+    });
+  }}
+  onFocus={() => filters.setFocusedField('field1')} // ✅
+/>
+```
+
+### Чек-лист при создании фильтров
+
+- [ ] Созданы два состояния: `localFilters` и `filters`
+- [ ] Создан хук `useDebouncedFiltersSync` с debounce 500мс
+- [ ] Все текстовые поля добавлены в массив `TEXT_FIELDS`
+- [ ] `fetchData` **НЕ** зависит от `localFilters`
+- [ ] Внутри `fetchData` используется только параметр `filters`, а не `localFilters`
+- [ ] У всех input есть `data-filter-field` атрибут
+- [ ] У всех input есть обработчик `onFocus` для отслеживания фокуса
+- [ ] Восстанавливается позиция курсора через `requestAnimationFrame`
+- [ ] Контроллер запросов стабилизирует фильтры через `JSON.stringify`
+- [ ] Проверено, что нет "дёргания" при вводе
+- [ ] Проверено, что запрос уходит только после debounce
+
+### Эталонные примеры
+
+**Правильная реализация (эталон):**
+- ✅ `frontend/src/app/purchase-plan/_components/hooks/` (План закупок)
+- ✅ `frontend/src/app/purchase-requests/_components/hooks/` (Заявки на закупку) - после исправлений
+
+**Использовать как референс:**
+1. `usePurchasePlanItemsFilters.ts` - правильная структура фильтров
+2. `useDebouncedFiltersSync.ts` - debounce логика
+3. `useFocusRestore.ts` - восстановление фокуса
+4. `usePurchasePlanItemsTable.ts` - правильные зависимости fetchData
 
 ## Структура компонентов фронтенда
 

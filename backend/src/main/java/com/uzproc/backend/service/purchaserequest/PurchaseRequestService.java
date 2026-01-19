@@ -16,6 +16,7 @@ import com.uzproc.backend.repository.purchase.PurchaseRepository;
 import com.uzproc.backend.entity.csifeedback.CsiFeedback;
 import com.uzproc.backend.service.contract.ContractService;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestStatusUpdateService;
+import com.uzproc.backend.service.purchaseplan.PurchasePlanPurchaserSyncService;
 import java.util.stream.Collectors;
 import jakarta.persistence.criteria.Predicate;
 import org.slf4j.Logger;
@@ -54,6 +55,7 @@ public class PurchaseRequestService {
     private final ContractService contractService;
     private final PurchaseRequestStatusUpdateService statusUpdateService;
     private final CsiFeedbackRepository csiFeedbackRepository;
+    private final PurchasePlanPurchaserSyncService purchasePlanPurchaserSyncService;
     
     @Value("${app.frontend.base-url:}")
     private String frontendBaseUrl;
@@ -65,7 +67,8 @@ public class PurchaseRequestService {
             ContractRepository contractRepository,
             ContractService contractService,
             PurchaseRequestStatusUpdateService statusUpdateService,
-            CsiFeedbackRepository csiFeedbackRepository) {
+            CsiFeedbackRepository csiFeedbackRepository,
+            PurchasePlanPurchaserSyncService purchasePlanPurchaserSyncService) {
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.approvalRepository = approvalRepository;
         this.purchaseRepository = purchaseRepository;
@@ -73,6 +76,7 @@ public class PurchaseRequestService {
         this.contractService = contractService;
         this.statusUpdateService = statusUpdateService;
         this.csiFeedbackRepository = csiFeedbackRepository;
+        this.purchasePlanPurchaserSyncService = purchasePlanPurchaserSyncService;
     }
 
     public Page<PurchaseRequestDto> findAll(
@@ -817,6 +821,13 @@ public class PurchaseRequestService {
         purchaseRequest.setPurchaser(purchaserValue);
         PurchaseRequest saved = purchaseRequestRepository.save(purchaseRequest);
         logger.info("Updated purchaser for purchase request {}: {}", idPurchaseRequest, purchaserValue);
+        
+        // Синхронизируем закупщика в связанные позиции плана закупок
+        int syncedCount = purchasePlanPurchaserSyncService.syncPurchaserFromRequest(idPurchaseRequest, purchaserValue);
+        if (syncedCount > 0) {
+            logger.info("Synced purchaser to {} plan items for purchase request {}", syncedCount, idPurchaseRequest);
+        }
+        
         return toDto(saved);
     }
 
