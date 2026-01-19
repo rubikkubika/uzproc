@@ -9,12 +9,12 @@ import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 import PurchaseRequestsSummaryTable from './ui/PurchaseRequestsSummaryTable';
 import LatestCsiFeedback from './ui/LatestCsiFeedback';
-import type { Contract, PurchaseRequest, PageResponse, SortField, SortDirection, TabType } from '../types/purchase-request.types';
-import { ALL_COLUMNS, DEFAULT_VISIBLE_COLUMNS, COLUMNS_VISIBILITY_STORAGE_KEY } from '../constants/columns.constants';
-import { ALL_STATUSES, DEFAULT_STATUSES, TAB_STATUSES, CACHE_KEY, CACHE_TTL } from '../constants/status.constants';
-import { getCurrencyIcon } from '../utils/currency.utils';
-import { usePurchaseRequestFilters } from '../hooks/usePurchaseRequestFilters';
-import { useTableColumns } from '../hooks/useTableColumns';
+import type { Contract, PurchaseRequest, PageResponse, SortField, SortDirection, TabType } from './types/purchase-request.types';
+import { ALL_COLUMNS, DEFAULT_VISIBLE_COLUMNS, COLUMNS_VISIBILITY_STORAGE_KEY } from './constants/columns.constants';
+import { ALL_STATUSES, DEFAULT_STATUSES, TAB_STATUSES, CACHE_KEY, CACHE_TTL } from './constants/status.constants';
+import { getCurrencyIcon } from './utils/currency.utils';
+import { usePurchaseRequestFilters } from './hooks/usePurchaseRequestFilters';
+import { useTableColumns } from './hooks/useTableColumns';
 
 export default function PurchaseRequestsTable() {
   const router = useRouter();
