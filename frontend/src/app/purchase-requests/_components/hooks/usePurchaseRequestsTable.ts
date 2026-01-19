@@ -5,6 +5,7 @@ import type { PurchaseRequest, PageResponse, SortField, SortDirection, TabType }
 import { TAB_STATUSES } from '../constants/status.constants';
 import { usePurchaseRequestFilters } from './usePurchaseRequestFilters';
 import { useTableColumns } from './useTableColumns';
+import { usePurchaseRequestsModals } from './usePurchaseRequestsModals';
 
 export function usePurchaseRequestsTable() {
   const router = useRouter();
@@ -12,6 +13,7 @@ export function usePurchaseRequestsTable() {
   // Используем существующие хуки
   const filtersHook = usePurchaseRequestFilters();
   const columnsHook = useTableColumns();
+  const modalsHook = usePurchaseRequestsModals();
 
   // Состояние для данных
   const [data, setData] = useState<PageResponse | null>(null);
@@ -266,5 +268,6 @@ export function usePurchaseRequestsTable() {
     // Хуки
     filters: filtersHook,
     columns: columnsHook,
+    modals: modalsHook,
   };
 };
