@@ -47,6 +47,9 @@ export default function PurchaseRequestsTableRow({
       alert('Только администратор может изменять видимость заявки в работе');
       return;
     }
+    if (request.idPurchaseRequest === null) {
+      return;
+    }
     const newValue = !request.excludeFromInWork;
     await onExcludeFromInWorkChange(request.idPurchaseRequest, newValue);
   };
