@@ -2,7 +2,7 @@ package com.uzproc.backend.service.purchaseplan;
 
 import com.uzproc.backend.dto.purchaseplan.PurchasePlanItemDto;
 import com.uzproc.backend.dto.purchaseplan.PurchasePlanVersionDto;
-import com.uzproc.backend.entity.PlanPurchaser;
+import com.uzproc.backend.entity.user.User;
 import com.uzproc.backend.entity.purchaseplan.PurchasePlanItem;
 import com.uzproc.backend.entity.purchaseplan.PurchasePlanItemVersion;
 import com.uzproc.backend.entity.purchaseplan.PurchasePlanVersion;
@@ -91,7 +91,16 @@ public class PurchasePlanVersionService {
         itemVersion.setContractEndDate(item.getContractEndDate());
         itemVersion.setRequestDate(item.getRequestDate());
         itemVersion.setNewContractDate(item.getNewContractDate());
-        itemVersion.setPurchaser(item.getPurchaser() != null ? item.getPurchaser().getDisplayName() : null);
+        // Конвертируем User в строку (фамилия + имя)
+        if (item.getPurchaser() != null) {
+            User purchaser = item.getPurchaser();
+            String purchaserName = purchaser.getSurname() != null && purchaser.getName() != null
+                ? purchaser.getSurname() + " " + purchaser.getName()
+                : purchaser.getUsername();
+            itemVersion.setPurchaser(purchaserName);
+        } else {
+            itemVersion.setPurchaser(null);
+        }
         itemVersion.setProduct(item.getProduct());
         itemVersion.setHasContract(item.getHasContract());
         itemVersion.setCurrentKa(item.getCurrentKa());
@@ -142,7 +151,8 @@ public class PurchasePlanVersionService {
         dto.setContractEndDate(itemVersion.getContractEndDate());
         dto.setRequestDate(itemVersion.getRequestDate());
         dto.setNewContractDate(itemVersion.getNewContractDate());
-        dto.setPurchaser(itemVersion.getPurchaser() != null ? PlanPurchaser.fromDisplayName(itemVersion.getPurchaser()) : null);
+        // purchaser в itemVersion уже строка, просто используем её
+        dto.setPurchaser(itemVersion.getPurchaser());
         dto.setProduct(itemVersion.getProduct());
         dto.setHasContract(itemVersion.getHasContract());
         dto.setCurrentKa(itemVersion.getCurrentKa());

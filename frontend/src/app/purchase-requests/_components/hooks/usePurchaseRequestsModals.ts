@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import type { PurchaseRequest } from '../types/purchase-request.types';
+import type { UserSuggestion } from '../services/users.api';
 
 export function usePurchaseRequestsModals() {
   // Состояние для модального окна оценки
@@ -14,13 +15,7 @@ export function usePurchaseRequestsModals() {
     name: string | null;
   } | null>(null);
   const [userSearchQuery, setUserSearchQuery] = useState<string>('');
-  const [userSuggestions, setUserSuggestions] = useState<Array<{
-    id: number;
-    username: string;
-    email: string | null;
-    surname: string | null;
-    name: string | null;
-  }>>([]);
+  const [userSuggestions, setUserSuggestions] = useState<UserSuggestion[]>([]);
   const [showUserSuggestions, setShowUserSuggestions] = useState(false);
   const [emailText, setEmailText] = useState('');
   const userSearchRef = useRef<HTMLDivElement>(null);
