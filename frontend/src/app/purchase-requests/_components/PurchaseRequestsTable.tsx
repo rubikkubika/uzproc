@@ -14,6 +14,7 @@ import { ALL_COLUMNS, DEFAULT_VISIBLE_COLUMNS, COLUMNS_VISIBILITY_STORAGE_KEY } 
 import { ALL_STATUSES, DEFAULT_STATUSES, TAB_STATUSES, CACHE_KEY, CACHE_TTL } from '../constants/status.constants';
 import { getCurrencyIcon } from '../utils/currency.utils';
 import { usePurchaseRequestFilters } from '../hooks/usePurchaseRequestFilters';
+import { useTableColumns } from '../hooks/useTableColumns';
 
 export default function PurchaseRequestsTable() {
   const router = useRouter();
@@ -52,6 +53,33 @@ export default function PurchaseRequestsTable() {
     forceReload,
     setForceReload,
   } = usePurchaseRequestFilters();
+
+  // Используем хук для управления колонками таблицы
+  const {
+    visibleColumns,
+    setVisibleColumns,
+    toggleColumnVisibility,
+    selectAllColumns,
+    selectDefaultColumns,
+    columnOrder,
+    setColumnOrder,
+    columnWidths,
+    getColumnWidth,
+    getDefaultColumnWidth,
+    isResizing,
+    handleResizeStart,
+    draggedColumn,
+    dragOverColumn,
+    handleDragStart,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+    isColumnsMenuOpen,
+    setIsColumnsMenuOpen,
+    columnsMenuPosition,
+    setColumnsMenuPosition,
+    columnsMenuButtonRef,
+  } = useTableColumns();
 
   const [data, setData] = useState<PageResponse | null>(null);
   const [allItems, setAllItems] = useState<PurchaseRequest[]>([]);
@@ -542,168 +570,6 @@ ${fullUrl}
     });
   }, [activeTab]);
 
-  // Состояние для ширин колонок
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
-  const [isResizing, setIsResizing] = useState<string | null>(null);
-  const resizeStartX = useRef<number>(0);
-  const resizeStartWidth = useRef<number>(0);
-  
-  const resizeColumn = useRef<string | null>(null);
-
-  // Состояние для порядка колонок
-  const [columnOrder, setColumnOrder] = useState<string[]>(['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'daysSinceCreation', 'track', 'rating']);
-  const [draggedColumn, setDraggedColumn] = useState<string | null>(null);
-  const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
-
-  // Состояние для видимости колонок
-  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
-    if (typeof window === 'undefined') {
-      return new Set(DEFAULT_VISIBLE_COLUMNS);
-    }
-    try {
-      const saved = localStorage.getItem(COLUMNS_VISIBILITY_STORAGE_KEY);
-      if (saved) {
-        const savedColumns = JSON.parse(saved);
-        if (Array.isArray(savedColumns)) {
-          const filteredColumns = savedColumns.filter((col: unknown): col is string => typeof col === 'string');
-          // Проверяем, что все колонки из DEFAULT_VISIBLE_COLUMNS присутствуют
-          const missingCols = DEFAULT_VISIBLE_COLUMNS.filter(col => !filteredColumns.includes(col));
-          if (missingCols.length > 0) {
-            // Добавляем недостающие колонки
-            filteredColumns.push(...missingCols);
-            try {
-              localStorage.setItem(COLUMNS_VISIBILITY_STORAGE_KEY, JSON.stringify(filteredColumns));
-            } catch (err) {
-              console.error('Error saving updated column visibility to localStorage:', err);
-            }
-          }
-          return new Set(filteredColumns);
-        }
-      }
-    } catch (err) {
-      console.error('Error loading column visibility from localStorage:', err);
-    }
-    return new Set(DEFAULT_VISIBLE_COLUMNS);
-  });
-
-  // Состояние для открытия меню выбора колонок
-  const [isColumnsMenuOpen, setIsColumnsMenuOpen] = useState(false);
-  const [columnsMenuPosition, setColumnsMenuPosition] = useState<{ top: number; left: number } | null>(null);
-  const columnsMenuButtonRef = useRef<HTMLButtonElement>(null);
-
-  // Функции для управления видимостью колонок
-  const toggleColumnVisibility = (columnKey: string) => {
-    setVisibleColumns(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(columnKey)) {
-        newSet.delete(columnKey);
-      } else {
-        newSet.add(columnKey);
-      }
-      return newSet;
-    });
-  };
-
-  const selectAllColumns = () => {
-    setVisibleColumns(new Set(ALL_COLUMNS.map(col => col.key)));
-  };
-
-  const selectDefaultColumns = () => {
-    setVisibleColumns(new Set(DEFAULT_VISIBLE_COLUMNS));
-  };
-
-  // Сохраняем видимость колонок в localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem(COLUMNS_VISIBILITY_STORAGE_KEY, JSON.stringify(Array.from(visibleColumns)));
-    } catch (err) {
-      console.error('Error saving column visibility to localStorage:', err);
-    }
-  }, [visibleColumns]);
-
-  // Обновляем позицию при открытии меню выбора колонок
-  useEffect(() => {
-    if (isColumnsMenuOpen && columnsMenuButtonRef.current) {
-      const position = calculateFilterPosition(columnsMenuButtonRef);
-      setColumnsMenuPosition(position);
-    }
-  }, [isColumnsMenuOpen, calculateFilterPosition]);
-
-  // Закрываем меню колонок при клике вне его
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (isColumnsMenuOpen) {
-        const target = event.target as Node;
-        if (columnsMenuButtonRef.current && !columnsMenuButtonRef.current.contains(target)) {
-          const columnsMenuElement = document.querySelector('[data-columns-menu="true"]');
-          if (columnsMenuElement && !columnsMenuElement.contains(target)) {
-            setIsColumnsMenuOpen(false);
-          }
-        }
-      }
-    };
-
-    if (isColumnsMenuOpen) {
-      const timeoutId = setTimeout(() => {
-        document.addEventListener('mousedown', handleClickOutside);
-      }, 100);
-      
-      return () => {
-        clearTimeout(timeoutId);
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }
-  }, [isColumnsMenuOpen]);
-
-  // Загружаем сохраненный порядок колонок из localStorage
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('purchaseRequestsTableColumnOrder');
-      const defaultOrder = ['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'daysSinceCreation', 'track', 'rating'];
-      
-      if (saved) {
-        const order = JSON.parse(saved);
-        // Проверяем, что все колонки присутствуют
-        const validOrder = order.filter((col: string) => defaultOrder.includes(col));
-        const missingCols = defaultOrder.filter(col => !validOrder.includes(col));
-        
-        // Убеждаемся, что daysSinceCreation идет перед track
-        let finalOrder = [...validOrder, ...missingCols];
-        const trackIndex = finalOrder.indexOf('track');
-        const daysSinceCreationIndex = finalOrder.indexOf('daysSinceCreation');
-        
-        // Если track найден, а колонка срока не перед ним, перемещаем её
-        if (trackIndex !== -1 && (daysSinceCreationIndex === -1 || daysSinceCreationIndex >= trackIndex)) {
-          // Удаляем колонку срока из текущей позиции
-          finalOrder = finalOrder.filter(col => col !== 'daysSinceCreation');
-          // Вставляем её перед track
-          const newTrackIndex = finalOrder.indexOf('track');
-          if (newTrackIndex !== -1) {
-            finalOrder.splice(newTrackIndex, 0, 'daysSinceCreation');
-          } else {
-            // Если track не найден, добавляем в конец
-            finalOrder.push('daysSinceCreation');
-          }
-        }
-        
-        setColumnOrder(finalOrder);
-        // Сохраняем исправленный порядок
-        try {
-          localStorage.setItem('purchaseRequestsTableColumnOrder', JSON.stringify(finalOrder));
-        } catch (saveErr) {
-          console.error('Error saving column order:', saveErr);
-        }
-      } else {
-        // Если нет сохраненного порядка, используем дефолтный
-        setColumnOrder(defaultOrder);
-      }
-    } catch (err) {
-      console.error('Error loading column order:', err);
-      // В случае ошибки используем дефолтный порядок
-      const defaultOrder = ['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'daysSinceCreation', 'track', 'rating'];
-      setColumnOrder(defaultOrder);
-    }
-  }, []);
 
   // Загружаем сохраненные фильтры из localStorage при монтировании и при возврате с детальной страницы
   useEffect(() => {
@@ -1056,148 +922,6 @@ ${fullUrl}
     };
   }, []); // Пустой массив зависимостей
 
-  // Сохраняем порядок колонок в localStorage
-  const saveColumnOrder = useCallback((order: string[]) => {
-    try {
-      localStorage.setItem('purchaseRequestsTableColumnOrder', JSON.stringify(order));
-    } catch (err) {
-      console.error('Error saving column order:', err);
-    }
-  }, []);
-
-  // Обработчики для перетаскивания колонок
-  const handleDragStart = (e: React.DragEvent, columnKey: string) => {
-    setDraggedColumn(columnKey);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/html', columnKey);
-  };
-
-  const handleDragOver = (e: React.DragEvent, columnKey: string) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    if (draggedColumn && draggedColumn !== columnKey) {
-      setDragOverColumn(columnKey);
-    }
-  };
-
-  const handleDragLeave = () => {
-    setDragOverColumn(null);
-  };
-
-  const handleDrop = (e: React.DragEvent, targetColumnKey: string) => {
-    e.preventDefault();
-    if (!draggedColumn || draggedColumn === targetColumnKey) {
-      setDraggedColumn(null);
-      setDragOverColumn(null);
-      return;
-    }
-
-    const newOrder = [...columnOrder];
-    const draggedIndex = newOrder.indexOf(draggedColumn);
-    const targetIndex = newOrder.indexOf(targetColumnKey);
-
-    newOrder.splice(draggedIndex, 1);
-    newOrder.splice(targetIndex, 0, draggedColumn);
-
-    setColumnOrder(newOrder);
-    saveColumnOrder(newOrder);
-    setDraggedColumn(null);
-    setDragOverColumn(null);
-  };
-
-  // Загружаем сохраненные ширины колонок из localStorage
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('purchaseRequestsTableColumnWidths');
-      if (saved) {
-        const widths = JSON.parse(saved);
-        setColumnWidths(widths);
-      }
-    } catch (err) {
-      console.error('Error loading column widths:', err);
-    }
-  }, []);
-
-  // Сохраняем ширины колонок в localStorage
-  const saveColumnWidths = useCallback((widths: Record<string, number>) => {
-    try {
-      localStorage.setItem('purchaseRequestsTableColumnWidths', JSON.stringify(widths));
-    } catch (err) {
-      console.error('Error saving column widths:', err);
-    }
-  }, []);
-
-  // Обработчик начала изменения размера
-  const handleResizeStart = useCallback((e: React.MouseEvent, columnKey: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsResizing(columnKey);
-    resizeColumn.current = columnKey;
-    resizeStartX.current = e.clientX;
-    const currentWidth = columnWidths[columnKey] || getDefaultColumnWidth(columnKey);
-    resizeStartWidth.current = currentWidth;
-  }, [columnWidths]);
-
-  // Обработчик изменения размера
-  useEffect(() => {
-    if (!isResizing) return;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!resizeColumn.current) return;
-      const diff = e.clientX - resizeStartX.current;
-      const newWidth = Math.max(50, resizeStartWidth.current + diff); // Минимальная ширина 50px
-      setColumnWidths(prev => {
-        const updated = { ...prev, [resizeColumn.current!]: newWidth };
-        saveColumnWidths(updated);
-        return updated;
-      });
-    };
-
-    const handleMouseUp = () => {
-      setIsResizing(null);
-      resizeColumn.current = null;
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isResizing, saveColumnWidths]);
-
-  // Функция для получения ширины колонки по умолчанию
-  const getDefaultColumnWidth = (columnKey: string): number => {
-    const defaults: Record<string, number> = {
-      idPurchaseRequest: 64, // w-16 = 4rem = 64px
-      cfo: 80, // w-20 = 5rem = 80px
-      purchaseRequestInitiator: 128, // w-32 = 8rem = 128px
-      purchaser: 150, // Закупщик
-      name: 192, // w-48 = 12rem = 192px
-      budgetAmount: 112, // w-28 = 7rem = 112px
-      isPlanned: 96, // w-24 = 6rem = 96px
-      requiresPurchase: 96, // w-24 = 6rem = 96px
-      purchaseRequestCreationDate: 128, // w-32 = 8rem = 128px
-      costType: 128, // w-32 = 8rem = 128px
-      contractType: 128, // w-32 = 8rem = 128px
-      contractDurationMonths: 128, // w-32 = 8rem = 128px
-      daysSinceCreation: 140, // Срок с даты создания - немного шире для переноса текста
-      guid: 192, // w-48 = 12rem = 192px
-      purchaseRequestPlanYear: 96, // w-24 = 6rem = 96px
-      company: 128, // w-32 = 8rem = 128px
-      mcc: 96, // w-24 = 6rem = 96px
-      currency: 96, // w-24 = 6rem = 96px
-      createdAt: 160, // w-40 = 10rem = 160px
-      updatedAt: 160, // w-40 = 10rem = 160px
-    };
-    return defaults[columnKey] || 120;
-  };
-
-  // Функция для получения текущей ширины колонки
-  const getColumnWidth = (columnKey: string): number => {
-    return columnWidths[columnKey] || getDefaultColumnWidth(columnKey);
-  };
 
   const fetchData = useCallback(async (
     page: number, 
