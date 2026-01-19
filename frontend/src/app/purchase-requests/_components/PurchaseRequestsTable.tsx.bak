@@ -1748,266 +1748,6 @@ ${fullUrl}
     });
   }, [statusSearchQuery, availableStatuses, uniqueValues.status]);
 
-  // Проверяем, есть ли данные для отображения
-  const hasData = allItems && allItems.length > 0;
-
-  // Обработчик для сброса фильтров
-  const handleResetFilters = useCallback(() => {
-    const emptyFilters = {
-      idPurchaseRequest: '',
-      cfo: '',
-      purchaseRequestInitiator: '',
-      purchaser: '',
-      name: '',
-      budgetAmount: '',
-      budgetAmountOperator: 'gte',
-      costType: '',
-      contractType: '',
-      contractDurationMonths: '',
-      isPlanned: '',
-      requiresPurchase: '',
-      status: '',
-    };
-    localStorage.removeItem('purchaseRequestNavigation');
-    setFilters(emptyFilters);
-    setLocalFilters(emptyFilters);
-    setCfoFilter(new Set());
-    setStatusFilter(new Set());
-    setCfoSearchQuery('');
-    setStatusSearchQuery('');
-    setPurchaserFilter(new Set());
-    setPurchaserSearchQuery('');
-    setSelectedYear(null);
-    setSortField('idPurchaseRequest');
-    setSortDirection('desc');
-    setFocusedField(null);
-    setCurrentPage(0);
-    setAllItems([]);
-    setYearRestored(false);
-    const newTab = 'in-work';
-    setActiveTab(newTab);
-    activeTabRef.current = newTab;
-    setForceReload(prev => prev + 1);
-  }, [setFilters, setLocalFilters, setCfoFilter, setStatusFilter, setCfoSearchQuery, setStatusSearchQuery, setPurchaserFilter, setPurchaserSearchQuery, setSelectedYear, setSortField, setSortDirection, setFocusedField, setCurrentPage, setAllItems, setYearRestored, setActiveTab, activeTabRef, setForceReload]);
-
-  // Обработчик для изменения года
-  const handleYearChange = useCallback((year: number | null) => {
-    setSelectedYear(year);
-    setCurrentPage(0);
-    setAllItems([]);
-  }, [setSelectedYear, setCurrentPage, setAllItems]);
-
-  // Обработчик для переключения вкладки
-  const handleTabChange = useCallback((tab: TabType) => {
-    setActiveTab(tab);
-    setStatusFilter(new Set());
-    setPurchaserFilter(new Set());
-    setCfoFilter(new Set());
-    setCurrentPage(0);
-    setAllItems([]);
-  }, [setActiveTab, setStatusFilter, setPurchaserFilter, setCfoFilter, setCurrentPage, setAllItems]);
-
-  // Обработчики для фокуса в полях фильтров
-  const handleFocus = useCallback((field: string) => {
-    setFocusedField(field);
-  }, [setFocusedField]);
-
-  const handleBlur = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
-    setTimeout(() => {
-      const activeElement = document.activeElement as HTMLElement;
-      if (activeElement && 
-          activeElement !== e.target && 
-          !activeElement.closest('input[data-filter-field]') &&
-          !activeElement.closest('select')) {
-        setFocusedField(null);
-      }
-    }, 200);
-  }, [setFocusedField]);
-
-  // Обработчик для изменения локальных фильтров
-  const handleLocalFiltersChange = useCallback((updater: (prev: Record<string, string>) => Record<string, string>) => {
-    setLocalFilters(updater);
-  }, [setLocalFilters]);
-
-  // Обработчик для клика на строку таблицы
-  const handleRowClick = useCallback((request: PurchaseRequest, index: number) => {
-    try {
-      const filtersToSave = {
-        filters: filtersFromHook,
-        localFilters,
-        cfoFilter: Array.from(cfoFilter),
-        statusFilter: Array.from(statusFilter),
-        selectedYear,
-        sortField,
-        sortDirection,
-        currentPage,
-        pageSize,
-        cfoSearchQuery,
-        statusSearchQuery,
-      };
-      localStorage.setItem('purchaseRequestsTableFilters', JSON.stringify(filtersToSave));
-      
-      const navigationData = {
-        currentIndex: index,
-        page: currentPage,
-        pageSize: pageSize,
-        filters: filtersFromHook,
-        localFilters: localFilters,
-        cfoFilter: Array.from(cfoFilter),
-        statusFilter: Array.from(statusFilter),
-        selectedYear: selectedYear,
-        sortField: sortField,
-        sortDirection: sortDirection,
-        totalElements: data?.totalElements || 0,
-      };
-      localStorage.setItem('purchaseRequestNavigation', JSON.stringify(navigationData));
-      console.log('Navigation data saved with year:', selectedYear, 'navigationData:', navigationData);
-    } catch (err) {
-      console.error('Error saving navigation data:', err);
-    }
-    router.push(`/purchase-request/${request.id}`);
-  }, [filtersFromHook, localFilters, cfoFilter, statusFilter, selectedYear, sortField, sortDirection, currentPage, pageSize, cfoSearchQuery, statusSearchQuery, data, router]);
-
-  // Обработчик для клика колесиком мыши на строку таблицы
-  const handleRowAuxClick = useCallback((request: PurchaseRequest, index: number) => {
-    try {
-      const filtersToSave = {
-        filters: filtersFromHook,
-        localFilters,
-        cfoFilter: Array.from(cfoFilter),
-        statusFilter: Array.from(statusFilter),
-        selectedYear,
-        sortField,
-        sortDirection,
-        currentPage,
-        pageSize,
-        cfoSearchQuery,
-        statusSearchQuery,
-      };
-      localStorage.setItem('purchaseRequestsTableFilters', JSON.stringify(filtersToSave));
-      
-      const navigationData = {
-        currentIndex: currentPage * pageSize + index,
-        page: currentPage,
-        pageSize: pageSize,
-        filters: filtersFromHook,
-        localFilters: localFilters,
-        cfoFilter: Array.from(cfoFilter),
-        statusFilter: Array.from(statusFilter),
-        selectedYear: selectedYear,
-        sortField: sortField,
-        sortDirection: sortDirection,
-        totalElements: data?.totalElements || 0,
-      };
-      localStorage.setItem('purchaseRequestNavigation', JSON.stringify(navigationData));
-      console.log('Navigation data saved with year:', selectedYear, 'navigationData:', navigationData);
-    } catch (err) {
-      console.error('Error saving navigation data:', err);
-    }
-    window.open(`/purchase-request/${request.id}`, '_blank');
-  }, [filtersFromHook, localFilters, cfoFilter, statusFilter, selectedYear, sortField, sortDirection, currentPage, pageSize, cfoSearchQuery, statusSearchQuery, data]);
-
-  // Обработчик для изменения excludeFromInWork
-  const handleExcludeFromInWorkChange = useCallback(async (requestId: number, newValue: boolean) => {
-    try {
-      const response = await fetch(`${getBackendUrl()}/api/purchase-requests/${requestId}/exclude-from-in-work`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Role': userRole || 'user',
-        },
-        body: JSON.stringify({ excludeFromInWork: newValue }),
-      });
-      if (response.ok) {
-        const updated = await response.json();
-        setAllItems(prev => 
-          prev.map(item => 
-            item.idPurchaseRequest === requestId 
-              ? { ...item, excludeFromInWork: updated.excludeFromInWork }
-              : item
-          )
-        );
-      } else {
-        const errorData = await response.json().catch(() => ({ message: 'Ошибка сервера' }));
-        alert(errorData.message || 'Не удалось обновить видимость заявки');
-        console.error('Failed to update excludeFromInWork');
-      }
-    } catch (error) {
-      console.error('Error updating excludeFromInWork:', error);
-      alert('Ошибка при обновлении видимости заявки');
-    }
-  }, [userRole, setAllItems]);
-
-  // Обработчики для колонки "Оценка"
-  const handleRatingClick = useCallback((request: PurchaseRequest) => {
-    setSelectedUser(null);
-    setUserSearchQuery('');
-    setSelectedUserEmail('');
-    setEmailText('');
-    setUserSuggestions([]);
-    setShowUserSuggestions(false);
-    setSelectedRequestForRating(request);
-    setIsRatingModalOpen(true);
-  }, [setSelectedUser, setUserSearchQuery, setSelectedUserEmail, setEmailText, setUserSuggestions, setShowUserSuggestions, setSelectedRequestForRating, setIsRatingModalOpen]);
-
-  const handleFeedbackClick = useCallback(async (request: PurchaseRequest) => {
-    setSelectedRequestForFeedback(request);
-    setIsFeedbackDetailsModalOpen(true);
-    setLoadingFeedbackDetails(true);
-    try {
-      const response = await fetch(`${getBackendUrl()}/api/csi-feedback/by-purchase-request/${request.id}`);
-      if (response.ok) {
-        const data = await response.json();
-        if (Array.isArray(data) && data.length > 0) {
-          const feedback = data[0];
-          setFeedbackDetails({
-            recipient: feedback.recipient || null,
-            speedRating: feedback.speedRating || null,
-            qualityRating: feedback.qualityRating || null,
-            satisfactionRating: feedback.satisfactionRating || null,
-            uzprocRating: feedback.uzprocRating || null,
-            usedUzproc: feedback.usedUzproc || null,
-            comment: feedback.comment || null,
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error loading feedback details:', error);
-    } finally {
-      setLoadingFeedbackDetails(false);
-    }
-  }, [setSelectedRequestForFeedback, setIsFeedbackDetailsModalOpen, setLoadingFeedbackDetails, setFeedbackDetails]);
-
-  const handleSentInvitationClick = useCallback(async (request: PurchaseRequest) => {
-    try {
-      const token = request.csiLink?.split('/csi/feedback/')[1]?.split('?')[0]?.split('#')[0];
-      if (token) {
-        const response = await fetch(`${getBackendUrl()}/api/csi-feedback/invitation/details?csiToken=${encodeURIComponent(token)}`);
-        if (response.ok) {
-          const data = await response.json();
-          const fullUrl = request.csiLink;
-          const recipientName = data.recipientName || '';
-          const generatedText = `Здравствуйте${recipientName ? ' ' + recipientName : ''}!
-
-Вы инициировали заявку на закупку № ${request.idPurchaseRequest || ''} на ${request.name || ''}. Мы хотим улучшить сервис проведения закупок, пожалуйста пройдите опрос по ссылке:
-
-${fullUrl}
-
-(ссылка именная и работает один раз)
-
-Спасибо за ваше время!`;
-          setSentInvitationDetails({
-            recipient: data.recipient || 'Не указан',
-            emailText: generatedText
-          });
-          setIsSentInvitationModalOpen(true);
-        }
-      }
-    } catch (error) {
-      console.error('Error loading invitation details:', error);
-    }
-  }, [setSentInvitationDetails, setIsSentInvitationModalOpen]);
-
   if (loading) {
     return (
       <div className="bg-white p-6 rounded-lg shadow-lg">
@@ -2238,6 +1978,87 @@ ${fullUrl}
     }
   };
 
+  // Проверяем, есть ли данные для отображения
+  const hasData = allItems && allItems.length > 0;
+
+  // Обработчик для сброса фильтров
+  const handleResetFilters = useCallback(() => {
+    const emptyFilters = {
+      idPurchaseRequest: '',
+      cfo: '',
+      purchaseRequestInitiator: '',
+      purchaser: '',
+      name: '',
+      budgetAmount: '',
+      budgetAmountOperator: 'gte',
+      costType: '',
+      contractType: '',
+      contractDurationMonths: '',
+      isPlanned: '',
+      requiresPurchase: '',
+      status: '',
+    };
+    localStorage.removeItem('purchaseRequestNavigation');
+    setFilters(emptyFilters);
+    setLocalFilters(emptyFilters);
+    setCfoFilter(new Set());
+    setStatusFilter(new Set());
+    setCfoSearchQuery('');
+    setStatusSearchQuery('');
+    setPurchaserFilter(new Set());
+    setPurchaserSearchQuery('');
+    setSelectedYear(null);
+    setSortField('idPurchaseRequest');
+    setSortDirection('desc');
+    setFocusedField(null);
+    setCurrentPage(0);
+    setAllItems([]);
+    setYearRestored(false);
+    const newTab = 'in-work';
+    setActiveTab(newTab);
+    activeTabRef.current = newTab;
+    setForceReload(prev => prev + 1);
+  }, [setFilters, setLocalFilters, setCfoFilter, setStatusFilter, setCfoSearchQuery, setStatusSearchQuery, setPurchaserFilter, setPurchaserSearchQuery, setSelectedYear, setSortField, setSortDirection, setFocusedField, setCurrentPage, setAllItems, setYearRestored, setActiveTab, activeTabRef, setForceReload]);
+
+  // Обработчик для изменения года
+  const handleYearChange = useCallback((year: number | null) => {
+    setSelectedYear(year);
+    setCurrentPage(0);
+    setAllItems([]);
+  }, [setSelectedYear, setCurrentPage, setAllItems]);
+
+  // Обработчик для переключения вкладки
+  const handleTabChange = useCallback((tab: TabType) => {
+    setActiveTab(tab);
+    setStatusFilter(new Set());
+    setPurchaserFilter(new Set());
+    setCfoFilter(new Set());
+    setCurrentPage(0);
+    setAllItems([]);
+  }, [setActiveTab, setStatusFilter, setPurchaserFilter, setCfoFilter, setCurrentPage, setAllItems]);
+
+  // Обработчики для фокуса в полях фильтров
+  const handleFocus = useCallback((field: string) => {
+    setFocusedField(field);
+  }, [setFocusedField]);
+
+  const handleBlur = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
+    setTimeout(() => {
+      const activeElement = document.activeElement as HTMLElement;
+      if (activeElement && 
+          activeElement !== e.target && 
+          !activeElement.closest('input[data-filter-field]') &&
+          !activeElement.closest('select')) {
+        setFocusedField(null);
+      }
+    }, 200);
+  }, [setFocusedField]);
+
+  // Обработчик для изменения локальных фильтров
+  const handleLocalFiltersChange = useCallback((updater: (prev: Record<string, string>) => Record<string, string>) => {
+    setLocalFilters(updater);
+  }, [setLocalFilters]);
+
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
       {/* Сводная таблица по закупщикам */}
@@ -2346,20 +2167,1314 @@ ${fullUrl}
             onLocalFiltersChange={handleLocalFiltersChange}
           />
           {/* Старый блок thead удален - теперь используется PurchaseRequestsTableColumnsHeader */}
-          <PurchaseRequestsTableBody
-            allItems={allItems}
-            filteredColumnOrder={filteredColumnOrder}
-            activeTab={activeTab}
-            getColumnWidth={getColumnWidth}
-            canEditExcludeFromInWork={canEditExcludeFromInWork}
-            userRole={userRole}
-            onExcludeFromInWorkChange={handleExcludeFromInWorkChange}
-            onRowClick={handleRowClick}
-            onRowAuxClick={handleRowAuxClick}
-            onRatingClick={handleRatingClick}
-            onFeedbackClick={handleFeedbackClick}
-            onSentInvitationClick={handleSentInvitationClick}
-          />
+                          <div className="relative">
+                            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
+                            <input
+                              type="text"
+                              value={cfoSearchQuery}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                setCfoSearchQuery(e.target.value);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              onFocus={(e) => e.stopPropagation()}
+                              className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              placeholder="Поиск..."
+                            />
+                          </div>
+                        </div>
+                        <div className="p-2 border-b border-gray-200 flex gap-2">
+                          <button
+                            onClick={() => handleCfoSelectAll()}
+                            className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                          >
+                            Все
+                          </button>
+                          <button
+                            onClick={() => handleCfoDeselectAll()}
+                            className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                          >
+                            Снять
+                          </button>
+                        </div>
+                        <div className="max-h-48 overflow-y-auto">
+                          {getFilteredCfoOptions.length === 0 ? (
+                            <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
+                          ) : (
+                            getFilteredCfoOptions.map((cfo) => (
+                              <label
+                                key={cfo}
+                                className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={cfoFilter.has(cfo)}
+                                  onChange={() => handleCfoToggle(cfo)}
+                                  className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                                />
+                                <span className="ml-2 text-xs text-gray-700 flex-1">{cfo}</span>
+                              </label>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 min-h-[20px]">
+                  <button
+                    onClick={() => handleSort('cfo')}
+                      className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                      style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                  >
+                    {sortField === 'cfo' ? (
+                      sortDirection === 'asc' ? (
+                        <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                      ) : (
+                        <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                    )}
+                  </button>
+                    <span className="uppercase text-xs font-medium text-gray-500 tracking-wider">ЦФО</span>
+                  </div>
+                </div>
+                <div
+                  className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+                  onMouseDown={(e) => handleResizeStart(e, 'cfo')}
+                  style={{ zIndex: 10 }}
+                />
+              </th>
+                  );
+                }
+                
+                if (columnKey === 'purchaser') {
+                  return (
+                    <th
+                      key={columnKey}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, columnKey)}
+                      onDragOver={(e) => handleDragOver(e, columnKey)}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(e) => handleDrop(e, columnKey)}
+                      className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                      style={{ width: `${getColumnWidth('purchaser')}px`, minWidth: `${getColumnWidth('purchaser')}px`, maxWidth: `${getColumnWidth('purchaser')}px`, verticalAlign: 'top' }}
+                    >
+                      <div className="flex flex-col gap-1">
+                        <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}>
+                          <div className="relative purchaser-filter-container w-full h-full">
+                            <button
+                              ref={purchaserFilterButtonRef}
+                              type="button"
+                              onClick={() => setIsPurchaserFilterOpen(!isPurchaserFilterOpen)}
+                              className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded bg-white text-left focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center gap-1 hover:bg-gray-50"
+                              style={{ height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
+                            >
+                              <span className="text-gray-600 truncate flex-1 min-w-0 text-left">
+                                {purchaserFilter.size === 0
+                                  ? 'Все'
+                                  : purchaserFilter.size === 1
+                                  ? (Array.from(purchaserFilter)[0] || 'Все')
+                                  : `${purchaserFilter.size} выбрано`}
+                              </span>
+                              <svg className={`w-3 h-3 transition-transform flex-shrink-0 ${isPurchaserFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </button>
+                            {isPurchaserFilterOpen && purchaserFilterPosition && (
+                              <div
+                                className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden"
+                                style={{
+                                  top: `${purchaserFilterPosition.top}px`,
+                                  left: `${purchaserFilterPosition.left}px`,
+                                }}
+                              >
+                                <div className="p-2 border-b border-gray-200">
+                                  <div className="relative">
+                                    <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
+                                    <input
+                                      type="text"
+                                      value={purchaserSearchQuery}
+                                      onChange={(e) => {
+                                        e.stopPropagation();
+                                        setPurchaserSearchQuery(e.target.value);
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onFocus={(e) => e.stopPropagation()}
+                                      className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      placeholder="Поиск..."
+                                    />
+                                  </div>
+                                </div>
+                                <div className="p-2 border-b border-gray-200 flex gap-2">
+                                  <button
+                                    onClick={() => handlePurchaserSelectAll()}
+                                    className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                                  >
+                                    Все
+                                  </button>
+                                  <button
+                                    onClick={() => handlePurchaserDeselectAll()}
+                                    className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                                  >
+                                    Снять
+                                  </button>
+                                </div>
+                                <div className="max-h-48 overflow-y-auto">
+                                  {getFilteredPurchaserOptions.length === 0 ? (
+                                    <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
+                                  ) : (
+                                    getFilteredPurchaserOptions.map((p) => (
+                                      <label
+                                        key={p}
+                                        className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={purchaserFilter.has(p)}
+                                          onChange={() => handlePurchaserToggle(p)}
+                                          className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                                        />
+                                        <span className="ml-2 text-xs text-gray-700 flex-1">{p}</span>
+                                      </label>
+                                    ))
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 min-h-[20px]">
+                          <button
+                            onClick={() => handleSort('purchaser')}
+                            className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                            style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                          >
+                            {sortField === 'purchaser' ? (
+                              sortDirection === 'asc' ? (
+                                <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                              ) : (
+                                <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                              )
+                            ) : (
+                              <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                            )}
+                          </button>
+                          <span className="text-xs font-medium text-gray-500 tracking-wider">Закупщик</span>
+                        </div>
+                      </div>
+                      <div
+                        className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+                        onMouseDown={(e) => handleResizeStart(e, 'purchaser')}
+                        style={{ zIndex: 10 }}
+                      />
+                    </th>
+                  );
+                }
+                
+                if (columnKey === 'name') {
+                  return <SortableHeader key={columnKey} field="name" label="Наименование" width="w-48" columnKey="name" />;
+                }
+                
+                if (columnKey === 'purchaseRequestCreationDate') {
+                  return <SortableHeader key={columnKey} field="purchaseRequestCreationDate" label="Дата создания" width="w-32" columnKey="purchaseRequestCreationDate" />;
+                }
+                
+                if (columnKey === 'budgetAmount') {
+                  return (
+                    <th
+                      key={columnKey}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, columnKey)}
+                      onDragOver={(e) => handleDragOver(e, columnKey)}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(e) => handleDrop(e, columnKey)}
+                      className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''} cursor-move`}
+                      style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px`, verticalAlign: 'top' }}
+                    >
+                      <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                        <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                          <div className="relative flex-1" style={{ minWidth: 0 }}>
+                            <select
+                              value={localFilters.budgetAmountOperator || 'gte'}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                const newValue = e.target.value;
+                                setLocalFilters(prev => ({
+                                  ...prev,
+                                  budgetAmountOperator: newValue,
+                                }));
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                              }}
+                              onFocus={(e) => {
+                                e.stopPropagation();
+                              }}
+                              onMouseDown={(e) => {
+                                e.stopPropagation();
+                              }}
+                              className={`absolute left-0 top-0 h-full text-xs border-0 border-r border-gray-300 rounded-l px-1 py-0 focus:outline-none focus:ring-0 appearance-none cursor-pointer z-10 transition-colors ${
+                                localFilters.budgetAmountOperator && ['gt', 'gte', 'lt', 'lte'].includes(localFilters.budgetAmountOperator)
+                                  ? 'bg-blue-500 text-white font-semibold'
+                                  : 'bg-gray-50 text-gray-700'
+                              }`}
+                              style={{ width: '42px', minWidth: '42px', paddingRight: '4px', height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
+                            >
+                              <option value="gt">&gt;</option>
+                              <option value="gte">&gt;=</option>
+                              <option value="lt">&lt;</option>
+                              <option value="lte">&lt;=</option>
+                            </select>
+                            <input
+                              type="text"
+                              data-filter-field="budgetAmount"
+                              value={(() => {
+                                // Используем значение из localFilters, если оно есть, иначе из filters
+                                const value = localFilters.budgetAmount || filtersFromHook.budgetAmount || '';
+                                if (!value) return '';
+                                // Убираем все нецифровые символы для парсинга
+                                const numValue = value.toString().replace(/\s/g, '').replace(/,/g, '');
+                                const num = parseFloat(numValue);
+                                if (isNaN(num)) return value;
+                                // Форматируем с разделителями разрядов
+                                return new Intl.NumberFormat('ru-RU', {
+                                  minimumFractionDigits: 0,
+                                  maximumFractionDigits: 0
+                                }).format(num);
+                              })()}
+                              onChange={(e) => {
+                                const newValue = e.target.value.replace(/\s/g, '').replace(/,/g, '');
+                                const cursorPos = e.target.selectionStart || 0;
+                                setLocalFilters(prev => ({
+                                  ...prev,
+                                  budgetAmount: newValue,
+                                }));
+                                // Сохраняем позицию курсора после обновления
+                                requestAnimationFrame(() => {
+                                  const input = e.target as HTMLInputElement;
+                                  if (input && document.activeElement === input) {
+                                    // Для бюджета устанавливаем курсор в конец (так как значение форматируется)
+                                    const length = input.value.length;
+                                    input.setSelectionRange(length, length);
+                                  }
+                                });
+                              }}
+                              onFocus={(e) => {
+                                e.stopPropagation();
+                                setFocusedField('budgetAmount');
+                                // При фокусе показываем число без форматирования для удобства редактирования
+                                const value = localFilters.budgetAmount || '';
+                                if (value) {
+                                  const numValue = value.replace(/\s/g, '').replace(/,/g, '');
+                                  e.target.value = numValue;
+                                }
+                              }}
+                              onBlur={(e) => {
+                                setTimeout(() => {
+                                  const activeElement = document.activeElement as HTMLElement;
+                                  if (activeElement && activeElement !== e.target && !activeElement.closest('th')) {
+                                    setFocusedField(null);
+                                  }
+                                }, 200);
+                              }}
+                              placeholder="Число"
+                              className="w-full text-xs border border-gray-300 rounded px-1 py-0.5 pl-11 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 min-h-[20px]">
+                          <button
+                            onClick={() => handleSort('budgetAmount')}
+                            className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                            style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                          >
+                            {sortField === 'budgetAmount' ? (
+                              sortDirection === 'asc' ? (
+                                <ArrowUp className="w-3 h-3 flex-shrink-0" />
+                              ) : (
+                                <ArrowDown className="w-3 h-3 flex-shrink-0" />
+                              )
+                            ) : (
+                              <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
+                            )}
+                          </button>
+                          <span className="text-xs font-medium text-gray-500 tracking-wider">Бюджет</span>
+                        </div>
+                      </div>
+                      <div
+                        className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+                        onMouseDown={(e) => handleResizeStart(e, 'budgetAmount')}
+                        style={{ zIndex: 10 }}
+                      />
+                    </th>
+                  );
+                }
+                
+                if (columnKey === 'requiresPurchase') {
+                  return <SortableHeader key={columnKey} field="requiresPurchase" label="Закупка" filterType="select" filterOptions={['Закупка', 'Заказ']} width="w-24" columnKey="requiresPurchase" />;
+                }
+                
+                if (columnKey === 'status') {
+                  return (
+                    <th
+                      key={columnKey}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, columnKey)}
+                      onDragOver={(e) => handleDragOver(e, columnKey)}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(e) => handleDrop(e, columnKey)}
+                      className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                      style={{ verticalAlign: 'top' }}
+                    >
+                <div className="flex flex-col gap-1">
+                  <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}>
+                    <div className="relative status-filter-container w-full h-full">
+                      <button
+                        ref={statusFilterButtonRef}
+                        type="button"
+                        onClick={() => setIsStatusFilterOpen(!isStatusFilterOpen)}
+                        className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded bg-white text-left focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center justify-between hover:bg-gray-50"
+                        style={{ height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
+                      >
+                        <span className="text-gray-600 truncate">
+                          {statusFilter.size === 0 
+                            ? 'Все' 
+                            : statusFilter.size === 1
+                            ? Array.from(statusFilter)[0]
+                            : `${statusFilter.size} выбрано`}
+                        </span>
+                        <svg className={`w-3 h-3 transition-transform flex-shrink-0 ${isStatusFilterOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                    {isStatusFilterOpen && statusFilterPosition && (
+                      <div 
+                        className="fixed z-50 w-64 bg-white border border-gray-300 rounded-lg shadow-lg max-h-96 overflow-hidden"
+                        style={{
+                          top: `${statusFilterPosition.top}px`,
+                          left: `${statusFilterPosition.left}px`,
+                        }}
+                      >
+                        <div className="p-2 border-b border-gray-200">
+                          <div className="relative">
+                            <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
+                            <input
+                              type="text"
+                              value={statusSearchQuery}
+                              onChange={(e) => setStatusSearchQuery(e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              placeholder="Поиск..."
+                            />
+                          </div>
+                        </div>
+                        <div className="p-2 border-b border-gray-200 flex gap-2">
+                          <button
+                            onClick={() => handleStatusSelectAll()}
+                            className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                          >
+                            Все
+                          </button>
+                          <button
+                            onClick={() => handleStatusDeselectAll()}
+                            className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
+                          >
+                            Снять
+                          </button>
+                        </div>
+                        <div className="max-h-72 overflow-y-auto">
+                          {getFilteredStatusOptions.length === 0 ? (
+                            <div className="text-xs text-gray-500 p-2 text-center">Нет данных</div>
+                          ) : (
+                            getFilteredStatusOptions.map((status) => {
+                              // Логируем для отладки
+                              if (status === 'Утверждена') {
+                                console.log('Rendering status "Утверждена" in UI, checked:', statusFilter.has(status), 'key:', status);
+                              }
+                              return (
+                              <label
+                                key={status}
+                                className="flex items-center p-2 hover:bg-gray-50 cursor-pointer"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={statusFilter.has(status)}
+                                  onChange={() => handleStatusToggle(status)}
+                                  className="w-3 h-3 text-blue-600 rounded focus:ring-blue-500"
+                                />
+                                <span className="ml-2 text-xs text-gray-700 flex-1">{status}</span>
+                              </label>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    </div>
+                  </div>
+                  <span className="normal-case min-h-[20px] flex items-center">Статус</span>
+                </div>
+              </th>
+                  );
+                }
+                
+                if (columnKey === 'daysSinceCreation') {
+                  // Не показываем колонку "Срок с даты создания" для вкладки "Завершенные"
+                  if (activeTab === 'completed') {
+                    return null;
+                  }
+                  return (
+                    <th
+                      key={columnKey}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, columnKey)}
+                      onDragOver={(e) => handleDragOver(e, columnKey)}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(e) => handleDrop(e, columnKey)}
+                      className={`px-2 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 cursor-move relative ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                      style={{ 
+                        verticalAlign: 'top',
+                        width: `${getColumnWidth(columnKey)}px`,
+                        minWidth: `${getColumnWidth(columnKey)}px`,
+                        maxWidth: `${getColumnWidth(columnKey)}px`
+                      }}
+                    >
+                      <div className="flex flex-col gap-1">
+                        <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}></div>
+                        <span className="normal-case min-h-[20px] flex items-center break-words" style={{ wordBreak: 'break-word', lineHeight: '1.2' }}>Срок с даты создания</span>
+                      </div>
+                      <div
+                        className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+                        onMouseDown={(e) => handleResizeStart(e, columnKey)}
+                        style={{ zIndex: 10 }}
+                      />
+                    </th>
+                  );
+                }
+                
+                if (columnKey === 'createdAt') {
+                  return <SortableHeader key={columnKey} field="createdAt" label="Дата создания (системная)" width="w-40" columnKey="createdAt" />;
+                }
+                
+                if (columnKey === 'updatedAt') {
+                  return <SortableHeader key={columnKey} field="updatedAt" label="Дата обновления" width="w-40" columnKey="updatedAt" />;
+                }
+                
+                if (columnKey === 'track') {
+                  // Не показываем колонку "Трэк" для вкладки "Завершенные"
+                  if (activeTab === 'completed') {
+                    return null;
+                  }
+                  return (
+                    <th
+                      key={columnKey}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, columnKey)}
+                      onDragOver={(e) => handleDragOver(e, columnKey)}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(e) => handleDrop(e, columnKey)}
+                      className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                      style={{ verticalAlign: 'top' }}
+                    >
+                      <div className="flex flex-col gap-1">
+                        <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}></div>
+                        <span className="normal-case min-h-[20px] flex items-center">Трэк</span>
+                      </div>
+                    </th>
+                  );
+                }
+                
+                // Колонка "Оценка" только для вкладки "Завершенные"
+                if (columnKey === 'rating' && activeTab === 'completed') {
+                  return (
+                    <th
+                      key={columnKey}
+                      className="px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300"
+                      style={{ verticalAlign: 'top' }}
+                    >
+                      <div className="flex flex-col gap-1">
+                        <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}></div>
+                        <span className="normal-case min-h-[20px] flex items-center">Оценка</span>
+                      </div>
+                    </th>
+                  );
+                }
+                
+                return null;
+              })}
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {hasData ? (
+              allItems.map((request, index) => (
+                <tr 
+                  key={request.guid || `${request.id}-${index}`} 
+                  className="hover:bg-gray-50 cursor-pointer"
+                  onClick={(e) => {
+                    // Не переходим на страницу, если клик был на интерактивном элементе
+                    const target = e.target as HTMLElement;
+                    if (target.closest('input') || target.closest('select') || target.closest('button') || target.closest('.cursor-col-resize')) {
+                      return;
+                    }
+                    // Сохраняем текущие фильтры и позицию для навигации
+                    // Используем индекс из массива allItems
+                    const globalIndex = index;
+                    try {
+                      // Сохраняем фильтры перед переходом
+                      const filtersToSave = {
+                        filters: filtersFromHook,
+                        localFilters,
+                        cfoFilter: Array.from(cfoFilter),
+                        statusFilter: Array.from(statusFilter),
+                        selectedYear,
+                        sortField,
+                        sortDirection,
+                        currentPage,
+                        pageSize,
+                        cfoSearchQuery,
+                        statusSearchQuery,
+                      };
+                      localStorage.setItem('purchaseRequestsTableFilters', JSON.stringify(filtersToSave));
+                      
+                      // Сохраняем данные навигации
+                      const navigationData = {
+                        currentIndex: globalIndex,
+                        page: currentPage,
+                        pageSize: pageSize,
+                        filters: filtersFromHook,
+                        localFilters: localFilters,
+                        cfoFilter: Array.from(cfoFilter),
+                        statusFilter: Array.from(statusFilter),
+                        selectedYear: selectedYear,
+                        sortField: sortField,
+                        sortDirection: sortDirection,
+                        totalElements: data?.totalElements || 0,
+                      };
+                      localStorage.setItem('purchaseRequestNavigation', JSON.stringify(navigationData));
+                      console.log('Navigation data saved with year:', selectedYear, 'navigationData:', navigationData);
+                    } catch (err) {
+                      console.error('Error saving navigation data:', err);
+                    }
+                    router.push(`/purchase-request/${request.id}`);
+                  }}
+                  onAuxClick={(e) => {
+                    // Обработка клика колесиком мыши (средняя кнопка)
+                    if (e.button === 1) {
+                      e.preventDefault();
+                      // Не открываем в новой вкладке, если клик был на интерактивном элементе
+                      const target = e.target as HTMLElement;
+                      if (target.closest('input') || target.closest('select') || target.closest('button') || target.closest('.cursor-col-resize')) {
+                        return;
+                      }
+                      // Сохраняем текущие фильтры и позицию для навигации
+                      const globalIndex = currentPage * pageSize + index;
+                      try {
+                        // Сохраняем фильтры перед переходом
+                        const filtersToSave = {
+                          filters: filtersFromHook,
+                          localFilters,
+                          cfoFilter: Array.from(cfoFilter),
+                          statusFilter: Array.from(statusFilter),
+                          selectedYear,
+                          sortField,
+                          sortDirection,
+                          currentPage,
+                          pageSize,
+                          cfoSearchQuery,
+                          statusSearchQuery,
+                        };
+                        localStorage.setItem('purchaseRequestsTableFilters', JSON.stringify(filtersToSave));
+                        
+                        // Сохраняем данные навигации
+                        const navigationData = {
+                          currentIndex: globalIndex,
+                          page: currentPage,
+                          pageSize: pageSize,
+                          filters: filtersFromHook,
+                          localFilters: localFilters,
+                          cfoFilter: Array.from(cfoFilter),
+                          statusFilter: Array.from(statusFilter),
+                          selectedYear: selectedYear,
+                          sortField: sortField,
+                          sortDirection: sortDirection,
+                          totalElements: data?.totalElements || 0,
+                        };
+                        localStorage.setItem('purchaseRequestNavigation', JSON.stringify(navigationData));
+                        console.log('Navigation data saved with year:', selectedYear, 'navigationData:', navigationData);
+                      } catch (err) {
+                        console.error('Error saving navigation data:', err);
+                      }
+                      // Открываем в новой вкладке
+                      window.open(`/purchase-request/${request.id}`, '_blank');
+                    }
+                  }}
+                >
+                  {filteredColumnOrder.map(columnKey => {
+                    if (columnKey === 'excludeFromInWork') {
+                      const handleToggleExclude = async (e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        if (!canEditExcludeFromInWork) {
+                          alert('Только администратор может изменять видимость заявки в работе');
+                          return;
+                        }
+                        const newValue = !request.excludeFromInWork;
+                        try {
+                          const response = await fetch(`${getBackendUrl()}/api/purchase-requests/${request.idPurchaseRequest}/exclude-from-in-work`, {
+                            method: 'PATCH',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'X-User-Role': userRole || 'user',
+                            },
+                            body: JSON.stringify({ excludeFromInWork: newValue }),
+                          });
+                          if (response.ok) {
+                            const updated = await response.json();
+                            setAllItems(prev => 
+                              prev.map(item => 
+                                item.idPurchaseRequest === request.idPurchaseRequest 
+                                  ? { ...item, excludeFromInWork: updated.excludeFromInWork }
+                                  : item
+                              )
+                            );
+                          } else {
+                            const errorData = await response.json().catch(() => ({ message: 'Ошибка сервера' }));
+                            alert(errorData.message || 'Не удалось обновить видимость заявки');
+                            console.error('Failed to update excludeFromInWork');
+                          }
+                        } catch (error) {
+                          console.error('Error updating excludeFromInWork:', error);
+                          alert('Ошибка при обновлении видимости заявки');
+                        }
+                      };
+                      
+                      return (
+                        <td 
+                          key={columnKey}
+                          className={`px-2 py-0.5 whitespace-nowrap border-r border-gray-200 ${canEditExcludeFromInWork ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+                          style={{ width: '48px', minWidth: '48px', maxWidth: '48px' }}
+                          onClick={canEditExcludeFromInWork ? handleToggleExclude : undefined}
+                        >
+                          <div className={`flex items-center justify-center rounded p-1 transition-colors ${canEditExcludeFromInWork ? 'hover:bg-gray-100' : 'opacity-50'}`}>
+                            {request.excludeFromInWork ? (
+                              <span title={canEditExcludeFromInWork ? "Скрыто из вкладки 'В работе' (кликните для изменения)" : "Скрыто из вкладки 'В работе' (только администратор может изменить)"}>
+                                <EyeOff className="w-4 h-4 text-gray-400" />
+                              </span>
+                            ) : (
+                              <span title={canEditExcludeFromInWork ? "Отображается во вкладке 'В работе' (кликните для изменения)" : "Отображается во вкладке 'В работе' (только администратор может изменить)"}>
+                                <Eye className="w-4 h-4 text-gray-600" />
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'idPurchaseRequest') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('idPurchaseRequest')}px`, minWidth: `${getColumnWidth('idPurchaseRequest')}px`, maxWidth: `${getColumnWidth('idPurchaseRequest')}px` }}
+                        >
+                          {request.idPurchaseRequest || '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'guid') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-0.5 text-xs text-gray-900 truncate border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('guid')}px`, minWidth: `${getColumnWidth('guid')}px`, maxWidth: `${getColumnWidth('guid')}px` }}
+                          title={request.guid ? String(request.guid) : ''}
+                        >
+                          {request.guid ? String(request.guid) : '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'purchaseRequestPlanYear') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('purchaseRequestPlanYear')}px`, minWidth: `${getColumnWidth('purchaseRequestPlanYear')}px`, maxWidth: `${getColumnWidth('purchaseRequestPlanYear')}px` }}
+                        >
+                          {request.purchaseRequestPlanYear || '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'company') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-0.5 text-xs text-gray-900 truncate border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px` }}
+                          title={request.company || ''}
+                        >
+                          {request.company || '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'cfo') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-0.5 text-xs text-gray-900 truncate border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px` }}
+                          title={request.cfo || ''}
+                        >
+                          {request.cfo || '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'mcc') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-0.5 text-xs text-gray-900 truncate border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('mcc')}px`, minWidth: `${getColumnWidth('mcc')}px`, maxWidth: `${getColumnWidth('mcc')}px` }}
+                          title={request.mcc || ''}
+                        >
+                          {request.mcc || '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'purchaseRequestInitiator') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-0.5 text-xs text-gray-900 truncate border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('purchaseRequestInitiator')}px`, minWidth: `${getColumnWidth('purchaseRequestInitiator')}px`, maxWidth: `${getColumnWidth('purchaseRequestInitiator')}px` }}
+                          title={request.purchaseRequestInitiator || ''}
+                        >
+                          {request.purchaseRequestInitiator || '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'purchaser') {
+                      return (
+                        <td
+                          key={columnKey}
+                          className="px-2 py-0.5 text-xs text-gray-900 truncate border-r border-gray-200"
+                          style={{ width: `${getColumnWidth('purchaser')}px`, minWidth: `${getColumnWidth('purchaser')}px`, maxWidth: `${getColumnWidth('purchaser')}px` }}
+                          title={request.purchaser || ''}
+                        >
+                          {request.purchaser || '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'name') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-0.5 text-xs text-gray-900 break-words border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('name')}px`, minWidth: `${getColumnWidth('name')}px`, maxWidth: `${getColumnWidth('name')}px` }}
+                        >
+                          {request.name || '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'purchaseRequestCreationDate') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('purchaseRequestCreationDate')}px`, minWidth: `${getColumnWidth('purchaseRequestCreationDate')}px`, maxWidth: `${getColumnWidth('purchaseRequestCreationDate')}px` }}
+                        >
+                          {request.purchaseRequestCreationDate ? new Date(request.purchaseRequestCreationDate).toLocaleDateString('ru-RU') : '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'budgetAmount') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px` }}
+                        >
+                          {request.budgetAmount ? (
+                            <span className="flex items-center">
+                              {new Intl.NumberFormat('ru-RU', { 
+                            notation: 'compact',
+                            maximumFractionDigits: 1 
+                              }).format(request.budgetAmount)}
+                              {getCurrencyIcon(request.currency)}
+                            </span>
+                          ) : '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'currency') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('currency')}px`, minWidth: `${getColumnWidth('currency')}px`, maxWidth: `${getColumnWidth('currency')}px` }}
+                        >
+                          {request.currency ? (
+                            <span className="flex items-center">
+                              {getCurrencyIcon(request.currency)}
+                            </span>
+                          ) : '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'costType') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-0.5 text-xs text-gray-900 truncate border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('costType')}px`, minWidth: `${getColumnWidth('costType')}px`, maxWidth: `${getColumnWidth('costType')}px` }}
+                          title={request.costType || ''}
+                        >
+                          {request.costType || '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'contractType') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-0.5 text-xs text-gray-900 truncate border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('contractType')}px`, minWidth: `${getColumnWidth('contractType')}px`, maxWidth: `${getColumnWidth('contractType')}px` }}
+                          title={request.contractType || ''}
+                        >
+                          {request.contractType || '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'contractDurationMonths') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center" 
+                          style={{ width: `${getColumnWidth('contractDurationMonths')}px`, minWidth: `${getColumnWidth('contractDurationMonths')}px`, maxWidth: `${getColumnWidth('contractDurationMonths')}px` }}
+                        >
+                          {request.contractDurationMonths !== null && request.contractDurationMonths !== undefined ? (
+                            <span>{request.contractDurationMonths}</span>
+                          ) : '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'isPlanned') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-0.5 whitespace-nowrap text-xs border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('isPlanned')}px`, minWidth: `${getColumnWidth('isPlanned')}px`, maxWidth: `${getColumnWidth('isPlanned')}px` }}
+                        >
+                          {request.isPlanned ? (
+                            <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                              Плановая
+                            </span>
+                          ) : request.isPlanned === false ? (
+                            <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
+                              Внеплановая
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
+                              -
+                            </span>
+                          )}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'requiresPurchase') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-0.5 whitespace-nowrap text-xs border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('requiresPurchase')}px`, minWidth: `${getColumnWidth('requiresPurchase')}px`, maxWidth: `${getColumnWidth('requiresPurchase')}px` }}
+                        >
+                          {request.requiresPurchase ? (
+                            <span className="px-1.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                              Закупка
+                            </span>
+                          ) : request.requiresPurchase === false ? (
+                            <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
+                              Заказ
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
+                              -
+                            </span>
+                          )}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'status') {
+                      return (
+                        <td key={columnKey} className="px-2 py-0.5 text-xs border-r border-gray-200">
+                          {request.status ? (
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                              request.status === 'Согласована' || request.status === 'Спецификация подписана' || request.status === 'Договор подписан'
+                                ? 'bg-green-100 text-green-800'
+                                : request.status === 'Спецификация создана - Архив'
+                                ? 'bg-gray-200 text-gray-700'
+                                : request.status === 'Спецификация создана' || request.status === 'Закупка создана' || request.status === 'Договор создан' || request.status === 'Утверждена' || request.status === 'Заявка утверждена' || request.status === 'Закупка завершена' || request.status === 'Спецификация на согласовании'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : request.status === 'Заявка не согласована' || request.status === 'Заявка не утверждена' || request.status === 'Закупка не согласована'
+                                ? 'bg-red-100 text-red-800'
+                                : request.status === 'На согласовании' || request.status === 'Заявка на согласовании' || request.status === 'На утверждении' || request.status === 'Заявка у закупщика'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {request.status === 'Утверждена' ? 'Заявка утверждена' : request.status}
+                            </span>
+                          ) : (
+                            <span className="px-2 py-1 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
+                              -
+                            </span>
+                          )}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'daysSinceCreation') {
+                      // Не показываем колонку "Срок с даты создания" для вкладки "Завершенные"
+                      if (activeTab === 'completed') {
+                        return null;
+                      }
+                      return (
+                        <td 
+                          key={columnKey} 
+                          className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center"
+                          style={{ 
+                            width: `${getColumnWidth(columnKey)}px`,
+                            minWidth: `${getColumnWidth(columnKey)}px`,
+                            maxWidth: `${getColumnWidth(columnKey)}px`
+                          }}
+                        >
+                          {request.daysSinceCreation !== null && request.daysSinceCreation !== undefined ? (
+                            <span>{request.daysSinceCreation}</span>
+                          ) : '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'createdAt') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('createdAt')}px`, minWidth: `${getColumnWidth('createdAt')}px`, maxWidth: `${getColumnWidth('createdAt')}px` }}
+                        >
+                          {request.createdAt ? new Date(request.createdAt).toLocaleString('ru-RU') : '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'updatedAt') {
+                      return (
+                        <td 
+                          key={columnKey}
+                          className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+                          style={{ width: `${getColumnWidth('updatedAt')}px`, minWidth: `${getColumnWidth('updatedAt')}px`, maxWidth: `${getColumnWidth('updatedAt')}px` }}
+                        >
+                          {request.updatedAt ? new Date(request.updatedAt).toLocaleString('ru-RU') : '-'}
+                        </td>
+                      );
+                    }
+                    
+                    if (columnKey === 'track') {
+                      // Не показываем колонку "Трэк" для вкладки "Завершенные"
+                      if (activeTab === 'completed') {
+                        return null;
+                      }
+                      return (
+                        <td key={columnKey} className="px-2 py-0.5 text-xs border-r border-gray-200">
+                    <div className="flex items-end gap-2">
+                      {/* Проверяем, есть ли спецификация на согласовании (для заказов) */}
+                      {(() => {
+                        const hasSpecificationOnCoordination = request.contracts && request.contracts.some(
+                          (contract: Contract) => 
+                            contract.documentForm === 'Спецификация' && 
+                            contract.status === 'На согласовании'
+                        );
+                        
+                        return (
+                          <>
+                            {/* Заявка - активна */}
+                            <div className="flex flex-col items-center gap-0.5">
+                              {request.status === 'Спецификация подписана' || request.status === 'Договор подписан' || request.status === 'Договор создан' || request.status === 'Закупка создана' || (request.requiresPurchase === false && hasSpecificationOnCoordination) ? (
+                                <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center" title={
+                                  hasSpecificationOnCoordination && request.requiresPurchase === false ? "Заявка: Спецификация на согласовании" :
+                                  request.status === 'Спецификация подписана' ? "Заявка: Спецификация подписана" :
+                                  request.status === 'Договор подписан' ? "Заявка: Договор подписан" :
+                                  request.status === 'Договор создан' ? "Заявка: Договор создан" :
+                                  "Заявка: Закупка создана"
+                                }>
+                                  <Check className="w-2.5 h-2.5 text-white" />
+                                </div>
+                              ) : request.status === 'Утверждена' || request.status === 'Заявка утверждена' || request.status === 'Спецификация создана' ? (
+                                <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center" title={
+                                  request.status === 'Спецификация создана' ? "Заявка: Спецификация создана" :
+                                  "Заявка утверждена"
+                                }>
+                                  <Clock className="w-2.5 h-2.5 text-white" />
+                                </div>
+                              ) : request.status === 'Заявка не утверждена' || request.status === 'Заявка не согласована' || request.status === 'Закупка не согласована' ? (
+                                <div className="relative w-4 h-4 rounded-full bg-red-500 flex items-center justify-center" title={
+                                  request.status === 'Закупка не согласована' ? "Заявка: Закупка не согласована" :
+                                  "Заявка: Заявка не утверждена или Заявка не согласована"
+                                }>
+                                  <X className="w-2.5 h-2.5 text-white" />
+                                </div>
+                              ) : (
+                                <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center" title="Заявка">
+                                  <Clock className="w-2.5 h-2.5 text-white" />
+                                </div>
+                              )}
+                              <span className="text-[10px] text-gray-600 whitespace-nowrap leading-none">Заявка</span>
+                            </div>
+                            
+                            {/* Если закупка требуется: Заявка → Закупка → Договор */}
+                            {request.requiresPurchase !== false ? (
+                              <>
+                                {/* Закупка - желтый бейджик если связанная закупка со статусом "Завершена" */}
+                                <div className="flex flex-col items-center gap-0.5">
+                                  {request.hasCompletedPurchase ? (
+                                    <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Закупка: Завершена">
+                                      <Clock className="w-2.5 h-2.5 text-white" />
+                                    </div>
+                                  ) : request.status === 'Закупка создана' ? (
+                                    <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Закупка: Закупка создана">
+                                      <Clock className="w-2.5 h-2.5 text-white" />
+                                    </div>
+                                  ) : request.status === 'Закупка не согласована' ? (
+                                    <div className="relative w-4 h-4 rounded-full bg-red-500 flex items-center justify-center mt-0.5" title="Закупка: Закупка не согласована">
+                                      <X className="w-2.5 h-2.5 text-white" />
+                                    </div>
+                                  ) : (
+                                    <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Закупка"></div>
+                                  )}
+                                  <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Закупка</span>
+                                </div>
+                                {/* Договор - зеленая галочка если договор подписан, желтая если договор в статусе "Проект" или закупка завершена, иначе серый */}
+                                <div className="flex flex-col items-center gap-0.5">
+                                  {(() => {
+                                    // Проверяем статусы договоров
+                                    const hasSignedContract = request.contracts && request.contracts.some(
+                                      (contract: Contract) => contract.status === 'Договор подписан' || contract.status === 'Подписан'
+                                    );
+                                    const hasProjectContract = request.contracts && request.contracts.some(
+                                      (contract: Contract) => contract.status === 'Проект' || contract.status === 'Договор создан'
+                                    );
+                                    
+                                    if (request.status === 'Договор подписан' || hasSignedContract) {
+                                      return (
+                                        <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center mt-0.5" title="Договор: Договор подписан">
+                                          <Check className="w-2.5 h-2.5 text-white" />
+                                        </div>
+                                      );
+                                    } else if (request.status === 'Договор создан' || hasProjectContract) {
+                                      return (
+                                        <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Договор: Договор в статусе Проект">
+                                          <Clock className="w-2.5 h-2.5 text-white" />
+                                        </div>
+                                      );
+                                    } else if (request.hasCompletedPurchase) {
+                                      return (
+                                        <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Договор: Закупка завершена">
+                                          <Clock className="w-2.5 h-2.5 text-white" />
+                                        </div>
+                                      );
+                                    } else {
+                                      return (
+                                        <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Договор"></div>
+                                      );
+                                    }
+                                  })()}
+                                  <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Договор</span>
+                                </div>
+                              </>
+                            ) : (
+                              /* Если закупка не требуется: Заявка → Заказ */
+                              <div className="flex flex-col items-center gap-0.5">
+                                {request.status === 'Спецификация подписана' || request.status === 'Договор подписан' ? (
+                                  <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center mt-0.5" title={
+                                    request.status === 'Спецификация подписана' ? "Заказ: Спецификация подписана" : 
+                                    "Заявка: Договор подписан"
+                                  }>
+                                    <Check className="w-2.5 h-2.5 text-white" />
+                                  </div>
+                                ) : request.status === 'Спецификация создана' ? (
+                                  <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Заказ: Спецификация создана">
+                                    <Clock className="w-2.5 h-2.5 text-white" />
+                                  </div>
+                                ) : (
+                                  <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Заказ"></div>
+                                )}
+                                <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Заказ</span>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
+                        </td>
+                      );
+                    }
+                    
+                    // Колонка "Оценка" только для вкладки "Завершенные"
+                    if (columnKey === 'rating' && activeTab === 'completed') {
+                      return (
+                        <td 
+                          key={columnKey} 
+                          className="px-2 py-0.5 text-xs border-r border-gray-200"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {request.csiLink ? (
+                            request.hasFeedback ? (
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  setSelectedRequestForFeedback(request);
+                                  setIsFeedbackDetailsModalOpen(true);
+                                  setLoadingFeedbackDetails(true);
+                                  try {
+                                    const response = await fetch(`${getBackendUrl()}/api/csi-feedback/by-purchase-request/${request.id}`);
+                                    if (response.ok) {
+                                      const data = await response.json();
+                                      if (Array.isArray(data) && data.length > 0) {
+                                        const feedback = data[0];
+                                        setFeedbackDetails({
+                                          recipient: feedback.recipient || null,
+                                          speedRating: feedback.speedRating || null,
+                                          qualityRating: feedback.qualityRating || null,
+                                          satisfactionRating: feedback.satisfactionRating || null,
+                                          uzprocRating: feedback.uzprocRating || null,
+                                          usedUzproc: feedback.usedUzproc || null,
+                                          comment: feedback.comment || null,
+                                        });
+                                      }
+                                    }
+                                  } catch (error) {
+                                    console.error('Error loading feedback details:', error);
+                                  } finally {
+                                    setLoadingFeedbackDetails(false);
+                                  }
+                                }}
+                                className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded hover:bg-yellow-200 transition-colors flex items-center gap-1"
+                              >
+                                {request.averageRating ? (() => {
+                                  const rating = request.averageRating;
+                                  const fullStars = Math.floor(rating);
+                                  const hasHalfStar = rating % 1 >= 0.5;
+                                  const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+                                  return (
+                                    <div className="flex items-center gap-0.5">
+                                      {Array.from({ length: fullStars }).map((_, i) => (
+                                        <Star key={`full-${i}`} className="w-3 h-3 fill-yellow-500 text-yellow-500" />
+                                      ))}
+                                      {hasHalfStar && (
+                                        <Star className="w-3 h-3 fill-yellow-500 text-yellow-500 opacity-50" />
+                                      )}
+                                      {Array.from({ length: emptyStars }).map((_, i) => (
+                                        <Star key={`empty-${i}`} className="w-3 h-3 text-gray-300" />
+                                      ))}
+                                      <span className="ml-1">{rating.toFixed(1)}</span>
+                                    </div>
+                                  );
+                                })() : '-'}
+                              </button>
+                            ) : request.csiInvitationSent ? (
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  // Загружаем детали отправленного приглашения
+                                  try {
+                                    // Извлекаем токен из полного URL (например, http://localhost:3000/csi/feedback/{token})
+                                    const token = request.csiLink?.split('/csi/feedback/')[1]?.split('?')[0]?.split('#')[0];
+                                    if (token) {
+                                      const response = await fetch(`${getBackendUrl()}/api/csi-feedback/invitation/details?csiToken=${encodeURIComponent(token)}`);
+                                      if (response.ok) {
+                                        const data = await response.json();
+                                        // Используем полный URL, который приходит с бэкенда (уже учитывает окружение)
+                                        const fullUrl = request.csiLink;
+                                        const recipientName = data.recipientName || '';
+                                        const generatedText = `Здравствуйте${recipientName ? ' ' + recipientName : ''}!
+
+Вы инициировали заявку на закупку № ${request.idPurchaseRequest || ''} на ${request.name || ''}. Мы хотим улучшить сервис проведения закупок, пожалуйста пройдите опрос по ссылке:
+
+${fullUrl}
+
+(ссылка именная и работает один раз)
+
+Спасибо за ваше время!`;
+                                        setSentInvitationDetails({
+                                          recipient: data.recipient || 'Не указан',
+                                          emailText: generatedText
+                                        });
+                                        setIsSentInvitationModalOpen(true);
+                                      }
+                                    }
+                                  } catch (error) {
+                                    console.error('Error loading invitation details:', error);
+                                  }
+                                }}
+                                className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors cursor-pointer"
+                              >
+                                Оценка отправлена
+                              </button>
+                            ) : (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // Сбрасываем состояние перед открытием модального окна
+                                  setSelectedUser(null);
+                                  setUserSearchQuery('');
+                                  setSelectedUserEmail('');
+                                  setEmailText('');
+                                  setUserSuggestions([]);
+                                  setShowUserSuggestions(false);
+                                  setSelectedRequestForRating(request);
+                                  setIsRatingModalOpen(true);
+                                }}
+                                className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                              >
+                                Оценка
+                              </button>
+                            )
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </td>
+                      );
+                    }
+                    
+                    return null;
+                  })}
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={filteredColumnOrder.length} className="px-6 py-8 text-center text-gray-500">
+                  Нет данных
+                </td>
+              </tr>
+            )}
+          </tbody>
         </table>
 
         {/* Infinite scroll индикатор */}
