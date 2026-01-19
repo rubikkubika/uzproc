@@ -40,7 +40,7 @@ export function usePurchaseRequestsTable() {
 
   // Ref для хранения актуальных значений фильтров
   const filtersStateRef = useRef({
-    filters: {} as Record<string, string>,
+    filtersFromHook: {} as Record<string, string>,
     localFilters: {} as Record<string, string>,
     cfoFilter: new Set<string>(),
     statusFilter: new Set<string>(),

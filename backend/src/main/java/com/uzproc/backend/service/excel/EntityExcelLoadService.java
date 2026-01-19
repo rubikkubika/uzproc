@@ -391,25 +391,14 @@ public class EntityExcelLoadService {
                 return false;
             }
             
-            // Проверяем существующую запись и сохраняем информацию о закупщике
+            // Проверяем существующую запись
             Optional<PurchaseRequest> existingOpt = purchaseRequestRepository.findByIdPurchaseRequest(requestNumber);
-            boolean shouldParsePurchaser = true;
-            if (existingOpt.isPresent()) {
-                PurchaseRequest existing = existingOpt.get();
-                String existingPurchaser = existing.getPurchaser();
-                // Если закупщик уже установлен, не будем парсить его из Excel
-                if (existingPurchaser != null && !existingPurchaser.trim().isEmpty()) {
-                    shouldParsePurchaser = false;
-                    logger.debug("Row {}: Purchaser already set for request {}: '{}', will skip parsing from Excel", 
-                        row.getRowNum() + 1, requestNumber, existingPurchaser);
-                }
-            }
             
-            // Парсим строку, передавая информацию о том, нужно ли парсить закупщик
+            // Парсим строку, всегда парсим закупщик из Excel для обновления
             PurchaseRequest pr = parsePurchaseRequestRow(row, requestNumberColumnIndex, creationDateColumnIndex, 
                 innerIdColumnIndex, cfoColumnIndex, nameColumnIndex, titleColumnIndex, 
                 requiresPurchaseColumnIndex, requiresPurchaseColumnName, planColumnIndex, planColumnName, 
-                preparedByColumnIndex, shouldParsePurchaser ? purchaserColumnIndex : null, statusColumnIndex);
+                preparedByColumnIndex, purchaserColumnIndex, statusColumnIndex);
             if (pr != null && pr.getIdPurchaseRequest() != null) {
                 if (existingOpt.isPresent()) {
                     PurchaseRequest existingPr = existingOpt.get();
@@ -617,28 +606,20 @@ public class EntityExcelLoadService {
             }
         }
         
-        // Обновляем закупщика только если он еще не установлен
-        // Если закупщик уже установлен, не перезаписываем его при парсинге Excel
+        // Обновляем закупщика из Excel (всегда обновляем, если значение есть в Excel)
         if (newData.getPurchaser() != null && !newData.getPurchaser().trim().isEmpty()) {
             String existingPurchaser = existing.getPurchaser();
-            boolean hasExistingPurchaser = existingPurchaser != null && !existingPurchaser.trim().isEmpty();
+            String newPurchaser = newData.getPurchaser().trim();
             
-            if (!hasExistingPurchaser) {
-                // Закупщик еще не установлен, устанавливаем его
-                existing.setPurchaser(newData.getPurchaser().trim());
+            if (existingPurchaser == null || !existingPurchaser.equals(newPurchaser)) {
+                // Закупщик обновляется из Excel
+                existing.setPurchaser(newPurchaser);
                 updated = true;
-                logger.info("Set purchaser for request {}: '{}'", existing.getIdPurchaseRequest(), newData.getPurchaser().trim());
+                logger.info("Updated purchaser for request {}: '{}' -> '{}'", 
+                    existing.getIdPurchaseRequest(), existingPurchaser, newPurchaser);
             } else {
-                // Закупщик уже установлен, не перезаписываем
-                logger.info("Purchaser already set for request {}: '{}', skipping update from Excel: '{}'", 
-                    existing.getIdPurchaseRequest(), existingPurchaser, newData.getPurchaser().trim());
-            }
-        } else {
-            // newData.getPurchaser() is null or empty - это нормально, если закупщик уже установлен
-            // и мы не устанавливали его в pr при парсинге
-            if (existing.getPurchaser() != null && !existing.getPurchaser().trim().isEmpty()) {
-                logger.debug("Purchaser preserved for request {}: '{}' (no new value from Excel)", 
-                    existing.getIdPurchaseRequest(), existing.getPurchaser());
+                logger.debug("Purchaser unchanged for request {}: '{}'", 
+                    existing.getIdPurchaseRequest(), existingPurchaser);
             }
         }
         
