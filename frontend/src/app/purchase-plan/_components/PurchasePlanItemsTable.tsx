@@ -710,65 +710,65 @@ export default function PurchasePlanItemsTable() {
 
       {/* Тело таблицы: заголовки колонок и строки с данными */}
       <div className="flex-1 overflow-auto custom-scrollbar" ref={printRef}>
-        {table.data && table.data.content && table.data.content.length > 0 ? (
-          <table className="w-full border-collapse">
-            <PurchasePlanItemsTableColumnsHeader
-              filteredColumnOrder={table.columns.filteredColumnOrder}
-              getColumnWidth={table.columns.getColumnWidth}
-              handleDragStart={table.columns.handleDragStart}
-              handleDragOver={table.columns.handleDragOver}
-              handleDragLeave={table.columns.handleDragLeave}
-              handleDrop={table.columns.handleDrop}
-              draggedColumn={table.columns.draggedColumn}
-              dragOverColumn={table.columns.dragOverColumn}
-              handleResizeStart={table.columns.handleResizeStart}
-              sortField={table.sortField}
-              sortDirection={table.sortDirection}
-              handleSort={table.handleSort}
-              localFilters={table.filters.localFilters}
-              handleFilterChangeForHeader={table.filters.handleFilterChangeForHeader}
-              handleFocusForHeader={table.filters.handleFocusForHeader}
-              handleBlurForHeader={table.filters.handleBlurForHeader}
-              setFilters={table.filters.setFilters}
-              setLocalFilters={table.filters.setLocalFilters}
-              setCurrentPage={table.setCurrentPage}
-              cfoFilterButtonRef={table.filters.cfoFilterButtonRef}
-              cfoFilter={table.filters.cfoFilter}
-              isCfoFilterOpen={table.filters.isCfoFilterOpen}
-              setIsCfoFilterOpen={table.filters.setIsCfoFilterOpen}
-              companyFilterButtonRef={table.filters.companyFilterButtonRef}
-              companyFilter={table.filters.companyFilter}
-              isCompanyFilterOpen={table.filters.isCompanyFilterOpen}
-              setIsCompanyFilterOpen={table.filters.setIsCompanyFilterOpen}
-              purchaserCompanyFilterButtonRef={table.filters.purchaserCompanyFilterButtonRef}
-              purchaserCompanyFilter={table.filters.purchaserCompanyFilter}
-              isPurchaserCompanyFilterOpen={table.filters.isPurchaserCompanyFilterOpen}
-              setIsPurchaserCompanyFilterOpen={table.filters.setIsPurchaserCompanyFilterOpen}
-              categoryFilterButtonRef={table.filters.categoryFilterButtonRef}
-              categoryFilter={table.filters.categoryFilter}
-              isCategoryFilterOpen={table.filters.isCategoryFilterOpen}
-              setIsCategoryFilterOpen={table.filters.setIsCategoryFilterOpen}
-              statusFilterButtonRef={table.filters.statusFilterButtonRef}
-              statusFilter={table.filters.statusFilter}
-              isStatusFilterOpen={table.filters.isStatusFilterOpen}
-              setIsStatusFilterOpen={table.filters.setIsStatusFilterOpen}
-              purchaserFilterButtonRef={table.filters.purchaserFilterButtonRef}
-              purchaserFilter={table.filters.purchaserFilter}
-              isPurchaserFilterOpen={table.filters.isPurchaserFilterOpen}
-              setIsPurchaserFilterOpen={table.filters.setIsPurchaserFilterOpen}
-              getMonthlyDistribution={table.getMonthlyDistribution}
-              selectedYear={table.selectedYear}
-              chartData={table.chartData}
-              selectedMonths={table.selectedMonths}
-              selectedMonthYear={table.selectedMonthYear}
-              lastSelectedMonthIndex={table.lastSelectedMonthIndex}
-              setSelectedMonthYear={table.setSelectedMonthYear}
-              setSelectedYear={table.setSelectedYear}
-              setSelectedMonths={table.setSelectedMonths}
-              setLastSelectedMonthIndex={table.setLastSelectedMonthIndex}
-              selectedCurrency={table.selectedCurrency}
-              setSelectedCurrency={table.setSelectedCurrency}
-            />
+        <table className="w-full border-collapse">
+          <PurchasePlanItemsTableColumnsHeader
+            filteredColumnOrder={table.columns.filteredColumnOrder}
+            getColumnWidth={table.columns.getColumnWidth}
+            handleDragStart={table.columns.handleDragStart}
+            handleDragOver={table.columns.handleDragOver}
+            handleDragLeave={table.columns.handleDragLeave}
+            handleDrop={table.columns.handleDrop}
+            draggedColumn={table.columns.draggedColumn}
+            dragOverColumn={table.columns.dragOverColumn}
+            handleResizeStart={table.columns.handleResizeStart}
+            sortField={table.sortField}
+            sortDirection={table.sortDirection}
+            handleSort={table.handleSort}
+            localFilters={table.filters.localFilters}
+            handleFilterChangeForHeader={table.filters.handleFilterChangeForHeader}
+            handleFocusForHeader={table.filters.handleFocusForHeader}
+            handleBlurForHeader={table.filters.handleBlurForHeader}
+            setFilters={table.filters.setFilters}
+            setLocalFilters={table.filters.setLocalFilters}
+            setCurrentPage={table.setCurrentPage}
+            cfoFilterButtonRef={table.filters.cfoFilterButtonRef}
+            cfoFilter={table.filters.cfoFilter}
+            isCfoFilterOpen={table.filters.isCfoFilterOpen}
+            setIsCfoFilterOpen={table.filters.setIsCfoFilterOpen}
+            companyFilterButtonRef={table.filters.companyFilterButtonRef}
+            companyFilter={table.filters.companyFilter}
+            isCompanyFilterOpen={table.filters.isCompanyFilterOpen}
+            setIsCompanyFilterOpen={table.filters.setIsCompanyFilterOpen}
+            purchaserCompanyFilterButtonRef={table.filters.purchaserCompanyFilterButtonRef}
+            purchaserCompanyFilter={table.filters.purchaserCompanyFilter}
+            isPurchaserCompanyFilterOpen={table.filters.isPurchaserCompanyFilterOpen}
+            setIsPurchaserCompanyFilterOpen={table.filters.setIsPurchaserCompanyFilterOpen}
+            categoryFilterButtonRef={table.filters.categoryFilterButtonRef}
+            categoryFilter={table.filters.categoryFilter}
+            isCategoryFilterOpen={table.filters.isCategoryFilterOpen}
+            setIsCategoryFilterOpen={table.filters.setIsCategoryFilterOpen}
+            statusFilterButtonRef={table.filters.statusFilterButtonRef}
+            statusFilter={table.filters.statusFilter}
+            isStatusFilterOpen={table.filters.isStatusFilterOpen}
+            setIsStatusFilterOpen={table.filters.setIsStatusFilterOpen}
+            purchaserFilterButtonRef={table.filters.purchaserFilterButtonRef}
+            purchaserFilter={table.filters.purchaserFilter}
+            isPurchaserFilterOpen={table.filters.isPurchaserFilterOpen}
+            setIsPurchaserFilterOpen={table.filters.setIsPurchaserFilterOpen}
+            getMonthlyDistribution={table.getMonthlyDistribution}
+            selectedYear={table.selectedYear}
+            chartData={table.chartData}
+            selectedMonths={table.selectedMonths}
+            selectedMonthYear={table.selectedMonthYear}
+            lastSelectedMonthIndex={table.lastSelectedMonthIndex}
+            setSelectedMonthYear={table.setSelectedMonthYear}
+            setSelectedYear={table.setSelectedYear}
+            setSelectedMonths={table.setSelectedMonths}
+            setLastSelectedMonthIndex={table.setLastSelectedMonthIndex}
+            selectedCurrency={table.selectedCurrency}
+            setSelectedCurrency={table.setSelectedCurrency}
+          />
+          {table.data && table.data.content && table.data.content.length > 0 ? (
             <PurchasePlanItemsTableBody
               data={table.data}
               visibleColumns={table.columns.filteredColumnOrder}
@@ -789,12 +789,19 @@ export default function PurchasePlanItemsTable() {
               canEdit={table.modals.canEdit}
               isViewingArchiveVersion={table.versions.isViewingArchiveVersion}
             />
-          </table>
-        ) : (
-          <div className="text-center py-8 text-gray-500">
-            Нет данных для отображения
-          </div>
-        )}
+          ) : (
+            <tbody>
+              <tr>
+                <td 
+                  colSpan={table.columns.filteredColumnOrder.length} 
+                  className="text-center py-8 text-gray-500"
+                >
+                  Нет данных для отображения
+                </td>
+              </tr>
+            </tbody>
+          )}
+        </table>
       </div>
 
       {/* Infinite scroll индикатор */}

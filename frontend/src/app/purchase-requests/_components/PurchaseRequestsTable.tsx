@@ -689,7 +689,7 @@ export default function PurchaseRequestsTable() {
         onCopyToClipboard={copyAsTSV}
       />
       
-      <div className="flex-1 overflow-auto relative">
+      <div className="flex-1 overflow-auto relative custom-scrollbar">
         {/* Вкладки */}
         <PurchaseRequestsTableTabs
           activeTab={activeTab}
