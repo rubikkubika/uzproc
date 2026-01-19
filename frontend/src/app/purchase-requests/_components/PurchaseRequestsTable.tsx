@@ -1,11 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
-import { copyToClipboard } from '@/utils/clipboard';
 import { Clock, Check, Eye, EyeOff, Settings, Star } from 'lucide-react';
-import * as XLSX from 'xlsx';
-import html2canvas from 'html2canvas';
 import PurchaseRequestsSummaryTable from './ui/PurchaseRequestsSummaryTable';
 import LatestCsiFeedback from './ui/LatestCsiFeedback';
 import PurchaseRequestsTableHeader from './ui/PurchaseRequestsTableHeader';
@@ -28,6 +26,13 @@ import { useLocalStorageSync } from './hooks/useLocalStorageSync';
 import { useMetadata } from './hooks/useMetadata';
 import { useSummary } from './hooks/useSummary';
 import { useInfiniteScroll } from './hooks/useInfiniteScroll';
+import { useTableExport } from './hooks/useTableExport';
+import { useAvailableStatuses } from './hooks/useAvailableStatuses';
+import { useTabCounts } from './hooks/useTabCounts';
+import { usePurchaseRequestNavigation } from './hooks/usePurchaseRequestNavigation';
+import { useDropdownPosition } from './hooks/useDropdownPosition';
+import { useClickOutsideMany } from './hooks/useClickOutsideMany';
+import { useCsiActions } from './hooks/useCsiActions';
 
 export default function PurchaseRequestsTable() {
   // Используем главный композиционный хук
@@ -140,14 +145,18 @@ export default function PurchaseRequestsTable() {
     userSearchRef
   );
   
-  // Позиции для выпадающих списков
-  const [cfoFilterPosition, setCfoFilterPosition] = useState<{ top: number; left: number } | null>(null);
-  const [statusFilterPosition, setStatusFilterPosition] = useState<{ top: number; left: number } | null>(null);
-  const [purchaserFilterPosition, setPurchaserFilterPosition] = useState<{ top: number; left: number } | null>(null);
+  // Используем хуки для позиционирования dropdown
+  const cfoFilterPositionHook = useDropdownPosition(isCfoFilterOpen);
+  const statusFilterPositionHook = useDropdownPosition(isStatusFilterOpen);
+  const purchaserFilterPositionHook = useDropdownPosition(isPurchaserFilterOpen);
   
-  const cfoFilterButtonRef = useRef<HTMLButtonElement>(null);
-  const statusFilterButtonRef = useRef<HTMLButtonElement>(null);
-  const purchaserFilterButtonRef = useRef<HTMLButtonElement>(null);
+  // Алиасы для совместимости с существующим кодом
+  const cfoFilterPosition = cfoFilterPositionHook.position;
+  const statusFilterPosition = statusFilterPositionHook.position;
+  const purchaserFilterPosition = purchaserFilterPositionHook.position;
+  const cfoFilterButtonRef = cfoFilterPositionHook.buttonRef;
+  const statusFilterButtonRef = statusFilterPositionHook.buttonRef;
+  const purchaserFilterButtonRef = purchaserFilterPositionHook.buttonRef;
   
   // Используем хук для синхронизации с localStorage
   const { filtersLoadedRef, yearRestored, setYearRestored } = useLocalStorageSync({
@@ -176,153 +185,68 @@ export default function PurchaseRequestsTable() {
     filtersStateRef,
   });
 
+  // Используем хук для экспорта таблицы
+  const { exportToExcel, copyAsTSV, saveAsImage } = useTableExport({
+    allItems,
+    data,
+  });
 
-  // Ref для хранения функции fetchTabCounts, чтобы избежать бесконечных циклов
-  const fetchTabCountsRef = useRef<(() => Promise<void>) | undefined>(undefined);
-  
-  
-  // Функция для расчета позиции выпадающего списка
-  const calculateFilterPosition = useCallback((buttonRef: React.RefObject<HTMLButtonElement | null>) => {
-    if (buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      return {
-        top: rect.bottom + window.scrollY + 4,
-        left: rect.left + window.scrollX,
-      };
-    }
-    return null;
-  }, []);
-  
-  // Обновляем позицию при открытии фильтра ЦФО
-  useEffect(() => {
-    if (isCfoFilterOpen && cfoFilterButtonRef.current) {
-      const position = calculateFilterPosition(cfoFilterButtonRef);
-      setCfoFilterPosition(position);
-    }
-  }, [isCfoFilterOpen, calculateFilterPosition]);
-  
-  // Обновляем позицию при открытии фильтра Статус
-  useEffect(() => {
-    if (isStatusFilterOpen && statusFilterButtonRef.current) {
-      const position = calculateFilterPosition(statusFilterButtonRef);
-      setStatusFilterPosition(position);
-    }
-  }, [isStatusFilterOpen, calculateFilterPosition]);
+  // Используем хук для загрузки счетчиков вкладок
+  useTabCounts({
+    selectedYear,
+    filtersFromHook,
+    localFilters,
+    cfoFilter,
+    purchaserFilter,
+    filtersLoadedRef,
+    tabCounts,
+    setTabCounts,
+  });
 
-  // Обновляем позицию при открытии фильтра Закупщик
-  useEffect(() => {
-    if (isPurchaserFilterOpen && purchaserFilterButtonRef.current) {
-      const position = calculateFilterPosition(purchaserFilterButtonRef);
-      setPurchaserFilterPosition(position);
-    }
-  }, [isPurchaserFilterOpen, calculateFilterPosition]);
+  // Используем хук для навигации
+  const { openInSameTab, openInNewTab } = usePurchaseRequestNavigation({
+    router,
+    dataTotalElements: data?.totalElements,
+    currentPage,
+    pageSize,
+    filtersFromHook,
+    localFilters,
+    cfoFilter,
+    statusFilter,
+    selectedYear,
+    sortField,
+    sortDirection,
+    cfoSearchQuery,
+    statusSearchQuery,
+  });
 
+  // Используем хук для CSI действий
+  const { sendInvitation, loadFeedbackDetails, loadInvitationDetails } = useCsiActions({
+    setAllItems,
+    setFeedbackDetails,
+    setLoadingFeedbackDetails,
+    setSentInvitationDetails,
+  });
   
-  // Функция для загрузки количества записей по всем вкладкам с бэкенда
-  const fetchTabCounts = useCallback(async () => {
-    try {
-      const params = new URLSearchParams();
-      
-      if (selectedYear !== null) {
-        params.append('year', String(selectedYear));
-      }
-      
-      // Применяем другие фильтры (кроме статуса, так как статусы определяются вкладками)
-      if (filtersFromHook.idPurchaseRequest && filtersFromHook.idPurchaseRequest.trim() !== '') {
-        const idValue = parseInt(filtersFromHook.idPurchaseRequest.trim(), 10);
-        if (!isNaN(idValue)) {
-          params.append('idPurchaseRequest', String(idValue));
-        }
-      }
-      if (cfoFilter.size > 0) {
-        cfoFilter.forEach(cfo => {
-          params.append('cfo', cfo);
-        });
-      }
-      if (purchaserFilter.size > 0) {
-        purchaserFilter.forEach(p => {
-          params.append('purchaser', p);
-        });
-      }
-      if (filtersFromHook.name && filtersFromHook.name.trim() !== '') {
-        params.append('name', filtersFromHook.name.trim());
-      }
-      const budgetOperator = localFilters.budgetAmountOperator || filtersFromHook.budgetAmountOperator;
-      const budgetAmount = localFilters.budgetAmount || filtersFromHook.budgetAmount;
-      if (budgetOperator && budgetOperator.trim() !== '' && budgetAmount && budgetAmount.trim() !== '') {
-        const budgetValue = parseFloat(budgetAmount.replace(/\s/g, '').replace(/,/g, ''));
-        if (!isNaN(budgetValue) && budgetValue >= 0) {
-          params.append('budgetAmountOperator', budgetOperator.trim());
-          params.append('budgetAmount', String(budgetValue));
-        }
-      }
-      if (filtersFromHook.costType && filtersFromHook.costType.trim() !== '') {
-        params.append('costType', filtersFromHook.costType.trim());
-      }
-      if (filtersFromHook.contractType && filtersFromHook.contractType.trim() !== '') {
-        params.append('contractType', filtersFromHook.contractType.trim());
-      }
-      if (filtersFromHook.requiresPurchase && filtersFromHook.requiresPurchase.trim() !== '') {
-        const requiresPurchaseValue = filtersFromHook.requiresPurchase.trim();
-        if (requiresPurchaseValue === 'Закупка') {
-          params.append('requiresPurchase', 'true');
-        } else if (requiresPurchaseValue === 'Заказ') {
-          params.append('requiresPurchase', 'false');
-        }
-      }
-      
-      const fetchUrl = `${getBackendUrl()}/api/purchase-requests/tab-counts?${params.toString()}`;
-      const response = await fetch(fetchUrl);
-      if (response.ok) {
-        const result = await response.json();
-        
-        // Отдельный запрос для подсчета скрытых заявок
-        const hiddenParams = new URLSearchParams(params);
-        hiddenParams.append('excludeFromInWork', 'true');
-        hiddenParams.append('size', '1'); // Минимальный размер для подсчета
-        hiddenParams.append('page', '0');
-        const hiddenFetchUrl = `${getBackendUrl()}/api/purchase-requests?${hiddenParams.toString()}`;
-        
-        let hiddenCount = 0;
-        try {
-          const hiddenResponse = await fetch(hiddenFetchUrl);
-          if (hiddenResponse.ok) {
-            const hiddenResult = await hiddenResponse.json();
-            hiddenCount = hiddenResult.totalElements || 0;
-          }
-        } catch (err) {
-          console.error('Error fetching hidden count:', err);
-        }
-        
-        setTabCounts({
-          'all': result['all'] || 0,
-          'in-work': result['in-work'] || 0,
-          'completed': result['completed'] || 0,
-          'project-rejected': result['project-rejected'] || 0,
-          'hidden': hiddenCount,
-        });
-      }
-    } catch (err) {
-      console.error('Error fetching tab counts:', err);
-    }
-  }, [selectedYear, filtersFromHook, cfoFilter, purchaserFilter, localFilters]);
-  
-  // Сохраняем функцию в ref для использования в других useEffect
-  useEffect(() => {
-    fetchTabCountsRef.current = fetchTabCounts;
-  }, [fetchTabCounts]);
-  
-  // Загружаем количество для всех вкладок
-  useEffect(() => {
-    if (!filtersLoadedRef.current) {
-      return;
-    }
-    
-    // Используем ref для вызова функции, чтобы избежать бесконечных циклов
-    if (fetchTabCountsRef.current) {
-      fetchTabCountsRef.current();
-    }
-  }, [selectedYear, filtersFromHook, cfoFilter, purchaserFilter, localFilters]);
+  // Используем хук для обработки клика вне dropdown
+  useClickOutsideMany([
+    {
+      isOpen: isCfoFilterOpen,
+      close: () => setIsCfoFilterOpen(false),
+      selector: '.cfo-filter-container',
+    },
+    {
+      isOpen: isStatusFilterOpen,
+      close: () => setIsStatusFilterOpen(false),
+      selector: '.status-filter-container',
+    },
+    {
+      isOpen: isPurchaserFilterOpen,
+      close: () => setIsPurchaserFilterOpen(false),
+      selector: '.purchaser-filter-container',
+    },
+  ]);
+
 
   // Автоматическое переключение на вкладку с записями, если текущая вкладка пуста
   useEffect(() => {
@@ -580,8 +504,15 @@ export default function PurchaseRequestsTable() {
     filtersLoadedRef,
   });
   
-  // Уникальные статусы из текущих данных (с учетом вкладки и фильтров)
-  const [availableStatuses, setAvailableStatuses] = useState<string[]>([]);
+  // Используем хук для получения доступных статусов
+  const availableStatuses = useAvailableStatuses({
+    activeTab,
+    selectedYear,
+    filtersFromHook,
+    localFilters,
+    cfoFilter,
+    purchaserFilter,
+  });
 
   // Загружаем общее количество записей без фильтров
   useEffect(() => {
@@ -600,135 +531,6 @@ export default function PurchaseRequestsTable() {
   }, []);
 
   // Логика метаданных теперь в хуке useMetadata
-
-  // Получаем уникальные статусы из данных на текущей вкладке БЕЗ учета фильтра по статусу
-  // Это гарантирует, что в фильтре показываются только те статусы, которые реально есть в данных текущей вкладки
-  useEffect(() => {
-    const fetchAvailableStatuses = async () => {
-      try {
-        const params = new URLSearchParams();
-        params.append('page', '0');
-        params.append('size', '10000'); // Загружаем достаточно данных для получения всех статусов
-
-        // Учитываем год, если выбран
-        if (selectedYear !== null) {
-          params.append('year', String(selectedYear));
-        }
-
-        // Добавляем все фильтры, КРОМЕ фильтра по статусу
-        if (filtersFromHook.idPurchaseRequest && filtersFromHook.idPurchaseRequest.trim() !== '') {
-          const idValue = parseInt(filtersFromHook.idPurchaseRequest.trim(), 10);
-          if (!isNaN(idValue)) {
-            params.append('idPurchaseRequest', String(idValue));
-          }
-        }
-
-        // Фильтр по ЦФО
-        if (cfoFilter.size > 0) {
-          cfoFilter.forEach(cfo => {
-            params.append('cfo', cfo);
-          });
-        }
-
-        // Фильтр по закупщику
-        if (purchaserFilter.size > 0) {
-          purchaserFilter.forEach(p => {
-            params.append('purchaser', p);
-          });
-        }
-
-        if (filtersFromHook.name && filtersFromHook.name.trim() !== '') {
-          params.append('name', filtersFromHook.name.trim());
-        }
-
-        // Фильтр по бюджету
-        const budgetOperator = localFilters.budgetAmountOperator || filtersFromHook.budgetAmountOperator;
-        const budgetAmount = localFilters.budgetAmount || filtersFromHook.budgetAmount;
-        if (budgetOperator && budgetOperator.trim() !== '' && budgetAmount && budgetAmount.trim() !== '') {
-          const budgetValue = parseFloat(budgetAmount.replace(/\s/g, '').replace(/,/g, ''));
-          if (!isNaN(budgetValue) && budgetValue >= 0) {
-            params.append('budgetAmountOperator', budgetOperator.trim());
-            params.append('budgetAmount', String(budgetValue));
-          }
-        }
-
-        if (filtersFromHook.costType && filtersFromHook.costType.trim() !== '') {
-          params.append('costType', filtersFromHook.costType.trim());
-        }
-
-        if (filtersFromHook.contractType && filtersFromHook.contractType.trim() !== '') {
-          params.append('contractType', filtersFromHook.contractType.trim());
-        }
-
-        if (filtersFromHook.requiresPurchase && filtersFromHook.requiresPurchase.trim() !== '') {
-          const requiresPurchaseValue = filtersFromHook.requiresPurchase.trim();
-          if (requiresPurchaseValue === 'Закупка') {
-            params.append('requiresPurchase', 'true');
-          } else if (requiresPurchaseValue === 'Заказ') {
-            params.append('requiresPurchase', 'false');
-          }
-        }
-
-        // Учитываем текущую вкладку (но НЕ фильтр по статусу)
-        if (activeTab === 'hidden') {
-          params.append('excludeFromInWork', 'true');
-        } else {
-          // Для вкладок, кроме 'all', применяем фильтр по статусам вкладки
-          if (activeTab !== 'all') {
-            TAB_STATUSES[activeTab].forEach(status => {
-              params.append('status', status);
-            });
-          }
-
-          if (activeTab === 'in-work') {
-            params.append('excludeFromInWork', 'false');
-          }
-        }
-
-        const fetchUrl = `${getBackendUrl()}/api/purchase-requests?${params.toString()}`;
-        const response = await fetch(fetchUrl);
-
-        if (response.ok) {
-          const result = await response.json();
-          const items = result.content || [];
-
-          // Извлекаем уникальные статусы из полученных данных
-          const statusSet = new Set<string>();
-          items.forEach((request: PurchaseRequest) => {
-            if (request.status) {
-              const statusStr = String(request.status).trim();
-              if (statusStr) {
-                statusSet.add(statusStr);
-              }
-            }
-          });
-
-          const statusesArray = Array.from(statusSet).sort();
-          setAvailableStatuses(statusesArray);
-        } else {
-          setAvailableStatuses([]);
-        }
-      } catch (err) {
-        console.error('Error fetching available statuses:', err);
-        setAvailableStatuses([]);
-      }
-    };
-
-    fetchAvailableStatuses();
-  }, [
-    activeTab,
-    selectedYear,
-    filtersFromHook.idPurchaseRequest,
-    filtersFromHook.name,
-    filtersFromHook.costType,
-    filtersFromHook.contractType,
-    filtersFromHook.requiresPurchase,
-    localFilters.budgetAmount,
-    localFilters.budgetAmountOperator,
-    cfoFilterStr,
-    purchaserFilterStr,
-    // НЕ включаем statusFilterStr в зависимости, чтобы статусы обновлялись независимо от фильтра по статусу
-  ]);
 
   // Загружаем данные для сводной таблицы (аналогично purchase-plan)
 
@@ -857,28 +659,6 @@ export default function PurchaseRequestsTable() {
     setAllItems([]); // Очищаем накопленные данные
   };
 
-  // Закрываем выпадающие списки при клике вне их
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (isCfoFilterOpen && !target.closest('.cfo-filter-container')) {
-        setIsCfoFilterOpen(false);
-      }
-      if (isStatusFilterOpen && !target.closest('.status-filter-container')) {
-        setIsStatusFilterOpen(false);
-      }
-      if (isPurchaserFilterOpen && !target.closest('.purchaser-filter-container')) {
-        setIsPurchaserFilterOpen(false);
-      }
-    };
-
-    if (isCfoFilterOpen || isStatusFilterOpen || isPurchaserFilterOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }
-  }, [isCfoFilterOpen, isStatusFilterOpen, isPurchaserFilterOpen]);
 
   // Фильтруем опции по поисковому запросу
   const getFilteredCfoOptions = useMemo(() => {
@@ -1044,82 +824,7 @@ export default function PurchaseRequestsTable() {
   }, [setLocalFilters]);
 
   // Обработчик для клика на строку таблицы
-  const handleRowClick = useCallback((request: PurchaseRequest, index: number) => {
-    try {
-      const filtersToSave = {
-        filters: filtersFromHook,
-        localFilters,
-        cfoFilter: Array.from(cfoFilter),
-        statusFilter: Array.from(statusFilter),
-        selectedYear,
-        sortField,
-        sortDirection,
-        currentPage,
-        pageSize,
-        cfoSearchQuery,
-        statusSearchQuery,
-      };
-      localStorage.setItem('purchaseRequestsTableFilters', JSON.stringify(filtersToSave));
-      
-      const navigationData = {
-        currentIndex: index,
-        page: currentPage,
-        pageSize: pageSize,
-        filters: filtersFromHook,
-        localFilters: localFilters,
-        cfoFilter: Array.from(cfoFilter),
-        statusFilter: Array.from(statusFilter),
-        selectedYear: selectedYear,
-        sortField: sortField,
-        sortDirection: sortDirection,
-        totalElements: data?.totalElements || 0,
-      };
-      localStorage.setItem('purchaseRequestNavigation', JSON.stringify(navigationData));
-      console.log('Navigation data saved with year:', selectedYear, 'navigationData:', navigationData);
-    } catch (err) {
-      console.error('Error saving navigation data:', err);
-    }
-    router.push(`/purchase-request/${request.id}`);
-  }, [filtersFromHook, localFilters, cfoFilter, statusFilter, selectedYear, sortField, sortDirection, currentPage, pageSize, cfoSearchQuery, statusSearchQuery, data, router]);
-
-  // Обработчик для клика колесиком мыши на строку таблицы
-  const handleRowAuxClick = useCallback((request: PurchaseRequest, index: number) => {
-    try {
-      const filtersToSave = {
-        filters: filtersFromHook,
-        localFilters,
-        cfoFilter: Array.from(cfoFilter),
-        statusFilter: Array.from(statusFilter),
-        selectedYear,
-        sortField,
-        sortDirection,
-        currentPage,
-        pageSize,
-        cfoSearchQuery,
-        statusSearchQuery,
-      };
-      localStorage.setItem('purchaseRequestsTableFilters', JSON.stringify(filtersToSave));
-      
-      const navigationData = {
-        currentIndex: currentPage * pageSize + index,
-        page: currentPage,
-        pageSize: pageSize,
-        filters: filtersFromHook,
-        localFilters: localFilters,
-        cfoFilter: Array.from(cfoFilter),
-        statusFilter: Array.from(statusFilter),
-        selectedYear: selectedYear,
-        sortField: sortField,
-        sortDirection: sortDirection,
-        totalElements: data?.totalElements || 0,
-      };
-      localStorage.setItem('purchaseRequestNavigation', JSON.stringify(navigationData));
-      console.log('Navigation data saved with year:', selectedYear, 'navigationData:', navigationData);
-    } catch (err) {
-      console.error('Error saving navigation data:', err);
-    }
-    window.open(`/purchase-request/${request.id}`, '_blank');
-  }, [filtersFromHook, localFilters, cfoFilter, statusFilter, selectedYear, sortField, sortDirection, currentPage, pageSize, cfoSearchQuery, statusSearchQuery, data]);
+  // Обработчики навигации теперь в хуке usePurchaseRequestNavigation
 
   // Обработчик для изменения excludeFromInWork
   const handleExcludeFromInWorkChange = useCallback(async (requestId: number, newValue: boolean) => {
@@ -1213,35 +918,14 @@ export default function PurchaseRequestsTable() {
     }
 
     try {
-      // Извлекаем токен из полного URL (например, http://localhost:3000/csi/feedback/{token})
-      const token = selectedRequestForRating.csiLink?.split('/csi/feedback/')[1]?.split('?')[0]?.split('#')[0];
-      if (token) {
-        // Отправляем приглашение на бэкенд
-        const response = await fetch(`${getBackendUrl()}/api/csi-feedback/invitation?csiToken=${encodeURIComponent(token)}&recipient=${encodeURIComponent(recipientEmail)}`, {
-          method: 'POST',
-        });
-
-        if (response.ok) {
-          // Обновляем статус отправки в данных заявки
-          setAllItems(prev => prev.map(req =>
-            req.id === selectedRequestForRating.id
-              ? { ...req, csiInvitationSent: true }
-              : req
-          ));
-        } else {
-          alert('Ошибка при отправке приглашения');
-          return;
-        }
-      }
+      await sendInvitation(selectedRequestForRating, recipientEmail);
+      // Закрываем модальное окно
+      handleRatingModalClose();
     } catch (error) {
       console.error('Error sending invitation:', error);
-      alert('Ошибка при отправке приглашения');
-      return;
+      alert(error instanceof Error ? error.message : 'Ошибка при отправке приглашения');
     }
-    
-    // Закрываем модальное окно
-    handleRatingModalClose();
-  }, [selectedRequestForRating, selectedUserEmail, userSearchQuery, setAllItems, handleRatingModalClose]);
+  }, [selectedRequestForRating, selectedUserEmail, userSearchQuery, sendInvitation, handleRatingModalClose]);
 
   const handleFeedbackDetailsModalClose = useCallback(() => {
     setIsFeedbackDetailsModalOpen(false);
@@ -1257,60 +941,21 @@ export default function PurchaseRequestsTable() {
   const handleFeedbackClick = useCallback(async (request: PurchaseRequest) => {
     setSelectedRequestForFeedback(request);
     setIsFeedbackDetailsModalOpen(true);
-    setLoadingFeedbackDetails(true);
     try {
-      const response = await fetch(`${getBackendUrl()}/api/csi-feedback/by-purchase-request/${request.id}`);
-      if (response.ok) {
-        const data = await response.json();
-        if (Array.isArray(data) && data.length > 0) {
-          const feedback = data[0];
-          setFeedbackDetails({
-            recipient: feedback.recipient || null,
-            speedRating: feedback.speedRating || null,
-            qualityRating: feedback.qualityRating || null,
-            satisfactionRating: feedback.satisfactionRating || null,
-            uzprocRating: feedback.uzprocRating || null,
-            usedUzproc: feedback.usedUzproc || null,
-            comment: feedback.comment || null,
-          });
-        }
-      }
+      await loadFeedbackDetails(request);
     } catch (error) {
       console.error('Error loading feedback details:', error);
-    } finally {
-      setLoadingFeedbackDetails(false);
     }
-  }, [setSelectedRequestForFeedback, setIsFeedbackDetailsModalOpen, setLoadingFeedbackDetails, setFeedbackDetails]);
+  }, [setSelectedRequestForFeedback, setIsFeedbackDetailsModalOpen, loadFeedbackDetails]);
 
   const handleSentInvitationClick = useCallback(async (request: PurchaseRequest) => {
     try {
-      const token = request.csiLink?.split('/csi/feedback/')[1]?.split('?')[0]?.split('#')[0];
-      if (token) {
-        const response = await fetch(`${getBackendUrl()}/api/csi-feedback/invitation/details?csiToken=${encodeURIComponent(token)}`);
-        if (response.ok) {
-          const data = await response.json();
-          const fullUrl = request.csiLink;
-          const recipientName = data.recipientName || '';
-          const generatedText = `Здравствуйте${recipientName ? ' ' + recipientName : ''}!
-
-Вы инициировали заявку на закупку № ${request.idPurchaseRequest || ''} на ${request.name || ''}. Мы хотим улучшить сервис проведения закупок, пожалуйста пройдите опрос по ссылке:
-
-${fullUrl}
-
-(ссылка именная и работает один раз)
-
-Спасибо за ваше время!`;
-          setSentInvitationDetails({
-            recipient: data.recipient || 'Не указан',
-            emailText: generatedText
-          });
-          setIsSentInvitationModalOpen(true);
-        }
-      }
+      await loadInvitationDetails(request);
+      setIsSentInvitationModalOpen(true);
     } catch (error) {
       console.error('Error loading invitation details:', error);
     }
-  }, [setSentInvitationDetails, setIsSentInvitationModalOpen]);
+  }, [setIsSentInvitationModalOpen, loadInvitationDetails]);
 
   if (loading) {
     return (
@@ -1339,208 +984,6 @@ ${fullUrl}
     );
   }
 
-  // Функция для экспорта в Excel
-  const handleExportToExcel = async () => {
-    if (!data || !data.content || data.content.length === 0) {
-      alert('Нет данных для экспорта');
-      return;
-    }
-
-    try {
-      // Подготавливаем данные для экспорта
-      const exportData = allItems.map((request) => ({
-        'Номер заявки': request.idPurchaseRequest || '',
-        'Дата создания': request.purchaseRequestCreationDate 
-          ? new Date(request.purchaseRequestCreationDate).toLocaleDateString('ru-RU')
-          : '',
-        'ЦФО': request.cfo || '',
-        'Наименование': request.name || '',
-        'Инициатор': request.purchaseRequestInitiator || '',
-        'Год плана': request.purchaseRequestPlanYear || '',
-        'Бюджет': request.budgetAmount || '',
-        'Тип затрат': request.costType || '',
-        'Тип договора': request.contractType || '',
-        'Длительность (мес)': request.contractDurationMonths || '',
-        'План': request.isPlanned ? 'Плановая' : (request.isPlanned === false ? 'Внеплановая' : ''),
-        'Требуется закупка': request.requiresPurchase ? 'Закупка' : (request.requiresPurchase === false ? 'Заказ' : ''),
-      }));
-
-      // Создаем рабочую книгу
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(exportData);
-
-      // Устанавливаем ширину колонок
-      const colWidths = [
-        { wch: 15 }, // Номер заявки
-        { wch: 15 }, // Дата создания
-        { wch: 20 }, // ЦФО
-        { wch: 30 }, // Наименование
-        { wch: 25 }, // Инициатор
-        { wch: 12 }, // Год плана
-        { wch: 15 }, // Бюджет
-        { wch: 15 }, // Тип затрат
-        { wch: 15 }, // Тип договора
-        { wch: 18 }, // Длительность
-        { wch: 10 }, // План
-        { wch: 18 }, // Требуется закупка
-      ];
-      ws['!cols'] = colWidths;
-
-      // Добавляем лист в книгу
-      XLSX.utils.book_append_sheet(wb, ws, 'Заявки на закупку');
-
-      // Генерируем имя файла с датой
-      const fileName = `Заявки_на_закупку_${new Date().toISOString().split('T')[0]}.xlsx`;
-
-      // Сохраняем файл
-      XLSX.writeFile(wb, fileName);
-    } catch (error) {
-      console.error('Ошибка при экспорте в Excel:', error);
-      alert('Ошибка при экспорте в Excel');
-    }
-  };
-
-  // Функция для копирования в буфер обмена
-  const handleCopyToClipboard = async () => {
-    if (!data || !data.content || data.content.length === 0) {
-      alert('Нет данных для копирования');
-      return;
-    }
-
-    try {
-      // Создаем заголовки
-      const headers = [
-        'Номер заявки',
-        'Дата создания',
-        'ЦФО',
-        'Наименование',
-        'Инициатор',
-        'Год плана',
-        'Бюджет',
-        'Тип затрат',
-        'Тип договора',
-        'Длительность (мес)',
-        'План',
-        'Требуется закупка',
-      ];
-
-      // Создаем строки данных
-      const rows = allItems.map((request) => [
-        request.idPurchaseRequest || '',
-        request.purchaseRequestCreationDate 
-          ? new Date(request.purchaseRequestCreationDate).toLocaleDateString('ru-RU')
-          : '',
-        request.cfo || '',
-        request.name || '',
-        request.purchaseRequestInitiator || '',
-        request.purchaseRequestPlanYear || '',
-        request.budgetAmount || '',
-        request.costType || '',
-        request.contractType || '',
-        request.contractDurationMonths || '',
-        request.isPlanned ? 'Плановая' : (request.isPlanned === false ? 'Внеплановая' : ''),
-        request.requiresPurchase ? 'Закупка' : (request.requiresPurchase === false ? 'Заказ' : ''),
-      ]);
-
-      // Объединяем заголовки и данные
-      const allRows = [headers, ...rows];
-
-      // Преобразуем в TSV формат (табуляция между колонками)
-      const tsvContent = allRows.map(row => row.join('\t')).join('\n');
-
-      // Копируем в буфер обмена
-      await copyToClipboard(tsvContent);
-      alert('Данные скопированы в буфер обмена');
-    } catch (error) {
-      console.error('Ошибка при копировании в буфер обмена:', error);
-      alert('Ошибка при копировании в буфер обмена');
-    }
-  };
-
-  // Функция для сохранения таблицы как картинки
-  const handleSaveAsImage = async () => {
-    // Сохраняем оригинальные функции консоли перед началом
-    const originalConsoleError = console.error;
-    const originalConsoleWarn = console.warn;
-    
-    try {
-      // Находим элемент таблицы - используем более точный селектор
-      const tableContainer = document.querySelector('.bg-white.rounded-lg.shadow-lg.overflow-hidden');
-      const tableElement = tableContainer?.querySelector('table');
-      
-      if (!tableElement) {
-        alert('Таблица не найдена');
-        return;
-      }
-
-      // Временно подавляем ошибки, связанные с lab()
-      console.error = (...args: any[]) => {
-        if (args[0] && typeof args[0] === 'string' && args[0].includes('lab')) {
-          return; // Игнорируем ошибки lab()
-        }
-        originalConsoleError.apply(console, args);
-      };
-      
-      console.warn = (...args: any[]) => {
-        if (args[0] && typeof args[0] === 'string' && args[0].includes('lab')) {
-          return; // Игнорируем предупреждения lab()
-        }
-        originalConsoleWarn.apply(console, args);
-      };
-
-      try {
-        // Создаем canvas из таблицы
-        const canvas = await html2canvas(tableElement as HTMLElement, {
-          backgroundColor: '#ffffff',
-          scale: 2, // Увеличиваем разрешение для лучшего качества
-          logging: false,
-          useCORS: true,
-        });
-
-        // Преобразуем canvas в blob
-        canvas.toBlob((blob: Blob | null) => {
-          if (!blob) {
-            alert('Ошибка при создании изображения');
-            return;
-          }
-
-          // Создаем ссылку для скачивания
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          
-          // Генерируем имя файла с датой
-          const fileName = `Заявки_на_закупку_${new Date().toISOString().split('T')[0]}.png`;
-          link.download = fileName;
-          
-          // Добавляем ссылку в DOM, кликаем и удаляем
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          
-          // Освобождаем память
-          URL.revokeObjectURL(url);
-        }, 'image/png');
-      } finally {
-        // Восстанавливаем оригинальные функции консоли
-        console.error = originalConsoleError;
-        console.warn = originalConsoleWarn;
-      }
-    } catch (error) {
-      // Восстанавливаем оригинальные функции консоли в случае ошибки
-      console.error = originalConsoleError;
-      console.warn = originalConsoleWarn;
-      
-      // Игнорируем ошибки, связанные с lab()
-      if (error instanceof Error && error.message && error.message.includes('lab')) {
-        // Тихо игнорируем ошибку парсинга lab() цвета (html2canvas не поддерживает эту функцию)
-        return;
-      }
-      
-      console.error('Ошибка при сохранении изображения:', error);
-      alert('Ошибка при сохранении изображения');
-    }
-  };
 
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
@@ -1575,8 +1018,8 @@ ${fullUrl}
         setIsColumnsMenuOpen={setIsColumnsMenuOpen}
         onResetFilters={handleResetFilters}
         onYearChange={handleYearChange}
-        onExportToExcel={handleExportToExcel}
-        onCopyToClipboard={handleCopyToClipboard}
+        onExportToExcel={exportToExcel}
+        onCopyToClipboard={copyAsTSV}
       />
       
       <div className="flex-1 overflow-auto relative">
@@ -1658,8 +1101,8 @@ ${fullUrl}
             canEditExcludeFromInWork={canEditExcludeFromInWork}
             userRole={userRole}
             onExcludeFromInWorkChange={handleExcludeFromInWorkChange}
-            onRowClick={handleRowClick}
-            onRowAuxClick={handleRowAuxClick}
+            onRowClick={openInSameTab}
+            onRowAuxClick={openInNewTab}
             onRatingClick={handleRatingClick}
             onFeedbackClick={handleFeedbackClick}
             onSentInvitationClick={handleSentInvitationClick}
