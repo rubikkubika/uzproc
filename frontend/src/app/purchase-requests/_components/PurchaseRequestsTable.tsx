@@ -1,10 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
 import { copyToClipboard } from '@/utils/clipboard';
-import { ArrowUp, ArrowDown, ArrowUpDown, Search, X, Download, Copy, Clock, Check, Eye, EyeOff, Settings, Star } from 'lucide-react';
+import { Clock, Check, Eye, EyeOff, Settings, Star } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 import PurchaseRequestsSummaryTable from './ui/PurchaseRequestsSummaryTable';
@@ -13,11 +12,15 @@ import PurchaseRequestsTableHeader from './ui/PurchaseRequestsTableHeader';
 import PurchaseRequestsTableTabs from './ui/PurchaseRequestsTableTabs';
 import PurchaseRequestsTableColumnsHeader from './ui/PurchaseRequestsTableColumnsHeader';
 import PurchaseRequestsTableBody from './ui/PurchaseRequestsTableBody';
+import RatingEmailModal from './ui/modals/RatingEmailModal';
+import FeedbackDetailsModal from './ui/modals/FeedbackDetailsModal';
+import SentInvitationModal from './ui/modals/SentInvitationModal';
 import type { Contract, PurchaseRequest, PageResponse, SortField, SortDirection, TabType } from './types/purchase-request.types';
 import { ALL_COLUMNS, DEFAULT_VISIBLE_COLUMNS, COLUMNS_VISIBILITY_STORAGE_KEY } from './constants/columns.constants';
 import { ALL_STATUSES, DEFAULT_STATUSES, TAB_STATUSES } from './constants/status.constants';
 import { getCurrencyIcon } from './utils/currency.utils';
 import { normalizePurchaserName } from './utils/normalizePurchaser';
+import { copyRatingEmail } from './utils/ratingEmail';
 import { usePurchaseRequestsTable } from './hooks/usePurchaseRequestsTable';
 import { useUserRole } from './hooks/useUserRole';
 import { useRatingModal } from './hooks/useRatingModal';
@@ -110,7 +113,7 @@ export default function PurchaseRequestsTable() {
   } = modalsHook;
 
   // Используем хук для работы с ролью пользователя
-  const { userRole: userRoleFromHook, setUserRole: setUserRoleFromHook, canEditExcludeFromInWork } = useUserRole();
+  const { userRole: userRoleFromHook, canEditExcludeFromInWork } = useUserRole();
   
   // Синхронизируем с состоянием из usePurchaseRequestsTable
   useEffect(() => {
@@ -1161,6 +1164,96 @@ export default function PurchaseRequestsTable() {
     setIsRatingModalOpen(true);
   }, [setSelectedUser, setUserSearchQuery, setSelectedUserEmail, setEmailText, setUserSuggestions, setShowUserSuggestions, setSelectedRequestForRating, setIsRatingModalOpen]);
 
+  // Обработчики для модальных окон
+  const handleRatingModalClose = useCallback(() => {
+    setIsRatingModalOpen(false);
+    setSelectedRequestForRating(null);
+    setSelectedUser(null);
+    setSelectedUserEmail('');
+    setUserSearchQuery('');
+    setEmailText('');
+    setUserSuggestions([]);
+    setShowUserSuggestions(false);
+  }, [setIsRatingModalOpen, setSelectedRequestForRating, setSelectedUser, setSelectedUserEmail, setUserSearchQuery, setEmailText, setUserSuggestions, setShowUserSuggestions]);
+
+  const handleUserSearchChange = useCallback((value: string) => {
+    setUserSearchQuery(value);
+    setSelectedUser(null);
+    setSelectedUserEmail('');
+    if (selectedRequestForRating) {
+      generateEmailText('', selectedRequestForRating).catch(err => {
+        console.error('Error generating email text:', err);
+      });
+    }
+  }, [setUserSearchQuery, setSelectedUser, setSelectedUserEmail, selectedRequestForRating, generateEmailText]);
+
+  const handleUserPick = useCallback((user: { id: number; username: string; email: string | null; surname: string | null; name: string | null }, displayName: string, userEmail: string) => {
+    setSelectedUser(user);
+    setUserSearchQuery(displayName);
+    setSelectedUserEmail(userEmail);
+    setShowUserSuggestions(false);
+    if (selectedRequestForRating) {
+      generateEmailText(userEmail, selectedRequestForRating);
+    }
+  }, [setSelectedUser, setUserSearchQuery, setSelectedUserEmail, setShowUserSuggestions, selectedRequestForRating, generateEmailText]);
+
+  const handleRatingEmailCopy = useCallback(async () => {
+    await copyRatingEmail(emailText);
+  }, [emailText]);
+
+  const handleRatingEmailSend = useCallback(async () => {
+    if (!selectedRequestForRating) return;
+
+    // Используем selectedUserEmail если он есть, иначе берем из userSearchQuery
+    const recipientEmail = selectedUserEmail || userSearchQuery;
+
+    if (!recipientEmail) {
+      alert('Пожалуйста, выберите получателя');
+      return;
+    }
+
+    try {
+      // Извлекаем токен из полного URL (например, http://localhost:3000/csi/feedback/{token})
+      const token = selectedRequestForRating.csiLink?.split('/csi/feedback/')[1]?.split('?')[0]?.split('#')[0];
+      if (token) {
+        // Отправляем приглашение на бэкенд
+        const response = await fetch(`${getBackendUrl()}/api/csi-feedback/invitation?csiToken=${encodeURIComponent(token)}&recipient=${encodeURIComponent(recipientEmail)}`, {
+          method: 'POST',
+        });
+
+        if (response.ok) {
+          // Обновляем статус отправки в данных заявки
+          setAllItems(prev => prev.map(req =>
+            req.id === selectedRequestForRating.id
+              ? { ...req, csiInvitationSent: true }
+              : req
+          ));
+        } else {
+          alert('Ошибка при отправке приглашения');
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('Error sending invitation:', error);
+      alert('Ошибка при отправке приглашения');
+      return;
+    }
+    
+    // Закрываем модальное окно
+    handleRatingModalClose();
+  }, [selectedRequestForRating, selectedUserEmail, userSearchQuery, setAllItems, handleRatingModalClose]);
+
+  const handleFeedbackDetailsModalClose = useCallback(() => {
+    setIsFeedbackDetailsModalOpen(false);
+    setSelectedRequestForFeedback(null);
+    setFeedbackDetails(null);
+  }, [setIsFeedbackDetailsModalOpen, setSelectedRequestForFeedback, setFeedbackDetails]);
+
+  const handleSentInvitationModalClose = useCallback(() => {
+    setIsSentInvitationModalOpen(false);
+    setSentInvitationDetails(null);
+  }, [setIsSentInvitationModalOpen, setSentInvitationDetails]);
+
   const handleFeedbackClick = useCallback(async (request: PurchaseRequest) => {
     setSelectedRequestForFeedback(request);
     setIsFeedbackDetailsModalOpen(true);
@@ -1584,600 +1677,43 @@ ${fullUrl}
       </div>
       
       {/* Модальное окно для отправки письма с оценкой */}
-      {isRatingModalOpen && selectedRequestForRating && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => {
-          setIsRatingModalOpen(false);
-          setSelectedRequestForRating(null);
-          setSelectedUser(null);
-          setSelectedUserEmail('');
-          setUserSearchQuery('');
-          setEmailText('');
-          setUserSuggestions([]);
-          setShowUserSuggestions(false);
-        }}>
-          <div className="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Отправка письма для оценки</h2>
-              <button
-                onClick={() => {
-                  setIsRatingModalOpen(false);
-                  setSelectedRequestForRating(null);
-                  setSelectedUser(null);
-                  setSelectedUserEmail('');
-                  setUserSearchQuery('');
-                  setEmailText('');
-                  setUserSuggestions([]);
-                  setShowUserSuggestions(false);
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Получатель
-                </label>
-                <div ref={userSearchRef} className="relative">
-                  <div className="relative">
-                    <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    {selectedUser && (
-                      <Check className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-green-600" />
-                    )}
-                    <input
-                      type="text"
-                      value={userSearchQuery}
-                      onChange={(e) => {
-                        setUserSearchQuery(e.target.value);
-                        setSelectedUser(null);
-                        setSelectedUserEmail('');
-                        if (selectedRequestForRating) {
-                          generateEmailText('', selectedRequestForRating).catch(err => {
-                            console.error('Error generating email text:', err);
-                          });
-                        }
-                      }}
-                      onFocus={() => {
-                        if (userSuggestions.length > 0) {
-                          setShowUserSuggestions(true);
-                        }
-                      }}
-                      placeholder={selectedUser ? "Инициатор выбран автоматически" : "Начните вводить имя, фамилию, username или email"}
-                      className={`w-full pl-8 ${selectedUser ? 'pr-8' : 'pr-3'} py-2 text-sm text-gray-900 border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${selectedUser ? 'border-green-500 bg-green-50' : 'border-gray-300'}`}
-                    />
-                  </div>
-                  
-                  {showUserSuggestions && userSuggestions.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                      {userSuggestions.map((user) => {
-                        const displayName = user.surname && user.name 
-                          ? `${user.surname} ${user.name}${user.email ? ` (${user.email})` : ''}`
-                          : user.email 
-                          ? `${user.email}${user.username ? ` (${user.username})` : ''}`
-                          : user.username;
-                        
-                        return (
-                          <button
-                            key={user.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedUser(user);
-                              setUserSearchQuery(displayName);
-                            const userEmail = user.email || user.username;
-                            setSelectedUserEmail(userEmail);
-                            setShowUserSuggestions(false);
-                            if (selectedRequestForRating) {
-                              // Генерируем текст письма (приглашение создастся автоматически)
-                              generateEmailText(userEmail, selectedRequestForRating);
-                            }
-                            }}
-                            className="w-full text-left px-3 py-2 text-sm text-gray-900 hover:bg-gray-100 focus:bg-gray-100 focus:outline-none"
-                          >
-                            {displayName}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                  
-                  {selectedUser && (
-                    <div className="mt-2 px-3 py-2 text-sm bg-blue-50 text-blue-900 rounded-lg">
-                      Выбран: {selectedUser.surname && selectedUser.name 
-                        ? `${selectedUser.surname} ${selectedUser.name}${selectedUser.email ? ` (${selectedUser.email})` : ''}`
-                        : selectedUser.email || selectedUser.username}
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Текст письма
-                </label>
-                <textarea
-                  value={emailText}
-                  onChange={(e) => setEmailText(e.target.value)}
-                  rows={8}
-                  className="w-full px-3 py-2 text-sm text-gray-900 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                />
-              </div>
-              
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={async () => {
-                    try {
-                      // Загружаем SVG логотип и конвертируем в PNG base64 для лучшей совместимости с Outlook
-                      // Outlook не поддерживает SVG, поэтому конвертируем в PNG
-                      let logoBase64 = '';
-                      try {
-                        const logoUrl = typeof window !== 'undefined' 
-                          ? `${window.location.origin}/images/logo-small.svg`
-                          : '/images/logo-small.svg';
-                        
-                        // Создаем временный img элемент для загрузки SVG
-                        const img = new Image();
-                        img.crossOrigin = 'anonymous';
-                        
-                        await new Promise<void>((resolve, reject) => {
-                          img.onload = () => {
-                            try {
-                              // Создаем canvas для конвертации SVG в PNG
-                              const canvas = document.createElement('canvas');
-                              canvas.width = 34;
-                              canvas.height = 34;
-                              const ctx = canvas.getContext('2d');
-                              
-                              if (ctx) {
-                                // Рисуем изображение на canvas
-                                ctx.drawImage(img, 0, 0, 34, 34);
-                                // Конвертируем canvas в base64 PNG
-                                logoBase64 = canvas.toDataURL('image/png');
-                                resolve();
-                              } else {
-                                reject(new Error('Не удалось получить контекст canvas'));
-                              }
-                            } catch (err) {
-                              reject(err);
-                            }
-                          };
-                          img.onerror = () => reject(new Error('Не удалось загрузить изображение'));
-                          img.src = logoUrl;
-                        });
-                      } catch (logoError) {
-                        console.warn('Не удалось загрузить и конвертировать логотип, используем без него:', logoError);
-                      }
-                      
-                      // Создаем HTML с логотипом и названием для вставки в начало письма
-                      // Используем явные стили с !important для единообразия на всех окружениях
-                      // Добавляем mso- стили для совместимости с Outlook
-                      const logoHtml = logoBase64 
-                        ? `<table cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, sans-serif !important; margin: 0 !important; margin-bottom: 16px !important; padding: 0 !important; border-collapse: collapse !important; mso-table-lspace: 0pt; mso-table-rspace: 0pt;">
-  <tr>
-    <td style="padding: 0 !important; padding-right: 8px !important; vertical-align: middle !important; font-family: Arial, sans-serif !important; color: #000000 !important; mso-line-height-rule: exactly;">
-      <img src="${logoBase64}" alt="uzProc" style="width: 34px !important; height: 34px !important; display: block !important; margin: 0 !important; padding: 0 !important; border: none !important;" />
-    </td>
-    <td style="padding: 0 !important; vertical-align: middle !important; font-family: Arial, sans-serif !important; color: #000000 !important; mso-line-height-rule: exactly;">
-      <span style="font-weight: bold !important; font-size: 19pt !important; color: #000000 !important; margin: 0 !important; padding: 0 !important; mso-line-height-rule: exactly;">uzProc</span>
-    </td>
-  </tr>
-</table>`
-                        : `<table cellpadding="0" cellspacing="0" border="0" style="font-family: Arial, sans-serif !important; margin: 0 !important; margin-bottom: 16px !important; padding: 0 !important; border-collapse: collapse !important; mso-table-lspace: 0pt; mso-table-rspace: 0pt;">
-  <tr>
-    <td style="padding: 0 !important; vertical-align: middle !important; font-family: Arial, sans-serif !important; color: #000000 !important; mso-line-height-rule: exactly;">
-      <span style="font-weight: bold !important; font-size: 19pt !important; color: #000000 !important; margin: 0 !important; padding: 0 !important; mso-line-height-rule: exactly;">uzProc</span>
-    </td>
-  </tr>
-</table>`;
-                      
-                      // Преобразуем текст письма в HTML с явными стилями для единообразия
-                      // Используем единые стили для всех окружений (локальное и деплой)
-                      // Используем <p> вместо <div> для лучшей совместимости с Outlook
-                      const textLines = emailText.split('\n');
-                      const htmlText = textLines
-                        .map(line => {
-                          if (line.trim() === '') {
-                            return '<p style="margin: 0 !important; padding: 0 !important; font-family: Arial, sans-serif !important; font-size: 11pt !important; line-height: 1.5 !important; color: #000000 !important; mso-line-height-rule: exactly; mso-margin-top-alt: 0; mso-margin-bottom-alt: 0;">&nbsp;</p>';
-                          }
-                          // Экранируем HTML символы
-                          const escaped = line
-                            .replace(/&/g, '&amp;')
-                            .replace(/</g, '&lt;')
-                            .replace(/>/g, '&gt;');
-                          // Каждая строка в отдельном <p> с явными стилями и !important для единообразия
-                          // Используем <p> вместо <div> для лучшей совместимости с Outlook
-                          return `<p style="margin: 0 !important; padding: 0 !important; font-family: Arial, sans-serif !important; font-size: 11pt !important; line-height: 1.5 !important; color: #000000 !important; mso-line-height-rule: exactly; mso-margin-top-alt: 0; mso-margin-bottom-alt: 0;">${escaped}</p>`;
-                        })
-                        .join('');
-                      
-                      // Создаем полный HTML с явными стилями для единообразия на всех окружениях
-                      // Все стили должны быть inline для максимальной совместимости с Outlook
-                      // Добавляем mso- стили для совместимости с Outlook
-                      const fullHtml = `<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!--[if mso]>
-  <style type="text/css">
-    body, table, td, div, p, span {
-      font-family: Arial, sans-serif !important;
-      font-size: 11pt !important;
-      line-height: 1.5 !important;
-      color: #000000 !important;
-    }
-  </style>
-  <![endif]-->
-  <style type="text/css">
-    body, table, td, div, p, span {
-      font-family: Arial, sans-serif !important;
-      font-size: 11pt !important;
-      line-height: 1.5 !important;
-      color: #000000 !important;
-    }
-  </style>
-</head>
-<body style="margin: 0 !important; padding: 0 !important; font-family: Arial, sans-serif !important; font-size: 11pt !important; line-height: 1.5 !important; color: #000000 !important; background-color: #ffffff !important; mso-line-height-rule: exactly;">
-  ${logoHtml}
-  <div style="font-family: Arial, sans-serif !important; font-size: 11pt !important; line-height: 1.5 !important; color: #000000 !important; margin: 0 !important; padding: 0 !important; mso-line-height-rule: exactly;">
-    ${htmlText}
-  </div>
-</body>
-</html>`;
-                      
-                      // Пытаемся скопировать HTML через ClipboardItem API
-                      if (navigator.clipboard && window.ClipboardItem) {
-                        try {
-                          const htmlBlob = new Blob([fullHtml], { type: 'text/html' });
-                          const textBlob = new Blob([emailText], { type: 'text/plain' });
-                          const clipboardItem = new ClipboardItem({
-                            'text/html': htmlBlob,
-                            'text/plain': textBlob
-                          });
-                          await navigator.clipboard.write([clipboardItem]);
-                          alert('Письмо с логотипом скопировано в буфер обмена');
-                          return;
-                        } catch (clipboardErr) {
-                          console.warn('ClipboardItem API failed, trying fallback:', clipboardErr);
-                        }
-                      }
-                      
-                      // Fallback: используем старый метод через временный элемент
-                      const tempDiv = document.createElement('div');
-                      tempDiv.innerHTML = fullHtml;
-                      tempDiv.style.position = 'fixed';
-                      tempDiv.style.left = '-9999px';
-                      document.body.appendChild(tempDiv);
-                      
-                      const range = document.createRange();
-                      range.selectNodeContents(tempDiv);
-                      const selection = window.getSelection();
-                      if (selection) {
-                        selection.removeAllRanges();
-                        selection.addRange(range);
-                        
-                        try {
-                          const successful = document.execCommand('copy');
-                          if (successful) {
-                            alert('Письмо с логотипом скопировано в буфер обмена');
-                          } else {
-                            throw new Error('execCommand failed');
-                          }
-                        } catch (execErr) {
-                          console.error('execCommand failed:', execErr);
-                          // Последний fallback: копируем только текст
-                          await copyToClipboard(emailText);
-                          alert('Письмо скопировано в буфер обмена (без форматирования)');
-                        }
-                        
-                        selection.removeAllRanges();
-                      }
-                      
-                      document.body.removeChild(tempDiv);
-                    } catch (error) {
-                      console.error('Error copying to clipboard:', error);
-                      // Fallback: копируем только текст
-                      try {
-                        await copyToClipboard(emailText);
-                        alert('Письмо скопировано в буфер обмена (без форматирования)');
-                      } catch (textErr) {
-                        alert(error instanceof Error ? error.message : 'Не удалось скопировать письмо');
-                      }
-                    }
-                  }}
-                  className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-                >
-                  Скопировать в буфер
-                </button>
-                <button
-                  onClick={async () => {
-                    if (!selectedRequestForRating) return;
-
-                    // Используем selectedUserEmail если он есть, иначе берем из userSearchQuery
-                    const recipientEmail = selectedUserEmail || userSearchQuery;
-
-                    if (!recipientEmail) {
-                      alert('Пожалуйста, выберите получателя');
-                      return;
-                    }
-
-                    try {
-                      // Извлекаем токен из полного URL (например, http://localhost:3000/csi/feedback/{token})
-                      const token = selectedRequestForRating.csiLink?.split('/csi/feedback/')[1]?.split('?')[0]?.split('#')[0];
-                      if (token) {
-                        // Отправляем приглашение на бэкенд
-                        const response = await fetch(`${getBackendUrl()}/api/csi-feedback/invitation?csiToken=${encodeURIComponent(token)}&recipient=${encodeURIComponent(recipientEmail)}`, {
-                          method: 'POST',
-                        });
-
-                        if (response.ok) {
-                          // Обновляем статус отправки в данных заявки
-                          setAllItems(prev => prev.map(req =>
-                            req.id === selectedRequestForRating.id
-                              ? { ...req, csiInvitationSent: true }
-                              : req
-                          ));
-                        } else {
-                          alert('Ошибка при отправке приглашения');
-                          return;
-                        }
-                      }
-                    } catch (error) {
-                      console.error('Error sending invitation:', error);
-                      alert('Ошибка при отправке приглашения');
-                      return;
-                    }
-                    
-                    // Закрываем модальное окно
-                    setIsRatingModalOpen(false);
-                    setSelectedRequestForRating(null);
-                    setSelectedUser(null);
-                    setSelectedUserEmail('');
-                    setUserSearchQuery('');
-                    setEmailText('');
-                    setUserSuggestions([]);
-                    setShowUserSuggestions(false);
-                  }}
-                  disabled={!selectedRequestForRating}
-                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Отправить
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <RatingEmailModal
+        isOpen={isRatingModalOpen}
+        request={selectedRequestForRating}
+        userSearchRef={userSearchRef}
+        selectedUser={selectedUser}
+        userSearchQuery={userSearchQuery}
+        userSuggestions={userSuggestions}
+        showUserSuggestions={showUserSuggestions}
+        emailText={emailText}
+        onClose={handleRatingModalClose}
+        onUserSearchChange={handleUserSearchChange}
+        onUserPick={handleUserPick}
+        onEmailTextChange={setEmailText}
+        onCopy={handleRatingEmailCopy}
+        onSend={handleRatingEmailSend}
+        onUserSearchFocus={() => {
+          if (userSuggestions.length > 0) {
+            setShowUserSuggestions(true);
+          }
+        }}
+      />
 
       {/* Модальное окно для просмотра деталей оценки */}
-      {isFeedbackDetailsModalOpen && selectedRequestForFeedback && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => {
-          setIsFeedbackDetailsModalOpen(false);
-          setSelectedRequestForFeedback(null);
-          setFeedbackDetails(null);
-        }}>
-          <div className="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Детали оценки</h2>
-              <button
-                onClick={() => {
-                  setIsFeedbackDetailsModalOpen(false);
-                  setSelectedRequestForFeedback(null);
-                  setFeedbackDetails(null);
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            {loadingFeedbackDetails ? (
-              <div className="text-center py-8">
-                <p className="text-gray-500">Загрузка...</p>
-              </div>
-            ) : feedbackDetails ? (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Получатель
-                  </label>
-                  <p className="text-sm text-gray-900 bg-gray-50 px-3 py-2 rounded-lg">
-                    {feedbackDetails.recipient || '-'}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Оценка скорости проведения закупки
-                    </label>
-                    <div className="flex items-center gap-2">
-                      {feedbackDetails.speedRating ? (() => {
-                        const rating = feedbackDetails.speedRating;
-                        const fullStars = Math.floor(rating);
-                        const hasHalfStar = rating % 1 >= 0.5;
-                        const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
-                        return (
-                          <div className="flex items-center gap-0.5">
-                            {Array.from({ length: fullStars }).map((_, i) => (
-                              <Star key={`full-${i}`} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                            ))}
-                            {hasHalfStar && (
-                              <Star className="w-4 h-4 fill-yellow-400 text-yellow-400 opacity-50" />
-                            )}
-                            {Array.from({ length: emptyStars }).map((_, i) => (
-                              <Star key={`empty-${i}`} className="w-4 h-4 text-gray-300" />
-                            ))}
-                            <span className="ml-1 text-sm text-gray-900">{rating.toFixed(1)}</span>
-                          </div>
-                        );
-                      })() : <span className="text-sm text-gray-900">-</span>}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Оценка качества результата
-                    </label>
-                    <div className="flex items-center gap-2">
-                      {feedbackDetails.qualityRating ? (() => {
-                        const rating = feedbackDetails.qualityRating;
-                        const fullStars = Math.floor(rating);
-                        const hasHalfStar = rating % 1 >= 0.5;
-                        const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
-                        return (
-                          <div className="flex items-center gap-0.5">
-                            {Array.from({ length: fullStars }).map((_, i) => (
-                              <Star key={`full-${i}`} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                            ))}
-                            {hasHalfStar && (
-                              <Star className="w-4 h-4 fill-yellow-400 text-yellow-400 opacity-50" />
-                            )}
-                            {Array.from({ length: emptyStars }).map((_, i) => (
-                              <Star key={`empty-${i}`} className="w-4 h-4 text-gray-300" />
-                            ))}
-                            <span className="ml-1 text-sm text-gray-900">{rating.toFixed(1)}</span>
-                          </div>
-                        );
-                      })() : <span className="text-sm text-gray-900">-</span>}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Оценка работы закупщика
-                    </label>
-                    <div className="flex items-center gap-2">
-                      {feedbackDetails.satisfactionRating ? (() => {
-                        const rating = feedbackDetails.satisfactionRating;
-                        const fullStars = Math.floor(rating);
-                        const hasHalfStar = rating % 1 >= 0.5;
-                        const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
-                        return (
-                          <div className="flex items-center gap-0.5">
-                            {Array.from({ length: fullStars }).map((_, i) => (
-                              <Star key={`full-${i}`} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                            ))}
-                            {hasHalfStar && (
-                              <Star className="w-4 h-4 fill-yellow-400 text-yellow-400 opacity-50" />
-                            )}
-                            {Array.from({ length: emptyStars }).map((_, i) => (
-                              <Star key={`empty-${i}`} className="w-4 h-4 text-gray-300" />
-                            ))}
-                            <span className="ml-1 text-sm text-gray-900">{rating.toFixed(1)}</span>
-                          </div>
-                        );
-                      })() : <span className="text-sm text-gray-900">-</span>}
-                    </div>
-                  </div>
-
-                  {feedbackDetails.usedUzproc && feedbackDetails.uzprocRating && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Оценка узпрок
-                      </label>
-                      <div className="flex items-center gap-2">
-                        {(() => {
-                          const rating = feedbackDetails.uzprocRating!;
-                          const fullStars = Math.floor(rating);
-                          const hasHalfStar = rating % 1 >= 0.5;
-                          const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
-                          return (
-                            <div className="flex items-center gap-0.5">
-                              {Array.from({ length: fullStars }).map((_, i) => (
-                                <Star key={`full-${i}`} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                              ))}
-                              {hasHalfStar && (
-                                <Star className="w-4 h-4 fill-yellow-400 text-yellow-400 opacity-50" />
-                              )}
-                              {Array.from({ length: emptyStars }).map((_, i) => (
-                                <Star key={`empty-${i}`} className="w-4 h-4 text-gray-300" />
-                              ))}
-                              <span className="ml-1 text-sm text-gray-900">{rating.toFixed(1)}</span>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {feedbackDetails.comment && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Комментарий
-                    </label>
-                    <p className="text-sm text-gray-900 bg-gray-50 px-3 py-2 rounded-lg whitespace-pre-wrap">
-                      {feedbackDetails.comment}
-                    </p>
-                  </div>
-                )}
-
-                <div className="flex justify-end gap-2 mt-6">
-                  <button
-                    onClick={() => {
-                      setIsFeedbackDetailsModalOpen(false);
-                      setSelectedRequestForFeedback(null);
-                      setFeedbackDetails(null);
-                    }}
-                    className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    Закрыть
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <p className="text-gray-500">Оценка не найдена</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <FeedbackDetailsModal
+        isOpen={isFeedbackDetailsModalOpen}
+        request={selectedRequestForFeedback}
+        loading={loadingFeedbackDetails}
+        feedbackDetails={feedbackDetails}
+        onClose={handleFeedbackDetailsModalClose}
+      />
 
       {/* Модальное окно для просмотра отправленного приглашения */}
-      {isSentInvitationModalOpen && sentInvitationDetails && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => {
-          setIsSentInvitationModalOpen(false);
-          setSentInvitationDetails(null);
-        }}>
-          <div className="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold text-gray-900">Отправленное приглашение на оценку</h2>
-              <button
-                onClick={() => {
-                  setIsSentInvitationModalOpen(false);
-                  setSentInvitationDetails(null);
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Получатель
-                </label>
-                <p className="text-sm text-gray-900 bg-gray-50 px-3 py-2 rounded-lg">
-                  {sentInvitationDetails.recipient}
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Текст письма
-                </label>
-                <div className="text-sm text-gray-900 bg-gray-50 px-3 py-2 rounded-lg whitespace-pre-wrap">
-                  {sentInvitationDetails.emailText}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <SentInvitationModal
+        isOpen={isSentInvitationModalOpen}
+        details={sentInvitationDetails}
+        onClose={handleSentInvitationModalClose}
+      />
     </div>
   );
 }
