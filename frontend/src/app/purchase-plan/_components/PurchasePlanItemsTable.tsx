@@ -9,6 +9,7 @@ import { getCompanyLogoPath, getPurchaseRequestStatusColor } from './utils/purch
 import { prepareExportData } from './utils/export.utils';
 import { getBackendUrl } from '@/utils/api';
 import { calculateNewContractDate } from './utils/date.utils';
+import { FILTERS_STORAGE_KEY } from './constants/purchase-plan-items.constants';
 
 // UI компоненты
 import PurchasePlanItemsTableHeader from './ui/PurchasePlanItemsTableHeader';
@@ -333,6 +334,11 @@ export default function PurchasePlanItemsTable() {
     table.setSelectedMonths(new Set());
     table.setSelectedMonthYear(null);
     table.setCurrentPage(0);
+    
+    // Очищаем сохранённые фильтры в localStorage
+    try {
+      localStorage.removeItem(FILTERS_STORAGE_KEY);
+    } catch { }
 
     // Устанавливаем просмотр текущей версии
     if (table.selectedYear) {
