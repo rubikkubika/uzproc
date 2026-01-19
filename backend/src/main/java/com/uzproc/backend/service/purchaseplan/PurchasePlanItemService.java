@@ -44,6 +44,7 @@ public class PurchasePlanItemService {
     private final PurchaseRequestRepository purchaseRequestRepository;
     private final CfoRepository cfoRepository;
     private final UserRepository userRepository;
+    private final PurchasePlanPurchaserSyncService purchaserSyncService;
     
     @PersistenceContext
     private EntityManager entityManager;
@@ -53,12 +54,14 @@ public class PurchasePlanItemService {
             PurchasePlanItemChangeService purchasePlanItemChangeService,
             PurchaseRequestRepository purchaseRequestRepository,
             CfoRepository cfoRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            PurchasePlanPurchaserSyncService purchaserSyncService) {
         this.purchasePlanItemRepository = purchasePlanItemRepository;
         this.purchasePlanItemChangeService = purchasePlanItemChangeService;
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.cfoRepository = cfoRepository;
         this.userRepository = userRepository;
+        this.purchaserSyncService = purchaserSyncService;
     }
 
     public Page<PurchasePlanItemDto> findAll(
@@ -178,6 +181,9 @@ public class PurchasePlanItemService {
         final Map<Long, User> finalPurchaserMap = purchaserMap;
         final Map<Long, String> finalPurchaseRequestPurchaserMap = purchaseRequestPurchaserMap;
         
+        // Список позиций, которые нужно синхронизировать (закупщик в заявке отличается)
+        List<PurchasePlanPurchaserSyncService.PurchaserSyncRequest> syncRequests = new ArrayList<>();
+        
         items.getContent().forEach(item -> {
             Long purchaserId = finalItemPurchaserMap.get(item.getId());
             if (purchaserId != null) {
@@ -187,8 +193,7 @@ public class PurchasePlanItemService {
                 }
             }
             
-            // Если есть связанная заявка и в заявке есть закупщик - подтягиваем его в DTO
-            // Это не обновляет базу данных, только отображает актуального закупщика из заявки
+            // Если есть связанная заявка и в заявке есть закупщик - проверяем синхронизацию
             if (item.getPurchaseRequestId() != null) {
                 String purchaserFromRequest = finalPurchaseRequestPurchaserMap.get(item.getPurchaseRequestId());
                 if (purchaserFromRequest != null) {
@@ -200,22 +205,40 @@ public class PurchasePlanItemService {
                             : currentPurchaser.getUsername())
                         : null;
                     
-                    // Если закупщики отличаются - синхронизируем в фоне (асинхронно не нужно, просто обновим)
+                    // Если закупщики отличаются - добавляем в список для синхронизации
                     if (currentPurchaserName == null || !purchaserFromRequest.equalsIgnoreCase(currentPurchaserName)) {
                         // Ищем пользователя по имени закупщика из заявки
                         User purchaserFromRequestUser = findUserByPurchaserName(purchaserFromRequest);
                         if (purchaserFromRequestUser != null) {
-                            // Обновляем позицию плана с новым закупщиком
-                            // Логирование и сохранение в фоне без изменения текущей транзакции
-                            // Для read-only транзакции просто устанавливаем для отображения
+                            // Устанавливаем для отображения в текущем запросе
                             item.setPurchaser(purchaserFromRequestUser);
-                            logger.debug("Set purchaser from request for plan item {}: {} (from request {})",
+                            
+                            // Добавляем в список для синхронизации в БД
+                            syncRequests.add(new PurchasePlanPurchaserSyncService.PurchaserSyncRequest(
+                                item.getId(), 
+                                purchaserFromRequestUser.getId()
+                            ));
+                            
+                            logger.debug("Queued purchaser sync for plan item {}: {} (from request {})",
                                 item.getId(), purchaserFromRequest, item.getPurchaseRequestId());
                         }
                     }
                 }
             }
         });
+        
+        // Синхронизируем закупщиков в отдельных транзакциях (сохраняем в БД)
+        if (!syncRequests.isEmpty()) {
+            try {
+                int syncedCount = purchaserSyncService.syncPurchasersInBatch(syncRequests);
+                if (syncedCount > 0) {
+                    logger.info("Auto-synced {} purchasers from requests during findAll", syncedCount);
+                }
+            } catch (Exception e) {
+                // Не прерываем основной запрос при ошибке синхронизации
+                logger.error("Error during batch purchaser sync: {}", e.getMessage());
+            }
+        }
         
         // Конвертируем entity в DTO с использованием Map статусов
         final Map<Long, String> statusMap = purchaseRequestStatusMap;
@@ -526,14 +549,16 @@ public class PurchasePlanItemService {
         return purchasePlanItemRepository.findById(id)
                 .map(item -> {
                     // Если purchaseRequestId не null, проверяем существование заявки на закупку
+                    PurchaseRequest purchaseRequest = null;
                     if (purchaseRequestId != null) {
-                        boolean exists = purchaseRequestRepository.existsByIdPurchaseRequest(purchaseRequestId);
-                        if (!exists) {
+                        Optional<PurchaseRequest> prOpt = purchaseRequestRepository.findByIdPurchaseRequest(purchaseRequestId);
+                        if (prOpt.isEmpty()) {
                             logger.warn("PurchaseRequest with idPurchaseRequest={} not found for purchase plan item {}", 
                                     purchaseRequestId, id);
                             throw new IllegalArgumentException(
                                     String.format("Заявка на закупку с номером %d не найдена", purchaseRequestId));
                         }
+                        purchaseRequest = prOpt.get();
                     }
                     
                     Long oldPurchaseRequestId = item.getPurchaseRequestId();
@@ -581,6 +606,47 @@ public class PurchasePlanItemService {
                             );
                             logger.info("Cleared status REQUEST for purchase plan item {} when removing purchaseRequestId",
                                     id);
+                        }
+                    }
+                    
+                    // Синхронизируем закупщика из заявки при связывании с заявкой
+                    if (purchaseRequest != null) {
+                        String purchaserFromRequest = purchaseRequest.getPurchaser();
+                        if (purchaserFromRequest != null && !purchaserFromRequest.trim().isEmpty()) {
+                            User purchaserUser = findUserByPurchaserName(purchaserFromRequest.trim());
+                            if (purchaserUser != null) {
+                                User oldPurchaser = item.getPurchaser();
+                                // Проверяем, нужно ли обновление
+                                boolean needsPurchaserUpdate = false;
+                                if (oldPurchaser == null) {
+                                    needsPurchaserUpdate = true;
+                                } else if (!purchaserUser.getId().equals(oldPurchaser.getId())) {
+                                    needsPurchaserUpdate = true;
+                                }
+                                
+                                if (needsPurchaserUpdate) {
+                                    String oldPurchaserName = oldPurchaser != null 
+                                        ? (oldPurchaser.getSurname() != null && oldPurchaser.getName() != null 
+                                            ? oldPurchaser.getSurname() + " " + oldPurchaser.getName() 
+                                            : oldPurchaser.getUsername())
+                                        : null;
+                                    String newPurchaserName = purchaserUser.getSurname() != null && purchaserUser.getName() != null
+                                        ? purchaserUser.getSurname() + " " + purchaserUser.getName()
+                                        : purchaserUser.getUsername();
+                                    
+                                    purchasePlanItemChangeService.logChange(
+                                        item.getId(),
+                                        item.getGuid(),
+                                        "purchaser",
+                                        oldPurchaserName,
+                                        newPurchaserName
+                                    );
+                                    
+                                    item.setPurchaser(purchaserUser);
+                                    logger.info("Synced purchaser from request {} for plan item {}: {} -> {}",
+                                            purchaseRequestId, id, oldPurchaserName, newPurchaserName);
+                                }
+                            }
                         }
                     }
                     
