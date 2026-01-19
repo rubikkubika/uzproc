@@ -366,31 +366,27 @@ public class PurchasePlanItemController {
     @PatchMapping("/{id}/purchaser")
     public ResponseEntity<?> updatePurchasePlanItemPurchaser(
             @PathVariable Long id,
-            @RequestBody Map<String, String> requestBody) {
+            @RequestBody Map<String, Object> requestBody) {
         try {
-            String purchaserStr = requestBody.get("purchaser");
-            // purchaser может быть null или пустой строкой
+            Object purchaserObj = requestBody.get("purchaser");
+            Long purchaserId = null;
             
-            com.uzproc.backend.entity.PlanPurchaser purchaser = null;
-            if (purchaserStr != null && !purchaserStr.trim().isEmpty()) {
-                String trimmedPurchaser = purchaserStr.trim();
-                // Пробуем найти по displayName (поддерживает конвертацию старых значений)
-                purchaser = com.uzproc.backend.entity.PlanPurchaser.fromDisplayName(trimmedPurchaser);
-                // Если не найдено по displayName, пробуем по имени enum
-                if (purchaser == null) {
-                    try {
-                        String enumName = trimmedPurchaser.toUpperCase()
-                            .replace(" ", "_")
-                            .replace("НАСТЯ_АБДУЛАЗИЗ", "NASTYA")  // Старое значение -> Настя
-                            .replace("АБДУЛАЗИЗ", "ABDULAZIZ");
-                        purchaser = com.uzproc.backend.entity.PlanPurchaser.valueOf(enumName);
-                    } catch (IllegalArgumentException e) {
-                        return ResponseEntity.badRequest().body("Invalid purchaser: " + purchaserStr);
+            if (purchaserObj != null) {
+                if (purchaserObj instanceof Number) {
+                    purchaserId = ((Number) purchaserObj).longValue();
+                } else if (purchaserObj instanceof String) {
+                    String str = ((String) purchaserObj).trim();
+                    if (!str.isEmpty() && !str.equalsIgnoreCase("null")) {
+                        try {
+                            purchaserId = Long.parseLong(str);
+                        } catch (NumberFormatException e) {
+                            return ResponseEntity.badRequest().body("Invalid purchaser ID: " + str);
+                        }
                     }
                 }
             }
             
-            PurchasePlanItemDto updatedItem = purchasePlanItemService.updatePurchaser(id, purchaser);
+            PurchasePlanItemDto updatedItem = purchasePlanItemService.updatePurchaser(id, purchaserId);
             if (updatedItem != null) {
                 return ResponseEntity.ok(updatedItem);
             }
@@ -400,13 +396,7 @@ public class PurchasePlanItemController {
         }
     }
 
-    @GetMapping("/purchasers")
-    public ResponseEntity<List<String>> getPurchasers() {
-        List<String> purchasers = Arrays.stream(com.uzproc.backend.entity.PlanPurchaser.values())
-                .map(com.uzproc.backend.entity.PlanPurchaser::getDisplayName)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(purchasers);
-    }
+    // Метод getPurchasers удален - фронтенд может получать список пользователей через /users endpoint
 
     @PostMapping
     public ResponseEntity<?> createPurchasePlanItem(@RequestBody PurchasePlanItemDto dto) {

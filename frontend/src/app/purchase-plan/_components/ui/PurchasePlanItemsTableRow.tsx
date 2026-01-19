@@ -32,7 +32,7 @@ interface PurchasePlanItemsTableRowProps {
   onCfoUpdate?: (itemId: number, newCfo: string | null) => void;
   onPurchaseRequestIdUpdate?: (itemId: number, newPurchaseRequestId: string | null) => void;
   onPurchaseSubjectUpdate?: (itemId: number, newPurchaseSubject: string) => void;
-  onPurchaserUpdate?: (itemId: number, newPurchaser: string | null) => void;
+  onPurchaserUpdate?: (itemId: number, newPurchaserId: number | null) => void;
   // Пропсы для редактирования - установка состояний редактирования
   setEditingDate?: (date: { itemId: number; field: 'requestDate' } | null) => void;
   setEditingStatus?: (itemId: number | null) => void;
@@ -45,7 +45,7 @@ interface PurchasePlanItemsTableRowProps {
   setCreatingNewCfo?: (itemId: number | null) => void;
   setCfoInputValue?: (updater: (prev: Record<number, string>) => Record<number, string>) => void;
   // Пропсы для доступных значений
-  availablePurchasers?: string[];
+  availablePurchasers?: Array<{ id: number; name: string }>;
   availableCfo?: string[];
   availableHoldings?: string[];
   // Пропсы для GanttChart
@@ -459,13 +459,27 @@ export default function PurchasePlanItemsTableRow({
           >
             {editingPurchaser === item.id ? (
               <select
-                value={item.purchaser || ''}
+                value={(() => {
+                  // Находим ID пользователя по имени (item.purchaser - это строка "Фамилия Имя")
+                  if (!item.purchaser || !availablePurchasers || availablePurchasers.length === 0) {
+                    return '';
+                  }
+                  const foundUser = availablePurchasers.find(u => u.name === item.purchaser);
+                  return foundUser ? foundUser.id.toString() : '';
+                })()}
                 disabled={isInactive || isViewingArchiveVersion || !canEdit || isReadOnly}
                 onChange={(e) => {
                   e.stopPropagation();
                   if (!isReadOnly) {
-                    const newValue = e.target.value || null;
-                    onPurchaserUpdate?.(item.id, newValue);
+                    const newValue = e.target.value;
+                    if (newValue === '') {
+                      onPurchaserUpdate?.(item.id, null);
+                    } else {
+                      const purchaserId = parseInt(newValue, 10);
+                      if (!isNaN(purchaserId)) {
+                        onPurchaserUpdate?.(item.id, purchaserId);
+                      }
+                    }
                   }
                 }}
                 onBlur={() => {
@@ -488,16 +502,12 @@ export default function PurchasePlanItemsTableRow({
                 <option value="">Не назначен</option>
                 {availablePurchasers.length > 0 ? (
                   availablePurchasers.map((purchaser) => (
-                    <option key={purchaser} value={purchaser}>
-                      {purchaser}
+                    <option key={purchaser.id} value={purchaser.id}>
+                      {purchaser.name}
                     </option>
                   ))
                 ) : (
-                  <>
-                    <option value="Настя">Настя</option>
-                    <option value="Абдулазиз">Абдулазиз</option>
-                    <option value="Елена">Елена</option>
-                  </>
+                  <option disabled>Загрузка пользователей...</option>
                 )}
               </select>
             ) : (
