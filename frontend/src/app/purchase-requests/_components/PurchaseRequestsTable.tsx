@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
 import { Clock, Check, Eye, EyeOff, Settings, Star } from 'lucide-react';
 import PurchaseRequestsSummaryTable from './ui/PurchaseRequestsSummaryTable';
@@ -33,6 +32,14 @@ import { usePurchaseRequestNavigation } from './hooks/usePurchaseRequestNavigati
 import { useDropdownPosition } from './hooks/useDropdownPosition';
 import { useClickOutsideMany } from './hooks/useClickOutsideMany';
 import { useCsiActions } from './hooks/useCsiActions';
+import { useAutoTabFallback } from './hooks/useAutoTabFallback';
+import { useColumnsByTab } from './hooks/useColumnsByTab';
+import { useDebouncedFiltersSync } from './hooks/useDebouncedFiltersSync';
+import { usePurchaseRequestsFetchController } from './hooks/usePurchaseRequestsFetchController';
+import { useFocusRestore } from './hooks/useFocusRestore';
+import { useTotalRecords } from './hooks/useTotalRecords';
+import { useFilterHandlers } from './hooks/useFilterHandlers';
+import { useExcludeFromInWork } from './hooks/useExcludeFromInWork';
 
 export default function PurchaseRequestsTable() {
   // Используем главный композиционный хук
@@ -248,145 +255,59 @@ export default function PurchaseRequestsTable() {
   ]);
 
 
-  // Автоматическое переключение на вкладку с записями, если текущая вкладка пуста
-  useEffect(() => {
-    // Проверяем, что количество записей загружено для всех вкладок
-    const allCountsLoaded = Object.values(tabCounts).every(count => count !== null);
-    
-    if (allCountsLoaded) {
-      // Если активная вкладка имеет 0 записей, переключаемся на первую вкладку с записями
-      if (tabCounts[activeTab] === 0) {
-        // Приоритет переключения: in-work -> completed -> all -> project-rejected -> hidden
-        const tabsOrder: TabType[] = ['in-work', 'completed', 'all', 'project-rejected', 'hidden'];
-        const tabWithRecords = tabsOrder.find(tab => tabCounts[tab] !== null && tabCounts[tab]! > 0);
-        
-        if (tabWithRecords) {
-          setActiveTab(tabWithRecords);
-          setStatusFilter(new Set());
-          setPurchaserFilter(new Set());
-          setCfoFilter(new Set());
-          setCurrentPage(0);
-          setAllItems([]);
-        }
-      }
-    }
-  }, [tabCounts, activeTab]);
+  // Используем хук для авто-переключения вкладки
+  useAutoTabFallback({
+    tabCounts,
+    activeTab,
+    setActiveTab,
+    setStatusFilter,
+    setPurchaserFilter,
+    setCfoFilter,
+    setCurrentPage,
+    setAllItems,
+  });
   
-  // Автоматическое управление видимостью колонки "rating" при переключении вкладок
-  useEffect(() => {
-    setVisibleColumns(prev => {
-      const newSet = new Set(prev);
-      if (activeTab === 'completed') {
-        // Для вкладки "Завершенные" добавляем колонку "rating" и убираем "track" и "daysSinceCreation"
-        newSet.add('rating');
-        newSet.delete('track');
-        newSet.delete('daysSinceCreation');
-      } else {
-        // Для других вкладок убираем колонку "rating"
-        newSet.delete('rating');
-      }
-      return newSet;
-    });
-  }, [activeTab]);
+  // Используем хук для управления колонками по вкладкам
+  useColumnsByTab({
+    activeTab,
+    setVisibleColumns,
+  });
 
 
   // Логика восстановления и сохранения фильтров теперь в хуке useLocalStorageSync
 
 
 
-  // Debounce для текстовых фильтров и фильтра бюджета (как в PurchasePlanItemsTable)
-  useEffect(() => {
-    const textFields = [
-      'idPurchaseRequest', 
-      'name', 
-      'contractDurationMonths',
-      'guid',
-      'purchaseRequestPlanYear',
-      'company',
-      'mcc',
-      'purchaseRequestInitiator',
-      'purchaseRequestCreationDate',
-      'createdAt',
-      'updatedAt',
-      'title',
-      'innerId',
-      'budgetAmount'
-    ];
-    const hasTextChanges = textFields.some(f => localFilters[f] !== filtersFromHook[f]);
-    if (hasTextChanges) {
-      const input = focusedField ? document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement : null;
-      const cursorPosition = input ? input.selectionStart || 0 : null;
-
-      const timer = setTimeout(() => {
-        setFilters(prev => { const updated = {...prev}; textFields.forEach(f => updated[f] = localFilters[f] || ''); return updated; });
-        setCurrentPage(0);
-
-        if (focusedField && cursorPosition !== null) {
-          setTimeout(() => {
-            const inputAfter = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
-            if (inputAfter) { inputAfter.focus(); const pos = Math.min(cursorPosition, inputAfter.value.length); inputAfter.setSelectionRange(pos,pos); }
-          },0);
-        }
-      }, 500);
-
-      return () => clearTimeout(timer);
-    }
-  }, [localFilters, filtersFromHook, setCurrentPage, focusedField]);
+  // Используем хук для debounce фильтров
+  useDebouncedFiltersSync({
+    localFilters,
+    filtersFromHook,
+    focusedField,
+    setFilters,
+    setCurrentPage,
+  });
 
   // Убрали useEffect, который устанавливал DEFAULT_STATUSES - теперь фильтр по умолчанию пустой
 
-  // Стабилизируем строковые представления фильтров через useMemo, чтобы избежать лишних обновлений
-  const cfoFilterStr = useMemo(() => Array.from(cfoFilter).sort().join(','), [cfoFilter]);
-  const purchaserFilterStr = useMemo(() => Array.from(purchaserFilter).sort().join(','), [purchaserFilter]);
-  const statusFilterStr = useMemo(() => Array.from(statusFilter).sort().join(','), [statusFilter]);
-
-  // Стабилизируем объект filters через JSON.stringify для корректного сравнения
-  const filtersStr = useMemo(() => JSON.stringify(filtersFromHook), [filtersFromHook]);
-
-  useEffect(() => {
-    // Не загружаем данные до тех пор, пока фильтры не загружены из localStorage
-    if (!filtersLoadedRef.current) {
-      console.log('Skipping fetchData - filters not loaded yet');
-      return;
-    }
-    
-    // Проверяем, есть ли navigationData, который еще не был обработан
-    // Если есть, не вызываем fetchData сразу - дождемся восстановления года
-    const navigationDataStr = localStorage.getItem('purchaseRequestNavigation');
-    if (navigationDataStr && !yearRestored) {
-      try {
-        const navigationData = JSON.parse(navigationDataStr);
-        if (navigationData.selectedYear !== undefined && navigationData.selectedYear !== null) {
-          console.log('Skipping fetchData - waiting for year restoration from navigation data');
-          return;
-        }
-      } catch (err) {
-        // Игнорируем ошибки парсинга
-      }
-    }
-    
-    console.log('useEffect fetchData triggered with selectedYear:', selectedYear, 'activeTab:', activeTab);
-    // При изменении фильтров или сбросе начинаем с первой страницы
-    setCurrentPage(0);
-    setAllItems([]); // Очищаем накопленные данные
-    fetchData(0, pageSize, selectedYear, sortField, sortDirection, filtersFromHook, false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    pageSize,
+  // Используем хук для управления fetchData
+  usePurchaseRequestsFetchController({
+    filtersLoadedRef,
+    yearRestored,
     selectedYear,
+    activeTab,
+    forceReload,
+    filtersFromHook,
+    localFilters,
+    cfoFilter,
+    purchaserFilter,
+    statusFilter,
+    pageSize,
     sortField,
     sortDirection,
-    filtersStr,
-    yearRestored,
-    cfoFilter.size,
-    cfoFilterStr,
-    purchaserFilter.size,
-    purchaserFilterStr,
-    statusFilter.size,
-    statusFilterStr,
-    activeTab, // ВАЖНО: добавлен activeTab, чтобы fetchData вызывался при переключении вкладок
-    forceReload, // Добавлен forceReload для принудительной перезагрузки при сбросе фильтров
-  ]);
+    fetchData,
+    setCurrentPage,
+    setAllItems,
+  });
 
   // Infinite scroll - используем хук
   useInfiniteScroll(loadMoreRef, {
@@ -412,72 +333,11 @@ export default function PurchaseRequestsTable() {
     threshold: 0.1,
   });
 
-  // Отдельный useEffect для перезапуска fetchData после восстановления года из navigationData
-  // Это нужно, чтобы убедиться, что данные загружаются с правильным годом
-  useEffect(() => {
-    // Проверяем, был ли год восстановлен из navigationData и загружены ли фильтры
-    if (yearRestored && filtersLoadedRef.current && selectedYear !== null) {
-      console.log('Year was restored, re-fetching data with selectedYear:', selectedYear);
-      // Небольшая задержка, чтобы убедиться, что selectedYear обновился
-      const timeoutId = setTimeout(() => {
-        // Объединяем filtersFromHook и localFilters
-        const mergedFilters = { ...filtersFromHook, ...localFilters };
-        fetchData(currentPage, pageSize, selectedYear, sortField, sortDirection, mergedFilters);
-      }, 100);
-      return () => clearTimeout(timeoutId);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [yearRestored, selectedYear, currentPage, pageSize, sortField, sortDirection, filtersStr]); // Зависимость от yearRestored и selectedYear
-
-  // Восстановление фокуса после обновления localFilters
-  // Отключено, чтобы не прерывать ввод текста - React сам правильно обрабатывает фокус и курсор
-  // (как в PurchasePlanItemsTable)
-  // useEffect(() => {
-  //   if (focusedField) {
-  //     const input = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
-  //     if (input) {
-  //       // Сохраняем позицию курсора (только для текстовых полей)
-  //       const cursorPosition = input.type === 'number' ? null : (input.selectionStart || 0);
-  //       const currentValue = input.value;
-  //       
-  //       // Восстанавливаем фокус в следующем тике, чтобы не мешать текущему вводу
-  //       requestAnimationFrame(() => {
-  //         const inputAfterRender = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
-  //         if (inputAfterRender) {
-  //           // Для фильтра бюджета проверяем, что неотформатированное значение совпадает
-  //           if (focusedField === 'budgetAmount') {
-  //             const currentRawValue = currentValue.replace(/\s/g, '').replace(/,/g, '');
-  //             const afterRenderRawValue = inputAfterRender.value.replace(/\s/g, '').replace(/,/g, '');
-  //             if (currentRawValue === afterRenderRawValue) {
-  //               inputAfterRender.focus();
-  //               // Для бюджета устанавливаем курсор в конец
-  //               const length = inputAfterRender.value.length;
-  //               inputAfterRender.setSelectionRange(length, length);
-  //             }
-  //           } else if (inputAfterRender.value === currentValue) {
-  //             inputAfterRender.focus();
-  //             // Восстанавливаем позицию курсора только для текстовых полей
-  //             if (inputAfterRender.type !== 'number' && cursorPosition !== null) {
-  //               const newPosition = Math.min(cursorPosition, inputAfterRender.value.length);
-  //               inputAfterRender.setSelectionRange(newPosition, newPosition);
-  //             }
-  //           }
-  //         }
-  //       });
-  //     }
-  //   }
-  // }, [localFilters, focusedField]);
-
-  // Восстановление фокуса после загрузки данных
-  useEffect(() => {
-    if (focusedField) {
-      const timer = setTimeout(() => {
-        const input = document.querySelector(`input[data-filter-field="${focusedField}"]`) as HTMLInputElement;
-        if (input) { const val = localFilters[focusedField] || ''; if (input.value === val) { input.focus(); input.setSelectionRange(val.length,val.length); } }
-      },50);
-      return () => clearTimeout(timer);
-    }
-  }, [focusedField, localFilters]);
+  // Используем хук для восстановления фокуса
+  useFocusRestore({
+    focusedField,
+    localFilters,
+  });
 
   // Получаем список уникальных годов из данных
   const getAvailableYears = (): number[] => {
@@ -514,176 +374,52 @@ export default function PurchaseRequestsTable() {
     purchaserFilter,
   });
 
-  // Загружаем общее количество записей без фильтров
-  useEffect(() => {
-    const fetchTotalRecords = async () => {
-      try {
-        const response = await fetch(`${getBackendUrl()}/api/purchase-requests?page=0&size=1`);
-        if (response.ok) {
-          const result = await response.json();
-          setTotalRecords(result.totalElements || 0);
-        }
-      } catch (err) {
-        console.error('Error fetching total records:', err);
-      }
-    };
-    fetchTotalRecords();
-  }, []);
+  // Используем хук для загрузки totalRecords
+  useTotalRecords({
+    setTotalRecords,
+  });
 
-  // Логика метаданных теперь в хуке useMetadata
+  // Используем хук для обработчиков фильтров
+  const {
+    handleFilterChange,
+    handleCfoToggle,
+    handleStatusToggle,
+    handlePurchaserToggle,
+    handleCfoSelectAll,
+    handleCfoDeselectAll,
+    handlePurchaserSelectAll,
+    handlePurchaserDeselectAll,
+    handleStatusSelectAll,
+    handleStatusDeselectAll,
+    getFilteredCfoOptions,
+    getFilteredPurchaserOptions,
+    getFilteredStatusOptions,
+  } = useFilterHandlers({
+    filtersFromHook,
+    localFilters,
+    setFilters,
+    setLocalFilters,
+    setCurrentPage,
+    setAllItems,
+    cfoFilter,
+    statusFilter,
+    purchaserFilter,
+    setCfoFilter,
+    setStatusFilter,
+    setPurchaserFilter,
+    cfoSearchQuery,
+    statusSearchQuery,
+    purchaserSearchQuery,
+    setStatusSearchQuery,
+    uniqueValues,
+    availableStatuses,
+  });
 
-  // Загружаем данные для сводной таблицы (аналогично purchase-plan)
-
-  // Логика summary теперь в хуке useSummary
-
-
-
-  // Обработка фильтров
-  const handleFilterChange = (field: string, value: string, isTextFilter: boolean = false) => {
-    if (isTextFilter) {
-      // Для текстовых фильтров обновляем только локальное состояние
-      setLocalFilters(prev => ({
-        ...prev,
-        [field]: value,
-      }));
-      // Не сбрасываем страницу сразу для текстовых фильтров (сделаем это через debounce)
-    } else {
-      // Для select фильтров обновляем оба состояния сразу
-      setFilters(prev => ({
-        ...prev,
-        [field]: value,
-      }));
-      setLocalFilters(prev => ({
-        ...prev,
-        [field]: value,
-      }));
-      setCurrentPage(0); // Сбрасываем на первую страницу при изменении фильтра
-      setAllItems([]); // Очищаем накопленные данные
-    }
-  };
-
-  const getUniqueValues = (field: keyof PurchaseRequest): string[] => {
-    const fieldMap: Record<string, keyof typeof uniqueValues> = {
-      cfo: 'cfo',
-      purchaseRequestInitiator: 'purchaseRequestInitiator',
-      purchaser: 'purchaser',
-      costType: 'costType',
-      contractType: 'contractType',
-      status: 'status',
-    };
-    return uniqueValues[fieldMap[field] || 'cfo'] || [];
-  };
-
-  // Обработчики для фильтров с чекбоксами
-  const handleCfoToggle = (cfo: string) => {
-    const newSet = new Set(cfoFilter);
-    if (newSet.has(cfo)) {
-      newSet.delete(cfo);
-    } else {
-      newSet.add(cfo);
-    }
-    setCfoFilter(newSet);
-    // Обновляем фильтр для запроса
-    if (newSet.size > 0) {
-      setFilters(prev => ({ ...prev, cfo: Array.from(newSet).join(',') }));
-    } else {
-      setFilters(prev => ({ ...prev, cfo: '' }));
-    }
-    setCurrentPage(0);
-  };
-
-  const handleStatusToggle = (status: string) => {
-    const newSet = new Set(statusFilter);
-    if (newSet.has(status)) {
-      newSet.delete(status);
-    } else {
-      newSet.add(status);
-    }
-    setStatusFilter(newSet);
-    setCurrentPage(0);
-  };
-
-  const handleCfoSelectAll = () => {
-    const allCfo = getUniqueValues('cfo');
-    const newSet = new Set(allCfo);
-    setCfoFilter(newSet);
-    setFilters(prev => ({ ...prev, cfo: allCfo.join(',') }));
-    setCurrentPage(0);
-    setAllItems([]); // Очищаем накопленные данные
-  };
-
-  const handleCfoDeselectAll = () => {
-    setCfoFilter(new Set());
-    setFilters(prev => ({ ...prev, cfo: '' }));
-    setCurrentPage(0);
-    setAllItems([]); // Очищаем накопленные данные
-  };
-
-  const handlePurchaserToggle = (purchaser: string) => {
-    const newSet = new Set(purchaserFilter);
-    if (newSet.has(purchaser)) {
-      newSet.delete(purchaser);
-    } else {
-      newSet.add(purchaser);
-    }
-    setPurchaserFilter(newSet);
-    setCurrentPage(0);
-    setAllItems([]); // Очищаем накопленные данные
-  };
-
-  const handlePurchaserSelectAll = () => {
-    const allPurchasers = getUniqueValues('purchaser');
-    setPurchaserFilter(new Set(allPurchasers));
-    setCurrentPage(0);
-    setAllItems([]); // Очищаем накопленные данные
-  };
-
-  const handlePurchaserDeselectAll = () => {
-    setPurchaserFilter(new Set());
-    setCurrentPage(0);
-    setAllItems([]); // Очищаем накопленные данные
-  };
-
-  const handleStatusSelectAll = () => {
-    const allStatuses = getUniqueValues('status');
-    const newSet = new Set(allStatuses);
-    setStatusFilter(newSet);
-    setCurrentPage(0);
-    setAllItems([]); // Очищаем накопленные данные
-  };
-
-  const handleStatusDeselectAll = () => {
-    setStatusFilter(new Set());
-    setStatusSearchQuery(''); // Очищаем поисковый запрос, чтобы показать все статусы
-    setCurrentPage(0);
-    setAllItems([]); // Очищаем накопленные данные
-  };
-
-
-  // Фильтруем опции по поисковому запросу
-  const getFilteredCfoOptions = useMemo(() => {
-    const allCfo = uniqueValues.cfo || [];
-    if (!cfoSearchQuery || !cfoSearchQuery.trim()) {
-      return allCfo;
-    }
-    const searchLower = cfoSearchQuery.toLowerCase().trim();
-    return allCfo.filter(cfo => {
-      if (!cfo) return false;
-      return cfo.toLowerCase().includes(searchLower);
-    });
-  }, [cfoSearchQuery, uniqueValues.cfo]);
-
-  const getFilteredPurchaserOptions = useMemo(() => {
-    const allPurchasers = uniqueValues.purchaser || [];
-    if (!purchaserSearchQuery || !purchaserSearchQuery.trim()) {
-      return allPurchasers;
-    }
-    const searchLower = purchaserSearchQuery.toLowerCase().trim();
-    return allPurchasers.filter(p => {
-      if (!p) return false;
-      return p.toLowerCase().includes(searchLower);
-    });
-  }, [purchaserSearchQuery, uniqueValues.purchaser]);
+  // Используем хук для excludeFromInWork
+  const { updateExcludeFromInWork } = useExcludeFromInWork({
+    userRole,
+    setAllItems,
+  });
 
   // Обновляем columnOrder, когда добавляются новые колонки
   useEffect(() => {
@@ -728,19 +464,6 @@ export default function PurchaseRequestsTable() {
     return filtered;
   }, [columnOrder, visibleColumns, activeTab]);
 
-  const getFilteredStatusOptions = useMemo(() => {
-    // Используем только статусы, которые есть в текущих данных таблицы (с учетом вкладки и всех фильтров, кроме фильтра по статусу)
-    // Это гарантирует, что в фильтре показываются только те статусы, которые реально есть в данных текущей вкладки
-    const statuses = availableStatuses.length > 0 ? availableStatuses : (uniqueValues.status || []);
-    if (!statusSearchQuery || !statusSearchQuery.trim()) {
-      return statuses;
-    }
-    const searchLower = statusSearchQuery.toLowerCase().trim();
-    return statuses.filter(status => {
-      if (!status) return false;
-      return status.toLowerCase().includes(searchLower);
-    });
-  }, [statusSearchQuery, availableStatuses, uniqueValues.status]);
 
   // Проверяем, есть ли данные для отображения
   const hasData = allItems && allItems.length > 0;
@@ -826,36 +549,8 @@ export default function PurchaseRequestsTable() {
   // Обработчик для клика на строку таблицы
   // Обработчики навигации теперь в хуке usePurchaseRequestNavigation
 
-  // Обработчик для изменения excludeFromInWork
-  const handleExcludeFromInWorkChange = useCallback(async (requestId: number, newValue: boolean) => {
-    try {
-      const response = await fetch(`${getBackendUrl()}/api/purchase-requests/${requestId}/exclude-from-in-work`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Role': userRole || 'user',
-        },
-        body: JSON.stringify({ excludeFromInWork: newValue }),
-      });
-      if (response.ok) {
-        const updated = await response.json();
-        setAllItems(prev => 
-          prev.map(item => 
-            item.idPurchaseRequest === requestId 
-              ? { ...item, excludeFromInWork: updated.excludeFromInWork }
-              : item
-          )
-        );
-      } else {
-        const errorData = await response.json().catch(() => ({ message: 'Ошибка сервера' }));
-        alert(errorData.message || 'Не удалось обновить видимость заявки');
-        console.error('Failed to update excludeFromInWork');
-      }
-    } catch (error) {
-      console.error('Error updating excludeFromInWork:', error);
-      alert('Ошибка при обновлении видимости заявки');
-    }
-  }, [userRole, setAllItems]);
+  // Обработчик для изменения excludeFromInWork (используем из хука)
+  const handleExcludeFromInWorkChange = updateExcludeFromInWork;
 
   // Обработчики для колонки "Оценка"
   const handleRatingClick = useCallback((request: PurchaseRequest) => {
