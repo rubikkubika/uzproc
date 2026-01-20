@@ -1,6 +1,42 @@
 import { TabType } from '../types/purchase-request.types';
 
-// Константы для статусов (соответствуют PurchaseRequestStatus enum)
+// Константы для групп статусов (соответствуют PurchaseRequestStatusGroup enum)
+export const ALL_STATUS_GROUPS = [
+  'Проект',
+  'Заявка на согласовании',
+  'Заявка не согласована',
+  'Заявка не утверждена',
+  'Закупка не согласована',
+  'Заявка у закупщика',
+  'Спецификация создана - Архив',
+  'Спецификация в работе',
+  'Спецификация не согласована',
+  'Договор в работе',
+  'Спецификация подписана',
+  'Договор подписан',
+];
+
+export const DEFAULT_STATUS_GROUPS = ALL_STATUS_GROUPS;
+
+// Определяем группы статусов для каждой вкладки
+export const TAB_STATUS_GROUPS: Record<TabType, string[]> = {
+  'in-work': [
+    'Заявка на согласовании',
+    'Заявка у закупщика',
+    'Спецификация в работе',
+    'Договор в работе',
+  ],
+  'completed': ['Спецификация подписана', 'Договор подписан'],
+  'project-rejected': ['Проект', 'Заявка не согласована', 'Заявка не утверждена', 'Закупка не согласована', 'Спецификация создана - Архив', 'Спецификация не согласована'],
+  'hidden': [], // Для скрытых заявок не фильтруем по группе статуса, только по excludeFromInWork
+  'all': ALL_STATUS_GROUPS,
+};
+
+// Кэш для метаданных (годы и уникальные значения)
+export const CACHE_KEY = 'purchaseRequests_metadata';
+export const CACHE_TTL = 5 * 60 * 1000; // 5 минут
+
+// Legacy: старые константы для обратной совместимости (могут быть удалены позже)
 export const ALL_STATUSES = [
   'Заявка на согласовании',
   'На согласовании',
@@ -29,7 +65,7 @@ export const DEFAULT_STATUSES = ALL_STATUSES.filter(
   (s) => s !== 'Неактуальна' && s !== 'Не Актуальная'
 );
 
-// Определяем статусы для каждой вкладки
+// Legacy: TAB_STATUSES для обратной совместимости
 export const TAB_STATUSES: Record<TabType, string[]> = {
   'in-work': [
     'Заявка на согласовании',
@@ -52,10 +88,6 @@ export const TAB_STATUSES: Record<TabType, string[]> = {
     'Закупка не согласована',
     'Спецификация создана - Архив',
   ],
-  'hidden': [], // Для скрытых заявок не фильтруем по статусу, только по excludeFromInWork
+  'hidden': [],
   'all': ALL_STATUSES,
 };
-
-// Кэш для метаданных (годы и уникальные значения)
-export const CACHE_KEY = 'purchaseRequests_metadata';
-export const CACHE_TTL = 5 * 60 * 1000; // 5 минут

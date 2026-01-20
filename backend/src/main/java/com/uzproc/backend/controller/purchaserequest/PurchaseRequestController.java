@@ -47,7 +47,7 @@ public class PurchaseRequestController {
             @RequestParam(required = false) String contractType,
             @RequestParam(required = false) Boolean isPlanned,
             @RequestParam(required = false) Boolean requiresPurchase,
-            @RequestParam(required = false) List<String> status,
+            @RequestParam(required = false) List<String> statusGroup,
             @RequestParam(required = false, defaultValue = "false") Boolean excludePendingStatuses,
             @RequestParam(required = false) java.math.BigDecimal budgetAmount,
             @RequestParam(required = false) String budgetAmountOperator,
@@ -60,7 +60,7 @@ public class PurchaseRequestController {
         
         Page<PurchaseRequestDto> purchaseRequests = purchaseRequestService.findAll(
                 page, size, year, month, sortBy, sortDir, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
-                name, costType, contractType, isPlanned, requiresPurchase, status, excludePendingStatuses,
+                name, costType, contractType, isPlanned, requiresPurchase, statusGroup, excludePendingStatuses,
                 budgetAmount, budgetAmountOperator, excludeFromInWork);
         
         logger.info("Returned {} purchase requests", purchaseRequests.getTotalElements());

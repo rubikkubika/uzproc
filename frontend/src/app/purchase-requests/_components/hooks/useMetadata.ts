@@ -14,6 +14,7 @@ export function useMetadata() {
     purchaseRequestInitiator: [],
     purchaser: [],
     status: [],
+    statusGroup: [],
     costType: [],
     contractType: [],
   });
@@ -66,6 +67,7 @@ export function useMetadata() {
           contractType: new Set(),
           purchaser: new Set(),
           status: new Set(),
+          statusGroup: new Set(),
         };
 
         result.content.forEach((request: PurchaseRequest) => {
@@ -90,10 +92,13 @@ export function useMetadata() {
             const statusStr = String(request.status).trim();
             if (statusStr) {
               values.status.add(statusStr);
-              // Логируем для отладки
-              if (statusStr === 'Утверждена') {
-                console.log('Found status "Утверждена" in request:', request.id, request.idPurchaseRequest);
-              }
+            }
+          }
+          if (request.statusGroup) {
+            // Добавляем группу статуса как строку, убираем пробелы
+            const statusGroupStr = String(request.statusGroup).trim();
+            if (statusGroupStr) {
+              values.statusGroup.add(statusGroupStr);
             }
           }
           if (request.costType) values.costType.add(request.costType);
@@ -111,6 +116,7 @@ export function useMetadata() {
           purchaseRequestInitiator: Array.from(values.purchaseRequestInitiator).sort(),
           purchaser: Array.from(values.purchaser).sort(),
           status: Array.from(values.status).sort(),
+          statusGroup: Array.from(values.statusGroup).sort(),
           costType: Array.from(values.costType).sort(),
           contractType: Array.from(values.contractType).sort(),
         };

@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
 import type { PurchaseRequest, PageResponse, SortField, SortDirection, TabType } from '../types/purchase-request.types';
-import { TAB_STATUSES } from '../constants/status.constants';
+import { TAB_STATUS_GROUPS } from '../constants/status.constants';
 import { usePurchaseRequestFilters } from './usePurchaseRequestFilters';
 import { useTableColumns } from './useTableColumns';
 import { usePurchaseRequestsModals } from './usePurchaseRequestsModals';
@@ -153,24 +153,24 @@ export function usePurchaseRequestsTable() {
         }
       }
 
-      // Фильтр по статусу
-      let effectiveStatusFilter: Set<string>;
+      // Фильтр по группе статуса
+      let effectiveStatusGroupFilter: Set<string>;
       if (currentTab === 'hidden') {
-        effectiveStatusFilter = new Set();
+        effectiveStatusGroupFilter = new Set();
       } else if (filtersHook.statusFilter.size > 0) {
-        effectiveStatusFilter = filtersHook.statusFilter;
+        effectiveStatusGroupFilter = filtersHook.statusFilter;
       } else if (currentTab !== 'all') {
-        effectiveStatusFilter = new Set(TAB_STATUSES[currentTab]);
+        effectiveStatusGroupFilter = new Set(TAB_STATUS_GROUPS[currentTab]);
       } else {
-        effectiveStatusFilter = new Set();
+        effectiveStatusGroupFilter = new Set();
       }
 
       if (currentTab === 'hidden') {
         params.append('excludeFromInWork', 'true');
       } else {
-        if (effectiveStatusFilter.size > 0) {
-          effectiveStatusFilter.forEach(status => {
-            params.append('status', status);
+        if (effectiveStatusGroupFilter.size > 0) {
+          effectiveStatusGroupFilter.forEach(statusGroup => {
+            params.append('statusGroup', statusGroup);
           });
         }
 

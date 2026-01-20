@@ -8,6 +8,7 @@ import com.uzproc.backend.entity.purchase.Purchase;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequestApproval;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequestStatus;
+import com.uzproc.backend.entity.purchaserequest.PurchaseRequestStatusGroup;
 import com.uzproc.backend.repository.contract.ContractRepository;
 import com.uzproc.backend.repository.csifeedback.CsiFeedbackRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestApprovalRepository;
@@ -95,15 +96,15 @@ public class PurchaseRequestService {
             String contractType,
             Boolean isPlanned,
             Boolean requiresPurchase,
-            List<String> status,
+            List<String> statusGroup,
             Boolean excludePendingStatuses,
             java.math.BigDecimal budgetAmount,
             String budgetAmountOperator,
             Boolean excludeFromInWorkParam) {
         
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, month: {}, idPurchaseRequest: {}, cfo: {}, purchaseRequestInitiator: '{}', purchaser: {}, name: '{}', costType: '{}', contractType: '{}', isPlanned: {}, requiresPurchase: {}, status: {}, excludePendingStatuses: {}, budgetAmount: {}, budgetAmountOperator: '{}', excludeFromInWorkParam: {}",
-                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, requiresPurchase, status, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWorkParam);
+        logger.info("Filter parameters - year: {}, month: {}, idPurchaseRequest: {}, cfo: {}, purchaseRequestInitiator: '{}', purchaser: {}, name: '{}', costType: '{}', contractType: '{}', isPlanned: {}, requiresPurchase: {}, statusGroup: {}, excludePendingStatuses: {}, budgetAmount: {}, budgetAmountOperator: '{}', excludeFromInWorkParam: {}",
+                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, requiresPurchase, statusGroup, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWorkParam);
         
         // Определяем логику фильтрации по excludeFromInWork:
         // 1. Если excludeFromInWorkParam = true передается как параметр запроса, то фильтруем по excludeFromInWork = true (показываем только скрытые)
@@ -124,27 +125,23 @@ public class PurchaseRequestService {
                 excludeFromInWorkFilter = false;
                 logger.info("Filtering only non-hidden requests (excludeFromInWork = false or null)");
             }
-        } else if (status != null && !status.isEmpty()) {
-            // Если параметр не передан, но переданы статусы для вкладки "В работе", исключаем скрытые заявки
-            List<String> inWorkStatuses = List.of(
-                "Заявка на согласовании", "На согласовании",
-                "Заявка у закупщика", "На утверждении",
-                "Спецификация создана", "Спецификация на согласовании",
-                "Закупка создана",
-                "Договор создан",
-                "Заявка утверждена", "Утверждена",
-                "Закупка завершена"
+        } else if (statusGroup != null && !statusGroup.isEmpty()) {
+            // Если параметр не передан, но переданы группы статусов для вкладки "В работе", исключаем скрытые заявки
+            List<String> inWorkStatusGroups = List.of(
+                "Заявка на согласовании",
+                "Заявка у закупщика",
+                "Договор в работе"
             );
-            // Проверяем, все ли переданные статусы относятся к вкладке "В работе"
-            boolean allInWorkStatuses = status.stream().allMatch(s -> inWorkStatuses.contains(s));
-            if (allInWorkStatuses) {
+            // Проверяем, все ли переданные группы статусов относятся к вкладке "В работе"
+            boolean allInWorkStatusGroups = statusGroup.stream().allMatch(s -> inWorkStatusGroups.contains(s));
+            if (allInWorkStatusGroups) {
                 excludeFromInWork = true;
-                logger.info("Detected 'in-work' tab statuses - will exclude records with excludeFromInWork = true");
+                logger.info("Detected 'in-work' tab status groups - will exclude records with excludeFromInWork = true");
             }
         }
         
         Specification<PurchaseRequest> spec = buildSpecification(
-                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, requiresPurchase, status, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWork, excludeFromInWorkFilter);
+                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, requiresPurchase, statusGroup, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWork, excludeFromInWorkFilter);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -199,22 +196,24 @@ public class PurchaseRequestService {
         
         Map<String, Long> counts = new HashMap<>();
         
-        // Определяем статусы для каждой вкладки
-        List<String> inWorkStatuses = List.of(
-            "Заявка на согласовании", "На согласовании",
-            "Заявка у закупщика", "На утверждении",
-            "Спецификация создана", "Спецификация на согласовании",
-            "Закупка создана",
-            "Договор создан",
-            "Заявка утверждена", "Утверждена",
-            "Закупка завершена"
+        // Определяем группы статусов для каждой вкладки
+        List<String> inWorkStatusGroups = List.of(
+            "Заявка на согласовании",
+            "Заявка у закупщика",
+            "Спецификация в работе",
+            "Договор в работе"
         );
-        List<String> completedStatuses = List.of(
+        List<String> completedStatusGroups = List.of(
             "Спецификация подписана",
             "Договор подписан"
         );
-        List<String> projectRejectedStatuses = List.of(
-            "Проект", "Заявка не согласована", "Заявка не утверждена", "Закупка не согласована", "Спецификация создана - Архив"
+        List<String> projectRejectedStatusGroups = List.of(
+            "Проект",
+            "Заявка не согласована",
+            "Заявка не утверждена",
+            "Закупка не согласована",
+            "Спецификация создана - Архив",
+            "Спецификация не согласована"
         );
         
         // Подсчитываем для каждой вкладки
@@ -222,11 +221,11 @@ public class PurchaseRequestService {
             name, costType, contractType, isPlanned, requiresPurchase, null, budgetAmount, budgetAmountOperator, false));
         // Для вкладки "В работе" исключаем записи с excludeFromInWork = true
         counts.put("in-work", countWithFilters(year, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
-            name, costType, contractType, isPlanned, requiresPurchase, inWorkStatuses, budgetAmount, budgetAmountOperator, true));
+            name, costType, contractType, isPlanned, requiresPurchase, inWorkStatusGroups, budgetAmount, budgetAmountOperator, true));
         counts.put("completed", countWithFilters(year, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
-            name, costType, contractType, isPlanned, requiresPurchase, completedStatuses, budgetAmount, budgetAmountOperator, false));
+            name, costType, contractType, isPlanned, requiresPurchase, completedStatusGroups, budgetAmount, budgetAmountOperator, false));
         counts.put("project-rejected", countWithFilters(year, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
-            name, costType, contractType, isPlanned, requiresPurchase, projectRejectedStatuses, budgetAmount, budgetAmountOperator, false));
+            name, costType, contractType, isPlanned, requiresPurchase, projectRejectedStatusGroups, budgetAmount, budgetAmountOperator, false));
         
         return counts;
     }
@@ -245,14 +244,14 @@ public class PurchaseRequestService {
             String contractType,
             Boolean isPlanned,
             Boolean requiresPurchase,
-            List<String> status,
+            List<String> statusGroup,
             java.math.BigDecimal budgetAmount,
             String budgetAmountOperator,
             boolean excludeFromInWork) {
         
         Specification<PurchaseRequest> spec = buildSpecification(
             year, null, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
-            name, costType, contractType, isPlanned, requiresPurchase, status,
+            name, costType, contractType, isPlanned, requiresPurchase, statusGroup,
             false, budgetAmount, budgetAmountOperator, excludeFromInWork, null);
         
         return purchaseRequestRepository.count(spec);
@@ -285,6 +284,7 @@ public class PurchaseRequestService {
         dto.setIsPlanned(entity.getIsPlanned());
         dto.setRequiresPurchase(entity.getRequiresPurchase());
         dto.setStatus(entity.getStatus());
+        dto.setStatusGroup(entity.getStatus() != null ? entity.getStatus().getGroupDisplayName() : null);
         dto.setState(entity.getState());
         dto.setExpenseItem(entity.getExpenseItem());
         dto.setExcludeFromInWork(entity.getExcludeFromInWork());
@@ -428,7 +428,7 @@ public class PurchaseRequestService {
             String contractType,
             Boolean isPlanned,
             Boolean requiresPurchase,
-            List<String> status,
+            List<String> statusGroup,
             Boolean excludePendingStatuses,
             java.math.BigDecimal budgetAmount,
             String budgetAmountOperator,
@@ -600,11 +600,11 @@ public class PurchaseRequestService {
                 predicateCount++;
                 logger.info("Added requiresPurchase filter: {}", requiresPurchase);
                 
-                // ВАЖНО: Если фильтруем по requiresPurchase и НЕ указан явный фильтр по статусам,
+                // ВАЖНО: Если фильтруем по requiresPurchase и НЕ указан явный фильтр по группам статусов,
                 // исключаем заявки со статусами "Не согласована", "Не утверждена", "Проект"
                 // НО включаем заявки с null статусом (они тоже показываются в диаграмме)
                 // Это соответствует логике getYearlyStats, где эти статусы учитываются отдельно
-                if (status == null || status.isEmpty()) {
+                if (statusGroup == null || statusGroup.isEmpty()) {
                     List<PurchaseRequestStatus> excludedStatuses = List.of(
                         PurchaseRequestStatus.NOT_COORDINATED,
                         PurchaseRequestStatus.NOT_APPROVED,
@@ -619,7 +619,7 @@ public class PurchaseRequestService {
                     predicateCount++;
                     logger.info("Excluded pending statuses (NOT_COORDINATED, NOT_APPROVED, PROJECT) from requiresPurchase filter, but included null statuses");
                 }
-            } else if (excludePendingStatuses != null && excludePendingStatuses && (status == null || status.isEmpty())) {
+            } else if (excludePendingStatuses != null && excludePendingStatuses && (statusGroup == null || statusGroup.isEmpty())) {
                 // Если requiresPurchase не указан, но excludePendingStatuses = true, исключаем статусы
                 // Это используется для "Заявки на закупку", где нужно показать все заявки, но без статусов "Не согласована", "Не утверждена", "Проект"
                 // НО включаем заявки с null статусом (они тоже показываются в диаграмме)
@@ -638,58 +638,61 @@ public class PurchaseRequestService {
                 logger.info("Excluded pending statuses (NOT_COORDINATED, NOT_APPROVED, PROJECT) due to excludePendingStatuses=true, but included null statuses");
             }
             
-            // Фильтр по статусу (множественный выбор)
-            // Если excludeFromInWorkFilter = true (вкладка "Скрытые"), не применяем фильтр по статусу
-            // Показываем все скрытые заявки независимо от статуса
-            // Для всех остальных случаев (включая excludeFromInWorkFilter = false) применяем фильтр по статусам
-            if (status != null && !status.isEmpty() && excludeFromInWorkFilter != Boolean.TRUE) {
+            // Фильтр по группе статуса (множественный выбор)
+            // Если excludeFromInWorkFilter = true (вкладка "Скрытые"), не применяем фильтр по группе статуса
+            // Показываем все скрытые заявки независимо от группы статуса
+            // Для всех остальных случаев (включая excludeFromInWorkFilter = false) применяем фильтр по группам статусов
+            if (statusGroup != null && !statusGroup.isEmpty() && excludeFromInWorkFilter != Boolean.TRUE) {
                 // Убираем пустые значения и тримим
-                List<String> validStatusValues = status.stream()
+                List<String> validStatusGroupValues = statusGroup.stream()
                     .filter(s -> s != null && !s.trim().isEmpty())
                     .map(String::trim)
                     .toList();
                 
-                if (!validStatusValues.isEmpty()) {
-                    // Преобразуем русские названия в enum значения
-                    List<PurchaseRequestStatus> statusEnums = validStatusValues.stream()
-                        .map(statusStr -> {
-                            // Ищем enum по displayName
-                            for (PurchaseRequestStatus statusEnum : PurchaseRequestStatus.values()) {
-                                if (statusEnum.getDisplayName().equals(statusStr)) {
-                                    return statusEnum;
+                if (!validStatusGroupValues.isEmpty()) {
+                    // Преобразуем русские названия групп в enum значения групп
+                    List<PurchaseRequestStatusGroup> statusGroupEnums = validStatusGroupValues.stream()
+                        .map(groupStr -> {
+                            // Ищем enum группы по displayName
+                            for (PurchaseRequestStatusGroup groupEnum : PurchaseRequestStatusGroup.values()) {
+                                if (groupEnum.getDisplayName().equals(groupStr)) {
+                                    return groupEnum;
                                 }
                             }
-                            logger.warn("Status '{}' not found in PurchaseRequestStatus enum. Available statuses: {}", 
-                                statusStr, 
-                                java.util.Arrays.stream(PurchaseRequestStatus.values())
-                                    .map(PurchaseRequestStatus::getDisplayName)
+                            logger.warn("Status group '{}' not found in PurchaseRequestStatusGroup enum. Available groups: {}", 
+                                groupStr, 
+                                java.util.Arrays.stream(PurchaseRequestStatusGroup.values())
+                                    .map(PurchaseRequestStatusGroup::getDisplayName)
                                     .collect(Collectors.toList()));
                             return null;
                         })
-                        .filter(s -> s != null)
+                        .filter(g -> g != null)
                         .collect(Collectors.toList());
                     
-                    logger.info("Status filter: received {} status values, found {} matching enum values", 
-                        validStatusValues.size(), statusEnums.size());
+                    logger.info("Status group filter: received {} group values, found {} matching enum values", 
+                        validStatusGroupValues.size(), statusGroupEnums.size());
                     
-                    if (!statusEnums.isEmpty()) {
-                        if (statusEnums.size() == 1) {
-                            // Одно значение - точное совпадение (БЕЗ null)
-                            predicates.add(cb.equal(root.get("status"), statusEnums.get(0)));
+                    if (!statusGroupEnums.isEmpty()) {
+                        // Собираем все статусы, которые принадлежат к выбранным группам
+                        List<PurchaseRequestStatus> statusesInGroups = java.util.Arrays.stream(PurchaseRequestStatus.values())
+                            .filter(s -> statusGroupEnums.contains(s.getGroup()))
+                            .collect(Collectors.toList());
+                        
+                        logger.info("Found {} statuses in selected groups: {}", statusesInGroups.size(), 
+                            statusesInGroups.stream().map(PurchaseRequestStatus::getDisplayName).collect(Collectors.toList()));
+                        
+                        if (!statusesInGroups.isEmpty()) {
+                            // Фильтруем по статусам, принадлежащим к выбранным группам
+                            predicates.add(root.get("status").in(statusesInGroups));
                             predicateCount++;
-                            logger.info("Added single status filter: '{}' (exact match only)", statusEnums.get(0).getDisplayName());
-                        } else {
-                            // Несколько значений - IN запрос (БЕЗ null)
-                            predicates.add(root.get("status").in(statusEnums));
-                            predicateCount++;
-                            logger.info("Added multiple status filter: {} (exact match only)", statusEnums.stream()
-                                .map(PurchaseRequestStatus::getDisplayName)
+                            logger.info("Added status group filter for groups: {}", statusGroupEnums.stream()
+                                .map(PurchaseRequestStatusGroup::getDisplayName)
                                 .collect(Collectors.toList()));
                         }
                     } else {
-                        // Если ни один статус не найден в enum, но статусы были переданы,
-                        // возможно они хранятся в поле state - исключаем "Исключена"
-                        logger.warn("No matching status enums found, but status filter was provided. Excluding 'Исключена' from state field.");
+                        // Если ни одна группа не найдена в enum, но группы были переданы,
+                        // исключаем "Исключена" из state
+                        logger.warn("No matching status group enums found, but status group filter was provided. Excluding 'Исключена' from state field.");
                         predicates.add(cb.or(
                             cb.isNull(root.get("state")),
                             cb.not(cb.like(cb.lower(root.get("state")), "%неактуальн%"))
@@ -698,13 +701,13 @@ public class PurchaseRequestService {
                     }
                 }
             } else {
-                // Если статус фильтр не указан, исключаем записи с state содержащим "Исключена" по умолчанию
+                // Если фильтр по группе статусов не указан, исключаем записи с state содержащим "Исключена" по умолчанию
                 predicates.add(cb.or(
                     cb.isNull(root.get("state")),
                     cb.not(cb.like(cb.lower(root.get("state")), "%исключена%"))
                 ));
                 predicateCount++;
-                logger.info("No status filter provided - excluding records with state containing 'Исключена' by default");
+                logger.info("No status group filter provided - excluding records with state containing 'Исключена' by default");
             }
             
             // Фильтр по бюджету с оператором

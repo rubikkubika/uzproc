@@ -30,6 +30,7 @@ public class PurchaseRequestDto {
     private Boolean isPlanned;
     private Boolean requiresPurchase;
     private PurchaseRequestStatus status;
+    private String statusGroup;
     private String state;
     private String expenseItem;
     private Boolean excludeFromInWork;
@@ -233,6 +234,14 @@ public class PurchaseRequestDto {
 
     public void setStatus(PurchaseRequestStatus status) {
         this.status = status;
+    }
+
+    public String getStatusGroup() {
+        return statusGroup;
+    }
+
+    public void setStatusGroup(String statusGroup) {
+        this.statusGroup = statusGroup;
     }
 
     public String getState() {

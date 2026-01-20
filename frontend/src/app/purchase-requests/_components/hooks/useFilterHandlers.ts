@@ -202,18 +202,18 @@ export function useFilterHandlers({
   }, [purchaserSearchQuery, uniqueValues.purchaser]);
 
   const getFilteredStatusOptions = useMemo(() => {
-    // Используем только статусы, которые есть в текущих данных таблицы (с учетом вкладки и всех фильтров, кроме фильтра по статусу)
-    // Это гарантирует, что в фильтре показываются только те статусы, которые реально есть в данных текущей вкладки
-    const statuses = availableStatuses.length > 0 ? availableStatuses : (uniqueValues.status || []);
+    // Используем только группы статусов, которые есть в текущих данных таблицы (с учетом вкладки и всех фильтров, кроме фильтра по группе статуса)
+    // Это гарантирует, что в фильтре показываются только те группы статусов, которые реально есть в данных текущей вкладки
+    const statusGroups = availableStatuses.length > 0 ? availableStatuses : (uniqueValues.statusGroup || []);
     if (!statusSearchQuery || !statusSearchQuery.trim()) {
-      return statuses;
+      return statusGroups;
     }
     const searchLower = statusSearchQuery.toLowerCase().trim();
-    return statuses.filter(status => {
-      if (!status) return false;
-      return status.toLowerCase().includes(searchLower);
+    return statusGroups.filter(statusGroup => {
+      if (!statusGroup) return false;
+      return statusGroup.toLowerCase().includes(searchLower);
     });
-  }, [statusSearchQuery, availableStatuses, uniqueValues.status]);
+  }, [statusSearchQuery, availableStatuses, uniqueValues.statusGroup]);
 
   return {
     handleFilterChange,

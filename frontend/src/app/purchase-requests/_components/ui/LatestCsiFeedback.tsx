@@ -117,19 +117,35 @@ export default function LatestCsiFeedback() {
 
   if (loading && feedbacks.length === 0) {
     return (
-      <div className="text-xs text-gray-400">Загрузка...</div>
+      <div className="space-y-2 w-80 flex-shrink-0">
+        <div className="text-xs font-medium text-gray-500 mb-1">Последние оценки</div>
+        <div className="border border-gray-200 rounded p-3 bg-gray-50 text-center">
+          <div className="text-xs text-gray-400">Загрузка...</div>
+        </div>
+      </div>
     );
   }
 
   if (error && feedbacks.length === 0) {
     return (
-      <div className="text-xs text-red-500">{error}</div>
+      <div className="space-y-2 w-80 flex-shrink-0">
+        <div className="text-xs font-medium text-gray-500 mb-1">Последние оценки</div>
+        <div className="border border-gray-200 rounded p-3 bg-gray-50 text-center">
+          <div className="text-xs text-red-500">{error}</div>
+        </div>
+      </div>
     );
   }
 
   if (feedbacks.length === 0) {
     return (
-      <div className="text-xs text-gray-400">Нет оценок</div>
+      <div className="space-y-2 w-80 flex-shrink-0">
+        <div className="text-xs font-medium text-gray-500 mb-1">Последние оценки</div>
+        <div className="border border-gray-200 rounded p-3 bg-gray-50 text-center">
+          <div className="text-xs text-gray-400">Оценок пока нет</div>
+          <div className="text-xs text-gray-400 mt-1">Они появятся после получения отзывов</div>
+        </div>
+      </div>
     );
   }
 
