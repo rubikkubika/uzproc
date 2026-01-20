@@ -6,6 +6,7 @@ import com.uzproc.backend.entity.Cfo;
 import com.uzproc.backend.entity.user.User;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequestStatus;
+import com.uzproc.backend.entity.purchaserequest.PurchaseRequestStatusGroup;
 import com.uzproc.backend.entity.purchaseplan.PurchasePlanItem;
 import com.uzproc.backend.entity.purchaseplan.PurchasePlanItemStatus;
 import com.uzproc.backend.repository.CfoRepository;
@@ -118,7 +119,7 @@ public class PurchasePlanItemService {
             for (com.uzproc.backend.entity.purchaserequest.PurchaseRequest pr : purchaseRequests) {
                 if (pr.getIdPurchaseRequest() != null) {
                     if (pr.getStatus() != null) {
-                        purchaseRequestStatusMap.put(pr.getIdPurchaseRequest(), pr.getStatus().getDisplayName());
+                        purchaseRequestStatusMap.put(pr.getIdPurchaseRequest(), pr.getStatus().getGroupDisplayName());
                     }
                     // Сохраняем закупщика из заявки для последующей синхронизации
                     if (pr.getPurchaser() != null && !pr.getPurchaser().trim().isEmpty()) {
@@ -265,7 +266,7 @@ public class PurchasePlanItemService {
             return null;
         }
         
-        // Загружаем статус заявки, если есть purchaseRequestId
+        // Загружаем статус заявки (группу статуса), если есть purchaseRequestId
         Map<Long, String> purchaseRequestStatusMap = null;
         if (item.getPurchaseRequestId() != null) {
             Optional<PurchaseRequest> purchaseRequest = 
@@ -274,7 +275,7 @@ public class PurchasePlanItemService {
                 purchaseRequestStatusMap = new HashMap<>();
                 purchaseRequestStatusMap.put(
                     purchaseRequest.get().getIdPurchaseRequest(), 
-                    purchaseRequest.get().getStatus().getDisplayName()
+                    purchaseRequest.get().getStatus().getGroupDisplayName()
                 );
             }
         }
@@ -1399,14 +1400,21 @@ public class PurchasePlanItemService {
                                 }
                             }
                             
-                            // Если не найдено в PurchasePlanItemStatus, ищем в PurchaseRequestStatus
+                            // Если не найдено в PurchasePlanItemStatus, ищем в PurchaseRequestStatusGroup
+                            // Теперь фильтруем по группам статусов, а не по отдельным статусам
                             if (!found) {
-                                for (PurchaseRequestStatus statusEnum : PurchaseRequestStatus.values()) {
-                                    String displayName = statusEnum.getDisplayName();
-                                    if (displayName.equalsIgnoreCase(trimmedValue) || displayName.equals(trimmedValue)) {
-                                        requestStatusEnums.add(statusEnum);
+                                for (PurchaseRequestStatusGroup statusGroup : PurchaseRequestStatusGroup.values()) {
+                                    String groupDisplayName = statusGroup.getDisplayName();
+                                    if (groupDisplayName.equalsIgnoreCase(trimmedValue) || groupDisplayName.equals(trimmedValue)) {
+                                        // Находим все статусы, которые принадлежат этой группе
+                                        for (PurchaseRequestStatus statusEnum : PurchaseRequestStatus.values()) {
+                                            if (statusEnum.getGroup() == statusGroup) {
+                                                requestStatusEnums.add(statusEnum);
+                                                logger.debug("Found PurchaseRequestStatus '{}' for group '{}'", statusEnum, statusGroup);
+                                            }
+                                        }
                                         found = true;
-                                        logger.debug("Found PurchaseRequestStatus: '{}' for value '{}'", statusEnum, trimmedValue);
+                                        logger.debug("Found PurchaseRequestStatusGroup: '{}' for value '{}'", statusGroup, trimmedValue);
                                         break;
                                     }
                                 }

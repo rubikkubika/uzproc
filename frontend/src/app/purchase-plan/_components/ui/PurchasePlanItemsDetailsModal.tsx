@@ -423,7 +423,7 @@ export default function PurchasePlanItemsDetailsModal({
                   </div>
                   <div>
                     <label className="text-xs font-medium text-gray-500">Статус</label>
-                    <p className="text-sm text-gray-900">{purchaseRequest.status || '-'}</p>
+                    <p className="text-sm text-gray-900">{purchaseRequest.statusGroup || '-'}</p>
                   </div>
                   <div>
                     <label className="text-xs font-medium text-gray-500">ЦФО</label>

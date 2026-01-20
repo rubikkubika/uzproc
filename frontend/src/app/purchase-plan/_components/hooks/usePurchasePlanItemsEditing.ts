@@ -683,15 +683,16 @@ export const usePurchasePlanItemsEditing = (
         const updatedItem = await response.json();
         setEditingPurchaseRequestId(null);
         
-        // Если есть purchaseRequestId, загружаем статус заявки
+        // Если есть purchaseRequestId, загружаем группу статуса заявки
         let purchaseRequestStatus: string | null = null;
         if (purchaseRequestIdValue !== null) {
           try {
             const statusResponse = await fetch(`${getBackendUrl()}/api/purchase-requests/by-id-purchase-request/${purchaseRequestIdValue}`);
             if (statusResponse.ok) {
               const purchaseRequest = await statusResponse.json();
-              if (purchaseRequest?.status) {
-                purchaseRequestStatus = purchaseRequest.status;
+              // Используем группу статуса вместо конкретного статуса
+              if (purchaseRequest?.statusGroup) {
+                purchaseRequestStatus = purchaseRequest.statusGroup;
               }
             }
           } catch (error) {
@@ -754,11 +755,12 @@ export const usePurchasePlanItemsEditing = (
     if (!purchaseRequestId) return;
     
     try {
-      // Загружаем статус заявки
+      // Загружаем группу статуса заявки
       const statusResponse = await fetch(`${getBackendUrl()}/api/purchase-requests/by-id-purchase-request/${purchaseRequestId}`);
       if (statusResponse.ok) {
         const purchaseRequest = await statusResponse.json();
-        const newStatus = purchaseRequest?.status || null;
+        // Используем группу статуса вместо конкретного статуса
+        const newStatus = purchaseRequest?.statusGroup || null;
         
         // Обновляем статус для всех позиций плана, связанных с этой заявкой
         setAllItems(prev => {

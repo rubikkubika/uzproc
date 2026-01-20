@@ -15,6 +15,7 @@ public class UserDTO {
     private String department;
     private String position;
     private String role;
+    private Boolean isPurchaser;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -48,6 +49,7 @@ public class UserDTO {
                 this.role = UserRole.USER.getCode();
             }
             
+            this.isPurchaser = user.getIsPurchaser();
             this.createdAt = user.getCreatedAt();
             this.updatedAt = user.getUpdatedAt();
         } catch (Exception e) {
@@ -129,6 +131,14 @@ public class UserDTO {
 
     public void setRole(String role) {
         this.role = role;
+    }
+
+    public Boolean getIsPurchaser() {
+        return isPurchaser;
+    }
+
+    public void setIsPurchaser(Boolean isPurchaser) {
+        this.isPurchaser = isPurchaser;
     }
 
     public LocalDateTime getCreatedAt() {

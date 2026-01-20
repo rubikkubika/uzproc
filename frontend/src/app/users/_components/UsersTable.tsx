@@ -14,6 +14,7 @@ interface User {
   department: string | null;
   position: string | null;
   role: string | null;
+  isPurchaser: boolean | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -68,6 +69,7 @@ export default function UsersTable() {
   const [editEmail, setEditEmail] = useState('');
   const [editPassword, setEditPassword] = useState('');
   const [editRole, setEditRole] = useState('user');
+  const [editIsPurchaser, setEditIsPurchaser] = useState(false);
   const [updating, setUpdating] = useState(false);
 
   // Состояние для модального окна создания пользователя
@@ -80,6 +82,7 @@ export default function UsersTable() {
   const [newDepartment, setNewDepartment] = useState('');
   const [newPosition, setNewPosition] = useState('');
   const [newRole, setNewRole] = useState('user');
+  const [newIsPurchaser, setNewIsPurchaser] = useState(false);
   const [creating, setCreating] = useState(false);
 
   // Состояние для ширин колонок
@@ -89,6 +92,7 @@ export default function UsersTable() {
     email: 200,
     password: 150,
     role: 120,
+    isPurchaser: 100,
     surname: 150,
     name: 150,
     department: 200,
@@ -102,7 +106,7 @@ export default function UsersTable() {
   };
 
   // Порядок колонок
-  const columnOrder = ['id', 'username', 'email', 'password', 'role', 'surname', 'name', 'department', 'position', 'createdAt', 'updatedAt'];
+  const columnOrder = ['id', 'username', 'email', 'password', 'role', 'isPurchaser', 'surname', 'name', 'department', 'position', 'createdAt', 'updatedAt'];
 
   // Функция форматирования даты
   const formatDate = (dateString: string | null) => {
@@ -284,6 +288,7 @@ export default function UsersTable() {
     setEditEmail(user.email || '');
     setEditPassword('');
     setEditRole(user.role || 'user');
+    setEditIsPurchaser(user.isPurchaser || false);
   };
 
   // Функция для закрытия модального окна
@@ -292,6 +297,7 @@ export default function UsersTable() {
     setEditEmail('');
     setEditPassword('');
     setEditRole('user');
+    setEditIsPurchaser(false);
   };
 
   // Функция для обновления пользователя
@@ -309,6 +315,9 @@ export default function UsersTable() {
       }
       if (editRole !== editingUser.role) {
         params.append('role', editRole);
+      }
+      if (editIsPurchaser !== editingUser.isPurchaser) {
+        params.append('isPurchaser', String(editIsPurchaser));
       }
 
       const response = await fetch(`${getBackendUrl()}/api/users/${editingUser.id}?${params.toString()}`, {
@@ -341,6 +350,7 @@ export default function UsersTable() {
     setNewDepartment('');
     setNewPosition('');
     setNewRole('user');
+    setNewIsPurchaser(false);
   };
 
   // Функция для закрытия модального окна создания пользователя
@@ -354,6 +364,7 @@ export default function UsersTable() {
     setNewDepartment('');
     setNewPosition('');
     setNewRole('user');
+    setNewIsPurchaser(false);
   };
 
   // Функция для создания пользователя
@@ -379,6 +390,7 @@ export default function UsersTable() {
           department: newDepartment.trim() || null,
           position: newPosition.trim() || null,
           role: newRole,
+          isPurchaser: newIsPurchaser,
         }),
       });
 
@@ -621,6 +633,7 @@ export default function UsersTable() {
                   email: 'Email',
                   password: 'Пароль',
                   role: 'Роль',
+                  isPurchaser: 'Закупщик',
                   surname: 'Фамилия',
                   name: 'Имя',
                   department: 'Отдел',
@@ -673,6 +686,17 @@ export default function UsersTable() {
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-200 whitespace-nowrap">
                     {user.role === 'admin' ? 'Администратор' : user.role === 'user' ? 'Пользователь' : user.role || '-'}
+                  </td>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-200 whitespace-nowrap text-center">
+                    {user.isPurchaser ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                        Да
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
+                        Нет
+                      </span>
+                    )}
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-200 whitespace-nowrap">
                     {user.surname || '-'}
@@ -893,6 +917,19 @@ export default function UsersTable() {
                   <option value="admin">Администратор</option>
                 </select>
               </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  id="newIsPurchaser"
+                  type="checkbox"
+                  checked={newIsPurchaser}
+                  onChange={(e) => setNewIsPurchaser(e.target.checked)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="newIsPurchaser" className="text-sm font-medium text-gray-700">
+                  Закупщик
+                </label>
+              </div>
             </div>
 
             <div className="flex gap-3 mt-6">
@@ -973,6 +1010,19 @@ export default function UsersTable() {
                   <option value="user">Пользователь</option>
                   <option value="admin">Администратор</option>
                 </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  id="editIsPurchaser"
+                  type="checkbox"
+                  checked={editIsPurchaser}
+                  onChange={(e) => setEditIsPurchaser(e.target.checked)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="editIsPurchaser" className="text-sm font-medium text-gray-700">
+                  Закупщик
+                </label>
               </div>
             </div>
 
