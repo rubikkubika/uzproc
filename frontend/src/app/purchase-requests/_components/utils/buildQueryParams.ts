@@ -23,8 +23,10 @@ export function appendArray(
   key: string,
   valuesSet: Set<string> | string[]
 ): void {
-  if (valuesSet && valuesSet.size > 0) {
-    const values = valuesSet instanceof Set ? Array.from(valuesSet) : valuesSet;
+  if (!valuesSet) return;
+  
+  const values = valuesSet instanceof Set ? Array.from(valuesSet) : valuesSet;
+  if (values.length > 0) {
     values.forEach(value => {
       params.append(key, value);
     });
