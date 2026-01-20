@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getBackendUrl } from '@/utils/api';
 import type { PurchaseRequest, TabType } from '../types/purchase-request.types';
-import { TAB_STATUSES } from '../constants/status.constants';
+import { TAB_STATUS_GROUPS } from '../constants/status.constants';
 
 interface Filters {
   idPurchaseRequest?: string;
@@ -13,7 +13,7 @@ interface Filters {
   budgetAmountOperator?: string;
 }
 
-interface UseAvailableStatusesOptions {
+interface UseAvailableStatusGroupsOptions {
   activeTab: TabType;
   selectedYear: number | null;
   filtersFromHook: Filters;
@@ -27,22 +27,22 @@ export function useAvailableStatuses({
   filtersFromHook,
   cfoFilter,
   purchaserFilter,
-}: UseAvailableStatusesOptions): string[] {
-  const [availableStatuses, setAvailableStatuses] = useState<string[]>([]);
+}: UseAvailableStatusGroupsOptions): string[] {
+  const [availableStatusGroups, setAvailableStatusGroups] = useState<string[]>([]);
 
   useEffect(() => {
-    const fetchAvailableStatuses = async () => {
+    const fetchAvailableStatusGroups = async () => {
       try {
         const params = new URLSearchParams();
         params.append('page', '0');
-        params.append('size', '10000'); // Загружаем достаточно данных для получения всех статусов
+        params.append('size', '10000'); // Загружаем достаточно данных для получения всех групп статусов
 
         // Учитываем год, если выбран
         if (selectedYear !== null) {
           params.append('year', String(selectedYear));
         }
 
-        // Добавляем все фильтры, КРОМЕ фильтра по статусу
+        // Добавляем все фильтры, КРОМЕ фильтра по группе статуса
         if (filtersFromHook.idPurchaseRequest && filtersFromHook.idPurchaseRequest.trim() !== '') {
           const idValue = parseInt(filtersFromHook.idPurchaseRequest.trim(), 10);
           if (!isNaN(idValue)) {
@@ -96,14 +96,14 @@ export function useAvailableStatuses({
           }
         }
 
-        // Учитываем текущую вкладку (но НЕ фильтр по статусу)
+        // Учитываем текущую вкладку (но НЕ фильтр по группе статуса)
         if (activeTab === 'hidden') {
           params.append('excludeFromInWork', 'true');
         } else {
-          // Для вкладок, кроме 'all', применяем фильтр по статусам вкладки
+          // Для вкладок, кроме 'all', применяем фильтр по группам статусов вкладки
           if (activeTab !== 'all') {
-            TAB_STATUSES[activeTab].forEach(status => {
-              params.append('status', status);
+            TAB_STATUS_GROUPS[activeTab].forEach(statusGroup => {
+              params.append('statusGroup', statusGroup);
             });
           }
 
@@ -119,29 +119,29 @@ export function useAvailableStatuses({
           const result = await response.json();
           const items = result.content || [];
 
-          // Извлекаем уникальные статусы из полученных данных
-          const statusSet = new Set<string>();
+          // Извлекаем уникальные группы статусов из полученных данных
+          const statusGroupSet = new Set<string>();
           items.forEach((request: PurchaseRequest) => {
-            if (request.status) {
-              const statusStr = String(request.status).trim();
-              if (statusStr) {
-                statusSet.add(statusStr);
+            if (request.statusGroup) {
+              const statusGroupStr = String(request.statusGroup).trim();
+              if (statusGroupStr) {
+                statusGroupSet.add(statusGroupStr);
               }
             }
           });
 
-          const statusesArray = Array.from(statusSet).sort();
-          setAvailableStatuses(statusesArray);
+          const statusGroupsArray = Array.from(statusGroupSet).sort();
+          setAvailableStatusGroups(statusGroupsArray);
         } else {
-          setAvailableStatuses([]);
+          setAvailableStatusGroups([]);
         }
       } catch (err) {
-        console.error('Error fetching available statuses:', err);
-        setAvailableStatuses([]);
+        console.error('Error fetching available status groups:', err);
+        setAvailableStatusGroups([]);
       }
     };
 
-    fetchAvailableStatuses();
+    fetchAvailableStatusGroups();
   }, [
     activeTab,
     selectedYear,
@@ -155,8 +155,8 @@ export function useAvailableStatuses({
     // Преобразуем Set в строку для сравнения в зависимостях
     Array.from(cfoFilter).sort().join(','),
     Array.from(purchaserFilter).sort().join(','),
-    // НЕ включаем statusFilter в зависимости, чтобы статусы обновлялись независимо от фильтра по статусу
+    // НЕ включаем statusFilter в зависимости, чтобы группы статусов обновлялись независимо от фильтра по группе статуса
   ]);
 
-  return availableStatuses;
+  return availableStatusGroups;
 }

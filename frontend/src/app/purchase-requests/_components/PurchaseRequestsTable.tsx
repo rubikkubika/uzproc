@@ -655,7 +655,7 @@ export default function PurchaseRequestsTable() {
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
       {/* Сводная таблица по закупщикам */}
-      <div className="flex items-start gap-4 px-3 py-2 border-b border-gray-200 flex-shrink-0">
+      <div className="flex items-start gap-4 px-3 py-2 border-b border-gray-200 flex-shrink-0 pr-52">
         {/* Сводная таблица по закупщикам - слева */}
         <div className="flex-1">
           <PurchaseRequestsSummaryTable

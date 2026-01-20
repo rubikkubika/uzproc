@@ -353,23 +353,38 @@ export default function PurchaseRequestsTableRow({
         }
         
         if (columnKey === 'status') {
+          const statusGroup = request.statusGroup;
           return (
             <td key={columnKey} className="px-2 py-0.5 text-xs border-r border-gray-200">
-              {request.status ? (
+              {statusGroup ? (
                 <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                  request.status === 'Согласована' || request.status === 'Спецификация подписана' || request.status === 'Договор подписан'
+                  statusGroup === 'Договор подписан'
                     ? 'bg-green-100 text-green-800'
-                    : request.status === 'Спецификация создана - Архив'
-                    ? 'bg-gray-200 text-gray-700'
-                    : request.status === 'Спецификация создана' || request.status === 'Закупка создана' || request.status === 'Договор создан' || request.status === 'Утверждена' || request.status === 'Заявка утверждена' || request.status === 'Закупка завершена' || request.status === 'Спецификация на согласовании'
+                    : statusGroup === 'Спецификация подписана'
+                    ? 'bg-green-100 text-green-800'
+                    : statusGroup === 'Договор в работе'
+                    ? 'bg-blue-100 text-blue-800'
+                    : statusGroup === 'Заявка у закупщика'
                     ? 'bg-yellow-100 text-yellow-800'
-                    : request.status === 'Заявка не согласована' || request.status === 'Заявка не утверждена' || request.status === 'Закупка не согласована'
+                    : statusGroup === 'Заявка на согласовании'
+                    ? 'bg-orange-100 text-orange-800'
+                    : statusGroup === 'Заявка не согласована'
                     ? 'bg-red-100 text-red-800'
-                    : request.status === 'На согласовании' || request.status === 'Заявка на согласовании' || request.status === 'На утверждении' || request.status === 'Заявка у закупщика'
-                    ? 'bg-yellow-100 text-yellow-800'
+                    : statusGroup === 'Заявка не утверждена'
+                    ? 'bg-red-100 text-red-800'
+                    : statusGroup === 'Закупка не согласована'
+                    ? 'bg-red-100 text-red-800'
+                    : statusGroup === 'Спецификация создана - Архив'
+                    ? 'bg-gray-200 text-gray-700'
+                    : statusGroup === 'Спецификация в работе'
+                    ? 'bg-blue-100 text-blue-800'
+                    : statusGroup === 'Спецификация не согласована'
+                    ? 'bg-red-100 text-red-800'
+                    : statusGroup === 'Проект'
+                    ? 'bg-gray-100 text-gray-800'
                     : 'bg-gray-100 text-gray-800'
                 }`}>
-                  {request.status === 'Утверждена' ? 'Заявка утверждена' : request.status}
+                  {statusGroup}
                 </span>
               ) : (
                 <span className="px-2 py-1 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">

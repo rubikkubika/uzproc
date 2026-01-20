@@ -34,6 +34,7 @@ export interface PurchaseRequest {
   isPlanned: boolean | null;
   requiresPurchase: boolean | null;
   status: string | null;
+  statusGroup: string | null;
   excludeFromInWork: boolean | null;
   daysInStatus: number | null;
   daysSinceCreation: number | null;

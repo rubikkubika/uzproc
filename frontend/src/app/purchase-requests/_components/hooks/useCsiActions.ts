@@ -97,15 +97,21 @@ export function useCsiActions({
       const data = await response.json();
       const fullUrl = request.csiLink;
       const recipientName = data.recipientName || '';
-      const generatedText = `Здравствуйте${recipientName ? ' ' + recipientName : ''}!
+      const generatedText = `Здравствуйте!
 
-Вы инициировали заявку на закупку № ${request.idPurchaseRequest || ''} на ${request.name || ''}. Мы хотим улучшить сервис проведения закупок, пожалуйста пройдите опрос по ссылке:
+Недавно мы завершили работу по вашей заявке № ${request.idPurchaseRequest || ''} на ${request.name || ''}.
 
+Чтобы отдел закупок работал быстрее и удобнее для вас, нам очень важно узнать ваше мнение.
+
+Пожалуйста, уделите минутку и оцените качество нашего сервиса по ссылке:
 ${fullUrl}
 
-(ссылка именная и работает один раз)
+Ссылка персональная и доступна для заполнения один раз.
 
-Спасибо за ваше время!`;
+Спасибо, что помогаете нам становиться лучше.
+
+С уважением,
+Ваша команда закупок`;
 
       setSentInvitationDetails({
         recipient: data.recipient || 'Не указан',

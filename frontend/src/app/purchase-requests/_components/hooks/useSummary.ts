@@ -3,7 +3,7 @@ import { fetchPurchaseRequests } from '../services/purchaseRequests.api';
 import { normalizePurchaserName } from '../utils/normalizePurchaser';
 import { parseBudgetAmount } from '../utils/buildQueryParams';
 import type { PurchaseRequest } from '../types/purchase-request.types';
-import { TAB_STATUSES } from '../constants/status.constants';
+import { TAB_STATUS_GROUPS } from '../constants/status.constants';
 
 interface PurchaserSummaryItem {
   purchaser: string;
@@ -102,12 +102,15 @@ export function useSummary(params: UseSummaryParams) {
           }
         }
 
-        // Применяем фильтр по статусам "в работе" для сводной таблицы
+        // Применяем фильтр по группам статусов "в работе" для сводной таблицы
         // Сводная таблица всегда показывает только заявки "в работе", независимо от активной вкладки
-        const inWorkStatuses = TAB_STATUSES['in-work'];
-        inWorkStatuses.forEach(status => {
-          params.append('status', status);
+        const inWorkStatusGroups = TAB_STATUS_GROUPS['in-work'];
+        inWorkStatusGroups.forEach(statusGroup => {
+          params.append('statusGroup', statusGroup);
         });
+        
+        // Исключаем скрытые заявки из сводной таблицы
+        params.append('excludeFromInWork', 'false');
 
         console.log('Fetching summary data, params:', params.toString());
         const result = await fetchPurchaseRequests(params);
