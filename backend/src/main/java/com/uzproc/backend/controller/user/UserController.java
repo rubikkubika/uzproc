@@ -59,18 +59,19 @@ public class UserController {
     }
 
     @PostMapping
-    public ResponseEntity<?> createUser(@RequestBody Map<String, String> requestBody) {
+    public ResponseEntity<?> createUser(@RequestBody Map<String, Object> requestBody) {
         try {
-            String username = requestBody.get("username");
-            String password = requestBody.get("password");
-            String email = requestBody.get("email");
-            String surname = requestBody.get("surname");
-            String name = requestBody.get("name");
-            String department = requestBody.get("department");
-            String position = requestBody.get("position");
-            String role = requestBody.get("role");
+            String username = (String) requestBody.get("username");
+            String password = (String) requestBody.get("password");
+            String email = (String) requestBody.get("email");
+            String surname = (String) requestBody.get("surname");
+            String name = (String) requestBody.get("name");
+            String department = (String) requestBody.get("department");
+            String position = (String) requestBody.get("position");
+            String role = (String) requestBody.get("role");
+            Boolean isPurchaser = (Boolean) requestBody.get("isPurchaser");
             
-            User createdUser = userService.createUser(username, password, email, surname, name, department, position, role);
+            User createdUser = userService.createUser(username, password, email, surname, name, department, position, role, isPurchaser);
             return ResponseEntity.ok(new UserDTO(createdUser));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -84,9 +85,10 @@ public class UserController {
             @PathVariable Long id,
             @RequestParam(required = false) String email,
             @RequestParam(required = false) String password,
-            @RequestParam(required = false) String role) {
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) Boolean isPurchaser) {
         try {
-            User updatedUser = userService.updateUser(id, email, password, role);
+            User updatedUser = userService.updateUser(id, email, password, role, isPurchaser);
             return ResponseEntity.ok(new UserDTO(updatedUser));
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();

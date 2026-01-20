@@ -42,6 +42,9 @@ public class User {
     @Column(name = "is_strategic_product")
     private Boolean isStrategicProduct;
 
+    @Column(name = "is_purchaser")
+    private Boolean isPurchaser;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -179,5 +182,13 @@ public class User {
 
     public void setIsStrategicProduct(Boolean isStrategicProduct) {
         this.isStrategicProduct = isStrategicProduct;
+    }
+
+    public Boolean getIsPurchaser() {
+        return isPurchaser;
+    }
+
+    public void setIsPurchaser(Boolean isPurchaser) {
+        this.isPurchaser = isPurchaser;
     }
 }

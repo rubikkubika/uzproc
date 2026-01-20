@@ -452,12 +452,33 @@ export default function PurchaseRequestsTableRow({
               contract.status === 'На согласовании'
           );
           
+          // Проверяем группу статуса заявки
+          const isOnCoordination = request.statusGroup === 'Заявка на согласовании';
+          const isAtBuyer = request.statusGroup === 'Заявка у закупщика';
+          const isSpecificationInProgress = request.statusGroup === 'Спецификация в работе';
+          const isContractInProgress = request.statusGroup === 'Договор в работе';
+          
           return (
             <td key={columnKey} className="px-2 py-0.5 text-xs border-r border-gray-200">
               <div className="flex items-end gap-2">
                 {/* Заявка - активна */}
                 <div className="flex flex-col items-center gap-0.5">
-                  {request.status === 'Спецификация подписана' || request.status === 'Договор подписан' || request.status === 'Договор создан' || request.status === 'Закупка создана' || (request.requiresPurchase === false && hasSpecificationOnCoordination) ? (
+                  {isOnCoordination ? (
+                    // Если заявка на согласовании - желтый цвет
+                    <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center" title="Заявка на согласовании">
+                      <Clock className="w-2.5 h-2.5 text-white" />
+                    </div>
+                  ) : isAtBuyer ? (
+                    // Если заявка у закупщика - зеленый цвет
+                    <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center" title="Заявка у закупщика">
+                      <Check className="w-2.5 h-2.5 text-white" />
+                    </div>
+                  ) : isSpecificationInProgress || isContractInProgress ? (
+                    // Если спецификация или договор в работе - заявка зеленая
+                    <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center" title={isSpecificationInProgress ? "Спецификация в работе" : "Договор в работе"}>
+                      <Check className="w-2.5 h-2.5 text-white" />
+                    </div>
+                  ) : request.status === 'Спецификация подписана' || request.status === 'Договор подписан' || request.status === 'Договор создан' || request.status === 'Закупка создана' || (request.requiresPurchase === false && hasSpecificationOnCoordination) ? (
                     <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center" title={
                       hasSpecificationOnCoordination && request.requiresPurchase === false ? "Заявка: Спецификация на согласовании" :
                       request.status === 'Спецификация подписана' ? "Заявка: Спецификация подписана" :
@@ -494,7 +515,20 @@ export default function PurchaseRequestsTableRow({
                   <>
                     {/* Закупка */}
                     <div className="flex flex-col items-center gap-0.5">
-                      {request.hasCompletedPurchase ? (
+                      {isOnCoordination ? (
+                        // Если заявка на согласовании - серый цвет для остальных элементов
+                        <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Закупка"></div>
+                      ) : isAtBuyer ? (
+                        // Если заявка у закупщика - желтый цвет для закупки
+                        <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Закупка: Заявка у закупщика">
+                          <Clock className="w-2.5 h-2.5 text-white" />
+                        </div>
+                      ) : isSpecificationInProgress || isContractInProgress ? (
+                        // Если спецификация или договор в работе - закупка зеленая
+                        <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center mt-0.5" title={isSpecificationInProgress ? "Закупка: Спецификация в работе" : "Закупка: Договор в работе"}>
+                          <Check className="w-2.5 h-2.5 text-white" />
+                        </div>
+                      ) : request.hasCompletedPurchase ? (
                         <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Закупка: Завершена">
                           <Clock className="w-2.5 h-2.5 text-white" />
                         </div>
@@ -514,6 +548,22 @@ export default function PurchaseRequestsTableRow({
                     {/* Договор */}
                     <div className="flex flex-col items-center gap-0.5">
                       {(() => {
+                        // Если заявка на согласовании или у закупщика - серый цвет для договора
+                        if (isOnCoordination || isAtBuyer) {
+                          return (
+                            <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Договор"></div>
+                          );
+                        }
+                        
+                        // Если спецификация или договор в работе - желтый цвет
+                        if (isSpecificationInProgress || isContractInProgress) {
+                          return (
+                            <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title={isSpecificationInProgress ? "Договор: Спецификация в работе" : "Договор: Договор в работе"}>
+                              <Clock className="w-2.5 h-2.5 text-white" />
+                            </div>
+                          );
+                        }
+                        
                         const hasSignedContract = request.contracts && request.contracts.some(
                           (contract: Contract) => contract.status === 'Договор подписан' || contract.status === 'Подписан'
                         );
@@ -551,7 +601,15 @@ export default function PurchaseRequestsTableRow({
                 ) : (
                   /* Если закупка не требуется: Заявка → Заказ */
                   <div className="flex flex-col items-center gap-0.5">
-                    {request.status === 'Спецификация подписана' || request.status === 'Договор подписан' ? (
+                    {isOnCoordination || isAtBuyer ? (
+                      // Если заявка на согласовании или у закупщика - серый цвет для заказа
+                      <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Заказ"></div>
+                    ) : isSpecificationInProgress ? (
+                      // Если спецификация в работе - желтый цвет для заказа
+                      <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Заказ: Спецификация в работе">
+                        <Clock className="w-2.5 h-2.5 text-white" />
+                      </div>
+                    ) : request.status === 'Спецификация подписана' || request.status === 'Договор подписан' ? (
                       <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center mt-0.5" title={
                         request.status === 'Спецификация подписана' ? "Заказ: Спецификация подписана" : 
                         "Заявка: Договор подписан"

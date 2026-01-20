@@ -77,7 +77,7 @@ public class UserService {
     }
 
     @Transactional
-    public User createUser(String username, String password, String email, String surname, String name, String department, String position, String role) {
+    public User createUser(String username, String password, String email, String surname, String name, String department, String position, String role, Boolean isPurchaser) {
         // Проверяем, что username не пустой
         if (username == null || username.trim().isEmpty()) {
             throw new IllegalArgumentException("Username is required");
@@ -102,13 +102,14 @@ public class UserService {
         user.setDepartment(department != null && !department.trim().isEmpty() ? department.trim() : null);
         user.setPosition(position != null && !position.trim().isEmpty() ? position.trim() : null);
         user.setRole(role != null && !role.trim().isEmpty() ? UserRole.fromCode(role.trim()) : UserRole.USER);
+        user.setIsPurchaser(isPurchaser != null ? isPurchaser : false);
         
-        logger.info("Creating new user: username={}, email={}", username, email);
+        logger.info("Creating new user: username={}, email={}, isPurchaser={}", username, email, isPurchaser);
         return userRepository.save(user);
     }
 
     @Transactional
-    public User updateUser(Long id, String email, String password, String role) {
+    public User updateUser(Long id, String email, String password, String role, Boolean isPurchaser) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
         
@@ -122,6 +123,10 @@ public class UserService {
         
         if (role != null && !role.trim().isEmpty()) {
             user.setRole(UserRole.fromCode(role.trim()));
+        }
+        
+        if (isPurchaser != null) {
+            user.setIsPurchaser(isPurchaser);
         }
         
         return userRepository.save(user);

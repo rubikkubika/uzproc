@@ -198,7 +198,6 @@ public class PurchaseRequestService {
         
         // Определяем группы статусов для каждой вкладки
         List<String> inWorkStatusGroups = List.of(
-            "Заявка на согласовании",
             "Заявка у закупщика",
             "Спецификация в работе",
             "Договор в работе"
@@ -209,6 +208,7 @@ public class PurchaseRequestService {
         );
         List<String> projectRejectedStatusGroups = List.of(
             "Проект",
+            "Заявка на согласовании",
             "Заявка не согласована",
             "Заявка не утверждена",
             "Закупка не согласована",

@@ -217,10 +217,11 @@ export const usePurchasePlanItemsTable = () => {
               const response = await fetch(`${getBackendUrl()}/api/purchase-requests/by-id-purchase-request/${item.purchaseRequestId}`);
               if (response.ok) {
                 const purchaseRequest = await response.json();
+                // Используем группу статуса вместо конкретного статуса
                 return {
                   itemId: item.id,
                   purchaseRequestId: item.purchaseRequestId,
-                  status: purchaseRequest?.status || null
+                  status: purchaseRequest?.statusGroup || null
                 };
               }
             } catch (error) {
