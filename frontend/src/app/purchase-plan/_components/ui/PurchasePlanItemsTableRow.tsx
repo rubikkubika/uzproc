@@ -243,10 +243,63 @@ export default function PurchasePlanItemsTableRow({
         );
       
       case 'requestDate':
-        // Отображаем GanttChart для колонки requestDate
+        // Для requestDate показываем дату с возможностью редактирования
+        const isEditingRequestDate = editingDate?.itemId === item.id && editingDate?.field === 'requestDate';
+        return (
+          <td
+            key={columnKey}
+            className={`px-2 py-2 border-r border-gray-300 whitespace-nowrap ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
+            style={{ width: `${width}px`, fontSize: '13.44px' }}
+          >
+            {isEditingRequestDate && !isInactive && canEdit && !isReadOnly ? (
+              <input
+                type="date"
+                data-editing-date={`${item.id}-requestDate`}
+                defaultValue={item.requestDate ? item.requestDate.split('T')[0] : ''}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    onDateUpdate?.(item.id, 'requestDate', e.target.value);
+                  }
+                }}
+                onBlur={() => {
+                  setTimeout(() => {
+                    setEditingDate?.(null);
+                  }, 100);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setEditingDate?.(null);
+                  }
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full text-gray-900 bg-white border border-blue-500 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                style={{ fontSize: '13.44px' }}
+                autoFocus
+              />
+            ) : (
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!isInactive && !isViewingArchiveVersion && canEdit && !isReadOnly) {
+                    setEditingDate?.({ itemId: item.id, field: 'requestDate' });
+                  }
+                }}
+                className={isInactive || !canEdit || isReadOnly ? '' : 'cursor-pointer hover:bg-blue-50 rounded px-1 py-0.5 transition-colors'}
+                title={isInactive || !canEdit || isReadOnly ? '' : 'Нажмите для редактирования'}
+              >
+                {item.requestDate 
+                  ? new Date(item.requestDate).toLocaleDateString('ru-RU')
+                  : '-'}
+              </div>
+            )}
+          </td>
+        );
+      
+      case 'ganttChart':
+        // Отображаем GanttChart для колонки ganttChart
         const tempDate = tempDates?.[item.id];
-        const requestDate = tempDate?.requestDate ?? item.requestDate;
-        const newContractDate = tempDate?.newContractDate ?? item.newContractDate;
+        const ganttRequestDate = tempDate?.requestDate ?? item.requestDate;
+        const ganttNewContractDate = tempDate?.newContractDate ?? item.newContractDate;
         
         return (
           <td
@@ -260,8 +313,8 @@ export default function PurchasePlanItemsTableRow({
               <GanttChart
                 itemId={item.id}
                 year={item.year}
-                requestDate={requestDate}
-                newContractDate={newContractDate}
+                requestDate={ganttRequestDate}
+                newContractDate={ganttNewContractDate}
                 contractEndDate={item.contractEndDate}
                 currentContractEndDate={item.currentContractEndDate}
                 disabled={isInactive || isViewingArchiveVersion || !canEdit || isReadOnly}
@@ -271,12 +324,12 @@ export default function PurchasePlanItemsTableRow({
                     setEditingDate?.(null);
                   }
                 }}
-                onDatesChange={(requestDate, newContractDate) => {
+                onDatesChange={(reqDate, newContrDate) => {
                   // Обновляем временные даты при перетаскивании
                   if (setTempDates) {
                     setTempDates(prev => ({
                       ...prev,
-                      [item.id]: { requestDate, newContractDate }
+                      [item.id]: { requestDate: reqDate, newContractDate: newContrDate }
                     }));
                   }
                   // Запускаем анимацию
@@ -287,11 +340,11 @@ export default function PurchasePlanItemsTableRow({
                     }));
                   }
                 }}
-                onDatesUpdate={(requestDate, newContractDate) => {
+                onDatesUpdate={(reqDate, newContrDate) => {
                   // Пересчитываем newContractDate на основе requestDate и сложности
-                  let finalNewContractDate = newContractDate;
-                  if (item.complexity && requestDate) {
-                    const calculatedDate = calculateNewContractDate(requestDate, item.complexity);
+                  let finalNewContractDate = newContrDate;
+                  if (item.complexity && reqDate) {
+                    const calculatedDate = calculateNewContractDate(reqDate, item.complexity);
                     if (calculatedDate) {
                       finalNewContractDate = calculatedDate;
                     }
@@ -299,7 +352,7 @@ export default function PurchasePlanItemsTableRow({
                   
                   // Сохраняем изменения
                   if (performGanttDateUpdate) {
-                    performGanttDateUpdate(item.id, requestDate, finalNewContractDate);
+                    performGanttDateUpdate(item.id, reqDate, finalNewContractDate);
                   }
                 }}
               />

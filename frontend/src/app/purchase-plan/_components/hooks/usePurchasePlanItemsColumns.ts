@@ -44,7 +44,24 @@ export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) =
       const saved = localStorage.getItem(COLUMNS_VISIBILITY_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return new Set(parsed.filter(col => typeof col === 'string'));
+        if (Array.isArray(parsed)) {
+          const savedSet = new Set(parsed.filter(col => typeof col === 'string'));
+          // Миграция: добавляем недостающие дефолтные колонки к сохранённым настройкам
+          // Это нужно для корректного отображения новых обязательных колонок у пользователей
+          // со старыми настройками localStorage
+          let migrated = false;
+          DEFAULT_VISIBLE_COLUMNS.forEach(col => {
+            if (!savedSet.has(col)) {
+              savedSet.add(col);
+              migrated = true;
+            }
+          });
+          // Если были добавлены новые колонки, сохраняем обновлённый набор
+          if (migrated) {
+            localStorage.setItem(COLUMNS_VISIBILITY_STORAGE_KEY, JSON.stringify(Array.from(savedSet)));
+          }
+          return savedSet;
+        }
       }
     } catch {}
     return new Set(DEFAULT_VISIBLE_COLUMNS);

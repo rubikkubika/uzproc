@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { TabType } from '../types/purchase-request.types';
 
 interface UseColumnsByTabProps {
@@ -10,7 +10,12 @@ export function useColumnsByTab({
   activeTab,
   setVisibleColumns,
 }: UseColumnsByTabProps) {
+  // Храним предыдущую вкладку для определения перехода
+  const prevTabRef = useRef<TabType | null>(null);
+
   useEffect(() => {
+    const prevTab = prevTabRef.current;
+    
     setVisibleColumns(prev => {
       const newSet = new Set(prev);
       if (activeTab === 'completed') {
@@ -21,8 +26,17 @@ export function useColumnsByTab({
       } else {
         // Для других вкладок убираем колонку "rating"
         newSet.delete('rating');
+        
+        // Если переходим с вкладки "Завершенные" на другую, восстанавливаем колонки "track" и "daysSinceCreation"
+        if (prevTab === 'completed') {
+          newSet.add('track');
+          newSet.add('daysSinceCreation');
+        }
       }
       return newSet;
     });
+    
+    // Обновляем предыдущую вкладку
+    prevTabRef.current = activeTab;
   }, [activeTab, setVisibleColumns]);
 }
