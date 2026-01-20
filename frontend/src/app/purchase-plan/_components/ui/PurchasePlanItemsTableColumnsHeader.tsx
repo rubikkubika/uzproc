@@ -139,8 +139,8 @@ export default function PurchasePlanItemsTableColumnsHeader({
           const column = ALL_COLUMNS.find(col => col.key === columnKey);
           if (!column) return null;
           
-          // Для колонки requestDate создаем отдельный заголовок со столбчатой диаграммой
-          if (columnKey === 'requestDate') {
+          // Для колонки ganttChart создаем отдельный заголовок со столбчатой диаграммой
+          if (columnKey === 'ganttChart') {
             return (
               <th 
                 key={columnKey}
@@ -154,8 +154,8 @@ export default function PurchasePlanItemsTableColumnsHeader({
                 data-column={columnKey || undefined}
               >
                 <div className="flex flex-col gap-1">
+                  {/* Столбчатая диаграмма распределения по месяцам */}
                   <div className="flex items-center gap-1 min-h-[20px]">
-                    {/* Столбчатая диаграмма распределения по месяцам */}
                     <PurchasePlanItemsMonthlyChart
                       monthlyDistribution={getMonthlyDistribution || Array(14).fill(0)}
                       selectedYear={selectedYear}
@@ -168,6 +168,10 @@ export default function PurchasePlanItemsTableColumnsHeader({
                       setSelectedMonths={setSelectedMonths}
                       setLastSelectedMonthIndex={setLastSelectedMonthIndex}
                     />
+                  </div>
+                  {/* Текстовый заголовок колонки */}
+                  <div className="flex items-center gap-1 min-h-[16px]">
+                    <span className="text-xs font-medium text-gray-500 tracking-wider">{column.label}</span>
                   </div>
                 </div>
                 {columnKey && handleResizeStart && (
@@ -220,6 +224,7 @@ export default function PurchasePlanItemsTableColumnsHeader({
             'product',
             'currentKa',
             'complexity',
+            'requestDate',
             'newContractDate',
             'currentContractEndDate',
             'currentAmount',

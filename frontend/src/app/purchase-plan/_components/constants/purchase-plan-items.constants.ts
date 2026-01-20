@@ -18,6 +18,7 @@ export const ALL_COLUMNS = [
   { key: 'budgetAmount', label: 'Бюджет (UZS)' },
   { key: 'contractEndDate', label: 'Дата окончания договора' },
   { key: 'requestDate', label: 'Дата заявки' },
+  { key: 'ganttChart', label: 'Диаграмма Ганта' },
   { key: 'newContractDate', label: 'Дата завершения закупки' },
   { key: 'purchaser', label: 'Закупщик' },
   { key: 'product', label: 'Продукция' },
@@ -50,10 +51,11 @@ export const DEFAULT_VISIBLE_COLUMNS = [
   'purchaseSubject',
   'purchaser',
   'budgetAmount',
+  'requestDate',
   'newContractDate',
   'status',
   'details',
-  'requestDate',
+  'ganttChart',
 ];
 
 // Дефолтные ширины колонок
@@ -67,6 +69,7 @@ export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   budgetAmount: 112,
   contractEndDate: 128,
   requestDate: 112,
+  ganttChart: 350,
   newContractDate: 128,
   purchaser: 128,
   product: 192,
