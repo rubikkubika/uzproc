@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useEffect, useCallback, useMemo } from 'react';
 import { getBackendUrl } from '@/utils/api';
 import { Clock, Check, Eye, EyeOff, Settings, Star } from 'lucide-react';
 import PurchaseRequestsSummaryTable from './ui/PurchaseRequestsSummaryTable';
 import LatestCsiFeedback from './ui/LatestCsiFeedback';
 import PurchaseRequestsTableHeader from './ui/PurchaseRequestsTableHeader';
+import PurchaseRequestsKindTabs from './ui/PurchaseRequestsKindTabs';
 import PurchaseRequestsTableTabs from './ui/PurchaseRequestsTableTabs';
 import PurchaseRequestsTableColumnsHeader from './ui/PurchaseRequestsTableColumnsHeader';
 import PurchaseRequestsTableBody from './ui/PurchaseRequestsTableBody';
@@ -38,6 +39,7 @@ import { usePurchaseRequestsFetchController } from './hooks/usePurchaseRequestsF
 import { useTotalRecords } from './hooks/useTotalRecords';
 import { useFilterHandlers } from './hooks/useFilterHandlers';
 import { useExcludeFromInWork } from './hooks/useExcludeFromInWork';
+import { useKindTabFilter } from './hooks/useKindTabFilter';
 
 export default function PurchaseRequestsTable() {
   // Используем главный композиционный хук
@@ -193,11 +195,8 @@ export default function PurchaseRequestsTable() {
     filtersStateRef,
   });
 
-  // Используем хук для экспорта таблицы
-  const { exportToExcel, copyAsTSV, saveAsImage } = useTableExport({
-    allItems,
-    data,
-  });
+  // Используем хук для фильтрации по типу заявки (Закупки/Заказы) - ВАЖНО: до useTabCounts
+  const { kindTab, setKindTab, itemsToRender } = useKindTabFilter(allItems);
 
   // Используем хук для загрузки счетчиков вкладок
   useTabCounts({
@@ -208,6 +207,7 @@ export default function PurchaseRequestsTable() {
     filtersLoadedRef,
     tabCounts,
     setTabCounts,
+    kindTab,
   });
 
   // Используем хук для навигации
@@ -400,6 +400,12 @@ export default function PurchaseRequestsTable() {
   const { updateExcludeFromInWork } = useExcludeFromInWork({
     userRole,
     setAllItems,
+  });
+
+  // Используем хук для экспорта таблицы (используем отфильтрованные данные)
+  const { exportToExcel, copyAsTSV, saveAsImage } = useTableExport({
+    allItems: itemsToRender,
+    data,
   });
 
   // Обновляем columnOrder, когда добавляются новые колонки
@@ -671,7 +677,7 @@ export default function PurchaseRequestsTable() {
 
       {/* Заголовок таблицы с кнопками управления */}
       <PurchaseRequestsTableHeader
-        allItemsCount={allItems.length}
+        allItemsCount={itemsToRender.length}
         totalElements={data?.totalElements}
         allYears={allYears}
         selectedYear={selectedYear}
@@ -690,7 +696,13 @@ export default function PurchaseRequestsTable() {
       />
       
       <div className="flex-1 overflow-auto relative custom-scrollbar">
-        {/* Вкладки */}
+        {/* Верхние вкладки: Закупки/Заказы */}
+        <PurchaseRequestsKindTabs
+          kindTab={kindTab}
+          onKindTabChange={setKindTab}
+        />
+
+        {/* Вкладки статусов */}
         <PurchaseRequestsTableTabs
           activeTab={activeTab}
           tabCounts={tabCounts}
@@ -700,7 +712,7 @@ export default function PurchaseRequestsTable() {
             handleTabChange('in-work');
           }}
         />
-        
+
         {/* Таблица с закрепленными заголовками */}
         <table className="w-full border-collapse">
           <PurchaseRequestsTableColumnsHeader
@@ -762,7 +774,7 @@ export default function PurchaseRequestsTable() {
           />
           {/* Старый блок thead удален - теперь используется PurchaseRequestsTableColumnsHeader */}
           <PurchaseRequestsTableBody
-            allItems={allItems}
+            allItems={itemsToRender}
             filteredColumnOrder={filteredColumnOrder}
             activeTab={activeTab}
             getColumnWidth={getColumnWidth}

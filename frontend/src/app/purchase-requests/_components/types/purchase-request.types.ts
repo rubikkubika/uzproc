@@ -62,3 +62,4 @@ export type SortField = keyof PurchaseRequest | null;
 export type SortDirection = 'asc' | 'desc' | null;
 
 export type TabType = 'all' | 'in-work' | 'completed' | 'project-rejected' | 'hidden';
+export type RequestKindTab = 'purchase' | 'order';
