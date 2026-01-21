@@ -273,13 +273,13 @@ export const usePurchasePlanItemsFilters = (
             cfo: new Set(), company: new Set(), purchaserCompany: new Set(),
             purchaser: new Set(), category: new Set(), status: new Set()
           };
-          let hasNullPurchaserCompany = false, hasNullCompany = false, hasNullStatus = false;
+          let hasNullPurchaserCompany = false, hasNullCompany = false, hasNullStatus = false, hasNullPurchaser = false;
 
           result.content.forEach((item: PurchasePlanItem) => {
             if (item.cfo) values.cfo.add(item.cfo);
             if (item.company) values.company.add(item.company); else { hasNullCompany = true; }
             if (item.purchaserCompany) { const n = normalizeCompany(item.purchaserCompany); if (n) values.purchaserCompany.add(n); } else { hasNullPurchaserCompany = true; }
-            if (item.purchaser) values.purchaser.add(item.purchaser);
+            if (item.purchaser) values.purchaser.add(item.purchaser); else { hasNullPurchaser = true; }
             if (item.category) values.category.add(item.category);
 
             // Извлекаем статусы из обоих полей:
@@ -296,6 +296,7 @@ export const usePurchasePlanItemsFilters = (
 
           if (hasNullPurchaserCompany) values.purchaserCompany.add('Не выбрано');
           if (hasNullCompany) values.company.add('Не выбрано');
+          if (hasNullPurchaser) values.purchaser.add('Не назначен');
           if (hasNullStatus) values.status.add('Пусто');
 
           const newStatuses = Array.from(values.status).sort((a,b)=>a.localeCompare(b,'ru',{sensitivity:'base'}));
@@ -371,6 +372,7 @@ export const usePurchasePlanItemsFilters = (
     cfoFilterButtonRef, companyFilterButtonRef, purchaserCompanyFilterButtonRef,
     categoryFilterButtonRef, statusFilterButtonRef, purchaserFilterButtonRef,
     uniqueValues,
+    setUniqueValues,
     handleFilterChange, handleFilterChangeForHeader, handleFocusForHeader, handleBlurForHeader,
     handleCfoToggle, handleCfoSelectAll, handleCfoDeselectAll,
     handleCompanyToggle, handleCompanySelectAll, handleCompanyDeselectAll,
