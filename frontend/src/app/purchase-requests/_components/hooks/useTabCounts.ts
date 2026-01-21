@@ -1,6 +1,6 @@
 import { useEffect, useCallback } from 'react';
 import { getBackendUrl } from '@/utils/api';
-import type { TabType } from '../types/purchase-request.types';
+import type { TabType, RequestKindTab } from '../types/purchase-request.types';
 
 interface Filters {
   idPurchaseRequest?: string;
@@ -20,6 +20,7 @@ interface UseTabCountsOptions {
   filtersLoadedRef: React.RefObject<boolean>;
   tabCounts: Record<TabType, number | null>;
   setTabCounts: React.Dispatch<React.SetStateAction<Record<TabType, number | null>>>;
+  kindTab: RequestKindTab;
 }
 
 export function useTabCounts({
@@ -30,16 +31,24 @@ export function useTabCounts({
   filtersLoadedRef,
   tabCounts,
   setTabCounts,
+  kindTab,
 }: UseTabCountsOptions) {
 
   const fetchTabCounts = useCallback(async () => {
     try {
       const params = new URLSearchParams();
-      
+
       if (selectedYear !== null) {
         params.append('year', String(selectedYear));
       }
-      
+
+      // Применяем фильтр по типу заявки (Закупки/Заказы)
+      if (kindTab === 'purchase') {
+        params.append('requiresPurchase', 'true');
+      } else {
+        params.append('requiresPurchase', 'false');
+      }
+
       // Применяем другие фильтры (кроме статуса, так как статусы определяются вкладками)
       if (filtersFromHook.idPurchaseRequest && filtersFromHook.idPurchaseRequest.trim() !== '') {
         const idValue = parseInt(filtersFromHook.idPurchaseRequest.trim(), 10);
@@ -75,14 +84,7 @@ export function useTabCounts({
       if (filtersFromHook.contractType && filtersFromHook.contractType.trim() !== '') {
         params.append('contractType', filtersFromHook.contractType.trim());
       }
-      if (filtersFromHook.requiresPurchase && filtersFromHook.requiresPurchase.trim() !== '') {
-        const requiresPurchaseValue = filtersFromHook.requiresPurchase.trim();
-        if (requiresPurchaseValue === 'Закупка') {
-          params.append('requiresPurchase', 'true');
-        } else if (requiresPurchaseValue === 'Заказ') {
-          params.append('requiresPurchase', 'false');
-        }
-      }
+      // Удалили старую обработку requiresPurchase из filtersFromHook, так как теперь используем kindTab
       
       const fetchUrl = `${getBackendUrl()}/api/purchase-requests/tab-counts?${params.toString()}`;
       const response = await fetch(fetchUrl);
@@ -118,7 +120,7 @@ export function useTabCounts({
     } catch (err) {
       console.error('Error fetching tab counts:', err);
     }
-  }, [selectedYear, filtersFromHook, cfoFilter, purchaserFilter, setTabCounts]);
+  }, [selectedYear, filtersFromHook, cfoFilter, purchaserFilter, setTabCounts, kindTab]);
 
   // Загружаем количество для всех вкладок
   useEffect(() => {
