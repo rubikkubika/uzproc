@@ -10,23 +10,23 @@ export default function PurchaseRequestsKindTabs({
   onKindTabChange,
 }: PurchaseRequestsKindTabsProps) {
   return (
-    <div className="flex gap-2 px-4 py-2 border-b border-gray-200 bg-gray-50">
+    <div className="sticky top-0 left-0 right-0 z-30 flex gap-1 pt-2 pb-2 bg-white shadow-sm" style={{ minHeight: '44px', width: '100%', backgroundColor: 'white' }}>
       <button
         onClick={() => onKindTabChange('purchase')}
-        className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+        className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors shadow-sm ${
           kindTab === 'purchase'
-            ? 'bg-blue-600 text-white'
-            : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
+            ? 'bg-blue-600 text-white border-blue-600'
+            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
         }`}
       >
         Закупки
       </button>
       <button
         onClick={() => onKindTabChange('order')}
-        className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+        className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors shadow-sm ${
           kindTab === 'order'
-            ? 'bg-blue-600 text-white'
-            : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
+            ? 'bg-blue-600 text-white border-blue-600'
+            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
         }`}
       >
         Заказы

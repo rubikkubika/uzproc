@@ -396,6 +396,22 @@ export default function PurchaseRequestsTable() {
     availableStatuses,
   });
 
+  // Нормализация statusFilter при смене вкладки
+  // Убираем из statusFilter статусы, которые не доступны для текущей вкладки
+  useEffect(() => {
+    if (availableStatuses.length === 0) return; // Ждём загрузки статусов
+
+    const validStatuses = new Set(availableStatuses); // availableStatuses - массив строк
+    const currentStatuses = Array.from(statusFilter);
+    const invalidStatuses = currentStatuses.filter(status => !validStatuses.has(status));
+
+    if (invalidStatuses.length > 0) {
+      // Есть невалидные статусы - очищаем их
+      const cleanedStatuses = new Set(currentStatuses.filter(status => validStatuses.has(status)));
+      setStatusFilter(cleanedStatuses);
+    }
+  }, [activeTab, availableStatuses, statusFilter, setStatusFilter]);
+
   // Используем хук для excludeFromInWork
   const { updateExcludeFromInWork } = useExcludeFromInWork({
     userRole,
@@ -512,12 +528,16 @@ export default function PurchaseRequestsTable() {
   // Обработчик для переключения вкладки
   const handleTabChange = useCallback((tab: TabType) => {
     setActiveTab(tab);
+    activeTabRef.current = tab; // Синхронизация ref для избежания рассинхрона
     setStatusFilter(new Set());
     setPurchaserFilter(new Set());
     setCfoFilter(new Set());
+    setStatusSearchQuery(''); // Сброс поиска по статусам
+    setCfoSearchQuery(''); // Сброс поиска по ЦФО
+    setPurchaserSearchQuery(''); // Сброс поиска по закупщикам
     setCurrentPage(0);
     setAllItems([]);
-  }, [setActiveTab, setStatusFilter, setPurchaserFilter, setCfoFilter, setCurrentPage, setAllItems]);
+  }, [setActiveTab, activeTabRef, setStatusFilter, setPurchaserFilter, setCfoFilter, setStatusSearchQuery, setCfoSearchQuery, setPurchaserSearchQuery, setCurrentPage, setAllItems]);
 
   // Обработчик для изменения локальных фильтров
   const handleLocalFiltersChange = useCallback((updater: (prev: Record<string, string>) => Record<string, string>) => {
