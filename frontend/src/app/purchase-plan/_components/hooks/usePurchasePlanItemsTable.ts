@@ -55,26 +55,27 @@ export const usePurchasePlanItemsTable = () => {
   const modalsHook = usePurchasePlanItemsModals();
   const versionsHook = usePurchasePlanItemsVersions();
 
-  const editingHook = usePurchasePlanItemsEditing(
-    data,
-    setData,
-    setAllItems,
-    setChartData,
-    setSummaryData,
-    filtersHook.cfoFilter,
-    pageSize
-  );
+  // Ref для хранения актуальных значений фильтров (чтобы избежать пересоздания fetchData)
+  const filtersRef = useRef(filtersHook);
+  filtersRef.current = filtersHook;
 
   // Функция для загрузки данных
   const fetchData = useCallback(async (
     page: number, 
     size: number, 
     year: number | null = null,
-    sortField: SortField = null,
-    sortDirection: SortDirection = null,
-    filters: Record<string, string> = {},
+    sortFieldParam: SortField = null,
+    sortDirectionParam: SortDirection = null,
+    textFilters: Record<string, string> = {},
     months: Set<number> = new Set(),
-    append: boolean = false
+    append: boolean = false,
+    // Опциональные параметры для фильтров (если не переданы, используем filtersRef.current)
+    overridePurchaserFilter?: Set<string>,
+    overrideCfoFilter?: Set<string>,
+    overrideCompanyFilter?: Set<string>,
+    overridePurchaserCompanyFilter?: Set<string>,
+    overrideCategoryFilter?: Set<string>,
+    overrideStatusFilter?: Set<string>
   ) => {
     if (append) {
       setLoadingMore(true);
@@ -95,14 +96,22 @@ export const usePurchasePlanItemsTable = () => {
         }
       }
       
-      if (sortField && sortDirection) {
-        params.append('sortBy', sortField);
-        params.append('sortDir', sortDirection);
+      if (sortFieldParam && sortDirectionParam) {
+        params.append('sortBy', sortFieldParam);
+        params.append('sortDir', sortDirectionParam);
       }
       
-      // Добавляем параметры фильтрации
-      if (filtersHook.cfoFilter.size > 0) {
-        filtersHook.cfoFilter.forEach(cfo => {
+      // Добавляем параметры фильтрации (используем переданные значения или filtersRef.current)
+      const currentFilters = filtersRef.current;
+      const cfoFilter = overrideCfoFilter ?? currentFilters.cfoFilter;
+      const companyFilter = overrideCompanyFilter ?? currentFilters.companyFilter;
+      const purchaserCompanyFilter = overridePurchaserCompanyFilter ?? currentFilters.purchaserCompanyFilter;
+      const purchaserFilter = overridePurchaserFilter ?? currentFilters.purchaserFilter;
+      const categoryFilter = overrideCategoryFilter ?? currentFilters.categoryFilter;
+      const statusFilter = overrideStatusFilter ?? currentFilters.statusFilter;
+      
+      if (cfoFilter.size > 0) {
+        cfoFilter.forEach(cfo => {
           if (cfo === 'Не выбрано') {
             params.append('cfo', '__NULL__');
           } else {
@@ -110,8 +119,8 @@ export const usePurchasePlanItemsTable = () => {
           }
         });
       }
-      if (filtersHook.companyFilter.size > 0) {
-        filtersHook.companyFilter.forEach(company => {
+      if (companyFilter.size > 0) {
+        companyFilter.forEach(company => {
           if (company === 'Не выбрано') {
             params.append('company', '__NULL__');
           } else {
@@ -119,27 +128,27 @@ export const usePurchasePlanItemsTable = () => {
           }
         });
       }
-      if (filtersHook.purchaserCompanyFilter.size > 0) {
-        filtersHook.purchaserCompanyFilter.forEach(purchaserCompany => {
-          if (purchaserCompany === 'Не выбрано') {
+      if (purchaserCompanyFilter.size > 0) {
+        purchaserCompanyFilter.forEach(pc => {
+          if (pc === 'Не выбрано') {
             params.append('purchaserCompany', '__NULL__');
           } else {
-            params.append('purchaserCompany', purchaserCompany);
+            params.append('purchaserCompany', pc);
           }
         });
       }
-      if (filters.id && filters.id.trim() !== '') {
-        params.append('id', filters.id.trim());
+      if (textFilters.id && textFilters.id.trim() !== '') {
+        params.append('id', textFilters.id.trim());
       }
-      if (filters.purchaseSubject && filters.purchaseSubject.trim() !== '') {
-        params.append('purchaseSubject', filters.purchaseSubject.trim());
+      if (textFilters.purchaseSubject && textFilters.purchaseSubject.trim() !== '') {
+        params.append('purchaseSubject', textFilters.purchaseSubject.trim());
       }
-      if (filters.purchaseRequestId && filters.purchaseRequestId.trim() !== '') {
-        params.append('purchaseRequestId', filters.purchaseRequestId.trim());
+      if (textFilters.purchaseRequestId && textFilters.purchaseRequestId.trim() !== '') {
+        params.append('purchaseRequestId', textFilters.purchaseRequestId.trim());
       }
       // Фильтр бюджета
-      const budgetOperator = filters.budgetAmountOperator;
-      const budgetAmount = filters.budgetAmount;
+      const budgetOperator = textFilters.budgetAmountOperator;
+      const budgetAmount = textFilters.budgetAmount;
       if (budgetOperator && budgetOperator.trim() !== '' && budgetAmount && budgetAmount.trim() !== '') {
         const budgetValue = parseFloat(budgetAmount.replace(/\s/g, '').replace(/,/g, ''));
         if (!isNaN(budgetValue) && budgetValue >= 0) {
@@ -147,30 +156,30 @@ export const usePurchasePlanItemsTable = () => {
           params.append('budgetAmount', String(budgetValue));
         }
       }
-      if (filters.currentContractEndDate && filters.currentContractEndDate.trim() !== '') {
-        const dateValue = filters.currentContractEndDate.trim();
+      if (textFilters.currentContractEndDate && textFilters.currentContractEndDate.trim() !== '') {
+        const dateValue = textFilters.currentContractEndDate.trim();
         if (dateValue === '-') {
           params.append('currentContractEndDate', 'null');
         } else {
           params.append('currentContractEndDate', dateValue);
         }
       }
-      if (filtersHook.purchaserFilter.size > 0) {
-        filtersHook.purchaserFilter.forEach(purchaser => {
-          if (purchaser === 'Не назначен' || purchaser === null || purchaser === undefined || purchaser === '') {
+      if (purchaserFilter.size > 0) {
+        purchaserFilter.forEach(p => {
+          if (p === 'Не назначен' || p === null || p === undefined || p === '') {
             params.append('purchaser', '__NULL__');
           } else {
-            params.append('purchaser', purchaser);
+            params.append('purchaser', p);
           }
         });
       }
-      if (filtersHook.categoryFilter.size > 0) {
-        filtersHook.categoryFilter.forEach(category => {
+      if (categoryFilter.size > 0) {
+        categoryFilter.forEach(category => {
           params.append('category', category);
         });
       }
-      if (filtersHook.statusFilter.size > 0) {
-        filtersHook.statusFilter.forEach(status => {
+      if (statusFilter.size > 0) {
+        statusFilter.forEach(status => {
           if (status === 'Пусто') {
             params.append('status', '__NULL__');
           } else {
@@ -292,7 +301,32 @@ export const usePurchasePlanItemsTable = () => {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [filtersHook, selectedMonthYear, pageSize]);
+  }, [selectedMonthYear, pageSize]);
+
+  // Инициализируем editingHook после определения fetchData
+  const editingHook = usePurchasePlanItemsEditing(
+    data,
+    setData,
+    setAllItems,
+    setChartData,
+    setSummaryData,
+    filtersHook.cfoFilter,
+    pageSize,
+    // Дополнительные зависимости для handleCreateItem
+    filtersHook.uniqueValues,
+    filtersHook.setUniqueValues,
+    newItemData,
+    setNewItemData,
+    modalsHook.setIsCreateModalOpen,
+    modalsHook.setErrorModal,
+    selectedYear,
+    fetchData,
+    currentPage,
+    sortField,
+    sortDirection,
+    filtersHook.filters,
+    selectedMonths
+  );
 
   // Восстановление фокуса после загрузки данных
   useFocusRestoreAfterFetch({
@@ -660,7 +694,13 @@ export const usePurchasePlanItemsTable = () => {
             sortDirection,
             filtersHook.filters,
             selectedMonths,
-            true
+            true,
+            filtersHook.purchaserFilter,
+            filtersHook.cfoFilter,
+            filtersHook.companyFilter,
+            filtersHook.purchaserCompanyFilter,
+            filtersHook.categoryFilter,
+            filtersHook.statusFilter
           );
           setCurrentPage(nextPage);
         }
@@ -702,6 +742,7 @@ export const usePurchasePlanItemsTable = () => {
     setCurrentPage(0);
     setHasMore(true);
     initialTotalElementsRef.current = null; // Сбрасываем при изменении фильтров
+    // Передаём актуальные значения фильтров напрямую, чтобы избежать проблем с замыканием
     fetchData(
       0,
       pageSize,
@@ -710,7 +751,13 @@ export const usePurchasePlanItemsTable = () => {
       sortDirection,
       filtersHook.filters,
       selectedMonths,
-      false
+      false,
+      filtersHook.purchaserFilter,
+      filtersHook.cfoFilter,
+      filtersHook.companyFilter,
+      filtersHook.purchaserCompanyFilter,
+      filtersHook.categoryFilter,
+      filtersHook.statusFilter
     );
   }, [
     selectedYear, 
@@ -731,7 +778,15 @@ export const usePurchasePlanItemsTable = () => {
     filtersHook.statusFilter.size,
     statusFilterStr,
     selectedMonths.size,
-    selectedMonthsStr
+    selectedMonthsStr,
+    pageSize,
+    fetchData,
+    filtersHook.purchaserFilter,
+    filtersHook.cfoFilter,
+    filtersHook.companyFilter,
+    filtersHook.purchaserCompanyFilter,
+    filtersHook.categoryFilter,
+    filtersHook.statusFilter
   ]);
 
   return {

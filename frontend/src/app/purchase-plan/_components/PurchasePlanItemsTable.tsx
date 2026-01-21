@@ -609,28 +609,6 @@ export default function PurchasePlanItemsTable() {
               Все
             </button>
           </div>
-          {table.versions.selectedVersionId && (
-            <div className={`px-2 py-1 text-xs rounded border flex items-center gap-1 ${
-              table.versions.selectedVersionInfo?.isCurrent 
-                ? 'bg-green-100 text-green-800 border-green-300' 
-                : 'bg-yellow-100 text-yellow-800 border-yellow-300'
-            }`}>
-              <span>
-                {table.versions.selectedVersionInfo?.isCurrent 
-                  ? 'Просмотр текущей редакции' 
-                  : `Просмотр редакции #${table.versions.selectedVersionInfo?.versionNumber}`}
-              </span>
-              <button
-                onClick={handleCloseVersion}
-                className={table.versions.selectedVersionInfo?.isCurrent 
-                  ? 'text-green-800 hover:text-green-900' 
-                  : 'text-yellow-800 hover:text-yellow-900'}
-                title="Вернуться к текущей версии"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          )}
           {true && (
             <button
               onClick={handleCreateItem}
@@ -686,9 +664,33 @@ export default function PurchasePlanItemsTable() {
             Excel (все)
           </button>
         </div>
-        {/* Информация о количестве записей справа */}
-        <div className="text-xs text-gray-700 flex-shrink-0">
-          Показано {table.allItems.length} из {table.totalRecords} записей
+        {/* Информация о версии и количестве записей справа */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {table.versions.selectedVersionId && (
+            <div className={`px-2 py-1 text-xs rounded border flex items-center gap-1 ${
+              table.versions.selectedVersionInfo?.isCurrent 
+                ? 'bg-green-100 text-green-800 border-green-300' 
+                : 'bg-yellow-100 text-yellow-800 border-yellow-300'
+            }`}>
+              <span>
+                {table.versions.selectedVersionInfo?.isCurrent 
+                  ? 'Просмотр текущей редакции' 
+                  : `Просмотр редакции #${table.versions.selectedVersionInfo?.versionNumber}`}
+              </span>
+              <button
+                onClick={handleCloseVersion}
+                className={table.versions.selectedVersionInfo?.isCurrent 
+                  ? 'text-green-800 hover:text-green-900' 
+                  : 'text-yellow-800 hover:text-yellow-900'}
+                title="Вернуться к текущей версии"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+          <div className="text-xs text-gray-700">
+            Показано {table.allItems.length} из {table.totalRecords} записей
+          </div>
         </div>
       </div>
 
