@@ -1,0 +1,28 @@
+Dockerfile
+.dockerignore
+node_modules
+npm-debug.log
+README.md
+.env
+.env*.local
+.next
+.git
+.gitignore
+.vscode
+.idea
+*.md
+
+# Logs
+backend/logs
+
+# Backup folder
+backup
+
+
+
+
+
+
+
+
+

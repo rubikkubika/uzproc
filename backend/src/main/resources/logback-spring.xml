@@ -1,7 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
     <property name="LOG_DIR" value="logs"/>
-    <property name="LOG_FILE" value="${LOG_DIR}/backend.log"/>
+    
+    <!-- Имя файла с датой и временем старта приложения -->
+    <timestamp key="STARTUP_TIMESTAMP" datePattern="yyyy-MM-dd-HH-mm-ss"/>
+    <!-- Папка для логов текущего запуска -->
+    <property name="LOG_SUBDIR" value="${LOG_DIR}/backend-${STARTUP_TIMESTAMP}"/>
+    <!-- Полный путь к файлу лога внутри подпапки -->
+    <property name="LOG_FILE" value="${LOG_SUBDIR}/backend-${STARTUP_TIMESTAMP}.log"/>
     
     <!-- Консольный аппендер -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
@@ -10,24 +16,24 @@
         </encoder>
     </appender>
     
-    <!-- Файловый аппендер с ограничением размера (50 МБ) -->
+    <!-- Файловый аппендер с ротацией по размеру: максимум 100MB на файл, до 5 файлов -->
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_FILE}</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
+            <!-- Имя файла при ротации: backend-YYYY-MM-DD-HH-mm-ss.i.log -->
+            <!-- Файлы остаются в той же подпапке -->
+            <fileNamePattern>${LOG_FILE}.%i</fileNamePattern>
+            <!-- Максимальное количество файлов для одного запуска: 5 (итого до 500MB на запуск) -->
+            <minIndex>1</minIndex>
+            <maxIndex>5</maxIndex>
+        </rollingPolicy>
+        <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+            <!-- Максимальный размер одного файла: 100MB -->
+            <maxFileSize>100MB</maxFileSize>
+        </triggeringPolicy>
         <encoder>
             <pattern>%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n</pattern>
         </encoder>
-        
-        <!-- Политика ротации: один файл, при достижении размера перезаписывается -->
-        <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
-            <fileNamePattern>${LOG_FILE}.%i</fileNamePattern>
-            <minIndex>1</minIndex>
-            <maxIndex>1</maxIndex>
-        </rollingPolicy>
-        
-        <!-- Триггер ротации: при достижении 50 МБ -->
-        <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
-            <maxFileSize>50MB</maxFileSize>
-        </triggeringPolicy>
     </appender>
     
     <!-- Уровни логирования -->

@@ -2,6 +2,33 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## КРИТИЧЕСКИ ВАЖНО - СИНХРОНИЗАЦИЯ ПРАВИЛ
+
+**КРИТИЧЕСКИ ВАЖНО - СИНХРОНИЗАЦИЯ ПРАВИЛ:** При добавлении, изменении или удалении любого правила в `CLAUDE.md` **ОБЯЗАТЕЛЬНО** нужно синхронизировать это же правило в `.cursorrules`, и наоборот. Правила должны быть идентичными в обоих файлах.
+
+**Правило синхронизации:**
+- Если добавляется правило в `CLAUDE.md` → добавить его в `.cursorrules`
+- Если изменяется правило в `CLAUDE.md` → изменить его в `.cursorrules`
+- Если удаляется правило из `CLAUDE.md` → удалить его из `.cursorrules`
+- Если добавляется правило в `.cursorrules` → добавить его в `CLAUDE.md`
+- Если изменяется правило в `.cursorrules` → изменить его в `CLAUDE.md`
+- Если удаляется правило из `.cursorrules` → удалить его из `CLAUDE.md`
+
+**ВАЖНО:** Оба файла должны содержать одинаковые правила. Нет исключений. При работе с правилами всегда обновлять оба файла одновременно.
+
+## Логирование бэкенда
+
+**КРИТИЧЕСКИ ВАЖНО:** Логи бэкенда хранятся в папке `backend/logs`.
+
+**Правила логирования:**
+- Каждый файл лога соответствует одному запуску приложения
+- Имя файла содержит дату и время старта приложения в формате: `backend-YYYY-MM-DD-HH-mm-ss.log`
+- Хранится не более двух файлов логов (последние два запуска)
+- Старые файлы автоматически удаляются при превышении лимита
+- Логи пишутся в файл и в консоль одновременно
+
+**ВАЖНО:** При работе с логами всегда проверять папку `backend/logs`. Для отладки использовать последний файл лога.
+
 ## Project Overview
 
 UzProc is a procurement management system consisting of a Spring Boot backend, Next.js frontend, PostgreSQL database, and Nginx reverse proxy. The system manages purchase requests, purchases, contracts, and procurement plans with Excel import/export capabilities.
