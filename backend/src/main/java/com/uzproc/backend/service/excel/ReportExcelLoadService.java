@@ -694,8 +694,20 @@ public class ReportExcelLoadService {
                 boolean shouldAdd = isNew || updated;
                 
                 if (shouldAdd) {
-                    requestApprovalBatch.add(approval);
-                    count++;
+                    // ВАЖНО: Проверяем, нет ли уже такого согласования в batch'е, чтобы избежать дубликатов
+                    boolean alreadyInBatch = requestApprovalBatch.stream()
+                        .anyMatch(batchApproval -> 
+                            batchApproval.getIdPurchaseRequest().equals(approval.getIdPurchaseRequest()) &&
+                            batchApproval.getStage().equals(approval.getStage()) &&
+                            batchApproval.getRole().equals(approval.getRole()));
+                    
+                    if (alreadyInBatch) {
+                        logger.debug("Approval already in batch, skipping duplicate: idPurchaseRequest={}, stage={}, role={}", 
+                            approval.getIdPurchaseRequest(), approval.getStage(), approval.getRole());
+                    } else {
+                        requestApprovalBatch.add(approval);
+                        count++;
+                    }
                     
                     // Логирование для заявки 2075
                     if (idPurchaseRequest == 2075L) {
@@ -822,8 +834,20 @@ public class ReportExcelLoadService {
                 boolean shouldAdd = isNew || updated;
                 
                 if (shouldAdd) {
-                    purchaseApprovalBatch.add(approval);
-                    count++;
+                    // ВАЖНО: Проверяем, нет ли уже такого согласования в batch'е, чтобы избежать дубликатов
+                    boolean alreadyInBatch = purchaseApprovalBatch.stream()
+                        .anyMatch(batchApproval -> 
+                            batchApproval.getPurchaseRequestId().equals(approval.getPurchaseRequestId()) &&
+                            batchApproval.getStage().equals(approval.getStage()) &&
+                            batchApproval.getRole().equals(approval.getRole()));
+                    
+                    if (alreadyInBatch) {
+                        logger.debug("Purchase approval already in batch, skipping duplicate: purchaseRequestId={}, stage={}, role={}", 
+                            approval.getPurchaseRequestId(), approval.getStage(), approval.getRole());
+                    } else {
+                        purchaseApprovalBatch.add(approval);
+                        count++;
+                    }
                     
                     // Логирование для закупки 2075
                     if (purchaseRequestId == 2075L) {
@@ -962,12 +986,24 @@ public class ReportExcelLoadService {
                 }
                 
                 if (updated || approval.getId() == null) {
-                    requestApprovalBatch.add(approval);
-                    count++;
+                    // ВАЖНО: Проверяем, нет ли уже такого согласования в batch'е, чтобы избежать дубликатов
+                    boolean alreadyInBatch = requestApprovalBatch.stream()
+                        .anyMatch(batchApproval -> 
+                            batchApproval.getIdPurchaseRequest().equals(approval.getIdPurchaseRequest()) &&
+                            batchApproval.getStage().equals(approval.getStage()) &&
+                            batchApproval.getRole().equals(approval.getRole()));
                     
-                    // Сохраняем batch если он заполнен
-                    if (requestApprovalBatch.size() >= BATCH_SIZE) {
-                        flushRequestApprovalBatch();
+                    if (alreadyInBatch) {
+                        logger.debug("Approval already in batch, skipping duplicate: idPurchaseRequest={}, stage={}, role={}", 
+                            approval.getIdPurchaseRequest(), approval.getStage(), approval.getRole());
+                    } else {
+                        requestApprovalBatch.add(approval);
+                        count++;
+                        
+                        // Сохраняем batch если он заполнен
+                        if (requestApprovalBatch.size() >= BATCH_SIZE) {
+                            flushRequestApprovalBatch();
+                        }
                     }
                 }
             }
@@ -1076,12 +1112,24 @@ public class ReportExcelLoadService {
                 }
                 
                 if (updated || approval.getId() == null) {
-                    requestApprovalBatch.add(approval);
-                    count++;
+                    // ВАЖНО: Проверяем, нет ли уже такого согласования в batch'е, чтобы избежать дубликатов
+                    boolean alreadyInBatch = requestApprovalBatch.stream()
+                        .anyMatch(batchApproval -> 
+                            batchApproval.getIdPurchaseRequest().equals(approval.getIdPurchaseRequest()) &&
+                            batchApproval.getStage().equals(approval.getStage()) &&
+                            batchApproval.getRole().equals(approval.getRole()));
                     
-                    // Сохраняем batch если он заполнен
-                    if (requestApprovalBatch.size() >= BATCH_SIZE) {
-                        flushRequestApprovalBatch();
+                    if (alreadyInBatch) {
+                        logger.debug("Approval already in batch, skipping duplicate: idPurchaseRequest={}, stage={}, role={}", 
+                            approval.getIdPurchaseRequest(), approval.getStage(), approval.getRole());
+                    } else {
+                        requestApprovalBatch.add(approval);
+                        count++;
+                        
+                        // Сохраняем batch если он заполнен
+                        if (requestApprovalBatch.size() >= BATCH_SIZE) {
+                            flushRequestApprovalBatch();
+                        }
                     }
                 }
             }

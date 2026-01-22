@@ -611,6 +611,17 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             }
             
             // Сохраняем или обновляем (добавляем в batch)
+            // ВАЖНО: Проверяем, нет ли уже такой заявки в batch'е, чтобы избежать дубликатов
+            boolean alreadyInBatch = purchaseRequestBatch.stream()
+                .anyMatch(batchPr -> batchPr.getIdPurchaseRequest().equals(requestNumber));
+            
+            if (alreadyInBatch) {
+                logger.debug("Row {}: Purchase request {} already in batch, skipping duplicate", 
+                    currentRowNum + 1, requestNumber);
+                purchaseRequestsCount++;
+                return;
+            }
+            
             if (existingOpt.isPresent()) {
                 PurchaseRequest existing = existingOpt.get();
                 Boolean oldRequiresPurchase = existing.getRequiresPurchase();
@@ -865,6 +876,17 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             }
             
             // Сохраняем или обновляем (добавляем в batch)
+            // ВАЖНО: Проверяем, нет ли уже такой закупки в batch'е, чтобы избежать дубликатов
+            boolean alreadyInBatch = purchaseBatch.stream()
+                .anyMatch(batchPurchase -> innerId.equals(batchPurchase.getInnerId()));
+            
+            if (alreadyInBatch) {
+                logger.debug("Row {}: Purchase {} already in batch, skipping duplicate", 
+                    currentRowNum + 1, innerId);
+                purchasesCount++;
+                return;
+            }
+            
             if (existingOpt.isPresent()) {
                 Purchase existing = existingOpt.get();
                 boolean updated = updatePurchaseFields(existing, purchase);
@@ -1099,6 +1121,17 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             }
             
             // Сохраняем или обновляем (добавляем в batch)
+            // ВАЖНО: Проверяем, нет ли уже такого договора в batch'е, чтобы избежать дубликатов
+            boolean alreadyInBatch = contractBatch.stream()
+                .anyMatch(batchContract -> innerId.equals(batchContract.getInnerId()));
+            
+            if (alreadyInBatch) {
+                logger.debug("Row {}: Contract {} already in batch, skipping duplicate", 
+                    currentRowNum + 1, innerId);
+                contractsCount++;
+                return;
+            }
+            
             if (existingOpt.isPresent()) {
                 Contract existing = existingOpt.get();
                 boolean updated = updateContractFields(existing, contract);
@@ -1584,59 +1617,86 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
         }
         
         // Обновляем contractInnerIds (множественные договоры)
-        // Сравниваем множества внутренних номеров договоров
-        java.util.Set<String> existingIds = existing.getContractInnerIds();
+        // ВАЖНО: Избегаем LazyInitializationException - не сравниваем существующие contractInnerIds,
+        // а просто обновляем на основе новых данных из Excel
         java.util.Set<String> newIds = newData.getContractInnerIds();
         
-        if (newIds == null || newIds.isEmpty()) {
-            // Если в новых данных нет договоров, но в существующих были - очищаем
-            if (existingIds != null && !existingIds.isEmpty()) {
-                existing.clearContractInnerIds();
-                updated = true;
-                logger.debug("Cleared contractInnerIds for purchase {}", existing.getInnerId());
+        try {
+            // Пытаемся получить существующие ID для сравнения (может вызвать LazyInitializationException)
+            java.util.Set<String> existingIds = existing.getContractInnerIds();
+            
+            if (newIds == null || newIds.isEmpty()) {
+                // Если в новых данных нет договоров, но в существующих были - очищаем
+                if (existingIds != null && !existingIds.isEmpty()) {
+                    existing.clearContractInnerIds();
+                    updated = true;
+                    logger.debug("Cleared contractInnerIds for purchase {}", existing.getInnerId());
+                }
+            } else {
+                // Проверяем, изменились ли договоры
+                if (existingIds == null || existingIds.isEmpty()) {
+                    // Если в существующих нет договоров, добавляем новые
+                    for (String contractInnerId : newIds) {
+                        if (contractInnerId != null && !contractInnerId.trim().isEmpty()) {
+                            String trimmedId = contractInnerId.trim();
+                            // Валидация: contractInnerId не должен совпадать с innerId закупки
+                            if (!trimmedId.equals(existing.getInnerId())) {
+                                existing.addContractInnerId(trimmedId);
+                                updated = true;
+                            }
+                        }
+                    }
+                    if (updated) {
+                        logger.debug("Added contractInnerIds for purchase {}: {}", existing.getInnerId(), newIds);
+                    }
+                } else {
+                    // Сравниваем множества
+                    java.util.Set<String> toAdd = new java.util.HashSet<>(newIds);
+                    toAdd.removeAll(existingIds);
+                    java.util.Set<String> toRemove = new java.util.HashSet<>(existingIds);
+                    toRemove.removeAll(newIds);
+                    
+                    if (!toAdd.isEmpty() || !toRemove.isEmpty()) {
+                        // Удаляем старые
+                        for (String id : toRemove) {
+                            existing.removeContractInnerId(id);
+                        }
+                        // Добавляем новые (с валидацией)
+                        for (String contractInnerId : toAdd) {
+                            if (contractInnerId != null && !contractInnerId.trim().isEmpty()) {
+                                String trimmedId = contractInnerId.trim();
+                                if (!trimmedId.equals(existing.getInnerId())) {
+                                    existing.addContractInnerId(trimmedId);
+                                }
+                            }
+                        }
+                        updated = true;
+                        logger.debug("Updated contractInnerIds for purchase {}: removed {}, added {}", 
+                            existing.getInnerId(), toRemove, toAdd);
+                    }
+                }
             }
-        } else {
-            // Проверяем, изменились ли договоры
-            if (existingIds == null || existingIds.isEmpty()) {
-                // Если в существующих нет договоров, добавляем новые
+        } catch (org.hibernate.LazyInitializationException e) {
+            // Если сессия закрыта, просто обновляем на основе новых данных
+            logger.debug("LazyInitializationException for purchase {} contractInnerIds, updating from new data only", existing.getInnerId());
+            
+            if (newIds != null && !newIds.isEmpty()) {
+                // Очищаем существующие и добавляем новые
+                existing.clearContractInnerIds();
                 for (String contractInnerId : newIds) {
                     if (contractInnerId != null && !contractInnerId.trim().isEmpty()) {
                         String trimmedId = contractInnerId.trim();
                         // Валидация: contractInnerId не должен совпадать с innerId закупки
                         if (!trimmedId.equals(existing.getInnerId())) {
                             existing.addContractInnerId(trimmedId);
-                            updated = true;
                         }
                     }
                 }
-                if (updated) {
-                    logger.debug("Added contractInnerIds for purchase {}: {}", existing.getInnerId(), newIds);
-                }
+                updated = true;
+                logger.debug("Updated contractInnerIds for purchase {} from new data (after LazyInit): {}", existing.getInnerId(), newIds);
             } else {
-                // Сравниваем множества
-                java.util.Set<String> toAdd = new java.util.HashSet<>(newIds);
-                toAdd.removeAll(existingIds);
-                java.util.Set<String> toRemove = new java.util.HashSet<>(existingIds);
-                toRemove.removeAll(newIds);
-                
-                if (!toAdd.isEmpty() || !toRemove.isEmpty()) {
-                    // Удаляем старые
-                    for (String id : toRemove) {
-                        existing.removeContractInnerId(id);
-                    }
-                    // Добавляем новые (с валидацией)
-                    for (String contractInnerId : toAdd) {
-                        if (contractInnerId != null && !contractInnerId.trim().isEmpty()) {
-                            String trimmedId = contractInnerId.trim();
-                            if (!trimmedId.equals(existing.getInnerId())) {
-                                existing.addContractInnerId(trimmedId);
-                            }
-                        }
-                    }
-                    updated = true;
-                    logger.debug("Updated contractInnerIds for purchase {}: removed {}, added {}", 
-                        existing.getInnerId(), toRemove, toAdd);
-                }
+                // Если новых данных нет, не трогаем существующие (не можем их прочитать)
+                logger.debug("No new contractInnerIds for purchase {}, skipping update (LazyInit)", existing.getInnerId());
             }
         }
         
@@ -1842,10 +1902,13 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     
     /**
      * Сохраняет накопленные заявки на закупку пакетом
+     * ВАЖНО: Сначала сохраняет все новые ЦФО, чтобы избежать ошибки TransientPropertyValueException
      */
     private void flushPurchaseRequestBatch() {
         if (!purchaseRequestBatch.isEmpty()) {
             try {
+                // Сначала сохраняем все новые ЦФО, которые могут быть связаны с заявками
+                flushCfoBatch();
                 purchaseRequestRepository.saveAll(purchaseRequestBatch);
                 logger.debug("Flushed {} purchase requests to database", purchaseRequestBatch.size());
                 purchaseRequestBatch.clear();
@@ -1857,10 +1920,13 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     
     /**
      * Сохраняет накопленные закупки пакетом
+     * ВАЖНО: Сначала сохраняет все новые ЦФО, чтобы избежать ошибки TransientPropertyValueException
      */
     private void flushPurchaseBatch() {
         if (!purchaseBatch.isEmpty()) {
             try {
+                // Сначала сохраняем все новые ЦФО, которые могут быть связаны с закупками
+                flushCfoBatch();
                 purchaseRepository.saveAll(purchaseBatch);
                 logger.debug("Flushed {} purchases to database", purchaseBatch.size());
                 purchaseBatch.clear();
@@ -1872,10 +1938,13 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     
     /**
      * Сохраняет накопленные договоры пакетом
+     * ВАЖНО: Сначала сохраняет все новые ЦФО, чтобы избежать ошибки TransientPropertyValueException
      */
     private void flushContractBatch() {
         if (!contractBatch.isEmpty()) {
             try {
+                // Сначала сохраняем все новые ЦФО, которые могут быть связаны с договорами
+                flushCfoBatch();
                 contractRepository.saveAll(contractBatch);
                 logger.debug("Flushed {} contracts to database", contractBatch.size());
                 contractBatch.clear();
