@@ -6,11 +6,6 @@ import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -23,47 +18,20 @@ import java.util.concurrent.TimeUnit;
 public class FileProcessingStatsService {
 
     private static final Logger logger = LoggerFactory.getLogger(FileProcessingStatsService.class);
-    private static final String STATS_FILE_NAME = "file-processing-stats.log";
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     
     private LocalDateTime startTime;
     private List<FileProcessingRecord> processedFiles;
     private List<MethodProcessingRecord> methodRecords;
     private Map<String, LocalDateTime> methodStartTimes;
-    private Path statsFilePath;
 
     @PostConstruct
     public void init() {
-        try {
-            // Определяем путь к файлу статистики в папке logs
-            String userDir = System.getProperty("user.dir");
-            Path currentDir = Paths.get(userDir).toAbsolutePath().normalize();
-            
-            // Если запускаем из backend/, используем текущую директорию
-            // Иначе ищем папку backend/logs
-            if (currentDir.getFileName() != null && 
-                "backend".equalsIgnoreCase(currentDir.getFileName().toString())) {
-                statsFilePath = currentDir.resolve("logs").resolve(STATS_FILE_NAME);
-            } else {
-                statsFilePath = currentDir.resolve("backend").resolve("logs").resolve(STATS_FILE_NAME);
-            }
-            
-            // Создаем папку logs, если её нет
-            Files.createDirectories(statsFilePath.getParent());
-            
-            // Перезаписываем файл при запуске
-            startTime = LocalDateTime.now();
-            processedFiles = new ArrayList<>();
-            methodRecords = new ArrayList<>();
-            methodStartTimes = new ConcurrentHashMap<>();
-            
-            // Записываем заголовок
-            writeHeader();
-            
-            logger.info("File processing stats service initialized. Stats file: {}", statsFilePath);
-        } catch (Exception e) {
-            logger.error("Error initializing file processing stats service", e);
-        }
+        startTime = LocalDateTime.now();
+        processedFiles = new ArrayList<>();
+        methodRecords = new ArrayList<>();
+        methodStartTimes = new ConcurrentHashMap<>();
+        logger.info("File processing stats service initialized");
     }
 
     @PreDestroy
@@ -80,8 +48,7 @@ public class FileProcessingStatsService {
                     endMethod(methodName, fileName);
                 }
             }
-            writeSummary();
-            logger.info("File processing stats written to: {}", statsFilePath);
+            logSummary();
         } catch (Exception e) {
             logger.error("Error writing final stats", e);
         }
@@ -120,17 +87,6 @@ public class FileProcessingStatsService {
         }
     }
 
-    private void writeHeader() {
-        try (FileWriter writer = new FileWriter(statsFilePath.toFile(), false)) {
-            writer.write("=".repeat(80) + "\n");
-            writer.write("СТАТИСТИКА ОБРАБОТКИ ФАЙЛОВ\n");
-            writer.write("=".repeat(80) + "\n");
-            writer.write("Дата начала запуска: " + startTime.format(DATE_TIME_FORMATTER) + "\n");
-            writer.write("=".repeat(80) + "\n\n");
-        } catch (IOException e) {
-            logger.error("Error writing stats header", e);
-        }
-    }
 
     public void recordFileProcessing(String fileName, long processingTimeMs, 
                                     int purchaseRequestsCreated, int purchaseRequestsUpdated,
@@ -148,166 +104,85 @@ public class FileProcessingStatsService {
         );
         processedFiles.add(record);
         
-        // Записываем информацию о файле сразу
-        writeFileRecord(record);
+        // Логируем информацию о файле
+        logger.info("File processed: {} in {}", record.fileName, formatDuration(record.processingTimeMs));
+        logger.debug("File stats - PurchaseRequests: created {}, updated {}; Purchases: created {}, updated {}; " +
+                    "Contracts: created {}, updated {}; Users: created {}, updated {}; " +
+                    "PurchasePlanItems: created {}, updated {}",
+                record.purchaseRequestsCreated, record.purchaseRequestsUpdated,
+                record.purchasesCreated, record.purchasesUpdated,
+                record.contractsCreated, record.contractsUpdated,
+                record.usersCreated, record.usersUpdated,
+                record.purchasePlanItemsCreated, record.purchasePlanItemsUpdated);
     }
 
-    private void writeFileRecord(FileProcessingRecord record) {
-        try (FileWriter writer = new FileWriter(statsFilePath.toFile(), true)) {
-            writer.write("-".repeat(80) + "\n");
-            writer.write("Файл: " + record.fileName + "\n");
-            writer.write("Время обработки: " + formatDuration(record.processingTimeMs) + "\n");
-            writer.write("\n");
-            
-            writer.write("Заявки на закупку:\n");
-            writer.write("  Создано: " + record.purchaseRequestsCreated + "\n");
-            writer.write("  Обновлено: " + record.purchaseRequestsUpdated + "\n");
-            writer.write("\n");
-            
-            writer.write("Закупки:\n");
-            writer.write("  Создано: " + record.purchasesCreated + "\n");
-            writer.write("  Обновлено: " + record.purchasesUpdated + "\n");
-            writer.write("\n");
-            
-            writer.write("Договоры:\n");
-            writer.write("  Создано: " + record.contractsCreated + "\n");
-            writer.write("  Обновлено: " + record.contractsUpdated + "\n");
-            writer.write("\n");
-            
-            writer.write("Пользователи:\n");
-            writer.write("  Создано: " + record.usersCreated + "\n");
-            writer.write("  Обновлено: " + record.usersUpdated + "\n");
-            writer.write("\n");
-            
-            if (record.purchasePlanItemsCreated > 0 || record.purchasePlanItemsUpdated > 0) {
-                writer.write("Позиции плана закупок:\n");
-                writer.write("  Создано: " + record.purchasePlanItemsCreated + "\n");
-                writer.write("  Обновлено: " + record.purchasePlanItemsUpdated + "\n");
-                writer.write("\n");
-            }
-            
-            writer.write("-".repeat(80) + "\n\n");
-        } catch (IOException e) {
-            logger.error("Error writing file record to stats", e);
-        }
-    }
-
-    private void writeSummary() {
-        try (FileWriter writer = new FileWriter(statsFilePath.toFile(), true)) {
-            LocalDateTime endTime = LocalDateTime.now();
-            long totalTimeMs = java.time.Duration.between(startTime, endTime).toMillis();
-            
-            writer.write("=".repeat(120) + "\n");
-            writer.write("ИТОГОВАЯ СТАТИСТИКА\n");
-            writer.write("=".repeat(120) + "\n");
-            writer.write("Дата начала: " + startTime.format(DATE_TIME_FORMATTER) + "\n");
-            writer.write("Дата окончания: " + endTime.format(DATE_TIME_FORMATTER) + "\n");
-            writer.write("Общее время обработки: " + formatDuration(totalTimeMs) + "\n");
-            writer.write("Обработано файлов: " + processedFiles.size() + "\n");
-            writer.write("Выполнено методов: " + methodRecords.size() + "\n");
-            writer.write("\n");
-            
-            // Подсчитываем итоги
-            int totalPurchaseRequestsCreated = processedFiles.stream()
-                .mapToInt(r -> r.purchaseRequestsCreated).sum();
-            int totalPurchaseRequestsUpdated = processedFiles.stream()
-                .mapToInt(r -> r.purchaseRequestsUpdated).sum();
-            int totalPurchasesCreated = processedFiles.stream()
-                .mapToInt(r -> r.purchasesCreated).sum();
-            int totalPurchasesUpdated = processedFiles.stream()
-                .mapToInt(r -> r.purchasesUpdated).sum();
-            int totalContractsCreated = processedFiles.stream()
-                .mapToInt(r -> r.contractsCreated).sum();
-            int totalContractsUpdated = processedFiles.stream()
-                .mapToInt(r -> r.contractsUpdated).sum();
-            int totalUsersCreated = processedFiles.stream()
-                .mapToInt(r -> r.usersCreated).sum();
-            int totalUsersUpdated = processedFiles.stream()
-                .mapToInt(r -> r.usersUpdated).sum();
-            int totalPurchasePlanItemsCreated = processedFiles.stream()
-                .mapToInt(r -> r.purchasePlanItemsCreated).sum();
-            int totalPurchasePlanItemsUpdated = processedFiles.stream()
-                .mapToInt(r -> r.purchasePlanItemsUpdated).sum();
-            
-            writer.write("ИТОГО:\n");
-            writer.write("Заявки на закупку: создано " + totalPurchaseRequestsCreated + 
-                        ", обновлено " + totalPurchaseRequestsUpdated + "\n");
-            writer.write("Закупки: создано " + totalPurchasesCreated + 
-                        ", обновлено " + totalPurchasesUpdated + "\n");
-            writer.write("Договоры: создано " + totalContractsCreated + 
-                        ", обновлено " + totalContractsUpdated + "\n");
-            writer.write("Пользователи: создано " + totalUsersCreated + 
-                        ", обновлено " + totalUsersUpdated + "\n");
-            if (totalPurchasePlanItemsCreated > 0 || totalPurchasePlanItemsUpdated > 0) {
-                writer.write("Позиции плана закупок: создано " + totalPurchasePlanItemsCreated + 
-                            ", обновлено " + totalPurchasePlanItemsUpdated + "\n");
-            }
-            writer.write("\n");
-            
-            // Выводим таблицу методов обработки
-            writeMethodTable(writer);
-            
-            writer.write("\n");
-            writer.write("Обработанные файлы:\n");
-            for (FileProcessingRecord record : processedFiles) {
-                writer.write("  - " + record.fileName + " (" + formatDuration(record.processingTimeMs) + ")\n");
-            }
-            writer.write("\n");
-            
-            writer.write("=".repeat(120) + "\n");
-        } catch (IOException e) {
-            logger.error("Error writing summary to stats", e);
-        }
-    }
-    
-    private void writeMethodTable(FileWriter writer) throws IOException {
-        if (methodRecords.isEmpty()) {
-            writer.write("Детальная статистика по методам отсутствует.\n");
-            return;
+    private void logSummary() {
+        LocalDateTime endTime = LocalDateTime.now();
+        long totalTimeMs = java.time.Duration.between(startTime, endTime).toMillis();
+        
+        logger.info("=".repeat(80));
+        logger.info("ИТОГОВАЯ СТАТИСТИКА ОБРАБОТКИ ФАЙЛОВ");
+        logger.info("Дата начала: {}", startTime.format(DATE_TIME_FORMATTER));
+        logger.info("Дата окончания: {}", endTime.format(DATE_TIME_FORMATTER));
+        logger.info("Общее время обработки: {}", formatDuration(totalTimeMs));
+        logger.info("Обработано файлов: {}", processedFiles.size());
+        logger.info("Выполнено методов: {}", methodRecords.size());
+        
+        // Подсчитываем итоги
+        int totalPurchaseRequestsCreated = processedFiles.stream()
+            .mapToInt(r -> r.purchaseRequestsCreated).sum();
+        int totalPurchaseRequestsUpdated = processedFiles.stream()
+            .mapToInt(r -> r.purchaseRequestsUpdated).sum();
+        int totalPurchasesCreated = processedFiles.stream()
+            .mapToInt(r -> r.purchasesCreated).sum();
+        int totalPurchasesUpdated = processedFiles.stream()
+            .mapToInt(r -> r.purchasesUpdated).sum();
+        int totalContractsCreated = processedFiles.stream()
+            .mapToInt(r -> r.contractsCreated).sum();
+        int totalContractsUpdated = processedFiles.stream()
+            .mapToInt(r -> r.contractsUpdated).sum();
+        int totalUsersCreated = processedFiles.stream()
+            .mapToInt(r -> r.usersCreated).sum();
+        int totalUsersUpdated = processedFiles.stream()
+            .mapToInt(r -> r.usersUpdated).sum();
+        int totalPurchasePlanItemsCreated = processedFiles.stream()
+            .mapToInt(r -> r.purchasePlanItemsCreated).sum();
+        int totalPurchasePlanItemsUpdated = processedFiles.stream()
+            .mapToInt(r -> r.purchasePlanItemsUpdated).sum();
+        
+        logger.info("ИТОГО:");
+        logger.info("Заявки на закупку: создано {}, обновлено {}", 
+            totalPurchaseRequestsCreated, totalPurchaseRequestsUpdated);
+        logger.info("Закупки: создано {}, обновлено {}", 
+            totalPurchasesCreated, totalPurchasesUpdated);
+        logger.info("Договоры: создано {}, обновлено {}", 
+            totalContractsCreated, totalContractsUpdated);
+        logger.info("Пользователи: создано {}, обновлено {}", 
+            totalUsersCreated, totalUsersUpdated);
+        if (totalPurchasePlanItemsCreated > 0 || totalPurchasePlanItemsUpdated > 0) {
+            logger.info("Позиции плана закупок: создано {}, обновлено {}", 
+                totalPurchasePlanItemsCreated, totalPurchasePlanItemsUpdated);
         }
         
-        writer.write("=".repeat(120) + "\n");
-        writer.write("ДЕТАЛЬНАЯ СТАТИСТИКА ПО МЕТОДАМ ОБРАБОТКИ\n");
-        writer.write("=".repeat(120) + "\n");
-        
-        // Заголовок таблицы
-        writer.write(String.format("%-50s | %-30s | %-30s | %-15s\n", 
-            "Метод обработки", "Дата старта", "Дата стоп", "Время (мин)"));
-        writer.write("-".repeat(120) + "\n");
-        
-        // Сортируем по дате старта
-        methodRecords.sort((a, b) -> a.startTime.compareTo(b.startTime));
-        
-        // Выводим строки таблицы
-        for (MethodProcessingRecord record : methodRecords) {
-            String methodName = record.methodName.length() > 48 ? 
-                record.methodName.substring(0, 45) + "..." : record.methodName;
-            String fileName = record.fileName.length() > 28 ? 
-                record.fileName.substring(0, 25) + "..." : record.fileName;
-            String fullMethodName = methodName + " (" + fileName + ")";
-            
-            if (fullMethodName.length() > 50) {
-                fullMethodName = fullMethodName.substring(0, 47) + "...";
+        // Логируем детальную статистику по методам
+        if (!methodRecords.isEmpty()) {
+            logger.info("ДЕТАЛЬНАЯ СТАТИСТИКА ПО МЕТОДАМ ОБРАБОТКИ:");
+            methodRecords.sort((a, b) -> a.startTime.compareTo(b.startTime));
+            for (MethodProcessingRecord record : methodRecords) {
+                double minutes = record.durationMs / 60000.0;
+                logger.info("  {} ({}): {} - {}, время: {} мин", 
+                    record.methodName, record.fileName,
+                    record.startTime.format(DATE_TIME_FORMATTER),
+                    record.endTime.format(DATE_TIME_FORMATTER),
+                    String.format("%.2f", minutes));
             }
-            
-            String startTimeStr = record.startTime.format(DATE_TIME_FORMATTER);
-            String endTimeStr = record.endTime.format(DATE_TIME_FORMATTER);
-            double minutes = record.durationMs / 60000.0;
-            String durationStr = String.format("%.2f", minutes);
-            
-            writer.write(String.format("%-50s | %-30s | %-30s | %-15s\n", 
-                fullMethodName, startTimeStr, endTimeStr, durationStr));
         }
         
-        writer.write("-".repeat(120) + "\n");
-        
-        // Итоговая строка
-        double totalMinutes = methodRecords.stream()
-            .mapToLong(r -> r.durationMs)
-            .sum() / 60000.0;
-        writer.write(String.format("%-50s | %-30s | %-30s | %-15s\n", 
-            "ИТОГО", "", "", String.format("%.2f", totalMinutes)));
-        writer.write("=".repeat(120) + "\n");
+        logger.info("Обработанные файлы:");
+        for (FileProcessingRecord record : processedFiles) {
+            logger.info("  - {} ({})", record.fileName, formatDuration(record.processingTimeMs));
+        }
+        logger.info("=".repeat(80));
     }
 
     private String formatDuration(long milliseconds) {
