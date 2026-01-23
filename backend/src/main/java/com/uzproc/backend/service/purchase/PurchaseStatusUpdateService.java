@@ -196,7 +196,7 @@ public class PurchaseStatusUpdateService {
      * Используется после парсинга данных для обновления всех статусов
      * Каждая обработка записи выполняется в отдельной транзакции с явным flush для освобождения соединения
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public void updateAllStatuses() {
         logger.info("Starting mass status update for all purchases");
         long startTime = System.currentTimeMillis();
