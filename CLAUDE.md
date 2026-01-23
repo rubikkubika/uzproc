@@ -29,6 +29,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **ВАЖНО:** При работе с логами всегда проверять папку `backend/logs`. Для отладки использовать последний файл лога.
 
+## Управление бэкапами базы данных
+
+**КРИТИЧЕСКИ ВАЖНО:** Бэкапы базы данных хранятся в папке `backup` в корне проекта.
+
+**Правила управления бэкапами:**
+- Хранится **максимум 5 бэкапов** БД в папке `backup`
+- Бэкапы имеют формат имени: `uzproc_backup_YYYY-MM-DD_HH-mm-ss.sql`
+- При создании нового бэкапа старые бэкапы автоматически удаляются, если их количество превышает 5
+- Удаляются самые старые бэкапы, остаются последние 5 (самые свежие)
+- Это правило применяется во всех скриптах, которые создают бэкапы (`restart-local.sh`, `deploy-simple.ps1`)
+
+**ВАЖНО:** При работе с бэкапами всегда проверять папку `backup`. Для восстановления использовать последний бэкап.
+
 ## Project Overview
 
 UzProc is a procurement management system consisting of a Spring Boot backend, Next.js frontend, PostgreSQL database, and Nginx reverse proxy. The system manages purchase requests, purchases, contracts, and procurement plans with Excel import/export capabilities.
