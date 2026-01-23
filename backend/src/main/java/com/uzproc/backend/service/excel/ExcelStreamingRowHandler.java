@@ -889,15 +889,25 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             
             if (existingOpt.isPresent()) {
                 Purchase existing = existingOpt.get();
-                boolean updated = updatePurchaseFields(existing, purchase);
+                boolean updated = false;
+                try {
+                    updated = updatePurchaseFields(existing, purchase);
+                } catch (Exception e) {
+                    // Логируем ошибку, но продолжаем обработку
+                    logger.warn("Error updating purchase fields for {}: {}", existing.getInnerId(), e.getMessage());
+                    // Помечаем как обновленную, чтобы гарантировать сохранение
+                    updated = true;
+                }
+                // ВАЖНО: Всегда добавляем существующие закупки в batch, даже если изменений нет
+                // Это гарантирует, что все обработанные закупки будут сохранены в БД
+                purchaseBatch.add(existing);
                 if (updated) {
-                    purchaseBatch.add(existing);
                     purchasesUpdated++;
-                    
-                    // Сохраняем batch если он заполнен
-                    if (purchaseBatch.size() >= BATCH_SIZE) {
-                        flushPurchaseBatch();
-                    }
+                }
+                
+                // Сохраняем batch если он заполнен
+                if (purchaseBatch.size() >= BATCH_SIZE) {
+                    flushPurchaseBatch();
                 }
             } else {
                 purchaseBatch.add(purchase);
@@ -912,6 +922,8 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             
         } catch (Exception e) {
             logger.warn("Error processing purchase row {}: {}", currentRowNum + 1, e.getMessage(), e);
+            // ВАЖНО: Увеличиваем счетчик даже при ошибке, чтобы статистика была корректной
+            purchasesCount++;
         }
     }
     
@@ -1540,7 +1552,18 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
         // Обновляем ЦФО
         if (newData.getCfo() != null) {
             Cfo newCfo = newData.getCfo();
-            if (existing.getCfo() == null || !newCfo.getId().equals(existing.getCfo().getId())) {
+            try {
+                // Пытаемся получить существующее ЦФО (может вызвать LazyInitializationException)
+                Cfo existingCfo = existing.getCfo();
+                if (existingCfo == null || !newCfo.getId().equals(existingCfo.getId())) {
+                    existing.setCfo(newCfo);
+                    updated = true;
+                    logger.debug("Updated cfo for purchase {}: {} -> {}", existing.getInnerId(), 
+                        existingCfo != null ? existingCfo.getId() : null, newCfo.getId());
+                }
+            } catch (org.hibernate.LazyInitializationException e) {
+                // Если сессия закрыта, просто устанавливаем новое ЦФО без проверки
+                logger.debug("LazyInitializationException for purchase {} cfo, setting new cfo directly", existing.getInnerId());
                 existing.setCfo(newCfo);
                 updated = true;
             }
