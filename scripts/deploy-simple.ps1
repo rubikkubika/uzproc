@@ -67,6 +67,19 @@ if ($containerCheck -match "uzproc-postgres") {
                 $localBackupSize = (Get-Item "backup/${backupFileName}").Length / 1MB
                 Write-Host "Backup copied to local backup folder ($([math]::Round($localBackupSize, 2)) MB)" -ForegroundColor Green
                 
+                # Удаляем старые бэкапы, оставляя только последние 5
+                Write-Host "Cleaning old backups (keeping last 5)..." -ForegroundColor Yellow
+                $backupFiles = Get-ChildItem -Path "backup" -Filter "uzproc_backup_*.sql" | Sort-Object LastWriteTime -Descending
+                if ($backupFiles.Count -gt 5) {
+                    $oldBackups = $backupFiles | Select-Object -Skip 5
+                    foreach ($oldBackup in $oldBackups) {
+                        Remove-Item -Path $oldBackup.FullName -Force
+                    }
+                    Write-Host "Removed old backups, remaining: $($backupFiles.Count - $oldBackups.Count)" -ForegroundColor Green
+                } else {
+                    Write-Host "Backup count is OK: $($backupFiles.Count)" -ForegroundColor Green
+                }
+                
                 # Удаляем бэкап с сервера после успешного копирования
                 Write-Host "Removing backup from server..." -ForegroundColor Yellow
                 ssh -o ConnectTimeout=10 $SERVER "rm -f ${backupPath}/${backupFileName}" 2>&1 | Out-Null

@@ -43,6 +43,18 @@ if echo "$CONTAINER_CHECK" | grep -q "uzproc-postgres"; then
         BACKUP_SIZE=$(du -h "${LOCAL_BACKUP_DIR}/${BACKUP_FILENAME}" | cut -f1)
         echo "✓ Бэкап скопирован с сервера: ${BACKUP_FILENAME} (${BACKUP_SIZE})"
         
+        # Удаляем старые бэкапы, оставляя только последние 5
+        echo "Очистка старых бэкапов (оставляем последние 5)..."
+        BACKUP_COUNT=$(ls -1 "${LOCAL_BACKUP_DIR}"/uzproc_backup_*.sql 2>/dev/null | wc -l)
+        if [ "$BACKUP_COUNT" -gt 5 ]; then
+          # Удаляем самые старые бэкапы
+          ls -t "${LOCAL_BACKUP_DIR}"/uzproc_backup_*.sql 2>/dev/null | tail -n +6 | xargs rm -f 2>/dev/null
+          REMAINING=$(ls -1 "${LOCAL_BACKUP_DIR}"/uzproc_backup_*.sql 2>/dev/null | wc -l)
+          echo "✓ Удалены старые бэкапы, осталось: ${REMAINING}"
+        else
+          echo "✓ Количество бэкапов в норме: ${BACKUP_COUNT}"
+        fi
+        
         # Удаляем бэкап с сервера после успешного копирования
         echo "Удаление бэкапа с сервера..."
         ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no "$SERVER" "rm -f ${REMOTE_BACKUP_PATH}/${BACKUP_FILENAME}" 2>/dev/null
