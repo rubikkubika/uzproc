@@ -341,8 +341,11 @@ public class ReportExcelLoadService {
                     logger.info("Contract status update completed successfully");
                 } catch (Exception e) {
                     logger.error("Error during contract status update after parsing report file: {}", e.getMessage(), e);
+                    logger.error("Stack trace:", e);
                     // Не прерываем выполнение - согласования уже сохранены
                 }
+            } else {
+                logger.error("contractStatusUpdateService is NULL! Cannot update contract statuses after parsing report file.");
             }
             
             // Обновляем статусы всех заявок на закупку после парсинга (после обновления статусов закупок и договоров)

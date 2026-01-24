@@ -108,15 +108,21 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     
     // Оптимизация: статические DateTimeFormatter для парсинга дат (создаются один раз)
     private static final DateTimeFormatter[] DATE_TIME_FORMATTERS = {
-        DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss"),
-        DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"),
-        DateTimeFormatter.ofPattern("dd.MM.yyyy"),
-        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
-        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"),
-        DateTimeFormatter.ofPattern("yyyy-MM-dd"),
-        DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"),
-        DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"),
-        DateTimeFormatter.ofPattern("dd/MM/yyyy")
+        DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss"),      // 0 - с двузначным часом
+        DateTimeFormatter.ofPattern("dd.MM.yyyy H:mm:ss"),       // 1 - с однозначным часом (новый)
+        DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"),          // 2 - с двузначным часом
+        DateTimeFormatter.ofPattern("dd.MM.yyyy H:mm"),           // 3 - с однозначным часом (новый)
+        DateTimeFormatter.ofPattern("dd.MM.yyyy"),               // 4 - только дата
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),      // 5 - ISO с двузначным часом
+        DateTimeFormatter.ofPattern("yyyy-MM-dd H:mm:ss"),       // 6 - ISO с однозначным часом (новый)
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"),         // 7 - ISO с двузначным часом
+        DateTimeFormatter.ofPattern("yyyy-MM-dd H:mm"),          // 8 - ISO с однозначным часом (новый)
+        DateTimeFormatter.ofPattern("yyyy-MM-dd"),               // 9 - только дата
+        DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"),      // 10 - с двузначным часом
+        DateTimeFormatter.ofPattern("dd/MM/yyyy H:mm:ss"),       // 11 - с однозначным часом (новый)
+        DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"),         // 12 - с двузначным часом
+        DateTimeFormatter.ofPattern("dd/MM/yyyy H:mm"),          // 13 - с однозначным часом (новый)
+        DateTimeFormatter.ofPattern("dd/MM/yyyy")                 // 14 - только дата
     };
     
     // Названия колонок для проверки инвертированной логики
@@ -691,14 +697,25 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             
             // Дата создания (опционально)
             Integer creationDateCol = columnIndices.get(CREATION_DATE_COLUMN);
+            if (creationDateCol == null) {
+                creationDateCol = findColumnIndex(CREATION_DATE_COLUMN);
+            }
             if (creationDateCol != null) {
                 String dateStr = currentRowData.get(creationDateCol);
                 if (dateStr != null && !dateStr.trim().isEmpty()) {
                     LocalDateTime creationDate = parseStringDate(dateStr);
                     if (creationDate != null) {
                         purchase.setPurchaseCreationDate(creationDate);
+                        logger.debug("Row {}: parsed creation date '{}' for purchase {}", currentRowNum + 1, creationDate, purchase.getInnerId());
+                    } else {
+                        logger.debug("Row {}: Could not parse creation date '{}' for purchase {}", currentRowNum + 1, dateStr, purchase.getInnerId());
                     }
+                } else {
+                    logger.debug("Row {}: creation date cell is empty or null for purchase {}", currentRowNum + 1, purchase.getInnerId());
                 }
+            } else {
+                logger.debug("Row {}: creation date column '{}' not found for purchase {}. Available columns: {}", 
+                    currentRowNum + 1, CREATION_DATE_COLUMN, purchase.getInnerId(), columnIndices.keySet());
             }
             
             // ЦФО (опционально)
@@ -1305,12 +1322,15 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
         for (int i = 0; i < DATE_TIME_FORMATTERS.length; i++) {
             DateTimeFormatter formatter = DATE_TIME_FORMATTERS[i];
             try {
-                // Форматтеры с индексами 0, 3, 6 содержат время (HH:mm:ss)
-                if (i == 0 || i == 3 || i == 6) {
-                    return LocalDateTime.parse(dateStr, formatter);
-                } else {
+                // Форматтеры с индексами 0,1,2,3,5,6,7,8,10,11,12,13 содержат время
+                // Индексы 4, 9, 14 - только дата
+                if (i == 4 || i == 9 || i == 14) {
+                    // Только дата
                     LocalDate date = LocalDate.parse(dateStr, formatter);
                     return date.atStartOfDay();
+                } else {
+                    // Дата и время
+                    return LocalDateTime.parse(dateStr, formatter);
                 }
             } catch (DateTimeParseException e) {
                 // Пробуем следующий формат
@@ -1612,7 +1632,14 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 !existing.getPurchaseCreationDate().equals(newData.getPurchaseCreationDate())) {
                 existing.setPurchaseCreationDate(newData.getPurchaseCreationDate());
                 updated = true;
+                logger.debug("Updated creation date for purchase {}: {} -> {}", 
+                    existing.getInnerId(), existing.getPurchaseCreationDate(), newData.getPurchaseCreationDate());
+            } else {
+                logger.debug("Creation date for purchase {} unchanged: {}", existing.getInnerId(), existing.getPurchaseCreationDate());
             }
+        } else {
+            logger.debug("newData.getPurchaseCreationDate() is null for purchase {} (existing: {})", 
+                existing.getInnerId(), existing.getPurchaseCreationDate());
         }
         
         // Обновляем ЦФО
