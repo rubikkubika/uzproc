@@ -84,15 +84,21 @@ public class EntityExcelLoadService {
 
     // Оптимизация: статические DateTimeFormatter для парсинга дат (создаются один раз)
     private static final DateTimeFormatter[] DATE_TIME_FORMATTERS = {
-        DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss"),
-        DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"),
-        DateTimeFormatter.ofPattern("dd.MM.yyyy"),
-        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
-        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"),
-        DateTimeFormatter.ofPattern("yyyy-MM-dd"),
-        DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"),
-        DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"),
-        DateTimeFormatter.ofPattern("dd/MM/yyyy")
+        DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss"),      // 0 - с двузначным часом
+        DateTimeFormatter.ofPattern("dd.MM.yyyy H:mm:ss"),       // 1 - с однозначным часом (новый)
+        DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm"),          // 2 - с двузначным часом
+        DateTimeFormatter.ofPattern("dd.MM.yyyy H:mm"),           // 3 - с однозначным часом (новый)
+        DateTimeFormatter.ofPattern("dd.MM.yyyy"),               // 4 - только дата
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),      // 5 - ISO с двузначным часом
+        DateTimeFormatter.ofPattern("yyyy-MM-dd H:mm:ss"),       // 6 - ISO с однозначным часом (новый)
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"),         // 7 - ISO с двузначным часом
+        DateTimeFormatter.ofPattern("yyyy-MM-dd H:mm"),          // 8 - ISO с однозначным часом (новый)
+        DateTimeFormatter.ofPattern("yyyy-MM-dd"),               // 9 - только дата
+        DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"),      // 10 - с двузначным часом
+        DateTimeFormatter.ofPattern("dd/MM/yyyy H:mm:ss"),       // 11 - с однозначным часом (новый)
+        DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"),         // 12 - с двузначным часом
+        DateTimeFormatter.ofPattern("dd/MM/yyyy H:mm"),          // 13 - с однозначным часом (новый)
+        DateTimeFormatter.ofPattern("dd/MM/yyyy")                 // 14 - только дата
     };
     
     // Оптимизация: предкомпилированные паттерны для парсинга чисел
@@ -360,7 +366,10 @@ public class EntityExcelLoadService {
                     logger.info("Contract status update completed successfully");
                 } catch (Exception e) {
                     logger.error("Error during contract status update after parsing: {}", e.getMessage(), e);
+                    logger.error("Stack trace:", e);
                 }
+            } else {
+                logger.error("contractStatusUpdateService is NULL! Cannot update contract statuses.");
             }
             
             // Обновляем статусы всех заявок на закупку после парсинга (после обновления статусов закупок и договоров)
@@ -1090,12 +1099,15 @@ public class EntityExcelLoadService {
         for (int i = 0; i < DATE_TIME_FORMATTERS.length; i++) {
             DateTimeFormatter formatter = DATE_TIME_FORMATTERS[i];
             try {
-                // Форматтеры с индексами 0, 3, 6 содержат время (HH:mm:ss)
-                if (i == 0 || i == 3 || i == 6) {
-                    return LocalDateTime.parse(dateStr, formatter);
-                } else {
+                // Форматтеры с индексами 0,1,2,3,5,6,7,8,10,11,12,13 содержат время
+                // Индексы 4, 9, 14 - только дата
+                if (i == 4 || i == 9 || i == 14) {
+                    // Только дата
                     LocalDate date = LocalDate.parse(dateStr, formatter);
                     return date.atStartOfDay();
+                } else {
+                    // Дата и время
+                    return LocalDateTime.parse(dateStr, formatter);
                 }
             } catch (Exception e) {
                 // Пробуем следующий формат

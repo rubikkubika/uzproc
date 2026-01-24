@@ -61,6 +61,11 @@ public class ContractStatusUpdateService {
         // Получаем значение поля state
         String state = contract.getState();
         
+        logger.debug("Processing contract {} (innerId: {}): currentStatus={}, state='{}'", 
+            contractId, contract.getInnerId(), 
+            currentStatus != null ? currentStatus.getDisplayName() : "null", 
+            state != null ? state : "null");
+        
         // Определяем новый статус на основе state
         ContractStatus newStatus = null;
         
@@ -79,14 +84,18 @@ public class ContractStatusUpdateService {
             }
             // Проверяем подстроки для статуса "Подписан"
             else if (stateTrimmed.contains("Согласование договора - Этап 1: Согласован") ||
+                     stateTrimmed.contains("Согласование - Этап 1: Согласован") ||
                      stateTrimmed.contains("Регистрация договора: Зарегистрирован") ||
-                     stateTrimmed.contains("Принятие на хранение: Зарегистрирован")) {
+                     stateTrimmed.contains("Регистрация: Зарегистрирован") ||
+                     stateTrimmed.contains("Принятие на хранение: Зарегистрирован") ||
+                     stateTrimmed.contains("Подписать или вернуть: Подписан")) {
                 newStatus = ContractStatus.SIGNED;
                 logger.debug("Contract {} state matches signed condition (contains): {}", contractId, stateTrimmed);
             }
             // Проверяем условия для статуса "На согласовании"
             // Приоритет: сначала проверяем "На согласовании", потом "Не согласован"
             else if (stateTrimmed.contains("Согласование договора - Этап 1: На согласовании") ||
+                     stateTrimmed.contains("Согласование - Этап 1: На согласовании") ||
                      (stateTrimmed.contains("Синхронизация: Исполнен") && 
                       !stateTrimmed.contains("Согласование договора - Этап 1: Согласован") &&
                       !stateTrimmed.contains("Согласование - Этап 1: Согласован"))) {
@@ -111,9 +120,11 @@ public class ContractStatusUpdateService {
                 currentStatus != null ? currentStatus.getDisplayName() : "null",
                 newStatus.getDisplayName());
         } else if (newStatus == null) {
-            logger.debug("No status change needed for contract {} (state: {})", contractId, state);
+            logger.debug("No status change needed for contract {} (innerId: {}): state='{}' does not match any status condition", 
+                contractId, contract.getInnerId(), state != null ? state : "null");
         } else {
-            logger.debug("Status for contract {} already set to: {}", contractId, newStatus.getDisplayName());
+            logger.debug("Status for contract {} (innerId: {}) already set to: {} (currentStatus == newStatus)", 
+                contractId, contract.getInnerId(), newStatus.getDisplayName());
         }
     }
 
@@ -122,7 +133,6 @@ public class ContractStatusUpdateService {
      * Используется после парсинга данных для обновления всех статусов
      * Каждая обработка записи выполняется в отдельной транзакции с явным flush для освобождения соединения
      */
-    @Transactional(readOnly = true)
     public void updateAllStatuses() {
         logger.info("Starting mass status update for all contracts");
         long startTime = System.currentTimeMillis();
@@ -130,6 +140,22 @@ public class ContractStatusUpdateService {
         // Получаем все договоры (read-only транзакция)
         List<Contract> allContracts = contractRepository.findAll();
         logger.info("Found {} contracts to update", allContracts.size());
+        
+        if (allContracts.isEmpty()) {
+            logger.warn("No contracts found in database, skipping status update");
+            return;
+        }
+        
+        // Логируем первые несколько договоров для диагностики
+        int sampleSize = Math.min(5, allContracts.size());
+        logger.debug("Sample of {} contracts to process:", sampleSize);
+        for (int i = 0; i < sampleSize; i++) {
+            Contract c = allContracts.get(i);
+            logger.debug("  Contract {} (id={}, innerId={}): status={}, state='{}'", 
+                i + 1, c.getId(), c.getInnerId(), 
+                c.getStatus() != null ? c.getStatus().getDisplayName() : "null",
+                c.getState() != null ? c.getState() : "null");
+        }
         
         int updatedCount = 0;
         int errorCount = 0;
