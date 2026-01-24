@@ -52,6 +52,11 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private final List<Contract> contractBatch = new ArrayList<>();
     private final List<Cfo> newCfoBatch = new ArrayList<>();
     private static final int BATCH_SIZE = 100; // Размер пакета для batch-операций
+
+    // Список отложенных связей (для закупок и договоров, у которых еще не найдена заявка)
+    // Ключ: innerId закупки/договора, Значение: idPurchaseRequest заявки
+    private final Map<String, Long> pendingPurchaseLinks = new HashMap<>();
+    private final Map<String, Long> pendingContractLinks = new HashMap<>();
     
     // Индексы колонок (определяются из заголовка)
     private Map<String, Integer> columnIndices = new HashMap<>();
@@ -712,20 +717,50 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 if (link != null && !link.trim().isEmpty()) {
                     Long purchaseRequestId = parsePurchaseRequestIdFromLink(link.trim());
                     if (purchaseRequestId != null) {
-                        Optional<PurchaseRequest> purchaseRequest = purchaseRequestRepository.findByIdPurchaseRequest(purchaseRequestId);
+                        // Сначала проверяем batch, потом БД (заявка может быть еще не сохранена)
+                        Optional<PurchaseRequest> purchaseRequest = purchaseRequestBatch.stream()
+                            .filter(pr -> pr.getIdPurchaseRequest() != null && pr.getIdPurchaseRequest().equals(purchaseRequestId))
+                            .findFirst();
+                        
+                        boolean foundInBatch = purchaseRequest.isPresent();
+                        
+                        if (!purchaseRequest.isPresent()) {
+                            // Если не нашли в batch, сначала сохраняем batch, чтобы заявки были в БД
+                            // Это нужно, если заявка обрабатывается раньше в Excel, но еще не сохранена
+                            if (!purchaseRequestBatch.isEmpty()) {
+                                flushPurchaseRequestBatch();
+                                logger.debug("Row {}: Flushed purchase request batch before searching for purchaseRequest {} for purchase {}", 
+                                    currentRowNum + 1, purchaseRequestId, purchase.getInnerId());
+                            }
+                            
+                            // Теперь ищем в БД
+                            purchaseRequest = purchaseRequestRepository.findByIdPurchaseRequest(purchaseRequestId);
+                            if (purchaseRequest.isPresent()) {
+                                logger.debug("Row {}: Found purchaseRequest {} in database for purchase {}", 
+                                    currentRowNum + 1, purchaseRequestId, purchase.getInnerId());
+                            }
+                        }
+                        
                         if (purchaseRequest.isPresent()) {
                             purchase.setPurchaseRequestId(purchaseRequest.get().getIdPurchaseRequest());
-                            logger.info("Row {}: Set purchaseRequestId {} for purchase {} from link '{}'", 
-                                currentRowNum + 1, purchaseRequest.get().getIdPurchaseRequest(), purchase.getInnerId(), link.trim());
+                            logger.info("Row {}: Set purchaseRequestId {} for purchase {} from link '{}' (found in {})",
+                                currentRowNum + 1, purchaseRequest.get().getIdPurchaseRequest(), purchase.getInnerId(), link.trim(),
+                                foundInBatch ? "batch" : "database");
                         } else {
-                            logger.warn("Row {}: PurchaseRequest with idPurchaseRequest {} not found for purchase {} with link '{}'", 
+                            // Заявка не найдена - добавляем в список отложенных связей для последующей обработки
+                            pendingPurchaseLinks.put(purchase.getInnerId(), purchaseRequestId);
+                            logger.warn("Row {}: PurchaseRequest with idPurchaseRequest {} not found for purchase {} with link '{}' - added to pending links for post-processing",
                                 currentRowNum + 1, purchaseRequestId, purchase.getInnerId(), link.trim());
                         }
                     } else {
                         logger.debug("Row {}: Could not parse purchaseRequestId from link '{}' for purchase {}", 
                             currentRowNum + 1, link.trim(), purchase.getInnerId());
                     }
+                } else {
+                    logger.debug("Row {}: Link column is empty for purchase {}", currentRowNum + 1, purchase.getInnerId());
                 }
+            } else {
+                logger.debug("Row {}: Link column '{}' not found for purchase {}", currentRowNum + 1, LINK_COLUMN, purchase.getInnerId());
             }
             
             // Состояние (опционально) - парсим поле "Состояние" в поле state
@@ -840,20 +875,25 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                     currentRowNum + 1, CONTRACT_INNER_ID_COLUMN, contractInnerIdCol, purchase.getInnerId());
             }
             if (contractInnerIdCol != null) {
-                String contractInnerId = currentRowData.get(contractInnerIdCol);
-                if (contractInnerId != null && !contractInnerId.trim().isEmpty()) {
-                    String trimmedContractInnerId = contractInnerId.trim();
-                    // Валидация: contractInnerId не должен совпадать с innerId закупки
-                    if (trimmedContractInnerId.equals(purchase.getInnerId())) {
-                        logger.warn("Row {}: contractInnerId '{}' equals purchase innerId '{}', skipping contractInnerId for purchase {}", 
-                            currentRowNum + 1, trimmedContractInnerId, purchase.getInnerId(), purchase.getInnerId());
+                try {
+                    String contractInnerId = currentRowData.get(contractInnerIdCol);
+                    if (contractInnerId != null && !contractInnerId.trim().isEmpty()) {
+                        String trimmedContractInnerId = contractInnerId.trim();
+                        // Валидация: contractInnerId не должен совпадать с innerId закупки
+                        if (trimmedContractInnerId.equals(purchase.getInnerId())) {
+                            logger.warn("Row {}: contractInnerId '{}' equals purchase innerId '{}', skipping contractInnerId for purchase {}", 
+                                currentRowNum + 1, trimmedContractInnerId, purchase.getInnerId(), purchase.getInnerId());
+                        } else {
+                            // Добавляем внутренний номер договора (может быть несколько)
+                            purchase.addContractInnerId(trimmedContractInnerId);
+                            logger.info("Row {}: parsed contractInnerId: '{}' for purchase {}", currentRowNum + 1, trimmedContractInnerId, purchase.getInnerId());
+                        }
                     } else {
-                        // Добавляем внутренний номер договора (может быть несколько)
-                        purchase.addContractInnerId(trimmedContractInnerId);
-                        logger.info("Row {}: parsed contractInnerId: '{}' for purchase {}", currentRowNum + 1, trimmedContractInnerId, purchase.getInnerId());
+                        logger.debug("Row {}: contractInnerId column found but value is empty for purchase {}", currentRowNum + 1, purchase.getInnerId());
                     }
-                } else {
-                    logger.debug("Row {}: contractInnerId column found but value is empty for purchase {}", currentRowNum + 1, purchase.getInnerId());
+                } catch (Exception e) {
+                    logger.error("Row {}: Error processing contractInnerId for purchase {}: {}", 
+                        currentRowNum + 1, purchase.getInnerId(), e.getMessage(), e);
                 }
             } else {
                 logger.warn("Row {}: contractInnerIdColumnIndex is null for purchase {}. Looking for column '{}'. Available columns: {}", 
@@ -1005,13 +1045,39 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 if (link != null && !link.trim().isEmpty()) {
                     Long purchaseRequestId = parsePurchaseRequestIdFromLink(link.trim());
                     if (purchaseRequestId != null) {
-                        Optional<PurchaseRequest> purchaseRequest = purchaseRequestRepository.findByIdPurchaseRequest(purchaseRequestId);
+                        // Сначала проверяем batch, потом БД (заявка может быть еще не сохранена)
+                        Optional<PurchaseRequest> purchaseRequest = purchaseRequestBatch.stream()
+                            .filter(pr -> pr.getIdPurchaseRequest() != null && pr.getIdPurchaseRequest().equals(purchaseRequestId))
+                            .findFirst();
+                        
+                        boolean foundInBatch = purchaseRequest.isPresent();
+                        
+                        if (!purchaseRequest.isPresent()) {
+                            // Если не нашли в batch, сначала сохраняем batch, чтобы заявки были в БД
+                            // Это нужно, если заявка обрабатывается раньше в Excel, но еще не сохранена
+                            if (!purchaseRequestBatch.isEmpty()) {
+                                flushPurchaseRequestBatch();
+                                logger.debug("Row {}: Flushed purchase request batch before searching for purchaseRequest {} for contract {}", 
+                                    currentRowNum + 1, purchaseRequestId, contract.getInnerId());
+                            }
+                            
+                            // Теперь ищем в БД
+                            purchaseRequest = purchaseRequestRepository.findByIdPurchaseRequest(purchaseRequestId);
+                            if (purchaseRequest.isPresent()) {
+                                logger.debug("Row {}: Found purchaseRequest {} in database for contract {}", 
+                                    currentRowNum + 1, purchaseRequestId, contract.getInnerId());
+                            }
+                        }
+                        
                         if (purchaseRequest.isPresent()) {
                             contract.setPurchaseRequestId(purchaseRequest.get().getIdPurchaseRequest());
-                            logger.info("Row {}: Set purchaseRequestId {} for contract {} from link '{}'", 
-                                currentRowNum + 1, purchaseRequest.get().getIdPurchaseRequest(), contract.getInnerId(), link.trim());
+                            logger.info("Row {}: Set purchaseRequestId {} for contract {} from link '{}' (found in {})",
+                                currentRowNum + 1, purchaseRequest.get().getIdPurchaseRequest(), contract.getInnerId(), link.trim(),
+                                foundInBatch ? "batch" : "database");
                         } else {
-                            logger.warn("Row {}: PurchaseRequest with idPurchaseRequest {} not found for contract {} with link '{}'", 
+                            // Заявка не найдена - добавляем в список отложенных связей для последующей обработки
+                            pendingContractLinks.put(contract.getInnerId(), purchaseRequestId);
+                            logger.warn("Row {}: PurchaseRequest with idPurchaseRequest {} not found for contract {} with link '{}' - added to pending links for post-processing",
                                 currentRowNum + 1, purchaseRequestId, contract.getInnerId(), link.trim());
                         }
                     } else {
@@ -1573,20 +1639,28 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
         // ВАЖНО: Всегда обновляем purchaseRequestId, если в новых данных он есть, даже если значения совпадают
         // Это нужно для случаев, когда purchaseRequestId был установлен в кеше Hibernate, но не сохранен в БД
         if (newData.getPurchaseRequestId() != null) {
-            Long existingPrId = existing.getPurchaseRequestId();
-            Long newPrId = newData.getPurchaseRequestId();
-            if (existingPrId == null || !existingPrId.equals(newPrId)) {
-                existing.setPurchaseRequestId(newPrId);
+            try {
+                Long existingPrId = existing.getPurchaseRequestId();
+                Long newPrId = newData.getPurchaseRequestId();
+                if (existingPrId == null || !existingPrId.equals(newPrId)) {
+                    existing.setPurchaseRequestId(newPrId);
+                    updated = true;
+                    logger.info("Updated purchaseRequestId for purchase {}: {} -> {}", 
+                        existing.getInnerId(), existingPrId, newPrId);
+                } else {
+                    // Значения совпадают, но принудительно обновляем для гарантии сохранения в БД
+                    // Это нужно, если purchaseRequestId был установлен в кеше, но не сохранен в БД
+                    existing.setPurchaseRequestId(newPrId);
+                    updated = true;
+                    logger.info("Force updated purchaseRequestId for purchase {}: {} (values match, ensuring DB save)", 
+                        existing.getInnerId(), newPrId);
+                }
+            } catch (org.hibernate.LazyInitializationException e) {
+                // Если сессия закрыта, просто устанавливаем новое значение без проверки
+                logger.debug("LazyInitializationException for purchase {} purchaseRequestId, setting new value directly: {}", 
+                    existing.getInnerId(), newData.getPurchaseRequestId());
+                existing.setPurchaseRequestId(newData.getPurchaseRequestId());
                 updated = true;
-                logger.info("Updated purchaseRequestId for purchase {}: {} -> {}", 
-                    existing.getInnerId(), existingPrId, newPrId);
-            } else {
-                // Значения совпадают, но принудительно обновляем для гарантии сохранения в БД
-                // Это нужно, если purchaseRequestId был установлен в кеше, но не сохранен в БД
-                existing.setPurchaseRequestId(newPrId);
-                updated = true;
-                logger.info("Force updated purchaseRequestId for purchase {}: {} (values match, ensuring DB save)", 
-                    existing.getInnerId(), newPrId);
             }
         }
         
@@ -1660,13 +1734,18 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 if (existingIds == null || existingIds.isEmpty()) {
                     // Если в существующих нет договоров, добавляем новые
                     for (String contractInnerId : newIds) {
-                        if (contractInnerId != null && !contractInnerId.trim().isEmpty()) {
-                            String trimmedId = contractInnerId.trim();
-                            // Валидация: contractInnerId не должен совпадать с innerId закупки
-                            if (!trimmedId.equals(existing.getInnerId())) {
-                                existing.addContractInnerId(trimmedId);
-                                updated = true;
+                        try {
+                            if (contractInnerId != null && !contractInnerId.trim().isEmpty()) {
+                                String trimmedId = contractInnerId.trim();
+                                // Валидация: contractInnerId не должен совпадать с innerId закупки
+                                if (!trimmedId.equals(existing.getInnerId())) {
+                                    existing.addContractInnerId(trimmedId);
+                                    updated = true;
+                                }
                             }
+                        } catch (Exception e) {
+                            logger.error("Error adding contractInnerId '{}' for purchase {}: {}", 
+                                contractInnerId, existing.getInnerId(), e.getMessage(), e);
                         }
                     }
                     if (updated) {
@@ -1682,15 +1761,25 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                     if (!toAdd.isEmpty() || !toRemove.isEmpty()) {
                         // Удаляем старые
                         for (String id : toRemove) {
-                            existing.removeContractInnerId(id);
+                            try {
+                                existing.removeContractInnerId(id);
+                            } catch (Exception e) {
+                                logger.error("Error removing contractInnerId '{}' for purchase {}: {}", 
+                                    id, existing.getInnerId(), e.getMessage(), e);
+                            }
                         }
                         // Добавляем новые (с валидацией)
                         for (String contractInnerId : toAdd) {
-                            if (contractInnerId != null && !contractInnerId.trim().isEmpty()) {
-                                String trimmedId = contractInnerId.trim();
-                                if (!trimmedId.equals(existing.getInnerId())) {
-                                    existing.addContractInnerId(trimmedId);
+                            try {
+                                if (contractInnerId != null && !contractInnerId.trim().isEmpty()) {
+                                    String trimmedId = contractInnerId.trim();
+                                    if (!trimmedId.equals(existing.getInnerId())) {
+                                        existing.addContractInnerId(trimmedId);
+                                    }
                                 }
+                            } catch (Exception e) {
+                                logger.error("Error adding contractInnerId '{}' for purchase {}: {}", 
+                                    contractInnerId, existing.getInnerId(), e.getMessage(), e);
                             }
                         }
                         updated = true;
@@ -1704,23 +1793,37 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             logger.debug("LazyInitializationException for purchase {} contractInnerIds, updating from new data only", existing.getInnerId());
             
             if (newIds != null && !newIds.isEmpty()) {
-                // Очищаем существующие и добавляем новые
-                existing.clearContractInnerIds();
-                for (String contractInnerId : newIds) {
-                    if (contractInnerId != null && !contractInnerId.trim().isEmpty()) {
-                        String trimmedId = contractInnerId.trim();
-                        // Валидация: contractInnerId не должен совпадать с innerId закупки
-                        if (!trimmedId.equals(existing.getInnerId())) {
-                            existing.addContractInnerId(trimmedId);
+                try {
+                    // Очищаем существующие и добавляем новые
+                    existing.clearContractInnerIds();
+                    for (String contractInnerId : newIds) {
+                        try {
+                            if (contractInnerId != null && !contractInnerId.trim().isEmpty()) {
+                                String trimmedId = contractInnerId.trim();
+                                // Валидация: contractInnerId не должен совпадать с innerId закупки
+                                if (!trimmedId.equals(existing.getInnerId())) {
+                                    existing.addContractInnerId(trimmedId);
+                                }
+                            }
+                        } catch (Exception ex) {
+                            logger.error("Error adding contractInnerId '{}' for purchase {} (after LazyInit): {}", 
+                                contractInnerId, existing.getInnerId(), ex.getMessage(), ex);
                         }
                     }
+                    updated = true;
+                    logger.debug("Updated contractInnerIds for purchase {} from new data (after LazyInit): {}", existing.getInnerId(), newIds);
+                } catch (Exception ex) {
+                    logger.error("Error updating contractInnerIds for purchase {} (after LazyInit): {}", 
+                        existing.getInnerId(), ex.getMessage(), ex);
                 }
-                updated = true;
-                logger.debug("Updated contractInnerIds for purchase {} from new data (after LazyInit): {}", existing.getInnerId(), newIds);
             } else {
                 // Если новых данных нет, не трогаем существующие (не можем их прочитать)
                 logger.debug("No new contractInnerIds for purchase {}, skipping update (LazyInit)", existing.getInnerId());
             }
+        } catch (Exception e) {
+            // Обрабатываем все остальные ошибки
+            logger.error("Error updating contractInnerIds for purchase {}: {}", 
+                existing.getInnerId(), e.getMessage(), e);
         }
         
         // Обновляем status
@@ -1795,20 +1898,28 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
         // ВАЖНО: Всегда обновляем purchaseRequestId, если в новых данных он есть, даже если значения совпадают
         // Это нужно для случаев, когда purchaseRequestId был установлен в кеше Hibernate, но не сохранен в БД
         if (newData.getPurchaseRequestId() != null) {
-            Long existingPrId = existing.getPurchaseRequestId();
-            Long newPrId = newData.getPurchaseRequestId();
-            if (existingPrId == null || !existingPrId.equals(newPrId)) {
-                existing.setPurchaseRequestId(newPrId);
+            try {
+                Long existingPrId = existing.getPurchaseRequestId();
+                Long newPrId = newData.getPurchaseRequestId();
+                if (existingPrId == null || !existingPrId.equals(newPrId)) {
+                    existing.setPurchaseRequestId(newPrId);
+                    updated = true;
+                    logger.info("Updated purchaseRequestId for contract {}: {} -> {}", 
+                        existing.getInnerId(), existingPrId, newPrId);
+                } else {
+                    // Значения совпадают, но принудительно обновляем для гарантии сохранения в БД
+                    // Это нужно, если purchaseRequestId был установлен в кеше, но не сохранен в БД
+                    existing.setPurchaseRequestId(newPrId);
+                    updated = true;
+                    logger.info("Force updated purchaseRequestId for contract {}: {} (values match, ensuring DB save)", 
+                        existing.getInnerId(), newPrId);
+                }
+            } catch (org.hibernate.LazyInitializationException e) {
+                // Если сессия закрыта, просто устанавливаем новое значение без проверки
+                logger.debug("LazyInitializationException for contract {} purchaseRequestId, setting new value directly: {}", 
+                    existing.getInnerId(), newData.getPurchaseRequestId());
+                existing.setPurchaseRequestId(newData.getPurchaseRequestId());
                 updated = true;
-                logger.info("Updated purchaseRequestId for contract {}: {} -> {}", 
-                    existing.getInnerId(), existingPrId, newPrId);
-            } else {
-                // Значения совпадают, но принудительно обновляем для гарантии сохранения в БД
-                // Это нужно, если purchaseRequestId был установлен в кеше, но не сохранен в БД
-                existing.setPurchaseRequestId(newPrId);
-                updated = true;
-                logger.info("Force updated purchaseRequestId for contract {}: {} (values match, ensuring DB save)", 
-                    existing.getInnerId(), newPrId);
             }
         }
         
@@ -1977,10 +2088,89 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
         }
     }
     
+    /**
+     * Восстанавливает отложенные связи между закупками/договорами и заявками.
+     * Вызывается после полной загрузки Excel файла, когда все заявки уже в БД.
+     *
+     * @return количество восстановленных связей
+     */
+    public int linkPendingEntities() {
+        logger.info("=== Starting post-processing to link pending entities ===");
+        logger.info("Pending purchase links: {}, Pending contract links: {}",
+            pendingPurchaseLinks.size(), pendingContractLinks.size());
+
+        int linkedCount = 0;
+
+        // Восстанавливаем связи для закупок
+        for (Map.Entry<String, Long> entry : pendingPurchaseLinks.entrySet()) {
+            String purchaseInnerId = entry.getKey();
+            Long purchaseRequestId = entry.getValue();
+
+            try {
+                // Ищем заявку в БД
+                Optional<PurchaseRequest> purchaseRequest = purchaseRequestRepository.findByIdPurchaseRequest(purchaseRequestId);
+                if (purchaseRequest.isPresent()) {
+                    // Ищем закупку в БД
+                    Optional<Purchase> purchase = purchaseRepository.findByInnerId(purchaseInnerId);
+                    if (purchase.isPresent()) {
+                        Purchase p = purchase.get();
+                        p.setPurchaseRequestId(purchaseRequest.get().getIdPurchaseRequest());
+                        purchaseRepository.save(p);
+                        linkedCount++;
+                        logger.info("Post-processing: Linked purchase {} to purchaseRequest {}",
+                            purchaseInnerId, purchaseRequestId);
+                    } else {
+                        logger.warn("Post-processing: Purchase {} not found in database", purchaseInnerId);
+                    }
+                } else {
+                    logger.warn("Post-processing: PurchaseRequest {} still not found for purchase {}",
+                        purchaseRequestId, purchaseInnerId);
+                }
+            } catch (Exception e) {
+                logger.error("Post-processing: Error linking purchase {} to purchaseRequest {}: {}",
+                    purchaseInnerId, purchaseRequestId, e.getMessage(), e);
+            }
+        }
+
+        // Восстанавливаем связи для договоров
+        for (Map.Entry<String, Long> entry : pendingContractLinks.entrySet()) {
+            String contractInnerId = entry.getKey();
+            Long purchaseRequestId = entry.getValue();
+
+            try {
+                // Ищем заявку в БД
+                Optional<PurchaseRequest> purchaseRequest = purchaseRequestRepository.findByIdPurchaseRequest(purchaseRequestId);
+                if (purchaseRequest.isPresent()) {
+                    // Ищем договор в БД
+                    Optional<Contract> contract = contractRepository.findByInnerId(contractInnerId);
+                    if (contract.isPresent()) {
+                        Contract c = contract.get();
+                        c.setPurchaseRequestId(purchaseRequest.get().getIdPurchaseRequest());
+                        contractRepository.save(c);
+                        linkedCount++;
+                        logger.info("Post-processing: Linked contract {} to purchaseRequest {}",
+                            contractInnerId, purchaseRequestId);
+                    } else {
+                        logger.warn("Post-processing: Contract {} not found in database", contractInnerId);
+                    }
+                } else {
+                    logger.warn("Post-processing: PurchaseRequest {} still not found for contract {}",
+                        purchaseRequestId, contractInnerId);
+                }
+            } catch (Exception e) {
+                logger.error("Post-processing: Error linking contract {} to purchaseRequest {}: {}",
+                    contractInnerId, purchaseRequestId, e.getMessage(), e);
+            }
+        }
+
+        logger.info("=== Post-processing completed: {} links restored ===", linkedCount);
+        return linkedCount;
+    }
+
     public Map<String, Integer> getResults() {
         // Сохраняем все оставшиеся сущности перед возвратом результатов
         flushAllBatches();
-        
+
         Map<String, Integer> results = new HashMap<>();
         results.put("purchaseRequests", purchaseRequestsCount);
         results.put("purchases", purchasesCount);

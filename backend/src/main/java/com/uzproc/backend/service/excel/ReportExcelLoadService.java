@@ -1595,28 +1595,53 @@ public class ReportExcelLoadService {
                     logger.warn("Row {}: contractInnerId '{}' equals purchase innerId '{}', skipping contractInnerId for purchase {}", 
                         row.getRowNum() + 1, trimmedContractInnerId, purchase.getInnerId(), purchase.getInnerId());
                 } else {
-                    // Добавляем внутренний номер договора (может быть несколько)
-                    // Проверяем, не добавлен ли уже этот договор
-                    if (!purchase.getContractInnerIds().contains(trimmedContractInnerId)) {
-                        purchase.addContractInnerId(trimmedContractInnerId);
-                        // Добавляем в batch для обновления
-                        if (!purchaseUpdateBatch.contains(purchase)) {
-                            purchaseUpdateBatch.add(purchase);
+                    try {
+                        // Добавляем внутренний номер договора (может быть несколько)
+                        // Проверяем, не добавлен ли уже этот договор
+                        java.util.Set<String> existingIds = purchase.getContractInnerIds();
+                        if (existingIds == null || !existingIds.contains(trimmedContractInnerId)) {
+                            purchase.addContractInnerId(trimmedContractInnerId);
+                            // Добавляем в batch для обновления
+                            if (!purchaseUpdateBatch.contains(purchase)) {
+                                purchaseUpdateBatch.add(purchase);
+                            }
+                            logger.debug("Row {}: Queued purchase {} for batch update with contractInnerId: '{}'", 
+                                row.getRowNum() + 1, purchase.getInnerId(), trimmedContractInnerId);
+                            
+                            // Сохраняем batch если он заполнен
+                            if (purchaseUpdateBatch.size() >= BATCH_SIZE) {
+                                flushPurchaseUpdateBatch();
+                            }
                         }
-                        logger.debug("Row {}: Queued purchase {} for batch update with contractInnerId: '{}'", 
+                    } catch (org.hibernate.LazyInitializationException e) {
+                        // Если сессия закрыта, создаем новый HashSet и устанавливаем его напрямую
+                        logger.debug("Row {}: LazyInitializationException for purchase {} contractInnerIds, creating new set with '{}'", 
                             row.getRowNum() + 1, purchase.getInnerId(), trimmedContractInnerId);
-                        
-                        // Сохраняем batch если он заполнен
-                        if (purchaseUpdateBatch.size() >= BATCH_SIZE) {
-                            flushPurchaseUpdateBatch();
+                        try {
+                            // Создаем новый HashSet и устанавливаем его напрямую, чтобы избежать LazyInitializationException
+                            java.util.Set<String> newContractInnerIds = new java.util.HashSet<>();
+                            newContractInnerIds.add(trimmedContractInnerId);
+                            purchase.setContractInnerIds(newContractInnerIds);
+                            if (!purchaseUpdateBatch.contains(purchase)) {
+                                purchaseUpdateBatch.add(purchase);
+                            }
+                            if (purchaseUpdateBatch.size() >= BATCH_SIZE) {
+                                flushPurchaseUpdateBatch();
+                            }
+                        } catch (Exception ex) {
+                            logger.error("Row {}: Error setting contractInnerId '{}' for purchase {} (after LazyInit): {}", 
+                                row.getRowNum() + 1, trimmedContractInnerId, purchase.getInnerId(), ex.getMessage(), ex);
                         }
+                    } catch (Exception e) {
+                        logger.error("Row {}: Error processing contractInnerId '{}' for purchase {}: {}", 
+                            row.getRowNum() + 1, trimmedContractInnerId, purchase.getInnerId(), e.getMessage(), e);
                     }
                 }
             }
             // Если колонка пустая, не очищаем существующие договоры (они могут быть из других строк)
         } catch (Exception e) {
-            logger.warn("Error updating contractInnerId for purchase {} in row {}: {}", 
-                purchase.getInnerId(), row.getRowNum() + 1, e.getMessage());
+            logger.error("Row {}: Error updating contractInnerId for purchase {}: {}", 
+                row.getRowNum() + 1, purchase.getInnerId(), e.getMessage(), e);
         }
     }
 }

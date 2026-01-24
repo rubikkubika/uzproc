@@ -459,6 +459,11 @@ export default function PurchaseRequestsTable() {
         // Добавляем колонку "rating" в конец, если она видима
         filtered.push('rating');
       }
+    } else if (activeTab === 'in-work') {
+      // Для вкладки "В работе" добавляем колонку "rating", если она видима
+      if (!filtered.includes('rating') && visibleColumns.has('rating')) {
+        filtered.push('rating');
+      }
     } else {
       // Для других вкладок убираем колонку "rating"
       filtered = filtered.filter(col => col !== 'rating');
