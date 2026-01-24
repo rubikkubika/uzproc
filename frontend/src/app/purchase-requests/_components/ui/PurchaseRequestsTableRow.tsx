@@ -631,8 +631,8 @@ export default function PurchaseRequestsTableRow({
           );
         }
         
-        // Колонка "Оценка" только для вкладки "Завершенные"
-        if (columnKey === 'rating' && activeTab === 'completed') {
+        // Колонка "Оценка" для вкладок "Завершенные" и "В работе"
+        if (columnKey === 'rating' && (activeTab === 'completed' || activeTab === 'in-work')) {
           return (
             <td 
               key={columnKey} 

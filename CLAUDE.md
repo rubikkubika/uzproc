@@ -277,6 +277,37 @@ docker compose ps              # Check service status
 ```
 **Одна команда.** Скрипт автоматически: останавливает процессы, восстанавливает БД, запускает backend и frontend.
 
+### Перезапуск дебаг (удаление таблиц БД и перезапуск без восстановления)
+
+**КРИТИЧЕСКИ ВАЖНО:** При фразах "перезапуск дебаг", "перезапусти дебаг", "restart debug", "debug restart" и т.д. — выполнить следующие действия:
+
+1. **Остановить процессы:**
+   - Остановить процессы на портах 8080 и 3000 (аналогично обычному перезапуску)
+   - Использовать команды: `lsof -ti:8080,3000 2>/dev/null | xargs -r kill -9 2>/dev/null || true`
+
+2. **Закрыть активные соединения с БД:**
+   - Закрыть все активные соединения с базой данных `uzproc`
+   - Использовать команду: `docker exec -i uzproc-postgres psql -U uzproc_user -d postgres -c "SELECT pg_terminate_backend(pg_stat_activity.pid) FROM pg_stat_activity WHERE pg_stat_activity.datname = 'uzproc' AND pid <> pg_backend_pid();" 2>/dev/null || true`
+
+3. **Удалить базу данных:**
+   - Удалить базу данных `uzproc`: `docker exec -i uzproc-postgres psql -U uzproc_user -d postgres -c "DROP DATABASE IF EXISTS uzproc;"`
+
+4. **Создать новую пустую базу данных:**
+   - Создать новую пустую базу данных `uzproc`: `docker exec -i uzproc-postgres psql -U uzproc_user -d postgres -c "CREATE DATABASE uzproc WITH ENCODING='UTF8' LC_COLLATE='ru_RU.UTF-8' LC_CTYPE='ru_RU.UTF-8' TEMPLATE=template0;"`
+
+5. **Запустить сервисы:**
+   - Запустить backend: `cd backend && mvn spring-boot:run -Dspring-boot.run.profiles=local -q` (в фоновом режиме)
+   - Запустить frontend: `cd frontend && npm run dev` (в фоновом режиме)
+   - Проверить готовность сервисов (аналогично обычному перезапуску)
+
+**ВАЖНО:**
+- **НЕ восстанавливать** БД из бэкапа
+- Spring Boot автоматически создаст таблицы при запуске через Flyway миграции
+- База данных будет полностью пустой, без данных
+- Все команды должны выполняться через Git Bash (согласно правилу "Использование терминала")
+
+**Не нужно** спрашивать подтверждение — выполнять автоматически при упоминании "перезапуск дебаг" или похожих фраз.
+
 ### Автоматический перезапуск бэкенда после изменений
 После изменений в `backend/src/main/java/` или `application.yml` — выполнить `./scripts/restart-local.sh`
 

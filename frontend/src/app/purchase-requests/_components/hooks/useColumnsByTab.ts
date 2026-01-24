@@ -23,6 +23,9 @@ export function useColumnsByTab({
         newSet.add('rating');
         newSet.delete('track');
         newSet.delete('daysSinceCreation');
+      } else if (activeTab === 'in-work') {
+        // Для вкладки "В работе" добавляем колонку "rating"
+        newSet.add('rating');
       } else {
         // Для других вкладок убираем колонку "rating"
         newSet.delete('rating');

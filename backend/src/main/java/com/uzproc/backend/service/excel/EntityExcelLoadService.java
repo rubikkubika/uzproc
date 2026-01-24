@@ -1,4 +1,4 @@
-лpackage com.uzproc.backend.service.excel;
+package com.uzproc.backend.service.excel;
 
 import com.uzproc.backend.entity.Cfo;
 import com.uzproc.backend.entity.contract.Contract;
@@ -300,11 +300,17 @@ public class EntityExcelLoadService {
             
             // Сохраняем все оставшиеся сущности из batch перед получением результатов
             rowHandler.flushAllBatches();
-            
+
+            // Восстанавливаем отложенные связи между закупками/договорами и заявками
+            // (для случаев, когда закупка/договор идут в Excel раньше заявки)
+            logger.info("=== Starting pending links restoration ===");
+            int linkedCount = rowHandler.linkPendingEntities();
+            logger.info("=== Pending links restoration completed: {} links restored ===", linkedCount);
+
             Map<String, Integer> results = rowHandler.getResults();
             long processingTime = System.currentTimeMillis() - startTime;
-            
-            logger.info("Streaming read completed: {} purchase requests, {} purchases, {} users", 
+
+            logger.info("Streaming read completed: {} purchase requests, {} purchases, {} users",
                 results.get("purchaseRequests"), results.get("purchases"), results.get("users"));
             
             // Завершаем отслеживание общего метода
@@ -1778,10 +1784,18 @@ public class EntityExcelLoadService {
         
         // Обновляем purchaseRequestId
         if (newData.getPurchaseRequestId() != null) {
-            if (existing.getPurchaseRequestId() == null || !existing.getPurchaseRequestId().equals(newData.getPurchaseRequestId())) {
+            try {
+                if (existing.getPurchaseRequestId() == null || !existing.getPurchaseRequestId().equals(newData.getPurchaseRequestId())) {
+                    existing.setPurchaseRequestId(newData.getPurchaseRequestId());
+                    updated = true;
+                    logger.debug("Updated purchaseRequestId for purchase {}: {}", existing.getId(), newData.getPurchaseRequestId());
+                }
+            } catch (org.hibernate.LazyInitializationException e) {
+                // Если сессия закрыта, просто устанавливаем новое значение без проверки
+                logger.debug("LazyInitializationException for purchase {} purchaseRequestId, setting new value directly: {}", 
+                    existing.getId(), newData.getPurchaseRequestId());
                 existing.setPurchaseRequestId(newData.getPurchaseRequestId());
                 updated = true;
-                logger.debug("Updated purchaseRequestId for purchase {}: {}", existing.getId(), newData.getPurchaseRequestId());
             }
         }
         
