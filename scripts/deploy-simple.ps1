@@ -112,6 +112,20 @@ Write-Host "Old Docker images cleaned on server" -ForegroundColor Green
 Write-Host "`nStep 5: Copying files to server..." -ForegroundColor Yellow
 # Создаем директорию docker на сервере, если её нет
 ssh $SERVER "mkdir -p ${REMOTE_PATH}/docker"
+
+# Копируем .env файл, если он существует
+if (Test-Path ".env") {
+    Write-Host "Copying .env file to server..." -ForegroundColor Cyan
+    scp .env "${SERVER}:${REMOTE_PATH}/"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Warning: Failed to copy .env file!" -ForegroundColor Yellow
+    } else {
+        Write-Host ".env file copied successfully" -ForegroundColor Green
+    }
+} else {
+    Write-Host "Warning: .env file not found locally, skipping..." -ForegroundColor Yellow
+}
+
 scp uzproc-frontend.tar uzproc-backend.tar docker-compose.yml "${SERVER}:${REMOTE_PATH}/"
 scp docker/nginx.conf "${SERVER}:${REMOTE_PATH}/docker/"
 if ($LASTEXITCODE -ne 0) {

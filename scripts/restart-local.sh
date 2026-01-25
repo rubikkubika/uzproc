@@ -91,8 +91,29 @@ else
   echo "⚠ Локальный бэкап не найден, БД не восстановлена"
 fi
 
-# Запуск сервисов
+# Определяем корневую директорию проекта
 ROOT=$(pwd)
+
+# Загрузка переменных окружения из .env файла (если существует)
+if [ -f "$ROOT/.env" ]; then
+  echo "Загрузка переменных из .env файла..."
+  # Экспортируем переменные из .env файла (игнорируем комментарии и пустые строки)
+  set -a
+  source "$ROOT/.env"
+  set +a
+  echo "✓ Переменные загружены из .env"
+  # Проверяем, что MAIL_PASSWORD установлен
+  if [ -z "$MAIL_PASSWORD" ]; then
+    echo "⚠ WARNING: MAIL_PASSWORD не установлен!"
+  else
+    echo "✓ MAIL_PASSWORD установлен"
+  fi
+else
+  echo "⚠ .env файл не найден, используем переменные окружения системы"
+fi
+
+# Запуск сервисов
+# Переменные уже экспортированы через set -a выше, они будут доступны дочерним процессам
 (cd "$ROOT/backend" && mvn spring-boot:run -Dspring-boot.run.profiles=local -q) &
 (cd "$ROOT/frontend" && npm run dev) &
 

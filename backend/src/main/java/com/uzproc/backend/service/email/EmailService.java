@@ -21,6 +21,11 @@ public class EmailService {
 
     public EmailService(JavaMailSender mailSender) {
         this.mailSender = mailSender;
+        // Логируем настройки почты для диагностики (без пароля)
+        logger.info("EmailService initialized. From email: {}", fromEmail);
+        String mailHost = System.getenv("MAIL_HOST");
+        String mailPasswordSet = System.getenv("MAIL_PASSWORD") != null && !System.getenv("MAIL_PASSWORD").isEmpty() ? "SET" : "NOT SET";
+        logger.info("Mail configuration - Host: {}, Password: {}", mailHost != null ? mailHost : "default", mailPasswordSet);
     }
 
     public void sendEmail(String to, String subject, String text) {
