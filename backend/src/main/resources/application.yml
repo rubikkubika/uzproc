@@ -47,7 +47,7 @@ spring:
     host: ${MAIL_HOST:mail.uzumteam.uz}
     port: ${MAIL_SMTP_PORT:587}
     username: ${MAIL_USERNAME:uzproc@uzumteam.uz}
-    password: ${MAIL_PASSWORD:79gDaV:LxQ}
+    password: ${MAIL_PASSWORD}
     properties:
       mail:
         smtp:
