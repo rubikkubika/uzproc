@@ -93,6 +93,15 @@ export function useSummary(params: UseSummaryParams) {
           }
         }
 
+        if (filtersFromHook.hasLinkedPlanItem && filtersFromHook.hasLinkedPlanItem.trim() !== '') {
+          const hasLinkedPlanItemValue = filtersFromHook.hasLinkedPlanItem.trim();
+          if (hasLinkedPlanItemValue === 'В плане') {
+            params.append('hasLinkedPlanItem', 'true');
+          } else if (hasLinkedPlanItemValue === 'Не в плане') {
+            params.append('hasLinkedPlanItem', 'false');
+          }
+        }
+
         if (filtersFromHook.requiresPurchase && filtersFromHook.requiresPurchase.trim() !== '') {
           const requiresPurchaseValue = filtersFromHook.requiresPurchase.trim();
           if (requiresPurchaseValue === 'Требуется') {

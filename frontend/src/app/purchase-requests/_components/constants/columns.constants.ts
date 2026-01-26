@@ -16,8 +16,9 @@ export const ALL_COLUMNS = [
   { key: 'costType', label: 'Тип затрат' },
   { key: 'contractType', label: 'Тип договора' },
   { key: 'contractDurationMonths', label: 'Длительность (мес)' },
-  { key: 'isPlanned', label: 'План' },
+  { key: 'isPlanned', label: 'Плановость' },
   { key: 'requiresPurchase', label: 'Закупка' },
+  { key: 'hasLinkedPlanItem', label: 'План' },
   { key: 'status', label: 'Статус' },
   { key: 'daysSinceCreation', label: 'Срок с даты создания' },
   { key: 'createdAt', label: 'Дата создания (системная)' },
@@ -34,10 +35,11 @@ export const DEFAULT_VISIBLE_COLUMNS = [
   'purchaser',
   'name',
   'budgetAmount',
-  'requiresPurchase',
+  'hasLinkedPlanItem',
   'status',
   'daysSinceCreation',
   'track',
+  'rating',
 ];
 
 // Ключ для сохранения видимости колонок в localStorage

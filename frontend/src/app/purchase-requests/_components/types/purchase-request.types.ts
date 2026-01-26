@@ -48,6 +48,7 @@ export interface PurchaseRequest {
   csiInvitationSent: boolean | null;
   hasFeedback: boolean | null;
   averageRating: number | null;
+  hasLinkedPlanItem: boolean | null;
 }
 
 export interface PageResponse {

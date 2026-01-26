@@ -46,6 +46,7 @@ public class PurchaseRequestController {
             @RequestParam(required = false) String costType,
             @RequestParam(required = false) String contractType,
             @RequestParam(required = false) Boolean isPlanned,
+            @RequestParam(required = false) Boolean hasLinkedPlanItem,
             @RequestParam(required = false) Boolean requiresPurchase,
             @RequestParam(required = false) List<String> statusGroup,
             @RequestParam(required = false, defaultValue = "false") Boolean excludePendingStatuses,
@@ -60,7 +61,7 @@ public class PurchaseRequestController {
         
         Page<PurchaseRequestDto> purchaseRequests = purchaseRequestService.findAll(
                 page, size, year, month, sortBy, sortDir, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
-                name, costType, contractType, isPlanned, requiresPurchase, statusGroup, excludePendingStatuses,
+                name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, statusGroup, excludePendingStatuses,
                 budgetAmount, budgetAmountOperator, excludeFromInWork);
         
         logger.info("Returned {} purchase requests", purchaseRequests.getTotalElements());
@@ -80,13 +81,14 @@ public class PurchaseRequestController {
             @RequestParam(required = false) String costType,
             @RequestParam(required = false) String contractType,
             @RequestParam(required = false) Boolean isPlanned,
+            @RequestParam(required = false) Boolean hasLinkedPlanItem,
             @RequestParam(required = false) Boolean requiresPurchase,
             @RequestParam(required = false) java.math.BigDecimal budgetAmount,
             @RequestParam(required = false) String budgetAmountOperator) {
-        
+
         Map<String, Long> counts = purchaseRequestService.getTabCounts(
             year, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
-            name, costType, contractType, isPlanned, requiresPurchase,
+            name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase,
             budgetAmount, budgetAmountOperator);
         
         return ResponseEntity.ok(counts);

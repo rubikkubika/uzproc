@@ -107,6 +107,8 @@ export default function PurchaseRequestsTableHeader({
             toggleColumnVisibility={toggleColumnVisibility}
             selectAllColumns={selectAllColumns}
             selectDefaultColumns={selectDefaultColumns}
+            onClose={() => setIsColumnsMenuOpen(false)}
+            buttonRef={columnsMenuButtonRef}
           />
         </div>
         

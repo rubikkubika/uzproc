@@ -992,7 +992,34 @@ export default function PurchaseRequestsTableColumnsHeader({
               />
             );
           }
-          
+
+          // Колонка "План"
+          if (columnKey === 'hasLinkedPlanItem') {
+            return (
+              <SortableHeader
+                key={columnKey}
+                field="hasLinkedPlanItem"
+                label="План"
+                filterType="select"
+                filterOptions={['В плане', 'Не в плане']}
+                columnKey="hasLinkedPlanItem"
+                width={getColumnWidth('hasLinkedPlanItem')}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={onSort}
+                filterValue={filtersFromHook.hasLinkedPlanItem || ''}
+                onFilterChange={(value) => handleSelectFilterChange('hasLinkedPlanItem', value)}
+                onDragStart={onDragStart}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+                isDragged={isDragging}
+                isDragOver={isDragOver}
+                onResizeStart={onResizeStart}
+              />
+            );
+          }
+
           return null;
         })}
       </tr>
