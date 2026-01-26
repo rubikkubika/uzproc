@@ -327,7 +327,31 @@ export default function PurchaseRequestsTableRow({
             </td>
           );
         }
-        
+
+        if (columnKey === 'hasLinkedPlanItem') {
+          return (
+            <td
+              key={columnKey}
+              className="px-2 py-0.5 whitespace-nowrap text-xs border-r border-gray-200"
+              style={{ width: `${getColumnWidth('hasLinkedPlanItem')}px`, minWidth: `${getColumnWidth('hasLinkedPlanItem')}px`, maxWidth: `${getColumnWidth('hasLinkedPlanItem')}px` }}
+            >
+              {request.hasLinkedPlanItem ? (
+                <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                  В плане
+                </span>
+              ) : request.hasLinkedPlanItem === false ? (
+                <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
+                  Не в плане
+                </span>
+              ) : (
+                <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
+                  -
+                </span>
+              )}
+            </td>
+          );
+        }
+
         if (columnKey === 'requiresPurchase') {
           return (
             <td 

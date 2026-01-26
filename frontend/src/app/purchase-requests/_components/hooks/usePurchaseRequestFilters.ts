@@ -61,6 +61,7 @@ export function usePurchaseRequestFilters(setCurrentPage?: (page: number) => voi
     contractType: '',
     contractDurationMonths: '',
     isPlanned: '',
+    hasLinkedPlanItem: '',
     requiresPurchase: '',
     status: '',
   });
@@ -86,6 +87,7 @@ export function usePurchaseRequestFilters(setCurrentPage?: (page: number) => voi
     contractType: '',
     contractDurationMonths: '',
     isPlanned: '',
+    hasLinkedPlanItem: '',
     requiresPurchase: '',
     status: '',
   });

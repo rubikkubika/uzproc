@@ -153,6 +153,15 @@ export function usePurchaseRequestsTable() {
         }
       }
 
+      if (filters.hasLinkedPlanItem && filters.hasLinkedPlanItem.trim() !== '') {
+        const hasLinkedPlanItemValue = filters.hasLinkedPlanItem.trim();
+        if (hasLinkedPlanItemValue === 'В плане') {
+          params.append('hasLinkedPlanItem', 'true');
+        } else if (hasLinkedPlanItemValue === 'Не в плане') {
+          params.append('hasLinkedPlanItem', 'false');
+        }
+      }
+
       // Фильтр по группе статуса
       let effectiveStatusGroupFilter: Set<string>;
       if (currentTab === 'hidden') {

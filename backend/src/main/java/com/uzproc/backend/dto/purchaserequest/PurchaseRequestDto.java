@@ -54,6 +54,8 @@ public class PurchaseRequestDto {
     private Boolean hasFeedback;
     // Средняя оценка по всем вопросам (кроме узпрок)
     private Double averageRating;
+    // Флаг, указывающий связана ли заявка с позицией плана закупок
+    private Boolean hasLinkedPlanItem;
 
     // Constructors
     public PurchaseRequestDto() {
@@ -354,6 +356,14 @@ public class PurchaseRequestDto {
 
     public void setAverageRating(Double averageRating) {
         this.averageRating = averageRating;
+    }
+
+    public Boolean getHasLinkedPlanItem() {
+        return hasLinkedPlanItem;
+    }
+
+    public void setHasLinkedPlanItem(Boolean hasLinkedPlanItem) {
+        this.hasLinkedPlanItem = hasLinkedPlanItem;
     }
 }
 

@@ -32,7 +32,7 @@ export function useTableColumns() {
   });
 
   // Состояние для порядка колонок
-  const defaultOrder = ['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'status', 'daysSinceCreation', 'track', 'rating'];
+  const defaultOrder = ['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'hasLinkedPlanItem', 'status', 'daysSinceCreation', 'track', 'rating'];
   const [columnOrder, setColumnOrder] = useState<string[]>(defaultOrder);
 
   // Состояние для ширин колонок
@@ -53,6 +53,21 @@ export function useTableColumns() {
   const [columnsMenuPosition, setColumnsMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const columnsMenuButtonRef = useRef<HTMLButtonElement>(null);
 
+  // Вычисление позиции меню колонок
+  const calculateMenuPosition = useCallback(() => {
+    if (!columnsMenuButtonRef.current) return null;
+    const rect = columnsMenuButtonRef.current.getBoundingClientRect();
+    return { top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX };
+  }, []);
+
+  // Обновляем позицию меню при его открытии
+  useEffect(() => {
+    if (isColumnsMenuOpen) {
+      const pos = calculateMenuPosition();
+      if (pos) setColumnsMenuPosition(pos);
+    }
+  }, [isColumnsMenuOpen, calculateMenuPosition]);
+
   // Загружаем порядок колонок из localStorage
   useEffect(() => {
     try {
@@ -60,10 +75,40 @@ export function useTableColumns() {
 
       if (saved) {
         const order = JSON.parse(saved);
+
+        // Проверяем, есть ли hasLinkedPlanItem в сохраненном порядке
+        // Если нет - очищаем и используем defaultOrder (миграция)
+        if (!order.includes('hasLinkedPlanItem')) {
+          console.log('Migrating column order to include hasLinkedPlanItem');
+          localStorage.removeItem('purchaseRequestsTableColumnOrder');
+          setColumnOrder(defaultOrder);
+          localStorage.setItem('purchaseRequestsTableColumnOrder', JSON.stringify(defaultOrder));
+          return;
+        }
+
         const validOrder = order.filter((col: string) => defaultOrder.includes(col));
         const missingCols = defaultOrder.filter(col => !validOrder.includes(col));
 
         let finalOrder = [...validOrder, ...missingCols];
+
+        // Вставляем hasLinkedPlanItem перед status
+        const hasLinkedPlanItemIndex = finalOrder.indexOf('hasLinkedPlanItem');
+        const statusIndex = finalOrder.indexOf('status');
+
+        // Если hasLinkedPlanItem есть в массиве и она НЕ непосредственно перед status
+        if (hasLinkedPlanItemIndex !== -1 && statusIndex !== -1 && hasLinkedPlanItemIndex !== statusIndex - 1) {
+          // Удаляем hasLinkedPlanItem из текущего места
+          finalOrder = finalOrder.filter(col => col !== 'hasLinkedPlanItem');
+          // Находим новый индекс status (после удаления hasLinkedPlanItem)
+          const newStatusIndex = finalOrder.indexOf('status');
+          // Вставляем hasLinkedPlanItem перед status
+          if (newStatusIndex !== -1) {
+            finalOrder.splice(newStatusIndex, 0, 'hasLinkedPlanItem');
+          } else {
+            finalOrder.push('hasLinkedPlanItem');
+          }
+        }
+
         const trackIndex = finalOrder.indexOf('track');
         const daysSinceCreationIndex = finalOrder.indexOf('daysSinceCreation');
 
@@ -236,6 +281,7 @@ export function useTableColumns() {
   // Функция для получения ширины колонки по умолчанию
   const getDefaultColumnWidth = (columnKey: string): number => {
     const defaults: Record<string, number> = {
+      excludeFromInWork: 96,
       idPurchaseRequest: 64,
       cfo: 80,
       purchaseRequestInitiator: 128,
@@ -243,12 +289,16 @@ export function useTableColumns() {
       name: 192,
       budgetAmount: 112,
       isPlanned: 96,
+      hasLinkedPlanItem: 112,
       requiresPurchase: 96,
+      status: 150,
       purchaseRequestCreationDate: 128,
       costType: 128,
       contractType: 128,
       contractDurationMonths: 128,
       daysSinceCreation: 140,
+      track: 120,
+      rating: 96,
       guid: 192,
       purchaseRequestPlanYear: 96,
       company: 128,

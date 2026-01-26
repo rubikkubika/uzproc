@@ -270,6 +270,7 @@ export default function PurchaseRequestsTable() {
   // Используем хук для управления колонками по вкладкам
   useColumnsByTab({
     activeTab,
+    kindTab,
     setVisibleColumns,
   });
 

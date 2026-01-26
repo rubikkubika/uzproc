@@ -14,6 +14,7 @@ import com.uzproc.backend.repository.csifeedback.CsiFeedbackRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestApprovalRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
 import com.uzproc.backend.repository.purchase.PurchaseRepository;
+import com.uzproc.backend.repository.purchaseplan.PurchasePlanItemRepository;
 import com.uzproc.backend.entity.csifeedback.CsiFeedback;
 import com.uzproc.backend.service.contract.ContractService;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestStatusUpdateService;
@@ -57,6 +58,7 @@ public class PurchaseRequestService {
     private final PurchaseRequestStatusUpdateService statusUpdateService;
     private final CsiFeedbackRepository csiFeedbackRepository;
     private final PurchasePlanPurchaserSyncService purchasePlanPurchaserSyncService;
+    private final PurchasePlanItemRepository purchasePlanItemRepository;
     
     @Value("${app.frontend.base-url:}")
     private String frontendBaseUrl;
@@ -69,7 +71,8 @@ public class PurchaseRequestService {
             ContractService contractService,
             PurchaseRequestStatusUpdateService statusUpdateService,
             CsiFeedbackRepository csiFeedbackRepository,
-            PurchasePlanPurchaserSyncService purchasePlanPurchaserSyncService) {
+            PurchasePlanPurchaserSyncService purchasePlanPurchaserSyncService,
+            PurchasePlanItemRepository purchasePlanItemRepository) {
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.approvalRepository = approvalRepository;
         this.purchaseRepository = purchaseRepository;
@@ -78,6 +81,7 @@ public class PurchaseRequestService {
         this.statusUpdateService = statusUpdateService;
         this.csiFeedbackRepository = csiFeedbackRepository;
         this.purchasePlanPurchaserSyncService = purchasePlanPurchaserSyncService;
+        this.purchasePlanItemRepository = purchasePlanItemRepository;
     }
 
     public Page<PurchaseRequestDto> findAll(
@@ -95,6 +99,7 @@ public class PurchaseRequestService {
             String costType,
             String contractType,
             Boolean isPlanned,
+            Boolean hasLinkedPlanItem,
             Boolean requiresPurchase,
             List<String> statusGroup,
             Boolean excludePendingStatuses,
@@ -103,8 +108,8 @@ public class PurchaseRequestService {
             Boolean excludeFromInWorkParam) {
         
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, month: {}, idPurchaseRequest: {}, cfo: {}, purchaseRequestInitiator: '{}', purchaser: {}, name: '{}', costType: '{}', contractType: '{}', isPlanned: {}, requiresPurchase: {}, statusGroup: {}, excludePendingStatuses: {}, budgetAmount: {}, budgetAmountOperator: '{}', excludeFromInWorkParam: {}",
-                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, requiresPurchase, statusGroup, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWorkParam);
+        logger.info("Filter parameters - year: {}, month: {}, idPurchaseRequest: {}, cfo: {}, purchaseRequestInitiator: '{}', purchaser: {}, name: '{}', costType: '{}', contractType: '{}', isPlanned: {}, hasLinkedPlanItem: {}, requiresPurchase: {}, statusGroup: {}, excludePendingStatuses: {}, budgetAmount: {}, budgetAmountOperator: '{}', excludeFromInWorkParam: {}",
+                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, statusGroup, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWorkParam);
         
         // Определяем логику фильтрации по excludeFromInWork:
         // 1. Если excludeFromInWorkParam = true передается как параметр запроса, то фильтруем по excludeFromInWork = true (показываем только скрытые)
@@ -141,7 +146,7 @@ public class PurchaseRequestService {
         }
         
         Specification<PurchaseRequest> spec = buildSpecification(
-                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, requiresPurchase, statusGroup, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWork, excludeFromInWorkFilter);
+                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, statusGroup, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWork, excludeFromInWorkFilter);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -190,6 +195,7 @@ public class PurchaseRequestService {
             String costType,
             String contractType,
             Boolean isPlanned,
+            Boolean hasLinkedPlanItem,
             Boolean requiresPurchase,
             java.math.BigDecimal budgetAmount,
             String budgetAmountOperator) {
@@ -218,14 +224,14 @@ public class PurchaseRequestService {
         
         // Подсчитываем для каждой вкладки
         counts.put("all", countWithFilters(year, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
-            name, costType, contractType, isPlanned, requiresPurchase, null, budgetAmount, budgetAmountOperator, false));
+            name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, null, budgetAmount, budgetAmountOperator, false));
         // Для вкладки "В работе" исключаем записи с excludeFromInWork = true
         counts.put("in-work", countWithFilters(year, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
-            name, costType, contractType, isPlanned, requiresPurchase, inWorkStatusGroups, budgetAmount, budgetAmountOperator, true));
+            name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, inWorkStatusGroups, budgetAmount, budgetAmountOperator, true));
         counts.put("completed", countWithFilters(year, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
-            name, costType, contractType, isPlanned, requiresPurchase, completedStatusGroups, budgetAmount, budgetAmountOperator, false));
+            name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, completedStatusGroups, budgetAmount, budgetAmountOperator, false));
         counts.put("project-rejected", countWithFilters(year, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
-            name, costType, contractType, isPlanned, requiresPurchase, projectRejectedStatusGroups, budgetAmount, budgetAmountOperator, false));
+            name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, projectRejectedStatusGroups, budgetAmount, budgetAmountOperator, false));
         
         return counts;
     }
@@ -243,15 +249,16 @@ public class PurchaseRequestService {
             String costType,
             String contractType,
             Boolean isPlanned,
+            Boolean hasLinkedPlanItem,
             Boolean requiresPurchase,
             List<String> statusGroup,
             java.math.BigDecimal budgetAmount,
             String budgetAmountOperator,
             boolean excludeFromInWork) {
-        
+
         Specification<PurchaseRequest> spec = buildSpecification(
             year, null, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
-            name, costType, contractType, isPlanned, requiresPurchase, statusGroup,
+            name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, statusGroup,
             false, budgetAmount, budgetAmountOperator, excludeFromInWork, null);
         
         return purchaseRequestRepository.count(spec);
@@ -412,7 +419,15 @@ public class PurchaseRequestService {
             dto.setHasFeedback(false);
             dto.setAverageRating(null);
         }
-        
+
+        // Проверяем связь с планом закупок
+        if (entity.getIdPurchaseRequest() != null) {
+            boolean hasLinkedPlanItem = purchasePlanItemRepository.existsByPurchaseRequestId(entity.getIdPurchaseRequest());
+            dto.setHasLinkedPlanItem(hasLinkedPlanItem);
+        } else {
+            dto.setHasLinkedPlanItem(false);
+        }
+
         return dto;
     }
 
@@ -427,6 +442,7 @@ public class PurchaseRequestService {
             String costType,
             String contractType,
             Boolean isPlanned,
+            Boolean hasLinkedPlanItem,
             Boolean requiresPurchase,
             List<String> statusGroup,
             Boolean excludePendingStatuses,
@@ -593,7 +609,25 @@ public class PurchaseRequestService {
                 predicateCount++;
                 logger.info("Added isPlanned filter: {}", isPlanned);
             }
-            
+
+            // Фильтр по связи с планом закупок
+            if (hasLinkedPlanItem != null) {
+                jakarta.persistence.criteria.Subquery<Long> subquery = query.subquery(Long.class);
+                jakarta.persistence.criteria.Root<com.uzproc.backend.entity.purchaseplan.PurchasePlanItem> planItem = subquery.from(com.uzproc.backend.entity.purchaseplan.PurchasePlanItem.class);
+                subquery.select(cb.literal(1L));
+                subquery.where(cb.equal(planItem.get("purchaseRequestId"), root.get("idPurchaseRequest")));
+
+                if (hasLinkedPlanItem) {
+                    // Заявки, которые связаны с планом (есть хотя бы одна позиция плана)
+                    predicates.add(cb.exists(subquery));
+                } else {
+                    // Заявки, которые НЕ связаны с планом (нет ни одной позиции плана)
+                    predicates.add(cb.not(cb.exists(subquery)));
+                }
+                predicateCount++;
+                logger.info("Added hasLinkedPlanItem filter: {}", hasLinkedPlanItem);
+            }
+
             // Фильтр по требуется закупка
             if (requiresPurchase != null) {
                 predicates.add(cb.equal(root.get("requiresPurchase"), requiresPurchase));
