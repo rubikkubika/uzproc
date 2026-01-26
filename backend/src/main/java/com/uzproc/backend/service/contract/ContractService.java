@@ -105,6 +105,14 @@ public class ContractService {
     }
 
     /**
+     * Получить список уникальных годов из дат создания договоров
+     * @return список годов в порядке убывания
+     */
+    public List<Integer> getDistinctYears() {
+        return contractRepository.findDistinctYears();
+    }
+
+    /**
      * Получить все спецификации со статусом null, связанные с заявками на закупку
      * @return список спецификаций с их состояниями
      */

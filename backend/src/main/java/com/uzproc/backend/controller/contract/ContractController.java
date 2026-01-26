@@ -52,6 +52,12 @@ public class ContractController {
         return ResponseEntity.notFound().build();
     }
 
+    @GetMapping("/years")
+    public ResponseEntity<List<Integer>> getDistinctYears() {
+        List<Integer> years = contractService.getDistinctYears();
+        return ResponseEntity.ok(years);
+    }
+
     @GetMapping("/by-parent/{parentContractId}")
     public ResponseEntity<List<ContractDto>> getContractsByParentContractId(@PathVariable Long parentContractId) {
         List<ContractDto> contracts = contractService.findByParentContractId(parentContractId);
