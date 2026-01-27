@@ -19,6 +19,7 @@ import { ALL_STATUSES, DEFAULT_STATUSES, TAB_STATUSES } from './constants/status
 import { getCurrencyIcon } from './utils/currency.utils';
 import { normalizePurchaserName } from './utils/normalizePurchaser';
 import { copyRatingEmail } from './utils/ratingEmail';
+import { copyToClipboard } from '@/utils/clipboard';
 import { usePurchaseRequestsTable } from './hooks/usePurchaseRequestsTable';
 import { useUserRole } from './hooks/useUserRole';
 import { useRatingModal } from './hooks/useRatingModal';
@@ -637,6 +638,13 @@ export default function PurchaseRequestsTable() {
     setSentInvitationDetails(null);
   }, [setIsSentInvitationModalOpen, setSentInvitationDetails]);
 
+  const handleSentInvitationCopy = useCallback(async () => {
+    if (!sentInvitationDetails) {
+      return;
+    }
+    await copyRatingEmail(sentInvitationDetails.emailText);
+  }, [sentInvitationDetails]);
+
   const handleFeedbackClick = useCallback(async (request: PurchaseRequest) => {
     setSelectedRequestForFeedback(request);
     setIsFeedbackDetailsModalOpen(true);
@@ -862,6 +870,7 @@ export default function PurchaseRequestsTable() {
         isOpen={isSentInvitationModalOpen}
         details={sentInvitationDetails}
         onClose={handleSentInvitationModalClose}
+        onCopy={handleSentInvitationCopy}
       />
     </div>
   );

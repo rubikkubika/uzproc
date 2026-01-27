@@ -298,10 +298,698 @@ export const usePurchasePlanItemsTable = () => {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка загрузки данных');
     } finally {
+      if (append) {
+        setLoadingMore(false);
+      } else {
+        setLoading(false);
+      }
+      isInitialLoadRef.current = false;
+    }
+  }, [selectedMonthYear, selectedCurrency]);
+
+  // Ref для хранения всех загруженных данных версии (без фильтров)
+  const versionDataRef = useRef<PurchasePlanItem[]>([]);
+  // Ref для отслеживания последних примененных фильтров, чтобы избежать повторных применений
+  const lastAppliedFiltersRef = useRef<string>('');
+  // Ref для отслеживания того, что фильтр статуса был установлен при загрузке версии
+  const statusFilterSetForVersionRef = useRef<number | null>(null);
+  // Ref для отслеживания того, что нужно применить фильтры после установки фильтра статуса
+  const shouldApplyFiltersAfterStatusUpdateRef = useRef(false);
+  // Ref для отслеживания того, что currentPage был сброшен при загрузке версии
+  const currentPageResetForVersionRef = useRef<number | null>(null);
+
+  // Функция для клиентской фильтрации данных версии
+  const applyFiltersToVersionData = useCallback(() => {
+    if (versionDataRef.current.length === 0) {
+      console.log('[applyFiltersToVersionData] Нет данных версии для фильтрации');
+      return;
+    }
+
+    if (!versionsHook.selectedVersionInfo || versionsHook.selectedVersionInfo.isCurrent) {
+      console.log('[applyFiltersToVersionData] Пропуск - не архивная версия');
+      return;
+    }
+
+    // Создаем ключ для текущих фильтров
+    const filtersKey = JSON.stringify({
+      filters: filtersRef.current.filters,
+      cfoFilter: Array.from(filtersRef.current.cfoFilter).sort(),
+      companyFilter: Array.from(filtersRef.current.companyFilter).sort(),
+      purchaserCompanyFilter: Array.from(filtersRef.current.purchaserCompanyFilter).sort(),
+      purchaserFilter: Array.from(filtersRef.current.purchaserFilter).sort(),
+      categoryFilter: Array.from(filtersRef.current.categoryFilter).sort(),
+      statusFilter: Array.from(filtersRef.current.statusFilter).sort(),
+      selectedMonths: Array.from(selectedMonths).sort(),
+      selectedMonthYear,
+      sortField,
+      sortDirection,
+      currentPage
+    });
+
+    // Пропускаем, если фильтры не изменились (но только если ключ не пустой - значит фильтры уже применялись)
+    if (lastAppliedFiltersRef.current !== '' && lastAppliedFiltersRef.current === filtersKey) {
+      console.log('[applyFiltersToVersionData] Пропуск - фильтры не изменились');
+      return;
+    }
+
+    lastAppliedFiltersRef.current = filtersKey;
+    console.log('[applyFiltersToVersionData] Применение фильтров к данным версии');
+    console.log('[applyFiltersToVersionData] Исходное количество элементов:', versionDataRef.current.length);
+    
+    let filtered = [...versionDataRef.current];
+    const currentFilters = filtersRef.current;
+    
+    console.log('[applyFiltersToVersionData] Текущие фильтры:', {
+      filters: currentFilters.filters,
+      cfoFilter: Array.from(currentFilters.cfoFilter),
+      companyFilter: Array.from(currentFilters.companyFilter),
+      purchaserCompanyFilter: Array.from(currentFilters.purchaserCompanyFilter),
+      purchaserFilter: Array.from(currentFilters.purchaserFilter),
+      categoryFilter: Array.from(currentFilters.categoryFilter),
+      statusFilter: Array.from(currentFilters.statusFilter),
+      selectedMonths: Array.from(selectedMonths),
+      selectedMonthYear
+    });
+
+    // Текстовые фильтры
+    if (currentFilters.filters.id && currentFilters.filters.id.trim() !== '') {
+      const idValue = currentFilters.filters.id.trim();
+      filtered = filtered.filter(item => String(item.id).includes(idValue));
+    }
+
+    if (currentFilters.filters.purchaseSubject && currentFilters.filters.purchaseSubject.trim() !== '') {
+      const subjectValue = currentFilters.filters.purchaseSubject.trim().toLowerCase();
+      filtered = filtered.filter(item => 
+        item.purchaseSubject?.toLowerCase().includes(subjectValue)
+      );
+    }
+
+    if (currentFilters.filters.purchaseRequestId && currentFilters.filters.purchaseRequestId.trim() !== '') {
+      const requestIdValue = currentFilters.filters.purchaseRequestId.trim();
+      filtered = filtered.filter(item => 
+        item.purchaseRequestId && String(item.purchaseRequestId).includes(requestIdValue)
+      );
+    }
+
+    // Фильтр бюджета
+    if (currentFilters.filters.budgetAmount && currentFilters.filters.budgetAmount.trim() !== '') {
+      const budgetValue = parseFloat(currentFilters.filters.budgetAmount.replace(/\s/g, '').replace(/,/g, ''));
+      if (!isNaN(budgetValue) && budgetValue >= 0) {
+        const operator = currentFilters.filters.budgetAmountOperator || 'gte';
+        filtered = filtered.filter(item => {
+          if (item.budgetAmount === null) return false;
+          switch (operator) {
+            case 'gte': return item.budgetAmount >= budgetValue;
+            case 'lte': return item.budgetAmount <= budgetValue;
+            case 'eq': return item.budgetAmount === budgetValue;
+            default: return true;
+          }
+        });
+      }
+    }
+
+    // Фильтр даты окончания текущего договора
+    if (currentFilters.filters.currentContractEndDate && currentFilters.filters.currentContractEndDate.trim() !== '') {
+      const dateValue = currentFilters.filters.currentContractEndDate.trim();
+      if (dateValue === '-' || dateValue === 'null') {
+        filtered = filtered.filter(item => !item.currentContractEndDate);
+      } else {
+        try {
+          const filterDate = new Date(dateValue);
+          filtered = filtered.filter(item => {
+            if (!item.currentContractEndDate) return false;
+            const itemDate = new Date(item.currentContractEndDate);
+            return itemDate.toDateString() === filterDate.toDateString();
+          });
+        } catch (e) {
+          console.error('[applyFiltersToVersionData] Ошибка парсинга даты:', e);
+        }
+      }
+    }
+
+    // Множественные фильтры
+    if (currentFilters.cfoFilter.size > 0) {
+      const beforeCount = filtered.length;
+      filtered = filtered.filter(item => {
+        if (!item.cfo) return currentFilters.cfoFilter.has('Не выбрано');
+        return currentFilters.cfoFilter.has(item.cfo);
+      });
+      console.log('[applyFiltersToVersionData] После фильтра ЦФО:', beforeCount, '->', filtered.length);
+    }
+
+    if (currentFilters.companyFilter.size > 0) {
+      const beforeCount = filtered.length;
+      filtered = filtered.filter(item => {
+        if (!item.company) return currentFilters.companyFilter.has('Не выбрано');
+        return currentFilters.companyFilter.has(item.company);
+      });
+      console.log('[applyFiltersToVersionData] После фильтра компании:', beforeCount, '->', filtered.length);
+    }
+
+    if (currentFilters.purchaserCompanyFilter.size > 0) {
+      const beforeCount = filtered.length;
+      // Проверяем уникальные значения purchaserCompany в данных
+      const uniquePurchaserCompanies = new Set(filtered.map(item => item.purchaserCompany || 'Не выбрано'));
+      console.log('[applyFiltersToVersionData] Уникальные значения purchaserCompany в данных:', Array.from(uniquePurchaserCompanies));
+      console.log('[applyFiltersToVersionData] Фильтр purchaserCompanyFilter:', Array.from(currentFilters.purchaserCompanyFilter));
+      filtered = filtered.filter(item => {
+        // Если у элемента нет purchaserCompany, проверяем наличие "Не выбрано" в фильтре
+        if (!item.purchaserCompany) {
+          return currentFilters.purchaserCompanyFilter.has('Не выбрано');
+        }
+        // Проверяем, есть ли значение элемента в фильтре
+        return currentFilters.purchaserCompanyFilter.has(item.purchaserCompany);
+      });
+      console.log('[applyFiltersToVersionData] После фильтра компании закупщика:', beforeCount, '->', filtered.length);
+    }
+
+    if (currentFilters.purchaserFilter.size > 0) {
+      filtered = filtered.filter(item => {
+        if (!item.purchaser) {
+          return currentFilters.purchaserFilter.has('Не назначен') || 
+                 currentFilters.purchaserFilter.has('__NULL__') ||
+                 currentFilters.purchaserFilter.has('');
+        }
+        return currentFilters.purchaserFilter.has(item.purchaser);
+      });
+    }
+
+    if (currentFilters.categoryFilter.size > 0) {
+      filtered = filtered.filter(item => {
+        if (!item.category) return currentFilters.categoryFilter.has('Не выбрано');
+        return currentFilters.categoryFilter.has(item.category);
+      });
+    }
+
+    // Фильтр статуса: если пустой, показываем все элементы
+    if (currentFilters.statusFilter.size > 0) {
+      const beforeCount = filtered.length;
+      // Проверяем уникальные значения status в данных (учитываем и purchaseRequestStatus)
+      const uniqueStatuses = new Set(filtered.map(item => {
+        if (item.purchaseRequestId !== null && item.purchaseRequestStatus) {
+          return item.purchaseRequestStatus;
+        }
+        return item.status || 'Нет статуса';
+      }));
+      console.log('[applyFiltersToVersionData] Уникальные значения status в данных:', Array.from(uniqueStatuses));
+      console.log('[applyFiltersToVersionData] Фильтр statusFilter:', Array.from(currentFilters.statusFilter));
+      
+      // Подсчитываем элементы с заявками перед фильтрацией
+      const itemsWithRequestsBefore = filtered.filter(item => item.purchaseRequestId !== null && item.purchaseRequestId !== undefined);
+      console.log('[applyFiltersToVersionData] Элементы с заявками перед фильтрацией статуса:', itemsWithRequestsBefore.length);
+      
+      filtered = filtered.filter(item => {
+        // Для позиций с заявками используем purchaseRequestStatus, иначе status
+        const itemStatus = item.purchaseRequestId !== null && item.purchaseRequestStatus 
+          ? item.purchaseRequestStatus 
+          : item.status;
+        if (!itemStatus) {
+          console.log('[applyFiltersToVersionData] Элемент без статуса пропущен:', item.id);
+          return false;
+        }
+        const isInFilter = currentFilters.statusFilter.has(itemStatus);
+        if (!isInFilter) {
+          console.log('[applyFiltersToVersionData] Элемент не прошел фильтр статуса:', {
+            itemId: item.id,
+            itemStatus,
+            purchaseRequestId: item.purchaseRequestId,
+            purchaseRequestStatus: item.purchaseRequestStatus,
+            status: item.status,
+            filterStatuses: Array.from(currentFilters.statusFilter)
+          });
+        }
+        return isInFilter;
+      });
+      
+      // Подсчитываем элементы с заявками после фильтрации
+      const itemsWithRequestsAfter = filtered.filter(item => item.purchaseRequestId !== null && item.purchaseRequestId !== undefined);
+      console.log('[applyFiltersToVersionData] После фильтра статуса:', beforeCount, '->', filtered.length);
+      console.log('[applyFiltersToVersionData] Элементы с заявками после фильтрации статуса:', itemsWithRequestsAfter.length, 'из', itemsWithRequestsBefore.length);
+      
+      // Логируем примеры элементов с заявками после фильтрации
+      if (itemsWithRequestsAfter.length > 0) {
+        const examples = itemsWithRequestsAfter.slice(0, 3).map(item => ({
+          id: item.id,
+          purchaseRequestId: item.purchaseRequestId,
+          purchaseRequestStatus: item.purchaseRequestStatus,
+          status: item.status
+        }));
+        console.log('[applyFiltersToVersionData] Примеры элементов с заявками после фильтрации:', examples);
+      } else {
+        console.warn('[applyFiltersToVersionData] ВНИМАНИЕ: Нет элементов с заявками после фильтрации статуса!');
+      }
+    } else {
+      console.log('[applyFiltersToVersionData] Фильтр статуса пустой - показываем все элементы');
+    }
+
+    // Фильтр по месяцам
+    if (selectedMonths.size > 0) {
+      // Определяем год для фильтрации
+      const filterYear = selectedYear !== null ? selectedYear : new Date().getFullYear();
+      const prevYear = filterYear - 1;
+      
+      console.log('[applyFiltersToVersionData] Фильтр по месяцам:', {
+        selectedMonths: Array.from(selectedMonths),
+        selectedMonthYear,
+        filterYear,
+        prevYear,
+        hasDecemberPrevYear: selectedMonths.has(-2)
+      });
+      
+      // Логируем примеры элементов с датами 2025 года для отладки
+      const items2025 = filtered.filter(item => {
+        if (!item.requestDate) return false;
+        const itemDate = new Date(item.requestDate);
+        return itemDate.getFullYear() === 2025;
+      });
+      console.log('[applyFiltersToVersionData] Элементы с датами 2025 года перед фильтрацией:', items2025.length);
+      
+      const beforeCount = filtered.length;
+      filtered = filtered.filter(item => {
+        // Проверяем "без даты" (-1)
+        if (!item.requestDate) {
+          return selectedMonths.has(-1);
+        }
+        
+        const itemDate = new Date(item.requestDate);
+        const itemMonth = itemDate.getMonth(); // 0-11
+        const itemYear = itemDate.getFullYear();
+        
+        // Проверяем декабрь предыдущего года (ключ -2)
+        if (selectedMonths.has(-2)) {
+          // Для декабря предыдущего года проверяем, что это декабрь (месяц 11) предыдущего года
+          if (itemYear === prevYear && itemMonth === 11) {
+            // Если также указан selectedMonthYear, проверяем его (для точного совпадения года)
+            if (selectedMonthYear !== null) {
+              const matches = itemYear === selectedMonthYear;
+              if (matches) {
+                console.log('[applyFiltersToVersionData] Найден элемент декабря предыдущего года:', {
+                  itemId: item.id,
+                  itemYear,
+                  itemMonth,
+                  selectedMonthYear,
+                  prevYear
+                });
+              }
+              return matches;
+            }
+            return true;
+          }
+        }
+        
+        // Проверяем обычные месяцы текущего года (0-11)
+        // НО только если это не декабрь предыдущего года (он уже обработан выше)
+        if (itemYear === prevYear && itemMonth === 11) {
+          // Если это декабрь предыдущего года, он уже обработан выше
+          // Если выбран декабрь предыдущего года, он уже вернул true выше
+          // Если не выбран, то этот элемент не должен показываться
+          return false; // Декабрь предыдущего года обрабатывается только через ключ -2
+        }
+        
+        if (selectedMonths.has(itemMonth)) {
+          // Для обычных месяцев проверяем, что это текущий год
+          if (itemYear === filterYear) {
+            return true;
+          }
+          // Если указан selectedMonthYear, проверяем его
+          if (selectedMonthYear !== null) {
+            return itemYear === selectedMonthYear;
+          }
+        }
+        
+        return false;
+      });
+      
+      console.log('[applyFiltersToVersionData] После фильтра по месяцам:', beforeCount, '->', filtered.length);
+    }
+
+    // Сортировка
+    if (sortField && sortDirection) {
+      filtered.sort((a, b) => {
+        let aValue: any = a[sortField];
+        let bValue: any = b[sortField];
+        
+        if (aValue === null || aValue === undefined) aValue = '';
+        if (bValue === null || bValue === undefined) bValue = '';
+        
+        if (typeof aValue === 'string') aValue = aValue.toLowerCase();
+        if (typeof bValue === 'string') bValue = bValue.toLowerCase();
+        
+        if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    // Пагинация
+    // ВАЖНО: Если currentPage был сброшен при загрузке версии, используем 0 вместо текущего значения
+    // Это гарантирует, что элементы с заявками будут видны на первой странице
+    let actualCurrentPage = currentPage;
+    if (currentPageResetForVersionRef.current === versionsHook.selectedVersionId && currentPage !== 0) {
+      console.log('[applyFiltersToVersionData] Исправление currentPage: было', currentPage, ', устанавливаем 0 для версии', versionsHook.selectedVersionId);
+      actualCurrentPage = 0;
+    }
+    
+    const startIndex = actualCurrentPage * pageSize;
+    const endIndex = startIndex + pageSize;
+    const paginatedContent = filtered.slice(startIndex, endIndex);
+    
+    console.log('[applyFiltersToVersionData] Пагинация:', {
+      currentPage,
+      actualCurrentPage,
+      startIndex,
+      endIndex,
+      totalFiltered: filtered.length,
+      paginatedContentLength: paginatedContent.length,
+      versionId: versionsHook.selectedVersionId,
+      resetForVersion: currentPageResetForVersionRef.current
+    });
+    const totalPages = Math.ceil(filtered.length / pageSize);
+
+    const pageResponse: PageResponse = {
+      content: paginatedContent,
+      totalElements: filtered.length,
+      totalPages: totalPages,
+      size: pageSize,
+      number: currentPage,
+      first: currentPage === 0,
+      last: currentPage >= totalPages - 1,
+      numberOfElements: paginatedContent.length,
+      empty: filtered.length === 0,
+      pageable: {
+        pageNumber: currentPage,
+        pageSize: pageSize,
+        sort: { sorted: !!sortField, unsorted: !sortField, empty: !sortField },
+        offset: startIndex,
+        paged: true,
+        unpaged: false
+      },
+      sort: { sorted: !!sortField, unsorted: !sortField, empty: !sortField }
+    };
+
+    // Подсчитываем элементы с заявками в итоговых данных перед установкой
+    const itemsWithRequestsInFiltered = filtered.filter(item => item.purchaseRequestId !== null && item.purchaseRequestId !== undefined);
+    const itemsWithRequestsInPage = paginatedContent.filter(item => item.purchaseRequestId !== null && item.purchaseRequestId !== undefined);
+    console.log('[applyFiltersToVersionData] Элементы с заявками в итоговых данных:', {
+      total: itemsWithRequestsInFiltered.length,
+      onPage: itemsWithRequestsInPage.length,
+      pageNumber: currentPage
+    });
+    
+    if (itemsWithRequestsInPage.length > 0) {
+      const examples = itemsWithRequestsInPage.slice(0, 3).map(item => ({
+        id: item.id,
+        purchaseRequestId: item.purchaseRequestId,
+        purchaseRequestStatus: item.purchaseRequestStatus,
+        status: item.status
+      }));
+      console.log('[applyFiltersToVersionData] Примеры элементов с заявками на текущей странице:', examples);
+    } else if (itemsWithRequestsInFiltered.length > 0) {
+      console.warn('[applyFiltersToVersionData] ВНИМАНИЕ: Есть элементы с заявками в общих данных (', itemsWithRequestsInFiltered.length, '), но их нет на текущей странице!');
+    }
+
+    setAllItems(filtered);
+    setData(pageResponse);
+    setTotalRecords(filtered.length);
+    setHasMore(currentPage < totalPages - 1);
+    
+    console.log('[applyFiltersToVersionData] Фильтрация завершена:', {
+      total: filtered.length,
+      page: currentPage,
+      pageSize: pageSize,
+      totalPages: totalPages,
+      itemsWithRequests: itemsWithRequestsInFiltered.length
+    });
+  }, [currentPage, pageSize, sortField, sortDirection, selectedMonths, selectedMonthYear, selectedYear, versionsHook.selectedVersionInfo]);
+
+  // Функция для загрузки данных версии
+  const loadVersionData = useCallback(async (versionId: number) => {
+    console.log('[loadVersionData] Загрузка данных версии:', versionId);
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-versions/${versionId}/items`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      let versionItems: PurchasePlanItem[] = await response.json();
+      console.log('[loadVersionData] Загружено элементов версии:', versionItems.length);
+      
+      // Проверяем элементы с заявками
+      const itemsWithPurchaseRequest = versionItems.filter((item: PurchasePlanItem) => 
+        item.purchaseRequestId !== null && item.purchaseRequestId !== undefined
+      );
+      console.log('[loadVersionData] Элементы с purchaseRequestId:', itemsWithPurchaseRequest.length);
+      
+      // Загружаем статусы заявок для элементов версии (аналогично fetchData)
+      if (itemsWithPurchaseRequest.length > 0) {
+        console.log('[loadVersionData] Загрузка статусов заявок для элементов версии');
+        const statusUpdates = await Promise.allSettled(
+          itemsWithPurchaseRequest.map(async (item: PurchasePlanItem) => {
+            try {
+              const response = await fetch(`${getBackendUrl()}/api/purchase-requests/by-id-purchase-request/${item.purchaseRequestId}`);
+              if (response.ok) {
+                const purchaseRequest = await response.json();
+                // Используем группу статуса вместо конкретного статуса
+                return {
+                  itemId: item.id,
+                  purchaseRequestId: item.purchaseRequestId,
+                  status: purchaseRequest?.statusGroup || null
+                };
+              }
+            } catch (error) {
+              console.error('[loadVersionData] Ошибка загрузки статуса заявки:', error);
+            }
+            return null;
+          })
+        );
+        
+        // Создаем карту обновлений статусов
+        const statusMap = new Map<number, string | null>();
+        statusUpdates.forEach((result) => {
+          if (result.status === 'fulfilled' && result.value) {
+            statusMap.set(result.value.itemId, result.value.status);
+          }
+        });
+        
+        console.log('[loadVersionData] Загружено статусов заявок:', statusMap.size);
+        
+        // Обновляем статусы в данных версии
+        if (statusMap.size > 0) {
+          versionItems = versionItems.map((item: PurchasePlanItem) => {
+            const newStatus = statusMap.get(item.id);
+            if (newStatus !== undefined) {
+              return { ...item, purchaseRequestStatus: newStatus };
+            }
+            return item;
+          });
+        }
+      }
+      
+      const item522 = versionItems.find(item => item.id === 522);
+      if (item522) {
+        console.log('[loadVersionData] Позиция 522 в версии:', {
+          id: item522.id,
+          requestDate: item522.requestDate,
+          newContractDate: item522.newContractDate,
+          contractEndDate: item522.contractEndDate,
+          currentContractEndDate: item522.currentContractEndDate,
+          purchaseSubject: item522.purchaseSubject,
+          purchaser: item522.purchaser,
+          purchaseRequestId: item522.purchaseRequestId,
+          purchaseRequestStatus: item522.purchaseRequestStatus
+        });
+      }
+      // Проверяем поле purchaser во всех элементах
+      const itemsWithPurchaser = versionItems.filter(item => item.purchaser && item.purchaser.trim() !== '');
+      const itemsWithoutPurchaser = versionItems.filter(item => !item.purchaser || item.purchaser.trim() === '');
+      console.log('[loadVersionData] Элементы с purchaser:', itemsWithPurchaser.length);
+      console.log('[loadVersionData] Элементы без purchaser:', itemsWithoutPurchaser.length);
+      if (itemsWithPurchaser.length > 0) {
+        console.log('[loadVersionData] Примеры элементов с purchaser:', itemsWithPurchaser.slice(0, 3).map(item => ({
+          id: item.id,
+          purchaser: item.purchaser
+        })));
+      }
+      
+      // Преобразуем в формат PageResponse
+      const pageResponse: PageResponse = {
+        content: versionItems,
+        totalElements: versionItems.length,
+        totalPages: 1,
+        size: versionItems.length,
+        number: 0,
+        first: true,
+        last: true,
+        numberOfElements: versionItems.length,
+        empty: versionItems.length === 0,
+        pageable: {
+          pageNumber: 0,
+          pageSize: versionItems.length,
+          sort: { sorted: false, unsorted: true, empty: true },
+          offset: 0,
+          paged: true,
+          unpaged: false
+        },
+        sort: { sorted: false, unsorted: true, empty: true }
+      };
+      
+      // Сохраняем все данные версии для последующей фильтрации
+      // ВАЖНО: Сохраняем ПОСЛЕ загрузки статусов заявок, чтобы purchaseRequestStatus был доступен
+      versionDataRef.current = versionItems;
+      // Сбрасываем ключ фильтров при загрузке новой версии
+      lastAppliedFiltersRef.current = '';
+      
+      // Собираем уникальные значения из данных версии для корректной инициализации фильтров
+      // ВАЖНО: Делаем это ПОСЛЕ загрузки статусов заявок, чтобы purchaseRequestStatus был доступен
+      const uniqueStatuses = new Set<string>();
+      const uniquePurchaserCompanies = new Set<string>();
+      const uniqueCfo = new Set<string>();
+      const uniqueCompanies = new Set<string>();
+      const uniquePurchasers = new Set<string>();
+      const uniqueCategories = new Set<string>();
+      
+      versionItems.forEach(item => {
+        // Учитываем статусы из обоих полей: status (план закупок) и purchaseRequestStatus (заявка)
+        // Для позиций с заявками приоритет у purchaseRequestStatus
+        if (item.purchaseRequestId !== null && item.purchaseRequestStatus) {
+          uniqueStatuses.add(item.purchaseRequestStatus);
+        } else if (item.status) {
+          uniqueStatuses.add(item.status);
+        }
+        if (item.purchaserCompany) {
+          uniquePurchaserCompanies.add(item.purchaserCompany);
+        } else {
+          uniquePurchaserCompanies.add('Не выбрано');
+        }
+        if (item.cfo) uniqueCfo.add(item.cfo);
+        else uniqueCfo.add('Не выбрано');
+        if (item.company) uniqueCompanies.add(item.company);
+        else uniqueCompanies.add('Не выбрано');
+        if (item.purchaser) uniquePurchasers.add(item.purchaser);
+        else uniquePurchasers.add('Не назначен');
+        if (item.category) uniqueCategories.add(item.category);
+        else uniqueCategories.add('Не выбрано');
+      });
+      
+      console.log('[loadVersionData] Уникальные статусы в данных версии (после загрузки статусов заявок):', Array.from(uniqueStatuses));
+      
+      // ВАЖНО: При загрузке архивной версии всегда устанавливаем фильтр статуса на все доступные статусы из данных версии
+      // Это гарантирует, что отображаются все позиции, включая связанные с заявками
+      const statusesArray = Array.from(uniqueStatuses).filter(s => s !== 'Исключена');
+      if (statusesArray.length > 0) {
+        console.log('[loadVersionData] Установка фильтра статуса на все доступные статусы из данных версии:', statusesArray);
+        console.log('[loadVersionData] Предыдущий фильтр статуса:', Array.from(filtersHook.statusFilter));
+        // Отмечаем, что фильтр статуса был установлен для этой версии
+        statusFilterSetForVersionRef.current = versionId;
+        // Устанавливаем флаг, что нужно применить фильтры после обновления статуса
+        shouldApplyFiltersAfterStatusUpdateRef.current = true;
+        filtersHook.setStatusFilter(new Set(statusesArray));
+      } else {
+        console.log('[loadVersionData] Нет доступных статусов в данных версии, очистка фильтра статуса');
+        statusFilterSetForVersionRef.current = versionId;
+        shouldApplyFiltersAfterStatusUpdateRef.current = true;
+        filtersHook.setStatusFilter(new Set());
+      }
+      
+      // Сбрасываем фильтры, значения которых отсутствуют в данных версии
+      // Фильтр компании закупщика
+      if (filtersHook.purchaserCompanyFilter.size > 0) {
+        const hasMatchingValues = Array.from(filtersHook.purchaserCompanyFilter).some(value => 
+          uniquePurchaserCompanies.has(value)
+        );
+        if (!hasMatchingValues) {
+          console.log('[loadVersionData] Сброс фильтра purchaserCompanyFilter - нет совпадений в данных версии');
+          console.log('[loadVersionData] Доступные значения purchaserCompany:', Array.from(uniquePurchaserCompanies));
+          console.log('[loadVersionData] Текущий фильтр:', Array.from(filtersHook.purchaserCompanyFilter));
+          // Устанавливаем фильтр на доступные значения или пустой Set
+          if (uniquePurchaserCompanies.size > 0) {
+            filtersHook.setPurchaserCompanyFilter(new Set(uniquePurchaserCompanies));
+          } else {
+            filtersHook.setPurchaserCompanyFilter(new Set());
+          }
+        }
+      }
+      
+      // Фильтр ЦФО
+      if (filtersHook.cfoFilter.size > 0) {
+        const hasMatchingValues = Array.from(filtersHook.cfoFilter).some(value => 
+          uniqueCfo.has(value)
+        );
+        if (!hasMatchingValues) {
+          console.log('[loadVersionData] Сброс фильтра cfoFilter - нет совпадений в данных версии');
+          filtersHook.setCfoFilter(new Set());
+        }
+      }
+      
+      // Фильтр компании
+      if (filtersHook.companyFilter.size > 0) {
+        const hasMatchingValues = Array.from(filtersHook.companyFilter).some(value => 
+          uniqueCompanies.has(value)
+        );
+        if (!hasMatchingValues) {
+          console.log('[loadVersionData] Сброс фильтра companyFilter - нет совпадений в данных версии');
+          filtersHook.setCompanyFilter(new Set());
+        }
+      }
+      
+      // Фильтр закупщика
+      if (filtersHook.purchaserFilter.size > 0) {
+        const hasMatchingValues = Array.from(filtersHook.purchaserFilter).some(value => 
+          uniquePurchasers.has(value) || value === 'Не назначен' || value === '__NULL__' || value === ''
+        );
+        if (!hasMatchingValues) {
+          console.log('[loadVersionData] Сброс фильтра purchaserFilter - нет совпадений в данных версии');
+          filtersHook.setPurchaserFilter(new Set());
+        }
+      }
+      
+      // Фильтр категории
+      if (filtersHook.categoryFilter.size > 0) {
+        const hasMatchingValues = Array.from(filtersHook.categoryFilter).some(value => 
+          uniqueCategories.has(value)
+        );
+        if (!hasMatchingValues) {
+          console.log('[loadVersionData] Сброс фильтра categoryFilter - нет совпадений в данных версии');
+          filtersHook.setCategoryFilter(new Set());
+        }
+      }
+      
+      // ВАЖНО: Сбрасываем currentPage на 0 при загрузке архивной версии,
+      // чтобы элементы с заявками были видны на первой странице
+      currentPageResetForVersionRef.current = versionId;
+      setCurrentPage(0);
+      console.log('[loadVersionData] currentPage сброшен на 0 для версии:', versionId);
+      
+      setAllItems(versionItems);
+      setData(pageResponse);
+      setTotalRecords(versionItems.length);
+      setHasMore(false);
+      console.log('[loadVersionData] Данные версии установлены в состояние');
+      
+      // НЕ применяем фильтры здесь - это будет сделано через useEffect после обновления statusFilter
+      // useEffect отслеживает изменение statusFilterStr и применит фильтры автоматически
+      
+      // Проверяем данные после установки в состояние
+      setTimeout(() => {
+        const item522After = versionItems.find(item => item.id === 522);
+        if (item522After) {
+          console.log('[loadVersionData] Проверка данных позиции 522 после установки:', {
+            id: item522After.id,
+            requestDate: item522After.requestDate,
+            newContractDate: item522After.newContractDate,
+          });
+        }
+      }, 100);
+    } catch (err) {
+      console.error('[loadVersionData] Ошибка загрузки данных версии:', err);
+      setError(err instanceof Error ? err.message : 'Ошибка загрузки данных версии');
+    } finally {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [selectedMonthYear, pageSize]);
+  }, [applyFiltersToVersionData]);
 
   // Инициализируем editingHook после определения fetchData
   const editingHook = usePurchasePlanItemsEditing(
@@ -339,6 +1027,141 @@ export const usePurchasePlanItemsTable = () => {
   // ВАЖНО: Фильтр по месяцам (selectedMonths) НЕ применяется, чтобы показать все месяцы
   // и пользователь мог видеть распределение даже при выборе конкретного месяца
   useEffect(() => {
+    // Если просматриваем архивную версию, используем данные из versionDataRef
+    const isArchiveVersion = versionsHook.selectedVersionId !== null && 
+                             versionsHook.selectedVersionInfo && 
+                             !versionsHook.selectedVersionInfo.isCurrent;
+    
+    if (isArchiveVersion) {
+      console.log('[fetchChartData] Проверка архивной версии:', {
+        selectedVersionId: versionsHook.selectedVersionId,
+        versionDataLength: versionDataRef.current.length,
+        allItemsLength: allItems.length
+      });
+      
+      // Используем allItems, который обновляется при загрузке данных версии
+      // Это гарантирует, что эффект перезапустится после загрузки данных
+      if (allItems.length > 0 && versionDataRef.current.length > 0) {
+        console.log('[fetchChartData] Использование данных архивной версии для диаграммы:', versionDataRef.current.length, 'элементов');
+        // Применяем фильтры к данным версии на клиенте (аналогично applyFiltersToVersionData, но без пагинации)
+        let filtered = [...versionDataRef.current];
+        const currentFilters = filtersHook;
+
+        // Текстовые фильтры
+        if (currentFilters.filters.id && currentFilters.filters.id.trim() !== '') {
+          const idValue = currentFilters.filters.id.trim();
+          filtered = filtered.filter(item => String(item.id).includes(idValue));
+        }
+
+        if (currentFilters.filters.purchaseSubject && currentFilters.filters.purchaseSubject.trim() !== '') {
+          const subjectValue = currentFilters.filters.purchaseSubject.trim().toLowerCase();
+          filtered = filtered.filter(item => 
+            item.purchaseSubject?.toLowerCase().includes(subjectValue)
+          );
+        }
+
+        if (currentFilters.filters.purchaseRequestId && currentFilters.filters.purchaseRequestId.trim() !== '') {
+          const requestIdValue = currentFilters.filters.purchaseRequestId.trim();
+          filtered = filtered.filter(item => 
+            item.purchaseRequestId && String(item.purchaseRequestId).includes(requestIdValue)
+          );
+        }
+
+        // Фильтр бюджета
+        if (currentFilters.filters.budgetAmount && currentFilters.filters.budgetAmount.trim() !== '') {
+          const budgetValue = parseFloat(currentFilters.filters.budgetAmount.replace(/\s/g, '').replace(/,/g, ''));
+          if (!isNaN(budgetValue) && budgetValue >= 0) {
+            const operator = currentFilters.filters.budgetAmountOperator || 'gte';
+            filtered = filtered.filter(item => {
+              if (item.budgetAmount === null) return false;
+              switch (operator) {
+                case 'gte': return item.budgetAmount >= budgetValue;
+                case 'lte': return item.budgetAmount <= budgetValue;
+                case 'eq': return item.budgetAmount === budgetValue;
+                default: return true;
+              }
+            });
+          }
+        }
+
+        // Фильтр даты окончания текущего договора
+        if (currentFilters.filters.currentContractEndDate && currentFilters.filters.currentContractEndDate.trim() !== '') {
+          const dateValue = currentFilters.filters.currentContractEndDate.trim();
+          if (dateValue === '-' || dateValue === 'null') {
+            filtered = filtered.filter(item => !item.currentContractEndDate);
+          } else {
+            try {
+              const filterDate = new Date(dateValue);
+              filtered = filtered.filter(item => {
+                if (!item.currentContractEndDate) return false;
+                const itemDate = new Date(item.currentContractEndDate);
+                return itemDate.toDateString() === filterDate.toDateString();
+              });
+            } catch (e) {
+              console.error('[fetchChartData] Ошибка парсинга даты:', e);
+            }
+          }
+        }
+
+        // Множественные фильтры
+        if (currentFilters.cfoFilter.size > 0) {
+          filtered = filtered.filter(item => {
+            if (!item.cfo) return currentFilters.cfoFilter.has('Не выбрано');
+            return currentFilters.cfoFilter.has(item.cfo);
+          });
+        }
+
+        if (currentFilters.companyFilter.size > 0) {
+          filtered = filtered.filter(item => {
+            if (!item.company) return currentFilters.companyFilter.has('Не выбрано');
+            return currentFilters.companyFilter.has(item.company);
+          });
+        }
+
+        if (currentFilters.purchaserCompanyFilter.size > 0) {
+          filtered = filtered.filter(item => {
+            if (!item.purchaserCompany) return currentFilters.purchaserCompanyFilter.has('Не выбрано');
+            return currentFilters.purchaserCompanyFilter.has(item.purchaserCompany);
+          });
+        }
+
+        if (currentFilters.purchaserFilter.size > 0) {
+          filtered = filtered.filter(item => {
+            if (!item.purchaser) {
+              return currentFilters.purchaserFilter.has('Не назначен') || 
+                     currentFilters.purchaserFilter.has('__NULL__') ||
+                     currentFilters.purchaserFilter.has('');
+            }
+            return currentFilters.purchaserFilter.has(item.purchaser);
+          });
+        }
+
+        if (currentFilters.categoryFilter.size > 0) {
+          filtered = filtered.filter(item => {
+            if (!item.category) return currentFilters.categoryFilter.has('Не выбрано');
+            return currentFilters.categoryFilter.has(item.category);
+          });
+        }
+
+        if (currentFilters.statusFilter.size > 0) {
+          filtered = filtered.filter(item => {
+            if (!item.status) return false;
+            return currentFilters.statusFilter.has(item.status);
+          });
+        }
+
+        // ВАЖНО: Фильтр по месяцу НЕ применяется для диаграммы, чтобы показать все месяцы
+        
+        console.log('[fetchChartData] Отфильтровано элементов для диаграммы:', filtered.length);
+        setChartData(filtered);
+      } else {
+        console.log('[fetchChartData] Данные версии еще не загружены, очистка диаграммы');
+        setChartData([]);
+      }
+      return;
+    }
+
+    // Для текущей версии загружаем данные с бэкенда
     const fetchChartData = async () => {
       try {
         const params = new URLSearchParams();
@@ -450,7 +1273,7 @@ export const usePurchasePlanItemsTable = () => {
     };
     
     fetchChartData();
-  }, [selectedYear, filtersHook.filters, filtersHook.cfoFilter, filtersHook.companyFilter, filtersHook.purchaserCompanyFilter, filtersHook.purchaserFilter, filtersHook.categoryFilter, filtersHook.statusFilter]);
+  }, [selectedYear, filtersHook.filters, filtersHook.cfoFilter, filtersHook.companyFilter, filtersHook.purchaserCompanyFilter, filtersHook.purchaserFilter, filtersHook.categoryFilter, filtersHook.statusFilter, versionsHook.selectedVersionId, versionsHook.selectedVersionInfo, allItems.length]);
 
   // Загружаем данные для сводной таблицы закупщиков
   // ВАЖНО: Фильтр по закупщику (purchaserFilter) НЕ применяется, т.к. сводная таблица показывает статистику по ВСЕМ закупщикам
@@ -578,7 +1401,20 @@ export const usePurchasePlanItemsTable = () => {
 
   // Функция для расчета распределения по месяцам
   const getMonthlyDistribution = useMemo(() => {
-    if (!chartData || chartData.length === 0) {
+    // Для архивных версий используем данные из versionDataRef, если chartData пустой
+    let dataForChart: PurchasePlanItem[];
+    if (chartData.length > 0) {
+      dataForChart = chartData;
+    } else if (versionsHook.selectedVersionId !== null && 
+               versionsHook.selectedVersionInfo && 
+               !versionsHook.selectedVersionInfo.isCurrent && 
+               versionDataRef.current.length > 0) {
+      dataForChart = versionDataRef.current;
+    } else {
+      dataForChart = [];
+    }
+    
+    if (!dataForChart || dataForChart.length === 0) {
       return Array(14).fill(0);
     }
 
@@ -586,11 +1422,11 @@ export const usePurchasePlanItemsTable = () => {
     if (selectedYear !== null) {
       displayYear = selectedYear;
     } else {
-      const yearFromData = chartData.find(item => item.year !== null)?.year;
+      const yearFromData = dataForChart.find(item => item.year !== null)?.year;
       if (yearFromData) {
         displayYear = yearFromData;
       } else {
-        const itemWithDate = chartData.find(item => item.requestDate);
+        const itemWithDate = dataForChart.find(item => item.requestDate);
         if (itemWithDate && itemWithDate.requestDate) {
           displayYear = new Date(itemWithDate.requestDate).getFullYear();
         } else {
@@ -600,9 +1436,18 @@ export const usePurchasePlanItemsTable = () => {
     }
     const prevYear = displayYear - 1;
 
+    console.log('[getMonthlyDistribution] Расчет распределения:', {
+      dataLength: dataForChart.length,
+      displayYear,
+      prevYear,
+      isArchiveVersion: versionsHook.selectedVersionId !== null && 
+                       versionsHook.selectedVersionInfo && 
+                       !versionsHook.selectedVersionInfo.isCurrent
+    });
+
     const monthCounts = Array(14).fill(0);
     
-    chartData.forEach((item) => {
+    dataForChart.forEach((item) => {
       if (item.status === 'Исключена') {
         return;
       }
@@ -616,15 +1461,25 @@ export const usePurchasePlanItemsTable = () => {
       const itemYear = requestDate.getFullYear();
       const itemMonth = requestDate.getMonth();
       
+      // Декабрь предыдущего года (например, декабрь 2025 для года 2026)
       if (itemYear === prevYear && itemMonth === 11) {
         monthCounts[0]++;
+        console.log('[getMonthlyDistribution] Найден элемент декабря предыдущего года:', {
+          itemId: item.id,
+          itemYear,
+          itemMonth,
+          displayYear,
+          prevYear
+        });
       } else if (itemYear === displayYear) {
+        // Месяцы текущего года
         monthCounts[itemMonth + 1]++;
       }
     });
 
+    console.log('[getMonthlyDistribution] Результат распределения:', monthCounts);
     return monthCounts;
-  }, [chartData, selectedYear]);
+  }, [chartData, selectedYear, versionsHook.selectedVersionId, versionsHook.selectedVersionInfo]);
 
   // Обработка сортировки
   const handleSort = useCallback((field: SortField) => {
@@ -724,9 +1579,55 @@ export const usePurchasePlanItemsTable = () => {
   const statusFilterStr = useMemo(() => Array.from(filtersHook.statusFilter).sort().join(','), [filtersHook.statusFilter]);
   const selectedMonthsStr = useMemo(() => Array.from(selectedMonths).sort().join(','), [selectedMonths]);
 
+  // Эффект для применения фильтров при изменении страницы, сортировки, месяцев для архивных версий
+  useEffect(() => {
+    if (versionsHook.selectedVersionId !== null && versionsHook.selectedVersionInfo && !versionsHook.selectedVersionInfo.isCurrent) {
+      if (versionDataRef.current.length > 0) {
+        // КРИТИЧЕСКИ ВАЖНО: Обновляем filtersRef.current перед применением фильтров
+        // Это гарантирует, что applyFiltersToVersionData использует актуальные значения фильтров
+        filtersRef.current = filtersHook;
+        
+        // Если фильтр статуса был только что установлен при загрузке версии, применяем фильтры
+        if (shouldApplyFiltersAfterStatusUpdateRef.current) {
+          console.log('[useEffect filters/sort/page/months] Применение фильтров после установки фильтра статуса');
+          console.log('[useEffect filters/sort/page/months] Текущий фильтр статуса из filtersHook:', Array.from(filtersHook.statusFilter));
+          console.log('[useEffect filters/sort/page/months] Текущий фильтр статуса из filtersRef:', Array.from(filtersRef.current.statusFilter));
+          shouldApplyFiltersAfterStatusUpdateRef.current = false;
+          // Сбрасываем lastAppliedFiltersRef, чтобы гарантировать применение фильтров
+          lastAppliedFiltersRef.current = '';
+          applyFiltersToVersionData();
+        } else {
+          console.log('[useEffect filters/sort/page/months] Применение фильтров к архивной версии');
+          console.log('[useEffect filters/sort/page/months] Текущий фильтр статуса:', Array.from(filtersHook.statusFilter));
+          applyFiltersToVersionData();
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, sortField, sortDirection, selectedMonths, selectedMonthYear, versionsHook.selectedVersionId, cfoFilterStr, companyFilterStr, purchaserCompanyFilterStr, purchaserFilterStr, categoryFilterStr, statusFilterStr, filtersHook.filters.id, filtersHook.filters.purchaseSubject, filtersHook.filters.currentContractEndDate, filtersHook.filters.purchaseRequestId, filtersHook.filters.budgetAmount, filtersHook.filters.budgetAmountOperator]);
+
   // Загружаем данные при изменении фильтров, сортировки, года
   // Используем размер Set и строковое представление для правильного отслеживания изменений Set
   useEffect(() => {
+    // Если просматриваем архивную версию, применяем фильтры к данным версии на клиенте
+    if (versionsHook.selectedVersionId !== null && versionsHook.selectedVersionInfo && !versionsHook.selectedVersionInfo.isCurrent) {
+      if (versionDataRef.current.length > 0) {
+        // КРИТИЧЕСКИ ВАЖНО: Обновляем filtersRef.current перед применением фильтров
+        filtersRef.current = filtersHook;
+        console.log('[useEffect filters] Применение фильтров к архивной версии:', versionsHook.selectedVersionId, {
+          filters: filtersHook.filters,
+          cfoFilter: Array.from(filtersHook.cfoFilter),
+          companyFilter: Array.from(filtersHook.companyFilter),
+          purchaserCompanyFilter: Array.from(filtersHook.purchaserCompanyFilter),
+          purchaserFilter: Array.from(filtersHook.purchaserFilter),
+          categoryFilter: Array.from(filtersHook.categoryFilter),
+          statusFilter: Array.from(filtersHook.statusFilter),
+        });
+        applyFiltersToVersionData();
+      }
+      return;
+    }
+    
     // Пропускаем первую загрузку, если фильтр по статусу еще не инициализирован
     // Это предотвращает двойное обновление при инициализации
     if (isInitialLoadRef.current && filtersHook.statusFilter.size === 0) {
@@ -764,7 +1665,12 @@ export const usePurchasePlanItemsTable = () => {
     selectedMonthYear, 
     sortField, 
     sortDirection, 
-    filtersHook.filters, 
+    filtersHook.filters.id,
+    filtersHook.filters.purchaseSubject,
+    filtersHook.filters.currentContractEndDate,
+    filtersHook.filters.purchaseRequestId,
+    filtersHook.filters.budgetAmount,
+    filtersHook.filters.budgetAmountOperator,
     filtersHook.cfoFilter.size,
     cfoFilterStr,
     filtersHook.companyFilter.size,
@@ -786,7 +1692,8 @@ export const usePurchasePlanItemsTable = () => {
     filtersHook.companyFilter,
     filtersHook.purchaserCompanyFilter,
     filtersHook.categoryFilter,
-    filtersHook.statusFilter
+    filtersHook.statusFilter,
+    versionsHook.selectedVersionId
   ]);
 
   return {
@@ -829,6 +1736,8 @@ export const usePurchasePlanItemsTable = () => {
     getMonthlyDistribution,
     handleSort,
     fetchData,
+    loadVersionData,
+    applyFiltersToVersionData,
     formatBudget: (amount: number | null) => formatBudget(amount, selectedCurrency),
     formatBudgetFull: (amount: number | null) => formatBudgetFull(amount, selectedCurrency),
     // Хуки

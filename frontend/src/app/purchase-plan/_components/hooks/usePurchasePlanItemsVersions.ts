@@ -13,7 +13,7 @@ export const usePurchasePlanItemsVersions = () => {
   
   const isViewingArchiveVersion = selectedVersionId !== null && selectedVersionInfo !== null && !selectedVersionInfo.isCurrent;
 
-  const loadVersions = useCallback(async (selectedYear: number | null) => {
+  const loadVersions = useCallback(async (selectedYear: number | null, forceSelectCurrent: boolean = false) => {
     if (!selectedYear) {
       setVersions([]);
       return;
@@ -27,20 +27,26 @@ export const usePurchasePlanItemsVersions = () => {
         // Автоматически выбираем текущую версию, если она есть
         const currentVersion = data.find((v: Version) => v.isCurrent);
         if (currentVersion) {
-          // Используем функциональное обновление для проверки текущего значения
-          setSelectedVersionId(prev => {
-            if (prev === null) {
-              return currentVersion.id;
-            }
-            return prev;
-          });
-          // Устанавливаем информацию о версии отдельно
-          setSelectedVersionInfo(prev => {
-            if (prev === null && currentVersion) {
-              return currentVersion;
-            }
-            return prev;
-          });
+          // Если forceSelectCurrent = true, всегда выбираем текущую версию (например, после создания новой)
+          if (forceSelectCurrent) {
+            setSelectedVersionId(currentVersion.id);
+            setSelectedVersionInfo(currentVersion);
+          } else {
+            // Используем функциональное обновление для проверки текущего значения
+            setSelectedVersionId(prev => {
+              if (prev === null) {
+                return currentVersion.id;
+              }
+              return prev;
+            });
+            // Устанавливаем информацию о версии отдельно
+            setSelectedVersionInfo(prev => {
+              if (prev === null && currentVersion) {
+                return currentVersion;
+              }
+              return prev;
+            });
+          }
         }
       } else {
         setVersions([]);

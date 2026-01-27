@@ -23,6 +23,10 @@ public interface PurchasePlanItemRepository extends JpaRepository<PurchasePlanIt
     // Поиск всех записей по году
     List<PurchasePlanItem> findByYear(Integer year);
     
+    // Поиск всех записей по году с загрузкой purchaser (для создания версий)
+    @org.springframework.data.jpa.repository.Query("SELECT p FROM PurchasePlanItem p LEFT JOIN FETCH p.purchaser WHERE p.year = :year")
+    List<PurchasePlanItem> findByYearWithPurchaser(@org.springframework.data.repository.query.Param("year") Integer year);
+    
     // Поиск всех уникальных годов
     @org.springframework.data.jpa.repository.Query("SELECT DISTINCT p.year FROM PurchasePlanItem p WHERE p.year IS NOT NULL ORDER BY p.year DESC")
     List<Integer> findDistinctYears();

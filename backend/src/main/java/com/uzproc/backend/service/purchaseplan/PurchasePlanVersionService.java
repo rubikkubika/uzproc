@@ -62,8 +62,25 @@ public class PurchasePlanVersionService {
         version.setIsCurrent(true);
 
         // 4. Скопировать все текущие строки плана закупок в purchase_plan_item_versions
-        List<PurchasePlanItem> currentItems = itemRepository.findByYear(year);
+        // Загружаем элементы с purchaser (LAZY поле) через JOIN FETCH
+        // Важно: используем актуальные данные из БД, не кэшированные
+        List<PurchasePlanItem> currentItems = itemRepository.findByYearWithPurchaser(year);
         logger.info("Found {} items to copy for year {}", currentItems.size(), year);
+        
+        // Проверяем, что данные актуальные - логируем примеры purchaser и purchaserCompany
+        if (!currentItems.isEmpty()) {
+            PurchasePlanItem firstItem = currentItems.get(0);
+            String purchaserName = firstItem.getPurchaser() != null 
+                ? (firstItem.getPurchaser().getSurname() != null && firstItem.getPurchaser().getName() != null
+                    ? firstItem.getPurchaser().getSurname() + " " + firstItem.getPurchaser().getName()
+                    : firstItem.getPurchaser().getUsername())
+                : null;
+            String purchaserCompanyName = firstItem.getPurchaserCompany() != null 
+                ? firstItem.getPurchaserCompany().getDisplayName() 
+                : null;
+            logger.debug("Sample item {}: purchaser={}, purchaserCompany={}", 
+                firstItem.getId(), purchaserName, purchaserCompanyName);
+        }
 
         List<PurchasePlanItemVersion> itemVersions = new ArrayList<>();
         for (PurchasePlanItem item : currentItems) {
@@ -85,6 +102,12 @@ public class PurchasePlanVersionService {
         itemVersion.setGuid(item.getGuid());
         itemVersion.setYear(item.getYear());
         itemVersion.setCompany(item.getCompany());
+        itemVersion.setPurchaserCompany(item.getPurchaserCompany());
+        if (item.getPurchaserCompany() != null) {
+            logger.debug("Copied purchaserCompany for item {}: {}", item.getId(), item.getPurchaserCompany().getDisplayName());
+        } else {
+            logger.debug("Item {} has no purchaserCompany", item.getId());
+        }
         itemVersion.setCfo(item.getCfo());
         itemVersion.setPurchaseSubject(item.getPurchaseSubject());
         itemVersion.setBudgetAmount(item.getBudgetAmount());
@@ -98,8 +121,10 @@ public class PurchasePlanVersionService {
                 ? purchaser.getSurname() + " " + purchaser.getName()
                 : purchaser.getUsername();
             itemVersion.setPurchaser(purchaserName);
+            logger.debug("Copied purchaser for item {}: {}", item.getId(), purchaserName);
         } else {
             itemVersion.setPurchaser(null);
+            logger.debug("Item {} has no purchaser", item.getId());
         }
         itemVersion.setProduct(item.getProduct());
         itemVersion.setHasContract(item.getHasContract());
@@ -134,6 +159,24 @@ public class PurchasePlanVersionService {
 
     public List<PurchasePlanItemDto> getVersionItems(Long versionId) {
         List<PurchasePlanItemVersion> itemVersions = itemVersionRepository.findByVersionId(versionId);
+        logger.info("Loading {} items for version {}", itemVersions.size(), versionId);
+        // Проверяем поле purchaser в первых нескольких элементах
+        int itemsWithPurchaser = 0;
+        int itemsWithoutPurchaser = 0;
+        for (PurchasePlanItemVersion itemVersion : itemVersions) {
+            if (itemVersion.getPurchaser() != null && !itemVersion.getPurchaser().trim().isEmpty()) {
+                itemsWithPurchaser++;
+                if (itemsWithPurchaser <= 3) {
+                    logger.debug("Item {} has purchaser: {}", itemVersion.getPurchasePlanItemId(), itemVersion.getPurchaser());
+                }
+            } else {
+                itemsWithoutPurchaser++;
+                if (itemsWithoutPurchaser <= 3) {
+                    logger.debug("Item {} has no purchaser (null or empty)", itemVersion.getPurchasePlanItemId());
+                }
+            }
+        }
+        logger.info("Version {} items: {} with purchaser, {} without purchaser", versionId, itemsWithPurchaser, itemsWithoutPurchaser);
         return itemVersions.stream()
                 .map(this::itemVersionToDto)
                 .collect(java.util.stream.Collectors.toList());
@@ -145,6 +188,7 @@ public class PurchasePlanVersionService {
         dto.setGuid(itemVersion.getGuid());
         dto.setYear(itemVersion.getYear());
         dto.setCompany(itemVersion.getCompany() != null ? itemVersion.getCompany().getDisplayName() : null);
+        dto.setPurchaserCompany(itemVersion.getPurchaserCompany() != null ? itemVersion.getPurchaserCompany().getDisplayName() : null);
         dto.setCfo(itemVersion.getCfo() != null ? itemVersion.getCfo().getName() : null);
         dto.setPurchaseSubject(itemVersion.getPurchaseSubject());
         dto.setBudgetAmount(itemVersion.getBudgetAmount());
@@ -152,7 +196,11 @@ public class PurchasePlanVersionService {
         dto.setRequestDate(itemVersion.getRequestDate());
         dto.setNewContractDate(itemVersion.getNewContractDate());
         // purchaser в itemVersion уже строка, просто используем её
-        dto.setPurchaser(itemVersion.getPurchaser());
+        String purchaser = itemVersion.getPurchaser();
+        dto.setPurchaser(purchaser);
+        if (purchaser == null || purchaser.trim().isEmpty()) {
+            logger.debug("Item version {} (itemId: {}) has empty purchaser", itemVersion.getId(), itemVersion.getPurchasePlanItemId());
+        }
         dto.setProduct(itemVersion.getProduct());
         dto.setHasContract(itemVersion.getHasContract());
         dto.setCurrentKa(itemVersion.getCurrentKa());

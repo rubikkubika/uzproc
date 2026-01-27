@@ -167,6 +167,7 @@ export default function PurchasePlanItemsTableColumnsHeader({
                       setSelectedYear={setSelectedYear}
                       setSelectedMonths={setSelectedMonths}
                       setLastSelectedMonthIndex={setLastSelectedMonthIndex}
+                      setCurrentPage={setCurrentPage}
                     />
                   </div>
                   {/* Текстовый заголовок колонки */}

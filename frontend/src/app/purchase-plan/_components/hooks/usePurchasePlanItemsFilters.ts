@@ -320,10 +320,25 @@ export const usePurchasePlanItemsFilters = (
   // Устанавливаем начальное значение фильтра по статусу: все доступные статусы кроме "Исключена"
   // Используем useLayoutEffect, чтобы установить фильтр синхронно до рендера и избежать двойного обновления
   // Это соответствует логике кнопки "Сбросить фильтры"
+  // ВАЖНО: Не инициализируем фильтр, если он уже установлен (например, при загрузке архивной версии)
   useLayoutEffect(() => {
+    // Если фильтр был установлен вручную (не пустой), отмечаем его как инициализированный,
+    // чтобы предотвратить повторную автоматическую инициализацию
+    // Это должно быть ПЕРВОЙ проверкой, чтобы предотвратить перезапись фильтра архивной версии
+    if (statusFilter.size > 0 && !statusFilterInitializedRef.current) {
+      console.log('[usePurchasePlanItemsFilters] Фильтр статуса установлен вручную, предотвращаем автоматическую инициализацию. Размер фильтра:', statusFilter.size);
+      statusFilterInitializedRef.current = true;
+      return; // Выходим, чтобы не выполнять автоматическую инициализацию
+    }
+    
+    // Инициализируем только если:
+    // 1. Фильтр еще не был инициализирован
+    // 2. Есть доступные статусы
+    // 3. Фильтр пустой (не был установлен вручную, например, при загрузке архивной версии)
     if (!statusFilterInitializedRef.current && uniqueValues.status.length > 0 && statusFilter.size === 0) {
       const resetStatusFilter = uniqueValues.status.filter(s => s !== 'Исключена');
       if (resetStatusFilter.length > 0) {
+        console.log('[usePurchasePlanItemsFilters] Автоматическая инициализация фильтра статуса:', resetStatusFilter);
         setStatusFilter(new Set(resetStatusFilter));
         statusFilterInitializedRef.current = true;
       }

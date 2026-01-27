@@ -13,6 +13,7 @@ interface PurchasePlanItemsMonthlyChartProps {
   setSelectedYear: (year: number | null) => void;
   setSelectedMonths: (months: Set<number>) => void;
   setLastSelectedMonthIndex: (index: number) => void;
+  setCurrentPage?: (page: number) => void;
 }
 
 /**
@@ -30,6 +31,7 @@ export default function PurchasePlanItemsMonthlyChart({
   setSelectedYear,
   setSelectedMonths,
   setLastSelectedMonthIndex,
+  setCurrentPage,
 }: PurchasePlanItemsMonthlyChartProps) {
   const monthlyCounts = monthlyDistribution.slice(0, 13);
   const maxCount = Math.max(...monthlyCounts, 1);
@@ -162,6 +164,10 @@ export default function PurchasePlanItemsMonthlyChart({
                     }
                     
                     setSelectedMonths(newSelectedMonths);
+                    // Сбрасываем страницу при изменении выбора месяца (как при клике на закупщика)
+                    if (setCurrentPage) {
+                      setCurrentPage(0);
+                    }
                     setLastSelectedMonthIndex(index);
                     return;
                   }
@@ -192,6 +198,10 @@ export default function PurchasePlanItemsMonthlyChart({
                   }
                   
                   setSelectedMonths(newSelectedMonths);
+                  // Сбрасываем страницу при изменении выбора месяца (как при клике на закупщика)
+                  if (setCurrentPage) {
+                    setCurrentPage(0);
+                  }
                   // Устанавливаем lastSelectedMonthIndex только при обычном клике (без Shift)
                   // Это нужно для последующего Shift+клик выбора диапазона
                   setLastSelectedMonthIndex(index);
