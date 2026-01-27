@@ -24,6 +24,7 @@ import {
   Map
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface SidebarProps {
   activeTab: string;
@@ -67,7 +68,8 @@ const SIDEBAR_SECTIONS_KEY = 'sidebarSectionsCollapsed';
 
 export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setIsMobileMenuOpen, isCollapsed = false, setIsCollapsed }: SidebarProps) {
   const router = useRouter();
-  const [userRole, setUserRole] = useState<string | null>(null);
+  // Используем глобальный контекст аутентификации вместо отдельного запроса
+  const { userRole } = useAuth();
 
   // Состояние сворачивания разделов
   const [sectionsCollapsed, setSectionsCollapsed] = useState({
@@ -89,22 +91,6 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
         }
       }
     }
-  }, []);
-
-  // Загружаем роль пользователя
-  useEffect(() => {
-    const fetchUserRole = async () => {
-      try {
-        const response = await fetch('/api/auth/check');
-        const data = await response.json();
-        if (data.authenticated && data.role) {
-          setUserRole(data.role);
-        }
-      } catch (error) {
-        console.error('Ошибка загрузки роли пользователя:', error);
-      }
-    };
-    fetchUserRole();
   }, []);
 
   // Сохраняем состояние в localStorage при изменении

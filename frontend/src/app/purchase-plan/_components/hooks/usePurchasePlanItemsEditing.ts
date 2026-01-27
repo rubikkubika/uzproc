@@ -72,7 +72,6 @@ export const usePurchasePlanItemsEditing = (
           setAvailablePurchasers(users);
         }
       } catch (error) {
-        console.error('Ошибка загрузки пользователей:', error);
       }
     };
     loadUsers();

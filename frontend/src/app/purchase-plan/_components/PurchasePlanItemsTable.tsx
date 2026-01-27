@@ -28,21 +28,16 @@ import PurchasePlanItemsErrorModal from './ui/PurchasePlanItemsErrorModal';
 import PurchasePlanItemsVersionsModal from './ui/PurchasePlanItemsVersionsModal';
 import PurchasePlanItemsVersionsListModal from './ui/PurchasePlanItemsVersionsListModal';
 
+// Контекст аутентификации теперь глобальный, не нужен локальный AuthProvider
+import { useAuth } from '@/contexts/AuthContext';
+
 /**
- * Главный компонент таблицы плана закупок (рефакторинг)
- * 
- * Этот компонент интегрирует все хуки и UI компоненты:
- * - usePurchasePlanItemsTable: главный хук, композирующий все остальные
- * - PurchasePlanItemsTableHeader: заголовок таблицы с элементами управления
- * - PurchasePlanItemsTableBody: тело таблицы со строками
- * - PurchasePlanItemsTableRow: отдельная строка таблицы
- * - PurchasePlanItemsTableFilters: фильтры таблицы
- * - PurchasePlanItemsTableColumnsMenu: меню выбора колонок
- * - Модальные окна: детали, создание, авторизация, ошибки, версии
+ * Внутренний компонент таблицы, который использует хуки
  */
-export default function PurchasePlanItemsTable() {
+function PurchasePlanItemsTableContent() {
   // Используем главный хук, который композирует все остальные хуки
   const table = usePurchasePlanItemsTable();
+  const { userEmail } = useAuth();
   const printRef = useRef<HTMLDivElement>(null);
 
   // Настройка ReactToPrint для экспорта в PDF
@@ -161,7 +156,6 @@ export default function PurchasePlanItemsTable() {
       const fileName = `План_закупок_все_данные_${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
-      console.error('Ошибка при экспорте в Excel:', error);
       alert('Ошибка при экспорте в Excel');
     }
   }, []);
@@ -361,34 +355,28 @@ export default function PurchasePlanItemsTable() {
     const selectedVersion = table.versions.selectedVersionInfo || 
       (table.versions.selectedVersionId ? table.versions.versions.find(v => v.id === table.versions.selectedVersionId) : null);
     
-    console.log('[useEffect] Выбранная версия:', selectedVersion, 'selectedVersionId:', table.versions.selectedVersionId);
     
     // Пропускаем загрузку, если данные уже загружаются
     if (table.loading) {
-      console.log('[useEffect] Пропуск загрузки - данные уже загружаются');
       return;
     }
     
     // Пропускаем загрузку, если версия уже загружена
     if (selectedVersion && lastLoadedVersionRef.current === selectedVersion.id) {
-      console.log('[useEffect] Пропуск загрузки - версия уже загружена:', selectedVersion.id);
       return;
     }
     
     if (selectedVersion) {
       lastLoadedVersionRef.current = selectedVersion.id;
       if (selectedVersion.isCurrent) {
-        console.log('[useEffect] Загрузка обычных данных для текущей версии');
         // Если выбрана текущая версия, загружаем обычные данные
         table.fetchData(0, table.pageSize, table.selectedYear, table.sortField, table.sortDirection, table.filters.filters, table.selectedMonths);
       } else {
-        console.log('[useEffect] Загрузка данных архивной версии:', selectedVersion.id);
         // Если выбрана архивная версия, загружаем данные версии
         table.loadVersionData(selectedVersion.id);
       }
     } else if (table.versions.selectedVersionId === null) {
       lastLoadedVersionRef.current = null;
-      console.log('[useEffect] Версия не выбрана, загрузка обычных данных');
       // Если версия не выбрана, загружаем обычные данные
       table.fetchData(0, table.pageSize, table.selectedYear, table.sortField, table.sortDirection, table.filters.filters, table.selectedMonths);
     }
@@ -953,24 +941,9 @@ export default function PurchasePlanItemsTable() {
         onCreate={async () => {
           if (!table.selectedYear) return;
           try {
-            // Получаем email пользователя
-            let userEmail: string | null = null;
-            try {
-              const savedEmail = localStorage.getItem('lastEmail');
-              if (savedEmail) {
-                userEmail = savedEmail;
-              } else {
-                const checkResponse = await fetch('/api/auth/check');
-                if (checkResponse.ok) {
-                  const checkData = await checkResponse.json();
-                  if (checkData.authenticated && checkData.email) {
-                    userEmail = checkData.email;
-                  }
-                }
-              }
-            } catch (e) {
-              console.error('Error getting user email:', e);
-            }
+            // Получаем email пользователя из localStorage или контекста
+            const savedEmail = typeof window !== 'undefined' ? localStorage.getItem('lastEmail') : null;
+            const emailToUse = savedEmail || userEmail;
 
             const response = await fetch(`${getBackendUrl()}/api/purchase-plan-versions`, {
               method: 'POST',
@@ -978,7 +951,7 @@ export default function PurchasePlanItemsTable() {
               body: JSON.stringify({
                 year: table.selectedYear,
                 description: table.versions.versionDescription || `Редакция от ${new Date().toLocaleDateString('ru-RU')}`,
-                createdBy: userEmail || 'Система',
+                createdBy: emailToUse || 'Система',
               }),
             });
 
@@ -995,7 +968,6 @@ export default function PurchasePlanItemsTable() {
               });
             }
           } catch (error) {
-            console.error('Error creating version:', error);
             table.modals.setErrorModal({
               isOpen: true,
               message: `Ошибка создания редакции: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`,
@@ -1022,6 +994,24 @@ export default function PurchasePlanItemsTable() {
         }}
         onClose={() => table.versions.setIsVersionsListModalOpen(false)}
       />
-    </div>
+      </div>
   );
 }
+
+/**
+ * Главный компонент таблицы плана закупок (рефакторинг)
+ * 
+ * Этот компонент интегрирует все хуки и UI компоненты:
+ * - usePurchasePlanItemsTable: главный хук, композирующий все остальные
+ * - PurchasePlanItemsTableHeader: заголовок таблицы с элементами управления
+ * - PurchasePlanItemsTableBody: тело таблицы со строками
+ * - PurchasePlanItemsTableRow: отдельная строка таблицы
+ * - PurchasePlanItemsTableFilters: фильтры таблицы
+ * - PurchasePlanItemsTableColumnsMenu: меню выбора колонок
+ * - Модальные окна: детали, создание, авторизация, ошибки, версии
+ */
+function PurchasePlanItemsTable() {
+  return <PurchasePlanItemsTableContent />;
+}
+
+export default PurchasePlanItemsTable;
