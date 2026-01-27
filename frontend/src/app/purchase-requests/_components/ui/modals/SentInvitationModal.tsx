@@ -11,12 +11,14 @@ interface SentInvitationModalProps {
   isOpen: boolean;
   details: SentInvitationDetails | null;
   onClose: () => void;
+  onCopy?: () => Promise<void>;
 }
 
 export default function SentInvitationModal({
   isOpen,
   details,
   onClose,
+  onCopy,
 }: SentInvitationModalProps) {
   if (!isOpen || !details) {
     return null;
@@ -53,6 +55,30 @@ export default function SentInvitationModal({
               {details.emailText}
             </div>
           </div>
+        </div>
+
+        <div className="flex justify-end gap-2 mt-6">
+          {onCopy && (
+            <button
+              onClick={async () => {
+                try {
+                  await onCopy();
+                } catch (error) {
+                  console.error('Error copying sent invitation email:', error);
+                  alert(error instanceof Error ? error.message : 'Не удалось скопировать письмо');
+                }
+              }}
+              className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+            >
+              Скопировать в буфер
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Закрыть
+          </button>
         </div>
       </div>
     </div>

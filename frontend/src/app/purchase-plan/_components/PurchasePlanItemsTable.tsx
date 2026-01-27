@@ -342,9 +342,7 @@ export default function PurchasePlanItemsTable() {
 
     // Устанавливаем просмотр текущей версии
     if (table.selectedYear) {
-      table.versions.loadVersions(table.selectedYear).then(() => {
-        // После загрузки версий текущая версия будет выбрана автоматически
-      });
+      table.versions.loadVersions(table.selectedYear);
     } else {
       // Если год не выбран, просто сбрасываем выбранную версию
       table.versions.setSelectedVersionId(null);
@@ -352,9 +350,55 @@ export default function PurchasePlanItemsTable() {
     }
   }, [table]);
 
+  // Ref для отслеживания последней загруженной версии, чтобы избежать повторных загрузок
+  const lastLoadedVersionRef = useRef<number | null>(null);
+  
+  // Эффект для загрузки данных при изменении выбранной версии
+  useEffect(() => {
+    if (!table.selectedYear) return;
+    
+    // Используем selectedVersionId для поиска версии в списке, если selectedVersionInfo еще не обновился
+    const selectedVersion = table.versions.selectedVersionInfo || 
+      (table.versions.selectedVersionId ? table.versions.versions.find(v => v.id === table.versions.selectedVersionId) : null);
+    
+    console.log('[useEffect] Выбранная версия:', selectedVersion, 'selectedVersionId:', table.versions.selectedVersionId);
+    
+    // Пропускаем загрузку, если данные уже загружаются
+    if (table.loading) {
+      console.log('[useEffect] Пропуск загрузки - данные уже загружаются');
+      return;
+    }
+    
+    // Пропускаем загрузку, если версия уже загружена
+    if (selectedVersion && lastLoadedVersionRef.current === selectedVersion.id) {
+      console.log('[useEffect] Пропуск загрузки - версия уже загружена:', selectedVersion.id);
+      return;
+    }
+    
+    if (selectedVersion) {
+      lastLoadedVersionRef.current = selectedVersion.id;
+      if (selectedVersion.isCurrent) {
+        console.log('[useEffect] Загрузка обычных данных для текущей версии');
+        // Если выбрана текущая версия, загружаем обычные данные
+        table.fetchData(0, table.pageSize, table.selectedYear, table.sortField, table.sortDirection, table.filters.filters, table.selectedMonths);
+      } else {
+        console.log('[useEffect] Загрузка данных архивной версии:', selectedVersion.id);
+        // Если выбрана архивная версия, загружаем данные версии
+        table.loadVersionData(selectedVersion.id);
+      }
+    } else if (table.versions.selectedVersionId === null) {
+      lastLoadedVersionRef.current = null;
+      console.log('[useEffect] Версия не выбрана, загрузка обычных данных');
+      // Если версия не выбрана, загружаем обычные данные
+      table.fetchData(0, table.pageSize, table.selectedYear, table.sortField, table.sortDirection, table.filters.filters, table.selectedMonths);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [table.versions.selectedVersionId, table.selectedYear]);
+
   // Функция для закрытия просмотра версии
   // ВАЖНО: Должен быть вызван ДО условных возвратов, чтобы соблюдать правила хуков
   const handleCloseVersion = useCallback(() => {
+    lastLoadedVersionRef.current = null;
     table.versions.setSelectedVersionId(null);
     table.versions.setSelectedVersionInfo(null);
     table.fetchData(0, table.pageSize, table.selectedYear, table.sortField, table.sortDirection, table.filters.filters, table.selectedMonths);
@@ -907,24 +951,55 @@ export default function PurchasePlanItemsTable() {
         versionDescription={table.versions.versionDescription}
         onDescriptionChange={table.versions.setVersionDescription}
         onCreate={async () => {
-          // TODO: реализовать создание версии
           if (!table.selectedYear) return;
           try {
+            // Получаем email пользователя
+            let userEmail: string | null = null;
+            try {
+              const savedEmail = localStorage.getItem('lastEmail');
+              if (savedEmail) {
+                userEmail = savedEmail;
+              } else {
+                const checkResponse = await fetch('/api/auth/check');
+                if (checkResponse.ok) {
+                  const checkData = await checkResponse.json();
+                  if (checkData.authenticated && checkData.email) {
+                    userEmail = checkData.email;
+                  }
+                }
+              }
+            } catch (e) {
+              console.error('Error getting user email:', e);
+            }
+
             const response = await fetch(`${getBackendUrl()}/api/purchase-plan-versions`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 year: table.selectedYear,
-                description: table.versions.versionDescription,
+                description: table.versions.versionDescription || `Редакция от ${new Date().toLocaleDateString('ru-RU')}`,
+                createdBy: userEmail || 'Система',
               }),
             });
+
             if (response.ok) {
               table.versions.setIsCreateVersionModalOpen(false);
               table.versions.setVersionDescription('');
-              table.versions.loadVersions(table.selectedYear);
+              // Принудительно выбираем новую текущую версию после создания
+              await table.versions.loadVersions(table.selectedYear, true);
+            } else {
+              const errorText = await response.text();
+              table.modals.setErrorModal({
+                isOpen: true,
+                message: `Ошибка создания редакции: ${errorText || response.statusText}`,
+              });
             }
           } catch (error) {
-            // Ошибка создания версии игнорируется
+            console.error('Error creating version:', error);
+            table.modals.setErrorModal({
+              isOpen: true,
+              message: `Ошибка создания редакции: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`,
+            });
           }
         }}
         onClose={() => {
@@ -941,6 +1016,7 @@ export default function PurchasePlanItemsTable() {
         loadingVersions={table.versions.loadingVersions}
         selectedVersionId={table.versions.selectedVersionId}
         onVersionSelect={(version) => {
+          // Устанавливаем выбранную версию - эффект загрузит данные автоматически
           table.versions.setSelectedVersionId(version.id);
           table.versions.setSelectedVersionInfo(version);
         }}
