@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useLayoutEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import Sidebar from './_components/Sidebar';
 import MonthlyPurchasesChart from './analytics/_components/MonthlyPurchasesChart';
 import CategoryChart from './analytics/_components/CategoryChart';
@@ -130,8 +131,24 @@ function DashboardContent() {
   // Начальное состояние всегда false для совместимости с SSR
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  
+  // Используем глобальный контекст аутентификации вместо отдельных запросов
+  const { userEmail, userRole } = useAuth();
+  
+  // Получаем email из localStorage или из контекста
   const [currentUser, setCurrentUser] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState<string | null>(null);
+  
+  // Синхронизируем currentUser с localStorage и контекстом
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedEmail = localStorage.getItem('lastEmail');
+      if (savedEmail) {
+        setCurrentUser(savedEmail);
+      } else if (userEmail) {
+        setCurrentUser(userEmail);
+      }
+    }
+  }, [userEmail]);
 
   // Загружаем состояние сайдбара из localStorage
   useLayoutEffect(() => {
@@ -176,42 +193,8 @@ function DashboardContent() {
     }
   }, [isMounted, searchParams, router]);
 
-  // Загружаем информацию о текущем пользователе
-  useEffect(() => {
-    const loadUserInfo = async () => {
-      try {
-        // Загружаем email из localStorage или cookie
-        const savedEmail = localStorage.getItem('lastEmail');
-        if (savedEmail) {
-          setCurrentUser(savedEmail);
-        } else {
-          // Пытаемся получить из cookie через API
-          const response = await fetch('/api/auth/check');
-          if (response.ok) {
-            const data = await response.json();
-            if (data.authenticated && data.email) {
-              setCurrentUser(data.email);
-            }
-          }
-        }
-
-        // Загружаем роль через API
-        const response = await fetch('/api/auth/check');
-        if (response.ok) {
-          const data = await response.json();
-          if (data.authenticated && data.role) {
-            setUserRole(data.role);
-          }
-        }
-      } catch (err) {
-        console.error('Error loading user info:', err);
-      }
-    };
-
-    if (isMounted) {
-      loadUserInfo();
-    }
-  }, [isMounted]);
+  // Информация о пользователе теперь загружается через глобальный контекст AuthProvider
+  // Не нужно делать отдельные запросы
 
   // Сохраняем состояние сайдбара в localStorage при изменении
   const handleSidebarCollapse = (collapsed: boolean) => {

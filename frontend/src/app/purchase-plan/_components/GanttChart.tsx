@@ -250,7 +250,6 @@ export default function GanttChart({
       updateTimeoutRef.current = setTimeout(async () => {
         setIsUpdating(true);
         try {
-          console.log('Updating dates on backend:', { itemId, tempRequestDate, tempNewContractDate });
           const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/dates`, {
             method: 'PATCH',
             headers: {
@@ -264,16 +263,13 @@ export default function GanttChart({
 
           if (response.ok) {
             const updatedData = await response.json();
-            console.log('Dates updated successfully on backend:', updatedData);
             if (onDatesUpdate) {
               onDatesUpdate(tempRequestDate, tempNewContractDate);
             }
           } else {
             const errorText = await response.text();
-            console.error('Failed to update dates on backend:', response.status, errorText);
           }
         } catch (error) {
-          console.error('Error updating dates on backend:', error);
         } finally {
           setIsUpdating(false);
         }
@@ -338,7 +334,6 @@ export default function GanttChart({
       // Отправляем финальное обновление на бэкенд
       setIsUpdating(true);
       try {
-        console.log('Final update dates on backend:', { itemId, newRequestDate, newContractDate });
         const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/dates`, {
           method: 'PATCH',
           headers: {
@@ -352,16 +347,13 @@ export default function GanttChart({
 
         if (response.ok) {
           const updatedData = await response.json();
-          console.log('Final dates updated successfully on backend:', updatedData);
           if (onDatesUpdate) {
             onDatesUpdate(newRequestDate, newContractDate);
           }
         } else {
           const errorText = await response.text();
-          console.error('Failed to update final dates on backend:', response.status, errorText);
         }
       } catch (error) {
-        console.error('Error updating final dates on backend:', error);
       } finally {
         setIsUpdating(false);
       }

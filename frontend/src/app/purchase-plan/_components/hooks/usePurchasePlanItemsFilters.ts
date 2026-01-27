@@ -326,7 +326,6 @@ export const usePurchasePlanItemsFilters = (
     // чтобы предотвратить повторную автоматическую инициализацию
     // Это должно быть ПЕРВОЙ проверкой, чтобы предотвратить перезапись фильтра архивной версии
     if (statusFilter.size > 0 && !statusFilterInitializedRef.current) {
-      console.log('[usePurchasePlanItemsFilters] Фильтр статуса установлен вручную, предотвращаем автоматическую инициализацию. Размер фильтра:', statusFilter.size);
       statusFilterInitializedRef.current = true;
       return; // Выходим, чтобы не выполнять автоматическую инициализацию
     }
@@ -338,7 +337,6 @@ export const usePurchasePlanItemsFilters = (
     if (!statusFilterInitializedRef.current && uniqueValues.status.length > 0 && statusFilter.size === 0) {
       const resetStatusFilter = uniqueValues.status.filter(s => s !== 'Исключена');
       if (resetStatusFilter.length > 0) {
-        console.log('[usePurchasePlanItemsFilters] Автоматическая инициализация фильтра статуса:', resetStatusFilter);
         setStatusFilter(new Set(resetStatusFilter));
         statusFilterInitializedRef.current = true;
       }

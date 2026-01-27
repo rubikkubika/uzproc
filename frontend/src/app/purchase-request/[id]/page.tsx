@@ -4,6 +4,7 @@ import { useState, useEffect, useLayoutEffect, useRef, ReactElement } from 'reac
 import { useRouter, useParams } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
 import { copyToClipboard } from '@/utils/clipboard';
+import { useAuth } from '@/contexts/AuthContext';
 import { ArrowLeft, ArrowRight, Clock, Check, X, Eye, EyeOff, Copy } from 'lucide-react';
 import Sidebar from './_components/Sidebar';
 
@@ -111,7 +112,8 @@ export default function PurchaseRequestDetailPage() {
   } | null>(null);
   const [filteredRequests, setFilteredRequests] = useState<PurchaseRequest[]>([]);
   const [currentRequestIndex, setCurrentRequestIndex] = useState<number>(-1);
-  const [userRole, setUserRole] = useState<string | null>(null);
+  // Используем глобальный контекст аутентификации
+  const { userRole } = useAuth();
   const [purchaserEditValue, setPurchaserEditValue] = useState<string>('');
   const [purchaserOriginalValue, setPurchaserOriginalValue] = useState<string>('');
   const [isSavingPurchaser, setIsSavingPurchaser] = useState(false);
@@ -176,22 +178,6 @@ export default function PurchaseRequestDetailPage() {
     }
     setIsMobileMenuOpen(false);
   };
-
-  // Загружаем роль пользователя при монтировании
-  useEffect(() => {
-    const checkUserRole = async () => {
-      try {
-        const response = await fetch('/api/auth/check');
-        const data = await response.json();
-        if (data.authenticated && data.role) {
-          setUserRole(data.role);
-        }
-      } catch (error) {
-        console.error('Error checking user role:', error);
-      }
-    };
-    checkUserRole();
-  }, []);
 
   // Синхронизируем значение поля редактирования закупщика при изменении заявки
   useEffect(() => {

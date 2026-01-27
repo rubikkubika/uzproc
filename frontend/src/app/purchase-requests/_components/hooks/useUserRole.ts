@@ -1,37 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
 
 /**
  * Хук для работы с ролью пользователя
+ * Использует глобальный контекст аутентификации
  */
 export function useUserRole() {
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [loadingRole, setLoadingRole] = useState(true);
-
-  // Загружаем роль пользователя при монтировании
-  useEffect(() => {
-    const checkUserRole = async () => {
-      try {
-        const response = await fetch('/api/auth/check');
-        const data = await response.json();
-        if (data.authenticated && data.role) {
-          setUserRole(data.role);
-        }
-      } catch (error) {
-        console.error('Error checking user role:', error);
-      } finally {
-        setLoadingRole(false);
-      }
-    };
-    checkUserRole();
-  }, []);
+  const { userRole, loading } = useAuth();
 
   // Проверка, может ли пользователь изменять видимость заявки (только admin)
   const canEditExcludeFromInWork = userRole === 'admin';
 
   return {
     userRole,
-    setUserRole,
-    loadingRole,
+    setUserRole: () => {}, // Заглушка для обратной совместимости, роль управляется через контекст
+    loadingRole: loading,
     canEditExcludeFromInWork,
   };
 }

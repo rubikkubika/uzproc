@@ -112,6 +112,18 @@ public class PurchaseRequestController {
         return ResponseEntity.notFound().build();
     }
 
+    /**
+     * Получить несколько заявок по списку idPurchaseRequest одним запросом
+     * @param idPurchaseRequestList список idPurchaseRequest (через запятую или как массив)
+     * @return Map где ключ - idPurchaseRequest, значение - PurchaseRequestDto
+     */
+    @GetMapping("/by-id-purchase-request-list")
+    public ResponseEntity<Map<Long, PurchaseRequestDto>> getPurchaseRequestsByIdPurchaseRequestList(
+            @RequestParam List<Long> idPurchaseRequest) {
+        Map<Long, PurchaseRequestDto> purchaseRequests = purchaseRequestService.findByIdPurchaseRequestList(idPurchaseRequest);
+        return ResponseEntity.ok(purchaseRequests);
+    }
+
     @PostMapping("/upload-from-excel")
     public ResponseEntity<Map<String, Object>> uploadFromExcel(@RequestParam("file") MultipartFile file) {
         logger.info("Received file upload request: filename={}, size={}, contentType={}", 

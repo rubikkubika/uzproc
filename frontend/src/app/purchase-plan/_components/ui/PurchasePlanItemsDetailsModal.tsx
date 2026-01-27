@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { getBackendUrl } from '@/utils/api';
 import { PurchasePlanItem, PurchaseRequest, ModalTab, PurchasePlanItemComment } from '../types/purchase-plan-items.types';
+import { useAuth } from '../hooks/useAuth';
 
 interface PurchasePlanItemsDetailsModalProps {
   isOpen: boolean;
@@ -54,23 +55,9 @@ export default function PurchasePlanItemsDetailsModal({
   const [newCommentText, setNewCommentText] = useState('');
   const [newCommentIsPublic, setNewCommentIsPublic] = useState(false);
   const [submittingComment, setSubmittingComment] = useState(false);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Загружаем email пользователя из cookie
-    const checkAuth = async () => {
-      try {
-        const response = await fetch('/api/auth/check');
-        const data = await response.json();
-        if (data.authenticated && data.email) {
-          setUserEmail(data.email);
-        }
-      } catch (error) {
-        // Игнорируем ошибку
-      }
-    };
-    checkAuth();
-  }, []);
+  
+  // Используем общий хук для получения email пользователя
+  const { userEmail } = useAuth();
 
   const handleSubmitComment = async () => {
     if (!itemId || !newCommentText.trim()) return;
@@ -100,7 +87,6 @@ export default function PurchasePlanItemsDetailsModal({
           }
         } catch (jsonError) {
           // Если не удалось распарсить JSON, но статус OK, все равно обновляем комментарии
-          console.warn('Не удалось распарсить ответ сервера, но статус OK:', jsonError);
           setNewCommentText('');
           setNewCommentIsPublic(false);
           if (onCommentsRefresh && itemId) {
@@ -116,11 +102,9 @@ export default function PurchasePlanItemsDetailsModal({
         } catch (e) {
           errorText = `HTTP ${response.status}`;
         }
-        console.error('Ошибка при добавлении комментария:', errorText);
         alert(`Ошибка при добавлении комментария: ${errorText}`);
       }
     } catch (error) {
-      console.error('Ошибка сети при добавлении комментария:', error);
       alert('Ошибка сети при добавлении комментария. Проверьте подключение к интернету.');
     } finally {
       setSubmittingComment(false);

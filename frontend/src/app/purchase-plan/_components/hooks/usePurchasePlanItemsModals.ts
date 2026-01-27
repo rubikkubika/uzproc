@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { PurchasePlanItem, ModalTab } from '../types/purchase-plan-items.types';
+import { useAuth } from './useAuth';
 
 export const usePurchasePlanItemsModals = () => {
   const [detailsModalOpen, setDetailsModalOpen] = useState<number | null>(null);
@@ -11,7 +12,6 @@ export const usePurchasePlanItemsModals = () => {
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
   const [errorModal, setErrorModal] = useState<{ isOpen: boolean; message: string }>({ isOpen: false, message: '' });
-  const [userRole, setUserRole] = useState<string | null>(null);
   const [pendingDateChange, setPendingDateChange] = useState<{ 
     itemId: number;
     field: 'requestDate' | 'newContractDate';
@@ -22,24 +22,8 @@ export const usePurchasePlanItemsModals = () => {
     newNewContractDate?: string | null;
   } | null>(null);
 
-  // Загружаем роль пользователя при монтировании
-  useEffect(() => {
-    const checkUserRole = async () => {
-      try {
-        const response = await fetch('/api/auth/check');
-        const data = await response.json();
-        if (data.authenticated && data.role) {
-          setUserRole(data.role);
-        }
-      } catch (error) {
-        // Ошибка проверки роли пользователя игнорируется
-      }
-    };
-    checkUserRole();
-  }, []);
-
-  // Проверка, может ли пользователь редактировать (только admin)
-  const canEdit = userRole === 'admin';
+  // Используем общий хук для получения данных аутентификации
+  const { userRole, canEdit } = useAuth();
 
   return {
     detailsModalOpen,

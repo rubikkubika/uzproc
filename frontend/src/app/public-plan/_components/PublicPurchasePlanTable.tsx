@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { getBackendUrl } from '@/utils/api';
+import { useAuth } from '@/contexts/AuthContext';
 import { ArrowUp, ArrowDown, ArrowUpDown, Search, Settings, Download, Check, X } from 'lucide-react';
 import GanttChart from './GanttChart';
 import { useReactToPrint } from 'react-to-print';
@@ -292,25 +293,10 @@ export default function PublicPurchasePlanTable() {
     content: any[];
     loading: boolean;
   }>>({});
-  const [userEmail, setUserEmail] = useState<string | null>(null);
+  // Используем глобальный контекст аутентификации вместо отдельного запроса
+  const { userEmail } = useAuth();
   const loadedCommentsRef = useRef<Set<number>>(new Set());
   const fetchingCommentsRef = useRef<Set<number>>(new Set());
-
-  useEffect(() => {
-    // Загружаем email пользователя из cookie
-    const checkAuth = async () => {
-      try {
-        const response = await fetch('/api/auth/check');
-        const data = await response.json();
-        if (data.authenticated && data.email) {
-          setUserEmail(data.email);
-        }
-      } catch (error) {
-        // Игнорируем ошибку
-      }
-    };
-    checkAuth();
-  }, []);
 
   const fetchComments = useCallback(async (itemId: number) => {
     // Проверяем, не загружаются ли уже комментарии для этого элемента

@@ -182,6 +182,33 @@ public class PurchaseRequestService {
     }
 
     /**
+     * Находит несколько заявок по списку idPurchaseRequest
+     * @param idPurchaseRequestList список idPurchaseRequest
+     * @return Map где ключ - idPurchaseRequest, значение - PurchaseRequestDto
+     */
+    public Map<Long, PurchaseRequestDto> findByIdPurchaseRequestList(List<Long> idPurchaseRequestList) {
+        if (idPurchaseRequestList == null || idPurchaseRequestList.isEmpty()) {
+            return new HashMap<>();
+        }
+        
+        // Используем Specification для загрузки заявок по списку idPurchaseRequest
+        Specification<PurchaseRequest> spec = (root, query, cb) -> 
+            root.get("idPurchaseRequest").in(idPurchaseRequestList);
+        
+        List<PurchaseRequest> purchaseRequests = purchaseRequestRepository.findAll(spec);
+        
+        // Преобразуем в Map для быстрого доступа
+        Map<Long, PurchaseRequestDto> result = new HashMap<>();
+        for (PurchaseRequest pr : purchaseRequests) {
+            if (pr.getIdPurchaseRequest() != null) {
+                result.put(pr.getIdPurchaseRequest(), toDto(pr));
+            }
+        }
+        
+        return result;
+    }
+
+    /**
      * Подсчитывает количество записей для каждой вкладки
      * @return Map с ключами: "all", "in-work", "completed", "project-rejected"
      */
