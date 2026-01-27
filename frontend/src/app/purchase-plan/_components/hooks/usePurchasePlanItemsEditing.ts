@@ -37,6 +37,11 @@ export const usePurchasePlanItemsEditing = (
   const [tempDates, setTempDates] = useState<Record<number, { requestDate: string | null; newContractDate: string | null }>>({});
   const [animatingDates, setAnimatingDates] = useState<Record<number, boolean>>({});
   
+  // Кеш для пользователей (чтобы не делать повторные запросы)
+  const usersCacheRef = useRef<Array<{ id: number; name: string }> | null>(null);
+  const usersLoadingRef = useRef<boolean>(false);
+  const usersFetchedRef = useRef<boolean>(false);
+  
   const [editingDate, setEditingDate] = useState<{ itemId: number; field: 'requestDate' } | null>(null);
   const [editingStatus, setEditingStatus] = useState<number | null>(null);
   const statusSelectRef = useRef<HTMLSelectElement | null>(null);
@@ -58,7 +63,20 @@ export const usePurchasePlanItemsEditing = (
   
   // Загружаем список пользователей при монтировании компонента
   useEffect(() => {
+    // Используем кеш, если пользователи уже загружены
+    if (usersCacheRef.current) {
+      setAvailablePurchasers(usersCacheRef.current);
+      return;
+    }
+    
+    // Если запрос уже выполняется или уже был выполнен, не запускаем новый
+    if (usersLoadingRef.current || usersFetchedRef.current) {
+      return;
+    }
+    
     const loadUsers = async () => {
+      usersLoadingRef.current = true;
+      usersFetchedRef.current = true;
       try {
         const response = await fetch(`${getBackendUrl()}/api/users?page=0&size=1000`);
         if (response.ok) {
@@ -69,9 +87,12 @@ export const usePurchasePlanItemsEditing = (
               ? `${user.surname} ${user.name}` 
               : user.username || 'Пользователь'
           }));
+          usersCacheRef.current = users;
           setAvailablePurchasers(users);
         }
       } catch (error) {
+      } finally {
+        usersLoadingRef.current = false;
       }
     };
     loadUsers();

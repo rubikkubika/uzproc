@@ -5,7 +5,7 @@ import { PurchasePlanItem, PageResponse } from '../types/purchase-plan-items.typ
 import PurchasePlanItemsTableRow from './PurchasePlanItemsTableRow';
 
 interface PurchasePlanItemsTableBodyProps {
-  data: PageResponse | null;
+  allItems: PurchasePlanItem[];
   visibleColumns: string[];
   columnOrder: string[];
   getColumnWidth: (columnKey: string) => number;
@@ -35,7 +35,7 @@ interface PurchasePlanItemsTableBodyProps {
  * Отображает строки таблицы с данными
  */
 export default function PurchasePlanItemsTableBody({
-  data,
+  allItems,
   visibleColumns,
   columnOrder,
   getColumnWidth,
@@ -55,7 +55,7 @@ export default function PurchasePlanItemsTableBody({
   canEdit,
   isViewingArchiveVersion,
 }: PurchasePlanItemsTableBodyProps) {
-  if (!data || !data.content || data.content.length === 0) {
+  if (!allItems || allItems.length === 0) {
     return (
       <tbody className="bg-white divide-y divide-gray-200">
         <tr>
@@ -72,7 +72,7 @@ export default function PurchasePlanItemsTableBody({
 
   return (
     <tbody className="bg-white divide-y divide-gray-200">
-      {data.content.map((item, index) => (
+      {allItems.map((item, index) => (
         <PurchasePlanItemsTableRow
           key={`${item.id}-${index}`}
           item={item}

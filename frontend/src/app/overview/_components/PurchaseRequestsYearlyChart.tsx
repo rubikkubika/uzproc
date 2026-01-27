@@ -75,6 +75,7 @@ export default function PurchaseRequestsYearlyChart() {
   }
   
   const cfoFilterButtonRef = useRef<HTMLButtonElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Функция для расчета позиции выпадающего списка
   const calculateFilterPosition = useCallback((buttonRef: React.RefObject<HTMLButtonElement | null>) => {
@@ -384,8 +385,14 @@ export default function PurchaseRequestsYearlyChart() {
     cfo.toLowerCase().includes(cfoSearchQuery.toLowerCase())
   );
 
-  // Загружаем список доступных годов при первой загрузке
+  // Загружаем список доступных годов при первой загрузке (только если компонент виден)
   useEffect(() => {
+    // Проверяем, виден ли компонент в DOM
+    const element = document.querySelector('[data-purchase-requests-yearly-chart]');
+    if (!element || element.offsetParent === null) {
+      return;
+    }
+    
     const fetchAvailableYears = async () => {
       try {
         const backendUrl = getBackendUrl();
@@ -413,8 +420,19 @@ export default function PurchaseRequestsYearlyChart() {
     fetchAvailableYears();
   }, []);
 
-  // Загружаем данные по годам
+  // Загружаем данные по годам (только если компонент виден)
   useEffect(() => {
+    if (!containerRef.current) {
+      return;
+    }
+    
+    // Проверяем, что родительский элемент с data-атрибутом существует и виден
+    const parentElement = document.querySelector('[data-purchase-requests-yearly-chart]');
+    if (!parentElement) {
+      // Компонент не должен быть виден, не загружаем данные
+      return;
+    }
+    
     const fetchData = async () => {
       try {
         setLoading(true);
@@ -468,8 +486,84 @@ export default function PurchaseRequestsYearlyChart() {
       }
     };
     
-    fetchData();
-  }, []);
+    // Проверяем видимость компонента и родительского элемента
+    const checkVisibility = () => {
+      if (!containerRef.current || !parentElement) {
+        return false;
+      }
+      
+      // Проверяем computed style родительского элемента (не скрыт ли он через CSS)
+      const parentStyle = window.getComputedStyle(parentElement as HTMLElement);
+      if (parentStyle.display === 'none' || parentStyle.visibility === 'hidden' || parentStyle.opacity === '0') {
+        return false;
+      }
+      
+      // Проверяем видимость родительского элемента
+      const parentRect = (parentElement as HTMLElement).getBoundingClientRect();
+      const parentVisible = parentRect.width > 0 && parentRect.height > 0 && 
+                           (parentElement as HTMLElement).offsetParent !== null &&
+                           parentRect.top < window.innerHeight && 
+                           parentRect.bottom > 0;
+      
+      if (!parentVisible) {
+        return false;
+      }
+      
+      // Проверяем computed style самого компонента
+      const containerStyle = window.getComputedStyle(containerRef.current);
+      if (containerStyle.display === 'none' || containerStyle.visibility === 'hidden' || containerStyle.opacity === '0') {
+        return false;
+      }
+      
+      // Проверяем видимость самого компонента
+      const rect = containerRef.current.getBoundingClientRect();
+      const isVisible = rect.width > 0 && rect.height > 0 && 
+                       containerRef.current.offsetParent !== null &&
+                       rect.top < window.innerHeight && 
+                       rect.bottom > 0;
+      return isVisible;
+    };
+    
+    // Используем Intersection Observer для отслеживания видимости компонента
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        // Проверяем, что родительский элемент все еще существует и виден
+        const parentStillExists = document.querySelector('[data-purchase-requests-yearly-chart]');
+        if (!parentStillExists) {
+          return;
+        }
+        
+        // Проверяем computed style родительского элемента
+        const parentStyle = window.getComputedStyle(parentStillExists as HTMLElement);
+        if (parentStyle.display === 'none' || parentStyle.visibility === 'hidden' || parentStyle.opacity === '0') {
+          return;
+        }
+        
+        // Если компонент виден, родитель существует и виден, и данные еще не загружены, загружаем их
+        if (entry.isIntersecting && data === null && !loading) {
+          fetchData();
+        }
+      },
+      {
+        threshold: 0.1, // Компонент считается видимым, если видно хотя бы 10%
+      }
+    );
+    
+    // Проверяем видимость сразу при монтировании
+    if (checkVisibility() && data === null && !loading) {
+      fetchData();
+    } else {
+      // Если не виден сразу, подписываемся на изменения видимости
+      observer.observe(containerRef.current);
+    }
+    
+    return () => {
+      if (containerRef.current) {
+        observer.unobserve(containerRef.current);
+      }
+    };
+  }, [data, loading]);
 
   // Загружаем месячные данные для выбранного года
   useEffect(() => {
@@ -920,7 +1014,7 @@ export default function PurchaseRequestsYearlyChart() {
 
 
   return (
-    <div className="bg-white p-2 sm:p-3 rounded-lg shadow-md space-y-2 sm:space-y-3 w-full">
+    <div ref={containerRef} className="bg-white p-2 sm:p-3 rounded-lg shadow-md space-y-2 sm:space-y-3 w-full">
       {/* Диаграммы на одном уровне */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-1 sm:gap-2 w-full items-start">
       {/* Столбчатая диаграмма по годам */}

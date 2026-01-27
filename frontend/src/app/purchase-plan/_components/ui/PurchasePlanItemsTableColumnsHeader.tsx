@@ -170,10 +170,6 @@ export default function PurchasePlanItemsTableColumnsHeader({
                       setCurrentPage={setCurrentPage}
                     />
                   </div>
-                  {/* Текстовый заголовок колонки */}
-                  <div className="flex items-center gap-1 min-h-[16px]">
-                    <span className="text-xs font-medium text-gray-500 tracking-wider">{column.label}</span>
-                  </div>
                 </div>
                 {columnKey && handleResizeStart && (
                   <div
