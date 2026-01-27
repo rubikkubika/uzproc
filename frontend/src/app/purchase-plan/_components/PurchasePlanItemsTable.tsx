@@ -9,7 +9,7 @@ import { getCompanyLogoPath, getPurchaseRequestStatusColor } from './utils/purch
 import { prepareExportData } from './utils/export.utils';
 import { getBackendUrl } from '@/utils/api';
 import { calculateNewContractDate } from './utils/date.utils';
-import { FILTERS_STORAGE_KEY } from './constants/purchase-plan-items.constants';
+import { FILTERS_STORAGE_KEY, DEFAULT_STATUSES } from './constants/purchase-plan-items.constants';
 
 // UI компоненты
 import PurchasePlanItemsTableHeader from './ui/PurchasePlanItemsTableHeader';
@@ -80,22 +80,22 @@ function PurchasePlanItemsTableContent() {
 
   // Функция для экспорта в PDF
   const handleExportPDF = useCallback(() => {
-    if (!table.data?.content || table.data.content.length === 0) {
+    if (!table.allItems || table.allItems.length === 0) {
       alert('Нет данных для экспорта');
       return;
     }
     handlePrint();
-  }, [table.data, handlePrint]);
+  }, [table.allItems, handlePrint]);
 
   // Функция для экспорта в Excel с примененными фильтрами
   const handleExportExcel = useCallback(async () => {
-    if (!table.data || !table.data.content || table.data.content.length === 0) {
+    if (!table.allItems || table.allItems.length === 0) {
       alert('Нет данных для экспорта');
       return;
     }
 
     try {
-      const exportData = prepareExportData(table.data.content);
+      const exportData = prepareExportData(table.allItems);
 
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(exportData);
@@ -251,53 +251,22 @@ function PurchasePlanItemsTableContent() {
     }
   }, [table.selectedYear, table.versions.loadVersions]);
 
-  // Сводная статистика по закупщикам (использует summaryData, который не учитывает фильтр по закупщику)
+  // Сводная статистика по закупщикам (использует purchaserSummaryData из нового эндпоинта /purchaser-summary)
   // ВАЖНО: Должен быть вызван ДО условных возвратов, чтобы соблюдать правила хуков
+  // ВАЖНО: purchaserSummaryData содержит уже агрегированные данные из эндпоинта, не нужно группировать
   const purchaserSummary = useMemo(() => {
-    if (!table.summaryData || table.summaryData.length === 0) {
+    if (!table.purchaserSummaryData || table.purchaserSummaryData.length === 0) {
       return [];
     }
 
-    const summaryMap = new Map<string, { count: number; totalBudget: number; totalComplexity: number }>();
-
-    table.summaryData.forEach((item) => {
-      // Исключаем неактуальные строки из сводной таблицы
-      if (item.status === 'Исключена') {
-        return;
-      }
-
-      // Нормализуем имя закупщика: убираем лишние пробелы в начале/конце и заменяем множественные пробелы на одинарные
-      const purchaser = (item.purchaser || 'Не назначен').trim().replace(/\s+/g, ' ');
-      const budget = item.budgetAmount || 0;
-      
-      // Парсим сложность как число (если это числовое значение)
-      let complexity = 0;
-      if (item.complexity) {
-        const parsed = parseFloat(item.complexity.toString().replace(/,/g, '.').replace(/\s/g, ''));
-        if (!isNaN(parsed)) {
-          complexity = parsed;
-        }
-      }
-
-      if (!summaryMap.has(purchaser)) {
-        summaryMap.set(purchaser, { count: 0, totalBudget: 0, totalComplexity: 0 });
-      }
-
-      const stats = summaryMap.get(purchaser)!;
-      stats.count++;
-      stats.totalBudget += budget;
-      stats.totalComplexity += complexity;
-    });
-
-    return Array.from(summaryMap.entries())
-      .map(([purchaser, stats]) => ({
-        purchaser,
-        count: stats.count,
-        totalBudget: stats.totalBudget,
-        totalComplexity: stats.totalComplexity,
-      }))
-      .sort((a, b) => b.totalBudget - a.totalBudget); // Сортировка по сумме бюджета по убыванию
-  }, [table.summaryData]);
+    // Данные уже в правильном формате из эндпоинта /purchaser-summary
+    return table.purchaserSummaryData.map((item) => ({
+      purchaser: item.purchaser || 'Не назначен',
+      count: item.count || 0,
+      totalBudget: typeof item.totalBudget === 'number' ? item.totalBudget : (parseFloat(String(item.totalBudget)) || 0),
+      totalComplexity: typeof item.totalComplexity === 'number' ? item.totalComplexity : (parseFloat(String(item.totalComplexity)) || 0),
+    }));
+  }, [table.purchaserSummaryData]);
 
   // Функция для сброса всех фильтров (как в оригинале)
   // ВАЖНО: Должен быть вызван ДО условных возвратов, чтобы соблюдать правила хуков
@@ -317,10 +286,8 @@ function PurchasePlanItemsTableContent() {
     table.filters.setPurchaserCompanyFilter(new Set(['Market'])); // При сбросе устанавливаем фильтр по умолчанию на "Market"
     table.filters.setCategoryFilter(new Set());
     table.filters.setPurchaserFilter(new Set());
-    // При сбросе устанавливаем фильтр по статусу на все доступные статусы из текущих данных кроме "Исключена"
-    const availableStatuses = table.filters.getUniqueValues('status') || [];
-    const resetStatusFilter = availableStatuses.filter(s => s !== 'Исключена');
-    table.filters.setStatusFilter(new Set(resetStatusFilter));
+    // При сбросе устанавливаем фильтр по статусу на дефолтные значения (все статусы кроме "Исключена")
+    table.filters.setStatusFilter(new Set(DEFAULT_STATUSES));
     table.setSortField('requestDate');
     table.setSortDirection('asc');
     table.filters.setFocusedField(null);
@@ -554,8 +521,8 @@ function PurchasePlanItemsTableContent() {
   };
 
   // Получаем текущий элемент для модального окна деталей
-  const currentModalItem = table.modals.detailsModalOpen 
-    ? table.data?.content.find(item => item.id === table.modals.detailsModalOpen) || null
+  const currentModalItem = table.modals.detailsModalOpen
+    ? table.allItems.find(item => item.id === table.modals.detailsModalOpen) || null
     : null;
 
   const currentModalItemId = table.modals.detailsModalOpen;
@@ -802,50 +769,37 @@ function PurchasePlanItemsTableContent() {
             selectedCurrency={table.selectedCurrency}
             setSelectedCurrency={table.setSelectedCurrency}
           />
-          {table.data && table.data.content && table.data.content.length > 0 ? (
-            <PurchasePlanItemsTableBody
-              data={table.data}
-              visibleColumns={table.columns.filteredColumnOrder}
-              getColumnWidth={table.columns.getColumnWidth}
-              editingStates={editingStates}
-              editingHandlers={editingHandlers}
-              formatBudget={table.formatBudget}
-              getCompanyLogoPath={getCompanyLogoPath}
-              getPurchaseRequestStatusColor={getPurchaseRequestStatusColor}
-              onRowClick={handleRowClick}
-              columnOrder={table.columns.filteredColumnOrder}
-              tempDates={table.editing.tempDates}
-              animatingDates={table.editing.animatingDates}
-              performGanttDateUpdate={table.editing.performGanttDateUpdate}
-              setTempDates={table.editing.setTempDates}
-              setAnimatingDates={table.editing.setAnimatingDates}
-              setEditingDate={table.editing.setEditingDate}
-              canEdit={table.modals.canEdit}
-              isViewingArchiveVersion={table.versions.isViewingArchiveVersion}
-            />
-          ) : (
-            <tbody>
-              <tr>
-                <td 
-                  colSpan={table.columns.filteredColumnOrder.length} 
-                  className="text-center py-8 text-gray-500"
-                >
-                  Нет данных для отображения
-                </td>
-              </tr>
-            </tbody>
-          )}
+          <PurchasePlanItemsTableBody
+            allItems={table.allItems}
+            visibleColumns={table.columns.filteredColumnOrder}
+            getColumnWidth={table.columns.getColumnWidth}
+            editingStates={editingStates}
+            editingHandlers={editingHandlers}
+            formatBudget={table.formatBudget}
+            getCompanyLogoPath={getCompanyLogoPath}
+            getPurchaseRequestStatusColor={getPurchaseRequestStatusColor}
+            onRowClick={handleRowClick}
+            columnOrder={table.columns.filteredColumnOrder}
+            tempDates={table.editing.tempDates}
+            animatingDates={table.editing.animatingDates}
+            performGanttDateUpdate={table.editing.performGanttDateUpdate}
+            setTempDates={table.editing.setTempDates}
+            setAnimatingDates={table.editing.setAnimatingDates}
+            setEditingDate={table.editing.setEditingDate}
+            canEdit={table.modals.canEdit}
+            isViewingArchiveVersion={table.versions.isViewingArchiveVersion}
+          />
         </table>
-      </div>
 
-      {/* Infinite scroll индикатор */}
-      {table.hasMore && (
-        <div ref={table.loadMoreRef} className="h-10 flex items-center justify-center">
-          {table.loadingMore && (
-            <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-          )}
-        </div>
-      )}
+        {/* Infinite scroll индикатор */}
+        {table.hasMore && (
+          <div ref={table.loadMoreRef} className="h-4 flex items-center justify-center py-1">
+            {table.loadingMore && (
+              <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Модальное окно деталей: просмотр и редактирование элемента */}
       {currentModalItemId && (

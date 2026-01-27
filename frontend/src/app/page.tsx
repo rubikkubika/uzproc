@@ -286,13 +286,13 @@ function DashboardContent() {
 
             {/* Контент в зависимости от выбранной закладки */}
             {overviewSubTab === 'purchase-requests' && (
-              <div className="space-y-2 sm:space-y-3 w-full">
+              <div className="space-y-2 sm:space-y-3 w-full" data-purchase-requests-yearly-chart>
                 <PurchaseRequestsYearlyChart />
               </div>
             )}
 
             {overviewSubTab === 'purchase-plan' && (
-              <div className="space-y-2 sm:space-y-3">
+              <div className="space-y-2 sm:space-y-3" data-purchase-plan-items-monthly-chart>
                 <PurchasePlanItemsMonthlyChart />
               </div>
             )}

@@ -2,8 +2,19 @@
 export const FILTERS_STORAGE_KEY = 'purchasePlanItems_filters';
 export const COLUMNS_VISIBILITY_STORAGE_KEY = 'purchasePlanItems_columnsVisibility';
 
-// Статусы
-export const ALL_STATUSES = ['Проект', 'В плане', 'Исключена', 'Заявка', 'Пусто'];
+// Статусы (все возможные статусы плана закупок)
+export const ALL_STATUSES = [
+  'Проект',
+  'В плане',
+  'Исключена',
+  'Заявка',
+  'Заявка у закупщика',
+  'Договор в работе',
+  'Договор подписан',
+  'Спецификация подписана',
+  'Пусто', // null статусы
+];
+// Дефолтные статусы (все кроме "Исключена")
 export const DEFAULT_STATUSES = ALL_STATUSES.filter(s => s !== 'Исключена');
 
 // Все колонки

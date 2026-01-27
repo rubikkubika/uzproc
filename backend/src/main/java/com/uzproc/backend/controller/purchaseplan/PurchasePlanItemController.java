@@ -106,6 +106,29 @@ public class PurchasePlanItemController {
         return ResponseEntity.ok(stats);
     }
 
+    @GetMapping("/purchaser-summary")
+    public ResponseEntity<List<com.uzproc.backend.dto.purchaseplan.PurchaserSummaryDto>> getPurchaserSummary(
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) List<String> company,
+            @RequestParam(required = false) List<String> purchaserCompany,
+            @RequestParam(required = false) List<String> cfo,
+            @RequestParam(required = false) String purchaseSubject,
+            @RequestParam(required = false) List<String> category,
+            @RequestParam(required = false) List<Integer> requestMonth,
+            @RequestParam(required = false) Integer requestYear,
+            @RequestParam(required = false) String currentContractEndDate,
+            @RequestParam(required = false) List<String> status,
+            @RequestParam(required = false) String purchaseRequestId,
+            @RequestParam(required = false) Double budgetAmount,
+            @RequestParam(required = false) String budgetAmountOperator) {
+        List<com.uzproc.backend.dto.purchaseplan.PurchaserSummaryDto> summary = purchasePlanItemService.getPurchaserSummary(
+            year, company, purchaserCompany, cfo, purchaseSubject, category, 
+            requestMonth, requestYear, currentContractEndDate, status, 
+            purchaseRequestId, budgetAmount, budgetAmountOperator
+        );
+        return ResponseEntity.ok(summary);
+    }
+
     @GetMapping("/{id}/changes")
     public ResponseEntity<Page<PurchasePlanItemChangeDto>> getChanges(
             @PathVariable Long id,

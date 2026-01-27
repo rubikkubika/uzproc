@@ -58,8 +58,9 @@ export const usePurchasePlanItemsFilters = (
   const [companyFilter, setCompanyFilter] = useState<Set<string>>(new Set());
   const [purchaserCompanyFilter, setPurchaserCompanyFilter] = useState<Set<string>>(new Set(['Market']));
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
-  const statusFilterInitializedRef = useRef(false);
-  const [statusFilter, setStatusFilter] = useState<Set<string>>(new Set());
+  // Инициализируем фильтр статуса дефолтными значениями (все статусы кроме "Исключена")
+  // Это предотвращает показ исключенных позиций по умолчанию
+  const [statusFilter, setStatusFilter] = useState<Set<string>>(() => new Set(DEFAULT_STATUSES));
   const [purchaserFilter, setPurchaserFilter] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set<string>();
     try {
@@ -113,6 +114,11 @@ export const usePurchasePlanItemsFilters = (
     category: [],
     status: [],
   });
+  
+  // Кеш для запроса уникальных значений (чтобы не делать повторные запросы)
+  const uniqueValuesCacheRef = useRef<Record<string, string[]> | null>(null);
+  const uniqueValuesLoadingRef = useRef<boolean>(false);
+  const uniqueValuesFetchedRef = useRef<boolean>(false);
 
   const calculateFilterPosition = useCallback((buttonRef: React.RefObject<HTMLButtonElement | null>) => {
     if (buttonRef.current) {
@@ -264,7 +270,20 @@ export const usePurchasePlanItemsFilters = (
 
   // Загрузка уникальных значений для всех полей ВКЛЮЧАЯ статусы
   useEffect(() => {
+    // Используем кеш, если данные уже загружены
+    if (uniqueValuesCacheRef.current) {
+      setUniqueValues(uniqueValuesCacheRef.current);
+      return;
+    }
+    
+    // Если запрос уже выполняется или уже был выполнен, не запускаем новый
+    if (uniqueValuesLoadingRef.current || uniqueValuesFetchedRef.current) {
+      return;
+    }
+    
     const fetchUniqueValues = async () => {
+      uniqueValuesLoadingRef.current = true;
+      uniqueValuesFetchedRef.current = true;
       try {
         const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items?page=0&size=10000`);
         if (response.ok) {
@@ -301,47 +320,33 @@ export const usePurchasePlanItemsFilters = (
 
           const newStatuses = Array.from(values.status).sort((a,b)=>a.localeCompare(b,'ru',{sensitivity:'base'}));
 
-          // Обновляем uniqueValues для всех полей
-          setUniqueValues(prev => ({
+          // Сохраняем в кеш и обновляем состояние
+          const cachedValues = {
             cfo: Array.from(values.cfo).sort((a,b)=>a.localeCompare(b,'ru',{sensitivity:'base'})),
             company: Array.from(values.company).sort((a,b)=>a.localeCompare(b,'ru',{sensitivity:'base'})),
             purchaserCompany: Array.from(values.purchaserCompany).sort((a,b)=>a.localeCompare(b,'ru',{sensitivity:'base'})),
             purchaser: Array.from(values.purchaser).sort((a,b)=>a.localeCompare(b,'ru',{sensitivity:'base'})),
             category: Array.from(values.category).sort((a,b)=>a.localeCompare(b,'ru',{sensitivity:'base'})),
-            status: newStatuses, // Обновляем статусы из всех данных
-          }));
+            status: newStatuses,
+          };
+          
+          uniqueValuesCacheRef.current = cachedValues;
+          setUniqueValues(cachedValues);
         }
       } catch { }
+      finally {
+        uniqueValuesLoadingRef.current = false;
+      }
     };
     fetchUniqueValues();
   }, []);
 
 
   // Устанавливаем начальное значение фильтра по статусу: все доступные статусы кроме "Исключена"
-  // Используем useLayoutEffect, чтобы установить фильтр синхронно до рендера и избежать двойного обновления
-  // Это соответствует логике кнопки "Сбросить фильтры"
-  // ВАЖНО: Не инициализируем фильтр, если он уже установлен (например, при загрузке архивной версии)
-  useLayoutEffect(() => {
-    // Если фильтр был установлен вручную (не пустой), отмечаем его как инициализированный,
-    // чтобы предотвратить повторную автоматическую инициализацию
-    // Это должно быть ПЕРВОЙ проверкой, чтобы предотвратить перезапись фильтра архивной версии
-    if (statusFilter.size > 0 && !statusFilterInitializedRef.current) {
-      statusFilterInitializedRef.current = true;
-      return; // Выходим, чтобы не выполнять автоматическую инициализацию
-    }
-    
-    // Инициализируем только если:
-    // 1. Фильтр еще не был инициализирован
-    // 2. Есть доступные статусы
-    // 3. Фильтр пустой (не был установлен вручную, например, при загрузке архивной версии)
-    if (!statusFilterInitializedRef.current && uniqueValues.status.length > 0 && statusFilter.size === 0) {
-      const resetStatusFilter = uniqueValues.status.filter(s => s !== 'Исключена');
-      if (resetStatusFilter.length > 0) {
-        setStatusFilter(new Set(resetStatusFilter));
-        statusFilterInitializedRef.current = true;
-      }
-    }
-  }, [uniqueValues.status, statusFilter.size]);
+  // УБРАНО: Автоматическая инициализация фильтра статуса
+  // Это вызывало двойную загрузку данных при первом рендере.
+  // Теперь фильтр статуса остается пустым (показываются все статусы),
+  // как в таблице заявок на закупку.
 
   // Позиции фильтров
   useLayoutEffect(() => { setCfoFilterPosition(isCfoFilterOpen ? calculateFilterPosition(cfoFilterButtonRef) : null); }, [isCfoFilterOpen, calculateFilterPosition]);

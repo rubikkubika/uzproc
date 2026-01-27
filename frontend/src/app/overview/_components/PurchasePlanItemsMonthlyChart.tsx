@@ -40,8 +40,14 @@ export default function PurchasePlanItemsMonthlyChart() {
     companyFilterRef.current = companyFilter;
   }, [companyFilter]);
 
-  // Загружаем список доступных годов при первой загрузке (оптимизированный endpoint)
+  // Загружаем список доступных годов при первой загрузке (оптимизированный endpoint, только если компонент виден)
   useEffect(() => {
+    // Проверяем, виден ли компонент в DOM
+    const element = document.querySelector('[data-purchase-plan-items-monthly-chart]');
+    if (!element || element.offsetParent === null) {
+      return;
+    }
+    
     const fetchAvailableYears = async () => {
       try {
         const backendUrl = getBackendUrl();
