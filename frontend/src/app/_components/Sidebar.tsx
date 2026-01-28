@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { 
-  BarChart3, 
   TrendingUp, 
   Package, 
   Users, 
@@ -19,8 +18,6 @@ import {
   Upload,
   Mail,
   FileText,
-  CheckSquare,
-  Star,
   Globe,
   Map
 } from 'lucide-react';
@@ -55,11 +52,7 @@ const menuItems: Array<{ id: string; label: string; icon: any }> = [];
 
   const initiatorDevelopmentItems = [
     { id: 'test', label: 'Тест', icon: Mail },
-    { id: 'workload', label: 'Нагрузка', icon: BarChart3 },
-    { id: 'tasks', label: 'Задачи', icon: CheckSquare },
-    { id: 'presentation', label: 'Презентация', icon: FileText },
     { id: 'users', label: 'Пользователи', icon: Users },
-    { id: 'csi', label: 'Сбор CSI', icon: Star },
     { id: 'roadmap', label: 'Roadmap', icon: Map },
     { id: 'portal', label: 'Портал', icon: Globe, isExternal: true },
   ];
