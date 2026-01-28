@@ -78,6 +78,11 @@ type SortDirection = 'asc' | 'desc' | null;
 const getPurchaseRequestStatusColor = (status: string | null): string => {
   if (!status) return 'bg-gray-100 text-gray-800';
   
+  // Серый: не установлен
+  if (status === 'Не установлен') {
+    return 'bg-gray-100 text-gray-600';
+  }
+  
   // Зеленый: завершенные статусы
   if (status === 'Согласована' || status === 'Спецификация подписана' || 
       status === 'Договор подписан' || status === 'Закупка завершена') {

@@ -170,7 +170,7 @@ export default function PurchaseRequestsTable() {
   const purchaserFilterButtonRef = purchaserFilterPositionHook.buttonRef;
   
   // Используем хук для синхронизации с localStorage
-  const { filtersLoadedRef, yearRestored, setYearRestored } = useLocalStorageSync({
+  const { filtersLoadedRef, filtersLoaded, yearRestored, setYearRestored } = useLocalStorageSync({
     filtersFromHook,
     localFilters,
     cfoFilter,
@@ -206,6 +206,7 @@ export default function PurchaseRequestsTable() {
     cfoFilter,
     purchaserFilter,
     filtersLoadedRef,
+    filtersLoaded,
     tabCounts,
     setTabCounts,
     kindTab,
@@ -226,6 +227,7 @@ export default function PurchaseRequestsTable() {
     sortDirection,
     cfoSearchQuery,
     statusSearchQuery,
+    activeTab,
   });
 
   // Используем хук для CSI действий

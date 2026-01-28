@@ -25,6 +25,8 @@ public class ContractDto {
     private Long purchaseRequestId;
     private Long parentContractId;
     private ContractDto parentContract;
+    private LocalDateTime plannedDeliveryStartDate;
+    private LocalDateTime plannedDeliveryEndDate;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -199,6 +201,22 @@ public class ContractDto {
 
     public void setParentContract(ContractDto parentContract) {
         this.parentContract = parentContract;
+    }
+
+    public LocalDateTime getPlannedDeliveryStartDate() {
+        return plannedDeliveryStartDate;
+    }
+
+    public void setPlannedDeliveryStartDate(LocalDateTime plannedDeliveryStartDate) {
+        this.plannedDeliveryStartDate = plannedDeliveryStartDate;
+    }
+
+    public LocalDateTime getPlannedDeliveryEndDate() {
+        return plannedDeliveryEndDate;
+    }
+
+    public void setPlannedDeliveryEndDate(LocalDateTime plannedDeliveryEndDate) {
+        this.plannedDeliveryEndDate = plannedDeliveryEndDate;
     }
 }
 

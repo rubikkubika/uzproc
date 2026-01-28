@@ -406,6 +406,8 @@ export default function PurchaseRequestsTableRow({
                     ? 'bg-red-100 text-red-800'
                     : statusGroup === 'Проект'
                     ? 'bg-gray-100 text-gray-800'
+                    : statusGroup === 'Не установлен'
+                    ? 'bg-gray-100 text-gray-600'
                     : 'bg-gray-100 text-gray-800'
                 }`}>
                   {statusGroup}

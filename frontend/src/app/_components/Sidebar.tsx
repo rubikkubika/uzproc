@@ -264,9 +264,6 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                         if (isExternal) {
                           router.push('/public-plan');
                           setIsMobileMenuOpen(false);
-                        } else if (item.id === 'delivery-plan') {
-                          router.push('/delivery-plan');
-                          setIsMobileMenuOpen(false);
                         } else {
                           handleTabChange(item.id);
                         }

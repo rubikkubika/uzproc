@@ -1069,10 +1069,14 @@ export const usePurchasePlanItemsTable = () => {
           });
         }
 
+        // Фильтр статуса: для позиций с заявками используем purchaseRequestStatus, иначе status (как в applyFiltersToVersionData)
         if (currentFilters.statusFilter.size > 0) {
           filtered = filtered.filter(item => {
-            if (!item.status) return false;
-            return currentFilters.statusFilter.has(item.status);
+            const itemStatus = item.purchaseRequestId !== null && item.purchaseRequestStatus
+              ? item.purchaseRequestStatus
+              : item.status;
+            if (!itemStatus) return false;
+            return currentFilters.statusFilter.has(itemStatus);
           });
         }
 
@@ -1409,14 +1413,15 @@ export const usePurchasePlanItemsTable = () => {
 
   // Функция для расчета распределения по месяцам
   const getMonthlyDistribution = useMemo(() => {
-    // Для архивных версий используем данные из versionDataRef, если chartData пустой
+    // Для архивных версий: при наличии chartData (уже отфильтрован в эффекте) используем его;
+    // иначе при наличии данных версии — versionDataRef (чтобы декабрь и все месяцы отображались до применения фильтров в эффекте)
     let dataForChart: PurchasePlanItem[];
+    const isArchiveVersion = versionsHook.selectedVersionId !== null &&
+      versionsHook.selectedVersionInfo &&
+      !versionsHook.selectedVersionInfo.isCurrent;
     if (chartData.length > 0) {
       dataForChart = chartData;
-    } else if (versionsHook.selectedVersionId !== null && 
-               versionsHook.selectedVersionInfo && 
-               !versionsHook.selectedVersionInfo.isCurrent && 
-               versionDataRef.current.length > 0) {
+    } else if (isArchiveVersion && versionDataRef.current.length > 0) {
       dataForChart = versionDataRef.current;
     } else {
       dataForChart = [];
@@ -1448,24 +1453,28 @@ export const usePurchasePlanItemsTable = () => {
     const monthCounts = Array(14).fill(0);
     
     dataForChart.forEach((item) => {
-      if (item.status === 'Исключена') {
+      // Для позиций с заявками используем purchaseRequestStatus, иначе status
+      const effectiveStatus = item.purchaseRequestId !== null && item.purchaseRequestStatus
+        ? item.purchaseRequestStatus
+        : item.status;
+      if (effectiveStatus === 'Исключена') {
         return;
       }
-      
+
       if (!item.requestDate) {
         monthCounts[13]++;
         return;
       }
-      
+
       const requestDate = new Date(item.requestDate);
       const itemYear = requestDate.getFullYear();
       const itemMonth = requestDate.getMonth();
-      
+
       // Декабрь предыдущего года (например, декабрь 2025 для года 2026)
       if (itemYear === prevYear && itemMonth === 11) {
         monthCounts[0]++;
       } else if (itemYear === displayYear) {
-        // Месяцы текущего года
+        // Месяцы текущего года (январь = 1, ..., декабрь = 12)
         monthCounts[itemMonth + 1]++;
       }
     });

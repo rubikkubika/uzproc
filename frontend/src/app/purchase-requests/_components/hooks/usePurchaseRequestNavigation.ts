@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import type { PurchaseRequest, SortField, SortDirection } from '../types/purchase-request.types';
+import type { PurchaseRequest, SortField, SortDirection, TabType } from '../types/purchase-request.types';
 
 interface Filters {
   [key: string]: string;
@@ -20,6 +20,7 @@ interface UsePurchaseRequestNavigationOptions {
   sortDirection: SortDirection | null;
   cfoSearchQuery: string;
   statusSearchQuery: string;
+  activeTab: TabType;
 }
 
 export function usePurchaseRequestNavigation({
@@ -36,8 +37,9 @@ export function usePurchaseRequestNavigation({
   sortDirection,
   cfoSearchQuery,
   statusSearchQuery,
+  activeTab,
 }: UsePurchaseRequestNavigationOptions) {
-  // Общая функция для сохранения фильтров таблицы в localStorage
+  // Общая функция для сохранения фильтров таблицы в localStorage (включая activeTab, чтобы при возврате вкладка не сбрасывалась)
   const saveTableFiltersToLocalStorage = useCallback(() => {
     try {
       const filtersToSave = {
@@ -52,6 +54,7 @@ export function usePurchaseRequestNavigation({
         pageSize,
         cfoSearchQuery,
         statusSearchQuery,
+        activeTab: activeTab ?? 'in-work',
       };
       localStorage.setItem('purchaseRequestsTableFilters', JSON.stringify(filtersToSave));
     } catch (err) {
@@ -69,6 +72,7 @@ export function usePurchaseRequestNavigation({
     pageSize,
     cfoSearchQuery,
     statusSearchQuery,
+    activeTab,
   ]);
 
   // Общая функция для сохранения данных навигации

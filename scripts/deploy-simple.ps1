@@ -59,10 +59,10 @@ if ($containerCheck -match "uzproc-postgres") {
         if ($backupResult -match "Backup created successfully") {
             Write-Host "Database backup created: ${backupFileName}" -ForegroundColor Green
             
-            # Копируем бэкап локально в папку backup
+            # Копируем бэкап локально в папку backup через rsync (более надежно для больших файлов)
             Write-Host "Copying backup to local backup folder..." -ForegroundColor Yellow
             mkdir -p backup -Force | Out-Null
-            scp -o ConnectTimeout=10 "${SERVER}:${backupPath}/${backupFileName}" "backup/${backupFileName}" 2>&1 | Out-Null
+            rsync -avz --progress -e "ssh -o ConnectTimeout=60" "${SERVER}:${backupPath}/${backupFileName}" "backup/${backupFileName}" 2>&1 | Out-Null
             if ($LASTEXITCODE -eq 0 -and (Test-Path "backup/${backupFileName}")) {
                 $localBackupSize = (Get-Item "backup/${backupFileName}").Length / 1MB
                 Write-Host "Backup copied to local backup folder ($([math]::Round($localBackupSize, 2)) MB)" -ForegroundColor Green
@@ -126,12 +126,32 @@ if (Test-Path ".env") {
     Write-Host "Warning: .env file not found locally, skipping..." -ForegroundColor Yellow
 }
 
-scp uzproc-frontend.tar uzproc-backend.tar docker-compose.yml "${SERVER}:${REMOTE_PATH}/"
+# Копируем небольшие файлы через scp
+Write-Host "Copying docker-compose.yml and nginx.conf..." -ForegroundColor Cyan
+scp docker-compose.yml "${SERVER}:${REMOTE_PATH}/"
 scp docker/nginx.conf "${SERVER}:${REMOTE_PATH}/docker/"
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "Error copying files to server!" -ForegroundColor Red
+    Write-Host "Error copying configuration files to server!" -ForegroundColor Red
     exit 1
 }
+Write-Host "Configuration files copied successfully" -ForegroundColor Green
+
+# Копируем Docker образы через rsync (более надежно для больших файлов)
+Write-Host "Copying frontend image (this may take several minutes)..." -ForegroundColor Cyan
+rsync -avz --progress -e "ssh -o ConnectTimeout=60" uzproc-frontend.tar "${SERVER}:${REMOTE_PATH}/"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Error copying frontend image to server!" -ForegroundColor Red
+    exit 1
+}
+Write-Host "Frontend image copied successfully" -ForegroundColor Green
+
+Write-Host "Copying backend image (this may take several minutes)..." -ForegroundColor Cyan
+rsync -avz --progress -e "ssh -o ConnectTimeout=60" uzproc-backend.tar "${SERVER}:${REMOTE_PATH}/"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Error copying backend image to server!" -ForegroundColor Red
+    exit 1
+}
+Write-Host "Backend image copied successfully" -ForegroundColor Green
 
 # Excel файлы исключены из деплоя (слишком большие, копируются вручную при необходимости)
 # Если нужно скопировать Excel файлы, используйте команду:

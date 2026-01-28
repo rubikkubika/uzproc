@@ -1,6 +1,12 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import type { SortField, SortDirection, TabType } from '../types/purchase-request.types';
 
+const VALID_TAB_TYPES: TabType[] = ['all', 'in-work', 'completed', 'project-rejected', 'hidden'];
+
+function isValidTabType(value: unknown): value is TabType {
+  return typeof value === 'string' && VALID_TAB_TYPES.includes(value as TabType);
+}
+
 /**
  * Интерфейс для состояния фильтров
  */
@@ -84,6 +90,7 @@ export function useLocalStorageSync(params: UseLocalStorageSyncParams) {
   } = params;
 
   const filtersLoadedRef = useRef(false);
+  const [filtersLoaded, setFiltersLoaded] = useState(false);
   const [yearRestored, setYearRestored] = useState(false);
 
   // Функция для сохранения всех фильтров в localStorage
@@ -268,8 +275,8 @@ export function useLocalStorageSync(params: UseLocalStorageSyncParams) {
           setStatusSearchQuery(savedFilters.statusSearchQuery);
         }
 
-        // Восстанавливаем активную вкладку (если не сохранена, используем "В работе" по умолчанию)
-        if (savedFilters.activeTab !== undefined) {
+        // Восстанавливаем активную вкладку (только валидное значение, иначе "В работе")
+        if (isValidTabType(savedFilters.activeTab)) {
           setActiveTab(savedFilters.activeTab);
         } else {
           setActiveTab('in-work'); // По умолчанию "В работе"
@@ -290,8 +297,9 @@ export function useLocalStorageSync(params: UseLocalStorageSyncParams) {
         }
       }
 
-      // Помечаем, что загрузка завершена
+      // Помечаем, что загрузка завершена (ref для хуков, state для перезапуска useTabCounts)
       filtersLoadedRef.current = true;
+      setFiltersLoaded(true);
     } catch (err) {
       console.error('Error loading filters from localStorage:', err);
       // При ошибке загрузки устанавливаем значения по умолчанию для statusFilter
@@ -299,7 +307,8 @@ export function useLocalStorageSync(params: UseLocalStorageSyncParams) {
         // По умолчанию фильтр пустой (как для ЦФО)
         setStatusFilter(new Set());
       }
-      filtersLoadedRef.current = true; // Помечаем как загруженное даже при ошибке
+      filtersLoadedRef.current = true;
+      setFiltersLoaded(true);
     }
   }, []); // Пустой массив зависимостей - выполняется только один раз при монтировании
 
@@ -398,9 +407,9 @@ export function useLocalStorageSync(params: UseLocalStorageSyncParams) {
           sortField: state.sortField,
           sortDirection: state.sortDirection,
           currentPage: state.currentPage,
-          // pageSize теперь константа, не сохраняем
           cfoSearchQuery: state.cfoSearchQuery,
           statusSearchQuery: state.statusSearchQuery,
+          activeTab: state.activeTab ?? 'in-work',
         };
         localStorage.setItem('purchaseRequestsTableFilters', JSON.stringify(filtersToSave));
         console.log('Filters saved on unmount:', filtersToSave);
@@ -425,9 +434,9 @@ export function useLocalStorageSync(params: UseLocalStorageSyncParams) {
           sortField: state.sortField,
           sortDirection: state.sortDirection,
           currentPage: state.currentPage,
-          // pageSize теперь константа, не сохраняем
           cfoSearchQuery: state.cfoSearchQuery,
           statusSearchQuery: state.statusSearchQuery,
+          activeTab: state.activeTab ?? 'in-work',
         };
         localStorage.setItem('purchaseRequestsTableFilters', JSON.stringify(filtersToSave));
       } catch (err) {
@@ -443,6 +452,7 @@ export function useLocalStorageSync(params: UseLocalStorageSyncParams) {
 
   return {
     filtersLoadedRef,
+    filtersLoaded,
     yearRestored,
     setYearRestored,
   };
