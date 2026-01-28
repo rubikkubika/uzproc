@@ -8,6 +8,7 @@ import { CalendarWeekView } from './ui/CalendarWeekView';
 import { SpecificationDetailsPanel } from './ui/SpecificationDetailsPanel';
 import { DaySpecificationsPanel } from './ui/DaySpecificationsPanel';
 import { formatDateKey } from './utils/delivery-plan.utils';
+import type { DeliveryPlanSpecification } from './types/delivery-plan.types';
 
 /**
  * Компонент "План поставок" - календарь с плановыми датами поставок спецификаций

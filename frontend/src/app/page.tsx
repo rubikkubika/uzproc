@@ -17,8 +17,6 @@ import PurchasePlanItemsTable from './purchase-plan/_components/PurchasePlanItem
 import ContractsTable from './contracts/_components/ContractsTable';
 import SpecificationsTable from './specifications/_components/SpecificationsTable';
 import DeliveryPlan from './delivery-plan/_components/DeliveryPlan';
-import PurchasePlanItemsMonthlyChart from './overview/_components/PurchasePlanItemsMonthlyChart';
-import PurchaseRequestsYearlyChart from './overview/_components/PurchaseRequestsYearlyChart';
 import UploadCSV from './upload/_components/UploadCSV';
 import { getBackendUrl } from '@/utils/api';
 import Presentation from './presentation/_components/Presentation';
@@ -26,6 +24,7 @@ import TasksBoard from './tasks/_components/TasksBoard';
 import UsersTable from './users/_components/UsersTable';
 import CSIForm from './csi/_components/CSIForm';
 import RoadmapTimeline from './roadmap/_components/RoadmapTimeline';
+import Overview from './overview/_components/Overview';
 
 // Компонент для тестирования отправки почты
 function TestEmailForm() {
@@ -125,7 +124,6 @@ function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState('overview');
-  const [overviewSubTab, setOverviewSubTab] = useState('purchase-requests');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isTelegramModalOpen, setIsTelegramModalOpen] = useState(false);
@@ -247,64 +245,7 @@ function DashboardContent() {
   const renderContent = () => {
     switch (activeTab) {
       case 'overview':
-        return (
-          <div className="space-y-2 sm:space-y-3">
-            {/* Закладки */}
-            <div className="bg-white rounded-lg shadow-md">
-              <div className="flex flex-wrap gap-1 border-b border-gray-200 px-2 sm:px-3 pt-2 sm:pt-3">
-                <button
-                  onClick={() => setOverviewSubTab('purchase-requests')}
-                  className={`px-4 py-2 text-xs sm:text-sm font-medium rounded-t-lg transition-all ${
-                    overviewSubTab === 'purchase-requests'
-                      ? 'bg-blue-600 text-white border-b-2 border-blue-600 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                  }`}
-                >
-                  Заявка на ЗП
-                </button>
-                <button
-                  onClick={() => setOverviewSubTab('purchase-plan')}
-                  className={`px-4 py-2 text-xs sm:text-sm font-medium rounded-t-lg transition-all ${
-                    overviewSubTab === 'purchase-plan'
-                      ? 'bg-blue-600 text-white border-b-2 border-blue-600 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                  }`}
-                >
-                  План закупок
-                </button>
-                <button
-                  onClick={() => setOverviewSubTab('contracts')}
-                  className={`px-4 py-2 text-xs sm:text-sm font-medium rounded-t-lg transition-all ${
-                    overviewSubTab === 'contracts'
-                      ? 'bg-blue-600 text-white border-b-2 border-blue-600 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                  }`}
-                >
-                  Договоры
-                </button>
-              </div>
-            </div>
-
-            {/* Контент в зависимости от выбранной закладки */}
-            {overviewSubTab === 'purchase-requests' && (
-              <div className="space-y-2 sm:space-y-3 w-full" data-purchase-requests-yearly-chart>
-                <PurchaseRequestsYearlyChart />
-              </div>
-            )}
-
-            {overviewSubTab === 'purchase-plan' && (
-              <div className="space-y-2 sm:space-y-3" data-purchase-plan-items-monthly-chart>
-                <PurchasePlanItemsMonthlyChart />
-              </div>
-            )}
-
-            {overviewSubTab === 'contracts' && (
-              <div className="space-y-2 sm:space-y-3">
-                {/* Пока пусто */}
-              </div>
-            )}
-          </div>
-        );
+        return <Overview />;
 
       case 'workload':
         return (
