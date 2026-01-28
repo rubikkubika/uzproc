@@ -2,6 +2,7 @@ import { TabType } from '../types/purchase-request.types';
 
 // Константы для групп статусов (соответствуют PurchaseRequestStatusGroup enum)
 export const ALL_STATUS_GROUPS = [
+  'Не установлен',
   'Проект',
   'Заявка на согласовании',
   'Заявка не согласована',

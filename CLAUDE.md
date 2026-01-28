@@ -202,6 +202,7 @@ docker compose ps              # Check service status
 - Script builds Docker images, transfers to server, updates containers
 - NEVER auto-commit changes during deployment unless explicitly requested
 - Clean old Docker images on server before deploying to free space
+- **КРИТИЧЕСКИ ВАЖНО:** При копировании Docker образов (tar файлов) на сервер **ОБЯЗАТЕЛЬНО** использовать `rsync` вместо `scp` для более надежной передачи больших файлов
 
 ## Configuration
 
@@ -269,6 +270,15 @@ docker compose ps              # Check service status
 .\scripts\deploy-simple.ps1
 ```
 **Без подтверждения.** НИКОГДА не коммитить/пушить изменения при деплое, если явно не запрошено.
+
+**ИСПОЛЬЗОВАНИЕ RSYNC ДЛЯ КОПИРОВАНИЯ ФАЙЛОВ:**
+При копировании Docker образов (tar файлов) и других файлов на сервер **ОБЯЗАТЕЛЬНО** использовать `rsync` вместо `scp`. Rsync обеспечивает более надежную передачу больших файлов и может возобновить передачу при обрыве соединения.
+
+**Правила использования rsync:**
+- Для копирования tar файлов использовать: `rsync -avz --progress -e "ssh -o ConnectTimeout=60" <файл> devops@10.123.48.62:/home/devops/uzproc/`
+- Флаги: `-a` (архивный режим), `-v` (verbose), `-z` (сжатие), `--progress` (показывать прогресс)
+- Для небольших файлов (docker-compose.yml, nginx.conf) можно использовать `scp`, но для tar файлов обязательно `rsync`
+- Rsync автоматически проверяет целостность файлов и может докачать при обрыве соединения
 
 ### Запуск/перезапуск сервисов локально
 При фразах "запусти бэкенд/фронтенд", "перезапусти сервис", "запусти локально", "перезапусти локально" — выполнить:

@@ -79,6 +79,12 @@ public class ContractController {
         return ResponseEntity.notFound().build();
     }
 
+    @GetMapping("/specifications-for-delivery-plan")
+    public ResponseEntity<List<ContractDto>> getSpecificationsForDeliveryPlan() {
+        List<ContractDto> specifications = contractService.getSpecificationsForDeliveryPlan();
+        return ResponseEntity.ok(specifications);
+    }
+
     @GetMapping("/specifications-with-null-status")
     public ResponseEntity<List<Map<String, Object>>> getSpecificationsWithNullStatus() {
         List<Map<String, Object>> specifications = contractService.getSpecificationsWithNullStatus();

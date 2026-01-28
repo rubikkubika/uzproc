@@ -388,7 +388,7 @@ export default function PurchaseRequestsYearlyChart() {
   // Загружаем список доступных годов при первой загрузке (только если компонент виден)
   useEffect(() => {
     // Проверяем, виден ли компонент в DOM
-    const element = document.querySelector('[data-purchase-requests-yearly-chart]');
+    const element = document.querySelector('[data-purchase-requests-yearly-chart]') as HTMLElement | null;
     if (!element || element.offsetParent === null) {
       return;
     }

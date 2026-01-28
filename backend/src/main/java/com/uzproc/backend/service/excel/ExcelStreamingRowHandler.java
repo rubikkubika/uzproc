@@ -1178,6 +1178,38 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 logger.debug("Row {}: statusColumnIndex is null, skipping state field", currentRowNum + 1);
             }
             
+            // Плановая дата начала поставки (опционально)
+            Integer plannedDeliveryStartCol = columnIndices.get(PLANNED_DELIVERY_START_DATE_COLUMN);
+            if (plannedDeliveryStartCol == null) {
+                plannedDeliveryStartCol = findColumnIndex(PLANNED_DELIVERY_START_DATE_COLUMN);
+            }
+            if (plannedDeliveryStartCol != null) {
+                String dateStr = currentRowData.get(plannedDeliveryStartCol);
+                if (dateStr != null && !dateStr.trim().isEmpty()) {
+                    LocalDateTime plannedStart = parseStringDate(dateStr);
+                    if (plannedStart != null) {
+                        contract.setPlannedDeliveryStartDate(plannedStart);
+                        logger.debug("Row {}: parsed plannedDeliveryStartDate '{}' for contract {}", currentRowNum + 1, plannedStart, contract.getInnerId());
+                    }
+                }
+            }
+            
+            // Плановая дата окончания поставки (опционально)
+            Integer plannedDeliveryEndCol = columnIndices.get(PLANNED_DELIVERY_END_DATE_COLUMN);
+            if (plannedDeliveryEndCol == null) {
+                plannedDeliveryEndCol = findColumnIndex(PLANNED_DELIVERY_END_DATE_COLUMN);
+            }
+            if (plannedDeliveryEndCol != null) {
+                String dateStr = currentRowData.get(plannedDeliveryEndCol);
+                if (dateStr != null && !dateStr.trim().isEmpty()) {
+                    LocalDateTime plannedEnd = parseStringDate(dateStr);
+                    if (plannedEnd != null) {
+                        contract.setPlannedDeliveryEndDate(plannedEnd);
+                        logger.debug("Row {}: parsed plannedDeliveryEndDate '{}' for contract {}", currentRowNum + 1, plannedEnd, contract.getInnerId());
+                    }
+                }
+            }
+            
             // Сумма (опционально) - парсим поле "Сумма" в поле budgetAmount
             Integer amountCol = columnIndices.get(AMOUNT_COLUMN);
             if (amountCol == null) {

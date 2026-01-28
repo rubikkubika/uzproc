@@ -43,7 +43,7 @@ export default function PurchasePlanItemsMonthlyChart() {
   // Загружаем список доступных годов при первой загрузке (оптимизированный endpoint, только если компонент виден)
   useEffect(() => {
     // Проверяем, виден ли компонент в DOM
-    const element = document.querySelector('[data-purchase-plan-items-monthly-chart]');
+    const element = document.querySelector('[data-purchase-plan-items-monthly-chart]') as HTMLElement | null;
     if (!element || element.offsetParent === null) {
       return;
     }

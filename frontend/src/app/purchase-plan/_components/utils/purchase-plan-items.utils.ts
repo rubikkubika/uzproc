@@ -26,6 +26,11 @@ export const getCompanyLogoPath = (companyName: string | null): string | null =>
 export const getPurchaseRequestStatusColor = (statusGroup: string | null): string => {
   if (!statusGroup) return 'bg-gray-100 text-gray-800';
   
+  // Серый: не установлен
+  if (statusGroup === 'Не установлен') {
+    return 'bg-gray-100 text-gray-600';
+  }
+  
   // Зеленые: завершенные группы статусов
   if (statusGroup === 'Спецификация подписана' || statusGroup === 'Договор подписан') {
     return 'bg-green-100 text-green-800';

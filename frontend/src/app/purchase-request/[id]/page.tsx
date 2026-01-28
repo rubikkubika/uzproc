@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
 import { copyToClipboard } from '@/utils/clipboard';
 import { useAuth } from '@/contexts/AuthContext';
-import { ArrowLeft, ArrowRight, Clock, Check, X, Eye, EyeOff, Copy } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Clock, Check, X, Eye, EyeOff, Copy, Star } from 'lucide-react';
 import Sidebar from './_components/Sidebar';
 
 interface PurchaseRequest {
@@ -75,6 +75,22 @@ interface Approval {
   completionResult: string | null;
 }
 
+interface CsiFeedback {
+  id: number;
+  purchaseRequestId: number;
+  idPurchaseRequest: number | null;
+  purchaseRequestInnerId: string;
+  usedUzproc?: boolean;
+  uzprocRating?: number;
+  speedRating: number;
+  qualityRating: number;
+  satisfactionRating: number;
+  comment?: string;
+  recipient?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 const SIDEBAR_COLLAPSED_KEY = 'sidebarCollapsed';
 const ACTIVE_TAB_KEY = 'activeTab';
 
@@ -123,6 +139,8 @@ export default function PurchaseRequestDetailPage() {
   const [isPurchaserEditing, setIsPurchaserEditing] = useState(false);
   const [purchaserSelectedFromSuggestions, setPurchaserSelectedFromSuggestions] = useState(false);
   const [purchaserSuggestionsPosition, setPurchaserSuggestionsPosition] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [csiFeedback, setCsiFeedback] = useState<CsiFeedback | null>(null);
+  const [csiFeedbackLoading, setCsiFeedbackLoading] = useState(false);
   
   // Защита от дублирующих запросов
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -363,6 +381,10 @@ export default function PurchaseRequestDetailPage() {
               fetchContractApprovals(data.idPurchaseRequest);
               fetchSpecificationApprovals(data.idPurchaseRequest);
             }
+            // Загружаем оценку CSI по id заявки (используем id, а не idPurchaseRequest)
+            if (data.id) {
+              fetchCsiFeedback(data.id);
+            }
           }
           
           // Загружаем спецификации для заказов (если есть основной договор)
@@ -540,6 +562,29 @@ export default function PurchaseRequestDetailPage() {
   const fetchSpecificationApprovals = async (purchaseRequestId: number) => {
     // TODO: Реализовать на бэкенде
     setSpecificationApprovals([]);
+  };
+
+  // Функция для загрузки оценки CSI по id заявки
+  const fetchCsiFeedback = async (purchaseRequestId: number) => {
+    try {
+      setCsiFeedbackLoading(true);
+      const response = await fetch(`${getBackendUrl()}/api/csi-feedback/by-purchase-request/${purchaseRequestId}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data) && data.length > 0) {
+          setCsiFeedback(data[0]); // Берем первую оценку
+        } else {
+          setCsiFeedback(null);
+        }
+      } else {
+        setCsiFeedback(null);
+      }
+    } catch (err) {
+      console.error('Error fetching CSI feedback:', err);
+      setCsiFeedback(null);
+    } finally {
+      setCsiFeedbackLoading(false);
+    }
   };
 
   // Функция для загрузки спецификаций по parentContractId
@@ -731,6 +776,22 @@ export default function PurchaseRequestDetailPage() {
     }
   };
 
+  const formatDateTime = (dateString: string | null): string => {
+    if (!dateString) return '-';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return '-';
+    }
+  };
+
   const calculateDays = (assignedDate: string | null, completedDate: string | null, daysInWork: number | null): string => {
     // Если есть daysInWork из бэкенда, используем его
     if (daysInWork !== null && daysInWork !== undefined) {
@@ -843,6 +904,42 @@ export default function PurchaseRequestDetailPage() {
   const specificationFinalApprovalStageApprovals = specificationApprovals.filter(a => 
     a.stage === 'Утверждение спецификации'
   );
+
+  // Функция для расчета средней оценки
+  const getAverageRating = (feedback: CsiFeedback) => {
+    const ratings = [
+      feedback.speedRating,
+      feedback.qualityRating,
+      feedback.satisfactionRating,
+    ];
+    if (feedback.uzprocRating) {
+      ratings.push(feedback.uzprocRating);
+    }
+    const sum = ratings.reduce((acc, rating) => acc + (rating || 0), 0);
+    return sum / ratings.length;
+  };
+
+  // Функция для отображения звезд
+  const renderStars = (rating: number) => {
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 >= 0.5;
+    const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+
+    return (
+      <div className="flex items-center gap-0.5">
+        {Array.from({ length: fullStars }).map((_, i) => (
+          <Star key={`full-${i}`} className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+        ))}
+        {hasHalfStar && (
+          <Star className="w-3 h-3 fill-yellow-400 text-yellow-400 opacity-50" />
+        )}
+        {Array.from({ length: emptyStars }).map((_, i) => (
+          <Star key={`empty-${i}`} className="w-3 h-3 text-gray-300" />
+        ))}
+        <span className="ml-1 text-xs text-gray-600">{rating.toFixed(1)}</span>
+      </div>
+    );
+  };
 
   const getCurrencyIcon = (currency: string | null) => {
     if (!currency) return null;
@@ -1925,6 +2022,53 @@ export default function PurchaseRequestDetailPage() {
                     </div>
                   )}
               </div>
+
+                    {/* Блок оценки CSI - между закупкой и согласованиями */}
+                    <div className="w-full lg:w-80 flex-shrink-0">
+                      {csiFeedbackLoading ? (
+                        <div className="border border-gray-200 rounded p-3 bg-gray-50 text-center">
+                          <div className="text-xs text-gray-400">Загрузка...</div>
+                        </div>
+                      ) : csiFeedback ? (
+                        <div className="border border-gray-200 rounded p-1.5 bg-gray-50">
+                          <div className="flex items-start justify-between mb-0.5">
+                            <div className="flex-1 min-w-0 flex items-center gap-2">
+                              <div className="text-xs font-medium text-gray-900">
+                                {csiFeedback.idPurchaseRequest || '-'}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {formatDateTime(csiFeedback.createdAt)}
+                              </div>
+                            </div>
+                            <div className="ml-2 flex-shrink-0">
+                              {renderStars(getAverageRating(csiFeedback))}
+                            </div>
+                          </div>
+
+                          {csiFeedback.comment && (
+                            <div className="mt-1">
+                              <div className="text-xs text-gray-700 bg-white rounded p-1 border border-gray-200">
+                                {csiFeedback.comment}
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="mt-1 flex flex-wrap gap-1.5 text-xs text-gray-500">
+                            <span>Скорость: {csiFeedback.speedRating.toFixed(1)}</span>
+                            <span>Качество: {csiFeedback.qualityRating.toFixed(1)}</span>
+                            <span>Закупщик: {csiFeedback.satisfactionRating.toFixed(1)}</span>
+                            {csiFeedback.uzprocRating && (
+                              <span>Узпрок: {csiFeedback.uzprocRating.toFixed(1)}</span>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="border border-gray-200 rounded p-3 bg-gray-50 text-center">
+                          <div className="text-xs text-gray-400">Оценки пока нет</div>
+                          <div className="text-xs text-gray-400 mt-1">Она появится после получения отзыва</div>
+                        </div>
+                      )}
+                    </div>
 
                     {/* Правая часть с блоком согласований */}
               <div className="w-full lg:w-64 flex-shrink-0">

@@ -113,6 +113,28 @@ public class ContractService {
     }
 
     /**
+     * Получить все спецификации с плановой датой поставки для календаря плана поставок
+     * @return список спецификаций с плановой датой поставки
+     */
+    public List<ContractDto> getSpecificationsForDeliveryPlan() {
+        Specification<Contract> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            // Фильтр: только спецификации
+            predicates.add(cb.equal(root.get("documentForm"), "Спецификация"));
+            // Фильтр: должна быть плановая дата начала поставки
+            predicates.add(cb.isNotNull(root.get("plannedDeliveryStartDate")));
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+        
+        List<Contract> contracts = contractRepository.findAll(spec);
+        logger.info("Found {} specifications with planned delivery date", contracts.size());
+        
+        return contracts.stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
+    }
+
+    /**
      * Получить все спецификации со статусом null, связанные с заявками на закупку
      * @return список спецификаций с их состояниями
      */
@@ -184,6 +206,8 @@ public class ContractService {
             }
         }
         
+        dto.setPlannedDeliveryStartDate(entity.getPlannedDeliveryStartDate());
+        dto.setPlannedDeliveryEndDate(entity.getPlannedDeliveryEndDate());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
         return dto;

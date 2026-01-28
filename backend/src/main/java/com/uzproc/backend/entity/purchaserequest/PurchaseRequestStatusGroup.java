@@ -3,6 +3,7 @@ package com.uzproc.backend.entity.purchaserequest;
 import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum PurchaseRequestStatusGroup {
+    NOT_SET("Не установлен"),
     PROJECT("Проект"),
     ON_COORDINATION("Заявка на согласовании"),
     NOT_COORDINATED("Заявка не согласована"),

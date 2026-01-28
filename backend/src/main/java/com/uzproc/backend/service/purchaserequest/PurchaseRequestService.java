@@ -132,9 +132,10 @@ public class PurchaseRequestService {
             }
         } else if (statusGroup != null && !statusGroup.isEmpty()) {
             // Если параметр не передан, но переданы группы статусов для вкладки "В работе", исключаем скрытые заявки
+            // Группы статусов должны соответствовать TAB_STATUS_GROUPS['in-work'] на фронтенде
             List<String> inWorkStatusGroups = List.of(
-                "Заявка на согласовании",
                 "Заявка у закупщика",
+                "Спецификация в работе",
                 "Договор в работе"
             );
             // Проверяем, все ли переданные группы статусов относятся к вкладке "В работе"
@@ -145,8 +146,13 @@ public class PurchaseRequestService {
             }
         }
         
+        // Определяем, нужно ли включать NULL статусы
+        // Если size > 1000, это запрос сводной таблицы - не включаем NULL статусы
+        // Иначе это запрос основной таблицы - включаем NULL статусы
+        boolean includeNullStatuses = size <= 1000;
+        
         Specification<PurchaseRequest> spec = buildSpecification(
-                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, statusGroup, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWork, excludeFromInWorkFilter);
+                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, statusGroup, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWork, excludeFromInWorkFilter, includeNullStatuses);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -286,7 +292,7 @@ public class PurchaseRequestService {
         Specification<PurchaseRequest> spec = buildSpecification(
             year, null, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
             name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, statusGroup,
-            false, budgetAmount, budgetAmountOperator, excludeFromInWork, null);
+            false, budgetAmount, budgetAmountOperator, excludeFromInWork, null, false);
         
         return purchaseRequestRepository.count(spec);
     }
@@ -318,7 +324,7 @@ public class PurchaseRequestService {
         dto.setIsPlanned(entity.getIsPlanned());
         dto.setRequiresPurchase(entity.getRequiresPurchase());
         dto.setStatus(entity.getStatus());
-        dto.setStatusGroup(entity.getStatus() != null ? entity.getStatus().getGroupDisplayName() : null);
+        dto.setStatusGroup(entity.getStatus() != null ? entity.getStatus().getGroupDisplayName() : PurchaseRequestStatusGroup.NOT_SET.getDisplayName());
         dto.setState(entity.getState());
         dto.setExpenseItem(entity.getExpenseItem());
         dto.setExcludeFromInWork(entity.getExcludeFromInWork());
@@ -476,7 +482,8 @@ public class PurchaseRequestService {
             java.math.BigDecimal budgetAmount,
             String budgetAmountOperator,
             boolean excludeFromInWork,
-            Boolean excludeFromInWorkFilter) {
+            Boolean excludeFromInWorkFilter,
+            boolean includeNullStatuses) {
         
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -734,7 +741,10 @@ public class PurchaseRequestService {
                         validStatusGroupValues.size(), statusGroupEnums.size());
                     
                     if (!statusGroupEnums.isEmpty()) {
-                        // Собираем все статусы, которые принадлежат к выбранным группам
+                        // Проверяем, выбрана ли группа "Не установлен"
+                        boolean includesNotSet = statusGroupEnums.contains(PurchaseRequestStatusGroup.NOT_SET);
+                        
+                        // Собираем все статусы, которые принадлежат к выбранным группам (кроме "Не установлен")
                         List<PurchaseRequestStatus> statusesInGroups = java.util.Arrays.stream(PurchaseRequestStatus.values())
                             .filter(s -> statusGroupEnums.contains(s.getGroup()))
                             .collect(Collectors.toList());
@@ -742,13 +752,37 @@ public class PurchaseRequestService {
                         logger.info("Found {} statuses in selected groups: {}", statusesInGroups.size(), 
                             statusesInGroups.stream().map(PurchaseRequestStatus::getDisplayName).collect(Collectors.toList()));
                         
-                        if (!statusesInGroups.isEmpty()) {
-                            // Фильтруем по статусам, принадлежащим к выбранным группам
-                            predicates.add(root.get("status").in(statusesInGroups));
+                        // Если выбрана только группа "Не установлен" и нет других статусов
+                        if (includesNotSet && statusesInGroups.isEmpty()) {
+                            // Фильтруем только записи с NULL статусом
+                            predicates.add(cb.isNull(root.get("status")));
+                            logger.info("Added status group filter for 'Не установлен' (NULL statuses only)");
                             predicateCount++;
-                            logger.info("Added status group filter for groups: {}", statusGroupEnums.stream()
-                                .map(PurchaseRequestStatusGroup::getDisplayName)
-                                .collect(Collectors.toList()));
+                        } else if (!statusesInGroups.isEmpty()) {
+                            // Фильтруем по статусам, принадлежащим к выбранным группам
+                            // Включаем NULL статусы ТОЛЬКО если выбрана группа "Не установлен"
+                            if (includesNotSet && includeNullStatuses) {
+                                // Включаем NULL статусы и статусы из выбранных групп
+                                predicates.add(cb.or(
+                                    cb.isNull(root.get("status")),
+                                    root.get("status").in(statusesInGroups)
+                                ));
+                                logger.info("Added status group filter for groups: {} (including NULL statuses for 'Не установлен')", statusGroupEnums.stream()
+                                    .map(PurchaseRequestStatusGroup::getDisplayName)
+                                    .collect(Collectors.toList()));
+                            } else {
+                                // НЕ включаем NULL статусы, если группа "Не установлен" не выбрана
+                                // Фильтруем только по статусам из выбранных групп
+                                predicates.add(root.get("status").in(statusesInGroups));
+                                logger.info("Added status group filter for groups: {} (excluding NULL statuses - 'Не установлен' not selected)", statusGroupEnums.stream()
+                                    .map(PurchaseRequestStatusGroup::getDisplayName)
+                                    .collect(Collectors.toList()));
+                            }
+                            predicateCount++;
+                        } else if (includesNotSet) {
+                            // Если выбрана группа "Не установлен", но includeNullStatuses = false (сводная таблица)
+                            // Не включаем NULL статусы для сводной таблицы
+                            logger.info("Group 'Не установлен' selected but includeNullStatuses=false - skipping NULL statuses for summary table");
                         }
                     } else {
                         // Если ни одна группа не найдена в enum, но группы были переданы,

@@ -16,6 +16,7 @@ import PurchasesTable from './purchases/_components/PurchasesTable';
 import PurchasePlanItemsTable from './purchase-plan/_components/PurchasePlanItemsTable';
 import ContractsTable from './contracts/_components/ContractsTable';
 import SpecificationsTable from './specifications/_components/SpecificationsTable';
+import DeliveryPlan from './delivery-plan/_components/DeliveryPlan';
 import PurchasePlanItemsMonthlyChart from './overview/_components/PurchasePlanItemsMonthlyChart';
 import PurchaseRequestsYearlyChart from './overview/_components/PurchaseRequestsYearlyChart';
 import UploadCSV from './upload/_components/UploadCSV';
@@ -439,6 +440,9 @@ function DashboardContent() {
             <SpecificationsTable />
           </div>
         );
+
+      case 'delivery-plan':
+        return <DeliveryPlan />;
       
       case 'tasks':
         return (

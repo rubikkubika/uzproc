@@ -17,7 +17,10 @@ interface UseTabCountsOptions {
   filtersFromHook: Filters;
   cfoFilter: Set<string>;
   purchaserFilter: Set<string>;
+  /** Ref для обратной совместимости с хуками, которые проверяют загрузку по ref */
   filtersLoadedRef: React.RefObject<boolean>;
+  /** State: true после восстановления фильтров из localStorage (нужен для перезапуска эффекта при возврате с детальной страницы) */
+  filtersLoaded: boolean;
   tabCounts: Record<TabType, number | null>;
   setTabCounts: React.Dispatch<React.SetStateAction<Record<TabType, number | null>>>;
   kindTab: RequestKindTab;
@@ -29,6 +32,7 @@ export function useTabCounts({
   cfoFilter,
   purchaserFilter,
   filtersLoadedRef,
+  filtersLoaded,
   tabCounts,
   setTabCounts,
   kindTab,
@@ -122,14 +126,13 @@ export function useTabCounts({
     }
   }, [selectedYear, filtersFromHook, cfoFilter, purchaserFilter, setTabCounts, kindTab]);
 
-  // Загружаем количество для всех вкладок
+  // Загружаем количество для всех вкладок (filtersLoaded — state, чтобы эффект перезапустился после восстановления при возврате с детальной страницы)
   useEffect(() => {
-    if (!filtersLoadedRef.current) {
+    if (!filtersLoaded) {
       return;
     }
-    
     fetchTabCounts();
-  }, [filtersLoadedRef, fetchTabCounts]);
+  }, [filtersLoaded, fetchTabCounts]);
 
   return {
     refreshTabCounts: fetchTabCounts,
