@@ -1065,6 +1065,18 @@ public class PurchaseRequestService {
     }
     
     /**
+     * Получить список годов, для которых есть заявки по дате создания (purchase_request_creation_date).
+     * Используется для фильтра «Дата создания» на фронтенде.
+     * Реализация через getYearlyStats() — без нативного запроса, стабильно работает во всех БД.
+     */
+    public List<Integer> getCreationDateYears() {
+        Map<String, Object> stats = getYearlyStats();
+        @SuppressWarnings("unchecked")
+        List<Integer> years = (List<Integer>) stats.get("years");
+        return years != null ? years : List.of();
+    }
+
+    /**
      * Получить список доступных годов из purchaseRequestCreationDate
      */
     public List<Integer> getAvailableYears(Boolean requiresPurchase) {

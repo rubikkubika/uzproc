@@ -25,6 +25,10 @@ export interface MultiSelectFilterDropdownProps {
   onSelectAll: () => void;
   /** Callback для снятия выбора всех опций */
   onDeselectAll: () => void;
+  /** Если задан, "Выбрать все" добавляет только видимые опции (после поиска) */
+  onSelectVisible?: (options: string[]) => void;
+  /** Если задан, "Снять все" снимает только видимые опции (после поиска) */
+  onDeselectVisible?: (options: string[]) => void;
   /** Callback для закрытия выпадающего списка */
   onClose: () => void;
   /** Ref на кнопку, которая открывает выпадающий список */
@@ -49,6 +53,8 @@ export default function MultiSelectFilterDropdown({
   onDeselectAll,
   onClose,
   buttonRef,
+  onSelectVisible,
+  onDeselectVisible,
 }: MultiSelectFilterDropdownProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [isToggling, setIsToggling] = useState(false);
@@ -175,17 +181,29 @@ export default function MultiSelectFilterDropdown({
         </div>
       </div>
 
-      {/* Кнопки выбора всех/снятия выбора */}
+      {/* Кнопки выбора всех/снятия выбора (работают с видимыми опциями при onSelectVisible/onDeselectVisible) */}
       <div className="px-2 py-1 border-b border-gray-200 flex gap-2">
         <button
-          onClick={onSelectAll}
+          onClick={() => {
+            if (onSelectVisible && filteredOptions.length > 0) {
+              onSelectVisible(filteredOptions);
+            } else {
+              onSelectAll();
+            }
+          }}
           className="text-xs text-blue-600 hover:text-blue-700"
           disabled={allSelected}
         >
           Выбрать все
         </button>
         <button
-          onClick={onDeselectAll}
+          onClick={() => {
+            if (onDeselectVisible && filteredOptions.length > 0) {
+              onDeselectVisible(filteredOptions);
+            } else {
+              onDeselectAll();
+            }
+          }}
           className="text-xs text-blue-600 hover:text-blue-700"
           disabled={!someSelected}
         >

@@ -509,12 +509,13 @@ export const usePurchasePlanItemsTable = () => {
       
       filtered = filtered.filter(item => {
         // Для позиций с заявками используем purchaseRequestStatus, иначе status
-        const itemStatus = item.purchaseRequestId !== null && item.purchaseRequestStatus 
-          ? item.purchaseRequestStatus 
+        const rawStatus = item.purchaseRequestId !== null && item.purchaseRequestStatus
+          ? item.purchaseRequestStatus
           : item.status;
-        if (!itemStatus) {
+        if (!rawStatus) {
           return false;
         }
+        const itemStatus = rawStatus.trim();
         const isInFilter = currentFilters.statusFilter.has(itemStatus);
         return isInFilter;
       });

@@ -189,6 +189,18 @@ export const usePurchasePlanItemsFilters = (
   }, [setCurrentPage]);
   const handleStatusSelectAll = useCallback(() => { setStatusFilter(new Set(getUniqueValues('status'))); setCurrentPage(0); }, [getUniqueValues, setCurrentPage]);
   const handleStatusDeselectAll = useCallback(() => { setStatusFilter(new Set()); setCurrentPage(0); }, [setCurrentPage]);
+  /** Добавляет только переданные (видимые) опции — чтобы счётчик "N выбрано" совпадал с действиями в выпадающем списке */
+  const handleStatusSelectVisible = useCallback((options: string[]) => {
+    if (options.length === 0) return;
+    setStatusFilter(prev => { const next = new Set(prev); options.forEach(o => next.add(o)); return next; });
+    setCurrentPage(0);
+  }, [setCurrentPage]);
+  /** Снимает только переданные (видимые) опции */
+  const handleStatusDeselectVisible = useCallback((options: string[]) => {
+    if (options.length === 0) return;
+    setStatusFilter(prev => { const next = new Set(prev); options.forEach(o => next.delete(o)); return next; });
+    setCurrentPage(0);
+  }, [setCurrentPage]);
 
   const handlePurchaserToggle = useCallback((purchaser: string) => {
     setPurchaserFilter(prev => {
@@ -304,10 +316,14 @@ export const usePurchasePlanItemsFilters = (
             // Извлекаем статусы из обоих полей:
             // 1. status (PurchasePlanItemStatus) - статус самого плана закупок
             // 2. purchaseRequestStatus - статус заявки на закупку (если есть purchaseRequestId)
-            if (item.purchaseRequestId !== null && item.purchaseRequestStatus) {
-              values.status.add(item.purchaseRequestStatus);
-            } else if (item.status) {
-              values.status.add(item.status);
+            // Нормализуем (trim), чтобы не было дубликатов вроде "Проект" и "Проект "
+            const statusVal = item.purchaseRequestId !== null && item.purchaseRequestStatus
+              ? item.purchaseRequestStatus.trim()
+              : item.status
+                ? item.status.trim()
+                : '';
+            if (statusVal) {
+              values.status.add(statusVal);
             } else {
               hasNullStatus = true;
             }
@@ -397,6 +413,7 @@ export const usePurchasePlanItemsFilters = (
     handlePurchaserCompanyToggle, handlePurchaserCompanySelectAll, handlePurchaserCompanyDeselectAll,
     handleCategoryToggle, handleCategorySelectAll, handleCategoryDeselectAll,
     handleStatusToggle, handleStatusSelectAll, handleStatusDeselectAll,
+    handleStatusSelectVisible, handleStatusDeselectVisible,
     handlePurchaserToggle, handlePurchaserSelectAll, handlePurchaserDeselectAll,
     getFilteredCfoOptions, getFilteredCompanyOptions, getFilteredPurchaserCompanyOptions,
     getFilteredCategoryOptions, getFilteredStatusOptions, getFilteredPurchaserOptions,

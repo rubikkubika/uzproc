@@ -2,12 +2,11 @@
 export const FILTERS_STORAGE_KEY = 'purchasePlanItems_filters';
 export const COLUMNS_VISIBILITY_STORAGE_KEY = 'purchasePlanItems_columnsVisibility';
 
-// Статусы (все возможные статусы плана закупок)
+// Статусы плана закупок (без "Заявка" — у позиций с заявкой статус берётся из связанной заявки)
 export const ALL_STATUSES = [
   'Проект',
   'В плане',
   'Исключена',
-  'Заявка',
   'Заявка у закупщика',
   'Договор в работе',
   'Договор подписан',

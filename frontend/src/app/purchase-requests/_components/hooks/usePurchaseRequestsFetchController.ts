@@ -5,6 +5,7 @@ interface UsePurchaseRequestsFetchControllerProps {
   filtersLoadedRef: React.MutableRefObject<boolean>;
   yearRestored: boolean;
   selectedYear: number | null;
+  selectedMonth: number | null;
   activeTab: TabType;
   forceReload: number;
   filtersFromHook: Record<string, string>;
@@ -18,6 +19,7 @@ interface UsePurchaseRequestsFetchControllerProps {
     page: number,
     size: number,
     year: number | null,
+    month: number | null,
     sortField: SortField | null,
     sortDirection: SortDirection | null,
     filters: Record<string, string>,
@@ -31,6 +33,7 @@ export function usePurchaseRequestsFetchController({
   filtersLoadedRef,
   yearRestored,
   selectedYear,
+  selectedMonth,
   activeTab,
   forceReload,
   filtersFromHook,
@@ -78,11 +81,12 @@ export function usePurchaseRequestsFetchController({
     // При изменении фильтров или сбросе начинаем с первой страницы
     setCurrentPage(0);
     setAllItems([]); // Очищаем накопленные данные
-    fetchData(0, pageSize, selectedYear, sortField, sortDirection, filtersFromHook, false);
+    fetchData(0, pageSize, selectedYear, selectedMonth, sortField, sortDirection, filtersFromHook, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     pageSize,
     selectedYear,
+    selectedMonth,
     sortField,
     sortDirection,
     filtersStr,
@@ -109,10 +113,10 @@ export function usePurchaseRequestsFetchController({
       console.log('Year was restored, re-fetching data with selectedYear:', selectedYear);
       // Небольшая задержка, чтобы убедиться, что selectedYear обновился
       const timeoutId = setTimeout(() => {
-        fetchData(0, pageSize, selectedYear, sortField, sortDirection, filtersFromHook);
+        fetchData(0, pageSize, selectedYear, selectedMonth, sortField, sortDirection, filtersFromHook);
       }, 100);
       return () => clearTimeout(timeoutId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [yearRestored, selectedYear, pageSize, sortField, sortDirection, filtersStr, filtersLoadedRef, fetchData]);
+  }, [yearRestored, selectedYear, selectedMonth, pageSize, sortField, sortDirection, filtersStr, filtersLoadedRef, fetchData]);
 }

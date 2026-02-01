@@ -7,6 +7,7 @@ public class CsiFeedbackDto {
     private Long purchaseRequestId;
     private Long idPurchaseRequest;
     private String purchaseRequestInnerId;
+    private String cfo;
     private Boolean usedUzproc;
     private Double uzprocRating;
     private Double speedRating;
@@ -51,6 +52,14 @@ public class CsiFeedbackDto {
 
     public void setPurchaseRequestInnerId(String purchaseRequestInnerId) {
         this.purchaseRequestInnerId = purchaseRequestInnerId;
+    }
+
+    public String getCfo() {
+        return cfo;
+    }
+
+    public void setCfo(String cfo) {
+        this.cfo = cfo;
     }
 
     public Boolean getUsedUzproc() {

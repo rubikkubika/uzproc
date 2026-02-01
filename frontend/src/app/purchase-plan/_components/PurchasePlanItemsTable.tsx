@@ -461,6 +461,8 @@ function PurchasePlanItemsTableContent() {
       onToggle: table.filters.handleStatusToggle,
       onSelectAll: table.filters.handleStatusSelectAll,
       onDeselectAll: table.filters.handleStatusDeselectAll,
+      onSelectVisible: table.filters.handleStatusSelectVisible,
+      onDeselectVisible: table.filters.handleStatusDeselectVisible,
       onClose: () => table.filters.setIsStatusFilterOpen(false),
     },
     purchaser: {

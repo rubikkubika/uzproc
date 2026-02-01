@@ -30,6 +30,16 @@ public class PurchaseRequestController {
         this.excelLoadService = excelLoadService;
     }
 
+    /**
+     * Список годов по дате создания заявки (только те, для которых есть записи в БД).
+     * Используется для фильтра «Дата создания» на фронтенде.
+     */
+    @GetMapping("/creation-date-years")
+    public ResponseEntity<List<Integer>> getCreationDateYears() {
+        List<Integer> years = purchaseRequestService.getCreationDateYears();
+        return ResponseEntity.ok(years);
+    }
+
     @GetMapping
     public ResponseEntity<Page<PurchaseRequestDto>> getAllPurchaseRequests(
             @RequestParam(defaultValue = "0") int page,

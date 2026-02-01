@@ -34,6 +34,7 @@ export const DEFAULT_VISIBLE_COLUMNS = [
   'cfo',
   'purchaser',
   'name',
+  'purchaseRequestCreationDate',
   'budgetAmount',
   'hasLinkedPlanItem',
   'status',

@@ -57,6 +57,7 @@ export default function PurchaseRequestsTable() {
     hasMore,
     loadMoreRef,
     selectedYear, setSelectedYear,
+    selectedMonth, setSelectedMonth,
     totalRecords, setTotalRecords,
     userRole, setUserRole,
     sortField, setSortField,
@@ -288,6 +289,7 @@ export default function PurchaseRequestsTable() {
     filtersLoadedRef,
     yearRestored,
     selectedYear,
+    selectedMonth,
     activeTab,
     forceReload,
     filtersFromHook,
@@ -315,6 +317,7 @@ export default function PurchaseRequestsTable() {
           nextPage,
           pageSize,
           selectedYear,
+          selectedMonth,
           sortField,
           sortDirection,
           mergedFilters,
@@ -322,7 +325,7 @@ export default function PurchaseRequestsTable() {
         );
         setCurrentPage(nextPage);
       }
-    }, [hasMore, loadingMore, allItems.length, currentPage, filtersFromHook, localFilters, selectedYear, sortField, sortDirection, pageSize, fetchData, setCurrentPage]),
+    }, [hasMore, loadingMore, allItems.length, currentPage, filtersFromHook, localFilters, selectedYear, selectedMonth, sortField, sortDirection, pageSize, fetchData, setCurrentPage]),
     threshold: 0.1,
   });
 
@@ -515,6 +518,7 @@ export default function PurchaseRequestsTable() {
     setPurchaserFilter(new Set());
     setPurchaserSearchQuery('');
     setSelectedYear(null);
+    setSelectedMonth(null);
     setSortField('idPurchaseRequest');
     setSortDirection('desc');
     setFocusedField(null);
@@ -525,14 +529,21 @@ export default function PurchaseRequestsTable() {
     setActiveTab(newTab);
     activeTabRef.current = newTab;
     setForceReload(prev => prev + 1);
-  }, [setFilters, setLocalFilters, setCfoFilter, setStatusFilter, setCfoSearchQuery, setStatusSearchQuery, setPurchaserFilter, setPurchaserSearchQuery, setSelectedYear, setSortField, setSortDirection, setFocusedField, setCurrentPage, setAllItems, setYearRestored, setActiveTab, activeTabRef, setForceReload]);
+  }, [setFilters, setLocalFilters, setCfoFilter, setStatusFilter, setCfoSearchQuery, setStatusSearchQuery, setPurchaserFilter, setPurchaserSearchQuery, setSelectedYear, setSelectedMonth, setSortField, setSortDirection, setFocusedField, setCurrentPage, setAllItems, setYearRestored, setActiveTab, activeTabRef, setForceReload]);
 
-  // Обработчик для изменения года
+  // Обработчик для изменения года (фильтр по дате создания)
   const handleYearChange = useCallback((year: number | null) => {
     setSelectedYear(year);
     setCurrentPage(0);
     setAllItems([]);
   }, [setSelectedYear, setCurrentPage, setAllItems]);
+
+  // Обработчик для изменения месяца (фильтр по дате создания)
+  const handleMonthChange = useCallback((month: number | null) => {
+    setSelectedMonth(month);
+    setCurrentPage(0);
+    setAllItems([]);
+  }, [setSelectedMonth, setCurrentPage, setAllItems]);
 
   // Обработчик для переключения вкладки
   const handleTabChange = useCallback((tab: TabType) => {
@@ -683,7 +694,7 @@ export default function PurchaseRequestsTable() {
         <div className="text-center py-8">
           <p className="text-red-600">Ошибка: {error}</p>
               <button
-                onClick={() => fetchData(currentPage, pageSize)}
+                onClick={() => fetchData(currentPage, pageSize, selectedYear, selectedMonth, sortField, sortDirection, filtersFromHook)}
                 className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 Повторить
@@ -807,6 +818,11 @@ export default function PurchaseRequestsTable() {
             getColumnWidth={getColumnWidth}
             onResizeStart={handleResizeStart}
             onLocalFiltersChange={handleLocalFiltersChange}
+            allYears={allYears}
+            selectedYear={selectedYear}
+            selectedMonth={selectedMonth}
+            onYearChange={handleYearChange}
+            onMonthChange={handleMonthChange}
           />
           {/* Старый блок thead удален - теперь используется PurchaseRequestsTableColumnsHeader */}
           <PurchaseRequestsTableBody

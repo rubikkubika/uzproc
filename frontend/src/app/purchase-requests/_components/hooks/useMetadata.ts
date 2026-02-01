@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { fetchMetadata } from '../services/purchaseRequests.api';
+import { fetchMetadata, fetchCreationDateYears } from '../services/purchaseRequests.api';
 import { normalizePurchaserName } from '../utils/normalizePurchaser';
 import type { PurchaseRequest } from '../types/purchase-request.types';
 import { CACHE_KEY, CACHE_TTL } from '../constants/status.constants';
@@ -25,13 +25,16 @@ export function useMetadata() {
     const fetchMetadataData = async () => {
       try {
         // Проверяем кэш
+        // Годы по дате создания загружаем из отдельного API (только те, что есть в БД)
+        const yearsFromApi = await fetchCreationDateYears();
+        setAllYears(yearsFromApi);
+
         const cached = localStorage.getItem(CACHE_KEY);
         if (cached) {
           const { data, timestamp } = JSON.parse(cached);
           const now = Date.now();
           if (now - timestamp < CACHE_TTL) {
-            // Используем кэшированные данные, но проверяем наличие статусов
-            setAllYears(data.years);
+            // Используем кэшированные uniqueValues, годы уже загружены из API выше
             // Если в кэше нет статусов, добавляем пустой массив (они загрузятся при следующем запросе)
             const cachedUniqueValues = {
               ...data.uniqueValues,
@@ -43,7 +46,6 @@ export function useMetadata() {
             if (cachedUniqueValues.status && !cachedUniqueValues.status.includes('Утверждена')) {
               console.warn('WARNING: Cache does not contain "Утверждена" status, clearing cache and reloading');
               localStorage.removeItem(CACHE_KEY);
-              // Продолжаем загрузку данных
             } else if (!cachedUniqueValues.status || cachedUniqueValues.status.length === 0) {
               console.log('Status values not in cache, will load from API');
             } else {
@@ -59,7 +61,6 @@ export function useMetadata() {
         params.append('size', '50000');
         
         const result = await fetchMetadata(params);
-        const years = new Set<number>();
         const values: Record<string, Set<string>> = {
           cfo: new Set(),
           purchaseRequestInitiator: new Set(),
@@ -71,14 +72,7 @@ export function useMetadata() {
         };
 
         result.content.forEach((request: PurchaseRequest) => {
-          // Собираем годы
-          if (request.purchaseRequestCreationDate) {
-            const date = new Date(request.purchaseRequestCreationDate);
-            const year = date.getFullYear();
-            if (!isNaN(year)) {
-              years.add(year);
-            }
-          }
+          // Годы уже загружены из fetchCreationDateYears(), здесь только uniqueValues
           // Собираем уникальные значения
           if (request.cfo) values.cfo.add(request.cfo);
           if (request.purchaseRequestInitiator) values.purchaseRequestInitiator.add(request.purchaseRequestInitiator);
@@ -110,7 +104,6 @@ export function useMetadata() {
         console.log('Status "Утверждена" found in unique values:', hasApproved);
         console.log('All unique statuses before sorting:', Array.from(values.status));
 
-        const yearsArray = Array.from(years).sort((a, b) => b - a);
         const uniqueValuesData = {
           cfo: Array.from(values.cfo).sort(),
           purchaseRequestInitiator: Array.from(values.purchaseRequestInitiator).sort(),
@@ -149,13 +142,12 @@ export function useMetadata() {
           }
         }
 
-        setAllYears(yearsArray);
         setUniqueValues(uniqueValuesData);
 
-        // Сохраняем в кэш
+        // Сохраняем в кэш (годы не кэшируем — всегда из API)
         localStorage.setItem(CACHE_KEY, JSON.stringify({
           data: {
-            years: yearsArray,
+            years: yearsFromApi,
             uniqueValues: uniqueValuesData,
           },
           timestamp: Date.now(),

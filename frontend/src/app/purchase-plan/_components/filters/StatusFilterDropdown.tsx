@@ -25,6 +25,10 @@ export interface StatusFilterDropdownProps {
   onSelectAll: () => void;
   /** Callback для снятия выбора всех опций */
   onDeselectAll: () => void;
+  /** Если задан, "Выбрать все" добавляет только видимые опции */
+  onSelectVisible?: (options: string[]) => void;
+  /** Если задан, "Снять все" снимает только видимые опции */
+  onDeselectVisible?: (options: string[]) => void;
   /** Callback для закрытия выпадающего списка */
   onClose: () => void;
   /** Ref на кнопку, которая открывает выпадающий список */
@@ -49,6 +53,8 @@ export default function StatusFilterDropdown({
   onDeselectAll,
   onClose,
   buttonRef,
+  onSelectVisible,
+  onDeselectVisible,
 }: StatusFilterDropdownProps) {
   return (
     <MultiSelectFilterDropdown
@@ -63,6 +69,8 @@ export default function StatusFilterDropdown({
       onDeselectAll={onDeselectAll}
       onClose={onClose}
       buttonRef={buttonRef}
+      onSelectVisible={onSelectVisible}
+      onDeselectVisible={onDeselectVisible}
     />
   );
 }

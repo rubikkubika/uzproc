@@ -46,11 +46,18 @@ export function usePurchasePlanMonths() {
     return date;
   };
 
-  // Получаем следующий месяц
+  // Получаем предыдущий месяц (текущий - 1)
+  const getPreviousMonth = () => {
+    const date = getCurrentMonth();
+    const prev = new Date(date.getFullYear(), date.getMonth() - 1, 1);
+    return prev;
+  };
+
+  // Получаем следующий месяц (текущий + 1)
   const getNextMonth = () => {
     const date = getCurrentMonth();
-    date.setMonth(date.getMonth() + 1);
-    return date;
+    const next = new Date(date.getFullYear(), date.getMonth() + 1, 1);
+    return next;
   };
 
   // Переключение на месяц назад
@@ -87,6 +94,7 @@ export function usePurchasePlanMonths() {
   };
 
   return {
+    previousMonth: getPreviousMonth(),
     currentMonth: getCurrentMonth(),
     nextMonth: getNextMonth(),
     formatMonth,

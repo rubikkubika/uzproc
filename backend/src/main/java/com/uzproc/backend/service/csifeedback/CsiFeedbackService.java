@@ -231,6 +231,9 @@ public class CsiFeedbackService {
         dto.setPurchaseRequestId(feedback.getPurchaseRequest().getId());
         dto.setIdPurchaseRequest(feedback.getPurchaseRequest().getIdPurchaseRequest());
         dto.setPurchaseRequestInnerId(feedback.getPurchaseRequest().getInnerId());
+        if (feedback.getPurchaseRequest().getCfo() != null) {
+            dto.setCfo(feedback.getPurchaseRequest().getCfo().getName());
+        }
         dto.setUsedUzproc(feedback.getUsedUzproc());
         dto.setUzprocRating(feedback.getUzprocRating());
         dto.setSpeedRating(feedback.getSpeedRating());
