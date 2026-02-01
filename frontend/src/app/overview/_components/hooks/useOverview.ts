@@ -16,7 +16,7 @@ export function useOverview() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedTab = localStorage.getItem(OVERVIEW_TAB_KEY);
-      if (savedTab) {
+      if (savedTab === 'purchase-plan' || savedTab === 'csi') {
         setActiveTabState(savedTab);
       }
     }

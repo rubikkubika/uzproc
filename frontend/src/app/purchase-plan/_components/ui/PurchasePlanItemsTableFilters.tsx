@@ -22,6 +22,8 @@ type FilterData = {
   onToggle: (value: string) => void;
   onSelectAll: () => void;
   onDeselectAll: () => void;
+  onSelectVisible?: (options: string[]) => void;
+  onDeselectVisible?: (options: string[]) => void;
   onClose: () => void;
 };
 
@@ -138,6 +140,8 @@ export default function PurchasePlanItemsTableFilters({
           onToggle={filters.status.onToggle}
           onSelectAll={filters.status.onSelectAll}
           onDeselectAll={filters.status.onDeselectAll}
+          onSelectVisible={filters.status.onSelectVisible}
+          onDeselectVisible={filters.status.onDeselectVisible}
           onClose={filters.status.onClose}
         />
       )}

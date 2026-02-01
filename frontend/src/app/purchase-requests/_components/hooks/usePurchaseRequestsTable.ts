@@ -28,9 +28,10 @@ export function usePurchaseRequestsTable() {
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Состояние для года и общего количества записей
+  // Состояние для года/месяца (фильтр по дате создания) и общего количества записей
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
   const [totalRecords, setTotalRecords] = useState<number>(0);
   const [userRole, setUserRole] = useState<string | null>(null);
   // summaryData теперь в хуке useSummary
@@ -60,6 +61,7 @@ export function usePurchaseRequestsTable() {
     page: number,
     size: number,
     year: number | null = null,
+    month: number | null = null,
     sortField: SortField = null,
     sortDirection: SortDirection = null,
     filters: Record<string, string> = {},
@@ -92,6 +94,10 @@ export function usePurchaseRequestsTable() {
 
       if (year !== null) {
         params.append('year', String(year));
+      }
+
+      if (month !== null && month >= 1 && month <= 12) {
+        params.append('month', String(month));
       }
 
       if (sortField && sortDirection) {
@@ -263,6 +269,8 @@ export function usePurchaseRequestsTable() {
     loadMoreRef,
     selectedYear,
     setSelectedYear,
+    selectedMonth,
+    setSelectedMonth,
     totalRecords,
     setTotalRecords,
     userRole,

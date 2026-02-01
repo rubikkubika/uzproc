@@ -85,6 +85,13 @@ interface PurchaseRequestsTableColumnsHeaderProps {
   
   // Локальные фильтры - обновление
   onLocalFiltersChange: (updater: (prev: Record<string, string>) => Record<string, string>) => void;
+
+  // Фильтр по дате создания (год и месяц)
+  allYears: number[];
+  selectedYear: number | null;
+  selectedMonth: number | null;
+  onYearChange: (year: number | null) => void;
+  onMonthChange: (month: number | null) => void;
 }
 
 /**
@@ -147,6 +154,11 @@ export default function PurchaseRequestsTableColumnsHeader({
   getColumnWidth,
   onResizeStart,
   onLocalFiltersChange,
+  allYears,
+  selectedYear,
+  selectedMonth,
+  onYearChange,
+  onMonthChange,
 }: PurchaseRequestsTableColumnsHeaderProps) {
   return (
     <thead className="bg-gray-50 sticky top-[44px] z-20">
@@ -353,28 +365,65 @@ export default function PurchaseRequestsTableColumnsHeader({
           }
           
           if (columnKey === 'purchaseRequestCreationDate') {
+            const MONTH_NAMES = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
             return (
-              <SortableHeader
+              <th
                 key={columnKey}
-                field="purchaseRequestCreationDate"
-                label="Дата создания"
-                columnKey="purchaseRequestCreationDate"
-                width={getColumnWidth('purchaseRequestCreationDate')}
-                sortField={sortField}
-                sortDirection={sortDirection}
-                onSort={onSort}
-                filterValue={localFilters.purchaseRequestCreationDate || ''}
-                onFilterChange={(value) => handleFilterChangeForHeader('purchaseRequestCreationDate', value)}
-                onFocus={() => handleFocusForHeader('purchaseRequestCreationDate')}
-                onBlur={(e) => handleBlurForHeader(e, 'purchaseRequestCreationDate')}
-                onDragStart={onDragStart}
-                onDragOver={onDragOver}
+                draggable
+                onDragStart={(e) => onDragStart(e, columnKey)}
+                onDragOver={(e) => onDragOver(e, columnKey)}
                 onDragLeave={onDragLeave}
-                onDrop={onDrop}
-                isDragged={isDragging}
-                isDragOver={isDragOver}
-                onResizeStart={onResizeStart}
-              />
+                onDrop={(e) => onDrop(e, columnKey)}
+                className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                style={{ width: `${getColumnWidth('purchaseRequestCreationDate')}px`, minWidth: `${getColumnWidth('purchaseRequestCreationDate')}px`, maxWidth: `${getColumnWidth('purchaseRequestCreationDate')}px`, verticalAlign: 'top' }}
+              >
+                <div className="flex flex-col gap-1">
+                  <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}>
+                    <select
+                      value={selectedYear ?? ''}
+                      onChange={(e) => onYearChange(e.target.value ? Number(e.target.value) : null)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex-1 min-w-0 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      style={{ height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
+                      title="Год"
+                    >
+                      <option value="">Год</option>
+                      {allYears.map((y) => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={selectedMonth ?? ''}
+                      onChange={(e) => onMonthChange(e.target.value ? Number(e.target.value) : null)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex-1 min-w-0 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      style={{ height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
+                      title="Месяц"
+                    >
+                      <option value="">Месяц</option>
+                      {MONTH_NAMES.map((name, idx) => (
+                        <option key={idx} value={String(idx + 1)}>{name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-1 min-h-[20px]">
+                    <button
+                      type="button"
+                      onClick={() => onSort('purchaseRequestCreationDate')}
+                      className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                      style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                      title="Сортировка"
+                    >
+                      {sortField === 'purchaseRequestCreationDate' ? (
+                        sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-gray-400" />
+                      )}
+                    </button>
+                    <span className="text-xs font-medium text-gray-500 tracking-wider">Дата создания</span>
+                  </div>
+                </div>
+              </th>
             );
           }
           

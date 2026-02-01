@@ -787,12 +787,11 @@ export default function PurchasePlanItemsTableRow({
                   <option value="Исключена">Исключена</option>
                 </>
               ) : (
-                // Если нет заявки, можно выбрать все статусы
+                // Если нет заявки, можно выбрать статусы плана (без "Заявка" — это плейсхолдер для позиций с заявкой)
                 <>
                   <option value="Проект">Проект</option>
                   <option value="В плане">В плане</option>
                   <option value="Исключена">Исключена</option>
-                  <option value="Заявка">Заявка</option>
                   <option value="Пусто">Пусто</option>
                 </>
               )}
