@@ -1,10 +1,13 @@
 package com.uzproc.backend.repository.purchaseplan;
 
+import com.uzproc.backend.entity.Company;
 import com.uzproc.backend.entity.purchaseplan.PurchasePlanItem;
+import com.uzproc.backend.entity.purchaseplan.PurchasePlanItemStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -52,5 +55,20 @@ public interface PurchasePlanItemRepository extends JpaRepository<PurchasePlanIt
     @org.springframework.data.jpa.repository.Modifying
     @org.springframework.data.jpa.repository.Query(value = "UPDATE purchase_plan_items SET purchaser_id = NULL WHERE id = :id AND purchaser_id IS NOT NULL", nativeQuery = true)
     int clearPurchaserIdById(@org.springframework.data.repository.query.Param("id") Long id);
+
+    @Query("SELECT DISTINCT p.company FROM PurchasePlanItem p WHERE p.company IS NOT NULL ORDER BY p.company")
+    List<Company> findDistinctCompany();
+
+    @Query("SELECT DISTINCT p.purchaserCompany FROM PurchasePlanItem p WHERE p.purchaserCompany IS NOT NULL ORDER BY p.purchaserCompany")
+    List<Company> findDistinctPurchaserCompany();
+
+    @Query("SELECT DISTINCT p.category FROM PurchasePlanItem p WHERE p.category IS NOT NULL ORDER BY p.category")
+    List<String> findDistinctCategory();
+
+    @Query("SELECT DISTINCT p.status FROM PurchasePlanItem p WHERE p.status IS NOT NULL ORDER BY p.status")
+    List<PurchasePlanItemStatus> findDistinctPlanStatus();
+
+    @Query(value = "SELECT DISTINCT TRIM(COALESCE(u.surname,'') || ' ' || COALESCE(u.name,'')) FROM purchase_plan_items p JOIN users u ON p.purchaser_id = u.id WHERE p.purchaser_id IS NOT NULL ORDER BY 1", nativeQuery = true)
+    List<String> findDistinctPurchaserNames();
 }
 

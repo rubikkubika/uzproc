@@ -2,6 +2,7 @@ package com.uzproc.backend.controller.purchaseplan;
 
 import com.uzproc.backend.dto.purchaseplan.PurchasePlanItemChangeDto;
 import com.uzproc.backend.dto.purchaseplan.PurchasePlanItemDto;
+import com.uzproc.backend.dto.purchaseplan.UniqueFilterValuesDto;
 import com.uzproc.backend.entity.purchaseplan.PurchasePlanItemStatus;
 import com.uzproc.backend.service.purchaseplan.PurchasePlanItemChangeService;
 import com.uzproc.backend.service.purchaseplan.PurchasePlanItemService;
@@ -96,6 +97,11 @@ public class PurchasePlanItemController {
     public ResponseEntity<List<Integer>> getYears() {
         List<Integer> years = purchasePlanItemService.findDistinctYears();
         return ResponseEntity.ok(years);
+    }
+
+    @GetMapping("/unique-values")
+    public ResponseEntity<UniqueFilterValuesDto> getUniqueFilterValues() {
+        return ResponseEntity.ok(purchasePlanItemService.getUniqueFilterValues());
     }
 
     @GetMapping("/monthly-stats")

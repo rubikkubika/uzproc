@@ -1,30 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
-import { DEFAULT_STATUSES, FILTERS_STORAGE_KEY } from '../constants/purchase-plan-items.constants';
-import { PurchasePlanItem } from '../types/purchase-plan-items.types';
+import { FILTERS_STORAGE_KEY } from '../constants/purchase-plan-items.constants';
 import { getBackendUrl } from '@/utils/api';
-
-
-// Функция для нормализации названия компании
-const normalizeCompany = (company: string | null): string | null => {
-  if (!company) return null;
-  const normalized = company.trim().toLowerCase();
-  
-  if (normalized.includes('узум') && normalized.includes('маркет')) return 'Market';
-  if (normalized.includes('uzum') && normalized.includes('market')) return 'Market';
-  if (normalized === 'market') return 'Market';
-  if (normalized.includes('узум') && normalized.includes('технологи')) return 'Holding';
-  if (normalized.includes('uzum') && normalized.includes('technolog')) return 'Holding';
-  if (normalized === 'holding') return 'Holding';
-  if (normalized.includes('uzum') && normalized.includes('tezkor')) return 'Tezkor';
-  if (normalized === 'tezkor') return 'Tezkor';
-
-  if (company === 'Market' || company === 'Holding' || company === 'Tezkor') return company;
-  if (company === 'Uzum Market') return 'Market';
-  if (company === 'Uzum Technologies') return 'Holding';
-  if (company === 'Uzum Tezkor') return 'Tezkor';
-  
-  return company;
-};
 
 export const usePurchasePlanItemsFilters = (
   setCurrentPage: (page: number) => void,
@@ -58,9 +34,8 @@ export const usePurchasePlanItemsFilters = (
   const [companyFilter, setCompanyFilter] = useState<Set<string>>(new Set());
   const [purchaserCompanyFilter, setPurchaserCompanyFilter] = useState<Set<string>>(new Set(['Market']));
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
-  // Инициализируем фильтр статуса дефолтными значениями (все статусы кроме "Исключена")
-  // Это предотвращает показ исключенных позиций по умолчанию
-  const [statusFilter, setStatusFilter] = useState<Set<string>>(() => new Set(DEFAULT_STATUSES));
+  // По умолчанию при открытии страницы — только статус «В плане»
+  const [statusFilter, setStatusFilter] = useState<Set<string>>(() => new Set(['В плане']));
   const [purchaserFilter, setPurchaserFilter] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set<string>();
     try {
@@ -280,81 +255,35 @@ export const usePurchasePlanItemsFilters = (
   const getFilteredStatusOptions = useMemo(() => getFilteredOptions(uniqueValues.status, statusSearchQuery), [statusSearchQuery, uniqueValues.status, getFilteredOptions]);
   const getFilteredPurchaserOptions = useMemo(() => getFilteredOptions(uniqueValues.purchaser, purchaserSearchQuery), [purchaserSearchQuery, uniqueValues.purchaser, getFilteredOptions]);
 
-  // Загрузка уникальных значений для всех полей ВКЛЮЧАЯ статусы
+  // Загрузка уникальных значений для фильтров через лёгкий эндпоинт (без загрузки 10000 записей)
   useEffect(() => {
-    // Используем кеш, если данные уже загружены
     if (uniqueValuesCacheRef.current) {
       setUniqueValues(uniqueValuesCacheRef.current);
       return;
     }
-    
-    // Если запрос уже выполняется или уже был выполнен, не запускаем новый
     if (uniqueValuesLoadingRef.current || uniqueValuesFetchedRef.current) {
       return;
     }
-    
     const fetchUniqueValues = async () => {
       uniqueValuesLoadingRef.current = true;
       uniqueValuesFetchedRef.current = true;
       try {
-        const [cfoResponse, planResponse] = await Promise.all([
+        const [cfoResponse, uniqueResponse] = await Promise.all([
           fetch(`${getBackendUrl()}/api/cfos/names`),
-          fetch(`${getBackendUrl()}/api/purchase-plan-items?page=0&size=10000`),
+          fetch(`${getBackendUrl()}/api/purchase-plan-items/unique-values`),
         ]);
         const cfoNames: string[] = cfoResponse.ok ? await cfoResponse.json() : [];
-        const result = planResponse.ok ? await planResponse.json() : { content: [] };
-
-        const values: Record<string, Set<string>> = {
-          cfo: new Set(Array.isArray(cfoNames) ? cfoNames : []),
-          company: new Set(),
-          purchaserCompany: new Set(),
-          purchaser: new Set(),
-          category: new Set(),
-          status: new Set(),
+        const unique = uniqueResponse.ok ? await uniqueResponse.json() : { company: [], purchaserCompany: [], purchaser: [], category: [], status: [] };
+        const cachedValues = {
+          cfo: Array.isArray(cfoNames) ? cfoNames.sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })) : [],
+          company: Array.isArray(unique.company) ? unique.company : [],
+          purchaserCompany: Array.isArray(unique.purchaserCompany) ? unique.purchaserCompany : [],
+          purchaser: Array.isArray(unique.purchaser) ? unique.purchaser : [],
+          category: Array.isArray(unique.category) ? unique.category : [],
+          status: Array.isArray(unique.status) ? unique.status : [],
         };
-        let hasNullPurchaserCompany = false, hasNullCompany = false, hasNullStatus = false, hasNullPurchaser = false;
-
-        result.content.forEach((item: PurchasePlanItem) => {
-          if (item.company) values.company.add(item.company); else { hasNullCompany = true; }
-            if (item.purchaserCompany) { const n = normalizeCompany(item.purchaserCompany); if (n) values.purchaserCompany.add(n); } else { hasNullPurchaserCompany = true; }
-            if (item.purchaser) values.purchaser.add(item.purchaser); else { hasNullPurchaser = true; }
-            if (item.category) values.category.add(item.category);
-
-            // Извлекаем статусы из обоих полей:
-            // 1. status (PurchasePlanItemStatus) - статус самого плана закупок
-            // 2. purchaseRequestStatus - статус заявки на закупку (если есть purchaseRequestId)
-            // Нормализуем (trim), чтобы не было дубликатов вроде "Проект" и "Проект "
-            const statusVal = item.purchaseRequestId !== null && item.purchaseRequestStatus
-              ? item.purchaseRequestStatus.trim()
-              : item.status
-                ? item.status.trim()
-                : '';
-            if (statusVal) {
-              values.status.add(statusVal);
-            } else {
-              hasNullStatus = true;
-            }
-          });
-
-          if (hasNullPurchaserCompany) values.purchaserCompany.add('Не выбрано');
-          if (hasNullCompany) values.company.add('Не выбрано');
-          if (hasNullPurchaser) values.purchaser.add('Не назначен');
-          if (hasNullStatus) values.status.add('Пусто');
-
-          const newStatuses = Array.from(values.status).sort((a,b)=>a.localeCompare(b,'ru',{sensitivity:'base'}));
-
-          // Сохраняем в кеш и обновляем состояние
-          const cachedValues = {
-            cfo: Array.from(values.cfo).sort((a,b)=>a.localeCompare(b,'ru',{sensitivity:'base'})),
-            company: Array.from(values.company).sort((a,b)=>a.localeCompare(b,'ru',{sensitivity:'base'})),
-            purchaserCompany: Array.from(values.purchaserCompany).sort((a,b)=>a.localeCompare(b,'ru',{sensitivity:'base'})),
-            purchaser: Array.from(values.purchaser).sort((a,b)=>a.localeCompare(b,'ru',{sensitivity:'base'})),
-            category: Array.from(values.category).sort((a,b)=>a.localeCompare(b,'ru',{sensitivity:'base'})),
-            status: newStatuses,
-          };
-          
-          uniqueValuesCacheRef.current = cachedValues;
-          setUniqueValues(cachedValues);
+        uniqueValuesCacheRef.current = cachedValues;
+        setUniqueValues(cachedValues);
       } catch { }
       finally {
         uniqueValuesLoadingRef.current = false;
