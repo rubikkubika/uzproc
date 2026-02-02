@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
 import { FILTERS_STORAGE_KEY } from '../constants/purchase-plan-items.constants';
+import { PurchasePlanItem } from '../types/purchase-plan-items.types';
 import { getBackendUrl } from '@/utils/api';
 
 export const usePurchasePlanItemsFilters = (

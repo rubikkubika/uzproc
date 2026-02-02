@@ -20,6 +20,7 @@ import { getCurrencyIcon } from './utils/currency.utils';
 import { normalizePurchaserName } from './utils/normalizePurchaser';
 import { copyRatingEmail } from './utils/ratingEmail';
 import { copyToClipboard } from '@/utils/clipboard';
+import { findInitiatorByName } from './services/users.api';
 import { usePurchaseRequestsTable } from './hooks/usePurchaseRequestsTable';
 import { useUserRole } from './hooks/useUserRole';
 import { useRatingModal } from './hooks/useRatingModal';
@@ -120,6 +121,9 @@ export default function PurchaseRequestsTable() {
     userSuggestions, setUserSuggestions,
     showUserSuggestions, setShowUserSuggestions,
     emailText, setEmailText,
+    emailSubject, setEmailSubject,
+    emailTo, setEmailTo,
+    emailCc, setEmailCc,
     userSearchRef,
     isSentInvitationModalOpen, setIsSentInvitationModalOpen,
     sentInvitationDetails, setSentInvitationDetails,
@@ -156,6 +160,49 @@ export default function PurchaseRequestsTable() {
     setEmailText,
     userSearchRef
   );
+
+  // При открытии модалки оценки заполняем тему, получателя (из БД — инициатор) и копию (закупщик + r.oskanov)
+  useEffect(() => {
+    if (!isRatingModalOpen || !selectedRequestForRating) return;
+    const num = selectedRequestForRating.idPurchaseRequest ?? '';
+    setEmailSubject(`Об обратной связи по заявке № ${num}`);
+
+    // Email получателя по умолчанию из БД — инициатор заявки
+    const initiatorName = selectedRequestForRating.purchaseRequestInitiator?.trim();
+    if (initiatorName) {
+      findInitiatorByName(initiatorName).then((user) => {
+        if (user?.email?.trim()) {
+          setEmailTo(user.email.trim());
+        } else if (user?.username) {
+          setEmailTo(user.username);
+        }
+      }).catch(() => {});
+    } else {
+      setEmailTo('');
+    }
+
+    // В копию по умолчанию: email закупщика + r.oskanov@uzum.com
+    const ccDefault = 'r.oskanov@uzum.com';
+    if (selectedRequestForRating.purchaser?.trim()) {
+      findInitiatorByName(selectedRequestForRating.purchaser.trim()).then((user) => {
+        if (user?.email?.trim()) {
+          setEmailCc(`${user.email.trim()}, ${ccDefault}`);
+        } else {
+          setEmailCc(ccDefault);
+        }
+      }).catch(() => setEmailCc(ccDefault));
+    } else {
+      setEmailCc(ccDefault);
+    }
+  }, [isRatingModalOpen, selectedRequestForRating]);
+
+  // Синхронизируем поле «Получатель» с выбранным пользователем
+  useEffect(() => {
+    if (isRatingModalOpen && selectedUserEmail) {
+      setEmailTo(selectedUserEmail);
+    }
+  }, [isRatingModalOpen, selectedUserEmail]);
+
   
   // Используем хуки для позиционирования dropdown
   const cfoFilterPositionHook = useDropdownPosition(isCfoFilterOpen);
@@ -609,11 +656,12 @@ export default function PurchaseRequestsTable() {
     setSelectedUser(user);
     setUserSearchQuery(displayName);
     setSelectedUserEmail(userEmail);
+    setEmailTo(userEmail);
     setShowUserSuggestions(false);
     if (selectedRequestForRating) {
       generateEmailText(userEmail, selectedRequestForRating);
     }
-  }, [setSelectedUser, setUserSearchQuery, setSelectedUserEmail, setShowUserSuggestions, selectedRequestForRating, generateEmailText]);
+  }, [setSelectedUser, setUserSearchQuery, setSelectedUserEmail, setEmailTo, setShowUserSuggestions, selectedRequestForRating, generateEmailText]);
 
   const handleRatingEmailCopy = useCallback(async () => {
     await copyRatingEmail(emailText);
@@ -622,23 +670,48 @@ export default function PurchaseRequestsTable() {
   const handleRatingEmailSend = useCallback(async () => {
     if (!selectedRequestForRating) return;
 
-    // Используем selectedUserEmail если он есть, иначе берем из userSearchQuery
-    const recipientEmail = selectedUserEmail || userSearchQuery;
-
+    const recipientEmail = emailTo?.trim();
     if (!recipientEmail) {
-      alert('Пожалуйста, выберите получателя');
+      alert('Пожалуйста, укажите email получателя');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(recipientEmail)) {
+      alert('Некорректный формат email получателя');
       return;
     }
 
     try {
       await sendInvitation(selectedRequestForRating, recipientEmail);
-      // Закрываем модальное окно
+
+      const ccList = (emailCc ?? '')
+        .split(/[,;]/)
+        .map((s) => s.trim())
+        .filter((s) => s && emailRegex.test(s));
+
+      const response = await fetch(`${getBackendUrl()}/api/email/send-feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: recipientEmail,
+          cc: ccList.length > 0 ? ccList : undefined,
+          subject: emailSubject?.trim() || `Об обратной связи по заявке № ${selectedRequestForRating.idPurchaseRequest ?? ''}`,
+          body: emailText,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Ошибка при отправке письма');
+      }
+
       handleRatingModalClose();
     } catch (error) {
-      console.error('Error sending invitation:', error);
+      console.error('Error sending invitation or email:', error);
       alert(error instanceof Error ? error.message : 'Ошибка при отправке приглашения');
     }
-  }, [selectedRequestForRating, selectedUserEmail, userSearchQuery, sendInvitation, handleRatingModalClose]);
+  }, [selectedRequestForRating, emailTo, emailCc, emailSubject, emailText, sendInvitation, handleRatingModalClose]);
 
   const handleFeedbackDetailsModalClose = useCallback(() => {
     setIsFeedbackDetailsModalOpen(false);
@@ -861,6 +934,12 @@ export default function PurchaseRequestsTable() {
         userSuggestions={userSuggestions}
         showUserSuggestions={showUserSuggestions}
         emailText={emailText}
+        emailSubject={emailSubject}
+        emailTo={emailTo}
+        emailCc={emailCc}
+        onEmailSubjectChange={setEmailSubject}
+        onEmailToChange={setEmailTo}
+        onEmailCcChange={setEmailCc}
         onClose={handleRatingModalClose}
         onUserSearchChange={handleUserSearchChange}
         onUserPick={handleUserPick}

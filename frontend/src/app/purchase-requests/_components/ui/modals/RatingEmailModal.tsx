@@ -21,6 +21,12 @@ interface RatingEmailModalProps {
   userSuggestions: UserSuggestion[];
   showUserSuggestions: boolean;
   emailText: string;
+  emailSubject: string;
+  emailTo: string;
+  emailCc: string;
+  onEmailSubjectChange: (value: string) => void;
+  onEmailToChange: (value: string) => void;
+  onEmailCcChange: (value: string) => void;
   onClose: () => void;
   onUserSearchChange: (value: string) => void;
   onUserPick: (user: User, displayName: string, userEmail: string) => void;
@@ -39,6 +45,12 @@ export default function RatingEmailModal({
   userSuggestions,
   showUserSuggestions,
   emailText,
+  emailSubject,
+  emailTo,
+  emailCc,
+  onEmailSubjectChange,
+  onEmailToChange,
+  onEmailCcChange,
   onClose,
   onUserSearchChange,
   onUserPick,
@@ -53,7 +65,7 @@ export default function RatingEmailModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold text-gray-900">Отправка письма для оценки</h2>
           <button
@@ -67,7 +79,46 @@ export default function RatingEmailModal({
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Получатель
+              Тема
+            </label>
+            <input
+              type="text"
+              value={emailSubject}
+              onChange={(e) => onEmailSubjectChange(e.target.value)}
+              placeholder="Об обратной связи по заявке № …"
+              className="w-full px-3 py-2 text-sm text-gray-900 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Email получателя
+            </label>
+            <input
+              type="email"
+              value={emailTo}
+              onChange={(e) => onEmailToChange(e.target.value)}
+              placeholder="email@example.com"
+              className="w-full px-3 py-2 text-sm text-gray-900 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Копия (через запятую)
+            </label>
+            <input
+              type="text"
+              value={emailCc}
+              onChange={(e) => onEmailCcChange(e.target.value)}
+              placeholder="email1@example.com, email2@example.com"
+              className="w-full px-3 py-2 text-sm text-gray-900 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Получатель (поиск по имени)
             </label>
             <div ref={userSearchRef} className="relative">
               <div className="relative">
