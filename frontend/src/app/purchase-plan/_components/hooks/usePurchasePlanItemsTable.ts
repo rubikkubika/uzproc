@@ -328,6 +328,9 @@ export const usePurchasePlanItemsTable = () => {
       }
 
       setData(result);
+      const total = result.totalElements ?? 0;
+      totalRecordsCacheRef.current = total;
+      setTotalRecords(total);
       setHasMore(items.length === size && !result.last);
       setCurrentPage(page);
     } catch (err) {
@@ -1227,13 +1230,12 @@ export const usePurchasePlanItemsTable = () => {
       clearTimeout(chartDataDebounceTimerRef.current);
     }
     
-    // Устанавливаем новый таймер debounce (2000мс) - увеличиваем задержку, чтобы не загружать сразу после первой загрузки
+    // Загружаем данные диаграммы сразу после готовности (0 мс)
     chartDataDebounceTimerRef.current = setTimeout(() => {
-      // Дополнительная проверка: не загружаем, если основная таблица еще загружается или это первая загрузка
       if (!loading) {
         fetchChartData();
       }
-    }, 2000);
+    }, 0);
     
     // Очистка таймера при размонтировании
     return () => {
@@ -1649,24 +1651,27 @@ export const usePurchasePlanItemsTable = () => {
   }, [currentPage, sortField, sortDirection, selectedMonths, selectedMonthYear, versionsHook.selectedVersionId, cfoFilterStr, companyFilterStr, purchaserCompanyFilterStr, purchaserFilterStr, categoryFilterStr, statusFilterStr, filtersHook.filters.id, filtersHook.filters.purchaseSubject, filtersHook.filters.currentContractEndDate, filtersHook.filters.purchaseRequestId, filtersHook.filters.budgetAmount, filtersHook.filters.budgetAmountOperator]);
 
   // Загружаем данные при изменении фильтров, сортировки, года
-  // Используем размер Set и строковое представление для правильного отслеживания изменений Set
+  // НЕ включаем versionsHook.selectedVersionId в deps: при установке текущей версии после loadVersions
+  // эффект не должен перезапускаться — данные те же. Переключение версий обрабатывает PurchasePlanItemsTable.
   useEffect(() => {
     // Если просматриваем архивную версию, применяем фильтры к данным версии на клиенте
     if (versionsHook.selectedVersionId !== null && versionsHook.selectedVersionInfo && !versionsHook.selectedVersionInfo.isCurrent) {
       if (versionDataRef.current.length > 0) {
-        // КРИТИЧЕСКИ ВАЖНО: Обновляем filtersRef.current перед применением фильтров
         filtersRef.current = filtersHook;
         applyFiltersToVersionData();
       }
       return;
     }
 
-    // При изменении фильтров сбрасываем на первую страницу
+    // Не делаем первый запрос до загрузки годов и выбора года — иначе будет два обновления: с year=null и после setSelectedYear
+    if (allYears.length === 0 || selectedYear === null) {
+      return;
+    }
+
     setCurrentPage(0);
     setHasMore(true);
-    initialTotalElementsRef.current = null; // Сбрасываем при изменении фильтров
+    initialTotalElementsRef.current = null;
 
-    // Передаём актуальные значения фильтров напрямую, чтобы избежать проблем с замыканием
     fetchData(
       0,
       pageSize,
@@ -1684,10 +1689,11 @@ export const usePurchasePlanItemsTable = () => {
       filtersHook.statusFilter
     );
   }, [
-    selectedYear, 
-    selectedMonthYear, 
-    sortField, 
-    sortDirection, 
+    allYears.length,
+    selectedYear,
+    selectedMonthYear,
+    sortField,
+    sortDirection,
     filtersHook.filters.id,
     filtersHook.filters.purchaseSubject,
     filtersHook.filters.currentContractEndDate,
@@ -1716,7 +1722,8 @@ export const usePurchasePlanItemsTable = () => {
     filtersHook.purchaserCompanyFilter,
     filtersHook.categoryFilter,
     filtersHook.statusFilter,
-    versionsHook.selectedVersionId
+    // versionsHook.selectedVersionId убран: после loadVersions устанавливается текущая версия,
+    // эффект перезапускался и вызывал второй fetchData при тех же данных
   ]);
 
   return {

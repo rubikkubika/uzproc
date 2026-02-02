@@ -244,11 +244,23 @@ function PurchasePlanItemsTableContent() {
     table.modalData.fetchComments(itemId, true);
   }, [table.modalData]);
 
-  // Загружаем версии при изменении года
+  // Загружаем версии при изменении года — отложенно после первого отображения данных,
+  // чтобы не вызывать лишний re-render сразу после открытия страницы
+  const loadVersionsAfterPaintRef = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
-    if (table.selectedYear) {
-      table.versions.loadVersions(table.selectedYear);
+    if (!table.selectedYear) return;
+    if (loadVersionsAfterPaintRef.current) {
+      clearTimeout(loadVersionsAfterPaintRef.current);
     }
+    loadVersionsAfterPaintRef.current = setTimeout(() => {
+      loadVersionsAfterPaintRef.current = null;
+      table.versions.loadVersions(table.selectedYear);
+    }, 150);
+    return () => {
+      if (loadVersionsAfterPaintRef.current) {
+        clearTimeout(loadVersionsAfterPaintRef.current);
+      }
+    };
   }, [table.selectedYear, table.versions.loadVersions]);
 
   // Сводная статистика по закупщикам (использует purchaserSummaryData из нового эндпоинта /purchaser-summary)
@@ -311,52 +323,63 @@ function PurchasePlanItemsTableContent() {
     }
   }, [table]);
 
+  // Установить фильтр «только статус В плане»
+  const handleOnlyInPlan = useCallback(() => {
+    table.filters.setStatusFilter(new Set(['В плане']));
+    table.setCurrentPage(0);
+  }, [table.filters, table.setCurrentPage]);
+
   // Ref для отслеживания последней загруженной версии, чтобы избежать повторных загрузок
   const lastLoadedVersionRef = useRef<number | null>(null);
-  
+  // Ref: вызывать fetchData при selectedVersionId === null только после того, как пользователь уже выбирал версию (закрыл просмотр версии).
+  // Иначе при первой загрузке страницы этот эффект дублирует вызов fetchData из usePurchasePlanItemsTable.
+  const hasVersionBeenSelectedRef = useRef(false);
+
   // Эффект для загрузки данных при изменении выбранной версии
   useEffect(() => {
     if (!table.selectedYear) return;
-    
+
     // Используем selectedVersionId для поиска версии в списке, если selectedVersionInfo еще не обновился
-    const selectedVersion = table.versions.selectedVersionInfo || 
+    const selectedVersion = table.versions.selectedVersionInfo ||
       (table.versions.selectedVersionId ? table.versions.versions.find(v => v.id === table.versions.selectedVersionId) : null);
-    
-    
+
     // Пропускаем загрузку, если данные уже загружаются
     if (table.loading) {
       return;
     }
-    
+
     // Пропускаем загрузку, если версия уже загружена
     if (selectedVersion && lastLoadedVersionRef.current === selectedVersion.id) {
       return;
     }
-    
+
     if (selectedVersion) {
+      hasVersionBeenSelectedRef.current = true;
       lastLoadedVersionRef.current = selectedVersion.id;
       if (selectedVersion.isCurrent) {
-        // Если выбрана текущая версия, загружаем обычные данные
-        table.fetchData(0, table.pageSize, table.selectedYear, table.sortField, table.sortDirection, table.filters.filters, table.selectedMonths);
+        // Не вызываем fetchData — данные текущей версии уже загружены основным эффектом в usePurchasePlanItemsTable.
+        // Повторный вызов при установке текущей версии через loadVersions давал второе обновление при открытии страницы.
       } else {
-        // Если выбрана архивная версия, загружаем данные версии
         table.loadVersionData(selectedVersion.id);
       }
     } else if (table.versions.selectedVersionId === null) {
       lastLoadedVersionRef.current = null;
-      // Если версия не выбрана, загружаем обычные данные
-      table.fetchData(0, table.pageSize, table.selectedYear, table.sortField, table.sortDirection, table.filters.filters, table.selectedMonths);
+      // Загружаем данные только при возврате из просмотра версии, не при первой загрузке страницы
+      // (первая загрузка уже выполняется в usePurchasePlanItemsTable)
+      if (hasVersionBeenSelectedRef.current) {
+        table.fetchData(0, table.pageSize, table.selectedYear, table.sortField, table.sortDirection, table.filters.filters, table.selectedMonths);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [table.versions.selectedVersionId, table.selectedYear]);
 
   // Функция для закрытия просмотра версии
   // ВАЖНО: Должен быть вызван ДО условных возвратов, чтобы соблюдать правила хуков
+  // Загрузку данных выполняет эффект при изменении selectedVersionId на null (hasVersionBeenSelectedRef уже true)
   const handleCloseVersion = useCallback(() => {
     lastLoadedVersionRef.current = null;
     table.versions.setSelectedVersionId(null);
     table.versions.setSelectedVersionInfo(null);
-    table.fetchData(0, table.pageSize, table.selectedYear, table.sortField, table.sortDirection, table.filters.filters, table.selectedMonths);
   }, [table]);
 
   // Если данные загружаются
@@ -572,6 +595,13 @@ function PurchasePlanItemsTableContent() {
             className="px-3 py-1 text-xs font-medium bg-red-50 text-red-700 rounded-lg border border-red-300 hover:bg-red-100 hover:border-red-400 transition-colors"
           >
             Сбросить фильтры
+          </button>
+          <button
+            onClick={handleOnlyInPlan}
+            className="px-3 py-1 text-xs font-medium text-gray-900 bg-white rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+            title="Показать только позиции со статусом «В плане»"
+          >
+            Только в Плане
           </button>
           <div className="relative">
             <button

@@ -1,5 +1,6 @@
 package com.uzproc.backend.service.purchaseplan;
 
+import com.uzproc.backend.dto.purchaseplan.UniqueFilterValuesDto;
 import com.uzproc.backend.dto.purchaseplan.PurchasePlanItemDto;
 import com.uzproc.backend.entity.Company;
 import com.uzproc.backend.entity.Cfo;
@@ -1573,6 +1574,45 @@ public class PurchasePlanItemService {
      */
     public List<Integer> findDistinctYears() {
         return purchasePlanItemRepository.findDistinctYears();
+    }
+
+    /**
+     * Уникальные значения для фильтров (выпадающие списки) без загрузки всех записей.
+     */
+    public UniqueFilterValuesDto getUniqueFilterValues() {
+        List<String> companies = purchasePlanItemRepository.findDistinctCompany().stream()
+                .map(Company::getDisplayName)
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .collect(Collectors.toList());
+        List<String> purchaserCompanies = purchasePlanItemRepository.findDistinctPurchaserCompany().stream()
+                .map(Company::getDisplayName)
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .collect(Collectors.toList());
+        List<String> categories = new ArrayList<>(purchasePlanItemRepository.findDistinctCategory());
+        categories.sort(String.CASE_INSENSITIVE_ORDER);
+        categories.add(0, "Не выбрано");
+        List<String> purchasers = purchasePlanItemRepository.findDistinctPurchaserNames().stream()
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .collect(Collectors.toList());
+
+        List<String> statuses = new ArrayList<>();
+        purchasePlanItemRepository.findDistinctPlanStatus().stream()
+                .map(PurchasePlanItemStatus::getDisplayName)
+                .forEach(statuses::add);
+        purchaseRequestRepository.findDistinctStatusLinkedFromPlan().stream()
+                .map(PurchaseRequestStatus::getGroupDisplayName)
+                .filter(s -> !statuses.contains(s))
+                .forEach(statuses::add);
+        statuses.sort(String.CASE_INSENSITIVE_ORDER);
+
+        companies.add(0, "Не выбрано");
+        purchaserCompanies.add(0, "Не выбрано");
+        purchasers.add(0, "Не назначен");
+        statuses.add(0, "Пусто");
+
+        return new UniqueFilterValuesDto(companies, purchaserCompanies, purchasers, categories, statuses);
     }
 
     public Map<String, Object> getMonthlyStats(Integer year, List<String> company) {
