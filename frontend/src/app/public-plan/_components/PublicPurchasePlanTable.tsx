@@ -1487,11 +1487,15 @@ export default function PublicPurchasePlanTable() {
         // Для публичного плана всегда используем текущее состояние, а не версию
         params.append('versionId', 'null');
         
-        const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`);
-        if (response.ok) {
-          const result = await response.json();
+        const [cfoResponse, planResponse] = await Promise.all([
+          fetch(`${getBackendUrl()}/api/cfos/names`),
+          fetch(`${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`),
+        ]);
+        const cfoNames: string[] = cfoResponse.ok ? await cfoResponse.json() : [];
+        if (planResponse.ok) {
+          const result = await planResponse.json();
           const values: Record<string, Set<string>> = {
-            cfo: new Set(),
+            cfo: new Set(Array.isArray(cfoNames) ? cfoNames : []),
             category: new Set(),
             purchaser: new Set(),
             status: new Set(),
@@ -1501,7 +1505,6 @@ export default function PublicPurchasePlanTable() {
           let hasNullStatus = false;
           let hasNullCompany = false;
           result.content.forEach((item: PurchasePlanItem) => {
-            if (item.cfo) values.cfo.add(item.cfo);
             if (item.category) values.category.add(item.category);
             if (item.purchaser) values.purchaser.add(item.purchaser);
             if (item.company) {

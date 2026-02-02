@@ -1,10 +1,18 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { getBackendUrl } from '@/utils/api';
-import { Contract } from '../types/contracts.types';
+import { TabType } from '../types/contracts.types';
 import { useDebouncedFiltersSync } from './useDebouncedFiltersSync';
 import { useFocusRestore } from './useFocusRestore';
 
 export const useContractsFilters = (setCurrentPage: (page: number) => void) => {
+  // Активная вкладка
+  const [activeTab, setActiveTab] = useState<TabType>('in-work');
+  const activeTabRef = useRef<TabType>('in-work');
+
+  // Обновляем ref при изменении activeTab
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
   // ДВА состояния: localFilters (UI) и filters (данные)
   const [localFilters, setLocalFilters] = useState<Record<string, string>>({
     innerId: '',
@@ -45,26 +53,13 @@ export const useContractsFilters = (setCurrentPage: (page: number) => void) => {
 
   const fetchCfoOptions = useCallback(async () => {
     try {
-      const params = new URLSearchParams();
-      params.append('page', '0');
-      params.append('size', '10000');
-
-      const fetchUrl = `${getBackendUrl()}/api/contracts?${params.toString()}`;
+      const fetchUrl = `${getBackendUrl()}/api/cfos/names`;
       const response = await fetch(fetchUrl);
       if (!response.ok) {
-        throw new Error(`Ошибка загрузки данных: ${response.status} ${response.statusText}`);
+        throw new Error(`Ошибка загрузки списка ЦФО: ${response.status} ${response.statusText}`);
       }
-      const result = await response.json();
-
-      const uniqueCfo = new Set<string>();
-      if (result.content) {
-        result.content.forEach((contract: Contract) => {
-          if (contract.cfo && contract.cfo.trim() !== '') {
-            uniqueCfo.add(contract.cfo.trim());
-          }
-        });
-      }
-      setCfoOptions(Array.from(uniqueCfo).sort());
+      const names: string[] = await response.json();
+      setCfoOptions(Array.isArray(names) ? names : []);
     } catch (err) {
       console.error('Error fetching CFO options:', err);
     }
@@ -153,5 +148,8 @@ export const useContractsFilters = (setCurrentPage: (page: number) => void) => {
     handleCfoToggle,
     handleCfoSelectAll,
     handleCfoDeselectAll,
+    activeTab,
+    setActiveTab,
+    activeTabRef,
   };
 };

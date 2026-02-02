@@ -16,6 +16,7 @@ public class UserDTO {
     private String position;
     private String role;
     private Boolean isPurchaser;
+    private Boolean isContractor;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -50,6 +51,7 @@ public class UserDTO {
             }
             
             this.isPurchaser = user.getIsPurchaser();
+            this.isContractor = user.getIsContractor();
             this.createdAt = user.getCreatedAt();
             this.updatedAt = user.getUpdatedAt();
         } catch (Exception e) {
@@ -139,6 +141,14 @@ public class UserDTO {
 
     public void setIsPurchaser(Boolean isPurchaser) {
         this.isPurchaser = isPurchaser;
+    }
+
+    public Boolean getIsContractor() {
+        return isContractor;
+    }
+
+    public void setIsContractor(Boolean isContractor) {
+        this.isContractor = isContractor;
     }
 
     public LocalDateTime getCreatedAt() {

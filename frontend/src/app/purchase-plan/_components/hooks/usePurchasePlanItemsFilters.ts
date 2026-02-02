@@ -297,18 +297,25 @@ export const usePurchasePlanItemsFilters = (
       uniqueValuesLoadingRef.current = true;
       uniqueValuesFetchedRef.current = true;
       try {
-        const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items?page=0&size=10000`);
-        if (response.ok) {
-          const result = await response.json();
-          const values: Record<string, Set<string>> = {
-            cfo: new Set(), company: new Set(), purchaserCompany: new Set(),
-            purchaser: new Set(), category: new Set(), status: new Set()
-          };
-          let hasNullPurchaserCompany = false, hasNullCompany = false, hasNullStatus = false, hasNullPurchaser = false;
+        const [cfoResponse, planResponse] = await Promise.all([
+          fetch(`${getBackendUrl()}/api/cfos/names`),
+          fetch(`${getBackendUrl()}/api/purchase-plan-items?page=0&size=10000`),
+        ]);
+        const cfoNames: string[] = cfoResponse.ok ? await cfoResponse.json() : [];
+        const result = planResponse.ok ? await planResponse.json() : { content: [] };
 
-          result.content.forEach((item: PurchasePlanItem) => {
-            if (item.cfo) values.cfo.add(item.cfo);
-            if (item.company) values.company.add(item.company); else { hasNullCompany = true; }
+        const values: Record<string, Set<string>> = {
+          cfo: new Set(Array.isArray(cfoNames) ? cfoNames : []),
+          company: new Set(),
+          purchaserCompany: new Set(),
+          purchaser: new Set(),
+          category: new Set(),
+          status: new Set(),
+        };
+        let hasNullPurchaserCompany = false, hasNullCompany = false, hasNullStatus = false, hasNullPurchaser = false;
+
+        result.content.forEach((item: PurchasePlanItem) => {
+          if (item.company) values.company.add(item.company); else { hasNullCompany = true; }
             if (item.purchaserCompany) { const n = normalizeCompany(item.purchaserCompany); if (n) values.purchaserCompany.add(n); } else { hasNullPurchaserCompany = true; }
             if (item.purchaser) values.purchaser.add(item.purchaser); else { hasNullPurchaser = true; }
             if (item.category) values.category.add(item.category);
@@ -348,7 +355,6 @@ export const usePurchasePlanItemsFilters = (
           
           uniqueValuesCacheRef.current = cachedValues;
           setUniqueValues(cachedValues);
-        }
       } catch { }
       finally {
         uniqueValuesLoadingRef.current = false;

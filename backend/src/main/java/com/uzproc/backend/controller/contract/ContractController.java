@@ -18,7 +18,8 @@ public class ContractController {
     private final ContractService contractService;
     private final ContractStatusUpdateService contractStatusUpdateService;
 
-    public ContractController(ContractService contractService, ContractStatusUpdateService contractStatusUpdateService) {
+    public ContractController(ContractService contractService,
+                             ContractStatusUpdateService contractStatusUpdateService) {
         this.contractService = contractService;
         this.contractStatusUpdateService = contractStatusUpdateService;
     }
@@ -35,11 +36,14 @@ public class ContractController {
             @RequestParam(required = false) String name,
             @RequestParam(required = false) String documentForm,
             @RequestParam(required = false) String costType,
-            @RequestParam(required = false) String contractType) {
-        
+            @RequestParam(required = false) String contractType,
+            @RequestParam(required = false) Boolean inWorkTab,
+            @RequestParam(required = false) Boolean signedTab) {
+
         Page<ContractDto> contracts = contractService.findAll(
-                page, size, year, sortBy, sortDir, innerId, cfo, name, documentForm, costType, contractType);
-        
+                page, size, year, sortBy, sortDir, innerId, cfo, name, documentForm, costType, contractType,
+                null, inWorkTab, signedTab);
+
         return ResponseEntity.ok(contracts);
     }
 

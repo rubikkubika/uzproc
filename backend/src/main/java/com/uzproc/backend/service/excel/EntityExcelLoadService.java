@@ -441,11 +441,11 @@ public class EntityExcelLoadService {
     /**
      * Обрабатывает одну строку закупки
      */
-    private boolean processContractRow(Row row, Integer innerIdColumnIndex, Integer creationDateColumnIndex, 
-            Integer cfoColumnIndex, Integer nameColumnIndex, Integer titleColumnIndex, Integer documentFormColumnIndex, Integer statusColumnIndex) {
+    private boolean processContractRow(Row row, Integer innerIdColumnIndex, Integer creationDateColumnIndex,
+            Integer cfoColumnIndex, Integer nameColumnIndex, Integer titleColumnIndex, Integer documentFormColumnIndex, Integer statusColumnIndex, Integer preparedByColumnIndex) {
         try {
-            Contract contract = parseContractRow(row, innerIdColumnIndex, creationDateColumnIndex, cfoColumnIndex, 
-                    nameColumnIndex, titleColumnIndex, documentFormColumnIndex, statusColumnIndex);
+            Contract contract = parseContractRow(row, innerIdColumnIndex, creationDateColumnIndex, cfoColumnIndex,
+                    nameColumnIndex, titleColumnIndex, documentFormColumnIndex, statusColumnIndex, preparedByColumnIndex);
             if (contract == null) {
                 logger.warn("parseContractRow returned null for row {}", row.getRowNum() + 1);
                 return false;
@@ -1894,8 +1894,8 @@ public class EntityExcelLoadService {
      * Заполняет innerId из колонки "Внутренний номер", дату создания из колонки "Дата создания",
      * форму документа из колонки "Форма документа" и другие поля
      */
-    private Contract parseContractRow(Row row, Integer innerIdColumnIndex, Integer creationDateColumnIndex, 
-            Integer cfoColumnIndex, Integer nameColumnIndex, Integer titleColumnIndex, Integer documentFormColumnIndex, Integer statusColumnIndex) {
+    private Contract parseContractRow(Row row, Integer innerIdColumnIndex, Integer creationDateColumnIndex,
+            Integer cfoColumnIndex, Integer nameColumnIndex, Integer titleColumnIndex, Integer documentFormColumnIndex, Integer statusColumnIndex, Integer preparedByColumnIndex) {
         Contract contract = new Contract();
         
         try {
@@ -1993,7 +1993,50 @@ public class EntityExcelLoadService {
             } else {
                 logger.debug("Row {}: statusColumnIndex is null, skipping state field", row.getRowNum() + 1);
             }
-            
+
+            // Подготовил (опциональное поле) - устанавливаем связь с пользователем
+            if (preparedByColumnIndex != null) {
+                Cell preparedByCell = row.getCell(preparedByColumnIndex);
+                String preparedByValue = getCellValueAsString(preparedByCell);
+                if (preparedByValue != null && !preparedByValue.trim().isEmpty()) {
+                    String trimmedValue = preparedByValue.trim();
+                    // Парсим фамилию и имя из строки (первое и второе слово)
+                    // Формат может быть: "Фамилия Имя" или "Фамилия Имя (Отдел, Должность)"
+                    String surname = null;
+                    String name = null;
+
+                    // Убираем часть со скобками если есть
+                    int openBracketIndex = trimmedValue.indexOf('(');
+                    String namePart = openBracketIndex > 0
+                        ? trimmedValue.substring(0, openBracketIndex).trim()
+                        : trimmedValue;
+
+                    // Парсим имя и фамилию
+                    String[] nameParts = namePart.split("\\s+", 2);
+                    if (nameParts.length >= 1) {
+                        surname = nameParts[0].trim();
+                    }
+                    if (nameParts.length >= 2) {
+                        name = nameParts[1].trim();
+                    }
+
+                    // Ищем пользователя по фамилии и имени
+                    if (surname != null && name != null) {
+                        Optional<User> userOpt = userRepository.findBySurnameAndName(surname, name);
+                        if (userOpt.isPresent()) {
+                            contract.setPreparedBy(userOpt.get());
+                            logger.debug("Parsed preparedBy user '{}' for contract row {}", trimmedValue, row.getRowNum() + 1);
+                        } else {
+                            logger.debug("User '{}' ({} {}) not found for contract row {}", trimmedValue, surname, name, row.getRowNum() + 1);
+                        }
+                    } else {
+                        logger.debug("Could not parse surname and name from '{}' for contract row {}", trimmedValue, row.getRowNum() + 1);
+                    }
+                }
+            } else {
+                logger.debug("Row {}: preparedByColumnIndex is null, skipping preparedBy field", row.getRowNum() + 1);
+            }
+
             return contract;
         } catch (Exception e) {
             logger.error("Error parsing Contract row {}: {}", row.getRowNum() + 1, e.getMessage(), e);
@@ -2104,7 +2147,19 @@ public class EntityExcelLoadService {
                 logger.debug("Updated plannedDeliveryEndDate for contract {}: {}", existing.getId(), newData.getPlannedDeliveryEndDate());
             }
         }
-        
+
+        // Обновляем пользователя, который подготовил договор (preparedBy)
+        if (newData.getPreparedBy() != null) {
+            if (existing.getPreparedBy() == null || !existing.getPreparedBy().getId().equals(newData.getPreparedBy().getId())) {
+                existing.setPreparedBy(newData.getPreparedBy());
+                updated = true;
+                logger.debug("Updated preparedBy for contract {}: user {} {}",
+                    existing.getId(),
+                    newData.getPreparedBy().getSurname(),
+                    newData.getPreparedBy().getName());
+            }
+        }
+
         return updated;
     }
 }

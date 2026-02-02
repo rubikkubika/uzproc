@@ -99,6 +99,14 @@ public class Contract {
     @Column(name = "is_strategic_product")
     private Boolean isStrategicProduct;
 
+    // Связь с пользователем (договорник), который подготовил договор
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "prepared_by_id")
+    private com.uzproc.backend.entity.user.User preparedBy;
+
+    @Column(name = "prepared_by_id", insertable = false, updatable = false)
+    private Long preparedById;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -323,6 +331,22 @@ public class Contract {
 
     public void setIsStrategicProduct(Boolean isStrategicProduct) {
         this.isStrategicProduct = isStrategicProduct;
+    }
+
+    public com.uzproc.backend.entity.user.User getPreparedBy() {
+        return preparedBy;
+    }
+
+    public void setPreparedBy(com.uzproc.backend.entity.user.User preparedBy) {
+        this.preparedBy = preparedBy;
+    }
+
+    public Long getPreparedById() {
+        return preparedById;
+    }
+
+    public void setPreparedById(Long preparedById) {
+        this.preparedById = preparedById;
     }
 }
 

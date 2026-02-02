@@ -27,42 +27,39 @@ export const usePurchasesData = () => {
     fetchTotalRecords();
   }, []);
 
-  // Получаем все годы и уникальные значения из данных
+  // Получаем годы и уникальные значения: ЦФО — из /api/cfos/names, годы и закупщики — из закупок
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
-        const response = await fetch(`${getBackendUrl()}/api/purchases?page=0&size=10000`);
-        if (response.ok) {
-          const result = await response.json();
-          const years = new Set<number>();
-          const values: Record<string, Set<string>> = {
-            cfo: new Set(),
-            purchaser: new Set(),
-          };
+        const [cfoResponse, purchasesResponse] = await Promise.all([
+          fetch(`${getBackendUrl()}/api/cfos/names`),
+          fetch(`${getBackendUrl()}/api/purchases?page=0&size=10000`),
+        ]);
 
+        const cfoNames: string[] = cfoResponse.ok ? await cfoResponse.json() : [];
+        const years = new Set<number>();
+        const purchaserSet = new Set<string>();
+
+        if (purchasesResponse.ok) {
+          const result = await purchasesResponse.json();
           result.content.forEach((purchase: Purchase) => {
-            // Собираем годы
             if (purchase.purchaseCreationDate) {
               const date = new Date(purchase.purchaseCreationDate);
               const year = date.getFullYear();
-              if (!isNaN(year)) {
-                years.add(year);
-              }
+              if (!isNaN(year)) years.add(year);
             }
-            // Собираем уникальные значения
-            if (purchase.cfo) values.cfo.add(purchase.cfo);
-            if (purchase.purchaser) values.purchaser.add(purchase.purchaser);
+            if (purchase.purchaser) purchaserSet.add(purchase.purchaser);
           });
-
-          const yearsArray = Array.from(years).sort((a, b) => b - a);
-          const uniqueValuesData = {
-            cfo: Array.from(values.cfo).sort(),
-            purchaser: Array.from(values.purchaser).sort(),
-          };
-
-          setAllYears(yearsArray);
-          setUniqueValues(uniqueValuesData);
         }
+
+        const yearsArray = Array.from(years).sort((a, b) => b - a);
+        const uniqueValuesData = {
+          cfo: Array.isArray(cfoNames) ? cfoNames : [],
+          purchaser: Array.from(purchaserSet).sort(),
+        };
+
+        setAllYears(yearsArray.length > 0 ? yearsArray : [currentYear, currentYear - 1, currentYear - 2]);
+        setUniqueValues(uniqueValuesData);
       } catch (err) {
         console.error('Error fetching metadata:', err);
         setAllYears([currentYear, currentYear - 1, currentYear - 2]);

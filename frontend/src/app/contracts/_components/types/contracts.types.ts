@@ -15,6 +15,7 @@ export interface Contract {
   contractDurationMonths: number | null;
   status: string | null;
   state: string | null;
+  preparedBy: string | null;  // ФИО пользователя (договорника), который подготовил договор
   createdAt: string;
   updatedAt: string;
 }
@@ -29,3 +30,6 @@ export interface PageResponse {
 
 export type SortField = keyof Contract | null;
 export type SortDirection = 'asc' | 'desc' | null;
+
+// Типы вкладок для таблицы договоров
+export type TabType = 'in-work' | 'signed' | 'all';

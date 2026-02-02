@@ -77,7 +77,7 @@ public class UserService {
     }
 
     @Transactional
-    public User createUser(String username, String password, String email, String surname, String name, String department, String position, String role, Boolean isPurchaser) {
+    public User createUser(String username, String password, String email, String surname, String name, String department, String position, String role, Boolean isPurchaser, Boolean isContractor) {
         // Проверяем, что username не пустой
         if (username == null || username.trim().isEmpty()) {
             throw new IllegalArgumentException("Username is required");
@@ -103,13 +103,14 @@ public class UserService {
         user.setPosition(position != null && !position.trim().isEmpty() ? position.trim() : null);
         user.setRole(role != null && !role.trim().isEmpty() ? UserRole.fromCode(role.trim()) : UserRole.USER);
         user.setIsPurchaser(isPurchaser != null ? isPurchaser : false);
-        
-        logger.info("Creating new user: username={}, email={}, isPurchaser={}", username, email, isPurchaser);
+        user.setIsContractor(isContractor != null ? isContractor : false);
+
+        logger.info("Creating new user: username={}, email={}, isPurchaser={}, isContractor={}", username, email, isPurchaser, isContractor);
         return userRepository.save(user);
     }
 
     @Transactional
-    public User updateUser(Long id, String email, String password, String role, Boolean isPurchaser) {
+    public User updateUser(Long id, String email, String password, String role, Boolean isPurchaser, Boolean isContractor) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
         
@@ -128,7 +129,11 @@ public class UserService {
         if (isPurchaser != null) {
             user.setIsPurchaser(isPurchaser);
         }
-        
+
+        if (isContractor != null) {
+            user.setIsContractor(isContractor);
+        }
+
         return userRepository.save(user);
     }
 
