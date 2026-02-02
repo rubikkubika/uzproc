@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getBackendUrl } from '@/utils/api';
 import { fetchMetadata, fetchCreationDateYears } from '../services/purchaseRequests.api';
 import { normalizePurchaserName } from '../utils/normalizePurchaser';
 import type { PurchaseRequest } from '../types/purchase-request.types';
@@ -55,14 +56,19 @@ export function useMetadata() {
         }
 
         // Загружаем данные, если кэш отсутствует или устарел
-        // Увеличиваем размер запроса, чтобы получить все записи для сбора уникальных значений
+        // ЦФО — из лёгкого API /api/cfos/names, остальное — из заявок
         const params = new URLSearchParams();
         params.append('page', '0');
         params.append('size', '50000');
-        
-        const result = await fetchMetadata(params);
+
+        const [cfoNamesResponse, result] = await Promise.all([
+          fetch(`${getBackendUrl()}/api/cfos/names`),
+          fetchMetadata(params),
+        ]);
+        const cfoNames: string[] = cfoNamesResponse.ok ? await cfoNamesResponse.json() : [];
+
         const values: Record<string, Set<string>> = {
-          cfo: new Set(),
+          cfo: new Set(Array.isArray(cfoNames) ? cfoNames : []),
           purchaseRequestInitiator: new Set(),
           costType: new Set(),
           contractType: new Set(),
@@ -72,9 +78,7 @@ export function useMetadata() {
         };
 
         result.content.forEach((request: PurchaseRequest) => {
-          // Годы уже загружены из fetchCreationDateYears(), здесь только uniqueValues
-          // Собираем уникальные значения
-          if (request.cfo) values.cfo.add(request.cfo);
+          // ЦФО уже загружены из /api/cfos/names
           if (request.purchaseRequestInitiator) values.purchaseRequestInitiator.add(request.purchaseRequestInitiator);
           // Нормализуем имя закупщика для фильтров используя единую функцию
           if (request.purchaser) {

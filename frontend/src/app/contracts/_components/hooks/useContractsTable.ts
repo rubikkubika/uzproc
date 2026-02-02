@@ -88,7 +88,8 @@ export const useContractsTable = () => {
           sortField,
           sortDirection,
           filtersHook.filters,
-          filtersHook.cfoFilter
+          filtersHook.cfoFilter,
+          filtersHook.activeTab
         );
         setData(result);
       } catch (err) {
@@ -107,6 +108,7 @@ export const useContractsTable = () => {
     sortDirection,
     filtersStr,
     cfoFilterStr,
+    filtersHook.activeTab,
     dataHook.fetchData,
   ]);
 

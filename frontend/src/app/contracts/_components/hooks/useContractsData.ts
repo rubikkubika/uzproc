@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { getBackendUrl } from '@/utils/api';
-import { PageResponse, SortField, SortDirection } from '../types/contracts.types';
+import { PageResponse, SortField, SortDirection, TabType } from '../types/contracts.types';
 
 export const useContractsData = () => {
   const fetchYears = useCallback(async (): Promise<number[]> => {
@@ -25,7 +25,8 @@ export const useContractsData = () => {
     sortField: SortField = null,
     sortDirection: SortDirection = null,
     filters: Record<string, string> = {},
-    cfoFilter: Set<string> = new Set()
+    cfoFilter: Set<string> = new Set(),
+    activeTab: TabType = 'all'
   ): Promise<PageResponse | null> => {
     try {
       const params = new URLSearchParams();
@@ -64,6 +65,15 @@ export const useContractsData = () => {
       }
       if (filters.contractType && filters.contractType.trim() !== '') {
         params.append('contractType', filters.contractType.trim());
+      }
+
+      // Вкладка "В работе": подготовил = договорник, без договоров в статусе Подписан
+      if (activeTab === 'in-work') {
+        params.append('inWorkTab', 'true');
+      }
+      // Вкладка "Подписаны": статус Подписан и подготовил = договорник
+      if (activeTab === 'signed') {
+        params.append('signedTab', 'true');
       }
 
       const fetchUrl = `${getBackendUrl()}/api/contracts?${params.toString()}`;

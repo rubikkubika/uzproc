@@ -1246,7 +1246,56 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             } else {
                 logger.debug("Row {}: currencyColumnIndex is null, skipping currency field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
             }
-            
+
+            // Подготовил (опционально) - устанавливаем связь с пользователем
+            Integer preparedByCol = columnIndices.get(PREPARED_BY_COLUMN);
+            if (preparedByCol == null) {
+                preparedByCol = findColumnIndex(PREPARED_BY_COLUMN);
+            }
+            if (preparedByCol != null) {
+                String preparedBy = currentRowData.get(preparedByCol);
+                if (preparedBy != null && !preparedBy.trim().isEmpty()) {
+                    String preparedByValue = preparedBy.trim();
+                    // Парсим фамилию и имя из строки (первое и второе слово)
+                    // Формат может быть: "Фамилия Имя" или "Фамилия Имя (Отдел, Должность)"
+                    String surname = null;
+                    String name = null;
+
+                    // Убираем часть со скобками если есть
+                    int openBracketIndex = preparedByValue.indexOf('(');
+                    String namePart = openBracketIndex > 0
+                        ? preparedByValue.substring(0, openBracketIndex).trim()
+                        : preparedByValue;
+
+                    // Парсим имя и фамилию
+                    String[] nameParts = namePart.split("\\s+", 2);
+                    if (nameParts.length >= 1) {
+                        surname = nameParts[0].trim();
+                    }
+                    if (nameParts.length >= 2) {
+                        name = nameParts[1].trim();
+                    }
+
+                    // Ищем пользователя по фамилии и имени
+                    if (surname != null && name != null) {
+                        Optional<User> userOpt = userRepository.findBySurnameAndName(surname, name);
+                        if (userOpt.isPresent()) {
+                            contract.setPreparedBy(userOpt.get());
+                            logger.debug("Row {}: Set preparedBy user '{}' for contract {}",
+                                currentRowNum + 1, preparedByValue, contract.getInnerId());
+                        } else {
+                            logger.debug("Row {}: User '{}' ({} {}) not found for contract {}",
+                                currentRowNum + 1, preparedByValue, surname, name, contract.getInnerId());
+                        }
+                    } else {
+                        logger.debug("Row {}: Could not parse surname and name from '{}' for contract {}",
+                            currentRowNum + 1, preparedByValue, contract.getInnerId());
+                    }
+                }
+            } else {
+                logger.debug("Row {}: preparedByColumnIndex is null, skipping preparedBy field", currentRowNum + 1);
+            }
+
             // Сохраняем или обновляем (добавляем в batch)
             // ВАЖНО: Проверяем, нет ли уже такого договора в batch'е, чтобы избежать дубликатов
             boolean alreadyInBatch = contractBatch.stream()
@@ -2056,7 +2105,19 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 logger.debug("Updated plannedDeliveryEndDate for contract {}: {}", existing.getInnerId(), newData.getPlannedDeliveryEndDate());
             }
         }
-        
+
+        // Обновляем пользователя, который подготовил договор (preparedBy)
+        if (newData.getPreparedBy() != null) {
+            if (existing.getPreparedBy() == null || !existing.getPreparedBy().getId().equals(newData.getPreparedBy().getId())) {
+                existing.setPreparedBy(newData.getPreparedBy());
+                updated = true;
+                logger.debug("Updated preparedBy for contract {}: user {} {}",
+                    existing.getInnerId(),
+                    newData.getPreparedBy().getSurname(),
+                    newData.getPreparedBy().getName());
+            }
+        }
+
         return updated;
     }
     

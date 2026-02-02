@@ -2,6 +2,7 @@
 
 import { ArrowUp, ArrowDown, ArrowUpDown, Search } from 'lucide-react';
 import { useContractsTable } from './hooks/useContractsTable';
+import ContractsTableTabs from './ui/ContractsTableTabs';
 
 export default function ContractsTable() {
   const {
@@ -33,7 +34,16 @@ export default function ContractsTable() {
 
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
-      {/* Header с фильтрами - стиль как в PurchaseRequestsTable */}
+      {/* Вкладки */}
+      <ContractsTableTabs
+        activeTab={filters.activeTab}
+        onTabChange={(tab) => {
+          filters.setActiveTab(tab);
+          setCurrentPage(0);
+        }}
+      />
+
+      {/* Header с фильтрами - стиль как в стандартных таблицах */}
       <div className="px-3 py-1 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
         <div className="flex items-center gap-2 flex-wrap">
           {/* Кнопка - Сбросить фильтры */}
@@ -142,11 +152,11 @@ export default function ContractsTable() {
       {loading ? (
         <div className="px-6 py-8 text-center text-gray-500">Загрузка...</div>
       ) : (
-      <div className="flex-1 overflow-auto relative custom-scrollbar">
-        <table className="w-full border-collapse">
+      <div className="flex-1 min-w-0 overflow-auto relative custom-scrollbar">
+        <table className="w-full max-w-full border-collapse table-fixed">
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative">
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: (filters.activeTab === 'in-work' || filters.activeTab === 'signed') ? '8%' : '9%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       <input
@@ -209,7 +219,7 @@ export default function ContractsTable() {
                     </div>
                 </div>
               </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative">
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: (filters.activeTab === 'in-work' || filters.activeTab === 'signed') ? '10%' : '11%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       <div className="relative cfo-filter-container w-full h-full">
@@ -315,7 +325,7 @@ export default function ContractsTable() {
                     </div>
                 </div>
               </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative">
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: (filters.activeTab === 'in-work' || filters.activeTab === 'signed') ? '24%' : '27%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       <input
@@ -378,7 +388,7 @@ export default function ContractsTable() {
                     </div>
                 </div>
               </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative">
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '12%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       <input
@@ -441,7 +451,7 @@ export default function ContractsTable() {
                     </div>
                 </div>
               </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative">
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '10%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       <div className="flex-1" style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0 }}></div>
@@ -466,7 +476,7 @@ export default function ContractsTable() {
                     </div>
                 </div>
               </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative">
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '12%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       <div className="flex-1" style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0 }}></div>
@@ -491,7 +501,7 @@ export default function ContractsTable() {
                     </div>
                 </div>
               </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative">
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: (filters.activeTab === 'in-work' || filters.activeTab === 'signed') ? '11%' : '12%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       <div className="flex-1" style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0 }}></div>
@@ -516,30 +526,44 @@ export default function ContractsTable() {
                     </div>
                 </div>
               </th>
+                {(filters.activeTab === 'in-work' || filters.activeTab === 'signed') && (
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '12%' }}>
+                  <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                    <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                      <div className="flex-1" style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0 }}></div>
+                    </div>
+                    <div className="flex items-center gap-1 min-h-[20px]">
+                      <span className="text-xs font-medium text-gray-500 tracking-wider">Подготовил</span>
+                    </div>
+                </div>
+              </th>
+                )}
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
               {data?.content && data.content.length > 0 ? (
                 data.content.map((contract) => (
                   <tr key={contract.id}>
-                    <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-300">
-                      {contract.innerId || '-'}
+                    <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-300 overflow-hidden">
+                      <span className="block truncate" title={contract.innerId || undefined}>{contract.innerId || '-'}</span>
                     </td>
-                    <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-300">
-                      {contract.cfo || '-'}
+                    <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-300 overflow-hidden">
+                      <span className="block truncate" title={contract.cfo || undefined}>{contract.cfo || '-'}</span>
                     </td>
-                    <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300">
-                      {contract.name || contract.title || '-'}
+                    <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 max-w-0 overflow-hidden">
+                      <span className="block truncate" title={contract.name || contract.title || undefined}>
+                        {contract.name || contract.title || '-'}
+                      </span>
                     </td>
-                    <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-300">
-                      {contract.documentForm || '-'}
+                    <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-300 overflow-hidden">
+                      <span className="block truncate" title={contract.documentForm || undefined}>{contract.documentForm || '-'}</span>
                     </td>
                     <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-300">
                       {contract.contractCreationDate
                         ? new Date(contract.contractCreationDate).toLocaleDateString('ru-RU')
                         : '-'}
                     </td>
-                    <td className="px-2 py-2 whitespace-nowrap text-xs border-r border-gray-300">
+                    <td className="px-2 py-2 whitespace-nowrap text-xs border-r border-gray-300 overflow-hidden">
                       {contract.status ? (
                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                           contract.status === 'Подписан'
@@ -560,14 +584,19 @@ export default function ContractsTable() {
                         </span>
                       )}
                     </td>
-                    <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-300">
-                      {contract.state || '-'}
+                    <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-300 overflow-hidden">
+                      <span className="block truncate" title={contract.state || undefined}>{contract.state || '-'}</span>
                     </td>
+                    {(filters.activeTab === 'in-work' || filters.activeTab === 'signed') && (
+                    <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-300 overflow-hidden">
+                      <span className="block truncate" title={contract.preparedBy || undefined}>{contract.preparedBy || '-'}</span>
+                    </td>
+                    )}
                   </tr>
                 ))
               ) : (
             <tr>
-              <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
+              <td colSpan={(filters.activeTab === 'in-work' || filters.activeTab === 'signed') ? 9 : 8} className="px-6 py-8 text-center text-gray-500">
                 Нет данных для отображения
               </td>
             </tr>

@@ -124,6 +124,7 @@ function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState('overview');
+  const [hasInitialTabRestored, setHasInitialTabRestored] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isTelegramModalOpen, setIsTelegramModalOpen] = useState(false);
@@ -167,28 +168,26 @@ function DashboardContent() {
     setIsMounted(true);
   }, []);
 
-  // Загружаем активную вкладку из URL или localStorage после монтирования
+  // Загружаем активную вкладку из URL или localStorage после монтирования.
+  // До восстановления вкладки не рендерим контент (Overview/План закупок и т.д.), чтобы не дергать запросы плана на вкладке «Договоры».
   useEffect(() => {
     if (!isMounted) return;
-    
     try {
-      // Приоритет: сначала URL, потом localStorage
       const tabFromUrl = searchParams.get('tab');
       if (tabFromUrl) {
         setActiveTab(tabFromUrl);
-        // Сохраняем в localStorage для обратной совместимости
         localStorage.setItem(ACTIVE_TAB_KEY, tabFromUrl);
       } else {
-        // Загружаем сохраненную активную вкладку из localStorage
         const savedTab = localStorage.getItem(ACTIVE_TAB_KEY);
         if (savedTab) {
           setActiveTab(savedTab);
-          // Обновляем URL для синхронизации
           router.replace(`/?tab=${savedTab}`, { scroll: false });
         }
       }
     } catch (err) {
       // Игнорируем ошибки
+    } finally {
+      setHasInitialTabRestored(true);
     }
   }, [isMounted, searchParams, router]);
 
@@ -243,6 +242,13 @@ function DashboardContent() {
   }, [activeTab]);
 
   const renderContent = () => {
+    if (!hasInitialTabRestored) {
+      return (
+        <div className="flex items-center justify-center min-h-[200px]">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        </div>
+      );
+    }
     switch (activeTab) {
       case 'overview':
         return <Overview />;

@@ -15,6 +15,7 @@ interface User {
   position: string | null;
   role: string | null;
   isPurchaser: boolean | null;
+  isContractor: boolean | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -70,6 +71,7 @@ export default function UsersTable() {
   const [editPassword, setEditPassword] = useState('');
   const [editRole, setEditRole] = useState('user');
   const [editIsPurchaser, setEditIsPurchaser] = useState(false);
+  const [editIsContractor, setEditIsContractor] = useState(false);
   const [updating, setUpdating] = useState(false);
 
   // Состояние для модального окна создания пользователя
@@ -83,6 +85,7 @@ export default function UsersTable() {
   const [newPosition, setNewPosition] = useState('');
   const [newRole, setNewRole] = useState('user');
   const [newIsPurchaser, setNewIsPurchaser] = useState(false);
+  const [newIsContractor, setNewIsContractor] = useState(false);
   const [creating, setCreating] = useState(false);
 
   // Состояние для ширин колонок
@@ -93,6 +96,7 @@ export default function UsersTable() {
     password: 150,
     role: 120,
     isPurchaser: 100,
+    isContractor: 100,
     surname: 150,
     name: 150,
     department: 200,
@@ -106,7 +110,7 @@ export default function UsersTable() {
   };
 
   // Порядок колонок
-  const columnOrder = ['id', 'username', 'email', 'password', 'role', 'isPurchaser', 'surname', 'name', 'department', 'position', 'createdAt', 'updatedAt'];
+  const columnOrder = ['id', 'username', 'email', 'password', 'role', 'isPurchaser', 'isContractor', 'surname', 'name', 'department', 'position', 'createdAt', 'updatedAt'];
 
   // Функция форматирования даты
   const formatDate = (dateString: string | null) => {
@@ -289,6 +293,7 @@ export default function UsersTable() {
     setEditPassword('');
     setEditRole(user.role || 'user');
     setEditIsPurchaser(user.isPurchaser || false);
+    setEditIsContractor(user.isContractor || false);
   };
 
   // Функция для закрытия модального окна
@@ -298,6 +303,7 @@ export default function UsersTable() {
     setEditPassword('');
     setEditRole('user');
     setEditIsPurchaser(false);
+    setEditIsContractor(false);
   };
 
   // Функция для обновления пользователя
@@ -318,6 +324,9 @@ export default function UsersTable() {
       }
       if (editIsPurchaser !== editingUser.isPurchaser) {
         params.append('isPurchaser', String(editIsPurchaser));
+      }
+      if (editIsContractor !== editingUser.isContractor) {
+        params.append('isContractor', String(editIsContractor));
       }
 
       const response = await fetch(`${getBackendUrl()}/api/users/${editingUser.id}?${params.toString()}`, {
@@ -351,6 +360,7 @@ export default function UsersTable() {
     setNewPosition('');
     setNewRole('user');
     setNewIsPurchaser(false);
+    setNewIsContractor(false);
   };
 
   // Функция для закрытия модального окна создания пользователя
@@ -365,6 +375,7 @@ export default function UsersTable() {
     setNewPosition('');
     setNewRole('user');
     setNewIsPurchaser(false);
+    setNewIsContractor(false);
   };
 
   // Функция для создания пользователя
@@ -391,6 +402,7 @@ export default function UsersTable() {
           position: newPosition.trim() || null,
           role: newRole,
           isPurchaser: newIsPurchaser,
+          isContractor: newIsContractor,
         }),
       });
 
@@ -634,6 +646,7 @@ export default function UsersTable() {
                   password: 'Пароль',
                   role: 'Роль',
                   isPurchaser: 'Закупщик',
+                  isContractor: 'Договорник',
                   surname: 'Фамилия',
                   name: 'Имя',
                   department: 'Отдел',
@@ -689,6 +702,17 @@ export default function UsersTable() {
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-200 whitespace-nowrap text-center">
                     {user.isPurchaser ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                        Да
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
+                        Нет
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-200 whitespace-nowrap text-center">
+                    {user.isContractor ? (
                       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
                         Да
                       </span>
@@ -930,6 +954,19 @@ export default function UsersTable() {
                   Закупщик
                 </label>
               </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  id="newIsContractor"
+                  type="checkbox"
+                  checked={newIsContractor}
+                  onChange={(e) => setNewIsContractor(e.target.checked)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="newIsContractor" className="text-sm font-medium text-gray-700">
+                  Договорник
+                </label>
+              </div>
             </div>
 
             <div className="flex gap-3 mt-6">
@@ -1022,6 +1059,19 @@ export default function UsersTable() {
                 />
                 <label htmlFor="editIsPurchaser" className="text-sm font-medium text-gray-700">
                   Закупщик
+                </label>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  id="editIsContractor"
+                  type="checkbox"
+                  checked={editIsContractor}
+                  onChange={(e) => setEditIsContractor(e.target.checked)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="editIsContractor" className="text-sm font-medium text-gray-700">
+                  Договорник
                 </label>
               </div>
             </div>

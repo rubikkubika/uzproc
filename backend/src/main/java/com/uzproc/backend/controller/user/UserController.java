@@ -70,8 +70,9 @@ public class UserController {
             String position = (String) requestBody.get("position");
             String role = (String) requestBody.get("role");
             Boolean isPurchaser = (Boolean) requestBody.get("isPurchaser");
-            
-            User createdUser = userService.createUser(username, password, email, surname, name, department, position, role, isPurchaser);
+            Boolean isContractor = (Boolean) requestBody.get("isContractor");
+
+            User createdUser = userService.createUser(username, password, email, surname, name, department, position, role, isPurchaser, isContractor);
             return ResponseEntity.ok(new UserDTO(createdUser));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -86,9 +87,10 @@ public class UserController {
             @RequestParam(required = false) String email,
             @RequestParam(required = false) String password,
             @RequestParam(required = false) String role,
-            @RequestParam(required = false) Boolean isPurchaser) {
+            @RequestParam(required = false) Boolean isPurchaser,
+            @RequestParam(required = false) Boolean isContractor) {
         try {
-            User updatedUser = userService.updateUser(id, email, password, role, isPurchaser);
+            User updatedUser = userService.updateUser(id, email, password, role, isPurchaser, isContractor);
             return ResponseEntity.ok(new UserDTO(updatedUser));
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();

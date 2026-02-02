@@ -27,6 +27,7 @@ public class ContractDto {
     private ContractDto parentContract;
     private LocalDateTime plannedDeliveryStartDate;
     private LocalDateTime plannedDeliveryEndDate;
+    private String preparedBy;  // ФИО пользователя (договорника), который подготовил договор
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -217,6 +218,14 @@ public class ContractDto {
 
     public void setPlannedDeliveryEndDate(LocalDateTime plannedDeliveryEndDate) {
         this.plannedDeliveryEndDate = plannedDeliveryEndDate;
+    }
+
+    public String getPreparedBy() {
+        return preparedBy;
+    }
+
+    public void setPreparedBy(String preparedBy) {
+        this.preparedBy = preparedBy;
     }
 }
 

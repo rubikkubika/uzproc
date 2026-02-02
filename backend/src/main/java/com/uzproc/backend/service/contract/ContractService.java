@@ -2,6 +2,7 @@ package com.uzproc.backend.service.contract;
 
 import com.uzproc.backend.dto.contract.ContractDto;
 import com.uzproc.backend.entity.contract.Contract;
+import com.uzproc.backend.entity.contract.ContractStatus;
 import com.uzproc.backend.repository.contract.ContractRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -49,14 +50,17 @@ public class ContractService {
             String name,
             String documentForm,
             String costType,
-            String contractType) {
+            String contractType,
+            Long currentUserId,
+            Boolean inWorkTab,
+            Boolean signedTab) {
         
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, innerId: '{}', cfo: {}, name: '{}', documentForm: '{}', costType: '{}', contractType: '{}'",
-                year, innerId, cfo, name, documentForm, costType, contractType);
-        
+        logger.info("Filter parameters - year: {}, innerId: '{}', cfo: {}, name: '{}', documentForm: '{}', costType: '{}', contractType: '{}', currentUserId: {}, inWorkTab: {}, signedTab: {}",
+                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab);
+
         Specification<Contract> spec = buildSpecification(
-                year, innerId, cfo, name, documentForm, costType, contractType);
+                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -208,6 +212,15 @@ public class ContractService {
         
         dto.setPlannedDeliveryStartDate(entity.getPlannedDeliveryStartDate());
         dto.setPlannedDeliveryEndDate(entity.getPlannedDeliveryEndDate());
+
+        // Маппинг preparedBy (ФИО пользователя)
+        if (entity.getPreparedBy() != null) {
+            com.uzproc.backend.entity.user.User preparedByUser = entity.getPreparedBy();
+            String fullName = (preparedByUser.getSurname() != null ? preparedByUser.getSurname() : "") + " " +
+                              (preparedByUser.getName() != null ? preparedByUser.getName() : "");
+            dto.setPreparedBy(fullName.trim());
+        }
+
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
         return dto;
@@ -220,7 +233,10 @@ public class ContractService {
             String name,
             String documentForm,
             String costType,
-            String contractType) {
+            String contractType,
+            Long currentUserId,
+            Boolean inWorkTab,
+            Boolean signedTab) {
         
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -287,7 +303,28 @@ public class ContractService {
                 predicateCount++;
                 logger.info("Added contractType filter: '{}'", contractType);
             }
-            
+
+            // Фильтр для вкладки "В работе": подготовил = договорник, все статусы кроме "Подписан" (Проект, На согласовании, Не согласован, null)
+            if (inWorkTab != null && inWorkTab) {
+                jakarta.persistence.criteria.Join<Contract, com.uzproc.backend.entity.user.User> preparedByJoin = root.join("preparedBy", jakarta.persistence.criteria.JoinType.INNER);
+                predicates.add(cb.equal(preparedByJoin.get("isContractor"), true));
+                predicates.add(cb.or(
+                    cb.isNull(root.get("status")),
+                    cb.not(cb.equal(root.get("status"), ContractStatus.SIGNED))
+                ));
+                predicateCount++;
+                logger.info("Added inWorkTab filter: preparedBy.isContractor = true, all statuses except Подписан");
+            }
+
+            // Фильтр для вкладки "Подписаны": статус "Подписан" и подготовил = договорник (isContractor = true)
+            if (signedTab != null && signedTab) {
+                predicates.add(cb.equal(root.get("status"), ContractStatus.SIGNED));
+                jakarta.persistence.criteria.Join<Contract, com.uzproc.backend.entity.user.User> preparedByJoin = root.join("preparedBy", jakarta.persistence.criteria.JoinType.INNER);
+                predicates.add(cb.equal(preparedByJoin.get("isContractor"), true));
+                predicateCount++;
+                logger.info("Added signedTab filter: status = Подписан, preparedBy.isContractor = true");
+            }
+
             logger.info("Total predicates: {}", predicateCount);
             return predicates.isEmpty() ? cb.conjunction() : cb.and(predicates.toArray(new Predicate[0]));
         };
