@@ -78,7 +78,6 @@ public class EntityExcelLoadService {
     private static final String REQUIRES_PURCHASE_COLUMN = "Требуется Закупка";
     private static final String PLAN_COLUMN = "План (Заявка на ЗП)";
     private static final String PREPARED_BY_COLUMN = "Подготовил";
-    private static final String EMAIL_COLUMN = "Email";
     private static final String PURCHASER_COLUMN = "Ответственный за ЗП (Закупочная процедура)";
     private static final String LINK_COLUMN = "Ссылка";
     private static final String STATUS_COLUMN = "Состояние";
@@ -1438,7 +1437,8 @@ public class EntityExcelLoadService {
     }
 
     /**
-     * Парсит и сохраняет пользователя из строки "Подготовил" с опциональным email из колонки "Email"
+     * Парсит и сохраняет пользователя из строки "Подготовил" или "Ответственный за ЗП" с опциональным email.
+     * Email для "Подготовил" берётся из колонки "Email(Подготовил)", для "Ответственный за ЗП" — из "Email(Закупщик)".
      */
     public void parseAndSaveUser(String preparedByValue, String email) {
         try {
@@ -1528,7 +1528,8 @@ public class EntityExcelLoadService {
                 }
                 if (updated) {
                     userRepository.save(existingUser);
-                    logger.debug("Updated user: {} {}", surname, name);
+                    logger.debug("Updated user: {} {}, email: {}", surname, name,
+                            (email != null && !email.trim().isEmpty()) ? email.trim() : "(empty)");
                 }
             } else {
                 // Создаем нового пользователя
@@ -1543,7 +1544,8 @@ public class EntityExcelLoadService {
                     newUser.setEmail(email.trim());
                 }
                 userRepository.save(newUser);
-                logger.debug("Created user: {} {}", surname, name);
+                logger.debug("Created user: {} {}, email: {}", surname, name,
+                        (email != null && !email.trim().isEmpty()) ? email.trim() : "(empty)");
             }
         } catch (Exception e) {
             logger.warn("Error parsing and saving user from '{}': {}", preparedByValue, e.getMessage());

@@ -92,7 +92,8 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private static final String REQUIRES_PURCHASE_COLUMN = "Требуется Закупка";
     private static final String PLAN_COLUMN = "План (Заявка на ЗП)";
     private static final String PREPARED_BY_COLUMN = "Подготовил";
-    private static final String EMAIL_COLUMN = "Email";
+    private static final String EMAIL_PREPARED_BY_COLUMN = "Email(Подготовил)";
+    private static final String EMAIL_PURCHASER_COLUMN = "Email(Закупщик)";
     private static final String PURCHASER_COLUMN = "Ответственный за ЗП (Закупочная процедура)";
     private static final String LINK_COLUMN = "Ссылка";
     private static final String DOCUMENT_FORM_COLUMN = "Форма документа";
@@ -1339,15 +1340,29 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     
     private void processUserRow() {
         try {
-            String email = null;
-            Integer emailCol = columnIndices.get(EMAIL_COLUMN);
-            if (emailCol == null) {
-                emailCol = findColumnIndex(EMAIL_COLUMN);
+            // Email для пользователя из колонки "Подготовил"
+            String emailPreparedBy = null;
+            Integer emailPreparedByCol = columnIndices.get(EMAIL_PREPARED_BY_COLUMN);
+            if (emailPreparedByCol == null) {
+                emailPreparedByCol = findColumnIndex(EMAIL_PREPARED_BY_COLUMN);
             }
-            if (emailCol != null) {
-                String emailVal = currentRowData.get(emailCol);
+            if (emailPreparedByCol != null) {
+                String emailVal = currentRowData.get(emailPreparedByCol);
                 if (emailVal != null && !emailVal.trim().isEmpty()) {
-                    email = emailVal.trim();
+                    emailPreparedBy = emailVal.trim();
+                }
+            }
+
+            // Email для пользователя из колонки "Ответственный за ЗП"
+            String emailPurchaser = null;
+            Integer emailPurchaserCol = columnIndices.get(EMAIL_PURCHASER_COLUMN);
+            if (emailPurchaserCol == null) {
+                emailPurchaserCol = findColumnIndex(EMAIL_PURCHASER_COLUMN);
+            }
+            if (emailPurchaserCol != null) {
+                String emailVal = currentRowData.get(emailPurchaserCol);
+                if (emailVal != null && !emailVal.trim().isEmpty()) {
+                    emailPurchaser = emailVal.trim();
                 }
             }
 
@@ -1356,17 +1371,17 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             if (preparedByCol != null) {
                 String preparedBy = currentRowData.get(preparedByCol);
                 if (preparedBy != null && !preparedBy.trim().isEmpty()) {
-                    excelLoadService.parseAndSaveUser(preparedBy.trim(), email);
+                    excelLoadService.parseAndSaveUser(preparedBy.trim(), emailPreparedBy);
                     usersCount++;
                 }
             }
 
-            // Обрабатываем пользователей из колонки "Закупщик" (Ответственный за ЗП)
+            // Обрабатываем пользователей из колонки "Ответственный за ЗП (Закупочная процедура)"
             Integer purchaserCol = columnIndices.get(PURCHASER_COLUMN);
             if (purchaserCol != null) {
                 String purchaser = currentRowData.get(purchaserCol);
                 if (purchaser != null && !purchaser.trim().isEmpty()) {
-                    excelLoadService.parseAndSaveUser(purchaser.trim(), email);
+                    excelLoadService.parseAndSaveUser(purchaser.trim(), emailPurchaser);
                     usersCount++;
                 }
             }

@@ -161,39 +161,48 @@ export default function PurchaseRequestsTable() {
     userSearchRef
   );
 
-  // При открытии модалки оценки заполняем тему, получателя (из БД — инициатор) и копию (закупщик + r.oskanov)
+  // При открытии модалки оценки заполняем тему, получателя (инициатор из БД) и копию (только закупщик + r.oskanov, не получатель)
   useEffect(() => {
     if (!isRatingModalOpen || !selectedRequestForRating) return;
     const num = selectedRequestForRating.idPurchaseRequest ?? '';
     setEmailSubject(`Об обратной связи по заявке № ${num}`);
 
-    // Email получателя по умолчанию из БД — инициатор заявки
     const initiatorName = selectedRequestForRating.purchaseRequestInitiator?.trim();
-    if (initiatorName) {
-      findInitiatorByName(initiatorName).then((user) => {
-        if (user?.email?.trim()) {
-          setEmailTo(user.email.trim());
-        } else if (user?.username) {
-          setEmailTo(user.username);
-        }
-      }).catch(() => {});
-    } else {
-      setEmailTo('');
-    }
-
-    // В копию по умолчанию: email закупщика + r.oskanov@uzum.com
+    const purchaserName = selectedRequestForRating.purchaser?.trim();
     const ccDefault = 'r.oskanov@uzum.com';
-    if (selectedRequestForRating.purchaser?.trim()) {
-      findInitiatorByName(selectedRequestForRating.purchaser.trim()).then((user) => {
-        if (user?.email?.trim()) {
-          setEmailCc(`${user.email.trim()}, ${ccDefault}`);
-        } else {
-          setEmailCc(ccDefault);
-        }
-      }).catch(() => setEmailCc(ccDefault));
-    } else {
+
+    // Загружаем инициатора и закупщика параллельно; получатель = инициатор, копия = только закупщик (не получатель) + Oskanov
+    const initiatorPromise = initiatorName ? findInitiatorByName(initiatorName) : Promise.resolve(null);
+    const purchaserPromise = purchaserName ? findInitiatorByName(purchaserName) : Promise.resolve(null);
+
+    Promise.all([initiatorPromise, purchaserPromise]).then(([initiatorUser, purchaserUser]) => {
+      // Email получателя — только инициатор
+      if (initiatorUser?.email?.trim()) {
+        setEmailTo(initiatorUser.email.trim());
+      } else if (initiatorUser?.username) {
+        setEmailTo(initiatorUser.username);
+      } else {
+        setEmailTo('');
+      }
+
+      // Копия — только email закупщика (не получателя) + r.oskanov@uzum.com
+      const recipientEmail = (initiatorUser?.email || initiatorUser?.username || '').trim().toLowerCase();
+      const purchaserEmail = purchaserUser?.email?.trim();
+      const purchaserUsername = purchaserUser?.username?.trim();
+      const isPurchaserSameAsRecipient = recipientEmail && (
+        (purchaserEmail && purchaserEmail.toLowerCase() === recipientEmail) ||
+        (purchaserUsername && purchaserUsername.toLowerCase() === recipientEmail)
+      );
+
+      if (purchaserUser && (purchaserEmail || purchaserUsername) && !isPurchaserSameAsRecipient) {
+        setEmailCc(`${purchaserEmail || purchaserUsername}, ${ccDefault}`);
+      } else {
+        setEmailCc(ccDefault);
+      }
+    }).catch(() => {
+      setEmailTo('');
       setEmailCc(ccDefault);
-    }
+    });
   }, [isRatingModalOpen, selectedRequestForRating]);
 
   // Синхронизируем поле «Получатель» с выбранным пользователем
