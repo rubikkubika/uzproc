@@ -18,6 +18,9 @@ export function usePurchaseRequestsModals() {
   const [userSuggestions, setUserSuggestions] = useState<UserSuggestion[]>([]);
   const [showUserSuggestions, setShowUserSuggestions] = useState(false);
   const [emailText, setEmailText] = useState('');
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailTo, setEmailTo] = useState('');
+  const [emailCc, setEmailCc] = useState('');
   const userSearchRef = useRef<HTMLDivElement>(null);
 
   // Состояние для модального окна просмотра отправленного приглашения
@@ -59,6 +62,12 @@ export function usePurchaseRequestsModals() {
     setShowUserSuggestions,
     emailText,
     setEmailText,
+    emailSubject,
+    setEmailSubject,
+    emailTo,
+    setEmailTo,
+    emailCc,
+    setEmailCc,
     userSearchRef,
 
     // Sent Invitation Modal

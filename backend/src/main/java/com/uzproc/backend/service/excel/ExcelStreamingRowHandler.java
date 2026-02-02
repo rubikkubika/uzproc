@@ -92,6 +92,7 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private static final String REQUIRES_PURCHASE_COLUMN = "Требуется Закупка";
     private static final String PLAN_COLUMN = "План (Заявка на ЗП)";
     private static final String PREPARED_BY_COLUMN = "Подготовил";
+    private static final String EMAIL_COLUMN = "Email";
     private static final String PURCHASER_COLUMN = "Ответственный за ЗП (Закупочная процедура)";
     private static final String LINK_COLUMN = "Ссылка";
     private static final String DOCUMENT_FORM_COLUMN = "Форма документа";
@@ -1338,22 +1339,34 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     
     private void processUserRow() {
         try {
+            String email = null;
+            Integer emailCol = columnIndices.get(EMAIL_COLUMN);
+            if (emailCol == null) {
+                emailCol = findColumnIndex(EMAIL_COLUMN);
+            }
+            if (emailCol != null) {
+                String emailVal = currentRowData.get(emailCol);
+                if (emailVal != null && !emailVal.trim().isEmpty()) {
+                    email = emailVal.trim();
+                }
+            }
+
             // Обрабатываем пользователей из колонки "Подготовил"
             Integer preparedByCol = columnIndices.get(PREPARED_BY_COLUMN);
             if (preparedByCol != null) {
                 String preparedBy = currentRowData.get(preparedByCol);
                 if (preparedBy != null && !preparedBy.trim().isEmpty()) {
-                    excelLoadService.parseAndSaveUser(preparedBy.trim());
+                    excelLoadService.parseAndSaveUser(preparedBy.trim(), email);
                     usersCount++;
                 }
             }
-            
+
             // Обрабатываем пользователей из колонки "Закупщик" (Ответственный за ЗП)
             Integer purchaserCol = columnIndices.get(PURCHASER_COLUMN);
             if (purchaserCol != null) {
                 String purchaser = currentRowData.get(purchaserCol);
                 if (purchaser != null && !purchaser.trim().isEmpty()) {
-                    excelLoadService.parseAndSaveUser(purchaser.trim());
+                    excelLoadService.parseAndSaveUser(purchaser.trim(), email);
                     usersCount++;
                 }
             }

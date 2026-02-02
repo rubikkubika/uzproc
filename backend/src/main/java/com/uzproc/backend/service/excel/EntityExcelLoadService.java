@@ -78,6 +78,7 @@ public class EntityExcelLoadService {
     private static final String REQUIRES_PURCHASE_COLUMN = "Требуется Закупка";
     private static final String PLAN_COLUMN = "План (Заявка на ЗП)";
     private static final String PREPARED_BY_COLUMN = "Подготовил";
+    private static final String EMAIL_COLUMN = "Email";
     private static final String PURCHASER_COLUMN = "Ответственный за ЗП (Закупочная процедура)";
     private static final String LINK_COLUMN = "Ссылка";
     private static final String STATUS_COLUMN = "Состояние";
@@ -1433,6 +1434,13 @@ public class EntityExcelLoadService {
      * Доступен для использования в других классах (например, ExcelStreamingRowHandler)
      */
     public void parseAndSaveUser(String preparedByValue) {
+        parseAndSaveUser(preparedByValue, null);
+    }
+
+    /**
+     * Парсит и сохраняет пользователя из строки "Подготовил" с опциональным email из колонки "Email"
+     */
+    public void parseAndSaveUser(String preparedByValue, String email) {
         try {
             // Парсим строку формата "Kupriianova Anastasiia (Административно-хозяйственный отдел, Офис менеджер)"
             String surname = null;
@@ -1514,6 +1522,10 @@ public class EntityExcelLoadService {
                     existingUser.setPosition(position);
                     updated = true;
                 }
+                if (email != null && !email.trim().isEmpty() && !email.trim().equals(existingUser.getEmail())) {
+                    existingUser.setEmail(email.trim());
+                    updated = true;
+                }
                 if (updated) {
                     userRepository.save(existingUser);
                     logger.debug("Updated user: {} {}", surname, name);
@@ -1527,6 +1539,9 @@ public class EntityExcelLoadService {
                 newUser.setName(name);
                 newUser.setDepartment(department);
                 newUser.setPosition(position);
+                if (email != null && !email.trim().isEmpty()) {
+                    newUser.setEmail(email.trim());
+                }
                 userRepository.save(newUser);
                 logger.debug("Created user: {} {}", surname, name);
             }
