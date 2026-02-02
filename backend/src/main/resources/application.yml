@@ -55,9 +55,9 @@ spring:
           starttls:
             enable: true
             required: true
-          connectiontimeout: 10000
-          timeout: 10000
-          writetimeout: 10000
+          connectiontimeout: 20000
+          timeout: 20000
+          writetimeout: 20000
           ssl:
             trust: mail.uzumteam.uz
             enable: false
