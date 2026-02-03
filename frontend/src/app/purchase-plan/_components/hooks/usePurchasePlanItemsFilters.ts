@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
-import { FILTERS_STORAGE_KEY } from '../constants/purchase-plan-items.constants';
+import { FILTERS_STORAGE_KEY, DEFAULT_STATUSES } from '../constants/purchase-plan-items.constants';
 import { PurchasePlanItem } from '../types/purchase-plan-items.types';
 import { getBackendUrl } from '@/utils/api';
 
@@ -35,8 +35,8 @@ export const usePurchasePlanItemsFilters = (
   const [companyFilter, setCompanyFilter] = useState<Set<string>>(new Set());
   const [purchaserCompanyFilter, setPurchaserCompanyFilter] = useState<Set<string>>(new Set(['Market']));
   const [categoryFilter, setCategoryFilter] = useState<Set<string>>(new Set());
-  // По умолчанию при открытии страницы — только статус «В плане»
-  const [statusFilter, setStatusFilter] = useState<Set<string>>(() => new Set(['В плане']));
+  // По умолчанию при открытии страницы — все статусы кроме «Исключена»
+  const [statusFilter, setStatusFilter] = useState<Set<string>>(() => new Set(DEFAULT_STATUSES));
   const [purchaserFilter, setPurchaserFilter] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set<string>();
     try {
@@ -270,7 +270,7 @@ export const usePurchasePlanItemsFilters = (
       uniqueValuesFetchedRef.current = true;
       try {
         const [cfoResponse, uniqueResponse] = await Promise.all([
-          fetch(`${getBackendUrl()}/api/cfos/names`),
+          fetch(`${getBackendUrl()}/api/cfos/names?for=purchase-plan-items`),
           fetch(`${getBackendUrl()}/api/purchase-plan-items/unique-values`),
         ]);
         const cfoNames: string[] = cfoResponse.ok ? await cfoResponse.json() : [];

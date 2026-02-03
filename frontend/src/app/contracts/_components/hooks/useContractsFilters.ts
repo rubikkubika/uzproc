@@ -53,7 +53,7 @@ export const useContractsFilters = (setCurrentPage: (page: number) => void) => {
 
   const fetchCfoOptions = useCallback(async () => {
     try {
-      const fetchUrl = `${getBackendUrl()}/api/cfos/names`;
+      const fetchUrl = `${getBackendUrl()}/api/cfos/names?for=contracts`;
       const response = await fetch(fetchUrl);
       if (!response.ok) {
         throw new Error(`Ошибка загрузки списка ЦФО: ${response.status} ${response.statusText}`);

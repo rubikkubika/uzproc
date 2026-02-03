@@ -32,7 +32,7 @@ export const usePurchasesData = () => {
     const fetchMetadata = async () => {
       try {
         const [cfoResponse, purchasesResponse] = await Promise.all([
-          fetch(`${getBackendUrl()}/api/cfos/names`),
+          fetch(`${getBackendUrl()}/api/cfos/names?for=purchases`),
           fetch(`${getBackendUrl()}/api/purchases?page=0&size=10000`),
         ]);
 
