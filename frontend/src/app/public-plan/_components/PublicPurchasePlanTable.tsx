@@ -1488,7 +1488,7 @@ export default function PublicPurchasePlanTable() {
         params.append('versionId', 'null');
         
         const [cfoResponse, planResponse] = await Promise.all([
-          fetch(`${getBackendUrl()}/api/cfos/names`),
+          fetch(`${getBackendUrl()}/api/cfos/names?for=purchase-plan-items`),
           fetch(`${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`),
         ]);
         const cfoNames: string[] = cfoResponse.ok ? await cfoResponse.json() : [];

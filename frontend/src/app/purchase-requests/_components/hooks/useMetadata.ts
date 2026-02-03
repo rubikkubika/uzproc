@@ -62,7 +62,7 @@ export function useMetadata() {
         params.append('size', '50000');
 
         const [cfoNamesResponse, result] = await Promise.all([
-          fetch(`${getBackendUrl()}/api/cfos/names`),
+          fetch(`${getBackendUrl()}/api/cfos/names?for=purchase-requests`),
           fetchMetadata(params),
         ]);
         const cfoNames: string[] = cfoNamesResponse.ok ? await cfoNamesResponse.json() : [];
