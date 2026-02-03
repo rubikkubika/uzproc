@@ -53,6 +53,10 @@ backend/logs/
 backup/*
 !backup/.gitkeep
 
+# Payments folder (track folder, ignore contents except .gitkeep)
+frontend/upload/payments/*
+!frontend/upload/payments/.gitkeep
+
 # Data files
 frontend/images/*.csv
 frontend/images/*.xlsx
