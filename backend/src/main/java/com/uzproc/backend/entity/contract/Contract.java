@@ -68,7 +68,7 @@ public class Contract {
     @Column(name = "state", length = 255)
     private String state;
 
-    // Связь с PurchaseRequest по полю idPurchaseRequest
+    // Связь с PurchaseRequest по полю idPurchaseRequest. Одна заявка может быть связана с несколькими договорами.
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "purchase_request_id", 
                 referencedColumnName = "id_purchase_request", 
@@ -114,6 +114,14 @@ public class Contract {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+
+    /** Исключить договор/спецификацию из расчёта статуса заявки (Договор подписан / Спецификация подписана). */
+    @Column(name = "excluded_from_status_calculation")
+    private Boolean excludedFromStatusCalculation;
+
+    /** Комментарий к исключению договора из расчёта статуса. */
+    @Column(name = "exclusion_comment", length = 2000)
+    private String exclusionComment;
 
     public Contract() {
     }
@@ -347,6 +355,22 @@ public class Contract {
 
     public void setPreparedById(Long preparedById) {
         this.preparedById = preparedById;
+    }
+
+    public Boolean getExcludedFromStatusCalculation() {
+        return excludedFromStatusCalculation;
+    }
+
+    public void setExcludedFromStatusCalculation(Boolean excludedFromStatusCalculation) {
+        this.excludedFromStatusCalculation = excludedFromStatusCalculation;
+    }
+
+    public String getExclusionComment() {
+        return exclusionComment;
+    }
+
+    public void setExclusionComment(String exclusionComment) {
+        this.exclusionComment = exclusionComment;
     }
 }
 

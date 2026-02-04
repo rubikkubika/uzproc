@@ -30,6 +30,10 @@ public class ContractDto {
     private String preparedBy;  // ФИО пользователя (договорника), который подготовил договор
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    /** Исключить из расчёта статуса заявки (Договор подписан / Спецификация подписана). */
+    private Boolean excludedFromStatusCalculation;
+    /** Комментарий к исключению договора из расчёта статуса. */
+    private String exclusionComment;
 
     // Constructors
     public ContractDto() {
@@ -226,6 +230,22 @@ public class ContractDto {
 
     public void setPreparedBy(String preparedBy) {
         this.preparedBy = preparedBy;
+    }
+
+    public Boolean getExcludedFromStatusCalculation() {
+        return excludedFromStatusCalculation;
+    }
+
+    public void setExcludedFromStatusCalculation(Boolean excludedFromStatusCalculation) {
+        this.excludedFromStatusCalculation = excludedFromStatusCalculation;
+    }
+
+    public String getExclusionComment() {
+        return exclusionComment;
+    }
+
+    public void setExclusionComment(String exclusionComment) {
+        this.exclusionComment = exclusionComment;
     }
 }
 

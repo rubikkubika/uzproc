@@ -62,6 +62,8 @@ interface Contract {
   parentContract: Contract | null;
   status: string | null;
   state: string | null;
+  excludedFromStatusCalculation?: boolean | null;
+  exclusionComment?: string | null;
 }
 
 interface Approval {
@@ -141,6 +143,9 @@ export default function PurchaseRequestDetailPage() {
   const [purchaserSuggestionsPosition, setPurchaserSuggestionsPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const [csiFeedback, setCsiFeedback] = useState<CsiFeedback | null>(null);
   const [csiFeedbackLoading, setCsiFeedbackLoading] = useState(false);
+  const [contractExclusionModal, setContractExclusionModal] = useState<Contract | null>(null);
+  const [exclusionForm, setExclusionForm] = useState<{ excludedFromStatusCalculation: boolean; exclusionComment: string }>({ excludedFromStatusCalculation: false, exclusionComment: '' });
+  const [isSavingExclusion, setIsSavingExclusion] = useState(false);
   
   // Защита от дублирующих запросов
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -196,6 +201,45 @@ export default function PurchaseRequestDetailPage() {
     }
     setIsMobileMenuOpen(false);
   };
+
+  const handleSaveContractExclusion = async () => {
+    if (!contractExclusionModal || !purchaseRequest) return;
+    setIsSavingExclusion(true);
+    try {
+      const res = await fetch(`${getBackendUrl()}/api/contracts/${contractExclusionModal.id}/exclusion`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          excludedFromStatusCalculation: exclusionForm.excludedFromStatusCalculation,
+          exclusionComment: exclusionForm.exclusionComment.trim() || null,
+        }),
+      });
+      if (!res.ok) throw new Error('Ошибка сохранения');
+      if (purchaseRequest.idPurchaseRequest) {
+        await fetch(`${getBackendUrl()}/api/purchase-requests/update-status/${purchaseRequest.idPurchaseRequest}`, { method: 'POST' });
+      }
+      const dataRes = await fetch(`${getBackendUrl()}/api/purchase-requests/${id}`);
+      if (dataRes.ok) {
+        const data = await dataRes.json();
+        setPurchaseRequest(data);
+      }
+      setContractExclusionModal(null);
+    } catch (err) {
+      console.error('Error saving contract exclusion:', err);
+    } finally {
+      setIsSavingExclusion(false);
+    }
+  };
+
+  // Синхронизируем форму исключения договора при открытии модального окна
+  useEffect(() => {
+    if (contractExclusionModal) {
+      setExclusionForm({
+        excludedFromStatusCalculation: contractExclusionModal.excludedFromStatusCalculation ?? false,
+        exclusionComment: contractExclusionModal.exclusionComment ?? '',
+      });
+    }
+  }, [contractExclusionModal]);
 
   // Синхронизируем значение поля редактирования закупщика при изменении заявки
   useEffect(() => {
@@ -2363,7 +2407,19 @@ export default function PurchaseRequestDetailPage() {
                   {purchaseRequest.contracts && purchaseRequest.contracts.length > 0 ? (
                     <div className="space-y-3">
                       {purchaseRequest.contracts.map((contract) => (
-                        <div key={contract.id} className="border border-gray-200 rounded p-2">
+                        <div key={contract.id} className="relative border border-gray-200 rounded p-2">
+                          <button
+                            type="button"
+                            className="absolute top-1 right-1 p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700"
+                            onClick={() => setContractExclusionModal(contract)}
+                            title={contract.excludedFromStatusCalculation ? 'Включить в расчёт статуса заявки' : 'Исключить из расчёта статуса заявки'}
+                          >
+                            {contract.excludedFromStatusCalculation ? (
+                              <EyeOff className="w-4 h-4" />
+                            ) : (
+                              <Eye className="w-4 h-4" />
+                            )}
+                          </button>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
                             <div>
                               <label className="block text-xs font-semibold text-gray-600 mb-0">
@@ -2879,7 +2935,19 @@ export default function PurchaseRequestDetailPage() {
                       // Для закупок показываем договоры (всегда показываем сам договор, не основной)
                       <div className="space-y-3">
                         {purchaseRequest.contracts.map((contract) => (
-                          <div key={contract.id} className="border border-gray-200 rounded p-2">
+                          <div key={contract.id} className="relative border border-gray-200 rounded p-2">
+                            <button
+                              type="button"
+                              className="absolute top-1 right-1 p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700"
+                              onClick={() => setContractExclusionModal(contract)}
+                              title={contract.excludedFromStatusCalculation ? 'Включить в расчёт статуса заявки' : 'Исключить из расчёта статуса заявки'}
+                            >
+                              {contract.excludedFromStatusCalculation ? (
+                                <EyeOff className="w-4 h-4" />
+                              ) : (
+                                <Eye className="w-4 h-4" />
+                              )}
+                            </button>
                             {/* Для закупок всегда показываем сам договор */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
                                 <div>
@@ -3612,6 +3680,60 @@ export default function PurchaseRequestDetailPage() {
             )}
           </div>
         </main>
+
+        {/* Модальное окно: исключение договора из расчёта статуса заявки */}
+        {contractExclusionModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+            onClick={() => setContractExclusionModal(null)}
+          >
+            <div
+              className="bg-white rounded-lg shadow-xl p-4 max-w-md w-full mx-2 text-gray-900"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-sm font-semibold mb-3">Исключение договора из расчёта статуса заявки</h3>
+              <p className="text-xs text-gray-600 mb-2">
+                Договоры и спецификации с включённым исключением не учитываются при определении статусов «Договор подписан» и «Спецификация подписана».
+              </p>
+              <label className="flex items-center gap-2 mb-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={exclusionForm.excludedFromStatusCalculation}
+                  onChange={(e) => setExclusionForm((prev) => ({ ...prev, excludedFromStatusCalculation: e.target.checked }))}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm">Исключить из расчёта статуса заявки</span>
+              </label>
+              <label className="block mb-3">
+                <span className="block text-xs font-medium text-gray-700 mb-1">Комментарий исключения</span>
+                <textarea
+                  value={exclusionForm.exclusionComment}
+                  onChange={(e) => setExclusionForm((prev) => ({ ...prev, exclusionComment: e.target.value }))}
+                  className="w-full px-3 py-2 text-sm text-gray-900 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  rows={3}
+                  placeholder="Причина исключения (необязательно)"
+                />
+              </label>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setContractExclusionModal(null)}
+                  className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Отмена
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveContractExclusion}
+                  disabled={isSavingExclusion}
+                  className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {isSavingExclusion ? 'Сохранение…' : 'Сохранить'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

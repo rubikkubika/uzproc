@@ -109,6 +109,25 @@ public class ContractService {
     }
 
     /**
+     * Обновить флаг и комментарий исключения договора из расчёта статуса заявки.
+     * @param id id договора
+     * @param excludedFromStatusCalculation исключить из расчёта (true) или учитывать (false)
+     * @param exclusionComment комментарий к исключению (может быть null)
+     * @return обновлённый DTO или null, если договор не найден
+     */
+    @Transactional(readOnly = false)
+    public ContractDto updateExclusion(Long id, Boolean excludedFromStatusCalculation, String exclusionComment) {
+        Contract contract = contractRepository.findById(id).orElse(null);
+        if (contract == null) {
+            return null;
+        }
+        contract.setExcludedFromStatusCalculation(Boolean.TRUE.equals(excludedFromStatusCalculation) ? true : false);
+        contract.setExclusionComment(exclusionComment != null && !exclusionComment.trim().isEmpty() ? exclusionComment.trim() : null);
+        contract = contractRepository.save(contract);
+        return toDto(contract);
+    }
+
+    /**
      * Получить список уникальных годов из дат создания договоров
      * @return список годов в порядке убывания
      */
@@ -223,6 +242,8 @@ public class ContractService {
 
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
+        dto.setExcludedFromStatusCalculation(entity.getExcludedFromStatusCalculation());
+        dto.setExclusionComment(entity.getExclusionComment());
         return dto;
     }
 

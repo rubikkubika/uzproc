@@ -167,9 +167,11 @@ public class PurchaseRequestStatusUpdateService {
         boolean hasNotCoordinatedSpecification = false;
         boolean hasArchivedSpecification = false;
         try {
+            // Условие: не исключён из расчёта статуса заявки
+            String notExcludedCondition = " AND (excluded_from_status_calculation IS NULL OR excluded_from_status_calculation = false)";
             // Проверяем наличие спецификации через нативный SQL запрос к таблице contracts
             Query query = entityManager.createNativeQuery(
-                "SELECT COUNT(*) FROM contracts WHERE purchase_request_id = ? AND document_form = ?"
+                "SELECT COUNT(*) FROM contracts WHERE purchase_request_id = ? AND document_form = ?" + notExcludedCondition
             );
             query.setParameter(1, idPurchaseRequest);
             query.setParameter(2, "Спецификация");
@@ -181,7 +183,7 @@ public class PurchaseRequestStatusUpdateService {
                 // Проверяем, есть ли подписанная спецификация (для заказов и закупок)
                 // В базе данных статус хранится как имя enum константы (SIGNED), а не displayName (Подписан)
                 Query signedQuery = entityManager.createNativeQuery(
-                    "SELECT COUNT(*) FROM contracts WHERE purchase_request_id = ? AND document_form = ? AND status = ?"
+                    "SELECT COUNT(*) FROM contracts WHERE purchase_request_id = ? AND document_form = ? AND status = ?" + notExcludedCondition
                 );
                 signedQuery.setParameter(1, idPurchaseRequest);
                 signedQuery.setParameter(2, "Спецификация");
@@ -198,7 +200,7 @@ public class PurchaseRequestStatusUpdateService {
                         
                         // Проверяем, есть ли спецификация со статусом "На согласовании"
                         Query onCoordinationSpecQuery = entityManager.createNativeQuery(
-                            "SELECT COUNT(*) FROM contracts WHERE purchase_request_id = ? AND document_form = ? AND status = ?"
+                            "SELECT COUNT(*) FROM contracts WHERE purchase_request_id = ? AND document_form = ? AND status = ?" + notExcludedCondition
                         );
                         onCoordinationSpecQuery.setParameter(1, idPurchaseRequest);
                         onCoordinationSpecQuery.setParameter(2, "Спецификация");
@@ -212,7 +214,7 @@ public class PurchaseRequestStatusUpdateService {
                             
                             // Проверяем, есть ли спецификация со статусом "Не согласован"
                             Query notCoordinatedSpecQuery = entityManager.createNativeQuery(
-                                "SELECT COUNT(*) FROM contracts WHERE purchase_request_id = ? AND document_form = ? AND status = ?"
+                                "SELECT COUNT(*) FROM contracts WHERE purchase_request_id = ? AND document_form = ? AND status = ?" + notExcludedCondition
                             );
                             notCoordinatedSpecQuery.setParameter(1, idPurchaseRequest);
                             notCoordinatedSpecQuery.setParameter(2, "Спецификация");
@@ -226,7 +228,7 @@ public class PurchaseRequestStatusUpdateService {
                                 
                                 // Проверяем, есть ли спецификация со статусом "Проект"
                                 Query projectQuery = entityManager.createNativeQuery(
-                                    "SELECT COUNT(*) FROM contracts WHERE purchase_request_id = ? AND document_form = ? AND status = ?"
+                                    "SELECT COUNT(*) FROM contracts WHERE purchase_request_id = ? AND document_form = ? AND status = ?" + notExcludedCondition
                                 );
                                 projectQuery.setParameter(1, idPurchaseRequest);
                                 projectQuery.setParameter(2, "Спецификация");
@@ -239,7 +241,7 @@ public class PurchaseRequestStatusUpdateService {
                                 if (creationDate == null) {
                                     // Если дата создания заявки отсутствует, используем дату создания спецификации как fallback
                                     Query specDateQuery = entityManager.createNativeQuery(
-                                        "SELECT MIN(contract_creation_date) FROM contracts WHERE purchase_request_id = ? AND document_form = ? AND status = ?"
+                                        "SELECT MIN(contract_creation_date) FROM contracts WHERE purchase_request_id = ? AND document_form = ? AND status = ?" + notExcludedCondition
                                     );
                                     specDateQuery.setParameter(1, idPurchaseRequest);
                                     specDateQuery.setParameter(2, "Спецификация");
@@ -373,6 +375,8 @@ public class PurchaseRequestStatusUpdateService {
                 String documentForm = contract.getDocumentForm();
                 return documentForm != null && documentForm.equals("Спецификация");
             });
+            // Исключаем договоры/спецификации, помеченные как исключённые из расчёта статуса заявки
+            allContracts.removeIf(contract -> Boolean.TRUE.equals(contract.getExcludedFromStatusCalculation()));
             
             if (!allContracts.isEmpty()) {
                 hasContracts = true;

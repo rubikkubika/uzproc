@@ -83,6 +83,28 @@ public class ContractController {
         return ResponseEntity.notFound().build();
     }
 
+    /**
+     * Обновить исключение договора из расчёта статуса заявки (Договор подписан / Спецификация подписана).
+     * @param id id договора
+     * @param body excludedFromStatusCalculation (boolean), exclusionComment (string, optional)
+     */
+    @PatchMapping("/{id}/exclusion")
+    public ResponseEntity<ContractDto> updateContractExclusion(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> body) {
+        Boolean excluded = body != null && body.containsKey("excludedFromStatusCalculation")
+                ? (Boolean) body.get("excludedFromStatusCalculation")
+                : null;
+        String comment = body != null && body.containsKey("exclusionComment")
+                ? (body.get("exclusionComment") != null ? body.get("exclusionComment").toString() : null)
+                : null;
+        ContractDto updated = contractService.updateExclusion(id, excluded, comment);
+        if (updated != null) {
+            return ResponseEntity.ok(updated);
+        }
+        return ResponseEntity.notFound().build();
+    }
+
     @GetMapping("/specifications-for-delivery-plan")
     public ResponseEntity<List<ContractDto>> getSpecificationsForDeliveryPlan() {
         List<ContractDto> specifications = contractService.getSpecificationsForDeliveryPlan();

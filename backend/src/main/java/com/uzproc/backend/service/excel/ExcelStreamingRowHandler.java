@@ -96,6 +96,8 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private static final String EMAIL_PURCHASER_COLUMN = "Email(Закупщик)";
     private static final String PURCHASER_COLUMN = "Ответственный за ЗП (Закупочная процедура)";
     private static final String LINK_COLUMN = "Ссылка";
+    /** Колонка "Закупочная процедура (Договор)": формат "ЗП по заявке: ... N 1782 - ...", 1782 — номер заявки (id_purchase_request). */
+    private static final String PURCHASE_PROCEDURE_CONTRACT_COLUMN = "Закупочная процедура (Договор)";
     private static final String DOCUMENT_FORM_COLUMN = "Форма документа";
     private static final String STATUS_COLUMN = "Состояние";
     private static final String AMOUNT_COLUMN = "Сумма";
@@ -1057,7 +1059,8 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 }
             }
             
-            // Ссылка (опционально) - парсим purchaseRequestId
+            // Ссылка (опционально) - парсим purchaseRequestId. Формат "N <число>".
+            // Заявка может быть связана с несколькими договорами (у каждого договора свой purchase_request_id).
             Integer linkCol = columnIndices.get(LINK_COLUMN);
             if (linkCol != null) {
                 String link = currentRowData.get(linkCol);
@@ -1102,6 +1105,43 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                     } else {
                         logger.debug("Row {}: Could not parse purchaseRequestId from link '{}' for contract {}", 
                             currentRowNum + 1, link.trim(), contract.getInnerId());
+                    }
+                }
+            }
+            
+            // Закупочная процедура (Договор) — запасной источник номера заявки. Формат: "ЗП по заявке: ... N 1782 - ..."
+            if (contract.getPurchaseRequestId() == null) {
+                Integer purchaseProcedureCol = columnIndices.get(PURCHASE_PROCEDURE_CONTRACT_COLUMN);
+                if (purchaseProcedureCol == null) {
+                    purchaseProcedureCol = findColumnIndex(PURCHASE_PROCEDURE_CONTRACT_COLUMN);
+                }
+                if (purchaseProcedureCol != null) {
+                    String purchaseProcedure = currentRowData.get(purchaseProcedureCol);
+                    if (purchaseProcedure != null && !purchaseProcedure.trim().isEmpty()) {
+                        Long purchaseRequestId = parsePurchaseRequestIdFromLink(purchaseProcedure.trim());
+                        if (purchaseRequestId != null) {
+                            Optional<PurchaseRequest> purchaseRequest = purchaseRequestBatch.stream()
+                                .filter(pr -> pr.getIdPurchaseRequest() != null && pr.getIdPurchaseRequest().equals(purchaseRequestId))
+                                .findFirst();
+                            boolean foundInBatch = purchaseRequest.isPresent();
+                            if (!purchaseRequest.isPresent() && !purchaseRequestBatch.isEmpty()) {
+                                flushPurchaseRequestBatch();
+                                purchaseRequest = purchaseRequestRepository.findByIdPurchaseRequest(purchaseRequestId);
+                            } else if (!purchaseRequest.isPresent()) {
+                                purchaseRequest = purchaseRequestRepository.findByIdPurchaseRequest(purchaseRequestId);
+                            }
+                            if (purchaseRequest.isPresent()) {
+                                contract.setPurchaseRequestId(purchaseRequest.get().getIdPurchaseRequest());
+                                logger.info("Row {}: Set purchaseRequestId {} for contract {} from '{}' (found in {})",
+                                    currentRowNum + 1, purchaseRequest.get().getIdPurchaseRequest(), contract.getInnerId(),
+                                    purchaseProcedure.trim().length() > 60 ? purchaseProcedure.trim().substring(0, 60) + "..." : purchaseProcedure.trim(),
+                                    foundInBatch ? "batch" : "database");
+                            } else {
+                                pendingContractLinks.put(contract.getInnerId(), purchaseRequestId);
+                                logger.warn("Row {}: PurchaseRequest {} not found for contract {} (column '{}') - added to pending links",
+                                    currentRowNum + 1, purchaseRequestId, contract.getInnerId(), PURCHASE_PROCEDURE_CONTRACT_COLUMN);
+                            }
+                        }
                     }
                 }
             }
@@ -2150,7 +2190,12 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     }
     
     /**
-     * Парсит purchaseRequestId из ссылки (формат "N <число>")
+     * Парсит номер заявки (id_purchase_request) из строки.
+     * Поддерживаемые форматы:
+     * <ul>
+     *   <li>Ссылка: "N 1782"</li>
+     *   <li>Закупочная процедура (Договор): "ЗП по заявке: M - Maintenance N 1782 - Мешки полипропиленновые ..." (извлекается "N 1782")</li>
+     * </ul>
      */
     private Long parsePurchaseRequestIdFromLink(String link) {
         if (link == null || link.trim().isEmpty()) {
