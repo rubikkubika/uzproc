@@ -42,21 +42,21 @@ export async function POST(request: Request) {
         httpOnly: true,
         secure: false, // Отключено для работы по HTTP
         sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 7, // 7 дней
+        maxAge: 60 * 60 * 24 * 365, // 1 год
         path: '/',
       });
       cookieStore.set('user-role', data.role || 'user', {
         httpOnly: true,
         secure: false,
         sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 7, // 7 дней
+        maxAge: 60 * 60 * 24 * 365, // 1 год
         path: '/',
       });
       cookieStore.set('user-email', normalizedEmail, {
         httpOnly: false, // Доступен из JavaScript для отображения
         secure: false,
         sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 7, // 7 дней
+        maxAge: 60 * 60 * 24 * 365, // 1 год
         path: '/',
       });
 

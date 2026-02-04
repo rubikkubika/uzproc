@@ -59,9 +59,10 @@ function LoginPageContent() {
         if (password) {
           sessionStorage.setItem('lastPasswordAttempt', 'true');
         }
-        // Успешный вход, перенаправляем на главную страницу
-        router.push('/');
-        router.refresh();
+        // Полная перезагрузка страницы, чтобы AuthContext подхватил cookies (в т.ч. user-role)
+        // и отобразились права администратора
+        window.location.href = '/';
+        return;
       } else {
         setError(data.error || 'Ошибка входа');
       }
