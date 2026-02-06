@@ -63,6 +63,10 @@ public class PurchaseRequestService {
     @Value("${app.frontend.base-url:}")
     private String frontendBaseUrl;
 
+    /** URL для ссылки CSI в письме (оценка). Всегда сервер деплоя (по умолчанию http://10.123.48.62). */
+    @Value("${app.frontend.csi-link-base-url:http://10.123.48.62}")
+    private String csiLinkBaseUrl;
+
     public PurchaseRequestService(
             PurchaseRequestRepository purchaseRequestRepository,
             PurchaseRequestApprovalRepository approvalRepository,
@@ -406,13 +410,12 @@ public class PurchaseRequestService {
             dto.setContracts(new ArrayList<>());
         }
         
-        // Генерируем ссылку на форму CSI обратной связи
+        // Генерируем ссылку на форму CSI обратной связи (всегда на сервер деплоя)
         if (entity.getCsiToken() != null && !entity.getCsiToken().isEmpty()) {
-            // Формируем полную ссылку с учетом окружения: {baseUrl}/csi/feedback/{token}
-            // baseUrl берется из переменной окружения FRONTEND_BASE_URL или из application.yml
             String csiPath = "/csi/feedback/" + entity.getCsiToken();
-            // Убираем завершающий слэш из baseUrl, если он есть
-            String baseUrl = determineFrontendBaseUrl();
+            String baseUrl = (csiLinkBaseUrl != null && !csiLinkBaseUrl.trim().isEmpty())
+                ? csiLinkBaseUrl.replaceAll("/$", "")
+                : "http://10.123.48.62";
             String csiLink = baseUrl + csiPath;
             dto.setCsiLink(csiLink);
             logger.debug("Generated CSI link for request {}: {} (using baseUrl: {})", 
