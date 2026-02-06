@@ -169,9 +169,9 @@ export default function PurchaseRequestsTable() {
 
     const initiatorName = selectedRequestForRating.purchaseRequestInitiator?.trim();
     const purchaserName = selectedRequestForRating.purchaser?.trim();
-    const ccDefault = 'r.oskanov@uzum.com';
+    const ccDefault = 'r.oskanov@uzum.com, a.retsko@uzum.com';
 
-    // Загружаем инициатора и закупщика параллельно; получатель = инициатор, копия = только закупщик (не получатель) + Oskanov
+    // Загружаем инициатора и закупщика параллельно; получатель = инициатор, копия = закупщик (если не получатель) + r.oskanov + a.retsko
     const initiatorPromise = initiatorName ? findInitiatorByName(initiatorName) : Promise.resolve(null);
     const purchaserPromise = purchaserName ? findInitiatorByName(purchaserName) : Promise.resolve(null);
 
@@ -185,7 +185,7 @@ export default function PurchaseRequestsTable() {
         setEmailTo('');
       }
 
-      // Копия — только email закупщика (не получателя) + r.oskanov@uzum.com
+      // Копия — email закупщика (если не получатель) + r.oskanov@uzum.com, a.retsko@uzum.com
       const recipientEmail = (initiatorUser?.email || initiatorUser?.username || '').trim().toLowerCase();
       const purchaserEmail = purchaserUser?.email?.trim();
       const purchaserUsername = purchaserUser?.username?.trim();

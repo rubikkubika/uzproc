@@ -85,9 +85,11 @@ server:
 # - Если FRONTEND_BASE_URL установлена - используется она
 # - В Docker/production - определяется автоматически (uzproc.uzum.io)
 # - Локально - используется localhost:3000
+# Ссылка CSI в письме (оценка) всегда ведёт на сервер деплоя (по умолчанию 10.123.48.62).
 app:
   frontend:
     base-url: ${FRONTEND_BASE_URL:}
+    csi-link-base-url: ${CSI_LINK_BASE_URL:http://10.123.48.62}
 
 management:
   endpoints:
