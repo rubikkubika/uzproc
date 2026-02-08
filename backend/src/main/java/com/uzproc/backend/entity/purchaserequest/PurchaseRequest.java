@@ -93,6 +93,10 @@ public class PurchaseRequest {
     @Column(name = "exclude_from_in_work")
     private Boolean excludeFromInWork;
 
+    /** Сложность заявки (из alldocuments: «Сложность закупки (уровень) (Заявка на ЗП)») */
+    @Column(name = "complexity", length = 255)
+    private String complexity;
+
     @Column(name = "is_strategic_product")
     private Boolean isStrategicProduct;
 
@@ -351,6 +355,14 @@ public class PurchaseRequest {
 
     public void setExcludeFromInWork(Boolean excludeFromInWork) {
         this.excludeFromInWork = excludeFromInWork;
+    }
+
+    public String getComplexity() {
+        return complexity;
+    }
+
+    public void setComplexity(String complexity) {
+        this.complexity = complexity;
     }
 
     public Boolean getIsStrategicProduct() {

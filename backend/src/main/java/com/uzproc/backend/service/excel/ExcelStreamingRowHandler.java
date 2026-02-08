@@ -109,6 +109,8 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private static final String MCC_COLUMN = "Способ закупки (Заявка на ЗП)";
     private static final String PLANNED_DELIVERY_START_DATE_COLUMN = "Плановая дата начала поставки (Заявка на ЗП)";
     private static final String PLANNED_DELIVERY_END_DATE_COLUMN = "Плановая дата окончания поставки (Заявка на ЗП)";
+    /** Сложность заявки из alldocuments */
+    private static final String COMPLEXITY_COLUMN = "Сложность закупки (уровень) (Заявка на ЗП)";
     
     // Оптимизация: статические DateTimeFormatter для парсинга дат (создаются один раз)
     private static final DateTimeFormatter[] DATE_TIME_FORMATTERS = {
@@ -571,6 +573,16 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 }
             } else {
                 logger.debug("Row {}: statusColumnIndex is null, skipping state field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
+            }
+            
+            // Сложность (опционально) — из колонки "Сложность закупки (уровень) (Заявка на ЗП)" в alldocuments
+            Integer complexityCol = findColumnIndex(COMPLEXITY_COLUMN);
+            if (complexityCol != null) {
+                String complexity = currentRowData.get(complexityCol);
+                if (complexity != null && !complexity.trim().isEmpty()) {
+                    pr.setComplexity(complexity.trim());
+                    logger.debug("Row {}: parsed complexity: '{}' for request {}", currentRowNum + 1, complexity.trim(), pr.getIdPurchaseRequest());
+                }
             }
             
             // Сумма (опционально) - парсим поле "Сумма" в поле budgetAmount
@@ -1744,6 +1756,15 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 existing.setExpenseItem(newData.getExpenseItem());
                 updated = true;
                 logger.debug("Updated expenseItem for request {}: {}", existing.getIdPurchaseRequest(), newData.getExpenseItem());
+            }
+        }
+        
+        // Обновляем complexity (Сложность заявки из alldocuments)
+        if (newData.getComplexity() != null && !newData.getComplexity().trim().isEmpty()) {
+            if (existing.getComplexity() == null || !existing.getComplexity().equals(newData.getComplexity())) {
+                existing.setComplexity(newData.getComplexity());
+                updated = true;
+                logger.debug("Updated complexity for request {}: {}", existing.getIdPurchaseRequest(), newData.getComplexity());
             }
         }
         

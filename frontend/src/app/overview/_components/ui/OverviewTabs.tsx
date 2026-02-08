@@ -12,6 +12,7 @@ interface OverviewTabsProps {
  */
 export function OverviewTabs({ activeTab, onTabChange }: OverviewTabsProps) {
   const tabs: OverviewTabItem[] = [
+    { id: 'sla', label: 'SLA' },
     { id: 'purchase-plan', label: 'План закупок' },
     { id: 'csi', label: 'CSI' },
   ];

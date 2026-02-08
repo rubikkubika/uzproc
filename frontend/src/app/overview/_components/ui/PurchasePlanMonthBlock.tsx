@@ -3,14 +3,7 @@
 import { usePurchasePlanMonthBlockData } from '../hooks/usePurchasePlanMonthBlockData';
 import { PurchasePlanMonthPositionsChart } from './PurchasePlanMonthPositionsChart';
 import { PurchasePlanMonthCfoTable } from './PurchasePlanMonthCfoTable';
-
-interface PurchasePlanMonthBlockProps {
-  title: string;
-  /** Год и месяц блока (для загрузки последней редакции и позиций) */
-  year: number;
-  month: number;
-  isCurrentMonth?: boolean;
-}
+import type { PurchasePlanMonthBlockData, OverviewPlanVersion, CfoSummaryRow } from '../hooks/usePurchasePlanMonthBlockData';
 
 function formatVersionDate(iso: string): string {
   try {
@@ -21,27 +14,33 @@ function formatVersionDate(iso: string): string {
   }
 }
 
-/**
- * UI компонент для блока месяца в плане закупок.
- * Показывает последнюю редакцию за месяц (по дате создания) и столбчатую диаграмму — сколько позиций в месяце.
- */
-export function PurchasePlanMonthBlock({
-  title,
-  year,
-  month,
-  isCurrentMonth = false,
-}: PurchasePlanMonthBlockProps) {
-  const {
-    version,
-    positionsMarketCount,
-    positionsLinkedToRequestCount,
-    positionsExcludedCount,
-    requestsPurchaseCreatedInMonthCount,
-    summaryByCfo,
-    loading,
-    error,
-  } = usePurchasePlanMonthBlockData(year, month);
+/** Пропсы для отображения блока месяца (без хука). */
+export interface PurchasePlanMonthBlockViewProps {
+  title: string;
+  version: OverviewPlanVersion | null;
+  positionsMarketCount: number;
+  positionsLinkedToRequestCount: number;
+  positionsExcludedCount: number;
+  requestsPurchaseCreatedInMonthCount: number;
+  summaryByCfo: CfoSummaryRow[];
+  loading: boolean;
+  error: string | null;
+}
 
+/**
+ * Только отображение блока месяца (без запросов). Используется в Overview с данными с /api/overview/purchase-plan-months.
+ */
+export function PurchasePlanMonthBlockView({
+  title,
+  version,
+  positionsMarketCount,
+  positionsLinkedToRequestCount,
+  positionsExcludedCount,
+  requestsPurchaseCreatedInMonthCount,
+  summaryByCfo,
+  loading,
+  error,
+}: PurchasePlanMonthBlockViewProps) {
   return (
     <div className="bg-white rounded-lg shadow-lg p-3 sm:p-4">
       <div className="mb-1 flex items-baseline gap-2">
@@ -88,5 +87,45 @@ export function PurchasePlanMonthBlock({
         </>
       )}
     </div>
+  );
+}
+
+interface PurchasePlanMonthBlockProps {
+  title: string;
+  year: number;
+  month: number;
+  isCurrentMonth?: boolean;
+  /** Данные с обзорного API — при передаче хук не вызывается */
+  blockData?: PurchasePlanMonthBlockData | null;
+  loading?: boolean;
+  error?: string | null;
+}
+
+/**
+ * Блок месяца в плане закупок: либо данные с родителя (blockData), либо загрузка через хук.
+ */
+export function PurchasePlanMonthBlock({
+  title,
+  year,
+  month,
+  isCurrentMonth = false,
+  blockData: propsBlockData,
+  loading: propsLoading,
+  error: propsError,
+}: PurchasePlanMonthBlockProps) {
+  const hookData = usePurchasePlanMonthBlockData(year, month);
+  const useProps = propsBlockData !== undefined;
+  return (
+    <PurchasePlanMonthBlockView
+      title={title}
+      version={useProps ? (propsBlockData?.version ?? null) : hookData.version}
+      positionsMarketCount={useProps ? (propsBlockData?.positionsMarketCount ?? 0) : hookData.positionsMarketCount}
+      positionsLinkedToRequestCount={useProps ? (propsBlockData?.positionsLinkedToRequestCount ?? 0) : hookData.positionsLinkedToRequestCount}
+      positionsExcludedCount={useProps ? (propsBlockData?.positionsExcludedCount ?? 0) : hookData.positionsExcludedCount}
+      requestsPurchaseCreatedInMonthCount={useProps ? (propsBlockData?.requestsPurchaseCreatedInMonthCount ?? 0) : hookData.requestsPurchaseCreatedInMonthCount}
+      summaryByCfo={useProps ? (propsBlockData?.summaryByCfo ?? []) : hookData.summaryByCfo}
+      loading={useProps ? (propsLoading ?? false) : hookData.loading}
+      error={useProps ? (propsError ?? null) : hookData.error}
+    />
   );
 }

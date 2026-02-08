@@ -1,10 +1,14 @@
 'use client';
 
+import { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useOverview } from './hooks/useOverview';
+import { useOverviewSlaData } from './hooks/useOverviewSlaData';
+import { useOverviewPurchasePlanMonthsData } from './hooks/useOverviewPurchasePlanMonthsData';
 import { OverviewTabs } from './ui/OverviewTabs';
 import { usePurchasePlanMonths } from './hooks/usePurchasePlanMonths';
-import { PurchasePlanMonthBlock } from './ui/PurchasePlanMonthBlock';
+import { PurchasePlanMonthBlockView } from './ui/PurchasePlanMonthBlock';
+import { SlaStatusBlock } from './ui/SlaStatusBlock';
 import AllCsiFeedback from './ui/AllCsiFeedback';
 
 /**
@@ -13,6 +17,13 @@ import AllCsiFeedback from './ui/AllCsiFeedback';
  */
 export default function Overview() {
   const { activeTab, setActiveTab } = useOverview();
+  const currentYear = useMemo(() => new Date().getFullYear(), []);
+  const [slaYear, setSlaYear] = useState<number>(currentYear);
+  const slaAvailableYears = useMemo(() => {
+    const years: number[] = [];
+    for (let i = currentYear - 2; i <= currentYear + 5; i++) years.push(i);
+    return years;
+  }, [currentYear]);
   const {
     previousMonth,
     currentMonth,
@@ -26,11 +37,56 @@ export default function Overview() {
     handleYearChange,
   } = usePurchasePlanMonths();
 
+  const slaData = useOverviewSlaData(activeTab === 'sla' ? slaYear : null);
+  const purchasePlanMonthsParam = useMemo(
+    () =>
+      activeTab === 'purchase-plan'
+        ? [previousMonth.getMonth() + 1, currentMonth.getMonth() + 1]
+        : [],
+    [activeTab, previousMonth, currentMonth]
+  );
+  const purchasePlanMonthsData = useOverviewPurchasePlanMonthsData(
+    selectedYear,
+    purchasePlanMonthsParam
+  );
+
   return (
     <div className="space-y-1 sm:space-y-2">
       <OverviewTabs activeTab={activeTab} onTabChange={setActiveTab} />
       
       <div className="w-full">
+        {activeTab === 'sla' && (
+          <div className="space-y-2 sm:space-y-3">
+            <div className="bg-white rounded-lg shadow-lg p-2 sm:p-3">
+              <div className="flex items-center gap-2">
+                <label htmlFor="sla-year-filter" className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                  Год назначения:
+                </label>
+                <select
+                  id="sla-year-filter"
+                  value={slaYear}
+                  onChange={(e) => setSlaYear(Number(e.target.value))}
+                  className="px-2 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  {slaAvailableYears.map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {(slaData.data?.statusBlocks ?? []).map((block) => (
+              <SlaStatusBlock
+                key={block.statusGroup}
+                title={block.statusGroup}
+                requests={block.requests}
+                loading={slaData.loading}
+                error={slaData.error}
+              />
+            ))}
+          </div>
+        )}
         {activeTab === 'csi' && (
           <div className="w-1/2">
             <AllCsiFeedback />
@@ -70,20 +126,30 @@ export default function Overview() {
               </button>
             )}
 
-            {/* Сверху: месяц −1 от текущего */}
-            <PurchasePlanMonthBlock
+            {/* Сверху: месяц −1 от текущего — данные одним запросом /api/overview/purchase-plan-months */}
+            <PurchasePlanMonthBlockView
               title={formatMonth(previousMonth)}
-              year={previousMonth.getFullYear()}
-              month={previousMonth.getMonth()}
-              isCurrentMonth={false}
+              version={purchasePlanMonthsData.months[0]?.version ?? null}
+              positionsMarketCount={purchasePlanMonthsData.months[0]?.positionsMarketCount ?? 0}
+              positionsLinkedToRequestCount={purchasePlanMonthsData.months[0]?.positionsLinkedToRequestCount ?? 0}
+              positionsExcludedCount={purchasePlanMonthsData.months[0]?.positionsExcludedCount ?? 0}
+              requestsPurchaseCreatedInMonthCount={purchasePlanMonthsData.months[0]?.requestsPurchaseCreatedInMonthCount ?? 0}
+              summaryByCfo={purchasePlanMonthsData.months[0]?.summaryByCfo ?? []}
+              loading={purchasePlanMonthsData.loading}
+              error={purchasePlanMonthsData.error}
             />
 
             {/* Снизу: текущий месяц */}
-            <PurchasePlanMonthBlock
+            <PurchasePlanMonthBlockView
               title={formatMonth(currentMonth)}
-              year={currentMonth.getFullYear()}
-              month={currentMonth.getMonth()}
-              isCurrentMonth={true}
+              version={purchasePlanMonthsData.months[1]?.version ?? null}
+              positionsMarketCount={purchasePlanMonthsData.months[1]?.positionsMarketCount ?? 0}
+              positionsLinkedToRequestCount={purchasePlanMonthsData.months[1]?.positionsLinkedToRequestCount ?? 0}
+              positionsExcludedCount={purchasePlanMonthsData.months[1]?.positionsExcludedCount ?? 0}
+              requestsPurchaseCreatedInMonthCount={purchasePlanMonthsData.months[1]?.requestsPurchaseCreatedInMonthCount ?? 0}
+              summaryByCfo={purchasePlanMonthsData.months[1]?.summaryByCfo ?? []}
+              loading={purchasePlanMonthsData.loading}
+              error={purchasePlanMonthsData.error}
             />
 
             {/* Кнопка "Следующий месяц" снизу */}
