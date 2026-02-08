@@ -13,6 +13,7 @@ export interface OverviewSlaRequestRow {
   status: string | null;
   approvalAssignmentDate: string | null;
   purchaseCompletionDate: string | null;
+  slaCommentCount?: number;
 }
 
 export interface OverviewSlaBlock {
@@ -62,6 +63,7 @@ export function useOverviewSlaData(year: number | null) {
               status?: string | null;
               approvalAssignmentDate?: string | null;
               purchaseCompletionDate?: string | null;
+              slaCommentCount?: number;
             }) => ({
               id: r.id ?? 0,
               idPurchaseRequest: r.idPurchaseRequest ?? null,
@@ -72,6 +74,7 @@ export function useOverviewSlaData(year: number | null) {
               status: r.status ?? null,
               approvalAssignmentDate: r.approvalAssignmentDate ?? null,
               purchaseCompletionDate: r.purchaseCompletionDate ?? null,
+              slaCommentCount: r.slaCommentCount ?? 0,
             })
           ),
         })

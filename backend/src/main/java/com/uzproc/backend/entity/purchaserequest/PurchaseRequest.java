@@ -8,6 +8,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.UUID;
 
 @Entity
@@ -112,6 +113,10 @@ public class PurchaseRequest {
     @OneToMany(mappedBy = "purchaseRequest", fetch = FetchType.LAZY)
     private java.util.List<com.uzproc.backend.entity.purchase.Purchase> purchases;
 
+    // Комментарии к заявке (с заявкой может быть связано много комментариев)
+    @OneToMany(mappedBy = "purchaseRequest", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    private java.util.List<PurchaseRequestComment> comments;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -121,6 +126,7 @@ public class PurchaseRequest {
     private LocalDateTime updatedAt;
 
     public PurchaseRequest() {
+        this.comments = new ArrayList<>();
     }
 
     public PurchaseRequest(Long id, UUID guid, LocalDateTime createdAt, LocalDateTime updatedAt) {
@@ -395,5 +401,13 @@ public class PurchaseRequest {
 
     public void setCsiInvitationSent(Boolean csiInvitationSent) {
         this.csiInvitationSent = csiInvitationSent;
+    }
+
+    public java.util.List<PurchaseRequestComment> getComments() {
+        return comments;
+    }
+
+    public void setComments(java.util.List<PurchaseRequestComment> comments) {
+        this.comments = comments;
     }
 }

@@ -1,7 +1,10 @@
 package com.uzproc.backend.controller.purchaserequest;
 
+import com.uzproc.backend.dto.purchaserequest.PurchaseRequestCommentDto;
 import com.uzproc.backend.dto.purchaserequest.PurchaseRequestDto;
 import com.uzproc.backend.dto.purchaserequest.PurchaserStatsDto;
+import com.uzproc.backend.entity.purchaserequest.PurchaseRequestCommentType;
+import com.uzproc.backend.service.purchaserequest.PurchaseRequestCommentService;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestService;
 import com.uzproc.backend.service.excel.EntityExcelLoadService;
 import org.slf4j.Logger;
@@ -22,12 +25,15 @@ public class PurchaseRequestController {
     private static final Logger logger = LoggerFactory.getLogger(PurchaseRequestController.class);
     private final PurchaseRequestService purchaseRequestService;
     private final EntityExcelLoadService excelLoadService;
+    private final PurchaseRequestCommentService purchaseRequestCommentService;
 
     public PurchaseRequestController(
             PurchaseRequestService purchaseRequestService,
-            EntityExcelLoadService excelLoadService) {
+            EntityExcelLoadService excelLoadService,
+            PurchaseRequestCommentService purchaseRequestCommentService) {
         this.purchaseRequestService = purchaseRequestService;
         this.excelLoadService = excelLoadService;
+        this.purchaseRequestCommentService = purchaseRequestCommentService;
     }
 
     /**
@@ -113,6 +119,28 @@ public class PurchaseRequestController {
             return ResponseEntity.ok(purchaseRequest);
         }
         return ResponseEntity.notFound().build();
+    }
+
+    @GetMapping("/{id}/comments")
+    public ResponseEntity<List<PurchaseRequestCommentDto>> getPurchaseRequestComments(
+            @PathVariable Long id,
+            @RequestParam(required = false) PurchaseRequestCommentType type) {
+        List<PurchaseRequestCommentDto> comments = purchaseRequestCommentService.getCommentsByPurchaseRequestIdAndType(id, type);
+        return ResponseEntity.ok(comments);
+    }
+
+    @PostMapping("/{id}/comments")
+    public ResponseEntity<PurchaseRequestCommentDto> createPurchaseRequestComment(
+            @PathVariable Long id,
+            @RequestBody com.uzproc.backend.dto.purchaserequest.CreatePurchaseRequestCommentRequest request) {
+        if (request == null || request.getType() == null || request.getText() == null || request.getText().trim().isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+        PurchaseRequestCommentDto created = purchaseRequestCommentService.createComment(id, request.getType(), request.getText());
+        if (created == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @GetMapping("/by-id-purchase-request/{idPurchaseRequest}")

@@ -4,6 +4,8 @@ import com.uzproc.backend.dto.overview.*;
 import com.uzproc.backend.dto.purchaserequest.PurchaseRequestDto;
 import com.uzproc.backend.dto.purchaseplan.PurchasePlanItemDto;
 import com.uzproc.backend.dto.purchaseplan.PurchasePlanVersionDto;
+import com.uzproc.backend.entity.purchaserequest.PurchaseRequestCommentType;
+import com.uzproc.backend.service.purchaserequest.PurchaseRequestCommentService;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestService;
 import com.uzproc.backend.service.purchaseplan.PurchasePlanVersionService;
 import org.slf4j.Logger;
@@ -36,12 +38,15 @@ public class OverviewService {
 
     private final PurchaseRequestService purchaseRequestService;
     private final PurchasePlanVersionService purchasePlanVersionService;
+    private final PurchaseRequestCommentService purchaseRequestCommentService;
 
     public OverviewService(
             PurchaseRequestService purchaseRequestService,
-            PurchasePlanVersionService purchasePlanVersionService) {
+            PurchasePlanVersionService purchasePlanVersionService,
+            PurchaseRequestCommentService purchaseRequestCommentService) {
         this.purchaseRequestService = purchaseRequestService;
         this.purchasePlanVersionService = purchasePlanVersionService;
+        this.purchaseRequestCommentService = purchaseRequestCommentService;
     }
 
     /**
@@ -51,17 +56,31 @@ public class OverviewService {
         OverviewSlaResponseDto response = new OverviewSlaResponseDto();
         response.setYear(year);
         List<OverviewSlaBlockDto> blocks = new ArrayList<>();
+        List<Long> allRequestIds = new ArrayList<>();
         for (String statusGroup : SLA_STATUS_GROUPS) {
+            // hasLinkedPlanItem=null (не фильтруем по связи с планом — иначе 2090 без позиции плана не попадёт),
+            // requiresPurchase=true — только закупки, без заказов
             Page<PurchaseRequestDto> page = purchaseRequestService.findAll(
                     0, 2000,
                     null, null, null, null,
                     null, null, null, null, null, null, null, null,
-                    true, null, List.of(statusGroup), false,
+                    null, true, List.of(statusGroup), false,
                     null, null, false, year);
             List<OverviewSlaRequestDto> requests = page.getContent().stream()
                     .map(this::toOverviewSlaRequest)
                     .collect(Collectors.toList());
+            requests.forEach(r -> { if (r.getId() != null) allRequestIds.add(r.getId()); });
             blocks.add(new OverviewSlaBlockDto(statusGroup, requests));
+        }
+        Map<Long, Long> slaCounts = purchaseRequestCommentService.getSlaCommentCountByPurchaseRequestIds(allRequestIds);
+        for (OverviewSlaBlockDto block : blocks) {
+            for (OverviewSlaRequestDto r : block.getRequests()) {
+                if (r.getId() != null && slaCounts.containsKey(r.getId())) {
+                    r.setSlaCommentCount(slaCounts.get(r.getId()).intValue());
+                } else {
+                    r.setSlaCommentCount(0);
+                }
+            }
         }
         response.setStatusBlocks(blocks);
         logger.debug("Overview SLA data for year {}: {} blocks", year, blocks.size());

@@ -15,6 +15,7 @@ public class OverviewSlaRequestDto {
     private String status;
     private String approvalAssignmentDate;
     private String purchaseCompletionDate;
+    private Integer slaCommentCount;
 
     public Long getId() {
         return id;
@@ -86,5 +87,13 @@ public class OverviewSlaRequestDto {
 
     public void setPurchaseCompletionDate(String purchaseCompletionDate) {
         this.purchaseCompletionDate = purchaseCompletionDate;
+    }
+
+    public Integer getSlaCommentCount() {
+        return slaCommentCount;
+    }
+
+    public void setSlaCommentCount(Integer slaCommentCount) {
+        this.slaCommentCount = slaCommentCount;
     }
 }

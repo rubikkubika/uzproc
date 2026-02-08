@@ -47,7 +47,8 @@ export default function Overview() {
   );
   const purchasePlanMonthsData = useOverviewPurchasePlanMonthsData(
     selectedYear,
-    purchasePlanMonthsParam
+    purchasePlanMonthsParam,
+    activeTab === 'purchase-plan'
   );
 
   return (
