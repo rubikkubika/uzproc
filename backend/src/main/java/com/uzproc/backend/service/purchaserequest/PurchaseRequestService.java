@@ -13,6 +13,8 @@ import com.uzproc.backend.repository.contract.ContractRepository;
 import com.uzproc.backend.repository.csifeedback.CsiFeedbackRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestApprovalRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
+import com.uzproc.backend.entity.purchaseplan.PurchasePlanItem;
+import com.uzproc.backend.repository.purchase.PurchaseApprovalRepository;
 import com.uzproc.backend.repository.purchase.PurchaseRepository;
 import com.uzproc.backend.repository.purchaseplan.PurchasePlanItemRepository;
 import com.uzproc.backend.entity.csifeedback.CsiFeedback;
@@ -52,6 +54,7 @@ public class PurchaseRequestService {
     
     private final PurchaseRequestRepository purchaseRequestRepository;
     private final PurchaseRequestApprovalRepository approvalRepository;
+    private final PurchaseApprovalRepository purchaseApprovalRepository;
     private final PurchaseRepository purchaseRepository;
     private final ContractRepository contractRepository;
     private final ContractService contractService;
@@ -70,6 +73,7 @@ public class PurchaseRequestService {
     public PurchaseRequestService(
             PurchaseRequestRepository purchaseRequestRepository,
             PurchaseRequestApprovalRepository approvalRepository,
+            PurchaseApprovalRepository purchaseApprovalRepository,
             PurchaseRepository purchaseRepository,
             ContractRepository contractRepository,
             ContractService contractService,
@@ -79,6 +83,7 @@ public class PurchaseRequestService {
             PurchasePlanItemRepository purchasePlanItemRepository) {
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.approvalRepository = approvalRepository;
+        this.purchaseApprovalRepository = purchaseApprovalRepository;
         this.purchaseRepository = purchaseRepository;
         this.contractRepository = contractRepository;
         this.contractService = contractService;
@@ -109,11 +114,12 @@ public class PurchaseRequestService {
             Boolean excludePendingStatuses,
             java.math.BigDecimal budgetAmount,
             String budgetAmountOperator,
-            Boolean excludeFromInWorkParam) {
+            Boolean excludeFromInWorkParam,
+            Integer approvalAssignmentYear) {
         
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, month: {}, idPurchaseRequest: {}, cfo: {}, purchaseRequestInitiator: '{}', purchaser: {}, name: '{}', costType: '{}', contractType: '{}', isPlanned: {}, hasLinkedPlanItem: {}, requiresPurchase: {}, statusGroup: {}, excludePendingStatuses: {}, budgetAmount: {}, budgetAmountOperator: '{}', excludeFromInWorkParam: {}",
-                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, statusGroup, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWorkParam);
+        logger.info("Filter parameters - year: {}, month: {}, approvalAssignmentYear: {}, idPurchaseRequest: {}, cfo: {}, purchaseRequestInitiator: '{}', purchaser: {}, name: '{}', costType: '{}', contractType: '{}', isPlanned: {}, hasLinkedPlanItem: {}, requiresPurchase: {}, statusGroup: {}, excludePendingStatuses: {}, budgetAmount: {}, budgetAmountOperator: '{}', excludeFromInWorkParam: {}",
+                year, month, approvalAssignmentYear, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, statusGroup, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWorkParam);
         
         // Определяем логику фильтрации по excludeFromInWork:
         // 1. Если excludeFromInWorkParam = true передается как параметр запроса, то фильтруем по excludeFromInWork = true (показываем только скрытые)
@@ -156,7 +162,7 @@ public class PurchaseRequestService {
         boolean includeNullStatuses = size <= 1000;
         
         Specification<PurchaseRequest> spec = buildSpecification(
-                year, month, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, statusGroup, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWork, excludeFromInWorkFilter, includeNullStatuses);
+                year, month, approvalAssignmentYear, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, statusGroup, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWork, excludeFromInWorkFilter, includeNullStatuses);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -294,7 +300,7 @@ public class PurchaseRequestService {
             boolean excludeFromInWork) {
 
         Specification<PurchaseRequest> spec = buildSpecification(
-            year, null, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
+            year, null, null, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
             name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, statusGroup,
             false, budgetAmount, budgetAmountOperator, excludeFromInWork, null, false);
         
@@ -358,6 +364,28 @@ public class PurchaseRequestService {
         
         // Загружаем связанные закупки по idPurchaseRequest
         if (entity.getIdPurchaseRequest() != null) {
+            // Дата назначения на утверждение — минимальная assignmentDate по согласованиям заявки
+            List<PurchaseRequestApproval> approvals = approvalRepository.findByIdPurchaseRequest(entity.getIdPurchaseRequest());
+            LocalDateTime approvalAssignmentDate = approvals.stream()
+                    .map(PurchaseRequestApproval::getAssignmentDate)
+                    .filter(java.util.Objects::nonNull)
+                    .min(LocalDateTime::compareTo)
+                    .orElse(null);
+            dto.setApprovalAssignmentDate(approvalAssignmentDate);
+
+            // Дата завершения закупки — дата выполнения последнего согласования в этапе «Закупочная комиссия»
+            List<com.uzproc.backend.entity.purchase.PurchaseApproval> commissionApprovals = purchaseApprovalRepository.findByPurchaseRequestIdAndStage(entity.getIdPurchaseRequest(), "Закупочная комиссия");
+            LocalDateTime purchaseCompletionDate = commissionApprovals.stream()
+                    .map(com.uzproc.backend.entity.purchase.PurchaseApproval::getCompletionDate)
+                    .filter(java.util.Objects::nonNull)
+                    .max(LocalDateTime::compareTo)
+                    .orElse(null);
+            dto.setPurchaseCompletionDate(purchaseCompletionDate);
+
+            // Сложность — сначала из заявки (alldocuments: «Сложность закупки (уровень) (Заявка на ЗП)»), иначе из связанной позиции плана закупок
+            // Сложность — только из заявки (парсится из Excel alldocuments), без подстановки из плана
+            dto.setComplexity(entity.getComplexity());
+
             List<com.uzproc.backend.entity.purchase.Purchase> purchases = purchaseRepository.findByPurchaseRequestId(entity.getIdPurchaseRequest());
             List<Long> purchaseIds = purchases.stream()
                     .map(com.uzproc.backend.entity.purchase.Purchase::getId)
@@ -470,6 +498,7 @@ public class PurchaseRequestService {
     private Specification<PurchaseRequest> buildSpecification(
             Integer year,
             Integer month,
+            Integer approvalAssignmentYear,
             Long idPurchaseRequest,
             List<String> cfo,
             String purchaseRequestInitiator,
@@ -519,6 +548,24 @@ public class PurchaseRequestService {
                 predicateCount++;
                 logger.info("Added year filter (by purchaseRequestCreationDate): {} (January - December), excluding null dates", year);
                 }
+            }
+
+            // Фильтр по году назначения на утверждение (assignment_date в purchase_request_approvals)
+            if (approvalAssignmentYear != null) {
+                jakarta.persistence.criteria.Subquery<Long> sq = query.subquery(Long.class);
+                jakarta.persistence.criteria.Root<PurchaseRequestApproval> approvalRoot = sq.from(PurchaseRequestApproval.class);
+                sq.select(approvalRoot.get("idPurchaseRequest"));
+                sq.distinct(true);
+                java.time.LocalDateTime startOfYear = java.time.LocalDateTime.of(approvalAssignmentYear, 1, 1, 0, 0);
+                java.time.LocalDateTime endOfYear = java.time.LocalDateTime.of(approvalAssignmentYear, 12, 31, 23, 59, 59, 999999999);
+                sq.where(cb.and(
+                    cb.isNotNull(approvalRoot.get("assignmentDate")),
+                    cb.greaterThanOrEqualTo(approvalRoot.get("assignmentDate"), startOfYear),
+                    cb.lessThanOrEqualTo(approvalRoot.get("assignmentDate"), endOfYear)
+                ));
+                predicates.add(root.get("idPurchaseRequest").in(sq));
+                predicateCount++;
+                logger.info("Added approvalAssignmentYear filter: {} (by assignment_date in purchase_request_approvals)", approvalAssignmentYear);
             }
             
             // Фильтр по номеру заявки

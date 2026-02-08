@@ -638,6 +638,24 @@ public class EntityExcelLoadService {
             }
         }
         
+        // Обновляем сложность (из alldocuments: «Сложность закупки (уровень) (Заявка на ЗП)») только если отличается
+        if (newData.getComplexity() != null && !newData.getComplexity().trim().isEmpty()) {
+            if (existing.getComplexity() == null || !existing.getComplexity().equals(newData.getComplexity())) {
+                existing.setComplexity(newData.getComplexity());
+                updated = true;
+                logger.debug("Updated complexity for request {}: {}", existing.getIdPurchaseRequest(), newData.getComplexity());
+            }
+        }
+        
+        // Обновляем сложность (из alldocuments: «Сложность закупки (уровень) (Заявка на ЗП)») только если отличается
+        if (newData.getComplexity() != null && !newData.getComplexity().trim().isEmpty()) {
+            if (existing.getComplexity() == null || !existing.getComplexity().equals(newData.getComplexity())) {
+                existing.setComplexity(newData.getComplexity().trim());
+                updated = true;
+                logger.debug("Updated complexity for request {}: {}", existing.getIdPurchaseRequest(), newData.getComplexity());
+            }
+        }
+        
         // Обновляем статус только если он отличается
         if (newData.getStatus() != null) {
             if (existing.getStatus() == null || !existing.getStatus().equals(newData.getStatus())) {

@@ -56,6 +56,12 @@ public class PurchaseRequestDto {
     private Double averageRating;
     // Флаг, указывающий связана ли заявка с позицией плана закупок
     private Boolean hasLinkedPlanItem;
+    /** Сложность (из связанной позиции плана закупок) */
+    private String complexity;
+    /** Дата назначения на утверждение (минимальная assignmentDate по согласованиям заявки) */
+    private LocalDateTime approvalAssignmentDate;
+    /** Дата завершения закупки (макс. completionDate по согласованиям закупки; для статусов Договор в работе / Договор подписан) */
+    private LocalDateTime purchaseCompletionDate;
 
     // Constructors
     public PurchaseRequestDto() {
@@ -364,6 +370,30 @@ public class PurchaseRequestDto {
 
     public void setHasLinkedPlanItem(Boolean hasLinkedPlanItem) {
         this.hasLinkedPlanItem = hasLinkedPlanItem;
+    }
+
+    public String getComplexity() {
+        return complexity;
+    }
+
+    public void setComplexity(String complexity) {
+        this.complexity = complexity;
+    }
+
+    public LocalDateTime getApprovalAssignmentDate() {
+        return approvalAssignmentDate;
+    }
+
+    public void setApprovalAssignmentDate(LocalDateTime approvalAssignmentDate) {
+        this.approvalAssignmentDate = approvalAssignmentDate;
+    }
+
+    public LocalDateTime getPurchaseCompletionDate() {
+        return purchaseCompletionDate;
+    }
+
+    public void setPurchaseCompletionDate(LocalDateTime purchaseCompletionDate) {
+        this.purchaseCompletionDate = purchaseCompletionDate;
     }
 }
 
