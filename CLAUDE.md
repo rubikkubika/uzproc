@@ -38,7 +38,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Бэкапы имеют формат имени: `uzproc_backup_YYYY-MM-DD_HH-mm-ss.sql`
 - При создании нового бэкапа старые бэкапы автоматически удаляются, если их количество превышает 5
 - Удаляются самые старые бэкапы, остаются последние 5 (самые свежие)
-- Это правило применяется во всех скриптах, которые создают бэкапы (`restart-local.sh`, `deploy-simple.ps1`)
+- Это правило применяется во всех скриптах, которые создают бэкапы (`restart-local.sh`, `deploy-simple.sh`)
 
 **ВАЖНО:** При работе с бэкапами всегда проверять папку `backup`. Для восстановления использовать последний бэкап.
 
@@ -80,15 +80,22 @@ docker compose logs -f backend # View backend logs
 docker compose ps              # Check service status
 ```
 
+### Использование Git Bash (запуск скриптов)
+**КРИТИЧЕСКИ ВАЖНО:** Все скрипты проекта (`restart-local.sh`, `deploy-simple.sh` и любые другие `.sh`) **ОБЯЗАТЕЛЬНО** запускать через **Git Bash**. На Windows не использовать PowerShell или CMD для запуска скриптов — открыть Git Bash и выполнять там команды. При запросе на перезапуск или деплой — выполнять соответствующую команду в Git Bash; пользователя не спрашивать.
+
 ### Local Restart (Перезапуск локально)
-```bash
-./scripts/restart-local.sh     # Перезапуск backend + frontend + восстановление БД
-```
+**КРИТИЧЕСКИ ВАЖНО:** Перед запуском перезапуска **всегда** завершать процессы, занимающие порты 8080 и 3000 (backend и frontend). Сначала остановить действующие сервисы, затем запускать скрипт. Скрипт `restart-local.sh` сам останавливает процессы на этих портах, но при вызове перезапуска из агента/терминала **обязательно** предварительно завершить процессы (например, через Git Bash: `lsof -ti:8080,3000 2>/dev/null | xargs -r kill -9 2>/dev/null || true`), после чего выполнить `./scripts/restart-local.sh`.
+
+- **Все ОС (через Git Bash):** `./scripts/restart-local.sh`
+- На Windows: открыть Git Bash и выполнить `./scripts/restart-local.sh`
+
+Перезапуск backend + frontend + получение бэкапа с сервера (при возможности) + восстановление БД.
 
 ### Deployment
-```powershell
-.\scripts\deploy-simple.ps1    # Deploy to production server (10.123.48.62)
-```
+- **Все ОС (через Git Bash):** `./scripts/deploy-simple.sh`
+- На Windows: открыть Git Bash и выполнить `./scripts/deploy-simple.sh`
+
+Скрипты деплоят на production (10.123.48.62).
 
 ## Architecture
 
@@ -195,10 +202,10 @@ docker compose ps              # Check service status
 - PostgreSQL always runs in Docker (`docker compose up -d postgres`)
 - Backend and frontend run locally (not in Docker) for development
 - Auto-restore DB from latest backup (`backup/uzproc_backup_*.sql`) before local backend restart
-- Use Git Bash commands (not PowerShell) for terminal operations when on Windows
+- Use Git Bash for all terminal operations and scripts; on Windows run `.sh` scripts in Git Bash (not PowerShell)
 
 **Deployment:**
-- Run `.\scripts\deploy-simple.ps1` to deploy to production
+- Run `./scripts/deploy-simple.sh` in Git Bash to deploy to production
 - Script builds Docker images, transfers to server, updates containers
 - NEVER auto-commit changes during deployment unless explicitly requested
 - Clean old Docker images on server before deploying to free space
@@ -259,19 +266,24 @@ docker compose ps              # Check service status
 
 - Host: `devops@10.123.48.62`
 - Services accessed via Nginx on port 80
-- Docker images deployed via `deploy-simple.ps1` script
+- Docker images deployed via `deploy-simple.sh` script (run in Git Bash)
 - Automatic cleanup of old images before deployment to prevent disk space issues
 
 ## Автоматические действия
 
 ### Деплой
-При упоминании слов "деплой", "deploy", "опубликовать", "публикация", "выложить на сервер" — автоматически выполнить:
-```powershell
-.\scripts\deploy-simple.ps1
-```
-**Без подтверждения.** НИКОГДА не коммитить/пушить изменения при деплое, если явно не запрошено.
 
-**ТАЙМАУТ ВЫПОЛНЕНИЯ ДЕПЛОЯ:** При выполнении скрипта деплоя (`deploy-simple.ps1`) или других длительных терминальных команд (сборка образов, копирование на сервер) **ОБЯЗАТЕЛЬНО** использовать таймаут **30 минут** (1800000 мс). Это предотвращает преждевременное прерывание при медленной передаче больших файлов.
+**КРИТИЧЕСКИ ВАЖНО:** Выполнять деплой **через Git Bash** — запускать скрипт `./scripts/deploy-simple.sh`. На Windows не использовать PowerShell; использовать Git Bash.
+
+При упоминании слов "деплой", "deploy", "опубликовать", "публикация", "выложить на сервер" — выполнить в Git Bash:
+
+```bash
+./scripts/deploy-simple.sh
+```
+
+**Без подтверждения** (после выбора скрипта). НИКОГДА не коммитить/пушить изменения при деплое, если явно не запрошено.
+
+**ТАЙМАУТ ВЫПОЛНЕНИЯ ДЕПЛОЯ:** При выполнении скрипта деплоя (`deploy-simple.sh`) или других длительных терминальных команд (сборка образов, копирование на сервер) **ОБЯЗАТЕЛЬНО** использовать таймаут **30 минут** (1800000 мс). Это предотвращает преждевременное прерывание при медленной передаче больших файлов.
 
 **ИСПОЛЬЗОВАНИЕ RSYNC ДЛЯ КОПИРОВАНИЯ ФАЙЛОВ:**
 При копировании Docker образов (tar файлов) и других файлов на сервер **ОБЯЗАТЕЛЬНО** использовать `rsync` вместо `scp`. Rsync обеспечивает более надежную передачу больших файлов и может возобновить передачу при обрыве соединения.
@@ -283,11 +295,18 @@ docker compose ps              # Check service status
 - Rsync автоматически проверяет целостность файлов и может докачать при обрыве соединения
 
 ### Запуск/перезапуск сервисов локально
-При фразах "запусти бэкенд/фронтенд", "перезапусти сервис", "запусти локально", "перезапусти локально" — выполнить:
+
+**КРИТИЧЕСКИ ВАЖНО:** Выполнять перезапуск **через Git Bash** — запускать скрипт `./scripts/restart-local.sh`. На Windows не использовать PowerShell; использовать Git Bash.
+
+**КРИТИЧЕСКИ ВАЖНО — всегда завершать процессы перед запуском:** Перед выполнением скрипта перезапуска **обязательно** завершить процессы на портах 8080 и 3000. Сначала выполнить остановку (в Git Bash: `lsof -ti:8080,3000 2>/dev/null | xargs -r kill -9 2>/dev/null || true`), подождать 1–2 секунды, затем запускать `./scripts/restart-local.sh`. Не запускать скрипт, пока порты заняты.
+
+При фразах "запусти бэкенд/фронтенд", "перезапусти сервис", "запусти локально", "перезапусти локально" — выполнить в Git Bash:
+
 ```bash
 ./scripts/restart-local.sh
 ```
-**Одна команда.** Скрипт автоматически: останавливает процессы, восстанавливает БД, запускает backend и frontend.
+
+Скрипт останавливает процессы на 8080/3000, при возможности получает бэкап БД с сервера, восстанавливает БД из последнего бэкапа, запускает backend и frontend, проверяет готовность.
 
 ### Перезапуск дебаг (удаление таблиц БД и перезапуск без восстановления)
 
@@ -321,7 +340,7 @@ docker compose ps              # Check service status
 **Не нужно** спрашивать подтверждение — выполнять автоматически при упоминании "перезапуск дебаг" или похожих фраз.
 
 ### Автоматический перезапуск бэкенда после изменений
-После изменений в `backend/src/main/java/` или `application.yml` — выполнить `./scripts/restart-local.sh`
+После изменений в `backend/src/main/java/` или `application.yml` — выполнить перезапуск через Git Bash: `./scripts/restart-local.sh`. Не спрашивать пользователя — выполнять в Git Bash.
 
 ## Ограничения
 

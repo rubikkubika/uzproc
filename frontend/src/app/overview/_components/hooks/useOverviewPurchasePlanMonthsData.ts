@@ -19,17 +19,19 @@ export interface OverviewPurchasePlanMonthsResult {
 
 /**
  * Один запрос на бэкенд /api/overview/purchase-plan-months вместо нескольких (versions/year + versions/id/items + purchase-requests по каждому месяцу).
+ * Запрос выполняется только когда enabled === true (вкладка «План закупок» активна).
  */
 export function useOverviewPurchasePlanMonthsData(
   year: number,
-  months: number[]
+  months: number[],
+  enabled: boolean
 ): OverviewPurchasePlanMonthsResult {
   const [monthsData, setMonthsData] = useState<PurchasePlanMonthBlockData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
-    if (months.length === 0) {
+    if (!enabled || months.length === 0) {
       setMonthsData([]);
       setLoading(false);
       return;
@@ -116,11 +118,17 @@ export function useOverviewPurchasePlanMonthsData(
     } finally {
       setLoading(false);
     }
-  }, [year, months.join(',')]);
+  }, [year, months.join(','), enabled]);
 
   useEffect(() => {
+    if (!enabled) {
+      setMonthsData([]);
+      setLoading(false);
+      setError(null);
+      return;
+    }
     fetchData();
-  }, [fetchData]);
+  }, [enabled, fetchData]);
 
   return {
     year,
