@@ -50,7 +50,7 @@ export function PurchasePlanMonthPositionsChart({
     ) + 2;
 
   const chartData = {
-    labels: ['Запланированы', 'Связаны с заявкой', 'Исключена', 'Заявок (закупка)'],
+    labels: ['Запланированы', 'Заявки инициированы', 'Исключена', 'Заявок (закупка)'],
     datasets: [
       {
         label: 'Позиций',
