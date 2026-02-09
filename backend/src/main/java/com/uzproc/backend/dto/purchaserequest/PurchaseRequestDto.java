@@ -58,7 +58,7 @@ public class PurchaseRequestDto {
     private Boolean hasLinkedPlanItem;
     /** Сложность (из связанной позиции плана закупок) */
     private String complexity;
-    /** Дата назначения на утверждение (минимальная assignmentDate по согласованиям заявки) */
+    /** Дата назначения на утверждение (минимальная assignmentDate по этапу «Утверждение заявки на ЗП») */
     private LocalDateTime approvalAssignmentDate;
     /** Дата завершения закупки (макс. completionDate по согласованиям закупки; для статусов Договор в работе / Договор подписан) */
     private LocalDateTime purchaseCompletionDate;

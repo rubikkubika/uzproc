@@ -191,26 +191,26 @@ export function SlaStatusBlock({ title, statusGroup, year, requests: propsReques
   const error = useProps ? (propsError ?? null) : hookData.error;
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-3 sm:p-4">
-      <div className="mb-2 flex items-baseline gap-2">
-        <h3 className="text-sm font-semibold text-gray-900 shrink-0">{title}</h3>
+    <div className="bg-white rounded-lg shadow p-2">
+      <div className="mb-1 flex items-baseline gap-1">
+        <h3 className="text-xs font-semibold text-gray-900 shrink-0">{title}</h3>
       </div>
 
       {loading && (
-        <div className="min-h-[80px] flex items-center justify-center text-gray-500 text-sm">
+        <div className="min-h-[40px] flex items-center justify-center text-gray-500 text-xs">
           Загрузка…
         </div>
       )}
 
       {error && (
-        <div className="mb-2 p-2 rounded-lg bg-red-50 text-red-700 text-sm">
+        <div className="mb-1 p-1.5 rounded bg-red-50 text-red-700 text-xs">
           {error}
         </div>
       )}
 
       {!loading && !error && (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1100px] table-fixed border-collapse text-xs leading-tight">
+          <table className="w-full min-w-[1100px] table-fixed border-collapse text-[11px] leading-snug">
             <colgroup>
               <col style={{ width: '72px' }} />
               <col style={{ width: '220px' }} />
@@ -226,34 +226,34 @@ export function SlaStatusBlock({ title, statusGroup, year, requests: propsReques
             </colgroup>
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-1.5 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 w-[72px]">
+                <th className="px-1.5 py-0.5 text-left text-[11px] font-medium text-gray-500 tracking-wider border-r border-gray-300 w-[72px]">
                   Номер заявки
                 </th>
-                <th className="px-1.5 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 min-w-[220px]">
+                <th className="px-1.5 py-0.5 text-left text-[11px] font-medium text-gray-500 tracking-wider border-r border-gray-300 min-w-[220px]">
                   Наименование
                 </th>
-                <th className="px-1.5 py-1 text-right text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 w-[80px]">
+                <th className="px-1.5 py-0.5 text-right text-[11px] font-medium text-gray-500 tracking-wider border-r border-gray-300 w-[80px]">
                   Сумма
                 </th>
-                <th className="px-1.5 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 w-[120px]">
+                <th className="px-1.5 py-0.5 text-left text-[11px] font-medium text-gray-500 tracking-wider border-r border-gray-300 w-[120px]">
                   Закупщик
                 </th>
-                <th className="px-1.5 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 w-[56px]">
+                <th className="px-1.5 py-0.5 text-left text-[11px] font-medium text-gray-500 tracking-wider border-r border-gray-300 w-[56px]">
                   Сложность
                 </th>
-                <th className="px-1.5 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 w-[130px]">
+                <th className="px-1.5 py-0.5 text-left text-[11px] font-medium text-gray-500 tracking-wider border-r border-gray-300 w-[130px]">
                   Статус
                 </th>
-                <th className="px-1.5 py-1 text-center text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 w-[88px]">
+                <th className="px-1.5 py-0.5 text-center text-[11px] font-medium text-gray-500 tracking-wider border-r border-gray-300 w-[88px]">
                   Плановый срок SLA
                 </th>
-                <th className="px-1.5 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 w-[100px]">
+                <th className="px-1.5 py-0.5 text-left text-[11px] font-medium text-gray-500 tracking-wider border-r border-gray-300 w-[100px]">
                   Дата назначения на утверждение
                 </th>
-                <th className="px-1.5 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 w-[100px]">
+                <th className="px-1.5 py-0.5 text-left text-[11px] font-medium text-gray-500 tracking-wider border-r border-gray-300 w-[100px]">
                   Дата завершения закупки
                 </th>
-                <th className="px-1.5 py-1 text-center text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 w-[72px]">
+                <th className="px-1.5 py-0.5 text-center text-[11px] font-medium text-gray-500 tracking-wider border-r border-gray-300 w-[72px]">
                   <span className="inline-flex items-center justify-center gap-0.5">
                     Фактический SLA
                     <span
@@ -285,10 +285,10 @@ export function SlaStatusBlock({ title, statusGroup, year, requests: propsReques
                       document.body
                     )}
                 </th>
-                <th className="px-1.5 py-1 text-center text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 w-[72px]">
+                <th className="px-1.5 py-0.5 text-center text-[11px] font-medium text-gray-500 tracking-wider border-r border-gray-300 w-[72px]">
                   Разница (план − факт)
                 </th>
-                <th className="px-1.5 py-1 text-center text-xs font-medium text-gray-500 tracking-wider w-[90px]">
+                <th className="px-1.5 py-0.5 text-center text-[11px] font-medium text-gray-500 tracking-wider w-[90px]">
                   Комментарий
                 </th>
               </tr>
@@ -296,41 +296,41 @@ export function SlaStatusBlock({ title, statusGroup, year, requests: propsReques
             <tbody className="bg-white divide-y divide-gray-200">
               {requests.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="px-1.5 py-2 text-gray-500 text-center">
+                  <td colSpan={12} className="px-1.5 py-1 text-gray-500 text-center text-[11px]">
                     Нет заявок
                   </td>
                 </tr>
               ) : (
                 requests.map((row) => (
                   <tr key={row.id} className="hover:bg-gray-50">
-                    <td className="px-1.5 py-1 text-gray-700 border-r border-gray-200 whitespace-nowrap w-[72px] overflow-hidden text-ellipsis">
+                    <td className="px-1.5 py-0.5 text-gray-700 border-r border-gray-200 whitespace-nowrap w-[72px] overflow-hidden text-ellipsis">
                       {row.idPurchaseRequest ?? '—'}
                     </td>
-                    <td className="px-1.5 py-1 text-gray-900 border-r border-gray-200 min-w-[220px] overflow-hidden text-ellipsis">
+                    <td className="px-1.5 py-0.5 text-gray-900 border-r border-gray-200 min-w-[220px] overflow-hidden text-ellipsis">
                       {row.name}
                     </td>
-                    <td className="px-1.5 py-1 text-gray-700 border-r border-gray-200 text-right whitespace-nowrap w-[80px] overflow-hidden text-ellipsis">
+                    <td className="px-1.5 py-0.5 text-gray-700 border-r border-gray-200 text-right whitespace-nowrap w-[80px] overflow-hidden text-ellipsis">
                       {formatAmount(row.budgetAmount)}
                     </td>
-                    <td className="px-1.5 py-1 text-gray-700 border-r border-gray-200 w-[120px] overflow-hidden text-ellipsis">
+                    <td className="px-1.5 py-0.5 text-gray-700 border-r border-gray-200 w-[120px] overflow-hidden text-ellipsis">
                       {formatPurchaserShort(row.purchaser)}
                     </td>
-                    <td className="px-1.5 py-1 text-gray-700 border-r border-gray-200 w-[56px] overflow-hidden text-ellipsis">
+                    <td className="px-1.5 py-0.5 text-gray-700 border-r border-gray-200 w-[56px] overflow-hidden text-ellipsis">
                       {row.complexity ?? '—'}
                     </td>
-                    <td className="px-1.5 py-1 text-gray-700 border-r border-gray-200 w-[130px] overflow-hidden text-ellipsis">
+                    <td className="px-1.5 py-0.5 text-gray-700 border-r border-gray-200 w-[130px] overflow-hidden text-ellipsis">
                       {row.status ?? '—'}
                     </td>
-                    <td className="px-1.5 py-1 text-gray-700 border-r border-gray-200 text-center whitespace-nowrap w-[88px] overflow-hidden text-ellipsis">
+                    <td className="px-1.5 py-0.5 text-gray-700 border-r border-gray-200 text-center whitespace-nowrap w-[88px] overflow-hidden text-ellipsis">
                       {getPlannedSlaDays(row.complexity)}
                     </td>
-                    <td className="px-1.5 py-1 text-gray-700 border-r border-gray-200 whitespace-nowrap w-[100px] overflow-hidden text-ellipsis">
+                    <td className="px-1.5 py-0.5 text-gray-700 border-r border-gray-200 whitespace-nowrap w-[100px] overflow-hidden text-ellipsis">
                       {formatAssignmentDate(row.approvalAssignmentDate)}
                     </td>
-                    <td className="px-1.5 py-1 text-gray-700 border-r border-gray-200 whitespace-nowrap w-[100px] overflow-hidden text-ellipsis">
+                    <td className="px-1.5 py-0.5 text-gray-700 border-r border-gray-200 whitespace-nowrap w-[100px] overflow-hidden text-ellipsis">
                       {formatAssignmentDate(row.purchaseCompletionDate)}
                     </td>
-                    <td className="px-1.5 py-1 text-gray-700 border-r border-gray-200 text-center whitespace-nowrap w-[72px] overflow-hidden text-ellipsis">
+                    <td className="px-1.5 py-0.5 text-gray-700 border-r border-gray-200 text-center whitespace-nowrap w-[72px] overflow-hidden text-ellipsis">
                       {(() => {
                         const assignmentIso = row.approvalAssignmentDate;
                         if (!assignmentIso) return '—';
@@ -345,7 +345,7 @@ export function SlaStatusBlock({ title, statusGroup, year, requests: propsReques
                         }
                       })()}
                     </td>
-                    <td className="px-1.5 py-1 text-gray-700 text-center whitespace-nowrap w-[72px] overflow-hidden text-ellipsis tabular-nums">
+                    <td className="px-1.5 py-0.5 text-gray-700 text-center whitespace-nowrap w-[72px] overflow-hidden text-ellipsis tabular-nums">
                       {(() => {
                         const assignmentIso = row.approvalAssignmentDate;
                         if (!assignmentIso) return '—';
@@ -366,7 +366,7 @@ export function SlaStatusBlock({ title, statusGroup, year, requests: propsReques
                         }
                       })()}
                     </td>
-                    <td className="px-1.5 py-1 text-gray-700 border-r border-gray-200 text-center whitespace-nowrap w-[90px] overflow-hidden text-ellipsis">
+                    <td className="px-1.5 py-0.5 text-gray-700 border-r border-gray-200 text-center whitespace-nowrap w-[90px] overflow-hidden text-ellipsis">
                       <button
                         type="button"
                         onClick={() => openCommentsModal(row)}

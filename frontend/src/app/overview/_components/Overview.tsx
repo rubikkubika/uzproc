@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useOverview } from './hooks/useOverview';
 import { useOverviewSlaData } from './hooks/useOverviewSlaData';
+import type { OverviewSlaBlock } from './hooks/useOverviewSlaData';
 import { useOverviewPurchasePlanMonthsData } from './hooks/useOverviewPurchasePlanMonthsData';
 import { OverviewTabs } from './ui/OverviewTabs';
 import { usePurchasePlanMonths } from './hooks/usePurchasePlanMonths';
@@ -38,6 +39,26 @@ export default function Overview() {
   } = usePurchasePlanMonths();
 
   const slaData = useOverviewSlaData(activeTab === 'sla' ? slaYear : null);
+  /** Блоки SLA для отображения: «Договор в работе» и «Договор подписан» объединены в один блок «Закупка завершена». */
+  const slaDisplayBlocks = useMemo((): OverviewSlaBlock[] => {
+    const blocks = slaData.data?.statusBlocks ?? [];
+    if (blocks.length === 0) return [];
+    if (blocks.length === 1) return blocks;
+    const [first, ...rest] = blocks;
+    const lastTwoMerged =
+      rest.length >= 2 &&
+      rest[rest.length - 2].statusGroup === 'Договор в работе' &&
+      rest[rest.length - 1].statusGroup === 'Договор подписан'
+        ? [
+            ...rest.slice(0, -2),
+            {
+              statusGroup: 'Закупка завершена',
+              requests: [...rest[rest.length - 2].requests, ...rest[rest.length - 1].requests],
+            },
+          ]
+        : rest;
+    return [first, ...lastTwoMerged];
+  }, [slaData.data?.statusBlocks]);
   const purchasePlanMonthsParam = useMemo(
     () =>
       activeTab === 'purchase-plan'
@@ -52,22 +73,22 @@ export default function Overview() {
   );
 
   return (
-    <div className="space-y-1 sm:space-y-2">
+    <div className="space-y-0.5 sm:space-y-1">
       <OverviewTabs activeTab={activeTab} onTabChange={setActiveTab} />
       
       <div className="w-full">
         {activeTab === 'sla' && (
-          <div className="space-y-2 sm:space-y-3">
-            <div className="bg-white rounded-lg shadow-lg p-2 sm:p-3">
-              <div className="flex items-center gap-2">
-                <label htmlFor="sla-year-filter" className="text-sm font-medium text-gray-700 whitespace-nowrap">
+          <div className="space-y-1 sm:space-y-1.5">
+            <div className="bg-white rounded shadow p-1.5 sm:p-2">
+              <div className="flex items-center gap-1.5">
+                <label htmlFor="sla-year-filter" className="text-xs font-medium text-gray-700 whitespace-nowrap">
                   Год назначения:
                 </label>
                 <select
                   id="sla-year-filter"
                   value={slaYear}
                   onChange={(e) => setSlaYear(Number(e.target.value))}
-                  className="px-2 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="px-1.5 py-1 text-xs border border-gray-300 rounded bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                 >
                   {slaAvailableYears.map((year) => (
                     <option key={year} value={year}>
@@ -77,7 +98,7 @@ export default function Overview() {
                 </select>
               </div>
             </div>
-            {(slaData.data?.statusBlocks ?? []).map((block) => (
+            {slaDisplayBlocks.map((block) => (
               <SlaStatusBlock
                 key={block.statusGroup}
                 title={block.statusGroup}
