@@ -10,9 +10,27 @@ interface PurchasePlanMonthCfoTableProps {
   rows: CfoSummaryRow[];
 }
 
-function formatSum(value: number): string {
+/** Сумма в виде «X млн», «X млрд», «X тыс» (например: "1,5 млрд", "230 млн", "50 тыс") */
+function formatSumWithUnit(value: number): string {
   if (value === 0) return '0';
-  return Math.round(value).toLocaleString('ru-RU', { maximumFractionDigits: 0 });
+  const abs = Math.abs(value);
+  const sign = value < 0 ? '−' : '';
+  if (abs >= 1_000_000_000) {
+    const v = value / 1_000_000_000;
+    const s = Number.isInteger(v) ? v.toLocaleString('ru-RU') : v.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    return sign + s + ' млрд';
+  }
+  if (abs >= 1_000_000) {
+    const v = value / 1_000_000;
+    const s = Number.isInteger(v) ? v.toLocaleString('ru-RU') : v.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    return sign + s + ' млн';
+  }
+  if (abs >= 1_000) {
+    const v = value / 1_000;
+    const s = Number.isInteger(v) ? v.toLocaleString('ru-RU') : v.toLocaleString('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    return sign + s + ' тыс';
+  }
+  return sign + Math.round(abs).toLocaleString('ru-RU');
 }
 
 /** Отношение «Заявки инициированы» к запланированным по ЦФО (в %) */
@@ -27,6 +45,13 @@ function formatQualityPercent(row: { market: number; linked: number }): string {
 export function PurchasePlanMonthCfoTable({ rows }: PurchasePlanMonthCfoTableProps) {
   const [showQualityTip, setShowQualityTip] = useState(false);
 
+  // Сортировка по качеству планирования (linked/market) от больших к меньшим
+  const sortedRows = [...rows].sort((a, b) => {
+    const qA = a.market === 0 ? 0 : a.linked / a.market;
+    const qB = b.market === 0 ? 0 : b.linked / b.market;
+    return qB - qA;
+  });
+
   if (rows.length === 0) {
     return (
       <div className="rounded border border-gray-200 bg-gray-50 px-2 py-1.5 text-xs text-gray-500">
@@ -35,7 +60,7 @@ export function PurchasePlanMonthCfoTable({ rows }: PurchasePlanMonthCfoTablePro
     );
   }
 
-  const totals = rows.reduce(
+  const totals = sortedRows.reduce(
     (acc, row) => ({
       market: acc.market + row.market,
       linked: acc.linked + row.linked,
@@ -123,15 +148,15 @@ export function PurchasePlanMonthCfoTable({ rows }: PurchasePlanMonthCfoTablePro
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-100">
-            {rows.map((row) => (
+            {sortedRows.map((row) => (
               <tr key={row.cfo} className="hover:bg-gray-50">
                 <td className={tdLabel}>{row.cfo}</td>
                 <td className={posFirstTd}>{row.market}</td>
-                <td className={posMidTdNowrap}>{formatSum(row.sumMarket)}</td>
+                <td className={posMidTdNowrap}>{formatSumWithUnit(row.sumMarket)}</td>
                 <td className={posMidTd}>{row.linked}</td>
                 <td className={posLastTd}>{row.excluded}</td>
                 <td className={reqFirstTd}>{row.requestsPurchase}</td>
-                <td className={reqLastTd}>{formatSum(row.sumRequests)}</td>
+                <td className={reqLastTd}>{formatSumWithUnit(row.sumRequests)}</td>
                 <td className={tdQuality}>{formatQualityPercent(row)}</td>
               </tr>
             ))}
@@ -140,11 +165,11 @@ export function PurchasePlanMonthCfoTable({ rows }: PurchasePlanMonthCfoTablePro
             <tr className="font-medium border-t border-gray-300">
               <td className={ftLabel}>Итого</td>
               <td className={posFirstFt}>{totals.market}</td>
-              <td className={posMidFtNowrap}>{formatSum(totals.sumMarket)}</td>
+              <td className={posMidFtNowrap}>{formatSumWithUnit(totals.sumMarket)}</td>
               <td className={posMidFt}>{totals.linked}</td>
               <td className={posLastFt}>{totals.excluded}</td>
               <td className={reqFirstFt}>{totals.requestsPurchase}</td>
-              <td className={reqLastFt}>{formatSum(totals.sumRequests)}</td>
+              <td className={reqLastFt}>{formatSumWithUnit(totals.sumRequests)}</td>
               <td className={ftQuality}>
                 {formatQualityPercent(totals)}
               </td>
