@@ -73,7 +73,8 @@ export function useOverviewPurchasePlanMonthsData(
                 itemsCount: m.version.itemsCount,
               }
             : null;
-          const mapItem = (i: { id?: number; requestDate?: string | null; purchaserCompany?: string | null; purchaseRequestId?: number | null; status?: string | null; cfo?: string | null; budgetAmount?: number | null }): OverviewPlanItem => ({
+          type RawPlanItem = { id?: number; requestDate?: string | null; purchaserCompany?: string | null; purchaseRequestId?: number | null; status?: string | null; cfo?: string | null; budgetAmount?: number | null };
+          const mapItem = (i: RawPlanItem): OverviewPlanItem => ({
             id: i.id ?? 0,
             requestDate: i.requestDate ?? null,
             purchaserCompany: i.purchaserCompany ?? null,
@@ -82,19 +83,18 @@ export function useOverviewPurchasePlanMonthsData(
             cfo: i.cfo ?? null,
             budgetAmount: i.budgetAmount != null ? Number(i.budgetAmount) : null,
           });
-          const items: OverviewPlanItem[] = (m.items ?? []).map(mapItem);
-          const itemsMarket: OverviewPlanItem[] = (m.itemsMarket ?? []).map(mapItem);
-          const summaryByCfo: CfoSummaryRow[] = (m.summaryByCfo ?? []).map(
-            (r: { cfo?: string; market?: number; linked?: number; excluded?: number; requestsPurchase?: number; sumMarket?: number; sumRequests?: number }) => ({
-              cfo: r.cfo ?? '—',
-              market: r.market ?? 0,
-              linked: r.linked ?? 0,
-              excluded: r.excluded ?? 0,
-              requestsPurchase: r.requestsPurchase ?? 0,
-              sumMarket: Number(r.sumMarket ?? 0),
-              sumRequests: Number(r.sumRequests ?? 0),
-            })
-          );
+          const items: OverviewPlanItem[] = ((m.items ?? []) as RawPlanItem[]).map(mapItem);
+          const itemsMarket: OverviewPlanItem[] = ((m.itemsMarket ?? []) as RawPlanItem[]).map(mapItem);
+          type RawCfoSummary = { cfo?: string; market?: number; linked?: number; excluded?: number; requestsPurchase?: number; sumMarket?: number; sumRequests?: number };
+          const summaryByCfo: CfoSummaryRow[] = ((m.summaryByCfo ?? []) as RawCfoSummary[]).map((r) => ({
+            cfo: r.cfo ?? '—',
+            market: r.market ?? 0,
+            linked: r.linked ?? 0,
+            excluded: r.excluded ?? 0,
+            requestsPurchase: r.requestsPurchase ?? 0,
+            sumMarket: Number(r.sumMarket ?? 0),
+            sumRequests: Number(r.sumRequests ?? 0),
+          }));
           return {
             version,
             items,

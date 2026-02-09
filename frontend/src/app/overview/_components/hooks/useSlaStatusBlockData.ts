@@ -19,6 +19,8 @@ export interface SlaStatusBlockRequestRow {
   approvalAssignmentDate: string | null;
   /** Дата завершения закупки (ISO string или null; для статусов Договор в работе / Договор подписан) */
   purchaseCompletionDate: string | null;
+  /** Количество комментариев SLA */
+  slaCommentCount: number;
 }
 
 export interface SlaStatusBlockData {
@@ -61,7 +63,7 @@ export function useSlaStatusBlockData(statusGroup: string, year: number | null):
       const data = await res.json();
       const content = data.content ?? [];
       const rows: SlaStatusBlockRequestRow[] = content.map(
-        (r: { id?: number; idPurchaseRequest?: number | null; title?: string | null; name?: string | null; budgetAmount?: number | null; purchaser?: string | null; complexity?: string | null; status?: string | null; approvalAssignmentDate?: string | null; purchaseCompletionDate?: string | null }) => ({
+        (r: { id?: number; idPurchaseRequest?: number | null; title?: string | null; name?: string | null; budgetAmount?: number | null; purchaser?: string | null; complexity?: string | null; status?: string | null; approvalAssignmentDate?: string | null; purchaseCompletionDate?: string | null; slaCommentCount?: number }) => ({
           id: r.id ?? 0,
           idPurchaseRequest: r.idPurchaseRequest ?? null,
           name: [r.title, r.name].find(Boolean)?.trim() || '—',
@@ -71,6 +73,7 @@ export function useSlaStatusBlockData(statusGroup: string, year: number | null):
           status: r.status ?? null,
           approvalAssignmentDate: r.approvalAssignmentDate ?? null,
           purchaseCompletionDate: r.purchaseCompletionDate ?? null,
+          slaCommentCount: r.slaCommentCount ?? 0,
         })
       );
       setRequests(rows);

@@ -49,34 +49,33 @@ export function useOverviewSlaData(year: number | null) {
         throw new Error('Ошибка загрузки данных SLA');
       }
       const json = await res.json();
+      type RawSlaRequest = {
+        id?: number;
+        idPurchaseRequest?: number | null;
+        name?: string;
+        budgetAmount?: number | null;
+        purchaser?: string | null;
+        complexity?: string | null;
+        status?: string | null;
+        approvalAssignmentDate?: string | null;
+        purchaseCompletionDate?: string | null;
+        slaCommentCount?: number;
+      };
       const blocks: OverviewSlaBlock[] = (json.statusBlocks ?? []).map(
-        (b: { statusGroup?: string; requests?: unknown[] }) => ({
+        (b: { statusGroup?: string; requests?: RawSlaRequest[] }) => ({
           statusGroup: b.statusGroup ?? '',
-          requests: (b.requests ?? []).map(
-            (r: {
-              id?: number;
-              idPurchaseRequest?: number | null;
-              name?: string;
-              budgetAmount?: number | null;
-              purchaser?: string | null;
-              complexity?: string | null;
-              status?: string | null;
-              approvalAssignmentDate?: string | null;
-              purchaseCompletionDate?: string | null;
-              slaCommentCount?: number;
-            }) => ({
-              id: r.id ?? 0,
-              idPurchaseRequest: r.idPurchaseRequest ?? null,
-              name: r.name ?? '—',
-              budgetAmount: r.budgetAmount != null ? Number(r.budgetAmount) : null,
-              purchaser: r.purchaser ?? null,
-              complexity: r.complexity ?? null,
-              status: r.status ?? null,
-              approvalAssignmentDate: r.approvalAssignmentDate ?? null,
-              purchaseCompletionDate: r.purchaseCompletionDate ?? null,
-              slaCommentCount: r.slaCommentCount ?? 0,
-            })
-          ),
+          requests: ((b.requests ?? []) as RawSlaRequest[]).map((r) => ({
+            id: r.id ?? 0,
+            idPurchaseRequest: r.idPurchaseRequest ?? null,
+            name: r.name ?? '—',
+            budgetAmount: r.budgetAmount != null ? Number(r.budgetAmount) : null,
+            purchaser: r.purchaser ?? null,
+            complexity: r.complexity ?? null,
+            status: r.status ?? null,
+            approvalAssignmentDate: r.approvalAssignmentDate ?? null,
+            purchaseCompletionDate: r.purchaseCompletionDate ?? null,
+            slaCommentCount: r.slaCommentCount ?? 0,
+          })),
         })
       );
       setData({
