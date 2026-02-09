@@ -9,6 +9,8 @@ interface CsiFeedbackDto {
   purchaseRequestId: number;
   idPurchaseRequest: number | null;
   purchaseRequestInnerId: string;
+  purchaseRequestSubject?: string;
+  purchaser?: string;
   usedUzproc?: boolean;
   uzprocRating?: number;
   speedRating: number;
@@ -194,14 +196,26 @@ export default function LatestCsiFeedback() {
             key={feedback.id}
             className="border border-gray-200 rounded p-1.5 bg-gray-50"
           >
-            <div className="flex items-start justify-between mb-0.5">
-              <div className="flex-1 min-w-0 flex items-center gap-2">
-                <div className="text-xs font-medium text-gray-900">
-                  {feedback.idPurchaseRequest || '-'}
+            <div className="flex items-start justify-between mb-0.5 gap-2">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <div className="text-xs font-medium text-gray-900">
+                    {feedback.idPurchaseRequest || '-'}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {formatDate(feedback.createdAt)}
+                  </div>
                 </div>
-                <div className="text-xs text-gray-500">
-                  {formatDate(feedback.createdAt)}
-                </div>
+                {feedback.purchaseRequestSubject && (
+                  <div className="mt-0.5 text-xs text-gray-700 truncate">
+                    {feedback.purchaseRequestSubject}
+                  </div>
+                )}
+                {feedback.purchaser && (
+                  <div className="mt-0.5 text-xs text-gray-500 truncate">
+                    Закупщик: {feedback.purchaser}
+                  </div>
+                )}
               </div>
               <div className="ml-2 flex-shrink-0">
                 {renderStars(averageRating)}

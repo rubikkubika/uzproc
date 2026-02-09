@@ -7,6 +7,15 @@ public class CsiFeedbackDto {
     private Long purchaseRequestId;
     private Long idPurchaseRequest;
     private String purchaseRequestInnerId;
+    /**
+     * Наименование/тема заявки.
+     * Берётся из purchaseRequestSubject, при его отсутствии — из name, затем из title.
+     */
+    private String purchaseRequestSubject;
+    /**
+     * Ответственный закупщик по заявке (ФИО или логин).
+     */
+    private String purchaser;
     private String cfo;
     private Boolean usedUzproc;
     private Double uzprocRating;
@@ -52,6 +61,22 @@ public class CsiFeedbackDto {
 
     public void setPurchaseRequestInnerId(String purchaseRequestInnerId) {
         this.purchaseRequestInnerId = purchaseRequestInnerId;
+    }
+
+    public String getPurchaseRequestSubject() {
+        return purchaseRequestSubject;
+    }
+
+    public void setPurchaseRequestSubject(String purchaseRequestSubject) {
+        this.purchaseRequestSubject = purchaseRequestSubject;
+    }
+
+    public String getPurchaser() {
+        return purchaser;
+    }
+
+    public void setPurchaser(String purchaser) {
+        this.purchaser = purchaser;
     }
 
     public String getCfo() {

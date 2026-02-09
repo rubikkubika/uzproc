@@ -231,6 +231,18 @@ public class CsiFeedbackService {
         dto.setPurchaseRequestId(feedback.getPurchaseRequest().getId());
         dto.setIdPurchaseRequest(feedback.getPurchaseRequest().getIdPurchaseRequest());
         dto.setPurchaseRequestInnerId(feedback.getPurchaseRequest().getInnerId());
+        // Определяем наименование заявки по тому же правилу, что и в PurchaseRequestInfoDto:
+        // сначала purchaseRequestSubject, затем name, затем title
+        String subject = feedback.getPurchaseRequest().getPurchaseRequestSubject();
+        if (subject == null || subject.trim().isEmpty()) {
+            subject = feedback.getPurchaseRequest().getName();
+            if (subject == null || subject.trim().isEmpty()) {
+                subject = feedback.getPurchaseRequest().getTitle();
+            }
+        }
+        dto.setPurchaseRequestSubject(subject);
+        // Закупщик из заявки
+        dto.setPurchaser(feedback.getPurchaseRequest().getPurchaser());
         if (feedback.getPurchaseRequest().getCfo() != null) {
             dto.setCfo(feedback.getPurchaseRequest().getCfo().getName());
         }
