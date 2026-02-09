@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { HelpCircle } from 'lucide-react';
 import type { CfoSummaryRow } from '../hooks/usePurchasePlanMonthBlockData';
 
-const QUALITY_TOOLTIP = 'Отношение позиций «Связаны с заявкой» к запланированным, в процентах.';
+const QUALITY_TOOLTIP = 'Отношение позиций «Заявки инициированы» к запланированным, в процентах.';
 
 interface PurchasePlanMonthCfoTableProps {
   rows: CfoSummaryRow[];
@@ -15,7 +15,7 @@ function formatSum(value: number): string {
   return Math.round(value).toLocaleString('ru-RU', { maximumFractionDigits: 0 });
 }
 
-/** Отношение «Связаны с заявкой» к запланированным по ЦФО (в %) */
+/** Отношение «Заявки инициированы» к запланированным по ЦФО (в %) */
 function formatQualityPercent(row: { market: number; linked: number }): string {
   if (row.market === 0) return '—';
   return ((row.linked / row.market) * 100).toFixed(1) + '%';
@@ -94,7 +94,7 @@ export function PurchasePlanMonthCfoTable({ rows }: PurchasePlanMonthCfoTablePro
               <th className={thLabel}>ЦФО</th>
               <th className={posFirstTh}>Запланированы</th>
               <th className={posMidTh}>Сумма запл.</th>
-              <th className={posMidTh}>Связаны с заявкой</th>
+              <th className={posMidTh}>Заявки инициированы</th>
               <th className={posLastTh}>Исключена</th>
               <th className={reqFirstTh}>Заявок (закупка)</th>
               <th className={reqLastTh}>Сумма заявок</th>

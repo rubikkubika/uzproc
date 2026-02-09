@@ -115,11 +115,12 @@ public class PurchaseRequestService {
             java.math.BigDecimal budgetAmount,
             String budgetAmountOperator,
             Boolean excludeFromInWorkParam,
-            Integer approvalAssignmentYear) {
+            Integer approvalAssignmentYear,
+            Integer approvalAssignmentMonth) {
         
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, month: {}, approvalAssignmentYear: {}, idPurchaseRequest: {}, cfo: {}, purchaseRequestInitiator: '{}', purchaser: {}, name: '{}', costType: '{}', contractType: '{}', isPlanned: {}, hasLinkedPlanItem: {}, requiresPurchase: {}, statusGroup: {}, excludePendingStatuses: {}, budgetAmount: {}, budgetAmountOperator: '{}', excludeFromInWorkParam: {}",
-                year, month, approvalAssignmentYear, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, statusGroup, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWorkParam);
+        logger.info("Filter parameters - year: {}, month: {}, approvalAssignmentYear: {}, approvalAssignmentMonth: {}, idPurchaseRequest: {}, cfo: {}, purchaseRequestInitiator: '{}', purchaser: {}, name: '{}', costType: '{}', contractType: '{}', isPlanned: {}, hasLinkedPlanItem: {}, requiresPurchase: {}, statusGroup: {}, excludePendingStatuses: {}, budgetAmount: {}, budgetAmountOperator: '{}', excludeFromInWorkParam: {}",
+                year, month, approvalAssignmentYear, approvalAssignmentMonth, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, statusGroup, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWorkParam);
         
         // Определяем логику фильтрации по excludeFromInWork:
         // 1. Если excludeFromInWorkParam = true передается как параметр запроса, то фильтруем по excludeFromInWork = true (показываем только скрытые)
@@ -162,7 +163,7 @@ public class PurchaseRequestService {
         boolean includeNullStatuses = size <= 1000;
         
         Specification<PurchaseRequest> spec = buildSpecification(
-                year, month, approvalAssignmentYear, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, statusGroup, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWork, excludeFromInWorkFilter, includeNullStatuses);
+                year, month, approvalAssignmentYear, approvalAssignmentMonth, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, statusGroup, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWork, excludeFromInWorkFilter, includeNullStatuses);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -300,7 +301,7 @@ public class PurchaseRequestService {
             boolean excludeFromInWork) {
 
         Specification<PurchaseRequest> spec = buildSpecification(
-            year, null, null, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
+            year, null, null, null, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
             name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, statusGroup,
             false, budgetAmount, budgetAmountOperator, excludeFromInWork, null, false);
         
@@ -364,9 +365,11 @@ public class PurchaseRequestService {
         
         // Загружаем связанные закупки по idPurchaseRequest
         if (entity.getIdPurchaseRequest() != null) {
-            // Дата назначения на утверждение — минимальная assignmentDate по согласованиям заявки
+            // Дата назначения на утверждение — минимальная assignmentDate только по этапу «Утверждение заявки на ЗП»
             List<PurchaseRequestApproval> approvals = approvalRepository.findByIdPurchaseRequest(entity.getIdPurchaseRequest());
+            java.util.Set<String> approvalStages = java.util.Set.of("Утверждение заявки на ЗП", "Утверждение заявки на ЗП (НЕ требуется ЗП)");
             LocalDateTime approvalAssignmentDate = approvals.stream()
+                    .filter(a -> a.getStage() != null && approvalStages.contains(a.getStage()))
                     .map(PurchaseRequestApproval::getAssignmentDate)
                     .filter(java.util.Objects::nonNull)
                     .min(LocalDateTime::compareTo)
@@ -499,6 +502,7 @@ public class PurchaseRequestService {
             Integer year,
             Integer month,
             Integer approvalAssignmentYear,
+            Integer approvalAssignmentMonth,
             Long idPurchaseRequest,
             List<String> cfo,
             String purchaseRequestInitiator,
@@ -521,51 +525,75 @@ public class PurchaseRequestService {
             List<Predicate> predicates = new ArrayList<>();
             int predicateCount = 0;
             
-            // Фильтр по году и месяцу (по дате создания заявки - purchaseRequestCreationDate)
-            if (year != null) {
+            // Фильтр по году и месяцу создания: purchaseRequestCreationDate в периоде ИЛИ при null — created_at в периоде (не применяем, если фильтруем по месяцу назначения на утверждение)
+            if (year != null && (approvalAssignmentYear == null || approvalAssignmentMonth == null)) {
                 if (month != null && month >= 1 && month <= 12) {
                     // Фильтр по конкретному месяцу
                     java.time.LocalDateTime startOfMonth = java.time.LocalDateTime.of(year, month, 1, 0, 0);
                     java.time.LocalDateTime endOfMonth = java.time.LocalDateTime.of(year, month, 
                         java.time.YearMonth.of(year, month).lengthOfMonth(), 23, 59, 59, 999999999);
-                    predicates.add(cb.and(
+                    Predicate byCreationDate = cb.and(
                         cb.isNotNull(root.get("purchaseRequestCreationDate")),
                         cb.greaterThanOrEqualTo(root.get("purchaseRequestCreationDate"), startOfMonth),
                         cb.lessThanOrEqualTo(root.get("purchaseRequestCreationDate"), endOfMonth)
-                    ));
+                    );
+                    Predicate byCreatedAt = cb.and(
+                        cb.isNull(root.get("purchaseRequestCreationDate")),
+                        cb.isNotNull(root.get("createdAt")),
+                        cb.greaterThanOrEqualTo(root.get("createdAt"), startOfMonth),
+                        cb.lessThanOrEqualTo(root.get("createdAt"), endOfMonth)
+                    );
+                    predicates.add(cb.or(byCreationDate, byCreatedAt));
                     predicateCount++;
-                    logger.info("Added year and month filter (by purchaseRequestCreationDate): {} year, {} month ({} - {})", 
+                    logger.info("Added year and month filter (purchaseRequestCreationDate or createdAt): {} year, {} month ({} - {})", 
                         year, month, startOfMonth, endOfMonth);
                 } else {
                     // Фильтр только по году
                 java.time.LocalDateTime startOfYear = java.time.LocalDateTime.of(year, 1, 1, 0, 0);
                 java.time.LocalDateTime endOfYear = java.time.LocalDateTime.of(year, 12, 31, 23, 59, 59, 999999999);
-                predicates.add(cb.and(
+                Predicate byCreationDateYear = cb.and(
                     cb.isNotNull(root.get("purchaseRequestCreationDate")),
                     cb.greaterThanOrEqualTo(root.get("purchaseRequestCreationDate"), startOfYear),
                     cb.lessThanOrEqualTo(root.get("purchaseRequestCreationDate"), endOfYear)
-                ));
+                );
+                Predicate byCreatedAtYear = cb.and(
+                    cb.isNull(root.get("purchaseRequestCreationDate")),
+                    cb.isNotNull(root.get("createdAt")),
+                    cb.greaterThanOrEqualTo(root.get("createdAt"), startOfYear),
+                    cb.lessThanOrEqualTo(root.get("createdAt"), endOfYear)
+                );
+                predicates.add(cb.or(byCreationDateYear, byCreatedAtYear));
                 predicateCount++;
-                logger.info("Added year filter (by purchaseRequestCreationDate): {} (January - December), excluding null dates", year);
+                logger.info("Added year filter (purchaseRequestCreationDate or createdAt): {} (January - December)", year);
                 }
             }
 
-            // Фильтр по году назначения на утверждение (assignment_date в purchase_request_approvals)
+            // Фильтр по году (и опционально месяцу) назначения на утверждение (assignment_date только по этапу «Утверждение заявки на ЗП»)
             if (approvalAssignmentYear != null) {
                 jakarta.persistence.criteria.Subquery<Long> sq = query.subquery(Long.class);
                 jakarta.persistence.criteria.Root<PurchaseRequestApproval> approvalRoot = sq.from(PurchaseRequestApproval.class);
                 sq.select(approvalRoot.get("idPurchaseRequest"));
                 sq.distinct(true);
-                java.time.LocalDateTime startOfYear = java.time.LocalDateTime.of(approvalAssignmentYear, 1, 1, 0, 0);
-                java.time.LocalDateTime endOfYear = java.time.LocalDateTime.of(approvalAssignmentYear, 12, 31, 23, 59, 59, 999999999);
+                java.time.LocalDateTime start;
+                java.time.LocalDateTime end;
+                if (approvalAssignmentMonth != null && approvalAssignmentMonth >= 1 && approvalAssignmentMonth <= 12) {
+                    start = java.time.LocalDateTime.of(approvalAssignmentYear, approvalAssignmentMonth, 1, 0, 0);
+                    end = java.time.LocalDateTime.of(approvalAssignmentYear, approvalAssignmentMonth,
+                        java.time.YearMonth.of(approvalAssignmentYear, approvalAssignmentMonth).lengthOfMonth(), 23, 59, 59, 999999999);
+                    logger.info("Added approvalAssignmentYear+Month filter: {} year, {} month (by assignment_date in purchase_request_approvals, stage Утверждение заявки на ЗП)", approvalAssignmentYear, approvalAssignmentMonth);
+                } else {
+                    start = java.time.LocalDateTime.of(approvalAssignmentYear, 1, 1, 0, 0);
+                    end = java.time.LocalDateTime.of(approvalAssignmentYear, 12, 31, 23, 59, 59, 999999999);
+                    logger.info("Added approvalAssignmentYear filter: {} (by assignment_date in purchase_request_approvals, stage Утверждение заявки на ЗП)", approvalAssignmentYear);
+                }
                 sq.where(cb.and(
+                    approvalRoot.get("stage").in("Утверждение заявки на ЗП", "Утверждение заявки на ЗП (НЕ требуется ЗП)"),
                     cb.isNotNull(approvalRoot.get("assignmentDate")),
-                    cb.greaterThanOrEqualTo(approvalRoot.get("assignmentDate"), startOfYear),
-                    cb.lessThanOrEqualTo(approvalRoot.get("assignmentDate"), endOfYear)
+                    cb.greaterThanOrEqualTo(approvalRoot.get("assignmentDate"), start),
+                    cb.lessThanOrEqualTo(approvalRoot.get("assignmentDate"), end)
                 ));
                 predicates.add(root.get("idPurchaseRequest").in(sq));
                 predicateCount++;
-                logger.info("Added approvalAssignmentYear filter: {} (by assignment_date in purchase_request_approvals)", approvalAssignmentYear);
             }
             
             // Фильтр по номеру заявки
