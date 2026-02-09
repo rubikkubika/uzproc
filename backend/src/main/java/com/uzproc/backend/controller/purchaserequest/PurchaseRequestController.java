@@ -46,6 +46,16 @@ public class PurchaseRequestController {
         return ResponseEntity.ok(years);
     }
 
+    /**
+     * Список годов по дате назначения на утверждение (assignment_date в этапе «Утверждение заявки на ЗП»).
+     * Используется для фильтра «Дата назначения на закупщика» на фронтенде.
+     */
+    @GetMapping("/approval-assignment-date-years")
+    public ResponseEntity<List<Integer>> getApprovalAssignmentDateYears() {
+        List<Integer> years = purchaseRequestService.getApprovalAssignmentDateYears();
+        return ResponseEntity.ok(years);
+    }
+
     @GetMapping
     public ResponseEntity<Page<PurchaseRequestDto>> getAllPurchaseRequests(
             @RequestParam(defaultValue = "0") int page,
@@ -76,8 +86,7 @@ public class PurchaseRequestController {
         logger.info("Received budget filter parameters: budgetAmount={}, budgetAmountOperator='{}'", 
                 budgetAmount, budgetAmountOperator);
         logger.info("Received excludeFromInWork parameter: {}", excludeFromInWork);
-        logger.info("Received approvalAssignmentYear parameter: {}", approvalAssignmentYear);
-        logger.info("Received approvalAssignmentMonth parameter: {}", approvalAssignmentMonth);
+        logger.info("Received approvalAssignmentYear parameter: {}, approvalAssignmentMonth: {}", approvalAssignmentYear, approvalAssignmentMonth);
         
         Page<PurchaseRequestDto> purchaseRequests = purchaseRequestService.findAll(
                 page, size, year, month, sortBy, sortDir, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
@@ -92,7 +101,8 @@ public class PurchaseRequestController {
 
     @GetMapping("/tab-counts")
     public ResponseEntity<Map<String, Long>> getTabCounts(
-            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer approvalAssignmentYear,
+            @RequestParam(required = false) Integer approvalAssignmentMonth,
             @RequestParam(required = false) Long idPurchaseRequest,
             @RequestParam(required = false) List<String> cfo,
             @RequestParam(required = false) String purchaseRequestInitiator,
@@ -107,7 +117,7 @@ public class PurchaseRequestController {
             @RequestParam(required = false) String budgetAmountOperator) {
 
         Map<String, Long> counts = purchaseRequestService.getTabCounts(
-            year, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
+            approvalAssignmentYear, approvalAssignmentMonth, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
             name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase,
             budgetAmount, budgetAmountOperator);
         

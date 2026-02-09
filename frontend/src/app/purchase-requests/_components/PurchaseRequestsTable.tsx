@@ -259,6 +259,7 @@ export default function PurchaseRequestsTable() {
   // Используем хук для загрузки счетчиков вкладок
   useTabCounts({
     selectedYear,
+    selectedMonth,
     filtersFromHook,
     cfoFilter,
     purchaserFilter,
@@ -413,6 +414,7 @@ export default function PurchaseRequestsTable() {
   const availableStatuses = useAvailableStatuses({
     activeTab,
     selectedYear,
+    selectedMonth,
     filtersFromHook,
     cfoFilter,
     purchaserFilter,
@@ -587,14 +589,14 @@ export default function PurchaseRequestsTable() {
     setForceReload(prev => prev + 1);
   }, [setFilters, setLocalFilters, setCfoFilter, setStatusFilter, setCfoSearchQuery, setStatusSearchQuery, setPurchaserFilter, setPurchaserSearchQuery, setSelectedYear, setSelectedMonth, setSortField, setSortDirection, setFocusedField, setCurrentPage, setAllItems, setYearRestored, setActiveTab, activeTabRef, setForceReload]);
 
-  // Обработчик для изменения года (фильтр по дате создания)
+  // Обработчик для изменения года (фильтр по дате назначения на закупщика)
   const handleYearChange = useCallback((year: number | null) => {
     setSelectedYear(year);
     setCurrentPage(0);
     setAllItems([]);
   }, [setSelectedYear, setCurrentPage, setAllItems]);
 
-  // Обработчик для изменения месяца (фильтр по дате создания)
+  // Обработчик для изменения месяца (фильтр по дате назначения на закупщика)
   const handleMonthChange = useCallback((month: number | null) => {
     setSelectedMonth(month);
     setCurrentPage(0);

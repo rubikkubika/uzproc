@@ -217,13 +217,15 @@ export default function PurchaseRequestsTableRow({
         }
         
         if (columnKey === 'purchaseRequestCreationDate') {
+          // Колонка «Дата назначения на закупщика»: показываем approvalAssignmentDate (дата назначения на утверждение)
+          const dateToShow = request.approvalAssignmentDate ?? request.purchaseRequestCreationDate;
           return (
             <td 
               key={columnKey}
               className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
               style={{ width: `${getColumnWidth('purchaseRequestCreationDate')}px`, minWidth: `${getColumnWidth('purchaseRequestCreationDate')}px`, maxWidth: `${getColumnWidth('purchaseRequestCreationDate')}px` }}
             >
-              {request.purchaseRequestCreationDate ? new Date(request.purchaseRequestCreationDate).toLocaleDateString('ru-RU') : '-'}
+              {dateToShow ? new Date(dateToShow).toLocaleDateString('ru-RU') : '-'}
             </td>
           );
         }

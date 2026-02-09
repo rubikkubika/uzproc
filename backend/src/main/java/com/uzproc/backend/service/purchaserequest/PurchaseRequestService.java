@@ -1,6 +1,7 @@
 package com.uzproc.backend.service.purchaserequest;
 
 import com.uzproc.backend.dto.contract.ContractDto;
+import com.uzproc.backend.dto.overview.OverviewPurchaseRequestCountsDto;
 import com.uzproc.backend.dto.purchaserequest.PurchaseRequestDto;
 import com.uzproc.backend.dto.purchaserequest.PurchaserStatsDto;
 import com.uzproc.backend.entity.contract.Contract;
@@ -163,7 +164,7 @@ public class PurchaseRequestService {
         boolean includeNullStatuses = size <= 1000;
         
         Specification<PurchaseRequest> spec = buildSpecification(
-                year, month, approvalAssignmentYear, approvalAssignmentMonth, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, statusGroup, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWork, excludeFromInWorkFilter, includeNullStatuses);
+                year, month, approvalAssignmentYear, approvalAssignmentMonth, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, statusGroup, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWork, excludeFromInWorkFilter, includeNullStatuses, null, null);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -230,7 +231,8 @@ public class PurchaseRequestService {
      * @return Map с ключами: "all", "in-work", "completed", "project-rejected"
      */
     public Map<String, Long> getTabCounts(
-            Integer year,
+            Integer approvalAssignmentYear,
+            Integer approvalAssignmentMonth,
             Long idPurchaseRequest,
             List<String> cfo,
             String purchaseRequestInitiator,
@@ -266,25 +268,25 @@ public class PurchaseRequestService {
             "Спецификация не согласована"
         );
         
-        // Подсчитываем для каждой вкладки
-        counts.put("all", countWithFilters(year, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
+        // Подсчитываем для каждой вкладки (фильтр по дате назначения на утверждение)
+        counts.put("all", countWithFilters(approvalAssignmentYear, approvalAssignmentMonth, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
             name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, null, budgetAmount, budgetAmountOperator, false));
-        // Для вкладки "В работе" исключаем записи с excludeFromInWork = true
-        counts.put("in-work", countWithFilters(year, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
+        counts.put("in-work", countWithFilters(approvalAssignmentYear, approvalAssignmentMonth, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
             name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, inWorkStatusGroups, budgetAmount, budgetAmountOperator, true));
-        counts.put("completed", countWithFilters(year, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
+        counts.put("completed", countWithFilters(approvalAssignmentYear, approvalAssignmentMonth, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
             name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, completedStatusGroups, budgetAmount, budgetAmountOperator, false));
-        counts.put("project-rejected", countWithFilters(year, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
+        counts.put("project-rejected", countWithFilters(approvalAssignmentYear, approvalAssignmentMonth, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
             name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, projectRejectedStatusGroups, budgetAmount, budgetAmountOperator, false));
         
         return counts;
     }
 
     /**
-     * Подсчитывает количество записей с применением фильтров
+     * Подсчитывает количество записей с применением фильтров (по дате назначения на утверждение).
      */
     private long countWithFilters(
-            Integer year,
+            Integer approvalAssignmentYear,
+            Integer approvalAssignmentMonth,
             Long idPurchaseRequest,
             List<String> cfo,
             String purchaseRequestInitiator,
@@ -301,11 +303,42 @@ public class PurchaseRequestService {
             boolean excludeFromInWork) {
 
         Specification<PurchaseRequest> spec = buildSpecification(
-            year, null, null, null, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
+            null, null, approvalAssignmentYear, approvalAssignmentMonth, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
             name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, statusGroup,
-            false, budgetAmount, budgetAmountOperator, excludeFromInWork, null, false);
+            false, budgetAmount, budgetAmountOperator, excludeFromInWork, null, false, null, null);
         
         return purchaseRequestRepository.count(spec);
+    }
+
+    /**
+     * Счётчики заявок (закупка) по категориям для обзора по месяцу: плановые, внеплановые, неутверждена, исключена.
+     * Месяц — по дате назначения на закупщика (assignment_date в этапе «Утверждение заявки на ЗП»), не по дате создания заявки.
+     */
+    public OverviewPurchaseRequestCountsDto getOverviewPurchaseRequestCountsForMonth(int year, int month) {
+        OverviewPurchaseRequestCountsDto dto = new OverviewPurchaseRequestCountsDto();
+        Integer approvalYear = year;
+        Integer approvalMonth = month >= 1 && month <= 12 ? month : null;
+        // Плановые — связанные с планом (hasLinkedPlanItem=true). Статус «Проект» не попадает в диаграмму.
+        Specification<PurchaseRequest> specPlanned = buildSpecification(
+                null, null, approvalYear, approvalMonth, null, null, null, null, null, null, null, null,
+                true, true, null, false, null, null, false, null, false, null, true);
+        dto.setPlanned((int) purchaseRequestRepository.count(specPlanned));
+        // Внеплановые — несвязанные с планом (hasLinkedPlanItem=false)
+        Specification<PurchaseRequest> specNonPlanned = buildSpecification(
+                null, null, approvalYear, approvalMonth, null, null, null, null, null, null, null, null,
+                false, true, null, false, null, null, false, null, false, null, true);
+        dto.setNonPlanned((int) purchaseRequestRepository.count(specNonPlanned));
+        // Неутверждена — статус «Заявка не утверждена»
+        Specification<PurchaseRequest> specUnapproved = buildSpecification(
+                null, null, approvalYear, approvalMonth, null, null, null, null, null, null, null, null,
+                null, true, List.of("Заявка не утверждена"), false, null, null, false, null, false, null, true);
+        dto.setUnapproved((int) purchaseRequestRepository.count(specUnapproved));
+        // Исключена — заявки, исключённые из в работе (excludeFromInWork = true)
+        Specification<PurchaseRequest> specExcluded = buildSpecification(
+                null, null, approvalYear, approvalMonth, null, null, null, null, null, null, null, null,
+                null, true, null, false, null, null, false, true, false, null, true);
+        dto.setExcluded((int) purchaseRequestRepository.count(specExcluded));
+        return dto;
     }
 
     /**
@@ -519,11 +552,23 @@ public class PurchaseRequestService {
             String budgetAmountOperator,
             boolean excludeFromInWork,
             Boolean excludeFromInWorkFilter,
-            boolean includeNullStatuses) {
+            boolean includeNullStatuses,
+            Boolean stateExcludedOnly,
+            Boolean excludeProjectStatus) {
         
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             int predicateCount = 0;
+            
+            // Обзор: заявки в статусе «Проект» не попадают в диаграмму
+            if (Boolean.TRUE.equals(excludeProjectStatus)) {
+                predicates.add(cb.or(
+                    cb.isNull(root.get("status")),
+                    cb.notEqual(root.get("status"), PurchaseRequestStatus.PROJECT)
+                ));
+                predicateCount++;
+                logger.debug("Overview: excluding status PROJECT from diagram");
+            }
             
             // Фильтр по году и месяцу создания: purchaseRequestCreationDate в периоде ИЛИ при null — created_at в периоде (не применяем, если фильтруем по месяцу назначения на утверждение)
             if (year != null && (approvalAssignmentYear == null || approvalAssignmentMonth == null)) {
@@ -874,13 +919,23 @@ public class PurchaseRequestService {
                     }
                 }
             } else {
-                // Если фильтр по группе статусов не указан, исключаем записи с state содержащим "Исключена" по умолчанию
-                predicates.add(cb.or(
-                    cb.isNull(root.get("state")),
-                    cb.not(cb.like(cb.lower(root.get("state")), "%исключена%"))
-                ));
-                predicateCount++;
-                logger.info("No status group filter provided - excluding records with state containing 'Исключена' by default");
+                if (Boolean.TRUE.equals(stateExcludedOnly)) {
+                    // Обзор: только заявки в состоянии «Исключена» (state содержит «исключена»)
+                    predicates.add(cb.and(
+                        cb.isNotNull(root.get("state")),
+                        cb.like(cb.lower(root.get("state")), "%исключена%")
+                    ));
+                    predicateCount++;
+                    logger.info("Overview: filter only records with state containing 'Исключена'");
+                } else {
+                    // Если фильтр по группе статусов не указан, исключаем записи с state содержащим "Исключена" по умолчанию
+                    predicates.add(cb.or(
+                        cb.isNull(root.get("state")),
+                        cb.not(cb.like(cb.lower(root.get("state")), "%исключена%"))
+                    ));
+                    predicateCount++;
+                    logger.info("No status group filter provided - excluding records with state containing 'Исключена' by default");
+                }
             }
             
             // Фильтр по бюджету с оператором
@@ -1152,6 +1207,20 @@ public class PurchaseRequestService {
         @SuppressWarnings("unchecked")
         List<Integer> years = (List<Integer>) stats.get("years");
         return years != null ? years : List.of();
+    }
+
+    /**
+     * Список годов по дате назначения на утверждение (assignment_date в этапе «Утверждение заявки на ЗП»).
+     * Используется для фильтра «Дата назначения на закупщика» на фронтенде.
+     */
+    public List<Integer> getApprovalAssignmentDateYears() {
+        List<String> stages = List.of("Утверждение заявки на ЗП", "Утверждение заявки на ЗП (НЕ требуется ЗП)");
+        List<PurchaseRequestApproval> approvals = approvalRepository.findByStageInAndAssignmentDateIsNotNull(stages);
+        return approvals.stream()
+                .map(a -> a.getAssignmentDate().getYear())
+                .distinct()
+                .sorted((a, b) -> Integer.compare(b, a))
+                .collect(Collectors.toList());
     }
 
     /**

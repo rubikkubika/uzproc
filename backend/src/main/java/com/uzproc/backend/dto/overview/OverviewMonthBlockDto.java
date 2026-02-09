@@ -16,6 +16,14 @@ public class OverviewMonthBlockDto {
     private int positionsLinkedToRequestCount;
     private int positionsExcludedCount;
     private int requestsPurchaseCreatedInMonthCount;
+    /** Заявки (закупка), связанные с планом (hasLinkedPlanItem=true), созданные в месяце */
+    private int requestsPurchasePlannedCount;
+    /** Заявки (закупка), несвязанные с планом (hasLinkedPlanItem=false), созданные в месяце */
+    private int requestsPurchaseNonPlannedCount;
+    /** Заявки (закупка) со статусом «Заявка не утверждена», созданные в месяце */
+    private int requestsPurchaseUnapprovedCount;
+    /** Заявки (закупка) в состоянии «Исключена» (state), созданные в месяце */
+    private int requestsPurchaseExcludedCount;
     private List<OverviewCfoSummaryRowDto> summaryByCfo;
 
     public int getYear() {
@@ -96,6 +104,38 @@ public class OverviewMonthBlockDto {
 
     public void setRequestsPurchaseCreatedInMonthCount(int requestsPurchaseCreatedInMonthCount) {
         this.requestsPurchaseCreatedInMonthCount = requestsPurchaseCreatedInMonthCount;
+    }
+
+    public int getRequestsPurchasePlannedCount() {
+        return requestsPurchasePlannedCount;
+    }
+
+    public void setRequestsPurchasePlannedCount(int requestsPurchasePlannedCount) {
+        this.requestsPurchasePlannedCount = requestsPurchasePlannedCount;
+    }
+
+    public int getRequestsPurchaseNonPlannedCount() {
+        return requestsPurchaseNonPlannedCount;
+    }
+
+    public void setRequestsPurchaseNonPlannedCount(int requestsPurchaseNonPlannedCount) {
+        this.requestsPurchaseNonPlannedCount = requestsPurchaseNonPlannedCount;
+    }
+
+    public int getRequestsPurchaseUnapprovedCount() {
+        return requestsPurchaseUnapprovedCount;
+    }
+
+    public void setRequestsPurchaseUnapprovedCount(int requestsPurchaseUnapprovedCount) {
+        this.requestsPurchaseUnapprovedCount = requestsPurchaseUnapprovedCount;
+    }
+
+    public int getRequestsPurchaseExcludedCount() {
+        return requestsPurchaseExcludedCount;
+    }
+
+    public void setRequestsPurchaseExcludedCount(int requestsPurchaseExcludedCount) {
+        this.requestsPurchaseExcludedCount = requestsPurchaseExcludedCount;
     }
 
     public List<OverviewCfoSummaryRowDto> getSummaryByCfo() {

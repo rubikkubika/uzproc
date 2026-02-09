@@ -26,6 +26,8 @@ export interface PurchaseRequest {
   purchaser: string | null;
   name: string | null;
   purchaseRequestCreationDate: string | null;
+  /** Дата назначения на утверждение (минимальная assignmentDate по этапу «Утверждение заявки на ЗП») */
+  approvalAssignmentDate: string | null;
   budgetAmount: number | null;
   currency: string | null;
   costType: string | null;

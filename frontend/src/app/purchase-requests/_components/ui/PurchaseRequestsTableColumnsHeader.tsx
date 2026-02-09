@@ -385,7 +385,7 @@ export default function PurchaseRequestsTableColumnsHeader({
                       onClick={(e) => e.stopPropagation()}
                       className="flex-1 min-w-0 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                       style={{ height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
-                      title="Год"
+                      title="Год назначения"
                     >
                       <option value="">Год</option>
                       {allYears.map((y) => (
@@ -420,7 +420,7 @@ export default function PurchaseRequestsTableColumnsHeader({
                         <ArrowUpDown className="w-3 h-3 text-gray-400" />
                       )}
                     </button>
-                    <span className="text-xs font-medium text-gray-500 tracking-wider">Дата создания</span>
+                    <span className="text-xs font-medium text-gray-500 tracking-wider">Дата назначения на закупщика</span>
                   </div>
                 </div>
               </th>

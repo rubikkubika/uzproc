@@ -58,6 +58,10 @@ export function useOverviewPurchasePlanMonthsData(
           positionsLinkedToRequestCount?: number;
           positionsExcludedCount?: number;
           requestsPurchaseCreatedInMonthCount?: number;
+          requestsPurchasePlannedCount?: number;
+          requestsPurchaseNonPlannedCount?: number;
+          requestsPurchaseUnapprovedCount?: number;
+          requestsPurchaseExcludedCount?: number;
           summaryByCfo?: unknown[];
         }) => {
           const version: OverviewPlanVersion | null = m.version
@@ -104,6 +108,10 @@ export function useOverviewPurchasePlanMonthsData(
             positionsLinkedToRequestCount: m.positionsLinkedToRequestCount ?? 0,
             positionsExcludedCount: m.positionsExcludedCount ?? 0,
             requestsPurchaseCreatedInMonthCount: m.requestsPurchaseCreatedInMonthCount ?? 0,
+            requestsPurchasePlannedCount: m.requestsPurchasePlannedCount ?? 0,
+            requestsPurchaseNonPlannedCount: m.requestsPurchaseNonPlannedCount ?? 0,
+            requestsPurchaseUnapprovedCount: m.requestsPurchaseUnapprovedCount ?? 0,
+            requestsPurchaseExcludedCount: m.requestsPurchaseExcludedCount ?? 0,
             summaryByCfo,
             loading: false,
             error: null,

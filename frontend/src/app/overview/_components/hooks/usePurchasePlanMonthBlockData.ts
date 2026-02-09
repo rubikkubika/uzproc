@@ -50,6 +50,14 @@ export interface PurchasePlanMonthBlockData {
   positionsExcludedCount: number;
   /** Заявки с типом закупка (requiresPurchase=true), созданные в месяце блока (по purchaseRequestCreationDate) */
   requestsPurchaseCreatedInMonthCount: number;
+  /** Заявки (закупка), связанные с планом, созданные в месяце */
+  requestsPurchasePlannedCount: number;
+  /** Заявки (закупка), несвязанные с планом, созданные в месяце */
+  requestsPurchaseNonPlannedCount: number;
+  /** Заявки (закупка) со статусом «Заявка не утверждена», созданные в месяце */
+  requestsPurchaseUnapprovedCount: number;
+  /** Заявки (закупка) в состоянии «Исключена», созданные в месяце */
+  requestsPurchaseExcludedCount: number;
   /** Сводка в разрезе ЦФО (столбцы как в диаграмме) */
   summaryByCfo: CfoSummaryRow[];
   loading: boolean;
@@ -261,6 +269,10 @@ export function usePurchasePlanMonthBlockData(
     positionsLinkedToRequestCount: linkedToRequestCount,
     positionsExcludedCount: excludedCount,
     requestsPurchaseCreatedInMonthCount,
+    requestsPurchasePlannedCount: 0,
+    requestsPurchaseNonPlannedCount: 0,
+    requestsPurchaseUnapprovedCount: 0,
+    requestsPurchaseExcludedCount: 0,
     summaryByCfo,
     loading,
     error,

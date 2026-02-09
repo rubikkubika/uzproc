@@ -92,6 +92,23 @@ export async function fetchCreationDateYears(): Promise<number[]> {
 }
 
 /**
+ * Загружает список годов по дате назначения на утверждение (assignment_date в этапе «Утверждение заявки на ЗП»).
+ * Используется для фильтра «Дата назначения на закупщика».
+ */
+export async function fetchApprovalAssignmentDateYears(): Promise<number[]> {
+  const fetchUrl = `${getBackendUrl()}/api/purchase-requests/approval-assignment-date-years`;
+  const response = await fetch(fetchUrl);
+
+  if (!response.ok) {
+    const text = await response.text();
+    console.error('fetchApprovalAssignmentDateYears failed:', response.status, response.statusText, text);
+    throw new Error(`Ошибка загрузки списка годов назначения (${response.status})`);
+  }
+
+  return await response.json();
+}
+
+/**
  * Загружает заявки для метаданных (uniqueValues)
  * Используется для получения всех уникальных значений полей
  */

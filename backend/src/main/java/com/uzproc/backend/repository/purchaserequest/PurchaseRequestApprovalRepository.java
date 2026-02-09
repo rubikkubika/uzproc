@@ -9,6 +9,11 @@ import java.util.Optional;
 
 @Repository
 public interface PurchaseRequestApprovalRepository extends JpaRepository<PurchaseRequestApproval, Long> {
+
+    /**
+     * Найти все записи этапа «Утверждение заявки на ЗП» с указанной датой назначения (для получения списка годов).
+     */
+    List<PurchaseRequestApproval> findByStageInAndAssignmentDateIsNotNull(List<String> stages);
     
     // Найти все согласования для заявки по id_purchase_request
     List<PurchaseRequestApproval> findByIdPurchaseRequest(Long idPurchaseRequest);
