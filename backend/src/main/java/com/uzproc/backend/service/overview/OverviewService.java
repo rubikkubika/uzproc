@@ -194,7 +194,7 @@ public class OverviewService {
                     null, null, null, null,
                     null, null, null, null, null, null, null, null,
                     null, true, null, false,
-                    null, null, null, year, calendarMonth);
+                    null, null, false, year, calendarMonth);
             for (PurchaseRequestDto pr : requestsPage.getContent()) {
                 String cfoKey = normalizeCfoKey(pr.getCfo());
                 requestsByCfo.merge(cfoKey, 1, Integer::sum);
@@ -243,7 +243,7 @@ public class OverviewService {
                 0, 1, null, null, null, null,
                 null, null, null, null, null, null, null, null,
                 null, true, null, false,
-                null, null, null, year, calendarMonth);
+                null, null, false, year, calendarMonth);
         return (int) page.getTotalElements();
     }
 
