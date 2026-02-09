@@ -16,6 +16,7 @@ interface Filters {
 interface UseAvailableStatusGroupsOptions {
   activeTab: TabType;
   selectedYear: number | null;
+  selectedMonth: number | null;
   filtersFromHook: Filters;
   cfoFilter: Set<string>;
   purchaserFilter: Set<string>;
@@ -24,6 +25,7 @@ interface UseAvailableStatusGroupsOptions {
 export function useAvailableStatuses({
   activeTab,
   selectedYear,
+  selectedMonth,
   filtersFromHook,
   cfoFilter,
   purchaserFilter,
@@ -37,9 +39,12 @@ export function useAvailableStatuses({
         params.append('page', '0');
         params.append('size', '10000'); // Загружаем достаточно данных для получения всех групп статусов
 
-        // Учитываем год, если выбран
+        // Фильтр по дате назначения на закупщика (год и месяц)
         if (selectedYear !== null) {
-          params.append('year', String(selectedYear));
+          params.append('approvalAssignmentYear', String(selectedYear));
+        }
+        if (selectedMonth !== null && selectedMonth >= 1 && selectedMonth <= 12) {
+          params.append('approvalAssignmentMonth', String(selectedMonth));
         }
 
         // Добавляем все фильтры, КРОМЕ фильтра по группе статуса
@@ -145,6 +150,7 @@ export function useAvailableStatuses({
   }, [
     activeTab,
     selectedYear,
+    selectedMonth,
     filtersFromHook.idPurchaseRequest,
     filtersFromHook.name,
     filtersFromHook.costType,

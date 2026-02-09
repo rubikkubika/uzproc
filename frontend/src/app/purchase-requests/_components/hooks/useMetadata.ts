@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getBackendUrl } from '@/utils/api';
-import { fetchMetadata, fetchCreationDateYears } from '../services/purchaseRequests.api';
+import { fetchMetadata, fetchApprovalAssignmentDateYears } from '../services/purchaseRequests.api';
 import { normalizePurchaserName } from '../utils/normalizePurchaser';
 import type { PurchaseRequest } from '../types/purchase-request.types';
 import { CACHE_KEY, CACHE_TTL } from '../constants/status.constants';
@@ -26,8 +26,8 @@ export function useMetadata() {
     const fetchMetadataData = async () => {
       try {
         // Проверяем кэш
-        // Годы по дате создания загружаем из отдельного API (только те, что есть в БД)
-        const yearsFromApi = await fetchCreationDateYears();
+        // Годы по дате назначения на утверждение загружаем из отдельного API (только те, что есть в БД)
+        const yearsFromApi = await fetchApprovalAssignmentDateYears();
         setAllYears(yearsFromApi);
 
         const cached = localStorage.getItem(CACHE_KEY);

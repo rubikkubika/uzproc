@@ -92,12 +92,13 @@ export function usePurchaseRequestsTable() {
       params.append('page', String(page));
       params.append('size', String(size));
 
+      // Фильтр по дате назначения на закупщика (дата назначения на утверждение): год и месяц
       if (year !== null) {
-        params.append('year', String(year));
+        params.append('approvalAssignmentYear', String(year));
       }
 
       if (month !== null && month >= 1 && month <= 12) {
-        params.append('month', String(month));
+        params.append('approvalAssignmentMonth', String(month));
       }
 
       if (sortField && sortDirection) {

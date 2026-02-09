@@ -61,9 +61,9 @@ export default function PurchaseRequestsTableHeader({
           Сбросить фильтры
         </button>
         
-        {/* Фильтр по году */}
+        {/* Фильтр по дате назначения на закупщика (год) */}
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-700 font-medium whitespace-nowrap">Год:</span>
+          <span className="text-xs text-gray-700 font-medium whitespace-nowrap">Дата назначения (год):</span>
           <button
             onClick={() => onYearChange(null)}
             className={`px-2 py-1 text-xs rounded border transition-colors ${

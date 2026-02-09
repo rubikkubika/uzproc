@@ -156,6 +156,10 @@ export default function Overview() {
               positionsLinkedToRequestCount={purchasePlanMonthsData.months[0]?.positionsLinkedToRequestCount ?? 0}
               positionsExcludedCount={purchasePlanMonthsData.months[0]?.positionsExcludedCount ?? 0}
               requestsPurchaseCreatedInMonthCount={purchasePlanMonthsData.months[0]?.requestsPurchaseCreatedInMonthCount ?? 0}
+              requestsPurchasePlannedCount={purchasePlanMonthsData.months[0]?.requestsPurchasePlannedCount ?? 0}
+              requestsPurchaseNonPlannedCount={purchasePlanMonthsData.months[0]?.requestsPurchaseNonPlannedCount ?? 0}
+              requestsPurchaseUnapprovedCount={purchasePlanMonthsData.months[0]?.requestsPurchaseUnapprovedCount ?? 0}
+              requestsPurchaseExcludedCount={purchasePlanMonthsData.months[0]?.requestsPurchaseExcludedCount ?? 0}
               summaryByCfo={purchasePlanMonthsData.months[0]?.summaryByCfo ?? []}
               loading={purchasePlanMonthsData.loading}
               error={purchasePlanMonthsData.error}
@@ -169,6 +173,10 @@ export default function Overview() {
               positionsLinkedToRequestCount={purchasePlanMonthsData.months[1]?.positionsLinkedToRequestCount ?? 0}
               positionsExcludedCount={purchasePlanMonthsData.months[1]?.positionsExcludedCount ?? 0}
               requestsPurchaseCreatedInMonthCount={purchasePlanMonthsData.months[1]?.requestsPurchaseCreatedInMonthCount ?? 0}
+              requestsPurchasePlannedCount={purchasePlanMonthsData.months[1]?.requestsPurchasePlannedCount ?? 0}
+              requestsPurchaseNonPlannedCount={purchasePlanMonthsData.months[1]?.requestsPurchaseNonPlannedCount ?? 0}
+              requestsPurchaseUnapprovedCount={purchasePlanMonthsData.months[1]?.requestsPurchaseUnapprovedCount ?? 0}
+              requestsPurchaseExcludedCount={purchasePlanMonthsData.months[1]?.requestsPurchaseExcludedCount ?? 0}
               summaryByCfo={purchasePlanMonthsData.months[1]?.summaryByCfo ?? []}
               loading={purchasePlanMonthsData.loading}
               error={purchasePlanMonthsData.error}

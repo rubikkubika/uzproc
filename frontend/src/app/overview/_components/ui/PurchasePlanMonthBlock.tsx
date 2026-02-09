@@ -22,6 +22,10 @@ export interface PurchasePlanMonthBlockViewProps {
   positionsLinkedToRequestCount: number;
   positionsExcludedCount: number;
   requestsPurchaseCreatedInMonthCount: number;
+  requestsPurchasePlannedCount: number;
+  requestsPurchaseNonPlannedCount: number;
+  requestsPurchaseUnapprovedCount: number;
+  requestsPurchaseExcludedCount: number;
   summaryByCfo: CfoSummaryRow[];
   loading: boolean;
   error: string | null;
@@ -37,6 +41,10 @@ export function PurchasePlanMonthBlockView({
   positionsLinkedToRequestCount,
   positionsExcludedCount,
   requestsPurchaseCreatedInMonthCount,
+  requestsPurchasePlannedCount,
+  requestsPurchaseNonPlannedCount,
+  requestsPurchaseUnapprovedCount,
+  requestsPurchaseExcludedCount,
   summaryByCfo,
   loading,
   error,
@@ -77,7 +85,10 @@ export function PurchasePlanMonthBlockView({
                 marketCount={positionsMarketCount}
                 linkedToRequestCount={positionsLinkedToRequestCount}
                 excludedCount={positionsExcludedCount}
-                requestsPurchaseCreatedInMonthCount={requestsPurchaseCreatedInMonthCount}
+                requestsPurchasePlannedCount={requestsPurchasePlannedCount}
+                requestsPurchaseNonPlannedCount={requestsPurchaseNonPlannedCount}
+                requestsPurchaseUnapprovedCount={requestsPurchaseUnapprovedCount}
+                requestsPurchaseExcludedCount={requestsPurchaseExcludedCount}
               />
             </div>
             <div className="flex-shrink-0 w-full sm:w-auto sm:min-w-[280px]">
@@ -123,6 +134,10 @@ export function PurchasePlanMonthBlock({
       positionsLinkedToRequestCount={useProps ? (propsBlockData?.positionsLinkedToRequestCount ?? 0) : hookData.positionsLinkedToRequestCount}
       positionsExcludedCount={useProps ? (propsBlockData?.positionsExcludedCount ?? 0) : hookData.positionsExcludedCount}
       requestsPurchaseCreatedInMonthCount={useProps ? (propsBlockData?.requestsPurchaseCreatedInMonthCount ?? 0) : hookData.requestsPurchaseCreatedInMonthCount}
+      requestsPurchasePlannedCount={useProps ? (propsBlockData?.requestsPurchasePlannedCount ?? 0) : hookData.requestsPurchasePlannedCount}
+      requestsPurchaseNonPlannedCount={useProps ? (propsBlockData?.requestsPurchaseNonPlannedCount ?? 0) : hookData.requestsPurchaseNonPlannedCount}
+      requestsPurchaseUnapprovedCount={useProps ? (propsBlockData?.requestsPurchaseUnapprovedCount ?? 0) : hookData.requestsPurchaseUnapprovedCount}
+      requestsPurchaseExcludedCount={useProps ? (propsBlockData?.requestsPurchaseExcludedCount ?? 0) : hookData.requestsPurchaseExcludedCount}
       summaryByCfo={useProps ? (propsBlockData?.summaryByCfo ?? []) : hookData.summaryByCfo}
       loading={useProps ? (propsLoading ?? false) : hookData.loading}
       error={useProps ? (propsError ?? null) : hookData.error}

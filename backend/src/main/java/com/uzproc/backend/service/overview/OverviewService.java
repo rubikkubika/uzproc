@@ -150,6 +150,10 @@ public class OverviewService {
             block.setPositionsLinkedToRequestCount(0);
             block.setPositionsExcludedCount(0);
             block.setRequestsPurchaseCreatedInMonthCount(0);
+            block.setRequestsPurchasePlannedCount(0);
+            block.setRequestsPurchaseNonPlannedCount(0);
+            block.setRequestsPurchaseUnapprovedCount(0);
+            block.setRequestsPurchaseExcludedCount(0);
             block.setSummaryByCfo(Collections.emptyList());
             return block;
         }
@@ -177,6 +181,11 @@ public class OverviewService {
                 .count());
         int requestsCount = fetchRequestsCountForMonth(year, calendarMonth);
         block.setRequestsPurchaseCreatedInMonthCount(requestsCount);
+        var requestCounts = purchaseRequestService.getOverviewPurchaseRequestCountsForMonth(year, calendarMonth);
+        block.setRequestsPurchasePlannedCount(requestCounts.getPlanned());
+        block.setRequestsPurchaseNonPlannedCount(requestCounts.getNonPlanned());
+        block.setRequestsPurchaseUnapprovedCount(requestCounts.getUnapproved());
+        block.setRequestsPurchaseExcludedCount(requestCounts.getExcluded());
         Map<String, Integer> requestsByCfo = new HashMap<>();
         Map<String, BigDecimal> sumByCfo = new HashMap<>();
         if (requestsCount > 0) {
@@ -187,7 +196,7 @@ public class OverviewService {
                     null, true, null, false,
                     null, null, null, year, calendarMonth);
             for (PurchaseRequestDto pr : requestsPage.getContent()) {
-                String cfoKey = pr.getCfo() != null && !pr.getCfo().trim().isEmpty() ? pr.getCfo().trim() : "—";
+                String cfoKey = normalizeCfoKey(pr.getCfo());
                 requestsByCfo.merge(cfoKey, 1, Integer::sum);
                 BigDecimal amount = pr.getBudgetAmount() != null ? pr.getBudgetAmount() : BigDecimal.ZERO;
                 sumByCfo.merge(cfoKey, amount, BigDecimal::add);
@@ -198,14 +207,14 @@ public class OverviewService {
             if ("—".equals(b)) return -1;
             return a.compareTo(b);
         });
-        overviewItems.forEach(i -> cfoKeys.add(i.getCfo() != null && !i.getCfo().trim().isEmpty() ? i.getCfo().trim() : "—"));
+        overviewItems.forEach(i -> cfoKeys.add(normalizeCfoKey(i.getCfo())));
         cfoKeys.addAll(requestsByCfo.keySet());
         List<OverviewCfoSummaryRowDto> summaryRows = new ArrayList<>();
         for (String cfoKey : cfoKeys) {
             OverviewCfoSummaryRowDto row = new OverviewCfoSummaryRowDto();
             row.setCfo(cfoKey);
             List<OverviewPlanItemDto> itemsCfo = overviewItems.stream()
-                    .filter(i -> cfoKey.equals(i.getCfo() != null && !i.getCfo().trim().isEmpty() ? i.getCfo().trim() : "—"))
+                    .filter(i -> cfoKey.equals(normalizeCfoKey(i.getCfo())))
                     .collect(Collectors.toList());
             int market = (int) itemsCfo.stream().filter(i -> i.getPurchaserCompany() != null && "market".equalsIgnoreCase(i.getPurchaserCompany().trim())).count();
             int linked = (int) itemsCfo.stream().filter(i -> i.getPurchaseRequestId() != null).count();
@@ -248,6 +257,24 @@ public class OverviewService {
         v.setIsCurrent(dto.getIsCurrent());
         v.setItemsCount(dto.getItemsCount());
         return v;
+    }
+
+    /**
+     * Нормализует ключ ЦФО для сводки: убирает скрытые/неразрывные пробелы, схлопывает повторяющиеся пробелы.
+     * Устраняет дубли строк из-за различий в пробелах (например, "ЦФО1" и "ЦФО1 ").
+     */
+    private static String normalizeCfoKey(String cfo) {
+        if (cfo == null || cfo.isEmpty()) {
+            return "—";
+        }
+        String s = cfo.trim();
+        if (s.isEmpty()) {
+            return "—";
+        }
+        // Все виды пробелов (включая неразрывный \u00A0, thin space и т.д.) заменяем на обычный пробел
+        s = s.replaceAll("\\s+", " ");
+        s = s.trim();
+        return s.isEmpty() ? "—" : s;
     }
 
     private OverviewPlanItemDto toOverviewPlanItem(PurchasePlanItemDto dto) {

@@ -14,6 +14,7 @@ interface Filters {
 
 interface UseTabCountsOptions {
   selectedYear: number | null;
+  selectedMonth: number | null;
   filtersFromHook: Filters;
   cfoFilter: Set<string>;
   purchaserFilter: Set<string>;
@@ -28,6 +29,7 @@ interface UseTabCountsOptions {
 
 export function useTabCounts({
   selectedYear,
+  selectedMonth,
   filtersFromHook,
   cfoFilter,
   purchaserFilter,
@@ -42,8 +44,12 @@ export function useTabCounts({
     try {
       const params = new URLSearchParams();
 
+      // Фильтр по дате назначения на закупщика (год и месяц)
       if (selectedYear !== null) {
-        params.append('year', String(selectedYear));
+        params.append('approvalAssignmentYear', String(selectedYear));
+      }
+      if (selectedMonth !== null && selectedMonth >= 1 && selectedMonth <= 12) {
+        params.append('approvalAssignmentMonth', String(selectedMonth));
       }
 
       // Применяем фильтр по типу заявки (Закупки/Заказы)
@@ -124,7 +130,7 @@ export function useTabCounts({
     } catch (err) {
       console.error('Error fetching tab counts:', err);
     }
-  }, [selectedYear, filtersFromHook, cfoFilter, purchaserFilter, setTabCounts, kindTab]);
+  }, [selectedYear, selectedMonth, filtersFromHook, cfoFilter, purchaserFilter, setTabCounts, kindTab]);
 
   // Загружаем количество для всех вкладок (filtersLoaded — state, чтобы эффект перезапустился после восстановления при возврате с детальной страницы)
   useEffect(() => {
