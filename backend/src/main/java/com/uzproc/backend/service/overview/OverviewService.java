@@ -65,7 +65,7 @@ public class OverviewService {
                     null, null, null, null,
                     null, null, null, null, null, null, null, null,
                     null, true, List.of(statusGroup), false,
-                    null, null, false, year);
+                    null, null, false, year, null);
             List<OverviewSlaRequestDto> requests = page.getContent().stream()
                     .map(this::toOverviewSlaRequest)
                     .collect(Collectors.toList());
@@ -182,10 +182,10 @@ public class OverviewService {
         if (requestsCount > 0) {
             Page<PurchaseRequestDto> requestsPage = purchaseRequestService.findAll(
                     0, Math.min(requestsCount, 2000),
-                    year, calendarMonth, null, null,
+                    null, null, null, null,
                     null, null, null, null, null, null, null, null,
-                    true, null, null, false,
-                    null, null, false, null);
+                    null, true, null, false,
+                    null, null, null, year, calendarMonth);
             for (PurchaseRequestDto pr : requestsPage.getContent()) {
                 String cfoKey = pr.getCfo() != null && !pr.getCfo().trim().isEmpty() ? pr.getCfo().trim() : "—";
                 requestsByCfo.merge(cfoKey, 1, Integer::sum);
@@ -231,10 +231,10 @@ public class OverviewService {
 
     private int fetchRequestsCountForMonth(int year, int calendarMonth) {
         Page<PurchaseRequestDto> page = purchaseRequestService.findAll(
-                0, 1, year, calendarMonth, null, null,
+                0, 1, null, null, null, null,
                 null, null, null, null, null, null, null, null,
-                true, null, null, false,
-                null, null, false, null);
+                null, true, null, false,
+                null, null, null, year, calendarMonth);
         return (int) page.getTotalElements();
     }
 

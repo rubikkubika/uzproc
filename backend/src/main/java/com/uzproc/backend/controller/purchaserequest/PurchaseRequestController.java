@@ -69,18 +69,20 @@ public class PurchaseRequestController {
             @RequestParam(required = false) java.math.BigDecimal budgetAmount,
             @RequestParam(required = false) String budgetAmountOperator,
             @RequestParam(required = false) Boolean excludeFromInWork,
-            @RequestParam(required = false) Integer approvalAssignmentYear) {
+            @RequestParam(required = false) Integer approvalAssignmentYear,
+            @RequestParam(required = false) Integer approvalAssignmentMonth) {
         
         logger.info("=== PurchaseRequestController.getAllPurchaseRequests ===");
         logger.info("Received budget filter parameters: budgetAmount={}, budgetAmountOperator='{}'", 
                 budgetAmount, budgetAmountOperator);
         logger.info("Received excludeFromInWork parameter: {}", excludeFromInWork);
         logger.info("Received approvalAssignmentYear parameter: {}", approvalAssignmentYear);
+        logger.info("Received approvalAssignmentMonth parameter: {}", approvalAssignmentMonth);
         
         Page<PurchaseRequestDto> purchaseRequests = purchaseRequestService.findAll(
                 page, size, year, month, sortBy, sortDir, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
                 name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, statusGroup, excludePendingStatuses,
-                budgetAmount, budgetAmountOperator, excludeFromInWork, approvalAssignmentYear);
+                budgetAmount, budgetAmountOperator, excludeFromInWork, approvalAssignmentYear, approvalAssignmentMonth);
         
         logger.info("Returned {} purchase requests", purchaseRequests.getTotalElements());
         logger.info("=== End PurchaseRequestController.getAllPurchaseRequests ===\n");
