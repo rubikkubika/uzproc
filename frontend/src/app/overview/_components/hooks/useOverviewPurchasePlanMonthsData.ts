@@ -89,13 +89,29 @@ export function useOverviewPurchasePlanMonthsData(
           });
           const items: OverviewPlanItem[] = ((m.items ?? []) as RawPlanItem[]).map(mapItem);
           const itemsMarket: OverviewPlanItem[] = ((m.itemsMarket ?? []) as RawPlanItem[]).map(mapItem);
-          type RawCfoSummary = { cfo?: string; market?: number; linked?: number; excluded?: number; requestsPurchase?: number; sumMarket?: number; sumRequests?: number };
+          type RawCfoSummary = {
+            cfo?: string;
+            market?: number;
+            linked?: number;
+            excluded?: number;
+            requestsPurchase?: number;
+            requestsPlanned?: number;
+            requestsNonPlanned?: number;
+            requestsUnapproved?: number;
+            requestsExcluded?: number;
+            sumMarket?: number;
+            sumRequests?: number;
+          };
           const summaryByCfo: CfoSummaryRow[] = ((m.summaryByCfo ?? []) as RawCfoSummary[]).map((r) => ({
             cfo: r.cfo ?? '—',
             market: r.market ?? 0,
             linked: r.linked ?? 0,
             excluded: r.excluded ?? 0,
             requestsPurchase: r.requestsPurchase ?? 0,
+            requestsPlanned: r.requestsPlanned ?? 0,
+            requestsNonPlanned: r.requestsNonPlanned ?? 0,
+            requestsUnapproved: r.requestsUnapproved ?? 0,
+            requestsExcluded: r.requestsExcluded ?? 0,
             sumMarket: Number(r.sumMarket ?? 0),
             sumRequests: Number(r.sumRequests ?? 0),
           }));

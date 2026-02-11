@@ -5,6 +5,7 @@ import com.uzproc.backend.dto.purchaserequest.PurchaseRequestDto;
 import com.uzproc.backend.dto.purchaseplan.PurchasePlanItemDto;
 import com.uzproc.backend.dto.purchaseplan.PurchasePlanVersionDto;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequestCommentType;
+import com.uzproc.backend.entity.purchaserequest.PurchaseRequestStatus;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestCommentService;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestService;
 import com.uzproc.backend.service.purchaseplan.PurchasePlanVersionService;
@@ -188,6 +189,10 @@ public class OverviewService {
         block.setRequestsPurchaseExcludedCount(requestCounts.getExcluded());
         Map<String, Integer> requestsByCfo = new HashMap<>();
         Map<String, BigDecimal> sumByCfo = new HashMap<>();
+        Map<String, Integer> requestsPlannedByCfo = new HashMap<>();
+        Map<String, Integer> requestsNonPlannedByCfo = new HashMap<>();
+        Map<String, Integer> requestsUnapprovedByCfo = new HashMap<>();
+        Map<String, Integer> requestsExcludedByCfo = new HashMap<>();
         if (requestsCount > 0) {
             Page<PurchaseRequestDto> requestsPage = purchaseRequestService.findAll(
                     0, Math.min(requestsCount, 2000),
@@ -200,6 +205,17 @@ public class OverviewService {
                 requestsByCfo.merge(cfoKey, 1, Integer::sum);
                 BigDecimal amount = pr.getBudgetAmount() != null ? pr.getBudgetAmount() : BigDecimal.ZERO;
                 sumByCfo.merge(cfoKey, amount, BigDecimal::add);
+                boolean isUnapproved = pr.getStatus() == PurchaseRequestStatus.NOT_APPROVED;
+                boolean isExcluded = Boolean.TRUE.equals(pr.getExcludeFromInWork());
+                if (isUnapproved) {
+                    requestsUnapprovedByCfo.merge(cfoKey, 1, Integer::sum);
+                } else if (isExcluded) {
+                    requestsExcludedByCfo.merge(cfoKey, 1, Integer::sum);
+                } else if (Boolean.TRUE.equals(pr.getHasLinkedPlanItem())) {
+                    requestsPlannedByCfo.merge(cfoKey, 1, Integer::sum);
+                } else {
+                    requestsNonPlannedByCfo.merge(cfoKey, 1, Integer::sum);
+                }
             }
         }
         Set<String> cfoKeys = new TreeSet<>((a, b) -> {
@@ -223,6 +239,10 @@ public class OverviewService {
             row.setLinked(linked);
             row.setExcluded(excluded);
             row.setRequestsPurchase(requestsByCfo.getOrDefault(cfoKey, 0));
+            row.setRequestsPlanned(requestsPlannedByCfo.getOrDefault(cfoKey, 0));
+            row.setRequestsNonPlanned(requestsNonPlannedByCfo.getOrDefault(cfoKey, 0));
+            row.setRequestsUnapproved(requestsUnapprovedByCfo.getOrDefault(cfoKey, 0));
+            row.setRequestsExcluded(requestsExcludedByCfo.getOrDefault(cfoKey, 0));
             List<OverviewPlanItemDto> marketItemsCfo = itemsCfo.stream()
                     .filter(i -> i.getPurchaserCompany() != null && "market".equalsIgnoreCase(i.getPurchaserCompany().trim()))
                     .collect(Collectors.toList());
