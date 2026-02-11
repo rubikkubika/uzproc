@@ -4,7 +4,8 @@ import { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useOverview } from './hooks/useOverview';
 import { useOverviewSlaData } from './hooks/useOverviewSlaData';
-import type { OverviewSlaBlock } from './hooks/useOverviewSlaData';
+import type { OverviewSlaBlock, OverviewSlaRequestRow } from './hooks/useOverviewSlaData';
+import { countWorkingDaysBetween, getPlannedSlaDaysNumber } from './utils/overviewSlaUtils';
 import { useOverviewPurchasePlanMonthsData } from './hooks/useOverviewPurchasePlanMonthsData';
 import { OverviewTabs } from './ui/OverviewTabs';
 import { usePurchasePlanMonths } from './hooks/usePurchasePlanMonths';
@@ -39,11 +40,38 @@ export default function Overview() {
   } = usePurchasePlanMonths();
 
   const slaData = useOverviewSlaData(activeTab === 'sla' ? slaYear : null);
-  /** Блоки SLA для отображения: «Договор в работе» и «Договор подписан» объединены в один блок «Закупка завершена». */
+
+  /** Заявки «Требует внимания»: из группы «Заявка у закупщика», у которых минус в дельте либо осталось менее 30% от планового SLA. */
+  const requiresAttentionRequests = useMemo((): OverviewSlaRequestRow[] => {
+    const blocks = slaData.data?.statusBlocks ?? [];
+    const atBuyerBlock = blocks.find((b) => b.statusGroup === 'Заявка у закупщика');
+    const requests = atBuyerBlock?.requests ?? [];
+    const now = new Date();
+    return requests.filter((row) => {
+      const assignmentIso = row.approvalAssignmentDate;
+      if (!assignmentIso) return false;
+      const planned = getPlannedSlaDaysNumber(row.complexity);
+      const start = new Date(assignmentIso);
+      if (isNaN(start.getTime())) return false;
+      const end = row.purchaseCompletionDate ? new Date(row.purchaseCompletionDate) : now;
+      if (isNaN(end.getTime())) return false;
+      const factual = countWorkingDaysBetween(start, end);
+      const delta = planned != null ? planned - factual : null;
+      const remainingPercent =
+        planned != null && planned > 0 ? ((planned - factual) / planned) * 100 : 100;
+      return (delta != null && delta < 0) || (planned != null && planned > 0 && remainingPercent < 30);
+    });
+  }, [slaData.data?.statusBlocks]);
+
+  /** Блоки SLA для отображения: первый блок «Требует внимания», затем «Договор в работе» и «Договор подписан» объединены в «Закупка завершена». */
   const slaDisplayBlocks = useMemo((): OverviewSlaBlock[] => {
     const blocks = slaData.data?.statusBlocks ?? [];
-    if (blocks.length === 0) return [];
-    if (blocks.length === 1) return blocks;
+    const attentionBlock: OverviewSlaBlock = {
+      statusGroup: 'Требует внимания',
+      requests: requiresAttentionRequests,
+    };
+    if (blocks.length === 0) return [attentionBlock];
+    if (blocks.length === 1) return [attentionBlock, ...blocks];
     const [first, ...rest] = blocks;
     const lastTwoMerged =
       rest.length >= 2 &&
@@ -57,8 +85,8 @@ export default function Overview() {
             },
           ]
         : rest;
-    return [first, ...lastTwoMerged];
-  }, [slaData.data?.statusBlocks]);
+    return [attentionBlock, first, ...lastTwoMerged];
+  }, [slaData.data?.statusBlocks, requiresAttentionRequests]);
   const purchasePlanMonthsParam = useMemo(
     () =>
       activeTab === 'purchase-plan'

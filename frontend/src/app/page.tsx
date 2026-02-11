@@ -361,6 +361,15 @@ function DashboardContent() {
         );
 
       case 'purchases':
+        if (userRole !== 'admin') {
+          return (
+            <div className="space-y-6">
+              <div className="bg-white p-6 rounded-lg shadow">
+                <p className="text-gray-600">Доступ к разделу «Закупки» только для администратора.</p>
+              </div>
+            </div>
+          );
+        }
         return (
           <div className="space-y-6 h-full flex flex-col">
             <PurchasesTable />
@@ -382,6 +391,15 @@ function DashboardContent() {
         );
 
       case 'specifications':
+        if (userRole !== 'admin') {
+          return (
+            <div className="space-y-6">
+              <div className="bg-white p-6 rounded-lg shadow">
+                <p className="text-gray-600">Доступ к разделу «Спецификации» только для администратора.</p>
+              </div>
+            </div>
+          );
+        }
         return (
           <div className="space-y-6">
             <SpecificationsTable />
