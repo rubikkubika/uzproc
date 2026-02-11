@@ -30,16 +30,17 @@ export const usePurchasePlanItemsTable = () => {
   const yearsCacheRef = useRef<number[] | null>(null);
   const yearsLoadingRef = useRef<boolean>(false);
   const yearsFetchedRef = useRef<boolean>(false);
-  // Общий кеш для fetchChartData и fetchSummaryData (они могут делать одинаковые запросы)
+  // Кеш для monthly-distribution (график по месяцам)
+  const monthDistributionCacheRef = useRef<Map<string, number[]>>(new Map());
+  const monthDistributionLoadingRef = useRef<Set<string>>(new Set());
+  const refetchMonthlyDistributionRef = useRef<(() => Promise<void>) | null>(null);
+  // Общий кеш для fetchSummaryData
   const purchasePlanItemsCacheRef = useRef<Map<string, PurchasePlanItem[]>>(new Map());
   const purchasePlanItemsLoadingRef = useRef<Set<string>>(new Set());
-  // Debounce таймер для fetchChartData
+  // Debounce таймер для загрузки графика по месяцам
   const chartDataDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   // Debounce таймер для fetchSummaryData
   const summaryDataDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  // Кеш для totalRecords
-  const totalRecordsCacheRef = useRef<number | null>(null);
-  const totalRecordsLoadingRef = useRef<boolean>(false);
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [allYears, setAllYears] = useState<number[]>([]);
   const [totalRecords, setTotalRecords] = useState<number>(0);
@@ -50,6 +51,8 @@ export const usePurchasePlanItemsTable = () => {
   const [sortField, setSortField] = useState<SortField>('requestDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [chartData, setChartData] = useState<PurchasePlanItem[]>([]);
+  // Распределение по месяцам для графика (14 элементов: дек прошлого года, янв..дек, без даты)
+  const [monthCounts, setMonthCounts] = useState<number[]>(() => Array(14).fill(0));
   const [summaryData, setSummaryData] = useState<PurchasePlanItem[]>([]); // Для обратной совместимости с usePurchasePlanItemsEditing
   // Отдельное состояние для сводной статистики из нового эндпоинта
   const [purchaserSummaryData, setPurchaserSummaryData] = useState<Array<{
@@ -329,7 +332,6 @@ export const usePurchasePlanItemsTable = () => {
 
       setData(result);
       const total = result.totalElements ?? 0;
-      totalRecordsCacheRef.current = total;
       setTotalRecords(total);
       setHasMore(items.length === size && !result.last);
       setCurrentPage(page);
@@ -499,11 +501,10 @@ export const usePurchasePlanItemsTable = () => {
     // Фильтр статуса: если пустой, показываем все элементы
     if (currentFilters.statusFilter.size > 0) {
       const beforeCount = filtered.length;
-      // Проверяем уникальные значения status в данных (учитываем и purchaseRequestStatus)
+      // Эффективный статус: приоритет у "Исключена", затем статус заявки, затем status плана
       const uniqueStatuses = new Set(filtered.map(item => {
-        if (item.purchaseRequestId !== null && item.purchaseRequestStatus) {
-          return item.purchaseRequestStatus;
-        }
+        if (item.status === 'Исключена') return 'Исключена';
+        if (item.purchaseRequestId !== null && item.purchaseRequestStatus) return item.purchaseRequestStatus;
         return item.status || 'Нет статуса';
       }));
       
@@ -511,16 +512,14 @@ export const usePurchasePlanItemsTable = () => {
       const itemsWithRequestsBefore = filtered.filter(item => item.purchaseRequestId !== null && item.purchaseRequestId !== undefined);
       
       filtered = filtered.filter(item => {
-        // Для позиций с заявками используем purchaseRequestStatus, иначе status
-        const rawStatus = item.purchaseRequestId !== null && item.purchaseRequestStatus
-          ? item.purchaseRequestStatus
-          : item.status;
-        if (!rawStatus) {
-          return false;
-        }
-        const itemStatus = rawStatus.trim();
-        const isInFilter = currentFilters.statusFilter.has(itemStatus);
-        return isInFilter;
+        // Приоритет у статуса позиции плана "Исключена", затем статус заявки, затем status плана
+        const itemStatus = item.status === 'Исключена'
+          ? 'Исключена'
+          : (item.purchaseRequestId !== null && item.purchaseRequestStatus
+              ? item.purchaseRequestStatus
+              : item.status);
+        if (!itemStatus) return false;
+        return currentFilters.statusFilter.has(itemStatus.trim());
       });
       
       // Подсчитываем элементы с заявками после фильтрации
@@ -805,9 +804,10 @@ export const usePurchasePlanItemsTable = () => {
       const uniqueCategories = new Set<string>();
       
       versionItems.forEach(item => {
-        // Учитываем статусы из обоих полей: status (план закупок) и purchaseRequestStatus (заявка)
-        // Для позиций с заявками приоритет у purchaseRequestStatus
-        if (item.purchaseRequestId !== null && item.purchaseRequestStatus) {
+        // Учитываем статусы: приоритет у "Исключена" (статус позиции плана), затем статус заявки, затем status плана
+        if (item.status === 'Исключена') {
+          uniqueStatuses.add('Исключена');
+        } else if (item.purchaseRequestId !== null && item.purchaseRequestStatus) {
           uniqueStatuses.add(item.purchaseRequestStatus);
         } else if (item.status) {
           uniqueStatuses.add(item.status);
@@ -827,9 +827,8 @@ export const usePurchasePlanItemsTable = () => {
         else uniqueCategories.add('Не выбрано');
       });
       
-      // ВАЖНО: При загрузке архивной версии всегда устанавливаем фильтр статуса на все доступные статусы из данных версии
-      // Это гарантирует, что отображаются все позиции, включая связанные с заявками
-      const statusesArray = Array.from(uniqueStatuses).filter(s => s !== 'Исключена');
+      // При загрузке архивной версии устанавливаем фильтр статуса на все доступные статусы из данных версии (включая "Исключена")
+      const statusesArray = Array.from(uniqueStatuses);
       if (statusesArray.length > 0) {
         // Отмечаем, что фильтр статуса был установлен для этой версии
         statusFilterSetForVersionRef.current = versionId;
@@ -922,12 +921,18 @@ export const usePurchasePlanItemsTable = () => {
     }
   }, [applyFiltersToVersionData]);
 
+  // Обёртка setChartData: после обновления перезагружаем распределение по месяцам (график)
+  const setChartDataWithRefetch = useCallback((updater: React.SetStateAction<PurchasePlanItem[]>) => {
+    setChartData(updater);
+    setTimeout(() => refetchMonthlyDistributionRef.current?.(), 400);
+  }, []);
+
   // Инициализируем editingHook после определения fetchData
   const editingHook = usePurchasePlanItemsEditing(
     data,
     setData,
     setAllItems,
-    setChartData,
+    setChartDataWithRefetch,
     setSummaryData,
     filtersHook.cfoFilter,
     pageSize,
@@ -1073,12 +1078,14 @@ export const usePurchasePlanItemsTable = () => {
           });
         }
 
-        // Фильтр статуса: для позиций с заявками используем purchaseRequestStatus, иначе status (как в applyFiltersToVersionData)
+        // Фильтр статуса: приоритет у "Исключена", затем статус заявки, затем status плана
         if (currentFilters.statusFilter.size > 0) {
           filtered = filtered.filter(item => {
-            const itemStatus = item.purchaseRequestId !== null && item.purchaseRequestStatus
-              ? item.purchaseRequestStatus
-              : item.status;
+            const itemStatus = item.status === 'Исключена'
+              ? 'Исключена'
+              : (item.purchaseRequestId !== null && item.purchaseRequestStatus
+                  ? item.purchaseRequestStatus
+                  : item.status);
             if (!itemStatus) return false;
             return currentFilters.statusFilter.has(itemStatus);
           });
@@ -1093,151 +1100,95 @@ export const usePurchasePlanItemsTable = () => {
       return;
     }
 
-    // Для текущей версии загружаем данные с бэкенда
-    const fetchChartData = async () => {
-      // Создаем ключ кеша до try блока
+    // Для текущей версии загружаем распределение по месяцам с бэкенда (эндпоинт monthly-distribution)
+    const fetchMonthlyDistribution = async () => {
       const params = new URLSearchParams();
-      params.append('page', '0');
-      params.append('size', '10000');
-      
       if (selectedYear !== null) {
         params.append('year', String(selectedYear));
       }
-      
-      // Фильтр по ЦФО
       if (filtersHook.cfoFilter.size > 0) {
         filtersHook.cfoFilter.forEach(cfo => {
-          if (cfo === 'Не выбрано') {
-            params.append('cfo', '__NULL__');
-          } else {
-            params.append('cfo', cfo);
-          }
+          params.append('cfo', cfo === 'Не выбрано' ? '__NULL__' : cfo);
         });
       }
-      // Фильтр по компании заказчика
       if (filtersHook.companyFilter.size > 0) {
         filtersHook.companyFilter.forEach(company => {
-          if (company === 'Не выбрано') {
-            params.append('company', '__NULL__');
-          } else {
-            params.append('company', company);
-          }
+          params.append('company', company === 'Не выбрано' ? '__NULL__' : company);
         });
       }
-      // Фильтр по компании закупщика
       if (filtersHook.purchaserCompanyFilter.size > 0) {
-        filtersHook.purchaserCompanyFilter.forEach(purchaserCompany => {
-          if (purchaserCompany === 'Не выбрано') {
-            params.append('purchaserCompany', '__NULL__');
-          } else {
-            params.append('purchaserCompany', purchaserCompany);
-          }
+        filtersHook.purchaserCompanyFilter.forEach(pc => {
+          params.append('purchaserCompany', pc === 'Не выбрано' ? '__NULL__' : pc);
         });
       }
-      // Фильтр по ID
-      if (filtersHook.filters.id && filtersHook.filters.id.trim() !== '') {
-        params.append('id', filtersHook.filters.id.trim());
-      }
-      // Фильтр по предмету закупки
-      if (filtersHook.filters.purchaseSubject && filtersHook.filters.purchaseSubject.trim() !== '') {
+      if (filtersHook.filters.purchaseSubject?.trim()) {
         params.append('purchaseSubject', filtersHook.filters.purchaseSubject.trim());
       }
-      // Фильтр по номеру заявки
-      if (filtersHook.filters.purchaseRequestId && filtersHook.filters.purchaseRequestId.trim() !== '') {
+      if (filtersHook.filters.purchaseRequestId?.trim()) {
         params.append('purchaseRequestId', filtersHook.filters.purchaseRequestId.trim());
       }
-      // Фильтр по бюджету
       const budgetOperator = filtersHook.filters.budgetAmountOperator;
       const budgetAmount = filtersHook.filters.budgetAmount;
-      if (budgetOperator && budgetOperator.trim() !== '' && budgetAmount && budgetAmount.trim() !== '') {
+      if (budgetOperator?.trim() && budgetAmount?.trim()) {
         const budgetValue = parseFloat(budgetAmount.replace(/\s/g, '').replace(/,/g, ''));
         if (!isNaN(budgetValue) && budgetValue >= 0) {
           params.append('budgetAmountOperator', budgetOperator.trim());
           params.append('budgetAmount', String(budgetValue));
         }
       }
-      // Фильтр по дате окончания договора
-      if (filtersHook.filters.currentContractEndDate && filtersHook.filters.currentContractEndDate.trim() !== '') {
-        const dateValue = filtersHook.filters.currentContractEndDate.trim();
-        if (dateValue === '-') {
-          params.append('currentContractEndDate', 'null');
-        } else {
-          params.append('currentContractEndDate', dateValue);
-        }
+      if (filtersHook.filters.currentContractEndDate?.trim()) {
+        const v = filtersHook.filters.currentContractEndDate.trim();
+        params.append('currentContractEndDate', v === '-' ? 'null' : v);
       }
-      // Фильтр по закупщику
       if (filtersHook.purchaserFilter.size > 0) {
-        filtersHook.purchaserFilter.forEach(purchaser => {
-          if (purchaser === 'Не назначен') {
-            params.append('purchaser', '__NULL__');
-          } else {
-            params.append('purchaser', purchaser);
-          }
+        filtersHook.purchaserFilter.forEach(p => {
+          params.append('purchaser', p === 'Не назначен' ? '__NULL__' : p);
         });
       }
-      // Фильтр по категории
       if (filtersHook.categoryFilter.size > 0) {
-        filtersHook.categoryFilter.forEach(category => {
-          params.append('category', category);
-        });
+        filtersHook.categoryFilter.forEach(category => params.append('category', category));
       }
-      // Фильтр по статусу
       if (filtersHook.statusFilter.size > 0) {
         filtersHook.statusFilter.forEach(status => {
-          if (status === 'Пусто') {
-            params.append('status', '__NULL__');
-          } else {
-            params.append('status', status);
-          }
+          params.append('status', status === 'Пусто' ? '__NULL__' : status);
         });
       }
-      // ВАЖНО: Фильтр по месяцу НЕ применяется для диаграммы, чтобы показать все месяцы
-      
-        const cacheKey = params.toString();
-        
-        // Проверяем общий кеш (может содержать данные из fetchSummaryData)
-        if (purchasePlanItemsCacheRef.current.has(cacheKey)) {
-          setChartData(purchasePlanItemsCacheRef.current.get(cacheKey)!);
-          return;
+
+      const cacheKey = params.toString();
+      if (monthDistributionCacheRef.current.has(cacheKey)) {
+        setMonthCounts(monthDistributionCacheRef.current.get(cacheKey)!);
+        return;
+      }
+      if (monthDistributionLoadingRef.current.has(cacheKey)) return;
+      monthDistributionLoadingRef.current.add(cacheKey);
+
+      try {
+        const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/monthly-distribution?${cacheKey}`);
+        if (response.ok) {
+          const counts: number[] = await response.json();
+          const arr = Array.isArray(counts) && counts.length >= 14 ? counts.slice(0, 14) : Array(14).fill(0);
+          monthDistributionCacheRef.current.set(cacheKey, arr);
+          setMonthCounts(arr);
+        } else {
+          setMonthCounts(Array(14).fill(0));
         }
-        
-        // Если запрос уже выполняется с такими же параметрами, не запускаем новый
-        if (purchasePlanItemsLoadingRef.current.has(cacheKey)) {
-          return;
-        }
-        
-        purchasePlanItemsLoadingRef.current.add(cacheKey);
-        
-        try {
-          const fetchUrl = `${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`;
-          const response = await fetch(fetchUrl);
-          if (response.ok) {
-            const result = await response.json();
-            const content = result.content || [];
-            purchasePlanItemsCacheRef.current.set(cacheKey, content);
-            setChartData(content);
-          }
-        } catch (err) {
-          setChartData([]);
-        } finally {
-          // Удаляем ключ из множества выполняющихся запросов
-          purchasePlanItemsLoadingRef.current.delete(cacheKey);
-        }
+      } catch (err) {
+        setMonthCounts(Array(14).fill(0));
+      } finally {
+        monthDistributionLoadingRef.current.delete(cacheKey);
+      }
     };
-    
+    refetchMonthlyDistributionRef.current = fetchMonthlyDistribution;
+
     // Очищаем предыдущий таймер debounce
     if (chartDataDebounceTimerRef.current) {
       clearTimeout(chartDataDebounceTimerRef.current);
     }
-    
-    // Загружаем данные диаграммы сразу после готовности (0 мс)
     chartDataDebounceTimerRef.current = setTimeout(() => {
       if (!loading) {
-        fetchChartData();
+        fetchMonthlyDistribution();
       }
     }, 0);
-    
-    // Очистка таймера при размонтировании
     return () => {
       if (chartDataDebounceTimerRef.current) {
         clearTimeout(chartDataDebounceTimerRef.current);
@@ -1414,76 +1365,46 @@ export const usePurchasePlanItemsTable = () => {
     };
   }, [loading, selectedYear, selectedMonthYear, selectedMonths, filtersHook.filters, filtersHook.cfoFilter, filtersHook.companyFilter, filtersHook.purchaserCompanyFilter, filtersHook.categoryFilter, filtersHook.statusFilter, allItems.length]);
 
-  // Функция для расчета распределения по месяцам
+  // Функция для расчёта распределения по месяцам: для текущей версии — monthCounts с API; для архивной — из versionDataRef
   const getMonthlyDistribution = useMemo(() => {
-    // Для архивных версий: при наличии chartData (уже отфильтрован в эффекте) используем его;
-    // иначе при наличии данных версии — versionDataRef (чтобы декабрь и все месяцы отображались до применения фильтров в эффекте)
-    let dataForChart: PurchasePlanItem[];
     const isArchiveVersion = versionsHook.selectedVersionId !== null &&
       versionsHook.selectedVersionInfo &&
       !versionsHook.selectedVersionInfo.isCurrent;
-    if (chartData.length > 0) {
-      dataForChart = chartData;
-    } else if (isArchiveVersion && versionDataRef.current.length > 0) {
-      dataForChart = versionDataRef.current;
-    } else {
-      dataForChart = [];
+
+    if (!isArchiveVersion) {
+      return monthCounts.length === 14 ? monthCounts : Array(14).fill(0);
     }
-    
+
+    const dataForChart = versionDataRef.current;
     if (!dataForChart || dataForChart.length === 0) {
       return Array(14).fill(0);
     }
 
-    let displayYear: number;
-    if (selectedYear !== null) {
-      displayYear = selectedYear;
-    } else {
-      const yearFromData = dataForChart.find(item => item.year !== null)?.year;
-      if (yearFromData) {
-        displayYear = yearFromData;
-      } else {
-        const itemWithDate = dataForChart.find(item => item.requestDate);
-        if (itemWithDate && itemWithDate.requestDate) {
-          displayYear = new Date(itemWithDate.requestDate).getFullYear();
-        } else {
-          displayYear = new Date().getFullYear();
-        }
-      }
-    }
+    const displayYear = selectedYear ?? new Date().getFullYear();
     const prevYear = displayYear - 1;
+    const counts = Array(14).fill(0);
 
-
-    const monthCounts = Array(14).fill(0);
-    
     dataForChart.forEach((item) => {
-      // Для позиций с заявками используем purchaseRequestStatus, иначе status
       const effectiveStatus = item.purchaseRequestId !== null && item.purchaseRequestStatus
         ? item.purchaseRequestStatus
         : item.status;
-      if (effectiveStatus === 'Исключена') {
-        return;
-      }
+      if (effectiveStatus === 'Исключена') return;
 
       if (!item.requestDate) {
-        monthCounts[13]++;
+        counts[13]++;
         return;
       }
-
       const requestDate = new Date(item.requestDate);
       const itemYear = requestDate.getFullYear();
       const itemMonth = requestDate.getMonth();
-
-      // Декабрь предыдущего года (например, декабрь 2025 для года 2026)
       if (itemYear === prevYear && itemMonth === 11) {
-        monthCounts[0]++;
+        counts[0]++;
       } else if (itemYear === displayYear) {
-        // Месяцы текущего года (январь = 1, ..., декабрь = 12)
-        monthCounts[itemMonth + 1]++;
+        counts[itemMonth + 1]++;
       }
     });
-
-    return monthCounts;
-  }, [chartData, selectedYear, versionsHook.selectedVersionId, versionsHook.selectedVersionInfo]);
+    return counts;
+  }, [monthCounts, selectedYear, versionsHook.selectedVersionId, versionsHook.selectedVersionInfo]);
 
   // Обработка сортировки
   const handleSort = useCallback((field: SortField) => {
@@ -1540,45 +1461,7 @@ export const usePurchasePlanItemsTable = () => {
     fetchYears();
   }, []);
 
-  // Загружаем общее количество записей
-  // ВАЖНО: Используем данные из основного запроса, если они уже загружены
-  useEffect(() => {
-    // Если данные уже загружены, используем totalElements из них
-    if (data && data.totalElements !== undefined) {
-      setTotalRecords(data.totalElements);
-      totalRecordsCacheRef.current = data.totalElements;
-      return;
-    }
-    
-    // Используем кеш, если totalRecords уже загружены
-    if (totalRecordsCacheRef.current !== null) {
-      setTotalRecords(totalRecordsCacheRef.current);
-      return;
-    }
-    
-    // Если запрос уже выполняется, не запускаем новый
-    if (totalRecordsLoadingRef.current) {
-      return;
-    }
-    
-    const fetchTotalRecords = async () => {
-      totalRecordsLoadingRef.current = true;
-      try {
-        const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items?page=0&size=1`);
-        if (response.ok) {
-          const result = await response.json();
-          const total = result.totalElements || 0;
-          totalRecordsCacheRef.current = total;
-          setTotalRecords(total);
-        }
-      } catch (err) {
-        // Ошибка загрузки общего количества записей игнорируется
-      } finally {
-        totalRecordsLoadingRef.current = false;
-      }
-    };
-    fetchTotalRecords();
-  }, [data]);
+  // totalRecords берётся только из основного запроса (data.totalElements), отдельный запрос size=1 убран
 
   // Infinite scroll - используем тот же хук, что и в заявках на закупку
   // Ref для предотвращения повторных вызовов onLoadMore

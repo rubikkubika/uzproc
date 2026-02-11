@@ -60,43 +60,42 @@ export const usePurchasePlanItemsEditing = (
   const purchaseSubjectInputRef = useRef<HTMLTextAreaElement | null>(null);
   const [editingPurchaser, setEditingPurchaser] = useState<number | null>(null);
   const [availablePurchasers, setAvailablePurchasers] = useState<Array<{ id: number; name: string }>>([]);
-  
-  // Загружаем список пользователей при монтировании компонента
-  useEffect(() => {
-    // Используем кеш, если пользователи уже загружены
+
+  // Загрузка пользователей по требованию (при открытии модалки создания или редактировании закупщика)
+  const loadUsersIfNeeded = useCallback(async () => {
     if (usersCacheRef.current) {
       setAvailablePurchasers(usersCacheRef.current);
       return;
     }
-    
-    // Если запрос уже выполняется или уже был выполнен, не запускаем новый
-    if (usersLoadingRef.current || usersFetchedRef.current) {
-      return;
-    }
-    
-    const loadUsers = async () => {
-      usersLoadingRef.current = true;
-      usersFetchedRef.current = true;
-      try {
-        const response = await fetch(`${getBackendUrl()}/api/users?page=0&size=1000`);
-        if (response.ok) {
-          const data = await response.json();
-          const users = data.content.map((user: any) => ({
-            id: user.id,
-            name: user.surname && user.name 
-              ? `${user.surname} ${user.name}` 
-              : user.username || 'Пользователь'
-          }));
-          usersCacheRef.current = users;
-          setAvailablePurchasers(users);
-        }
-      } catch (error) {
-      } finally {
-        usersLoadingRef.current = false;
+    if (usersLoadingRef.current || usersFetchedRef.current) return;
+    usersLoadingRef.current = true;
+    usersFetchedRef.current = true;
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/users?page=0&size=1000`);
+      if (response.ok) {
+        const data = await response.json();
+        const users = data.content.map((user: any) => ({
+          id: user.id,
+          name: user.surname && user.name
+            ? `${user.surname} ${user.name}`
+            : user.username || 'Пользователь'
+        }));
+        usersCacheRef.current = users;
+        setAvailablePurchasers(users);
       }
-    };
-    loadUsers();
+    } catch (error) {
+      usersFetchedRef.current = false;
+    } finally {
+      usersLoadingRef.current = false;
+    }
   }, []);
+
+  // Загружаем пользователей при открытии редактирования закупщика в строке
+  useEffect(() => {
+    if (editingPurchaser !== null) {
+      loadUsersIfNeeded();
+    }
+  }, [editingPurchaser, loadUsersIfNeeded]);
 
   // Автоматически открываем календарь при появлении input
   useEffect(() => {
@@ -902,5 +901,6 @@ export const usePurchasePlanItemsEditing = (
     handlePurchaseRequestIdUpdate,
     handleCreateItem,
     updatePurchaseRequestStatusForItems,
+    loadUsersIfNeeded,
   };
 };

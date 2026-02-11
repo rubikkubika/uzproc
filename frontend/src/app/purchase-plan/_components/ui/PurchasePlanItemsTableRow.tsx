@@ -701,10 +701,15 @@ export default function PurchasePlanItemsTableRow({
       
       case 'status':
         const hasPurchaseRequest = item.purchaseRequestId !== null;
-        const displayStatus = hasPurchaseRequest && item.purchaseRequestStatus 
-          ? item.purchaseRequestStatus 
-          : (hasPurchaseRequest ? 'Заявка' : item.status);
+        // Если у позиции плана статус "Исключена" — показываем его; иначе для позиций с заявкой — статус заявки
+        const displayStatus = item.status === 'Исключена'
+          ? 'Исключена'
+          : (hasPurchaseRequest && item.purchaseRequestStatus
+              ? item.purchaseRequestStatus
+              : (hasPurchaseRequest ? 'Заявка' : item.status));
         const isFromPurchaseRequest = hasPurchaseRequest;
+        // Для позиций с заявкой разрешаем менять только статус (на "Исключена"), остальные поля read-only
+        const canEditStatus = canEdit && !isViewingArchiveVersion;
         
         // Определяем цвет статуса
         let statusColor: string;
@@ -732,13 +737,13 @@ export default function PurchasePlanItemsTableRow({
               value={displayStatus || ''}
               onChange={(e) => {
                 e.stopPropagation();
-                if (canEdit && !isReadOnly && e.target.value !== displayStatus) {
+                if (canEditStatus && e.target.value !== displayStatus) {
                   onStatusUpdate?.(item.id, e.target.value);
                 }
               }}
               onFocus={(e) => {
                 e.stopPropagation();
-                if (canEdit && !isReadOnly) {
+                if (canEditStatus) {
                   setEditingStatus?.(item.id);
                 }
               }}
@@ -754,11 +759,11 @@ export default function PurchasePlanItemsTableRow({
               }}
               onClick={(e) => {
                 e.stopPropagation();
-                if (canEdit && !isReadOnly) {
+                if (canEditStatus) {
                   setEditingStatus?.(item.id);
                 }
               }}
-              disabled={isReadOnly}
+              disabled={!canEditStatus}
               className={`rounded px-2 py-0.5 font-medium cursor-pointer transition-all ${statusColor}`}
               style={{
                 fontSize: '13.44px',
@@ -857,27 +862,23 @@ export default function PurchasePlanItemsTableRow({
           </td>
         );
       
-      case 'details':
+      case 'details': {
+        const commentCount = item.commentCount ?? 0;
         return (
           <td
             key={columnKey}
-            className="px-2 py-2 border-r border-gray-300 whitespace-nowrap text-center"
+            className="px-2 py-2 border-r border-gray-300 whitespace-nowrap text-center cursor-pointer text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors"
             style={{ width: `${width}px`, fontSize: '13.44px' }}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onRowClick?.(item);
+            }}
+            title="Открыть комментарии"
           >
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onRowClick?.(item);
-              }}
-              className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-              style={{ fontSize: '9.408px' }}
-              title="Открыть детали"
-            >
-              Открыть
-            </button>
+            ({commentCount})
           </td>
         );
+      }
       
       default:
         // Для остальных колонок просто отображаем значение

@@ -11,9 +11,11 @@ import com.uzproc.backend.entity.purchaserequest.PurchaseRequestStatusGroup;
 import com.uzproc.backend.entity.purchaseplan.PurchasePlanItem;
 import com.uzproc.backend.entity.purchaseplan.PurchasePlanItemStatus;
 import com.uzproc.backend.repository.CfoRepository;
+import com.uzproc.backend.repository.purchaseplan.PurchasePlanItemCommentRepository;
 import com.uzproc.backend.repository.purchaseplan.PurchasePlanItemRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
 import com.uzproc.backend.repository.user.UserRepository;
+import com.uzproc.backend.service.purchaserequest.PurchaseRequestCommentService;
 import jakarta.persistence.criteria.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,28 +45,34 @@ public class PurchasePlanItemService {
     private static final Logger logger = LoggerFactory.getLogger(PurchasePlanItemService.class);
     
     private final PurchasePlanItemRepository purchasePlanItemRepository;
+    private final PurchasePlanItemCommentRepository purchasePlanItemCommentRepository;
     private final PurchasePlanItemChangeService purchasePlanItemChangeService;
     private final PurchaseRequestRepository purchaseRequestRepository;
     private final CfoRepository cfoRepository;
     private final UserRepository userRepository;
     private final PurchasePlanPurchaserSyncService purchaserSyncService;
-    
+    private final PurchaseRequestCommentService purchaseRequestCommentService;
+
     @PersistenceContext
     private EntityManager entityManager;
 
     public PurchasePlanItemService(
-            PurchasePlanItemRepository purchasePlanItemRepository, 
+            PurchasePlanItemRepository purchasePlanItemRepository,
+            PurchasePlanItemCommentRepository purchasePlanItemCommentRepository,
             PurchasePlanItemChangeService purchasePlanItemChangeService,
             PurchaseRequestRepository purchaseRequestRepository,
             CfoRepository cfoRepository,
             UserRepository userRepository,
-            PurchasePlanPurchaserSyncService purchaserSyncService) {
+            PurchasePlanPurchaserSyncService purchaserSyncService,
+            PurchaseRequestCommentService purchaseRequestCommentService) {
         this.purchasePlanItemRepository = purchasePlanItemRepository;
+        this.purchasePlanItemCommentRepository = purchasePlanItemCommentRepository;
         this.purchasePlanItemChangeService = purchasePlanItemChangeService;
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.cfoRepository = cfoRepository;
         this.userRepository = userRepository;
         this.purchaserSyncService = purchaserSyncService;
+        this.purchaseRequestCommentService = purchaseRequestCommentService;
     }
 
     public Page<PurchasePlanItemDto> findAll(
@@ -112,12 +120,14 @@ public class PurchasePlanItemService {
         // Загружаем статусы заявок и закупщиков одним запросом
         Map<Long, String> purchaseRequestStatusMap = new HashMap<>();
         Map<Long, String> purchaseRequestPurchaserMap = new HashMap<>(); // purchaseRequestId -> purchaser name
+        List<PurchaseRequest> purchaseRequestsList = new ArrayList<>();
         if (!purchaseRequestIds.isEmpty()) {
             // Используем Specification для загрузки заявок по idPurchaseRequest
             Specification<com.uzproc.backend.entity.purchaserequest.PurchaseRequest> prSpec = 
                     (root, query, cb) -> root.get("idPurchaseRequest").in(purchaseRequestIds);
             List<com.uzproc.backend.entity.purchaserequest.PurchaseRequest> purchaseRequests = 
                     purchaseRequestRepository.findAll(prSpec);
+            purchaseRequestsList.addAll(purchaseRequests);
             for (com.uzproc.backend.entity.purchaserequest.PurchaseRequest pr : purchaseRequests) {
                 if (pr.getIdPurchaseRequest() != null) {
                     if (pr.getStatus() != null) {
@@ -254,9 +264,47 @@ public class PurchasePlanItemService {
             }
         }
         
-        // Конвертируем entity в DTO с использованием Map статусов
+        // Подсчёт комментариев по позициям плана (для колонки «Комментарии»)
+        List<Long> planItemIdsForCommentCount = items.getContent().stream().map(PurchasePlanItem::getId).toList();
+        Map<Long, Long> commentCountMap = new HashMap<>();
+        if (!planItemIdsForCommentCount.isEmpty()) {
+            List<Object[]> countRows = purchasePlanItemCommentRepository.countByPurchasePlanItemIdIn(planItemIdsForCommentCount);
+            for (Object[] row : countRows) {
+                Long itemId = (Long) row[0];
+                Long count = (Long) row[1];
+                if (itemId != null && count != null) {
+                    commentCountMap.put(itemId, count);
+                }
+            }
+        }
+        final Map<Long, Long> finalCommentCountMap = commentCountMap;
+
+        // Подсчёт комментариев по заявкам (id_purchase_request -> количество комментариев заявки)
+        Map<Long, Long> requestCommentCountByBusinessId = new HashMap<>();
+        if (!purchaseRequestsList.isEmpty()) {
+            List<Long> prEntityIds = purchaseRequestsList.stream().map(PurchaseRequest::getId).toList();
+            Map<Long, Long> requestCommentCountByEntityId = purchaseRequestCommentService.getCommentCountByPurchaseRequestIds(prEntityIds);
+            for (PurchaseRequest pr : purchaseRequestsList) {
+                if (pr.getIdPurchaseRequest() != null) {
+                    requestCommentCountByBusinessId.put(
+                            pr.getIdPurchaseRequest(),
+                            requestCommentCountByEntityId.getOrDefault(pr.getId(), 0L));
+                }
+            }
+        }
+        final Map<Long, Long> finalRequestCommentCountByBusinessId = requestCommentCountByBusinessId;
+
+        // Конвертируем entity в DTO с использованием Map статусов и количества комментариев
         final Map<Long, String> statusMap = purchaseRequestStatusMap;
-        Page<PurchasePlanItemDto> dtoPage = items.map(item -> toDto(item, statusMap));
+        Page<PurchasePlanItemDto> dtoPage = items.map(item -> {
+            PurchasePlanItemDto dto = toDto(item, statusMap);
+            long planComments = finalCommentCountMap.getOrDefault(item.getId(), 0L);
+            long requestComments = item.getPurchaseRequestId() != null
+                    ? finalRequestCommentCountByBusinessId.getOrDefault(item.getPurchaseRequestId(), 0L)
+                    : 0L;
+            dto.setCommentCount((int) (planComments + requestComments));
+            return dto;
+        });
         
         return dtoPage;
     }
@@ -268,21 +316,33 @@ public class PurchasePlanItemService {
             return null;
         }
         
-        // Загружаем статус заявки (группу статуса), если есть purchaseRequestId
+        // Загружаем статус заявки (группу статуса) и заявку для подсчёта комментариев
         Map<Long, String> purchaseRequestStatusMap = null;
-        if (item.getPurchaseRequestId() != null) {
-            Optional<PurchaseRequest> purchaseRequest = 
-                    purchaseRequestRepository.findByIdPurchaseRequest(item.getPurchaseRequestId());
-            if (purchaseRequest.isPresent() && purchaseRequest.get().getStatus() != null) {
+        Optional<PurchaseRequest> purchaseRequestOpt = item.getPurchaseRequestId() != null
+                ? purchaseRequestRepository.findByIdPurchaseRequest(item.getPurchaseRequestId())
+                : Optional.empty();
+        if (purchaseRequestOpt.isPresent()) {
+            PurchaseRequest pr = purchaseRequestOpt.get();
+            if (pr.getStatus() != null) {
                 purchaseRequestStatusMap = new HashMap<>();
-                purchaseRequestStatusMap.put(
-                    purchaseRequest.get().getIdPurchaseRequest(), 
-                    purchaseRequest.get().getStatus().getGroupDisplayName()
-                );
+                purchaseRequestStatusMap.put(pr.getIdPurchaseRequest(), pr.getStatus().getGroupDisplayName());
             }
         }
-        
-        return toDto(item, purchaseRequestStatusMap);
+
+        PurchasePlanItemDto dto = toDto(item, purchaseRequestStatusMap);
+        long planComments = 0L;
+        List<Object[]> countRows = purchasePlanItemCommentRepository.countByPurchasePlanItemIdIn(List.of(item.getId()));
+        if (!countRows.isEmpty() && countRows.get(0)[0] != null && countRows.get(0)[1] != null) {
+            planComments = ((Long) countRows.get(0)[1]).longValue();
+        }
+        long requestComments = 0L;
+        if (purchaseRequestOpt.isPresent()) {
+            Long prEntityId = purchaseRequestOpt.get().getId();
+            Map<Long, Long> requestCounts = purchaseRequestCommentService.getCommentCountByPurchaseRequestIds(List.of(prEntityId));
+            requestComments = requestCounts.getOrDefault(prEntityId, 0L);
+        }
+        dto.setCommentCount((int) (planComments + requestComments));
+        return dto;
     }
 
     /**
@@ -1444,19 +1504,26 @@ public class PurchasePlanItemService {
                         }
                         
                         // Предикаты для статусов заявок (PurchaseRequestStatus)
-                        // Делаем join с PurchaseRequest и фильтруем по статусу заявки
+                        // Делаем join с PurchaseRequest и фильтруем по статусу заявки.
+                        // Важно: позиции со статусом плана "Исключена" (NOT_ACTUAL) не должны проходить по статусу заявки —
+                        // иначе при выборе "Договор в работе" и т.п. без "Исключена" они всё равно попадали бы в выборку.
                         if (!requestStatusEnums.isEmpty()) {
                             jakarta.persistence.criteria.Join<PurchasePlanItem, PurchaseRequest> purchaseRequestJoin = 
                                 root.join("purchaseRequest", jakarta.persistence.criteria.JoinType.LEFT);
-                            
+                            Predicate notExcluded = cb.or(
+                                root.get("status").isNull(),
+                                cb.notEqual(root.get("status"), PurchasePlanItemStatus.NOT_ACTUAL)
+                            );
                             if (requestStatusEnums.size() == 1) {
                                 statusPredicates.add(cb.and(
                                     cb.isNotNull(root.get("purchaseRequestId")),
+                                    notExcluded,
                                     cb.equal(purchaseRequestJoin.get("status"), requestStatusEnums.get(0))
                                 ));
                             } else {
                                 statusPredicates.add(cb.and(
                                     cb.isNotNull(root.get("purchaseRequestId")),
+                                    notExcluded,
                                     purchaseRequestJoin.get("status").in(requestStatusEnums)
                                 ));
                             }
@@ -1480,6 +1547,18 @@ public class PurchasePlanItemService {
                             predicateCount++;
                             logger.info("Added combined status filter - planStatuses: {}, requestStatuses: {}, includeNull: {}", 
                                 planStatusEnums, requestStatusEnums, includeNull);
+                            // Если "Исключена" не выбрана в фильтре — исключаем позиции со статусом NOT_ACTUAL
+                            // (иначе позиция с status=Исключена и связанной заявкой проходила бы по статусу заявки)
+                            boolean includeExcluded = validStatusValues.stream()
+                                .anyMatch(s -> PurchasePlanItemStatus.NOT_ACTUAL.getDisplayName().equalsIgnoreCase(s.trim()));
+                            if (!includeExcluded) {
+                                predicates.add(cb.or(
+                                    root.get("status").isNull(),
+                                    cb.notEqual(root.get("status"), PurchasePlanItemStatus.NOT_ACTUAL)
+                                ));
+                                predicateCount++;
+                                logger.info("Excluding items with status NOT_ACTUAL (Исключена) because not in filter");
+                            }
                         } else {
                             logger.warn("Status filter not applied - no valid statuses found");
                         }
@@ -1708,6 +1787,58 @@ public class PurchasePlanItemService {
         
         Map<String, Object> result = new HashMap<>();
         result.put("monthCounts", monthCounts);
+        return result;
+    }
+
+    /**
+     * Возвращает распределение позиций плана закупок по месяцам для графика.
+     * 14 элементов: [0] — декабрь предыдущего года, [1..12] — январь..декабрь выбранного года, [13] — без даты.
+     * Используется тот же фильтр по статусу, что и в списке (в т.ч. по статусу заявки), без дополнительного исключения «Исключена».
+     */
+    public List<Integer> getMonthlyDistribution(
+            Integer year,
+            List<String> company,
+            List<String> purchaserCompany,
+            List<String> cfo,
+            String purchaseSubject,
+            List<String> purchaser,
+            List<String> category,
+            List<Integer> requestMonths,
+            Integer requestYear,
+            String currentContractEndDate,
+            List<String> status,
+            String purchaseRequestId,
+            Double budgetAmount,
+            String budgetAmountOperator) {
+
+        Specification<PurchasePlanItem> spec = buildSpecification(
+                year, company, purchaserCompany, cfo, purchaseSubject, purchaser, category,
+                requestMonths, requestYear, currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator);
+
+        List<PurchasePlanItem> items = purchasePlanItemRepository.findAll(spec);
+        int displayYear = year != null ? year : java.time.Year.now().getValue();
+        int prevYear = displayYear - 1;
+        int[] monthCounts = new int[14];
+
+        for (PurchasePlanItem item : items) {
+            LocalDate requestDate = item.getRequestDate();
+            if (requestDate == null) {
+                monthCounts[13]++;
+                continue;
+            }
+            int y = requestDate.getYear();
+            int m = requestDate.getMonthValue(); // 1..12
+            if (y == prevYear && m == 12) {
+                monthCounts[0]++;
+            } else if (y == displayYear) {
+                monthCounts[m]++; // январь -> 1, декабрь -> 12
+            }
+        }
+
+        List<Integer> result = new ArrayList<>(14);
+        for (int c : monthCounts) {
+            result.add(c);
+        }
         return result;
     }
 

@@ -173,8 +173,9 @@ function PurchasePlanItemsTableContent() {
   }, [table.versions.setIsVersionsListModalOpen, table.versions.loadVersions, table.selectedYear]);
 
   const handleCreateItem = useCallback(() => {
+    table.editing.loadUsersIfNeeded();
     table.modals.setIsCreateModalOpen(true);
-  }, [table.modals]);
+  }, [table.modals, table.editing]);
 
   const handleColumnsSettings = useCallback(() => {
     // Устанавливаем позицию меню перед открытием
@@ -188,13 +189,13 @@ function PurchasePlanItemsTableContent() {
     table.columns.setIsColumnsMenuOpen(true);
   }, [table.columns]);
 
-  // Обработчик клика по строке (открытие модального окна деталей)
+  // Обработчик клика по строке (открытие модального окна комментариев/деталей)
   const handleRowClick = useCallback((item: any) => {
     table.modals.setDetailsModalOpen(item.id);
     table.modalData.fetchModalItemData(item.id);
     table.modals.setActiveTab(prev => ({ ...prev, [item.id]: 'comments' }));
-    // Загружаем комментарии при открытии модального окна
-    table.modalData.fetchComments(item.id, true); // includePrivate = true для внутреннего плана
+    // Загружаем комментарии плана и заявки (если есть связанная заявка)
+    table.modalData.fetchComments(item.id, true, item.purchaseRequestId ?? undefined);
   }, [table.modals, table.modalData]);
 
   // Обработчик изменения вкладки в модальном окне
@@ -203,8 +204,9 @@ function PurchasePlanItemsTableContent() {
     
     if (tab === 'comments') {
       const commentsData = table.modalData.commentsData[itemId];
+      const item = table.allItems.find((i: any) => i.id === itemId);
       if (!commentsData || !commentsData.content || commentsData.content.length === 0) {
-        table.modalData.fetchComments(itemId, true); // includePrivate = true для внутреннего плана
+        table.modalData.fetchComments(itemId, true, item?.purchaseRequestId ?? undefined);
       }
     } else if (tab === 'changes') {
       const changesData = table.modalData.changesData[itemId];
@@ -237,12 +239,13 @@ function PurchasePlanItemsTableContent() {
         });
       }
     }
-  }, [table.modals, table.modalData, table.data]);
+  }, [table.modals, table.modalData, table.data, table.allItems]);
 
   // Обработчик обновления комментариев после добавления нового
   const handleCommentsRefresh = useCallback((itemId: number) => {
-    table.modalData.fetchComments(itemId, true);
-  }, [table.modalData]);
+    const item = table.allItems.find((i: any) => i.id === itemId);
+    table.modalData.fetchComments(itemId, true, item?.purchaseRequestId ?? undefined);
+  }, [table.modalData, table.allItems]);
 
   // Загружаем версии при изменении года — отложенно после первого отображения данных,
   // чтобы не вызывать лишний re-render сразу после открытия страницы

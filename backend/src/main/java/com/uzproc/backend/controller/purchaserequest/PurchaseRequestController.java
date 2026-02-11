@@ -174,6 +174,14 @@ public class PurchaseRequestController {
         return ResponseEntity.notFound().build();
     }
 
+    @GetMapping("/by-id-purchase-request/{idPurchaseRequest}/comments")
+    public ResponseEntity<List<PurchaseRequestCommentDto>> getPurchaseRequestCommentsByIdPurchaseRequest(
+            @PathVariable Long idPurchaseRequest,
+            @RequestParam(required = false) PurchaseRequestCommentType type) {
+        List<PurchaseRequestCommentDto> comments = purchaseRequestCommentService.getCommentsByIdPurchaseRequest(idPurchaseRequest, type);
+        return ResponseEntity.ok(comments);
+    }
+
     /**
      * Получить несколько заявок по списку idPurchaseRequest одним запросом
      * @param idPurchaseRequestList список idPurchaseRequest (через запятую или как массив)
