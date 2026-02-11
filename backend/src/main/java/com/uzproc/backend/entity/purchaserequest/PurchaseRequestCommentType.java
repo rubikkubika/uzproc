@@ -7,6 +7,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
  * Тип комментария заявки на закупку.
  */
 public enum PurchaseRequestCommentType {
+    MAIN("Основной"),
     SLA_COMMENT("Комментарий SLA");
 
     private final String displayName;

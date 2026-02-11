@@ -18,6 +18,9 @@ interface PurchaseRequestsTableBodyProps {
   onRatingClick?: (request: PurchaseRequest) => void;
   onFeedbackClick?: (request: PurchaseRequest) => void;
   onSentInvitationClick?: (request: PurchaseRequest) => void;
+  // Комментарии: количество по id заявки и открытие модалки
+  commentCounts?: Record<number, number>;
+  onCommentsClick?: (request: PurchaseRequest) => void;
 }
 
 /**
@@ -37,6 +40,8 @@ export default function PurchaseRequestsTableBody({
   onRatingClick,
   onFeedbackClick,
   onSentInvitationClick,
+  commentCounts = {},
+  onCommentsClick,
 }: PurchaseRequestsTableBodyProps) {
   const hasData = allItems && allItems.length > 0;
 
@@ -59,6 +64,8 @@ export default function PurchaseRequestsTableBody({
             onRatingClick={onRatingClick}
             onFeedbackClick={onFeedbackClick}
             onSentInvitationClick={onSentInvitationClick}
+            commentCount={commentCounts[request.id] ?? 0}
+            onCommentsClick={onCommentsClick}
           />
         ))
       ) : (

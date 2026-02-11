@@ -124,3 +124,82 @@ export async function fetchMetadata(
 
   return await response.json();
 }
+
+/** Комментарий заявки на закупку */
+export interface PurchaseRequestCommentDto {
+  id: number;
+  purchaseRequestId: number;
+  type: string;
+  text: string;
+  createdByUserName: string | null;
+  createdAt: string;
+}
+
+/**
+ * Загружает комментарии заявки (все типы). Без type — все комментарии.
+ */
+export async function fetchPurchaseRequestComments(
+  purchaseRequestId: number,
+  signal?: AbortSignal
+): Promise<PurchaseRequestCommentDto[]> {
+  const url = `${getBackendUrl()}/api/purchase-requests/${purchaseRequestId}/comments`;
+  const response = await fetch(url, { signal });
+  if (!response.ok) {
+    throw new Error('Ошибка загрузки комментариев');
+  }
+  return response.json();
+}
+
+/**
+ * Создаёт комментарий к заявке. type: "MAIN" | "Комментарий SLA" и т.д.
+ */
+export async function createPurchaseRequestComment(
+  purchaseRequestId: number,
+  type: string,
+  text: string,
+  createdByUserId?: number | null
+): Promise<PurchaseRequestCommentDto> {
+  const url = `${getBackendUrl()}/api/purchase-requests/${purchaseRequestId}/comments`;
+  const body: { type: string; text: string; createdByUserId?: number } = { type, text };
+  if (createdByUserId != null) {
+    body.createdByUserId = createdByUserId;
+  }
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    throw new Error('Ошибка добавления комментария');
+  }
+  return response.json();
+}
+
+/**
+ * Загружает количество комментариев по списку id заявок.
+ * Возвращает объект: { [purchaseRequestId]: count }
+ */
+export async function fetchCommentCounts(
+  purchaseRequestIds: number[],
+  signal?: AbortSignal
+): Promise<Record<number, number>> {
+  if (purchaseRequestIds.length === 0) {
+    return {};
+  }
+  const params = new URLSearchParams();
+  purchaseRequestIds.forEach((id) => params.append('ids', String(id)));
+  const url = `${getBackendUrl()}/api/purchase-requests/comment-counts?${params.toString()}`;
+  const response = await fetch(url, { signal });
+  if (!response.ok) {
+    throw new Error('Ошибка загрузки количества комментариев');
+  }
+  const raw = await response.json();
+  const result: Record<number, number> = {};
+  Object.keys(raw).forEach((key) => {
+    const id = Number(key);
+    if (!Number.isNaN(id)) {
+      result[id] = Number(raw[key]) || 0;
+    }
+  });
+  return result;
+}

@@ -124,6 +124,15 @@ public class PurchaseRequestController {
         return ResponseEntity.ok(counts);
     }
 
+    @GetMapping("/comment-counts")
+    public ResponseEntity<Map<Long, Long>> getCommentCounts(@RequestParam("ids") List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return ResponseEntity.ok(Map.of());
+        }
+        Map<Long, Long> counts = purchaseRequestCommentService.getCommentCountByPurchaseRequestIds(ids);
+        return ResponseEntity.ok(counts);
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<PurchaseRequestDto> getPurchaseRequestById(@PathVariable Long id) {
         PurchaseRequestDto purchaseRequest = purchaseRequestService.findById(id);
@@ -148,7 +157,8 @@ public class PurchaseRequestController {
         if (request == null || request.getType() == null || request.getText() == null || request.getText().trim().isEmpty()) {
             return ResponseEntity.badRequest().build();
         }
-        PurchaseRequestCommentDto created = purchaseRequestCommentService.createComment(id, request.getType(), request.getText());
+        PurchaseRequestCommentDto created = purchaseRequestCommentService.createComment(
+                id, request.getType(), request.getText(), request.getCreatedByUserId());
         if (created == null) {
             return ResponseEntity.notFound().build();
         }

@@ -21,4 +21,7 @@ public interface PurchaseRequestCommentRepository extends JpaRepository<Purchase
 
     @Query("SELECT c.purchaseRequest.id, COUNT(c) FROM PurchaseRequestComment c WHERE c.purchaseRequest.id IN :ids AND c.type = :type GROUP BY c.purchaseRequest.id")
     List<Object[]> countByPurchaseRequestIdInAndType(@Param("ids") List<Long> ids, @Param("type") PurchaseRequestCommentType type);
+
+    @Query("SELECT c.purchaseRequest.id, COUNT(c) FROM PurchaseRequestComment c WHERE c.purchaseRequest.id IN :ids GROUP BY c.purchaseRequest.id")
+    List<Object[]> countByPurchaseRequestIdIn(@Param("ids") List<Long> ids);
 }

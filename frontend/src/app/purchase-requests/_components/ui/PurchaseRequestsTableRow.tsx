@@ -20,6 +20,9 @@ interface PurchaseRequestsTableRowProps {
   onRatingClick?: (request: PurchaseRequest) => void;
   onFeedbackClick?: (request: PurchaseRequest) => void;
   onSentInvitationClick?: (request: PurchaseRequest) => void;
+  // Комментарии: количество и открытие модалки
+  commentCount?: number;
+  onCommentsClick?: (request: PurchaseRequest) => void;
 }
 
 /**
@@ -40,6 +43,8 @@ export default function PurchaseRequestsTableRow({
   onRatingClick,
   onFeedbackClick,
   onSentInvitationClick,
+  commentCount = 0,
+  onCommentsClick,
 }: PurchaseRequestsTableRowProps) {
   const handleToggleExclude = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -226,6 +231,27 @@ export default function PurchaseRequestsTableRow({
               style={{ width: `${getColumnWidth('purchaseRequestCreationDate')}px`, minWidth: `${getColumnWidth('purchaseRequestCreationDate')}px`, maxWidth: `${getColumnWidth('purchaseRequestCreationDate')}px` }}
             >
               {dateToShow ? new Date(dateToShow).toLocaleDateString('ru-RU') : '-'}
+            </td>
+          );
+        }
+
+        if (columnKey === 'comments') {
+          return (
+            <td
+              key={columnKey}
+              className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
+              style={{ width: `${getColumnWidth('comments')}px`, minWidth: `${getColumnWidth('comments')}px`, maxWidth: `${getColumnWidth('comments')}px` }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onCommentsClick?.(request);
+              }}
+            >
+              <span
+                className={onCommentsClick ? 'text-blue-600 hover:underline cursor-pointer' : ''}
+                title="Открыть комментарии"
+              >
+                {commentCount > 0 ? `(${commentCount})` : '-'}
+              </span>
             </td>
           );
         }
@@ -419,27 +445,6 @@ export default function PurchaseRequestsTableRow({
                   -
                 </span>
               )}
-            </td>
-          );
-        }
-        
-        if (columnKey === 'daysSinceCreation') {
-          if (activeTab === 'completed') {
-            return null;
-          }
-          return (
-            <td 
-              key={columnKey} 
-              className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center"
-              style={{ 
-                width: `${getColumnWidth(columnKey)}px`,
-                minWidth: `${getColumnWidth(columnKey)}px`,
-                maxWidth: `${getColumnWidth(columnKey)}px`
-              }}
-            >
-              {request.daysSinceCreation !== null && request.daysSinceCreation !== undefined ? (
-                <span>{request.daysSinceCreation}</span>
-              ) : '-'}
             </td>
           );
         }

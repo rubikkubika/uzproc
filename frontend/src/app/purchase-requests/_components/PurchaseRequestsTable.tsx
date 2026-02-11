@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback, useMemo } from 'react';
+import { useEffect, useCallback, useMemo, useState } from 'react';
 import { getBackendUrl } from '@/utils/api';
 import { Clock, Check, Eye, EyeOff, Settings, Star } from 'lucide-react';
 import PurchaseRequestsSummaryTable from './ui/PurchaseRequestsSummaryTable';
@@ -13,6 +13,8 @@ import PurchaseRequestsTableBody from './ui/PurchaseRequestsTableBody';
 import RatingEmailModal from './ui/modals/RatingEmailModal';
 import FeedbackDetailsModal from './ui/modals/FeedbackDetailsModal';
 import SentInvitationModal from './ui/modals/SentInvitationModal';
+import CommentsModal from './ui/modals/CommentsModal';
+import { fetchCommentCounts } from './services/purchaseRequests.api';
 import type { Contract, PurchaseRequest, PageResponse, SortField, SortDirection, TabType } from './types/purchase-request.types';
 import { ALL_COLUMNS, DEFAULT_VISIBLE_COLUMNS, COLUMNS_VISIBILITY_STORAGE_KEY } from './constants/columns.constants';
 import { ALL_STATUSES, DEFAULT_STATUSES, TAB_STATUSES } from './constants/status.constants';
@@ -131,7 +133,22 @@ export default function PurchaseRequestsTable() {
     selectedRequestForFeedback, setSelectedRequestForFeedback,
     feedbackDetails, setFeedbackDetails,
     loadingFeedbackDetails, setLoadingFeedbackDetails,
+    isCommentsModalOpen, setIsCommentsModalOpen,
+    selectedRequestForComments, setSelectedRequestForComments,
   } = modalsHook;
+
+  // Количество комментариев по id заявки (для колонки «Комментарии»)
+  const [commentCounts, setCommentCounts] = useState<Record<number, number>>({});
+  useEffect(() => {
+    if (!allItems || allItems.length === 0) {
+      setCommentCounts({});
+      return;
+    }
+    const ids = allItems.map((r) => r.id);
+    fetchCommentCounts(ids)
+      .then(setCommentCounts)
+      .catch(() => setCommentCounts({}));
+  }, [allItems]);
 
   // Используем хук для работы с ролью пользователя
   const { userRole: userRoleFromHook, canEditExcludeFromInWork } = useUserRole();
@@ -922,6 +939,11 @@ export default function PurchaseRequestsTable() {
             onRatingClick={handleRatingClick}
             onFeedbackClick={handleFeedbackClick}
             onSentInvitationClick={handleSentInvitationClick}
+            commentCounts={commentCounts}
+            onCommentsClick={(request) => {
+              setSelectedRequestForComments(request);
+              setIsCommentsModalOpen(true);
+            }}
           />
         </table>
 
@@ -979,6 +1001,24 @@ export default function PurchaseRequestsTable() {
         details={sentInvitationDetails}
         onClose={handleSentInvitationModalClose}
         onCopy={handleSentInvitationCopy}
+      />
+
+      {/* Модальное окно комментариев заявки */}
+      <CommentsModal
+        isOpen={isCommentsModalOpen}
+        request={selectedRequestForComments}
+        currentUserId={null}
+        onClose={() => {
+          setIsCommentsModalOpen(false);
+          setSelectedRequestForComments(null);
+        }}
+        onCommentAdded={() => {
+          if (selectedRequestForComments?.id) {
+            fetchCommentCounts([selectedRequestForComments.id]).then((m) =>
+              setCommentCounts((prev) => ({ ...prev, ...m }))
+            );
+          }
+        }}
       />
     </div>
   );

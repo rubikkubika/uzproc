@@ -1,5 +1,6 @@
 package com.uzproc.backend.entity.purchaserequest;
 
+import com.uzproc.backend.entity.user.User;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -27,6 +28,10 @@ public class PurchaseRequestComment {
 
     @Column(name = "text", columnDefinition = "TEXT", nullable = false)
     private String text;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by")
+    private User createdBy;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -69,6 +74,14 @@ public class PurchaseRequestComment {
 
     public void setText(String text) {
         this.text = text;
+    }
+
+    public User getCreatedBy() {
+        return createdBy;
+    }
+
+    public void setCreatedBy(User createdBy) {
+        this.createdBy = createdBy;
     }
 
     public LocalDateTime getCreatedAt() {

@@ -32,7 +32,7 @@ export function useTableColumns() {
   });
 
   // Состояние для порядка колонок
-  const defaultOrder = ['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'hasLinkedPlanItem', 'status', 'daysSinceCreation', 'track', 'rating'];
+  const defaultOrder = ['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'purchaseRequestCreationDate', 'comments', 'budgetAmount', 'requiresPurchase', 'hasLinkedPlanItem', 'status', 'track', 'rating'];
   const [columnOrder, setColumnOrder] = useState<string[]>(defaultOrder);
 
   // Состояние для ширин колонок
@@ -106,19 +106,6 @@ export function useTableColumns() {
             finalOrder.splice(newStatusIndex, 0, 'hasLinkedPlanItem');
           } else {
             finalOrder.push('hasLinkedPlanItem');
-          }
-        }
-
-        const trackIndex = finalOrder.indexOf('track');
-        const daysSinceCreationIndex = finalOrder.indexOf('daysSinceCreation');
-
-        if (trackIndex !== -1 && (daysSinceCreationIndex === -1 || daysSinceCreationIndex >= trackIndex)) {
-          finalOrder = finalOrder.filter(col => col !== 'daysSinceCreation');
-          const newTrackIndex = finalOrder.indexOf('track');
-          if (newTrackIndex !== -1) {
-            finalOrder.splice(newTrackIndex, 0, 'daysSinceCreation');
-          } else {
-            finalOrder.push('daysSinceCreation');
           }
         }
 
@@ -293,10 +280,10 @@ export function useTableColumns() {
       requiresPurchase: 96,
       status: 150,
       purchaseRequestCreationDate: 128,
+      comments: 100,
       costType: 128,
       contractType: 128,
       contractDurationMonths: 128,
-      daysSinceCreation: 140,
       track: 120,
       rating: 96,
       guid: 192,
