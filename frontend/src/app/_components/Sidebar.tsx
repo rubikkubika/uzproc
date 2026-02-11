@@ -39,9 +39,7 @@ const menuItems: Array<{ id: string; label: string; icon: any }> = [];
     { id: 'overview', label: 'Обзор', icon: Home, disabled: false },
     { id: 'purchase-plan', label: 'План закупок', icon: Calendar },
     { id: 'purchase-requests', label: 'Заявки на закупку', icon: Package },
-    { id: 'purchases', label: 'Закупки', icon: Package },
     { id: 'contracts', label: 'Договоры', icon: FileText },
-    { id: 'specifications', label: 'Спецификации', icon: Package },
     { id: 'delivery-plan', label: 'План поставок', icon: Calendar },
   ];
 
@@ -51,6 +49,8 @@ const menuItems: Array<{ id: string; label: string; icon: any }> = [];
   ];
 
   const initiatorDevelopmentItems = [
+    { id: 'specifications', label: 'Спецификации', icon: Package },
+    { id: 'purchases', label: 'Закупки', icon: Package },
     { id: 'test', label: 'Тест', icon: Mail },
     { id: 'users', label: 'Пользователи', icon: Users },
     { id: 'roadmap', label: 'Roadmap', icon: Map },
