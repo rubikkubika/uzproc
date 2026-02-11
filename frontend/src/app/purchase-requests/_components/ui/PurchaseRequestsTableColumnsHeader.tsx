@@ -426,6 +426,31 @@ export default function PurchaseRequestsTableColumnsHeader({
               </th>
             );
           }
+
+          if (columnKey === 'comments') {
+            return (
+              <th
+                key={columnKey}
+                draggable
+                onDragStart={(e) => onDragStart(e, columnKey)}
+                onDragOver={(e) => onDragOver(e, columnKey)}
+                onDragLeave={onDragLeave}
+                onDrop={(e) => onDrop(e, columnKey)}
+                className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                style={{ width: `${getColumnWidth('comments')}px`, minWidth: `${getColumnWidth('comments')}px`, maxWidth: `${getColumnWidth('comments')}px`, verticalAlign: 'top' }}
+              >
+                <div className="flex flex-col gap-1">
+                  <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}></div>
+                  <span className="normal-case min-h-[20px] flex items-center">Комментарии</span>
+                </div>
+                <div
+                  className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+                  onMouseDown={(e) => onResizeStart(e, 'comments')}
+                  style={{ zIndex: 10 }}
+                />
+              </th>
+            );
+          }
           
           if (columnKey === 'requiresPurchase') {
             return (
@@ -827,40 +852,6 @@ export default function PurchaseRequestsTableColumnsHeader({
                 <div
                   className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
                   onMouseDown={(e) => onResizeStart(e, 'budgetAmount')}
-                  style={{ zIndex: 10 }}
-                />
-              </th>
-            );
-          }
-          
-          // Колонка "Срок с даты создания" - только для вкладок кроме "Завершенные"
-          if (columnKey === 'daysSinceCreation') {
-            if (activeTab === 'completed') {
-              return null;
-            }
-            return (
-              <th
-                key={columnKey}
-                draggable
-                onDragStart={(e) => onDragStart(e, columnKey)}
-                onDragOver={(e) => onDragOver(e, columnKey)}
-                onDragLeave={onDragLeave}
-                onDrop={(e) => onDrop(e, columnKey)}
-                className={`px-2 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 cursor-move relative ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
-                style={{ 
-                  verticalAlign: 'top',
-                  width: `${getColumnWidth(columnKey)}px`,
-                  minWidth: `${getColumnWidth(columnKey)}px`,
-                  maxWidth: `${getColumnWidth(columnKey)}px`
-                }}
-              >
-                <div className="flex flex-col gap-1">
-                  <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}></div>
-                  <span className="normal-case min-h-[20px] flex items-center break-words" style={{ wordBreak: 'break-word', lineHeight: '1.2' }}>Срок с даты создания</span>
-                </div>
-                <div
-                  className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
-                  onMouseDown={(e) => onResizeStart(e, columnKey)}
                   style={{ zIndex: 10 }}
                 />
               </th>

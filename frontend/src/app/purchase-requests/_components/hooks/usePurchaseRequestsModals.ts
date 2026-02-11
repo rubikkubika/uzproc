@@ -44,6 +44,10 @@ export function usePurchaseRequestsModals() {
   } | null>(null);
   const [loadingFeedbackDetails, setLoadingFeedbackDetails] = useState(false);
 
+  // Модальное окно комментариев
+  const [isCommentsModalOpen, setIsCommentsModalOpen] = useState(false);
+  const [selectedRequestForComments, setSelectedRequestForComments] = useState<PurchaseRequest | null>(null);
+
   return {
     // Rating Modal
     isRatingModalOpen,
@@ -85,5 +89,11 @@ export function usePurchaseRequestsModals() {
     setFeedbackDetails,
     loadingFeedbackDetails,
     setLoadingFeedbackDetails,
+
+    // Comments Modal
+    isCommentsModalOpen,
+    setIsCommentsModalOpen,
+    selectedRequestForComments,
+    setSelectedRequestForComments,
   };
 }

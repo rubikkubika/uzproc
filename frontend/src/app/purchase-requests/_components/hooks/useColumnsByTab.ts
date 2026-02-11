@@ -22,16 +22,14 @@ export function useColumnsByTab({
     setVisibleColumns(prev => {
       const newSet = new Set(prev);
       if (activeTab === 'completed') {
-        // Для вкладки "Завершенные" добавляем колонку "rating" и убираем "track" и "daysSinceCreation"
+        // Для вкладки "Завершенные" добавляем колонку "rating" и убираем "track"
         newSet.add('rating');
         newSet.delete('track');
-        newSet.delete('daysSinceCreation');
       } else {
         // Для других вкладок (in-work, all, project-rejected, hidden)
-        // Если переходим с вкладки "Завершенные" на другую, восстанавливаем колонки "track" и "daysSinceCreation"
+        // Если переходим с вкладки "Завершенные" на другую, восстанавливаем колонку "track"
         if (prevTab === 'completed') {
           newSet.add('track');
-          newSet.add('daysSinceCreation');
         }
         // rating остается, так как теперь она в DEFAULT_VISIBLE_COLUMNS
       }

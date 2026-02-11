@@ -12,6 +12,7 @@ public class PurchaseRequestCommentDto {
     private Long purchaseRequestId;
     private PurchaseRequestCommentType type;
     private String text;
+    private String createdByUserName;
     private LocalDateTime createdAt;
 
     public Long getId() {
@@ -44,6 +45,14 @@ public class PurchaseRequestCommentDto {
 
     public void setText(String text) {
         this.text = text;
+    }
+
+    public String getCreatedByUserName() {
+        return createdByUserName;
+    }
+
+    public void setCreatedByUserName(String createdByUserName) {
+        this.createdByUserName = createdByUserName;
     }
 
     public LocalDateTime getCreatedAt() {

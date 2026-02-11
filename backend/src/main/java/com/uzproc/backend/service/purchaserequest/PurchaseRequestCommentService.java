@@ -4,8 +4,10 @@ import com.uzproc.backend.dto.purchaserequest.PurchaseRequestCommentDto;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequestComment;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequestCommentType;
+import com.uzproc.backend.entity.user.User;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestCommentRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
+import com.uzproc.backend.repository.user.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,12 +21,15 @@ public class PurchaseRequestCommentService {
 
     private final PurchaseRequestCommentRepository commentRepository;
     private final PurchaseRequestRepository purchaseRequestRepository;
+    private final UserRepository userRepository;
 
     public PurchaseRequestCommentService(
             PurchaseRequestCommentRepository commentRepository,
-            PurchaseRequestRepository purchaseRequestRepository) {
+            PurchaseRequestRepository purchaseRequestRepository,
+            UserRepository userRepository) {
         this.commentRepository = commentRepository;
         this.purchaseRequestRepository = purchaseRequestRepository;
+        this.userRepository = userRepository;
     }
 
     @Transactional(readOnly = true)
@@ -52,8 +57,21 @@ public class PurchaseRequestCommentService {
                         (a, b) -> a));
     }
 
+    @Transactional(readOnly = true)
+    public Map<Long, Long> getCommentCountByPurchaseRequestIds(List<Long> purchaseRequestIds) {
+        if (purchaseRequestIds == null || purchaseRequestIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Object[]> rows = commentRepository.countByPurchaseRequestIdIn(purchaseRequestIds);
+        return rows.stream()
+                .collect(Collectors.toMap(
+                        row -> (Long) row[0],
+                        row -> ((Number) row[1]).longValue(),
+                        (a, b) -> a));
+    }
+
     @Transactional
-    public PurchaseRequestCommentDto createComment(Long purchaseRequestId, PurchaseRequestCommentType type, String text) {
+    public PurchaseRequestCommentDto createComment(Long purchaseRequestId, PurchaseRequestCommentType type, String text, Long createdByUserId) {
         if (purchaseRequestId == null || type == null || text == null || text.trim().isEmpty()) {
             return null;
         }
@@ -65,8 +83,21 @@ public class PurchaseRequestCommentService {
         comment.setPurchaseRequest(request);
         comment.setType(type);
         comment.setText(text.trim());
+        if (createdByUserId != null) {
+            userRepository.findById(createdByUserId).ifPresent(comment::setCreatedBy);
+        }
         comment = commentRepository.save(comment);
         return toDto(comment);
+    }
+
+    private String userDisplayName(User u) {
+        if (u == null) return null;
+        String surname = u.getSurname();
+        String name = u.getName();
+        if (surname != null && !surname.isBlank() || name != null && !name.isBlank()) {
+            return (surname != null ? surname.trim() : "").trim() + " " + (name != null ? name.trim() : "").trim();
+        }
+        return u.getUsername();
     }
 
     private PurchaseRequestCommentDto toDto(PurchaseRequestComment c) {
@@ -75,6 +106,7 @@ public class PurchaseRequestCommentService {
         dto.setPurchaseRequestId(c.getPurchaseRequest() != null ? c.getPurchaseRequest().getId() : null);
         dto.setType(c.getType());
         dto.setText(c.getText());
+        dto.setCreatedByUserName(userDisplayName(c.getCreatedBy()));
         dto.setCreatedAt(c.getCreatedAt());
         return dto;
     }
