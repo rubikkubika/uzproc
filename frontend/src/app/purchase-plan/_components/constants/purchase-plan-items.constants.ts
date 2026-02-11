@@ -46,7 +46,7 @@ export const ALL_COLUMNS = [
   { key: 'purchaseRequestId', label: 'Заявка на закупку' },
   { key: 'purchaseRequestStatus', label: 'Статус заявки' },
   { key: 'comment', label: 'Комментарий' },
-  { key: 'details', label: 'Детали' },
+  { key: 'details', label: 'Комментарии' },
   { key: 'createdAt', label: 'Дата создания' },
   { key: 'updatedAt', label: 'Дата обновления' },
 ] as const;

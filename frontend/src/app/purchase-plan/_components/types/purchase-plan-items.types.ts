@@ -26,6 +26,7 @@ export interface PurchasePlanItem {
   purchaseRequestId: number | null;
   purchaseRequestStatus: string | null; // Статус заявки на закупку
   comment: string | null;
+  commentCount?: number; // количество комментариев (план + заявка при наличии)
   createdAt: string;
   updatedAt: string;
 }
@@ -90,11 +91,15 @@ export interface Version {
 
 export interface PurchasePlanItemComment {
   id: number;
-  purchasePlanItemId: number;
+  purchasePlanItemId?: number;
   text: string;
   isPublic: boolean;
   authorId?: number | null;
   authorName?: string | null;
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
+  /** Источник: план закупок или заявка на закупку */
+  source?: 'plan' | 'request';
+  /** Тип комментария заявки (если source === 'request') */
+  type?: string;
 }

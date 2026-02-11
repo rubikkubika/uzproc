@@ -36,6 +36,7 @@ public class PurchasePlanItemDto {
     private Long purchaseRequestId;
     private String purchaseRequestStatus; // Статус заявки на закупку
     private String comment;
+    private Integer commentCount; // количество комментариев (для колонки «Комментарии»)
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -282,6 +283,14 @@ public class PurchasePlanItemDto {
 
     public void setComment(String comment) {
         this.comment = comment;
+    }
+
+    public Integer getCommentCount() {
+        return commentCount;
+    }
+
+    public void setCommentCount(Integer commentCount) {
+        this.commentCount = commentCount;
     }
 }
 

@@ -209,18 +209,26 @@ export default function PurchasePlanItemsDetailsModal({
                 ) : comments && comments.length > 0 ? (
                   <div className="space-y-3">
                     {comments.map((comment) => (
-                      <div key={comment.id} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex-1">
+                      <div key={String(comment.id)} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <div className="flex items-start justify-between mb-2 gap-2">
+                          <div className="flex-1 min-w-0">
                             <p className="text-sm text-gray-900 whitespace-pre-wrap">{comment.text}</p>
                           </div>
-                          <span className={`ml-2 px-2 py-0.5 text-xs font-medium rounded flex-shrink-0 ${
-                            comment.isPublic 
-                              ? 'text-blue-700 bg-blue-100' 
-                              : 'text-gray-700 bg-gray-200'
-                          }`}>
-                            {comment.isPublic ? 'Публичный' : 'Приватный'}
-                          </span>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            {comment.source === 'request' ? (
+                              <span className="px-2 py-0.5 text-xs font-medium rounded bg-amber-100 text-amber-800">
+                                Заявка
+                              </span>
+                            ) : (
+                              <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                                comment.isPublic 
+                                  ? 'text-blue-700 bg-blue-100' 
+                                  : 'text-gray-700 bg-gray-200'
+                              }`}>
+                                {comment.isPublic ? 'Публичный' : 'Приватный'}
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200">
                           <div className="text-xs text-gray-500">

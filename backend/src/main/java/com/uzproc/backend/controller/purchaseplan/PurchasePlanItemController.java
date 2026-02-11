@@ -135,6 +135,30 @@ public class PurchasePlanItemController {
         return ResponseEntity.ok(summary);
     }
 
+    @GetMapping("/monthly-distribution")
+    public ResponseEntity<List<Integer>> getMonthlyDistribution(
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) List<String> company,
+            @RequestParam(required = false) List<String> purchaserCompany,
+            @RequestParam(required = false) List<String> cfo,
+            @RequestParam(required = false) String purchaseSubject,
+            @RequestParam(required = false) List<String> purchaser,
+            @RequestParam(required = false) List<String> category,
+            @RequestParam(required = false) List<Integer> requestMonth,
+            @RequestParam(required = false) Integer requestYear,
+            @RequestParam(required = false) String currentContractEndDate,
+            @RequestParam(required = false) List<String> status,
+            @RequestParam(required = false) String purchaseRequestId,
+            @RequestParam(required = false) Double budgetAmount,
+            @RequestParam(required = false) String budgetAmountOperator) {
+        List<Integer> monthCounts = purchasePlanItemService.getMonthlyDistribution(
+            year, company, purchaserCompany, cfo, purchaseSubject, purchaser, category,
+            requestMonth, requestYear, currentContractEndDate, status,
+            purchaseRequestId, budgetAmount, budgetAmountOperator
+        );
+        return ResponseEntity.ok(monthCounts);
+    }
+
     @GetMapping("/{id}/changes")
     public ResponseEntity<Page<PurchasePlanItemChangeDto>> getChanges(
             @PathVariable Long id,

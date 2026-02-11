@@ -12,6 +12,9 @@ import java.util.List;
 
 @Repository
 public interface PurchasePlanItemCommentRepository extends JpaRepository<PurchasePlanItemComment, Long> {
+
+    @Query("SELECT c.purchasePlanItemId, COUNT(c) FROM PurchasePlanItemComment c WHERE c.purchasePlanItemId IN :ids GROUP BY c.purchasePlanItemId")
+    List<Object[]> countByPurchasePlanItemIdIn(@Param("ids") List<Long> ids);
     
     List<PurchasePlanItemComment> findByPurchasePlanItemIdOrderByCreatedAtDesc(Long purchasePlanItemId);
     

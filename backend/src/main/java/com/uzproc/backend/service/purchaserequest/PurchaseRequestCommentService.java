@@ -43,6 +43,22 @@ public class PurchaseRequestCommentService {
         return list.stream().map(this::toDto).collect(Collectors.toList());
     }
 
+    /**
+     * Возвращает комментарии заявки по бизнес-идентификатору (id_purchase_request).
+     * Используется из плана закупок, где хранится id_purchase_request, а не JPA id.
+     */
+    @Transactional(readOnly = true)
+    public List<PurchaseRequestCommentDto> getCommentsByIdPurchaseRequest(Long idPurchaseRequest, PurchaseRequestCommentType type) {
+        if (idPurchaseRequest == null) {
+            return Collections.emptyList();
+        }
+        PurchaseRequest request = purchaseRequestRepository.findByIdPurchaseRequest(idPurchaseRequest).orElse(null);
+        if (request == null) {
+            return Collections.emptyList();
+        }
+        return getCommentsByPurchaseRequestIdAndType(request.getId(), type);
+    }
+
     @Transactional(readOnly = true)
     public Map<Long, Long> getSlaCommentCountByPurchaseRequestIds(List<Long> purchaseRequestIds) {
         if (purchaseRequestIds == null || purchaseRequestIds.isEmpty()) {

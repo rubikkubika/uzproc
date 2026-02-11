@@ -26,33 +26,56 @@ export const usePurchasePlanItemsData = () => {
     loading: boolean;
   }>>({});
 
-  const fetchComments = useCallback(async (itemId: number, includePrivate: boolean = true) => {
+  const fetchComments = useCallback(async (itemId: number, includePrivate: boolean = true, purchaseRequestId?: number | null) => {
     setCommentsData(prev => ({
       ...prev,
       [itemId]: { ...prev[itemId], loading: true }
     }));
-    
+
     try {
-      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/comments?includePrivate=${includePrivate}`);
-      if (response.ok) {
-        const data = await response.json();
-        setCommentsData(prev => ({
-          ...prev,
-          [itemId]: {
-            content: data || [],
-            loading: false
-          }
-        }));
-      } else {
-        setCommentsData(prev => ({
-          ...prev,
-          [itemId]: { content: [], loading: false }
+      const planUrl = `${getBackendUrl()}/api/purchase-plan-items/${itemId}/comments?includePrivate=${includePrivate}`;
+      const [planRes, requestRes] = await Promise.all([
+        fetch(planUrl),
+        purchaseRequestId != null
+          ? fetch(`${getBackendUrl()}/api/purchase-requests/by-id-purchase-request/${purchaseRequestId}/comments`)
+          : Promise.resolve(null),
+      ]);
+
+      const planComments: any[] = planRes?.ok ? await planRes.json() : [];
+      const planWithSource = (planComments || []).map((c: any) => ({
+        ...c,
+        source: 'plan' as const,
+      }));
+
+      let requestComments: any[] = [];
+      if (requestRes != null && requestRes.ok) {
+        const requestData = await requestRes.json();
+        requestComments = (requestData || []).map((c: any) => ({
+          id: `pr-${c.id}`,
+          text: c.text,
+          authorName: c.createdByUserName ?? null,
+          createdAt: c.createdAt,
+          isPublic: true,
+          source: 'request' as const,
+          type: c.type,
         }));
       }
+
+      const merged = [...planWithSource, ...requestComments].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+
+      setCommentsData(prev => ({
+        ...prev,
+        [itemId]: {
+          content: merged,
+          loading: false,
+        },
+      }));
     } catch (error) {
       setCommentsData(prev => ({
         ...prev,
-        [itemId]: { content: [], loading: false }
+        [itemId]: { content: [], loading: false },
       }));
     }
   }, []);

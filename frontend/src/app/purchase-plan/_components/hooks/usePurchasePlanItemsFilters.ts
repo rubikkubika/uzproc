@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
-import { FILTERS_STORAGE_KEY, DEFAULT_STATUSES } from '../constants/purchase-plan-items.constants';
+import { FILTERS_STORAGE_KEY, DEFAULT_STATUSES, ALL_STATUSES } from '../constants/purchase-plan-items.constants';
 import { PurchasePlanItem } from '../types/purchase-plan-items.types';
 import { getBackendUrl } from '@/utils/api';
 
@@ -275,13 +275,16 @@ export const usePurchasePlanItemsFilters = (
         ]);
         const cfoNames: string[] = cfoResponse.ok ? await cfoResponse.json() : [];
         const unique = uniqueResponse.ok ? await uniqueResponse.json() : { company: [], purchaserCompany: [], purchaser: [], category: [], status: [] };
+        const apiStatuses = Array.isArray(unique.status) ? unique.status : [];
+        const statusWithExcluded = Array.from(new Set([...apiStatuses, ...ALL_STATUSES]));
+        statusWithExcluded.sort((a, b) => (a || '').localeCompare(b || '', 'ru', { sensitivity: 'base' }));
         const cachedValues = {
           cfo: Array.isArray(cfoNames) ? cfoNames.sort((a, b) => a.localeCompare(b, 'ru', { sensitivity: 'base' })) : [],
           company: Array.isArray(unique.company) ? unique.company : [],
           purchaserCompany: Array.isArray(unique.purchaserCompany) ? unique.purchaserCompany : [],
           purchaser: Array.isArray(unique.purchaser) ? unique.purchaser : [],
           category: Array.isArray(unique.category) ? unique.category : [],
-          status: Array.isArray(unique.status) ? unique.status : [],
+          status: statusWithExcluded,
         };
         uniqueValuesCacheRef.current = cachedValues;
         setUniqueValues(cachedValues);
