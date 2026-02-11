@@ -116,7 +116,7 @@ export function PurchasePlanMonthPositionsChart({
       'Плановые',
       'Внеплановые',
       'Неутверждена',
-      'Исключена',
+      'Отмена',
     ],
     datasets: [
       {

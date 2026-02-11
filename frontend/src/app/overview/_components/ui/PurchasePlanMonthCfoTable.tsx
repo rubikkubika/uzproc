@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { HelpCircle } from 'lucide-react';
 import type { CfoSummaryRow } from '../hooks/usePurchasePlanMonthBlockData';
 
-const QUALITY_TOOLTIP = 'Отношение позиций «Заявки инициированы» к запланированным, в процентах.';
+const QUALITY_TOOLTIP =
+  'Качество планирования: заявки инициированы / (запланированы + внеплановые заявки), в %. Одинаковая формула по каждому ЦФО и в итого.';
 
 interface PurchasePlanMonthCfoTableProps {
   rows: CfoSummaryRow[];
@@ -33,10 +34,11 @@ function formatSumWithUnit(value: number): string {
   return sign + Math.round(abs).toLocaleString('ru-RU');
 }
 
-/** Отношение «Заявки инициированы» к запланированным по ЦФО (в %) */
-function formatQualityPercent(row: { market: number; linked: number }): string {
-  if (row.market === 0) return '—';
-  return ((row.linked / row.market) * 100).toFixed(1) + '%';
+/** По ЦФО: заявки инициированы / (запланированы + внеплановые заявки по ЦФО), в % */
+function formatQualityPercentRow(row: { market: number; linked: number; requestsNonPlanned: number }): string {
+  const denom = row.market + row.requestsNonPlanned;
+  if (denom === 0) return '—';
+  return ((row.linked / denom) * 100).toFixed(1) + '%';
 }
 
 /**
@@ -45,10 +47,12 @@ function formatQualityPercent(row: { market: number; linked: number }): string {
 export function PurchasePlanMonthCfoTable({ rows }: PurchasePlanMonthCfoTableProps) {
   const [showQualityTip, setShowQualityTip] = useState(false);
 
-  // Сортировка по качеству планирования (linked/market) от больших к меньшим
+  // Сортировка по качеству: linked / (market + requestsNonPlanned) от больших к меньшим
   const sortedRows = [...rows].sort((a, b) => {
-    const qA = a.market === 0 ? 0 : a.linked / a.market;
-    const qB = b.market === 0 ? 0 : b.linked / b.market;
+    const denomA = a.market + a.requestsNonPlanned;
+    const denomB = b.market + b.requestsNonPlanned;
+    const qA = denomA === 0 ? 0 : a.linked / denomA;
+    const qB = denomB === 0 ? 0 : b.linked / denomB;
     return qB - qA;
   });
 
@@ -66,6 +70,10 @@ export function PurchasePlanMonthCfoTable({ rows }: PurchasePlanMonthCfoTablePro
       linked: acc.linked + row.linked,
       excluded: acc.excluded + row.excluded,
       requestsPurchase: acc.requestsPurchase + row.requestsPurchase,
+      requestsPlanned: acc.requestsPlanned + row.requestsPlanned,
+      requestsNonPlanned: acc.requestsNonPlanned + row.requestsNonPlanned,
+      requestsUnapproved: acc.requestsUnapproved + row.requestsUnapproved,
+      requestsExcluded: acc.requestsExcluded + row.requestsExcluded,
       sumMarket: acc.sumMarket + row.sumMarket,
       sumRequests: acc.sumRequests + row.sumRequests,
     }),
@@ -74,6 +82,10 @@ export function PurchasePlanMonthCfoTable({ rows }: PurchasePlanMonthCfoTablePro
       linked: 0,
       excluded: 0,
       requestsPurchase: 0,
+      requestsPlanned: 0,
+      requestsNonPlanned: 0,
+      requestsUnapproved: 0,
+      requestsExcluded: 0,
       sumMarket: 0,
       sumRequests: 0,
     }
@@ -97,12 +109,15 @@ export function PurchasePlanMonthCfoTable({ rows }: PurchasePlanMonthCfoTablePro
   const posMidFt = 'border-t border-b-2 border-r border-gray-400 ' + baseFt;
   const posMidFtNowrap = 'border-t border-b-2 border-r border-gray-400 ' + baseFtNowrap;
   const posLastFt = 'border-r-2 border-t border-b-2 border-gray-400 ' + baseFt;
-  // Группа «Заявки»
+  // Группа «Заявки»: Плановые, Внеплановые, Неутверждена, Отмена, Сумма заявок
   const reqFirstTh = 'border-l-2 border-t-2 border-r border-gray-400 rounded-tl-lg ' + baseTh;
+  const reqMidTh = 'border-t-2 border-r border-gray-400 ' + baseTh;
   const reqLastTh = 'border-r-2 border-t-2 border-gray-400 ' + baseTh;
   const reqFirstTd = 'border-l-2 border-t border-b border-r border-gray-400 ' + baseCell;
+  const reqMidTd = 'border-t border-b border-r border-gray-400 ' + baseCell;
   const reqLastTd = 'border-r-2 border-t border-b border-gray-400 ' + baseCellNowrap;
   const reqFirstFt = 'border-l-2 border-t border-b-2 border-r border-gray-400 ' + baseFt;
+  const reqMidFt = 'border-t border-b-2 border-r border-gray-400 ' + baseFt;
   const reqLastFt = 'border-r-2 border-t border-b-2 border-gray-400 ' + baseFtNowrap;
   const tdLabel = 'px-1.5 py-0.5 text-gray-900 font-medium whitespace-nowrap border-r border-gray-200';
   const ftLabel = 'px-1.5 py-0.5 text-gray-900 whitespace-nowrap border-r border-gray-200';
@@ -121,7 +136,10 @@ export function PurchasePlanMonthCfoTable({ rows }: PurchasePlanMonthCfoTablePro
               <th className={posMidTh}>Сумма запл.</th>
               <th className={posMidTh}>Заявки инициированы</th>
               <th className={posLastTh}>Исключена</th>
-              <th className={reqFirstTh}>Заявок (закупка)</th>
+              <th className={reqFirstTh}>Плановые</th>
+              <th className={reqMidTh}>Внеплановые</th>
+              <th className={reqMidTh}>Неутверждена</th>
+              <th className={reqMidTh}>Отмена</th>
               <th className={reqLastTh}>Сумма заявок</th>
               <th className={thQuality}>
                 <span className="inline-flex items-center justify-end gap-0.5">
@@ -155,9 +173,12 @@ export function PurchasePlanMonthCfoTable({ rows }: PurchasePlanMonthCfoTablePro
                 <td className={posMidTdNowrap}>{formatSumWithUnit(row.sumMarket)}</td>
                 <td className={posMidTd}>{row.linked}</td>
                 <td className={posLastTd}>{row.excluded}</td>
-                <td className={reqFirstTd}>{row.requestsPurchase}</td>
+                <td className={reqFirstTd}>{row.requestsPlanned}</td>
+                <td className={reqMidTd}>{row.requestsNonPlanned}</td>
+                <td className={reqMidTd}>{row.requestsUnapproved}</td>
+                <td className={reqMidTd}>{row.requestsExcluded}</td>
                 <td className={reqLastTd}>{formatSumWithUnit(row.sumRequests)}</td>
-                <td className={tdQuality}>{formatQualityPercent(row)}</td>
+                <td className={tdQuality}>{formatQualityPercentRow(row)}</td>
               </tr>
             ))}
           </tbody>
@@ -168,10 +189,13 @@ export function PurchasePlanMonthCfoTable({ rows }: PurchasePlanMonthCfoTablePro
               <td className={posMidFtNowrap}>{formatSumWithUnit(totals.sumMarket)}</td>
               <td className={posMidFt}>{totals.linked}</td>
               <td className={posLastFt}>{totals.excluded}</td>
-              <td className={reqFirstFt}>{totals.requestsPurchase}</td>
+              <td className={reqFirstFt}>{totals.requestsPlanned}</td>
+              <td className={reqMidFt}>{totals.requestsNonPlanned}</td>
+              <td className={reqMidFt}>{totals.requestsUnapproved}</td>
+              <td className={reqMidFt}>{totals.requestsExcluded}</td>
               <td className={reqLastFt}>{formatSumWithUnit(totals.sumRequests)}</td>
               <td className={ftQuality}>
-                {formatQualityPercent(totals)}
+                {formatQualityPercentRow(totals)}
               </td>
             </tr>
           </tfoot>

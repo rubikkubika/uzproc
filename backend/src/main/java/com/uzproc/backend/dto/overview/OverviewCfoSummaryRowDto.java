@@ -11,6 +11,14 @@ public class OverviewCfoSummaryRowDto {
     private int linked;
     private int excluded;
     private int requestsPurchase;
+    /** Заявки (закупка) плановые по ЦФО */
+    private int requestsPlanned;
+    /** Заявки (закупка) внеплановые по ЦФО */
+    private int requestsNonPlanned;
+    /** Заявки (закупка) неутверждённые по ЦФО */
+    private int requestsUnapproved;
+    /** Заявки (закупка) отменённые (исключена из в работе) по ЦФО */
+    private int requestsExcluded;
     private BigDecimal sumMarket;
     private BigDecimal sumRequests;
 
@@ -52,6 +60,38 @@ public class OverviewCfoSummaryRowDto {
 
     public void setRequestsPurchase(int requestsPurchase) {
         this.requestsPurchase = requestsPurchase;
+    }
+
+    public int getRequestsPlanned() {
+        return requestsPlanned;
+    }
+
+    public void setRequestsPlanned(int requestsPlanned) {
+        this.requestsPlanned = requestsPlanned;
+    }
+
+    public int getRequestsNonPlanned() {
+        return requestsNonPlanned;
+    }
+
+    public void setRequestsNonPlanned(int requestsNonPlanned) {
+        this.requestsNonPlanned = requestsNonPlanned;
+    }
+
+    public int getRequestsUnapproved() {
+        return requestsUnapproved;
+    }
+
+    public void setRequestsUnapproved(int requestsUnapproved) {
+        this.requestsUnapproved = requestsUnapproved;
+    }
+
+    public int getRequestsExcluded() {
+        return requestsExcluded;
+    }
+
+    public void setRequestsExcluded(int requestsExcluded) {
+        this.requestsExcluded = requestsExcluded;
     }
 
     public BigDecimal getSumMarket() {

@@ -31,6 +31,14 @@ export interface CfoSummaryRow {
   linked: number;
   excluded: number;
   requestsPurchase: number;
+  /** Заявки (закупка) плановые по ЦФО */
+  requestsPlanned: number;
+  /** Заявки (закупка) внеплановые по ЦФО */
+  requestsNonPlanned: number;
+  /** Заявки (закупка) неутверждённые по ЦФО */
+  requestsUnapproved: number;
+  /** Заявки (закупка) отменённые по ЦФО */
+  requestsExcluded: number;
   /** Сумма бюджета по позициям «Запланированы» (Market) по ЦФО */
   sumMarket: number;
   /** Сумма бюджета заявок (закупка) по ЦФО, созданных в месяце */
@@ -237,6 +245,10 @@ export function usePurchasePlanMonthBlockData(
             linked: linkedItems.length,
             excluded: excludedItems.length,
             requestsPurchase: requestsPurchaseByCfo[cfoKey] ?? 0,
+            requestsPlanned: 0,
+            requestsNonPlanned: 0,
+            requestsUnapproved: 0,
+            requestsExcluded: 0,
             sumMarket: sum(marketItems),
             sumRequests: requestsSumByCfo[cfoKey] ?? 0,
           };
