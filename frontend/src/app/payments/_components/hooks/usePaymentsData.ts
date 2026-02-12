@@ -9,7 +9,8 @@ export const usePaymentsData = () => {
     sortField: SortField = null,
     sortDirection: SortDirection = null,
     filters: Record<string, string> = {},
-    cfoFilter: Set<string> = new Set()
+    cfoFilter: Set<string> = new Set(),
+    linkedOnly: boolean = false
   ): Promise<PageResponse | null> => {
     try {
       const params = new URLSearchParams();
@@ -27,6 +28,10 @@ export const usePaymentsData = () => {
 
       if (cfoFilter.size > 0) {
         cfoFilter.forEach(cfo => params.append('cfo', cfo));
+      }
+
+      if (linkedOnly) {
+        params.append('linkedOnly', 'true');
       }
 
       const url = `${getBackendUrl()}/api/payments?${params.toString()}`;

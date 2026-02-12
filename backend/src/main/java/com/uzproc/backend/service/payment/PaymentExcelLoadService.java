@@ -2,8 +2,10 @@ package com.uzproc.backend.service.payment;
 
 import com.uzproc.backend.entity.Cfo;
 import com.uzproc.backend.entity.payment.Payment;
+import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
 import com.uzproc.backend.repository.CfoRepository;
 import com.uzproc.backend.repository.payment.PaymentRepository;
+import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -20,6 +22,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class PaymentExcelLoadService {
@@ -32,13 +36,19 @@ public class PaymentExcelLoadService {
     private static final String COMMENT_COLUMN_ALT = "Основание";
     private static final String COMMENT_COLUMN_ALT2 = "Комментарий(Основание)";
 
+    /** Паттерн для извлечения номера заявки из комментария: "Создана по документу ... N 1898 - ..." */
+    private static final Pattern REQUEST_NUMBER_IN_COMMENT = Pattern.compile("N\\s+(\\d+)");
+
     private final PaymentRepository paymentRepository;
     private final CfoRepository cfoRepository;
+    private final PurchaseRequestRepository purchaseRequestRepository;
     private final DataFormatter dataFormatter = new DataFormatter();
 
-    public PaymentExcelLoadService(PaymentRepository paymentRepository, CfoRepository cfoRepository) {
+    public PaymentExcelLoadService(PaymentRepository paymentRepository, CfoRepository cfoRepository,
+                                  PurchaseRequestRepository purchaseRequestRepository) {
         this.paymentRepository = paymentRepository;
         this.cfoRepository = cfoRepository;
+        this.purchaseRequestRepository = purchaseRequestRepository;
     }
 
     /**
@@ -154,11 +164,35 @@ public class PaymentExcelLoadService {
             Cell cell = row.getCell(commentColumnIndex);
             String comment = getCellValueAsString(cell);
             if (comment != null && !comment.trim().isEmpty()) {
-                payment.setComment(comment.trim());
+                String trimmed = comment.trim();
+                payment.setComment(trimmed);
+                linkPurchaseRequestFromComment(payment, trimmed);
             }
         }
 
         return payment;
+    }
+
+    /**
+     * Из комментария вида "Создана по документу 1С:Документооборот: Спецификация 4 по M - IT N 1898 - Термопринтеры"
+     * извлекает номер заявки (1898) и связывает оплату с заявкой на закупку по innerId.
+     */
+    private void linkPurchaseRequestFromComment(Payment payment, String comment) {
+        if (comment == null || comment.isEmpty()) return;
+        Matcher matcher = REQUEST_NUMBER_IN_COMMENT.matcher(comment);
+        String lastMatch = null;
+        while (matcher.find()) {
+            lastMatch = matcher.group(1);
+        }
+        if (lastMatch == null || lastMatch.isEmpty()) return;
+        String innerId = lastMatch.trim();
+        Optional<PurchaseRequest> prOpt = purchaseRequestRepository.findByInnerId(innerId);
+        if (prOpt.isPresent()) {
+            payment.setPurchaseRequest(prOpt.get());
+            logger.debug("Linked payment to purchase request innerId={}", innerId);
+        } else {
+            logger.debug("No purchase request found for innerId={} from comment", innerId);
+        }
     }
 
     private Map<String, Integer> buildColumnIndexMap(Row headerRow) {

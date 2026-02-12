@@ -4,6 +4,8 @@ export interface Payment {
   cfo: string | null;
   cfoId: number | null;
   comment: string | null;
+  purchaseRequestId: number | null;
+  purchaseRequestInnerId: string | null;
   createdAt: string;
   updatedAt: string;
 }

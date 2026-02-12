@@ -28,7 +28,7 @@ export const useContractsTable = () => {
 
   useClickOutside({
     isOpen: filtersHook.isCfoFilterOpen,
-    ref: filtersHook.cfoFilterButtonRef,
+    ref: filtersHook.cfoFilterContainerRef,
     onClose: () => filtersHook.setIsCfoFilterOpen(false),
   });
 

@@ -17,6 +17,7 @@ import java.util.UUID;
 @Repository
 public interface PurchaseRequestRepository extends JpaRepository<PurchaseRequest, Long>, JpaSpecificationExecutor<PurchaseRequest> {
     Optional<PurchaseRequest> findByGuid(UUID guid);
+    Optional<PurchaseRequest> findByInnerId(String innerId);
     boolean existsByGuid(UUID guid);
     Optional<PurchaseRequest> findByIdPurchaseRequest(Long idPurchaseRequest);
     boolean existsByIdPurchaseRequest(Long idPurchaseRequest);

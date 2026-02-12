@@ -9,6 +9,8 @@ public class PaymentDto {
     private String cfo;
     private Long cfoId;
     private String comment;
+    private Long purchaseRequestId;
+    private String purchaseRequestInnerId;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -53,6 +55,22 @@ public class PaymentDto {
 
     public void setComment(String comment) {
         this.comment = comment;
+    }
+
+    public Long getPurchaseRequestId() {
+        return purchaseRequestId;
+    }
+
+    public void setPurchaseRequestId(Long purchaseRequestId) {
+        this.purchaseRequestId = purchaseRequestId;
+    }
+
+    public String getPurchaseRequestInnerId() {
+        return purchaseRequestInnerId;
+    }
+
+    public void setPurchaseRequestInnerId(String purchaseRequestInnerId) {
+        this.purchaseRequestInnerId = purchaseRequestInnerId;
     }
 
     public LocalDateTime getCreatedAt() {

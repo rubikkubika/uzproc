@@ -16,6 +16,8 @@ export const usePaymentsFilters = (setCurrentPage: (page: number) => void) => {
   const [cfoSearchQuery, setCfoSearchQuery] = useState('');
   const [cfoFilterPosition, setCfoFilterPosition] = useState<{ top: number; left: number } | null>(null);
   const cfoFilterButtonRef = useRef<HTMLButtonElement>(null);
+  /** Контейнер кнопки и выпадающей панели — для useClickOutside, чтобы клик по панели не закрывал её */
+  const cfoFilterContainerRef = useRef<HTMLDivElement>(null);
   const [cfoOptions, setCfoOptions] = useState<string[]>([]);
 
   const fetchCfoOptions = useCallback(async () => {
@@ -97,6 +99,7 @@ export const usePaymentsFilters = (setCurrentPage: (page: number) => void) => {
     setCfoSearchQuery,
     cfoFilterPosition,
     cfoFilterButtonRef,
+    cfoFilterContainerRef,
     cfoOptions,
     getFilteredCfoOptions,
     handleCfoToggle,
