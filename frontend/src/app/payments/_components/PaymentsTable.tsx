@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowUp, ArrowDown, ArrowUpDown, Search } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpDown, Search, Settings } from 'lucide-react';
 import { usePaymentsTable } from './hooks/usePaymentsTable';
+import { PAYMENT_STATUS_OPTIONS, REQUEST_STATUS_OPTIONS } from './types/payments.types';
 
 export default function PaymentsTable() {
   const {
@@ -29,6 +30,14 @@ export default function PaymentsTable() {
       </div>
     );
   }
+
+  /** Дата из строки yyyy-MM-dd в dd.MM.yyyy */
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '-';
+    const d = new Date(dateStr + 'T00:00:00');
+    if (Number.isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  };
 
   /** Сумма сокращённо: тыс., млн, млрд */
   const formatAmount = (amount: number | null) => {
@@ -60,6 +69,15 @@ export default function PaymentsTable() {
             className="px-3 py-1 text-xs font-medium bg-red-50 text-red-700 rounded-lg border border-red-300 hover:bg-red-100 hover:border-red-400 transition-colors whitespace-nowrap"
           >
             Сбросить фильтры
+          </button>
+          <button
+            type="button"
+            disabled
+            title="Настройка колонок (для этой таблицы пока недоступна)"
+            className="px-2 py-1 text-xs bg-gray-100 text-gray-500 rounded-lg border border-gray-300 cursor-not-allowed flex items-center gap-1 opacity-70"
+          >
+            <Settings className="w-3 h-3" />
+            Колонки
           </button>
         </div>
         <div className="text-xs text-gray-700 flex-shrink-0">
@@ -105,6 +123,64 @@ export default function PaymentsTable() {
                     <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }} />
                     <div className="flex items-center gap-1 min-h-[20px]">
                       <span className="text-xs font-medium text-gray-500 tracking-wider">Номер заявки</span>
+                    </div>
+                  </div>
+                </th>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '12%' }}>
+                  <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                    <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}>
+                      <select
+                        value={filters.paymentStatusFilter}
+                        onChange={(e) => { filters.setPaymentStatusFilter(e.target.value); setCurrentPage(0); }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 w-full"
+                        style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+                      >
+                        <option value="">Все</option>
+                        {PAYMENT_STATUS_OPTIONS.map((opt) => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-1 min-h-[20px]">
+                      <span className="text-xs font-medium text-gray-500 tracking-wider">Статус оплаты</span>
+                    </div>
+                  </div>
+                </th>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '12%' }}>
+                  <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                    <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}>
+                      <select
+                        value={filters.requestStatusFilter}
+                        onChange={(e) => { filters.setRequestStatusFilter(e.target.value); setCurrentPage(0); }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 w-full"
+                        style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+                      >
+                        <option value="">Все</option>
+                        {REQUEST_STATUS_OPTIONS.map((opt) => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-1 min-h-[20px]">
+                      <span className="text-xs font-medium text-gray-500 tracking-wider">Статус заявки</span>
+                    </div>
+                  </div>
+                </th>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '10%' }}>
+                  <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                    <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }} />
+                    <div className="flex items-center gap-1 min-h-[20px]">
+                      <span className="text-xs font-medium text-gray-500 tracking-wider">Дата расхода (план)</span>
+                    </div>
+                  </div>
+                </th>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '10%' }}>
+                  <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                    <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }} />
+                    <div className="flex items-center gap-1 min-h-[20px]">
+                      <span className="text-xs font-medium text-gray-500 tracking-wider">Дата оплаты</span>
                     </div>
                   </div>
                 </th>
@@ -197,6 +273,22 @@ export default function PaymentsTable() {
                     </div>
                   </div>
                 </th>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative whitespace-nowrap" style={{ width: '14%', minWidth: '100px' }}>
+                  <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                    <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }} />
+                    <div className="flex items-center gap-1 min-h-[20px]">
+                      <span className="text-xs font-medium text-gray-500 tracking-wider">Исполнитель</span>
+                    </div>
+                  </div>
+                </th>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative whitespace-nowrap" style={{ width: '14%', minWidth: '100px' }}>
+                  <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                    <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }} />
+                    <div className="flex items-center gap-1 min-h-[20px]">
+                      <span className="text-xs font-medium text-gray-500 tracking-wider">Ответственный</span>
+                    </div>
+                  </div>
+                </th>
                 <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '60%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
@@ -260,11 +352,29 @@ export default function PaymentsTable() {
                       '-'
                     )}
                   </td>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 whitespace-nowrap" title={payment.paymentStatus ?? undefined}>
+                    {payment.paymentStatus ?? '-'}
+                  </td>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 whitespace-nowrap" title={payment.requestStatus ?? undefined}>
+                    {payment.requestStatus ?? '-'}
+                  </td>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 whitespace-nowrap" title={payment.plannedExpenseDate ?? undefined}>
+                    {payment.plannedExpenseDate ? formatDate(payment.plannedExpenseDate) : '-'}
+                  </td>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 whitespace-nowrap" title={payment.paymentDate ?? undefined}>
+                    {payment.paymentDate ? formatDate(payment.paymentDate) : '-'}
+                  </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 whitespace-nowrap" title={payment.amount != null ? new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(payment.amount) : undefined}>
                     {formatAmount(payment.amount)}
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 whitespace-nowrap" title={payment.cfo ?? undefined}>
                     {payment.cfo ?? '-'}
+                  </td>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 whitespace-nowrap" title={payment.executorDisplayName ?? undefined}>
+                    {payment.executorDisplayName ?? '-'}
+                  </td>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 whitespace-nowrap" title={payment.responsibleDisplayName ?? undefined}>
+                    {payment.responsibleDisplayName ?? '-'}
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300" title={payment.comment ?? undefined}>
                     <span className="line-clamp-2">{payment.comment ?? '-'}</span>

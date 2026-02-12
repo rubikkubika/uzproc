@@ -2,11 +2,13 @@ package com.uzproc.backend.entity.payment;
 
 import com.uzproc.backend.entity.Cfo;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
+import com.uzproc.backend.entity.user.User;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -30,6 +32,28 @@ public class Payment {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "purchase_request_id")
     private PurchaseRequest purchaseRequest;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status", length = 50)
+    private PaymentStatus paymentStatus;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "request_status", length = 50)
+    private PaymentRequestStatus requestStatus;
+
+    @Column(name = "planned_expense_date")
+    private LocalDate plannedExpenseDate;
+
+    @Column(name = "payment_date")
+    private LocalDate paymentDate;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "executor_id")
+    private User executor;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "responsible_id")
+    private User responsible;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -96,5 +120,53 @@ public class Payment {
 
     public void setPurchaseRequest(PurchaseRequest purchaseRequest) {
         this.purchaseRequest = purchaseRequest;
+    }
+
+    public PaymentStatus getPaymentStatus() {
+        return paymentStatus;
+    }
+
+    public void setPaymentStatus(PaymentStatus paymentStatus) {
+        this.paymentStatus = paymentStatus;
+    }
+
+    public PaymentRequestStatus getRequestStatus() {
+        return requestStatus;
+    }
+
+    public void setRequestStatus(PaymentRequestStatus requestStatus) {
+        this.requestStatus = requestStatus;
+    }
+
+    public LocalDate getPlannedExpenseDate() {
+        return plannedExpenseDate;
+    }
+
+    public void setPlannedExpenseDate(LocalDate plannedExpenseDate) {
+        this.plannedExpenseDate = plannedExpenseDate;
+    }
+
+    public LocalDate getPaymentDate() {
+        return paymentDate;
+    }
+
+    public void setPaymentDate(LocalDate paymentDate) {
+        this.paymentDate = paymentDate;
+    }
+
+    public User getExecutor() {
+        return executor;
+    }
+
+    public void setExecutor(User executor) {
+        this.executor = executor;
+    }
+
+    public User getResponsible() {
+        return responsible;
+    }
+
+    public void setResponsible(User responsible) {
+        this.responsible = responsible;
     }
 }

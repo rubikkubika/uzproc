@@ -45,6 +45,8 @@ export const usePaymentsTable = () => {
     filtersHook.setFilters({ comment: '' });
     filtersHook.setLocalFilters({ comment: '' });
     filtersHook.setCfoFilter(new Set());
+    filtersHook.setPaymentStatusFilter('');
+    filtersHook.setRequestStatusFilter('');
     setCurrentPage(0);
   }, [filtersHook]);
 
@@ -73,7 +75,9 @@ export const usePaymentsTable = () => {
         sortDir,
         filters,
         cfoFilter,
-        linkedOnlyFlag
+        linkedOnlyFlag,
+        filtersHook.paymentStatusFilter,
+        filtersHook.requestStatusFilter
       );
       const items = result?.content ?? [];
       if (append) {
@@ -113,6 +117,8 @@ export const usePaymentsTable = () => {
     sortDirection,
     filtersStr,
     cfoFilterStr,
+    filtersHook.paymentStatusFilter,
+    filtersHook.requestStatusFilter,
     linkedOnly,
     fetchData,
     pageSize,

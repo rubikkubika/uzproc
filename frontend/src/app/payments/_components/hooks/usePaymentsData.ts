@@ -10,7 +10,9 @@ export const usePaymentsData = () => {
     sortDirection: SortDirection = null,
     filters: Record<string, string> = {},
     cfoFilter: Set<string> = new Set(),
-    linkedOnly: boolean = false
+    linkedOnly: boolean = false,
+    paymentStatus: string = '',
+    requestStatus: string = ''
   ): Promise<PageResponse | null> => {
     try {
       const params = new URLSearchParams();
@@ -28,6 +30,14 @@ export const usePaymentsData = () => {
 
       if (cfoFilter.size > 0) {
         cfoFilter.forEach(cfo => params.append('cfo', cfo));
+      }
+
+      if (paymentStatus && paymentStatus.trim() !== '') {
+        params.append('paymentStatus', paymentStatus.trim());
+      }
+
+      if (requestStatus && requestStatus.trim() !== '') {
+        params.append('requestStatus', requestStatus.trim());
       }
 
       if (linkedOnly) {

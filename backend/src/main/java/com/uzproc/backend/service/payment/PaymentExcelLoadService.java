@@ -2,10 +2,14 @@ package com.uzproc.backend.service.payment;
 
 import com.uzproc.backend.entity.Cfo;
 import com.uzproc.backend.entity.payment.Payment;
+import com.uzproc.backend.entity.payment.PaymentRequestStatus;
+import com.uzproc.backend.entity.payment.PaymentStatus;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
+import com.uzproc.backend.entity.user.User;
 import com.uzproc.backend.repository.CfoRepository;
 import com.uzproc.backend.repository.payment.PaymentRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
+import com.uzproc.backend.repository.user.UserRepository;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -18,6 +22,12 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -35,6 +45,19 @@ public class PaymentExcelLoadService {
     private static final String COMMENT_COLUMN = "Комментарий (Основание)";
     private static final String COMMENT_COLUMN_ALT = "Основание";
     private static final String COMMENT_COLUMN_ALT2 = "Комментарий(Основание)";
+    private static final String PAYMENT_STATUS_COLUMN = "Статус оплаты";
+    private static final String REQUEST_STATUS_COLUMN = "Статус заявки";
+    private static final String PLANNED_EXPENSE_DATE_COLUMN = "Дата расхода (план)";
+    private static final String PAYMENT_DATE_COLUMN = "Дата оплаты";
+    private static final String EXECUTOR_COLUMN = "Исполнитель";
+    private static final String RESPONSIBLE_COLUMN = "Ответственный";
+
+    private static final DateTimeFormatter[] DATE_PARSERS = {
+            DateTimeFormatter.ofPattern("dd.MM.yyyy"),
+            DateTimeFormatter.ofPattern("d.M.yyyy"),
+            DateTimeFormatter.ofPattern("yyyy-MM-dd"),
+            DateTimeFormatter.ISO_LOCAL_DATE
+    };
 
     /** Паттерн для извлечения номера заявки из комментария: "Создана по документу ... N 1898 - ..." или "N1898" */
     private static final Pattern REQUEST_NUMBER_IN_COMMENT = Pattern.compile("N\\s*(\\d+)");
@@ -42,13 +65,16 @@ public class PaymentExcelLoadService {
     private final PaymentRepository paymentRepository;
     private final CfoRepository cfoRepository;
     private final PurchaseRequestRepository purchaseRequestRepository;
+    private final UserRepository userRepository;
     private final DataFormatter dataFormatter = new DataFormatter();
 
     public PaymentExcelLoadService(PaymentRepository paymentRepository, CfoRepository cfoRepository,
-                                  PurchaseRequestRepository purchaseRequestRepository) {
+                                  PurchaseRequestRepository purchaseRequestRepository,
+                                  UserRepository userRepository) {
         this.paymentRepository = paymentRepository;
         this.cfoRepository = cfoRepository;
         this.purchaseRequestRepository = purchaseRequestRepository;
+        this.userRepository = userRepository;
     }
 
     /**
@@ -101,7 +127,13 @@ public class PaymentExcelLoadService {
             if (commentColumnIndex == null) {
                 commentColumnIndex = findColumnIndex(columnIndexMap, COMMENT_COLUMN_ALT2);
             }
-            logger.info("Payments: file {} columns -> Сумма={}, ЦФО={}, Комментарий(Основание)={}", excelFile.getName(), amountColumnIndex, cfoColumnIndex, commentColumnIndex);
+            Integer paymentStatusColumnIndex = findColumnIndex(columnIndexMap, PAYMENT_STATUS_COLUMN);
+            Integer requestStatusColumnIndex = findColumnIndex(columnIndexMap, REQUEST_STATUS_COLUMN);
+            Integer plannedExpenseDateColumnIndex = findColumnIndex(columnIndexMap, PLANNED_EXPENSE_DATE_COLUMN);
+            Integer paymentDateColumnIndex = findColumnIndex(columnIndexMap, PAYMENT_DATE_COLUMN);
+            Integer executorColumnIndex = findColumnIndex(columnIndexMap, EXECUTOR_COLUMN);
+            Integer responsibleColumnIndex = findColumnIndex(columnIndexMap, RESPONSIBLE_COLUMN);
+            logger.info("Payments: file {} columns -> Сумма={}, ЦФО={}, Комментарий={}, Статус оплаты={}, Статус заявки={}, Дата расхода (план)={}, Дата оплаты={}, Исполнитель={}, Ответственный={}", excelFile.getName(), amountColumnIndex, cfoColumnIndex, commentColumnIndex, paymentStatusColumnIndex, requestStatusColumnIndex, plannedExpenseDateColumnIndex, paymentDateColumnIndex, executorColumnIndex, responsibleColumnIndex);
 
             if (amountColumnIndex == null && cfoColumnIndex == null) {
                 logger.warn("Payments: neither 'Сумма' nor 'ЦФО' column found in file {}", excelFile.getName());
@@ -118,7 +150,7 @@ public class PaymentExcelLoadService {
                 Row row = rowIterator.next();
                 if (isRowEmpty(row)) continue;
                 try {
-                    Payment payment = parsePaymentRow(row, amountColumnIndex, cfoColumnIndex, commentColumnIndex);
+                    Payment payment = parsePaymentRow(row, amountColumnIndex, cfoColumnIndex, commentColumnIndex, paymentStatusColumnIndex, requestStatusColumnIndex, plannedExpenseDateColumnIndex, paymentDateColumnIndex, executorColumnIndex, responsibleColumnIndex);
                     if (payment != null && (payment.getAmount() != null || payment.getCfo() != null || (payment.getComment() != null && !payment.getComment().trim().isEmpty()))) {
                         Payment toSave = payment;
                         if (payment.getComment() != null && !payment.getComment().trim().isEmpty()) {
@@ -129,6 +161,12 @@ public class PaymentExcelLoadService {
                                 existing.setCfo(payment.getCfo());
                                 existing.setComment(payment.getComment());
                                 existing.setPurchaseRequest(payment.getPurchaseRequest());
+                                existing.setPaymentStatus(payment.getPaymentStatus());
+                                existing.setRequestStatus(payment.getRequestStatus());
+                                existing.setPlannedExpenseDate(payment.getPlannedExpenseDate());
+                                existing.setPaymentDate(payment.getPaymentDate());
+                                existing.setExecutor(payment.getExecutor());
+                                existing.setResponsible(payment.getResponsible());
                                 toSave = existing;
                             }
                         }
@@ -147,7 +185,10 @@ public class PaymentExcelLoadService {
         }
     }
 
-    private Payment parsePaymentRow(Row row, Integer amountColumnIndex, Integer cfoColumnIndex, Integer commentColumnIndex) {
+    private Payment parsePaymentRow(Row row, Integer amountColumnIndex, Integer cfoColumnIndex, Integer commentColumnIndex,
+                                    Integer paymentStatusColumnIndex, Integer requestStatusColumnIndex,
+                                    Integer plannedExpenseDateColumnIndex, Integer paymentDateColumnIndex,
+                                    Integer executorColumnIndex, Integer responsibleColumnIndex) {
         Payment payment = new Payment();
 
         if (amountColumnIndex != null) {
@@ -182,7 +223,175 @@ public class PaymentExcelLoadService {
             }
         }
 
+        if (paymentStatusColumnIndex != null) {
+            Cell cell = row.getCell(paymentStatusColumnIndex);
+            String value = getCellValueAsString(cell);
+            if (value != null && !value.trim().isEmpty()) {
+                PaymentStatus status = PaymentStatus.fromDisplayName(value.trim());
+                if (status != null) {
+                    payment.setPaymentStatus(status);
+                } else {
+                    logger.debug("Payment row {}: unknown 'Статус оплаты' value '{}', expected: К оплате, Оплата возвращена, Оплачена", row.getRowNum() + 1, value.trim());
+                }
+            }
+        }
+
+        if (requestStatusColumnIndex != null) {
+            Cell cell = row.getCell(requestStatusColumnIndex);
+            String value = getCellValueAsString(cell);
+            if (value != null && !value.trim().isEmpty()) {
+                PaymentRequestStatus status = PaymentRequestStatus.fromDisplayName(value.trim());
+                if (status != null) {
+                    payment.setRequestStatus(status);
+                } else {
+                    logger.debug("Payment row {}: unknown 'Статус заявки' value '{}', expected: На согласовании, Отклонен, Утвержден, Черновик", row.getRowNum() + 1, value.trim());
+                }
+            }
+        }
+
+        if (plannedExpenseDateColumnIndex != null) {
+            Cell cell = row.getCell(plannedExpenseDateColumnIndex);
+            LocalDate date = parseDateCell(cell);
+            if (date != null) {
+                payment.setPlannedExpenseDate(date);
+            }
+        }
+
+        if (paymentDateColumnIndex != null) {
+            Cell cell = row.getCell(paymentDateColumnIndex);
+            LocalDate date = parseDateCell(cell);
+            if (date != null) {
+                payment.setPaymentDate(date);
+            }
+        }
+
+        if (executorColumnIndex != null) {
+            Cell cell = row.getCell(executorColumnIndex);
+            String value = getCellValueAsString(cell);
+            if (value != null && !value.trim().isEmpty()) {
+                User executor = findOrCreateUser(value.trim());
+                if (executor != null) {
+                    payment.setExecutor(executor);
+                }
+            }
+        }
+
+        if (responsibleColumnIndex != null) {
+            Cell cell = row.getCell(responsibleColumnIndex);
+            String value = getCellValueAsString(cell);
+            if (value != null && !value.trim().isEmpty()) {
+                User responsible = findOrCreateUser(value.trim());
+                if (responsible != null) {
+                    payment.setResponsible(responsible);
+                }
+            }
+        }
+
         return payment;
+    }
+
+    /**
+     * Парсит строку формата "Фамилия Имя (Отдел, Должность)" или "Фамилия Имя",
+     * находит пользователя по surname и name или создаёт нового (как в EntityExcelLoadService.parseAndSaveUser).
+     *
+     * @return User найденный или созданный пользователь, или null при ошибке парсинга
+     */
+    private User findOrCreateUser(String executorValue) {
+        try {
+            String surname = null;
+            String name = null;
+            String department = null;
+            String position = null;
+
+            int openBracketIndex = executorValue.indexOf('(');
+            int closeBracketIndex = executorValue.indexOf(')');
+
+            if (openBracketIndex > 0 && closeBracketIndex > openBracketIndex) {
+                String namePart = executorValue.substring(0, openBracketIndex).trim();
+                String departmentPart = executorValue.substring(openBracketIndex + 1, closeBracketIndex).trim();
+                String[] nameParts = namePart.split("\\s+", 2);
+                if (nameParts.length >= 1) surname = nameParts[0].trim();
+                if (nameParts.length >= 2) name = nameParts[1].trim();
+                String[] deptParts = departmentPart.split(",", 2);
+                if (deptParts.length >= 1) department = deptParts[0].trim();
+                if (deptParts.length >= 2) position = deptParts[1].trim();
+            } else {
+                String[] nameParts = executorValue.split("\\s+", 2);
+                if (nameParts.length >= 1) surname = nameParts[0].trim();
+                if (nameParts.length >= 2) name = nameParts[1].trim();
+            }
+
+            String username = (surname != null ? surname : "") + (name != null ? "_" + name : "");
+            if (username.isEmpty() || username.equals("_")) {
+                username = "user_" + System.currentTimeMillis();
+            }
+
+            User existingUser = null;
+            if (surname != null && name != null) {
+                existingUser = userRepository.findBySurnameAndName(surname, name).orElse(null);
+                if (existingUser == null) {
+                    existingUser = userRepository.findByUsername(username).orElse(null);
+                }
+            }
+
+            if (existingUser != null) {
+                boolean updated = false;
+                if (department != null && !department.equals(existingUser.getDepartment())) {
+                    existingUser.setDepartment(department);
+                    updated = true;
+                }
+                if (position != null && !position.equals(existingUser.getPosition())) {
+                    existingUser.setPosition(position);
+                    updated = true;
+                }
+                if (updated) {
+                    userRepository.save(existingUser);
+                }
+                return existingUser;
+            }
+
+            User newUser = new User();
+            newUser.setUsername(username);
+            newUser.setPassword("");
+            newUser.setSurname(surname);
+            newUser.setName(name);
+            newUser.setDepartment(department);
+            newUser.setPosition(position);
+            newUser = userRepository.save(newUser);
+            logger.debug("Created user for executor: {} {}", surname, name);
+            return newUser;
+        } catch (Exception e) {
+            logger.warn("Error parsing executor '{}': {}", executorValue, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Парсит ячейку как дату: Excel DATE или строка в формате dd.MM.yyyy / yyyy-MM-dd.
+     */
+    private LocalDate parseDateCell(Cell cell) {
+        if (cell == null) return null;
+        try {
+            if (cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
+                Date d = cell.getDateCellValue();
+                if (d == null) return null;
+                return Instant.ofEpochMilli(d.getTime()).atZone(ZoneId.systemDefault()).toLocalDate();
+            }
+            String raw = getCellValueAsString(cell);
+            if (raw == null || raw.trim().isEmpty() || "-".equals(raw.trim()) || "—".equals(raw.trim())) {
+                return null;
+            }
+            String trimmed = raw.trim();
+            for (DateTimeFormatter formatter : DATE_PARSERS) {
+                try {
+                    return LocalDate.parse(trimmed, formatter);
+                } catch (DateTimeParseException ignored) {
+                }
+            }
+        } catch (Exception e) {
+            logger.debug("Cannot parse date from cell: {}", getCellValueAsString(cell));
+        }
+        return null;
     }
 
     /**

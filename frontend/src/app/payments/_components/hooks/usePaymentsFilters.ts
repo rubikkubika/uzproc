@@ -12,6 +12,8 @@ export const usePaymentsFilters = (setCurrentPage: (page: number) => void) => {
   });
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('');
+  const [requestStatusFilter, setRequestStatusFilter] = useState<string>('');
   const [isCfoFilterOpen, setIsCfoFilterOpen] = useState(false);
   const [cfoSearchQuery, setCfoSearchQuery] = useState('');
   const [cfoFilterPosition, setCfoFilterPosition] = useState<{ top: number; left: number } | null>(null);
@@ -93,6 +95,10 @@ export const usePaymentsFilters = (setCurrentPage: (page: number) => void) => {
     setFocusedField,
     cfoFilter,
     setCfoFilter,
+    paymentStatusFilter,
+    setPaymentStatusFilter,
+    requestStatusFilter,
+    setRequestStatusFilter,
     isCfoFilterOpen,
     setIsCfoFilterOpen,
     cfoSearchQuery,
