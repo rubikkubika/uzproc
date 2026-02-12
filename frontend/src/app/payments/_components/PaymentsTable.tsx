@@ -249,12 +249,12 @@ export default function PaymentsTable() {
               {allItems.map((payment) => (
                 <tr key={payment.id} className="hover:bg-gray-50">
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 whitespace-nowrap">
-                    {payment.purchaseRequestId != null && payment.purchaseRequestInnerId != null ? (
+                    {payment.purchaseRequestId != null ? (
                       <Link
                         href={`/purchase-request/${payment.purchaseRequestId}`}
                         className="text-blue-600 hover:underline"
                       >
-                        {payment.purchaseRequestInnerId}
+                        {payment.purchaseRequestNumber != null ? String(payment.purchaseRequestNumber) : '-'}
                       </Link>
                     ) : (
                       '-'

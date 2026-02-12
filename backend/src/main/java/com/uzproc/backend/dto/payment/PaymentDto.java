@@ -10,7 +10,8 @@ public class PaymentDto {
     private Long cfoId;
     private String comment;
     private Long purchaseRequestId;
-    private String purchaseRequestInnerId;
+    /** Основной номер заявки (id_purchase_request) */
+    private Long purchaseRequestNumber;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -65,12 +66,12 @@ public class PaymentDto {
         this.purchaseRequestId = purchaseRequestId;
     }
 
-    public String getPurchaseRequestInnerId() {
-        return purchaseRequestInnerId;
+    public Long getPurchaseRequestNumber() {
+        return purchaseRequestNumber;
     }
 
-    public void setPurchaseRequestInnerId(String purchaseRequestInnerId) {
-        this.purchaseRequestInnerId = purchaseRequestInnerId;
+    public void setPurchaseRequestNumber(Long purchaseRequestNumber) {
+        this.purchaseRequestNumber = purchaseRequestNumber;
     }
 
     public LocalDateTime getCreatedAt() {

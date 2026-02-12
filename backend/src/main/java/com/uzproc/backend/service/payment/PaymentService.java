@@ -104,7 +104,7 @@ public class PaymentService {
         dto.setComment(entity.getComment());
         if (entity.getPurchaseRequest() != null) {
             dto.setPurchaseRequestId(entity.getPurchaseRequest().getId());
-            dto.setPurchaseRequestInnerId(entity.getPurchaseRequest().getInnerId());
+            dto.setPurchaseRequestNumber(entity.getPurchaseRequest().getIdPurchaseRequest());
         }
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());

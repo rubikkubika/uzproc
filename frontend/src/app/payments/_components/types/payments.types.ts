@@ -5,7 +5,8 @@ export interface Payment {
   cfoId: number | null;
   comment: string | null;
   purchaseRequestId: number | null;
-  purchaseRequestInnerId: string | null;
+  /** Номер заявки (id_purchase_request), не внутренний номер */
+  purchaseRequestNumber: number | null;
   createdAt: string;
   updatedAt: string;
 }
