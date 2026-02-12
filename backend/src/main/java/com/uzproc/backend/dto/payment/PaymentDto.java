@@ -6,6 +6,8 @@ import java.time.LocalDateTime;
 
 public class PaymentDto {
     private Long id;
+    /** Основной номер оплаты (колонка "Номер" в Excel) */
+    private String mainId;
     private BigDecimal amount;
     private String cfo;
     private Long cfoId;
@@ -35,6 +37,14 @@ public class PaymentDto {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getMainId() {
+        return mainId;
+    }
+
+    public void setMainId(String mainId) {
+        this.mainId = mainId;
     }
 
     public BigDecimal getAmount() {

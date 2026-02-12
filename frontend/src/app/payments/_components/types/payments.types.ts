@@ -1,5 +1,7 @@
 export interface Payment {
   id: number;
+  /** Основной номер оплаты (колонка "Номер" в Excel) */
+  mainId: string | null;
   amount: number | null;
   cfo: string | null;
   cfoId: number | null;

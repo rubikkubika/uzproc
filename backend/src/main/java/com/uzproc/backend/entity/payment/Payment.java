@@ -19,6 +19,10 @@ public class Payment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** Основной номер оплаты (колонка "Номер" в Excel), уникальный для дедупликации при загрузке */
+    @Column(name = "main_id", length = 255, unique = true)
+    private String mainId;
+
     @Column(name = "amount", precision = 15, scale = 2)
     private BigDecimal amount;
 
@@ -72,6 +76,14 @@ public class Payment {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getMainId() {
+        return mainId;
+    }
+
+    public void setMainId(String mainId) {
+        this.mainId = mainId;
     }
 
     public BigDecimal getAmount() {

@@ -29,9 +29,11 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -40,6 +42,7 @@ public class PaymentExcelLoadService {
 
     private static final Logger logger = LoggerFactory.getLogger(PaymentExcelLoadService.class);
 
+    private static final String NUMBER_COLUMN = "Номер";
     private static final String AMOUNT_COLUMN = "Сумма";
     private static final String CFO_COLUMN = "ЦФО";
     private static final String COMMENT_COLUMN = "Комментарий (Основание)";
@@ -118,6 +121,7 @@ public class PaymentExcelLoadService {
                 return 0;
             }
 
+            Integer numberColumnIndex = findColumnIndex(columnIndexMap, NUMBER_COLUMN);
             Integer amountColumnIndex = findColumnIndex(columnIndexMap, AMOUNT_COLUMN);
             Integer cfoColumnIndex = findColumnIndex(columnIndexMap, CFO_COLUMN);
             Integer commentColumnIndex = findColumnIndex(columnIndexMap, COMMENT_COLUMN);
@@ -133,7 +137,10 @@ public class PaymentExcelLoadService {
             Integer paymentDateColumnIndex = findColumnIndex(columnIndexMap, PAYMENT_DATE_COLUMN);
             Integer executorColumnIndex = findColumnIndex(columnIndexMap, EXECUTOR_COLUMN);
             Integer responsibleColumnIndex = findColumnIndex(columnIndexMap, RESPONSIBLE_COLUMN);
-            logger.info("Payments: file {} columns -> Сумма={}, ЦФО={}, Комментарий={}, Статус оплаты={}, Статус заявки={}, Дата расхода (план)={}, Дата оплаты={}, Исполнитель={}, Ответственный={}", excelFile.getName(), amountColumnIndex, cfoColumnIndex, commentColumnIndex, paymentStatusColumnIndex, requestStatusColumnIndex, plannedExpenseDateColumnIndex, paymentDateColumnIndex, executorColumnIndex, responsibleColumnIndex);
+            if (numberColumnIndex == null) {
+                logger.warn("Payments: column 'Номер' not found in file {}; headers checked: {}", excelFile.getName(), columnIndexMap.keySet());
+            }
+            logger.info("Payments: file {} columns -> Номер={}, Сумма={}, ЦФО={}, Комментарий={}, Статус оплаты={}, Статус заявки={}, Дата расхода (план)={}, Дата оплаты={}, Исполнитель={}, Ответственный={}", excelFile.getName(), numberColumnIndex, amountColumnIndex, cfoColumnIndex, commentColumnIndex, paymentStatusColumnIndex, requestStatusColumnIndex, plannedExpenseDateColumnIndex, paymentDateColumnIndex, executorColumnIndex, responsibleColumnIndex);
 
             if (amountColumnIndex == null && cfoColumnIndex == null) {
                 logger.warn("Payments: neither 'Сумма' nor 'ЦФО' column found in file {}", excelFile.getName());
@@ -146,31 +153,42 @@ public class PaymentExcelLoadService {
             }
 
             int loadedCount = 0;
+            int skippedNoMainId = 0;
+            int skippedDuplicateMainId = 0;
+            Set<String> mainIdsSeenInFile = new HashSet<>();
             while (rowIterator.hasNext()) {
                 Row row = rowIterator.next();
                 if (isRowEmpty(row)) continue;
                 try {
-                    Payment payment = parsePaymentRow(row, amountColumnIndex, cfoColumnIndex, commentColumnIndex, paymentStatusColumnIndex, requestStatusColumnIndex, plannedExpenseDateColumnIndex, paymentDateColumnIndex, executorColumnIndex, responsibleColumnIndex);
-                    if (payment != null && (payment.getAmount() != null || payment.getCfo() != null || (payment.getComment() != null && !payment.getComment().trim().isEmpty()))) {
-                        Payment toSave = payment;
-                        if (payment.getComment() != null && !payment.getComment().trim().isEmpty()) {
-                            Optional<Payment> existingOpt = paymentRepository.findFirstByComment(payment.getComment().trim());
-                            if (existingOpt.isPresent()) {
-                                Payment existing = existingOpt.get();
-                                existing.setAmount(payment.getAmount());
-                                existing.setCfo(payment.getCfo());
-                                existing.setComment(payment.getComment());
-                                existing.setPurchaseRequest(payment.getPurchaseRequest());
-                                existing.setPaymentStatus(payment.getPaymentStatus());
-                                existing.setRequestStatus(payment.getRequestStatus());
-                                existing.setPlannedExpenseDate(payment.getPlannedExpenseDate());
-                                existing.setPaymentDate(payment.getPaymentDate());
-                                existing.setExecutor(payment.getExecutor());
-                                existing.setResponsible(payment.getResponsible());
-                                toSave = existing;
-                            }
+                    Payment payment = parsePaymentRow(row, numberColumnIndex, amountColumnIndex, cfoColumnIndex, commentColumnIndex, paymentStatusColumnIndex, requestStatusColumnIndex, plannedExpenseDateColumnIndex, paymentDateColumnIndex, executorColumnIndex, responsibleColumnIndex);
+                    // Загружаем только строки с основным номером (Номер); строки без номера — мусор, пропускаем
+                    if (payment == null || payment.getMainId() == null || payment.getMainId().trim().isEmpty()) {
+                        skippedNoMainId++;
+                        if (payment != null && (payment.getAmount() != null || payment.getCfo() != null || (payment.getComment() != null && !payment.getComment().trim().isEmpty()))) {
+                            logger.debug("Payments: skipping row {} (no mainId): amount={}, cfo={}", row.getRowNum() + 1, payment.getAmount(), payment.getCfo() != null ? payment.getCfo().getName() : null);
                         }
-                        paymentRepository.save(toSave);
+                        continue;
+                    }
+                    String mainIdTrimmed = payment.getMainId().trim();
+                    // Повторений mainId в файле быть не должно — при повторном номере пропускаем строку
+                    if (mainIdsSeenInFile.contains(mainIdTrimmed)) {
+                        skippedDuplicateMainId++;
+                        logger.warn("Payments: duplicate mainId in file at row {} (mainId={}), skipping", row.getRowNum() + 1, mainIdTrimmed);
+                        continue;
+                    }
+                    mainIdsSeenInFile.add(mainIdTrimmed);
+                    // Сопоставление только по mainId (номер оплаты). Не ищем по комментарию:
+                    // к одной заявке может быть несколько оплат с одинаковым текстом в комментарии.
+                    Optional<Payment> existingOpt = paymentRepository.findFirstByMainId(mainIdTrimmed);
+                    if (existingOpt.isPresent()) {
+                        Payment existing = existingOpt.get();
+                        boolean updated = updatePaymentFields(existing, payment);
+                        if (updated) {
+                            paymentRepository.save(existing);
+                            loadedCount++;
+                        }
+                    } else {
+                        paymentRepository.save(payment);
                         loadedCount++;
                     }
                 } catch (Exception e) {
@@ -178,18 +196,32 @@ public class PaymentExcelLoadService {
                 }
             }
 
-            logger.info("Loaded {} payments from file {}", loadedCount, excelFile.getName());
+            logger.info("Loaded {} payments from file {} (skipped without mainId: {}, skipped duplicate mainId in file: {})",
+                    loadedCount, excelFile.getName(), skippedNoMainId, skippedDuplicateMainId);
             return loadedCount;
         } finally {
             workbook.close();
         }
     }
 
-    private Payment parsePaymentRow(Row row, Integer amountColumnIndex, Integer cfoColumnIndex, Integer commentColumnIndex,
+    private Payment parsePaymentRow(Row row, Integer numberColumnIndex, Integer amountColumnIndex, Integer cfoColumnIndex, Integer commentColumnIndex,
                                     Integer paymentStatusColumnIndex, Integer requestStatusColumnIndex,
                                     Integer plannedExpenseDateColumnIndex, Integer paymentDateColumnIndex,
                                     Integer executorColumnIndex, Integer responsibleColumnIndex) {
         Payment payment = new Payment();
+
+        if (numberColumnIndex != null) {
+            Cell cell = row.getCell(numberColumnIndex);
+            String value = getCellValueAsString(cell);
+            if (value != null && !value.trim().isEmpty()) {
+                String trimmed = value.trim();
+                // Если в ячейке число с дробной частью (например 12345.0 из Excel), оставляем целую часть для mainId
+                if (trimmed.contains(".") && trimmed.matches("\\d+\\.0+")) {
+                    trimmed = trimmed.replaceAll("\\.0+$", "");
+                }
+                payment.setMainId(trimmed);
+            }
+        }
 
         if (amountColumnIndex != null) {
             Cell cell = row.getCell(amountColumnIndex);
@@ -288,6 +320,105 @@ public class PaymentExcelLoadService {
         }
 
         return payment;
+    }
+
+    /**
+     * Обновляет поля существующей оплаты только если они отличаются (как у заявок/закупок).
+     */
+    private boolean updatePaymentFields(Payment existing, Payment newData) {
+        boolean updated = false;
+
+        if (newData.getMainId() != null && !newData.getMainId().trim().isEmpty()) {
+            if (existing.getMainId() == null || !existing.getMainId().equals(newData.getMainId().trim())) {
+                existing.setMainId(newData.getMainId().trim());
+                updated = true;
+                logger.debug("Updated mainId for payment {}: {}", existing.getId(), newData.getMainId());
+            }
+        }
+
+        if (newData.getAmount() != null) {
+            if (existing.getAmount() == null || existing.getAmount().compareTo(newData.getAmount()) != 0) {
+                existing.setAmount(newData.getAmount());
+                updated = true;
+                logger.debug("Updated amount for payment {}: {}", existing.getId(), newData.getAmount());
+            }
+        }
+
+        if (newData.getCfo() != null) {
+            if (existing.getCfo() == null || !newData.getCfo().getId().equals(existing.getCfo().getId())) {
+                existing.setCfo(newData.getCfo());
+                updated = true;
+                logger.debug("Updated cfo for payment {}: {}", existing.getId(), newData.getCfo().getName());
+            }
+        }
+
+        if (newData.getComment() != null) {
+            String newComment = newData.getComment().trim();
+            if (!newComment.isEmpty() && (existing.getComment() == null || !existing.getComment().equals(newComment))) {
+                existing.setComment(newData.getComment());
+                updated = true;
+                logger.debug("Updated comment for payment {}", existing.getId());
+            }
+        }
+
+        if (newData.getPurchaseRequest() != null) {
+            Long newPrId = newData.getPurchaseRequest().getIdPurchaseRequest();
+            if (existing.getPurchaseRequest() == null || !existing.getPurchaseRequest().getIdPurchaseRequest().equals(newPrId)) {
+                existing.setPurchaseRequest(newData.getPurchaseRequest());
+                updated = true;
+                logger.debug("Updated purchaseRequest for payment {}: {}", existing.getId(), newPrId);
+            }
+        }
+
+        if (newData.getPaymentStatus() != null) {
+            if (existing.getPaymentStatus() != newData.getPaymentStatus()) {
+                existing.setPaymentStatus(newData.getPaymentStatus());
+                updated = true;
+                logger.debug("Updated paymentStatus for payment {}: {}", existing.getId(), newData.getPaymentStatus());
+            }
+        }
+
+        if (newData.getRequestStatus() != null) {
+            if (existing.getRequestStatus() != newData.getRequestStatus()) {
+                existing.setRequestStatus(newData.getRequestStatus());
+                updated = true;
+                logger.debug("Updated requestStatus for payment {}: {}", existing.getId(), newData.getRequestStatus());
+            }
+        }
+
+        if (newData.getPlannedExpenseDate() != null) {
+            if (existing.getPlannedExpenseDate() == null || !existing.getPlannedExpenseDate().equals(newData.getPlannedExpenseDate())) {
+                existing.setPlannedExpenseDate(newData.getPlannedExpenseDate());
+                updated = true;
+                logger.debug("Updated plannedExpenseDate for payment {}: {}", existing.getId(), newData.getPlannedExpenseDate());
+            }
+        }
+
+        if (newData.getPaymentDate() != null) {
+            if (existing.getPaymentDate() == null || !existing.getPaymentDate().equals(newData.getPaymentDate())) {
+                existing.setPaymentDate(newData.getPaymentDate());
+                updated = true;
+                logger.debug("Updated paymentDate for payment {}: {}", existing.getId(), newData.getPaymentDate());
+            }
+        }
+
+        if (newData.getExecutor() != null) {
+            if (existing.getExecutor() == null || !newData.getExecutor().getId().equals(existing.getExecutor().getId())) {
+                existing.setExecutor(newData.getExecutor());
+                updated = true;
+                logger.debug("Updated executor for payment {}: {}", existing.getId(), newData.getExecutor().getId());
+            }
+        }
+
+        if (newData.getResponsible() != null) {
+            if (existing.getResponsible() == null || !newData.getResponsible().getId().equals(existing.getResponsible().getId())) {
+                existing.setResponsible(newData.getResponsible());
+                updated = true;
+                logger.debug("Updated responsible for payment {}: {}", existing.getId(), newData.getResponsible().getId());
+            }
+        }
+
+        return updated;
     }
 
     /**

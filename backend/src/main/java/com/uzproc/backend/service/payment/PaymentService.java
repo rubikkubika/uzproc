@@ -116,7 +116,7 @@ public class PaymentService {
 
     private Sort buildSort(String sortBy, String sortDir) {
         if (sortBy == null || sortBy.trim().isEmpty()) {
-            sortBy = "id";
+            sortBy = "plannedExpenseDate";
         }
         if (sortDir == null || !sortDir.equalsIgnoreCase("asc")) {
             sortDir = "desc";
@@ -128,6 +128,7 @@ public class PaymentService {
     private PaymentDto toDto(Payment entity) {
         PaymentDto dto = new PaymentDto();
         dto.setId(entity.getId());
+        dto.setMainId(entity.getMainId());
         dto.setAmount(entity.getAmount());
         dto.setCfo(entity.getCfo() != null ? entity.getCfo().getName() : null);
         dto.setCfoId(entity.getCfo() != null ? entity.getCfo().getId() : null);

@@ -13,4 +13,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long>, JpaSpec
 
     /** Поиск существующей оплаты по комментарию для обновления при повторной загрузке Excel */
     Optional<Payment> findFirstByComment(String comment);
+
+    /** Поиск существующей оплаты по основному номеру (main_id) для дедупликации при загрузке Excel */
+    Optional<Payment> findFirstByMainId(String mainId);
 }
