@@ -18,13 +18,16 @@ export const usePaymentsTable = () => {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [hasMore, setHasMore] = useState(true);
   const loadMoreRef = useRef<HTMLDivElement>(null);
+  /** Вкладка: 'all' — все оплаты, 'by-request' — только оплаты по заявкам (по умолчанию) */
+  const [paymentsTab, setPaymentsTab] = useState<'all' | 'by-request'>('by-request');
 
   const filtersHook = usePaymentsFilters(setCurrentPage);
+  const linkedOnly = paymentsTab === 'by-request';
   const dataHook = usePaymentsData();
 
   useClickOutside({
     isOpen: filtersHook.isCfoFilterOpen,
-    ref: filtersHook.cfoFilterButtonRef,
+    ref: filtersHook.cfoFilterContainerRef,
     onClose: () => filtersHook.setIsCfoFilterOpen(false),
   });
 
@@ -52,6 +55,7 @@ export const usePaymentsTable = () => {
     sortDir: SortDirection,
     filters: Record<string, string>,
     cfoFilter: Set<string>,
+    linkedOnlyFlag: boolean,
     append: boolean
   ) => {
     if (append) {
@@ -68,7 +72,8 @@ export const usePaymentsTable = () => {
         sortF,
         sortDir,
         filters,
-        cfoFilter
+        cfoFilter,
+        linkedOnlyFlag
       );
       const items = result?.content ?? [];
       if (append) {
@@ -100,6 +105,7 @@ export const usePaymentsTable = () => {
       sortDirection,
       filtersHook.filters,
       filtersHook.cfoFilter,
+      linkedOnly,
       false
     );
   }, [
@@ -107,6 +113,7 @@ export const usePaymentsTable = () => {
     sortDirection,
     filtersStr,
     cfoFilterStr,
+    linkedOnly,
     fetchData,
     pageSize,
   ]);
@@ -123,10 +130,11 @@ export const usePaymentsTable = () => {
           sortDirection,
           filtersHook.filters,
           filtersHook.cfoFilter,
+          linkedOnly,
           true
         );
       }
-    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, sortField, sortDirection, filtersHook.filters, filtersHook.cfoFilter, fetchData]),
+    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, sortField, sortDirection, filtersHook.filters, filtersHook.cfoFilter, linkedOnly, fetchData]),
     threshold: 0.1,
   });
 
@@ -145,5 +153,8 @@ export const usePaymentsTable = () => {
     handleResetFilters,
     filters: filtersHook,
     loadMoreRef,
+    paymentsTab,
+    setPaymentsTab,
+    linkedOnly,
   };
 };

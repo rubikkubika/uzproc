@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { ArrowUp, ArrowDown, ArrowUpDown, Search } from 'lucide-react';
 import { usePaymentsTable } from './hooks/usePaymentsTable';
 
@@ -17,6 +18,8 @@ export default function PaymentsTable() {
     handleResetFilters,
     filters,
     loadMoreRef,
+    paymentsTab,
+    setPaymentsTab,
   } = usePaymentsTable();
 
   if (error) {
@@ -27,13 +30,29 @@ export default function PaymentsTable() {
     );
   }
 
+  /** Сумма сокращённо: тыс., млн, млрд */
   const formatAmount = (amount: number | null) => {
     if (amount == null) return '-';
+    const abs = Math.abs(amount);
+    const sign = amount < 0 ? '−' : '';
+    if (abs >= 1_000_000_000) {
+      const v = amount / 1_000_000_000;
+      return `${sign}${v % 1 === 0 ? v : v.toFixed(1)} млрд`;
+    }
+    if (abs >= 1_000_000) {
+      const v = amount / 1_000_000;
+      return `${sign}${v % 1 === 0 ? v : v.toFixed(1)} млн`;
+    }
+    if (abs >= 1_000) {
+      const v = amount / 1_000;
+      return `${sign}${v % 1 === 0 ? v : v.toFixed(1)} тыс.`;
+    }
     return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(amount);
   };
 
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
+      {/* Заголовок: Сбросить фильтры и счётчик — как на странице заявок */}
       <div className="px-3 py-1 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
         <div className="flex items-center gap-2 flex-wrap">
           <button
@@ -48,6 +67,32 @@ export default function PaymentsTable() {
         </div>
       </div>
 
+      {/* Вкладки — стиль как на странице заявок, «Оплата по заявкам» слева и по умолчанию */}
+      <div className="sticky top-0 left-0 right-0 z-30 flex gap-1 pt-2 pb-2 bg-white shadow-sm" style={{ minHeight: '44px', width: '100%' }}>
+        <button
+          type="button"
+          onClick={() => setPaymentsTab('by-request')}
+          className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors shadow-sm ${
+            paymentsTab === 'by-request'
+              ? 'bg-blue-600 text-white border-blue-600'
+              : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+          }`}
+        >
+          Оплата по заявкам
+        </button>
+        <button
+          type="button"
+          onClick={() => setPaymentsTab('all')}
+          className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors shadow-sm ${
+            paymentsTab === 'all'
+              ? 'bg-blue-600 text-white border-blue-600'
+              : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+          }`}
+        >
+          Все оплаты
+        </button>
+      </div>
+
       {loading ? (
         <div className="px-6 py-8 text-center text-gray-500">Загрузка...</div>
       ) : (
@@ -55,7 +100,15 @@ export default function PaymentsTable() {
           <table className="w-full max-w-full border-collapse table-fixed">
             <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '15%' }}>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '10%' }}>
+                  <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                    <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }} />
+                    <div className="flex items-center gap-1 min-h-[20px]">
+                      <span className="text-xs font-medium text-gray-500 tracking-wider">Номер заявки</span>
+                    </div>
+                  </div>
+                </th>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '12%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }} />
                     <div className="flex items-center gap-1 min-h-[20px]">
@@ -70,10 +123,10 @@ export default function PaymentsTable() {
                     </div>
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '20%' }}>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '18%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
-                      <div className="relative w-full h-full">
+                      <div ref={filters.cfoFilterContainerRef} className="relative w-full h-full">
                         <button
                           ref={filters.cfoFilterButtonRef}
                           type="button"
@@ -144,7 +197,7 @@ export default function PaymentsTable() {
                     </div>
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '65%' }}>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '60%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       <input
@@ -196,6 +249,18 @@ export default function PaymentsTable() {
               {allItems.map((payment) => (
                 <tr key={payment.id} className="hover:bg-gray-50">
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 whitespace-nowrap">
+                    {payment.purchaseRequestId != null && payment.purchaseRequestInnerId != null ? (
+                      <Link
+                        href={`/purchase-request/${payment.purchaseRequestId}`}
+                        className="text-blue-600 hover:underline"
+                      >
+                        {payment.purchaseRequestInnerId}
+                      </Link>
+                    ) : (
+                      '-'
+                    )}
+                  </td>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 whitespace-nowrap" title={payment.amount != null ? new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(payment.amount) : undefined}>
                     {formatAmount(payment.amount)}
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 whitespace-nowrap" title={payment.cfo ?? undefined}>

@@ -36,16 +36,7 @@ export default function ContractsTable() {
 
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
-      {/* Вкладки */}
-      <ContractsTableTabs
-        activeTab={filters.activeTab}
-        onTabChange={(tab) => {
-          filters.setActiveTab(tab);
-          setCurrentPage(0);
-        }}
-      />
-
-      {/* Header с фильтрами - стиль как в стандартных таблицах */}
+      {/* Header с кнопкой Сбросить фильтры и фильтром по году — как на странице заявок */}
       <div className="px-3 py-1 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
         <div className="flex items-center gap-2 flex-wrap">
           {/* Кнопка - Сбросить фильтры */}
@@ -90,6 +81,15 @@ export default function ContractsTable() {
           Показано {allItems.length} из {data?.totalElements ?? 0} записей
         </div>
       </div>
+
+      {/* Вкладки — под кнопкой Сбросить фильтры */}
+      <ContractsTableTabs
+        activeTab={filters.activeTab}
+        onTabChange={(tab) => {
+          filters.setActiveTab(tab);
+          setCurrentPage(0);
+        }}
+      />
 
       {loading ? (
         <div className="px-6 py-8 text-center text-gray-500">Загрузка...</div>
@@ -164,7 +164,7 @@ export default function ContractsTable() {
                 <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: (filters.activeTab === 'in-work' || filters.activeTab === 'signed') ? '10%' : '11%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
-                      <div className="relative cfo-filter-container w-full h-full">
+                      <div ref={filters.cfoFilterContainerRef} className="relative cfo-filter-container w-full h-full">
                         <button
                           ref={filters.cfoFilterButtonRef}
                           type="button"

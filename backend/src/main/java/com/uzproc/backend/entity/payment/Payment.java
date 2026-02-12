@@ -1,6 +1,7 @@
 package com.uzproc.backend.entity.payment;
 
 import com.uzproc.backend.entity.Cfo;
+import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -25,6 +26,10 @@ public class Payment {
 
     @Column(name = "comment", columnDefinition = "TEXT")
     private String comment;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "purchase_request_id")
+    private PurchaseRequest purchaseRequest;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -83,5 +88,13 @@ public class Payment {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public PurchaseRequest getPurchaseRequest() {
+        return purchaseRequest;
+    }
+
+    public void setPurchaseRequest(PurchaseRequest purchaseRequest) {
+        this.purchaseRequest = purchaseRequest;
     }
 }

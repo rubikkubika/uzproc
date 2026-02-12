@@ -35,9 +35,10 @@ public class PaymentService {
             String sortBy,
             String sortDir,
             List<String> cfo,
-            String comment) {
+            String comment,
+            Boolean linkedOnly) {
 
-        Specification<Payment> spec = buildSpecification(cfo, comment);
+        Specification<Payment> spec = buildSpecification(cfo, comment, linkedOnly);
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
 
@@ -55,9 +56,13 @@ public class PaymentService {
                 .orElse(null);
     }
 
-    private Specification<Payment> buildSpecification(List<String> cfo, String comment) {
+    private Specification<Payment> buildSpecification(List<String> cfo, String comment, Boolean linkedOnly) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
+
+            if (Boolean.TRUE.equals(linkedOnly)) {
+                predicates.add(cb.isNotNull(root.get("purchaseRequest")));
+            }
 
             if (cfo != null && !cfo.isEmpty()) {
                 List<String> validCfoValues = cfo.stream()
@@ -97,6 +102,10 @@ public class PaymentService {
         dto.setCfo(entity.getCfo() != null ? entity.getCfo().getName() : null);
         dto.setCfoId(entity.getCfo() != null ? entity.getCfo().getId() : null);
         dto.setComment(entity.getComment());
+        if (entity.getPurchaseRequest() != null) {
+            dto.setPurchaseRequestId(entity.getPurchaseRequest().getId());
+            dto.setPurchaseRequestInnerId(entity.getPurchaseRequest().getInnerId());
+        }
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
         return dto;
