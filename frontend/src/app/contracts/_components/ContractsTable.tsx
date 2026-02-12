@@ -7,12 +7,13 @@ import ContractsTableTabs from './ui/ContractsTableTabs';
 export default function ContractsTable() {
   const {
     data,
+    allItems,
     loading,
+    loadingMore,
     error,
     currentPage,
     setCurrentPage,
     pageSize,
-    setPageSize,
     selectedYear,
     setSelectedYear,
     currentYear,
@@ -22,6 +23,7 @@ export default function ContractsTable() {
     handleSort,
     handleResetFilters,
     filters,
+    loadMoreRef,
   } = useContractsTable();
 
   if (error) {
@@ -83,69 +85,9 @@ export default function ContractsTable() {
           </div>
         </div>
 
-        {/* Информация о количестве записей справа */}
+        {/* Показано X из Y записей — как на странице заявок */}
         <div className="text-xs text-gray-700 flex-shrink-0">
-          Всего записей: {data?.totalElements || 0}
-        </div>
-      </div>
-
-      {/* Пагинация */}
-      <div className="px-3 py-1 border-b border-gray-200 flex items-center justify-between bg-white flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="text-xs text-gray-700">
-            Показано {data?.content?.length || 0} из {data?.totalElements || 0}
-          </div>
-          <div className="flex items-center gap-1">
-            <label htmlFor="pageSize" className="text-xs text-gray-700">
-              На странице:
-            </label>
-            <select
-              id="pageSize"
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setCurrentPage(0);
-              }}
-              className="px-2 py-1 text-xs border border-gray-300 rounded bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
-            </select>
-          </div>
-        </div>
-        <div className="flex gap-1">
-          <button
-            onClick={() => setCurrentPage(0)}
-            disabled={currentPage === 0}
-            className="px-2 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Первая
-          </button>
-          <button
-            onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
-            disabled={currentPage === 0}
-            className="px-2 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Назад
-          </button>
-          <span className="px-2 py-1 text-xs font-medium text-gray-700">
-            {currentPage + 1} / {Math.max(1, data?.totalPages || 1)}
-          </span>
-          <button
-            onClick={() => setCurrentPage(prev => Math.min((data?.totalPages || 1) - 1, prev + 1))}
-            disabled={currentPage >= (data?.totalPages || 1) - 1}
-            className="px-2 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Вперед
-          </button>
-          <button
-            onClick={() => setCurrentPage(Math.max(0, (data?.totalPages || 1) - 1))}
-            disabled={currentPage >= (data?.totalPages || 1) - 1}
-            className="px-2 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Последняя
-          </button>
+          Показано {allItems.length} из {data?.totalElements ?? 0} записей
         </div>
       </div>
 
@@ -541,8 +483,8 @@ export default function ContractsTable() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-              {data?.content && data.content.length > 0 ? (
-                data.content.map((contract) => (
+              {allItems.length > 0 ? (
+                allItems.map((contract) => (
                   <tr key={contract.id}>
                     <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-300 overflow-hidden">
                       <span className="block truncate" title={contract.innerId || undefined}>{contract.innerId || '-'}</span>
@@ -603,6 +545,12 @@ export default function ContractsTable() {
               )}
           </tbody>
         </table>
+        {loadingMore && (
+          <div className="px-4 py-2 text-center text-xs text-gray-500 bg-gray-50 border-t border-gray-200">
+            Загрузка следующих...
+          </div>
+        )}
+        <div ref={loadMoreRef} className="h-4 flex items-center justify-center py-1" />
       </div>
       )}
     </div>

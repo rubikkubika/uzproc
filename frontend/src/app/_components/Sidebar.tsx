@@ -19,7 +19,8 @@ import {
   Mail,
   FileText,
   Globe,
-  Map
+  Map,
+  Banknote
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -40,6 +41,7 @@ const menuItems: Array<{ id: string; label: string; icon: any }> = [];
     { id: 'purchase-plan', label: 'План закупок', icon: Calendar },
     { id: 'purchase-requests', label: 'Заявки на закупку', icon: Package },
     { id: 'contracts', label: 'Договоры', icon: FileText },
+    { id: 'payments', label: 'Оплаты', icon: Banknote },
     { id: 'delivery-plan', label: 'План поставок', icon: Calendar },
   ];
 
@@ -64,8 +66,7 @@ const SIDEBAR_SECTIONS_KEY = 'sidebarSectionsCollapsed';
 export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setIsMobileMenuOpen, isCollapsed = false, setIsCollapsed }: SidebarProps) {
   const router = useRouter();
   
-  // Используем глобальный контекст аутентификации вместо отдельного запроса
-  const { userRole } = useAuth();
+  const { userEmail, userRole } = useAuth();
 
   // Состояние сворачивания разделов
   const [sectionsCollapsed, setSectionsCollapsed] = useState({
@@ -195,6 +196,26 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
 
         {/* Navigation */}
         <nav className="flex-1 pl-2 pr-1.5 py-2 overflow-y-auto">
+          {/* Информация о пользователе и роли — перед разделом для закупщика */}
+          {userRole != null && (
+            <div className={`mb-4 ${isCollapsed ? 'flex justify-center' : ''}`}>
+              {isCollapsed ? (
+                <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white font-semibold text-sm" title={userEmail ?? undefined}>
+                  {userRole === 'admin' ? 'A' : userRole === 'user' ? 'U' : userRole.charAt(0).toUpperCase()}
+                </div>
+              ) : (
+                <div className="px-2 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
+                  {userEmail && (
+                    <div className="text-xs font-medium text-gray-900 truncate" title={userEmail}>{userEmail}</div>
+                  )}
+                  <div className="text-xs text-gray-500">
+                    {userRole === 'admin' ? 'Администратор' : userRole === 'user' ? 'Пользователь' : userRole}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Основное меню */}
           <div className="mb-4">
             <ul className="space-y-2">
@@ -431,21 +452,6 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
             </span>
             {!isCollapsed && <span className="ml-2">Выйти</span>}
           </button>
-          {userRole && (
-            <>
-              {isCollapsed ? (
-                <div className="flex justify-center px-2 py-1">
-                  <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white font-semibold text-sm">
-                    {userRole === 'admin' ? 'A' : userRole === 'user' ? 'U' : userRole.charAt(0).toUpperCase()}
-                  </div>
-                </div>
-              ) : (
-                <div className="px-2 py-1.5 text-xs text-gray-700 font-medium text-left bg-gray-50 rounded-lg">
-                  {userRole === 'admin' ? 'Администратор' : userRole === 'user' ? 'Пользователь' : userRole}
-                </div>
-              )}
-            </>
-          )}
         </div>
       </aside>
     </>

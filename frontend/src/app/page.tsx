@@ -15,6 +15,7 @@ import PurchaseRequestsTable from './purchase-requests/_components/PurchaseReque
 import PurchasesTable from './purchases/_components/PurchasesTable';
 import PurchasePlanItemsTable from './purchase-plan/_components/PurchasePlanItemsTable';
 import ContractsTable from './contracts/_components/ContractsTable';
+import PaymentsTable from './payments/_components/PaymentsTable';
 import SpecificationsTable from './specifications/_components/SpecificationsTable';
 import DeliveryPlan from './delivery-plan/_components/DeliveryPlan';
 import UploadCSV from './upload/_components/UploadCSV';
@@ -390,6 +391,13 @@ function DashboardContent() {
           </div>
         );
 
+      case 'payments':
+        return (
+          <div className="space-y-6 h-full flex flex-col">
+            <PaymentsTable />
+          </div>
+        );
+
       case 'specifications':
         if (userRole !== 'admin') {
           return (
@@ -595,20 +603,6 @@ function DashboardContent() {
               </div>
 
               <main className="flex-1 overflow-y-auto p-2 sm:p-3 lg:p-4 pt-16 sm:pt-20 lg:pt-4 safari-main-content relative" style={{ marginLeft: 0, flexShrink: 1, minWidth: 0 }}>
-                {/* Компонент пользователя в правом верхнем углу */}
-                {isMounted && currentUser && (
-                  <div className="fixed top-4 right-4 z-10 bg-white rounded-lg shadow-md px-4 py-2 flex items-center gap-3 border border-gray-200">
-                    <div className="flex flex-col items-end">
-                      <span className="text-sm font-medium text-gray-900">{currentUser}</span>
-                      {userRole && (
-                        <span className="text-xs text-gray-500 capitalize">{userRole === 'admin' ? 'Администратор' : 'Пользователь'}</span>
-                      )}
-                    </div>
-                    <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                      {currentUser.charAt(0).toUpperCase()}
-                    </div>
-                  </div>
-                )}
                 {renderContent()}
               </main>
             </div>

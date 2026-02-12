@@ -1,30 +1,26 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { PageResponse, SortField, SortDirection, Contract } from '../types/contracts.types';
-import { PAGE_SIZE } from '../constants/contracts.constants';
-import { useContractsFilters } from './useContractsFilters';
-import { useContractsData } from './useContractsData';
+import { PageResponse, SortField, SortDirection, Payment } from '../types/payments.types';
+import { PAGE_SIZE } from '../constants/payments.constants';
+import { usePaymentsFilters } from './usePaymentsFilters';
+import { usePaymentsData } from './usePaymentsData';
 import { useClickOutside } from './useClickOutside';
 import { useInfiniteScroll } from './useInfiniteScroll';
 
-export const useContractsTable = () => {
+export const usePaymentsTable = () => {
   const [data, setData] = useState<PageResponse | null>(null);
-  const [allItems, setAllItems] = useState<Contract[]>([]);
+  const [allItems, setAllItems] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const pageSize = PAGE_SIZE; // фиксировано 100 для бесконечной прокрутки
-  const currentYear = new Date().getFullYear();
-  const [selectedYear, setSelectedYear] = useState<number | null>(null);
-  const [allYears, setAllYears] = useState<number[]>([]);
+  const [sortField, setSortField] = useState<SortField>('id');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [hasMore, setHasMore] = useState(true);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
-  const [sortField, setSortField] = useState<SortField>('innerId');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-
-  const filtersHook = useContractsFilters(setCurrentPage);
-  const dataHook = useContractsData();
+  const filtersHook = usePaymentsFilters(setCurrentPage);
+  const dataHook = usePaymentsData();
 
   useClickOutside({
     isOpen: filtersHook.isCfoFilterOpen,
@@ -34,53 +30,28 @@ export const useContractsTable = () => {
 
   const handleSort = useCallback((field: SortField) => {
     if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+      setSortDirection(d => d === 'asc' ? 'desc' : 'asc');
     } else {
-      setSortField(field);
+      setSortField(field ?? 'id');
       setSortDirection('asc');
     }
     setCurrentPage(0);
-  }, [sortField, sortDirection]);
-
-  useEffect(() => {
-    const loadYears = async () => {
-      const years = await dataHook.fetchYears();
-      setAllYears(years);
-    };
-    loadYears();
-  }, [dataHook.fetchYears]);
+  }, [sortField]);
 
   const handleResetFilters = useCallback(() => {
-    filtersHook.setFilters({
-      innerId: '',
-      cfo: '',
-      name: '',
-      documentForm: '',
-      costType: '',
-      contractType: '',
-    });
-    filtersHook.setLocalFilters({
-      innerId: '',
-      cfo: '',
-      name: '',
-      documentForm: '',
-      costType: '',
-      contractType: '',
-    });
+    filtersHook.setFilters({ comment: '' });
+    filtersHook.setLocalFilters({ comment: '' });
     filtersHook.setCfoFilter(new Set());
-    setSelectedYear(currentYear);
     setCurrentPage(0);
-  }, [filtersHook, currentYear]);
+  }, [filtersHook]);
 
   const fetchData = useCallback(async (
     page: number,
     size: number,
-    year: number | null,
     sortF: SortField,
     sortDir: SortDirection,
     filters: Record<string, string>,
     cfoFilter: Set<string>,
-    activeTab: string,
     append: boolean
   ) => {
     if (append) {
@@ -94,12 +65,10 @@ export const useContractsTable = () => {
       const result = await dataHook.fetchData(
         page,
         size,
-        year,
         sortF,
         sortDir,
         filters,
-        cfoFilter,
-        activeTab as 'all' | 'in-work' | 'signed'
+        cfoFilter
       );
       const items = result?.content ?? [];
       if (append) {
@@ -122,27 +91,22 @@ export const useContractsTable = () => {
   const cfoFilterStr = useMemo(() => JSON.stringify(Array.from(filtersHook.cfoFilter)), [filtersHook.cfoFilter]);
   const filtersStr = useMemo(() => JSON.stringify(filtersHook.filters), [filtersHook.filters]);
 
-  // Первичная загрузка при смене фильтров/сортировки/года/вкладки
   useEffect(() => {
     setCurrentPage(0);
     fetchData(
       0,
       pageSize,
-      selectedYear,
       sortField,
       sortDirection,
       filtersHook.filters,
       filtersHook.cfoFilter,
-      filtersHook.activeTab,
       false
     );
   }, [
-    selectedYear,
     sortField,
     sortDirection,
     filtersStr,
     cfoFilterStr,
-    filtersHook.activeTab,
     fetchData,
     pageSize,
   ]);
@@ -155,16 +119,14 @@ export const useContractsTable = () => {
         fetchData(
           nextPage,
           pageSize,
-          selectedYear,
           sortField,
           sortDirection,
           filtersHook.filters,
           filtersHook.cfoFilter,
-          filtersHook.activeTab,
           true
         );
       }
-    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, selectedYear, sortField, sortDirection, filtersHook.filters, filtersHook.cfoFilter, filtersHook.activeTab, fetchData]),
+    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, sortField, sortDirection, filtersHook.filters, filtersHook.cfoFilter, fetchData]),
     threshold: 0.1,
   });
 
@@ -177,16 +139,11 @@ export const useContractsTable = () => {
     currentPage,
     setCurrentPage,
     pageSize,
-    selectedYear,
-    setSelectedYear,
-    currentYear,
-    allYears,
     sortField,
     sortDirection,
     handleSort,
     handleResetFilters,
     filters: filtersHook,
-    hasMore,
     loadMoreRef,
   };
 };
