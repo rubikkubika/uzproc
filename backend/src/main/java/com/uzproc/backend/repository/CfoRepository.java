@@ -44,5 +44,11 @@ public interface CfoRepository extends JpaRepository<Cfo, Long> {
      */
     @Query("SELECT DISTINCT p.cfo.name FROM com.uzproc.backend.entity.purchase.Purchase p WHERE p.cfo IS NOT NULL AND p.cfo.name IS NOT NULL ORDER BY p.cfo.name")
     List<String> findNamesUsedInPurchases();
+
+    /**
+     * Названия ЦФО, встречающиеся в оплатах (для фильтра на странице оплат).
+     */
+    @Query("SELECT DISTINCT pay.cfo.name FROM com.uzproc.backend.entity.payment.Payment pay WHERE pay.cfo IS NOT NULL AND pay.cfo.name IS NOT NULL ORDER BY pay.cfo.name")
+    List<String> findNamesUsedInPayments();
 }
 

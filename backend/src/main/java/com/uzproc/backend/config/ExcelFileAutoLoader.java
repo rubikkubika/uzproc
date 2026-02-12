@@ -2,6 +2,7 @@ package com.uzproc.backend.config;
 
 import com.uzproc.backend.service.excel.EntityExcelLoadService;
 import com.uzproc.backend.service.excel.ReportExcelLoadService;
+import com.uzproc.backend.service.payment.PaymentExcelLoadService;
 import com.uzproc.backend.service.purchaseplan.PurchasePlanExcelLoadService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -290,6 +291,72 @@ public class ExcelFileAutoLoader {
                 logger.info("Automatic purchase plan file processing completed. Total loaded {} records", totalLoaded);
             } catch (Exception e) {
                 logger.error("Error during automatic purchase plan file processing", e);
+            }
+        };
+    }
+
+    @Bean
+    @Order(300) // После плана закупок, до обновления статусов (Order = 1000)
+    public CommandLineRunner autoLoadPaymentsFile(PaymentExcelLoadService paymentExcelLoadService) {
+        return args -> {
+            try {
+                logger.info("=== Starting automatic payments file processing ===");
+                Path paymentsPath = null;
+                Path dockerPath = Paths.get("/app/payments");
+                if (Files.exists(dockerPath)) {
+                    paymentsPath = dockerPath;
+                    logger.info("Found payments folder in Docker container: {}", dockerPath);
+                } else {
+                    String userDir = System.getProperty("user.dir");
+                    Path currentDir = Paths.get(userDir).toAbsolutePath().normalize();
+                    Path projectRoot = currentDir;
+                    if (currentDir.getFileName() != null && "backend".equalsIgnoreCase(currentDir.getFileName().toString())) {
+                        projectRoot = currentDir.getParent();
+                    }
+                    paymentsPath = projectRoot.resolve("frontend").resolve("upload").resolve("payments").normalize();
+                    logger.info("Payments path (projectRoot): {}", paymentsPath);
+                    if (!Files.exists(paymentsPath)) {
+                        paymentsPath = currentDir.resolve("..").resolve("frontend").resolve("upload").resolve("payments").normalize();
+                        logger.info("Payments path (currentDir/..): {}", paymentsPath);
+                    }
+                    if (!Files.exists(paymentsPath)) {
+                        Path altPath = Paths.get("frontend", "upload", "payments").toAbsolutePath().normalize();
+                        if (Files.exists(altPath)) {
+                            paymentsPath = altPath;
+                            logger.info("Payments path (absolute): {}", paymentsPath);
+                        }
+                    }
+                }
+                if (paymentsPath == null || !Files.exists(paymentsPath)) {
+                    logger.info("Payments folder not found. Tried paths above. Skipping automatic payments file processing.");
+                    return;
+                }
+                File paymentsDir = paymentsPath.toFile();
+                if (!paymentsDir.isDirectory()) {
+                    logger.warn("Path is not a directory: {}", paymentsPath);
+                    return;
+                }
+                File[] excelFiles = paymentsDir.listFiles((dir, name) ->
+                        (name.endsWith(".xls") || name.endsWith(".xlsx")) && !name.startsWith("~$"));
+                if (excelFiles == null || excelFiles.length == 0) {
+                    logger.info("No Excel files found in payments folder: {}", paymentsPath);
+                    return;
+                }
+                logger.info("Found {} Excel file(s) in payments folder: {}", excelFiles.length, paymentsPath);
+                int totalLoaded = 0;
+                for (File excelFile : excelFiles) {
+                    try {
+                        logger.info("Processing payments file: {}", excelFile.getName());
+                        int loadedCount = paymentExcelLoadService.loadPaymentsFromExcel(excelFile);
+                        totalLoaded += loadedCount;
+                        logger.info("Loaded {} records from payments file {}", loadedCount, excelFile.getName());
+                    } catch (Exception e) {
+                        logger.error("Error processing payments file {}: {}", excelFile.getName(), e.getMessage(), e);
+                    }
+                }
+                logger.info("Automatic payments file processing completed. Total loaded {} records", totalLoaded);
+            } catch (Exception e) {
+                logger.error("Error during automatic payments file processing", e);
             }
         };
     }

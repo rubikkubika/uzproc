@@ -19,6 +19,8 @@ public class CfoService {
     public static final String FOR_CONTRACTS = "contracts";
     /** Контекст: только ЦФО из закупок */
     public static final String FOR_PURCHASES = "purchases";
+    /** Контекст: только ЦФО из оплат */
+    public static final String FOR_PAYMENTS = "payments";
 
     private final CfoRepository cfoRepository;
 
@@ -43,6 +45,8 @@ public class CfoService {
             raw = cfoRepository.findNamesUsedInContracts();
         } else if (FOR_PURCHASES.equals(forContext)) {
             raw = cfoRepository.findNamesUsedInPurchases();
+        } else if (FOR_PAYMENTS.equals(forContext)) {
+            raw = cfoRepository.findNamesUsedInPayments();
         } else {
             raw = cfoRepository.findAll().stream()
                     .map(cfo -> cfo.getName() != null ? cfo.getName().trim() : null)
