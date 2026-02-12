@@ -39,6 +39,29 @@ export default function PaymentsTable() {
     return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
   };
 
+  /** Классы бейджа для статуса оплаты */
+  const paymentStatusBadgeClass = (status: string | null): string => {
+    if (!status) return 'bg-gray-100 text-gray-600';
+    const map: Record<string, string> = {
+      'К оплате': 'bg-amber-100 text-amber-800',
+      'Оплата возвращена': 'bg-orange-100 text-orange-800',
+      'Оплачена': 'bg-green-100 text-green-800',
+    };
+    return map[status] ?? 'bg-gray-100 text-gray-700';
+  };
+
+  /** Классы бейджа для статуса заявки */
+  const requestStatusBadgeClass = (status: string | null): string => {
+    if (!status) return 'bg-gray-100 text-gray-600';
+    const map: Record<string, string> = {
+      'На согласовании': 'bg-blue-100 text-blue-800',
+      'Отклонен': 'bg-red-100 text-red-800',
+      'Утвержден': 'bg-green-100 text-green-800',
+      'Черновик': 'bg-gray-100 text-gray-700',
+    };
+    return map[status] ?? 'bg-gray-100 text-gray-700';
+  };
+
   /** Сумма сокращённо: тыс., млн, млрд */
   const formatAmount = (amount: number | null) => {
     if (amount == null) return '-';
@@ -118,6 +141,14 @@ export default function PaymentsTable() {
           <table className="w-full max-w-full border-collapse table-fixed">
             <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '8%' }}>
+                  <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                    <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }} />
+                    <div className="flex items-center gap-1 min-h-[20px]">
+                      <span className="text-xs font-medium text-gray-500 tracking-wider">Номер</span>
+                    </div>
+                  </div>
+                </th>
                 <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '10%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }} />
@@ -172,6 +203,13 @@ export default function PaymentsTable() {
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }} />
                     <div className="flex items-center gap-1 min-h-[20px]">
+                      <button
+                        onClick={() => handleSort('plannedExpenseDate')}
+                        className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                        style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                      >
+                        {sortField === 'plannedExpenseDate' ? (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />) : <ArrowUpDown className="w-3 h-3 opacity-30" />}
+                      </button>
                       <span className="text-xs font-medium text-gray-500 tracking-wider">Дата расхода (план)</span>
                     </div>
                   </div>
@@ -338,8 +376,11 @@ export default function PaymentsTable() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {allItems.map((payment) => (
-                <tr key={payment.id} className="hover:bg-gray-50">
+              {allItems.map((payment, index) => (
+                <tr key={`${payment.id}-${index}`} className="hover:bg-gray-50">
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 whitespace-nowrap" title={payment.mainId ?? undefined}>
+                    {payment.mainId ?? '-'}
+                  </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 whitespace-nowrap">
                     {payment.purchaseRequestId != null ? (
                       <Link
@@ -352,11 +393,15 @@ export default function PaymentsTable() {
                       '-'
                     )}
                   </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 whitespace-nowrap" title={payment.paymentStatus ?? undefined}>
-                    {payment.paymentStatus ?? '-'}
+                  <td className="px-2 py-2 text-xs border-r border-gray-300 whitespace-nowrap" title={payment.paymentStatus ?? undefined}>
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${paymentStatusBadgeClass(payment.paymentStatus)}`}>
+                      {payment.paymentStatus ?? '-'}
+                    </span>
                   </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 whitespace-nowrap" title={payment.requestStatus ?? undefined}>
-                    {payment.requestStatus ?? '-'}
+                  <td className="px-2 py-2 text-xs border-r border-gray-300 whitespace-nowrap" title={payment.requestStatus ?? undefined}>
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${requestStatusBadgeClass(payment.requestStatus)}`}>
+                      {payment.requestStatus ?? '-'}
+                    </span>
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 whitespace-nowrap" title={payment.plannedExpenseDate ?? undefined}>
                     {payment.plannedExpenseDate ? formatDate(payment.plannedExpenseDate) : '-'}

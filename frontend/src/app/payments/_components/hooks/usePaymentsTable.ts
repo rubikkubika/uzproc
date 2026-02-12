@@ -14,7 +14,7 @@ export const usePaymentsTable = () => {
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const pageSize = PAGE_SIZE; // фиксировано 100 для бесконечной прокрутки
-  const [sortField, setSortField] = useState<SortField>('id');
+  const [sortField, setSortField] = useState<SortField>('plannedExpenseDate');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [hasMore, setHasMore] = useState(true);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -35,7 +35,7 @@ export const usePaymentsTable = () => {
     if (sortField === field) {
       setSortDirection(d => d === 'asc' ? 'desc' : 'asc');
     } else {
-      setSortField(field ?? 'id');
+      setSortField(field ?? 'plannedExpenseDate');
       setSortDirection('asc');
     }
     setCurrentPage(0);
