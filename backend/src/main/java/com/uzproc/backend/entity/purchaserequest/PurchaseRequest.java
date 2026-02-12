@@ -22,6 +22,7 @@ public class PurchaseRequest {
     @Column(name = "guid", unique = true, nullable = true, updatable = false)
     private UUID guid;
 
+    /** Основной номер заявки */
     @Column(name = "id_purchase_request")
     private Long idPurchaseRequest;
 

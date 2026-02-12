@@ -36,8 +36,8 @@ public class PaymentExcelLoadService {
     private static final String COMMENT_COLUMN_ALT = "Основание";
     private static final String COMMENT_COLUMN_ALT2 = "Комментарий(Основание)";
 
-    /** Паттерн для извлечения номера заявки из комментария: "Создана по документу ... N 1898 - ..." */
-    private static final Pattern REQUEST_NUMBER_IN_COMMENT = Pattern.compile("N\\s+(\\d+)");
+    /** Паттерн для извлечения номера заявки из комментария: "Создана по документу ... N 1898 - ..." или "N1898" */
+    private static final Pattern REQUEST_NUMBER_IN_COMMENT = Pattern.compile("N\\s*(\\d+)");
 
     private final PaymentRepository paymentRepository;
     private final CfoRepository cfoRepository;
@@ -120,7 +120,19 @@ public class PaymentExcelLoadService {
                 try {
                     Payment payment = parsePaymentRow(row, amountColumnIndex, cfoColumnIndex, commentColumnIndex);
                     if (payment != null && (payment.getAmount() != null || payment.getCfo() != null || (payment.getComment() != null && !payment.getComment().trim().isEmpty()))) {
-                        paymentRepository.save(payment);
+                        Payment toSave = payment;
+                        if (payment.getComment() != null && !payment.getComment().trim().isEmpty()) {
+                            Optional<Payment> existingOpt = paymentRepository.findFirstByComment(payment.getComment().trim());
+                            if (existingOpt.isPresent()) {
+                                Payment existing = existingOpt.get();
+                                existing.setAmount(payment.getAmount());
+                                existing.setCfo(payment.getCfo());
+                                existing.setComment(payment.getComment());
+                                existing.setPurchaseRequest(payment.getPurchaseRequest());
+                                toSave = existing;
+                            }
+                        }
+                        paymentRepository.save(toSave);
                         loadedCount++;
                     }
                 } catch (Exception e) {
@@ -187,11 +199,17 @@ public class PaymentExcelLoadService {
         if (lastMatch == null || lastMatch.isEmpty()) return;
         String innerId = lastMatch.trim();
         Optional<PurchaseRequest> prOpt = purchaseRequestRepository.findByInnerId(innerId);
+        if (prOpt.isEmpty()) {
+            try {
+                Long idPr = Long.parseLong(innerId);
+                prOpt = purchaseRequestRepository.findByIdPurchaseRequest(idPr);
+            } catch (NumberFormatException ignored) { }
+        }
         if (prOpt.isPresent()) {
             payment.setPurchaseRequest(prOpt.get());
-            logger.debug("Linked payment to purchase request innerId={}", innerId);
+            logger.info("Payment linked to purchase request innerId={}", innerId);
         } else {
-            logger.debug("No purchase request found for innerId={} from comment", innerId);
+            logger.info("Payment: no purchase request found for innerId='{}' (comment excerpt: '{}')", innerId, comment.length() > 80 ? comment.substring(0, 80) + "..." : comment);
         }
     }
 
