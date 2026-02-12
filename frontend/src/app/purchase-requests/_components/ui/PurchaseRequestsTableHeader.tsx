@@ -60,6 +60,29 @@ export default function PurchaseRequestsTableHeader({
         >
           Сбросить фильтры
         </button>
+
+        {/* Кнопка настройки колонок — справа от Сбросить фильтры */}
+        <div className="relative">
+          <button
+            ref={columnsMenuButtonRef}
+            onClick={() => setIsColumnsMenuOpen(!isColumnsMenuOpen)}
+            className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-1"
+            title="Настройка колонок"
+          >
+            <Settings className="w-3 h-3" />
+            Колонки
+          </button>
+          <PurchaseRequestsTableColumnsMenu
+            visibleColumns={visibleColumns}
+            isOpen={isColumnsMenuOpen}
+            position={columnsMenuPosition}
+            toggleColumnVisibility={toggleColumnVisibility}
+            selectAllColumns={selectAllColumns}
+            selectDefaultColumns={selectDefaultColumns}
+            onClose={() => setIsColumnsMenuOpen(false)}
+            buttonRef={columnsMenuButtonRef}
+          />
+        </div>
         
         {/* Фильтр по дате назначения на закупщика (год) */}
         <div className="flex items-center gap-2">
@@ -87,29 +110,6 @@ export default function PurchaseRequestsTableHeader({
               {year}
             </button>
           ))}
-        </div>
-        
-        {/* Кнопка настройки колонок */}
-        <div className="relative">
-          <button
-            ref={columnsMenuButtonRef}
-            onClick={() => setIsColumnsMenuOpen(!isColumnsMenuOpen)}
-            className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-1"
-            title="Настройка колонок"
-          >
-            <Settings className="w-3 h-3" />
-            Колонки
-          </button>
-          <PurchaseRequestsTableColumnsMenu
-            visibleColumns={visibleColumns}
-            isOpen={isColumnsMenuOpen}
-            position={columnsMenuPosition}
-            toggleColumnVisibility={toggleColumnVisibility}
-            selectAllColumns={selectAllColumns}
-            selectDefaultColumns={selectDefaultColumns}
-            onClose={() => setIsColumnsMenuOpen(false)}
-            buttonRef={columnsMenuButtonRef}
-          />
         </div>
         
         {/* Кнопки экспорта и копирования */}

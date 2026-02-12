@@ -599,13 +599,6 @@ function PurchasePlanItemsTableContent() {
           >
             Сбросить фильтры
           </button>
-          <button
-            onClick={handleOnlyInPlan}
-            className="px-3 py-1 text-xs font-medium text-gray-900 bg-white rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
-            title="Показать только позиции со статусом «В плане»"
-          >
-            Только в Плане
-          </button>
           <div className="relative">
             <button
               ref={table.columns.columnsMenuButtonRef}
@@ -617,6 +610,13 @@ function PurchasePlanItemsTableContent() {
               Колонки
             </button>
           </div>
+          <button
+            onClick={handleOnlyInPlan}
+            className="px-3 py-1 text-xs font-medium text-gray-900 bg-white rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+            title="Показать только позиции со статусом «В плане»"
+          >
+            Только в Плане
+          </button>
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-700 font-medium">Год:</span>
             {table.allYears.map((year) => (

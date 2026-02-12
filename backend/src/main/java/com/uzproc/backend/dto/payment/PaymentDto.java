@@ -1,6 +1,7 @@
 package com.uzproc.backend.dto.payment;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 public class PaymentDto {
@@ -12,6 +13,16 @@ public class PaymentDto {
     private Long purchaseRequestId;
     /** Основной номер заявки (id_purchase_request) */
     private Long purchaseRequestNumber;
+    /** Статус оплаты: К оплате, Оплата возвращена, Оплачена */
+    private String paymentStatus;
+    /** Статус заявки: На согласовании, Отклонен, Утвержден, Черновик */
+    private String requestStatus;
+    private LocalDate plannedExpenseDate;
+    private LocalDate paymentDate;
+    private Long executorId;
+    private String executorDisplayName;
+    private Long responsibleId;
+    private String responsibleDisplayName;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -72,6 +83,70 @@ public class PaymentDto {
 
     public void setPurchaseRequestNumber(Long purchaseRequestNumber) {
         this.purchaseRequestNumber = purchaseRequestNumber;
+    }
+
+    public String getPaymentStatus() {
+        return paymentStatus;
+    }
+
+    public void setPaymentStatus(String paymentStatus) {
+        this.paymentStatus = paymentStatus;
+    }
+
+    public String getRequestStatus() {
+        return requestStatus;
+    }
+
+    public void setRequestStatus(String requestStatus) {
+        this.requestStatus = requestStatus;
+    }
+
+    public LocalDate getPlannedExpenseDate() {
+        return plannedExpenseDate;
+    }
+
+    public void setPlannedExpenseDate(LocalDate plannedExpenseDate) {
+        this.plannedExpenseDate = plannedExpenseDate;
+    }
+
+    public LocalDate getPaymentDate() {
+        return paymentDate;
+    }
+
+    public void setPaymentDate(LocalDate paymentDate) {
+        this.paymentDate = paymentDate;
+    }
+
+    public Long getExecutorId() {
+        return executorId;
+    }
+
+    public void setExecutorId(Long executorId) {
+        this.executorId = executorId;
+    }
+
+    public String getExecutorDisplayName() {
+        return executorDisplayName;
+    }
+
+    public void setExecutorDisplayName(String executorDisplayName) {
+        this.executorDisplayName = executorDisplayName;
+    }
+
+    public Long getResponsibleId() {
+        return responsibleId;
+    }
+
+    public void setResponsibleId(Long responsibleId) {
+        this.responsibleId = responsibleId;
+    }
+
+    public String getResponsibleDisplayName() {
+        return responsibleDisplayName;
+    }
+
+    public void setResponsibleDisplayName(String responsibleDisplayName) {
+        this.responsibleDisplayName = responsibleDisplayName;
     }
 
     public LocalDateTime getCreatedAt() {

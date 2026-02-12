@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowUp, ArrowDown, ArrowUpDown, Search } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpDown, Search, Settings } from 'lucide-react';
 import { useContractsTable } from './hooks/useContractsTable';
 import ContractsTableTabs from './ui/ContractsTableTabs';
 
@@ -45,6 +45,15 @@ export default function ContractsTable() {
             className="px-3 py-1 text-xs font-medium bg-red-50 text-red-700 rounded-lg border border-red-300 hover:bg-red-100 hover:border-red-400 transition-colors whitespace-nowrap"
           >
             Сбросить фильтры
+          </button>
+          <button
+            type="button"
+            disabled
+            title="Настройка колонок (для этой таблицы пока недоступна)"
+            className="px-2 py-1 text-xs bg-gray-100 text-gray-500 rounded-lg border border-gray-300 cursor-not-allowed flex items-center gap-1 opacity-70"
+          >
+            <Settings className="w-3 h-3" />
+            Колонки
           </button>
 
           {/* Фильтр по году */}
