@@ -6,7 +6,7 @@ import { getBackendUrl } from '@/utils/api';
 import { copyToClipboard } from '@/utils/clipboard';
 import { useAuth } from '@/contexts/AuthContext';
 import { ArrowLeft, ArrowRight, Clock, Check, X, Eye, EyeOff, Copy, Star } from 'lucide-react';
-import Sidebar from './_components/Sidebar';
+import Sidebar from '../../_components/Sidebar';
 
 interface PurchaseRequest {
   id: number;

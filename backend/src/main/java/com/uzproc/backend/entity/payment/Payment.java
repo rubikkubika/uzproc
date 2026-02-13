@@ -1,6 +1,7 @@
 package com.uzproc.backend.entity.payment;
 
 import com.uzproc.backend.entity.Cfo;
+import com.uzproc.backend.entity.contract.Contract;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
 import com.uzproc.backend.entity.user.User;
 import jakarta.persistence.*;
@@ -36,6 +37,10 @@ public class Payment {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "purchase_request_id")
     private PurchaseRequest purchaseRequest;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "contract_id")
+    private Contract contract;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_status", length = 50)
@@ -132,6 +137,14 @@ public class Payment {
 
     public void setPurchaseRequest(PurchaseRequest purchaseRequest) {
         this.purchaseRequest = purchaseRequest;
+    }
+
+    public Contract getContract() {
+        return contract;
+    }
+
+    public void setContract(Contract contract) {
+        this.contract = contract;
     }
 
     public PaymentStatus getPaymentStatus() {

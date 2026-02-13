@@ -15,6 +15,9 @@ public class PaymentDto {
     private Long purchaseRequestId;
     /** Основной номер заявки (id_purchase_request) */
     private Long purchaseRequestNumber;
+    private Long contractId;
+    /** Заголовок договора (для отображения в таблице) */
+    private String contractTitle;
     /** Статус оплаты: К оплате, Оплата возвращена, Оплачена */
     private String paymentStatus;
     /** Статус заявки: На согласовании, Отклонен, Утвержден, Черновик */
@@ -93,6 +96,22 @@ public class PaymentDto {
 
     public void setPurchaseRequestNumber(Long purchaseRequestNumber) {
         this.purchaseRequestNumber = purchaseRequestNumber;
+    }
+
+    public Long getContractId() {
+        return contractId;
+    }
+
+    public void setContractId(Long contractId) {
+        this.contractId = contractId;
+    }
+
+    public String getContractTitle() {
+        return contractTitle;
+    }
+
+    public void setContractTitle(String contractTitle) {
+        this.contractTitle = contractTitle;
     }
 
     public String getPaymentStatus() {

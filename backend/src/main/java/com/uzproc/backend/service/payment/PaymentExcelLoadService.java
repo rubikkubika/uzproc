@@ -6,7 +6,9 @@ import com.uzproc.backend.entity.payment.PaymentRequestStatus;
 import com.uzproc.backend.entity.payment.PaymentStatus;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
 import com.uzproc.backend.entity.user.User;
+import com.uzproc.backend.entity.contract.Contract;
 import com.uzproc.backend.repository.CfoRepository;
+import com.uzproc.backend.repository.contract.ContractRepository;
 import com.uzproc.backend.repository.payment.PaymentRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
 import com.uzproc.backend.repository.user.UserRepository;
@@ -62,21 +64,29 @@ public class PaymentExcelLoadService {
             DateTimeFormatter.ISO_LOCAL_DATE
     };
 
+    /** Префикс комментария 1С: после него идёт заголовок документа/договора (допускается пробел или ": " после слова) */
+    private static final String COMMENT_PREFIX_1C = "Создана по документу 1С:Документооборот";
+
     /** Паттерн для извлечения номера заявки из комментария: "Создана по документу ... N 1898 - ..." или "N1898" */
     private static final Pattern REQUEST_NUMBER_IN_COMMENT = Pattern.compile("N\\s*(\\d+)");
+    /** Паттерн для формата "Договор ... M-Construction 2013 ...": 2013 — номер заявки */
+    private static final Pattern REQUEST_NUMBER_M_CONSTRUCTION = Pattern.compile("M-Construction\\s+(\\d+)");
 
     private final PaymentRepository paymentRepository;
     private final CfoRepository cfoRepository;
     private final PurchaseRequestRepository purchaseRequestRepository;
+    private final ContractRepository contractRepository;
     private final UserRepository userRepository;
     private final DataFormatter dataFormatter = new DataFormatter();
 
     public PaymentExcelLoadService(PaymentRepository paymentRepository, CfoRepository cfoRepository,
                                   PurchaseRequestRepository purchaseRequestRepository,
+                                  ContractRepository contractRepository,
                                   UserRepository userRepository) {
         this.paymentRepository = paymentRepository;
         this.cfoRepository = cfoRepository;
         this.purchaseRequestRepository = purchaseRequestRepository;
+        this.contractRepository = contractRepository;
         this.userRepository = userRepository;
     }
 
@@ -251,6 +261,7 @@ public class PaymentExcelLoadService {
             if (comment != null && !comment.trim().isEmpty()) {
                 String trimmed = comment.trim();
                 payment.setComment(trimmed);
+                linkContractFromComment(payment, trimmed);
                 linkPurchaseRequestFromComment(payment, trimmed);
             }
         }
@@ -368,6 +379,18 @@ public class PaymentExcelLoadService {
                 updated = true;
                 logger.debug("Updated purchaseRequest for payment {}: {}", existing.getId(), newPrId);
             }
+        }
+
+        if (newData.getContract() != null) {
+            if (existing.getContract() == null || !existing.getContract().getId().equals(newData.getContract().getId())) {
+                existing.setContract(newData.getContract());
+                updated = true;
+                logger.debug("Updated contract for payment {}: {}", existing.getId(), newData.getContract().getTitle());
+            }
+        } else if (newData.getContract() == null && existing.getContract() != null) {
+            existing.setContract(null);
+            updated = true;
+            logger.debug("Cleared contract for payment {}", existing.getId());
         }
 
         if (newData.getPaymentStatus() != null) {
@@ -526,18 +549,72 @@ public class PaymentExcelLoadService {
     }
 
     /**
-     * Из комментария вида "Создана по документу 1С:Документооборот: Спецификация 4 по M - IT N 1898 - Термопринтеры"
-     * извлекает номер заявки (1898) и связывает оплату с заявкой на закупку по innerId.
+     * Нормализует строку заголовка для сравнения: trim и схлопывание повторяющихся пробелов в один.
+     */
+    private static String normalizeTitleForMatch(String s) {
+        if (s == null) return "";
+        return s.trim().replaceAll("\\s+", " ");
+    }
+
+    /**
+     * Из комментария извлекает заголовок договора/документа и связывает оплату с договором по полю title.
+     * Формат 1: "Создана по документу 1С:Документооборот: Спецификация 86 по заявке: M - Maintenance N 2136 - ..."
+     *   → заголовок = "Спецификация 86 по заявке: M - Maintenance N 2136 - ..."
+     * Формат 2: "Создана по документу 1С:Документооборот: Договор 15-KZA от 15.01.2026 M-Construction 2013 \"KZA BINO\" MCHJ ( 686 от 09.02.2026)"
+     *   → заголовок = "Договор 15-KZA от 15.01.2026 M-Construction 2013 \"KZA BINO\" MCHJ" (до " (")
+     * Сначала ищется точное совпадение по title, затем по нормализованному title, затем по name.
+     */
+    private void linkContractFromComment(Payment payment, String comment) {
+        if (comment == null || !comment.startsWith(COMMENT_PREFIX_1C)) return;
+        String afterPrefix = comment.substring(COMMENT_PREFIX_1C.length()).replaceFirst("^[:\\s]+", "").trim();
+        if (afterPrefix.isEmpty()) return;
+        int parenIdx = afterPrefix.indexOf(" (");
+        String title = parenIdx > 0 ? afterPrefix.substring(0, parenIdx).trim() : afterPrefix;
+        if (title.length() > 500) {
+            title = title.substring(0, 500);
+        }
+        String normalizedTitle = normalizeTitleForMatch(title);
+        if (normalizedTitle.isEmpty()) return;
+
+        Optional<Contract> contractOpt = contractRepository.findFirstByTitle(title);
+        if (contractOpt.isEmpty()) {
+            contractOpt = contractRepository.findFirstByNormalizedTitle(normalizedTitle);
+        }
+        if (contractOpt.isEmpty()) {
+            contractOpt = contractRepository.findByName(normalizedTitle);
+        }
+        if (contractOpt.isEmpty() && !normalizedTitle.equals(title)) {
+            contractOpt = contractRepository.findByName(title);
+        }
+        if (contractOpt.isPresent()) {
+            payment.setContract(contractOpt.get());
+            logger.info("Payment linked to contract by title: {}", title.length() > 80 ? title.substring(0, 80) + "..." : title);
+        } else {
+            logger.debug("Payment: no contract found for title (excerpt): '{}'", title.length() > 80 ? title.substring(0, 80) + "..." : title);
+        }
+    }
+
+    /**
+     * Из комментария извлекает номер заявки и связывает оплату с заявкой на закупку.
+     * Формат 1: "N 2136" / "N 1898" в тексте → innerId 2136, 1898.
+     * Формат 2: "Договор ... M-Construction 2013 ..." → 2013 — номер заявки (innerId или id_purchase_request).
      */
     private void linkPurchaseRequestFromComment(Payment payment, String comment) {
         if (comment == null || comment.isEmpty()) return;
-        Matcher matcher = REQUEST_NUMBER_IN_COMMENT.matcher(comment);
-        String lastMatch = null;
-        while (matcher.find()) {
-            lastMatch = matcher.group(1);
+        String innerId = null;
+        Matcher mConstruction = REQUEST_NUMBER_M_CONSTRUCTION.matcher(comment);
+        if (mConstruction.find()) {
+            String last = null;
+            do { last = mConstruction.group(1); } while (mConstruction.find());
+            if (last != null) innerId = last.trim();
         }
-        if (lastMatch == null || lastMatch.isEmpty()) return;
-        String innerId = lastMatch.trim();
+        if (innerId == null) {
+            Matcher matcher = REQUEST_NUMBER_IN_COMMENT.matcher(comment);
+            String lastMatch = null;
+            while (matcher.find()) lastMatch = matcher.group(1);
+            if (lastMatch != null) innerId = lastMatch.trim();
+        }
+        if (innerId == null || innerId.isEmpty()) return;
         Optional<PurchaseRequest> prOpt = purchaseRequestRepository.findByInnerId(innerId);
         if (prOpt.isEmpty()) {
             try {
