@@ -137,6 +137,14 @@ public class PaymentService {
             dto.setPurchaseRequestId(entity.getPurchaseRequest().getId());
             dto.setPurchaseRequestNumber(entity.getPurchaseRequest().getIdPurchaseRequest());
         }
+        if (entity.getContract() != null) {
+            dto.setContractId(entity.getContract().getId());
+            String contractTitle = entity.getContract().getTitle();
+            if (contractTitle == null || contractTitle.isBlank()) {
+                contractTitle = entity.getContract().getName();
+            }
+            dto.setContractTitle(contractTitle);
+        }
         dto.setPaymentStatus(entity.getPaymentStatus() != null ? entity.getPaymentStatus().getDisplayName() : null);
         dto.setRequestStatus(entity.getRequestStatus() != null ? entity.getRequestStatus().getDisplayName() : null);
         dto.setPlannedExpenseDate(entity.getPlannedExpenseDate());

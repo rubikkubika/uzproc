@@ -4,6 +4,7 @@ import com.uzproc.backend.entity.contract.Contract;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -18,6 +19,15 @@ public interface ContractRepository extends JpaRepository<Contract, Long>, JpaSp
     boolean existsByInnerId(String innerId);
     List<Contract> findByPurchaseRequestId(Long purchaseRequestId);
     Optional<Contract> findByName(String name);
+    /** Поиск договора по заголовку (для связывания оплат из комментария Excel). Берётся первый при совпадении. */
+    Optional<Contract> findFirstByTitle(String title);
+
+    /**
+     * Поиск договора по нормализованному заголовку (trim + схлопывание пробелов, без учёта регистра).
+     * Используется для связывания оплат, когда строка из комментария может отличаться пробелами/регистром.
+     */
+    @Query(value = "SELECT * FROM contracts c WHERE c.title IS NOT NULL AND LOWER(TRIM(REGEXP_REPLACE(c.title, '\\s+', ' ', 'g'))) = LOWER(:title)", nativeQuery = true)
+    Optional<Contract> findFirstByNormalizedTitle(@Param("title") String normalizedTitle);
     List<Contract> findByParentContractId(Long parentContractId);
 
     @Query("SELECT DISTINCT EXTRACT(YEAR FROM c.contractCreationDate) FROM Contract c WHERE c.contractCreationDate IS NOT NULL ORDER BY EXTRACT(YEAR FROM c.contractCreationDate) DESC")

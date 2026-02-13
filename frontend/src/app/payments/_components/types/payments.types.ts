@@ -9,6 +9,9 @@ export interface Payment {
   purchaseRequestId: number | null;
   /** Номер заявки (id_purchase_request), не внутренний номер */
   purchaseRequestNumber: number | null;
+  contractId: number | null;
+  /** Заголовок договора (из комментария / связь по title) */
+  contractTitle: string | null;
   /** Статус оплаты: К оплате, Оплата возвращена, Оплачена */
   paymentStatus: string | null;
   /** Статус заявки: На согласовании, Отклонен, Утвержден, Черновик */
