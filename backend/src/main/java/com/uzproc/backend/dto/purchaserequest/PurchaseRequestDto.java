@@ -62,6 +62,12 @@ public class PurchaseRequestDto {
     private LocalDateTime approvalAssignmentDate;
     /** Дата завершения закупки (макс. completionDate по согласованиям закупки; для статусов Договор в работе / Договор подписан) */
     private LocalDateTime purchaseCompletionDate;
+    /** Плановый срок SLA (рабочих дней) по сложности: 1→3, 2→7, 3→15, 4→30 */
+    private Integer plannedSlaDays;
+    /** Фактический SLA — рабочие дни со следующего дня после назначения на утверждение по дату завершения (или по текущую дату, если не завершена) */
+    private Integer factualSlaDays;
+    /** Дельта SLA: плановый − фактический (положительная — уложились, отрицательная — просрочка) */
+    private Integer slaDelta;
 
     // Constructors
     public PurchaseRequestDto() {
@@ -394,6 +400,30 @@ public class PurchaseRequestDto {
 
     public void setPurchaseCompletionDate(LocalDateTime purchaseCompletionDate) {
         this.purchaseCompletionDate = purchaseCompletionDate;
+    }
+
+    public Integer getPlannedSlaDays() {
+        return plannedSlaDays;
+    }
+
+    public void setPlannedSlaDays(Integer plannedSlaDays) {
+        this.plannedSlaDays = plannedSlaDays;
+    }
+
+    public Integer getFactualSlaDays() {
+        return factualSlaDays;
+    }
+
+    public void setFactualSlaDays(Integer factualSlaDays) {
+        this.factualSlaDays = factualSlaDays;
+    }
+
+    public Integer getSlaDelta() {
+        return slaDelta;
+    }
+
+    public void setSlaDelta(Integer slaDelta) {
+        this.slaDelta = slaDelta;
     }
 }
 

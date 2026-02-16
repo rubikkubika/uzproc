@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useSlaMonthBlockData } from '../hooks/useSlaMonthBlockData';
 
 /** Сумма в сокращённом формате: тыс., млн, млрд, трлн */
@@ -108,7 +109,17 @@ export function SlaMonthBlock({
                 requests.map((row) => (
                   <tr key={row.id} className="hover:bg-gray-50">
                     <td className="px-1.5 py-1 text-gray-700 border-r border-gray-200 whitespace-nowrap">
-                      {row.idPurchaseRequest ?? '—'}
+                      {row.id ? (
+                        <Link
+                          href={`/purchase-request/${row.id}`}
+                          className="text-blue-600 hover:underline"
+                          title={`Перейти к заявке ${row.idPurchaseRequest ?? row.id}`}
+                        >
+                          {row.idPurchaseRequest ?? row.id}
+                        </Link>
+                      ) : (
+                        '—'
+                      )}
                     </td>
                     <td className="px-1.5 py-1 text-gray-900 border-r border-gray-200">
                       {row.name}

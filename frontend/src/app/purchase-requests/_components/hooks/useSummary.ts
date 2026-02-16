@@ -102,6 +102,10 @@ export function useSummary(params: UseSummaryParams) {
           }
         }
 
+        if (filtersFromHook.complexity && filtersFromHook.complexity.trim() !== '') {
+          params.append('complexity', filtersFromHook.complexity.trim());
+        }
+
         if (filtersFromHook.requiresPurchase && filtersFromHook.requiresPurchase.trim() !== '') {
           const requiresPurchaseValue = filtersFromHook.requiresPurchase.trim();
           if (requiresPurchaseValue === 'Требуется') {

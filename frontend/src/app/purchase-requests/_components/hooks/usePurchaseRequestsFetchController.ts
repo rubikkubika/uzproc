@@ -3,6 +3,8 @@ import type { SortField, SortDirection, TabType } from '../types/purchase-reques
 
 interface UsePurchaseRequestsFetchControllerProps {
   filtersLoadedRef: React.MutableRefObject<boolean>;
+  /** Состояние «фильтры загружены» — чтобы первый fetch шёл после ре-рендера с восстановленными фильтрами */
+  filtersLoaded: boolean;
   yearRestored: boolean;
   selectedYear: number | null;
   selectedMonth: number | null;
@@ -31,6 +33,7 @@ interface UsePurchaseRequestsFetchControllerProps {
 
 export function usePurchaseRequestsFetchController({
   filtersLoadedRef,
+  filtersLoaded,
   yearRestored,
   selectedYear,
   selectedMonth,
@@ -56,9 +59,10 @@ export function usePurchaseRequestsFetchController({
   const filtersStr = useMemo(() => JSON.stringify(filtersFromHook), [filtersFromHook]);
 
   useEffect(() => {
-    // Не загружаем данные до тех пор, пока фильтры не загружены из localStorage
-    if (!filtersLoadedRef.current) {
-      console.log('Skipping fetchData - filters not loaded yet');
+    // Не загружаем данные до тех пор, пока фильтры не загружены из localStorage.
+    // Используем filtersLoaded (state), а не только ref: после восстановления setState
+    // вызывается ре-рендер, и только тогда filtersLoaded === true и filtersFromHook уже восстановлены.
+    if (!filtersLoadedRef.current || !filtersLoaded) {
       return;
     }
     
@@ -99,6 +103,7 @@ export function usePurchaseRequestsFetchController({
     statusFilterStr,
     activeTab, // ВАЖНО: добавлен activeTab, чтобы fetchData вызывался при переключении вкладок
     forceReload, // Добавлен forceReload для принудительной перезагрузки при сбросе фильтров
+    filtersLoaded,
     filtersLoadedRef,
     fetchData,
     setCurrentPage,

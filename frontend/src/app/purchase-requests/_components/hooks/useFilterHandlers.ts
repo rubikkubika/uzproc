@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import type { PurchaseRequest } from '../types/purchase-request.types';
+import type { PurchaseRequest, TabType } from '../types/purchase-request.types';
 
 interface UseFilterHandlersProps {
   filtersFromHook: Record<string, string>;
@@ -14,6 +14,7 @@ interface UseFilterHandlersProps {
   setCfoFilter: (filter: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
   setStatusFilter: (filter: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
   setPurchaserFilter: (filter: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
+  setActiveTab?: (tab: TabType) => void;
   cfoSearchQuery: string;
   statusSearchQuery: string;
   purchaserSearchQuery: string;
@@ -35,6 +36,7 @@ export function useFilterHandlers({
   setCfoFilter,
   setStatusFilter,
   setPurchaserFilter,
+  setActiveTab,
   cfoSearchQuery,
   statusSearchQuery,
   purchaserSearchQuery,
@@ -130,7 +132,8 @@ export function useFilterHandlers({
     setPurchaserFilter(newSet);
     setCurrentPage(0);
     setAllItems([]); // Очищаем накопленные данные
-  }, [purchaserFilter, setPurchaserFilter, setCurrentPage, setAllItems]);
+    if (newSet.size > 0 && setActiveTab) setActiveTab('in-work');
+  }, [purchaserFilter, setPurchaserFilter, setCurrentPage, setAllItems, setActiveTab]);
 
   const handleCfoSelectAll = useCallback(() => {
     const allCfo = getUniqueValues('cfo');
@@ -153,7 +156,8 @@ export function useFilterHandlers({
     setPurchaserFilter(new Set(allPurchasers));
     setCurrentPage(0);
     setAllItems([]); // Очищаем накопленные данные
-  }, [getUniqueValues, setPurchaserFilter, setCurrentPage, setAllItems]);
+    if (allPurchasers.length > 0 && setActiveTab) setActiveTab('in-work');
+  }, [getUniqueValues, setPurchaserFilter, setCurrentPage, setAllItems, setActiveTab]);
 
   const handlePurchaserDeselectAll = useCallback(() => {
     setPurchaserFilter(new Set());

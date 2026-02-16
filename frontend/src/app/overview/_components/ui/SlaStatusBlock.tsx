@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import Link from 'next/link';
 import { HelpCircle, X } from 'lucide-react';
 import { useSlaStatusBlockData } from '../hooks/useSlaStatusBlockData';
 import type { OverviewSlaRequestRow } from '../hooks/useOverviewSlaData';
@@ -267,7 +268,17 @@ export function SlaStatusBlock({ title, statusGroup, year, requests: propsReques
                 requests.map((row) => (
                   <tr key={row.id} className="hover:bg-gray-50">
                     <td className="px-1.5 py-0.5 text-gray-700 border-r border-gray-200 whitespace-nowrap w-[72px] overflow-hidden text-ellipsis">
-                      {row.idPurchaseRequest ?? '—'}
+                      {row.id ? (
+                        <Link
+                          href={`/purchase-request/${row.id}`}
+                          className="text-blue-600 hover:underline truncate block"
+                          title={`Перейти к заявке ${row.idPurchaseRequest ?? row.id}`}
+                        >
+                          {row.idPurchaseRequest ?? row.id}
+                        </Link>
+                      ) : (
+                        '—'
+                      )}
                     </td>
                     <td className="px-1.5 py-0.5 text-gray-900 border-r border-gray-200 min-w-[220px] overflow-hidden text-ellipsis">
                       {row.name}

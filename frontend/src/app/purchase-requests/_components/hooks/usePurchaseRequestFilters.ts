@@ -19,6 +19,7 @@ const TEXT_FIELDS = [
   'currency',
   'costType',
   'contractType',
+  'complexity',
 ];
 
 export function usePurchaseRequestFilters(setCurrentPage?: (page: number) => void) {
@@ -62,6 +63,7 @@ export function usePurchaseRequestFilters(setCurrentPage?: (page: number) => voi
     contractDurationMonths: '',
     isPlanned: '',
     hasLinkedPlanItem: '',
+    complexity: '',
     requiresPurchase: '',
     status: '',
   });
@@ -88,6 +90,7 @@ export function usePurchaseRequestFilters(setCurrentPage?: (page: number) => voi
     contractDurationMonths: '',
     isPlanned: '',
     hasLinkedPlanItem: '',
+    complexity: '',
     requiresPurchase: '',
     status: '',
   });

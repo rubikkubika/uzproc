@@ -28,6 +28,7 @@ const TEXT_FIELDS = [
   'costType',
   'contractType',
   'requiresPurchase',
+  'complexity',
 ];
 
 export function useDebouncedFiltersSync({

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useLayoutEffect, useRef, ReactElement } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
 import { copyToClipboard } from '@/utils/clipboard';
 import { useAuth } from '@/contexts/AuthContext';
@@ -99,7 +99,22 @@ const ACTIVE_TAB_KEY = 'activeTab';
 export default function PurchaseRequestDetailPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const id = params?.id as string;
+
+  // Кнопка «Назад»: если есть from (URL списка) — переходим туда, иначе history.back()
+  const goBack = () => {
+    const from = searchParams.get('from');
+    if (from) {
+      try {
+        router.push(decodeURIComponent(from));
+      } catch {
+        router.back();
+      }
+    } else {
+      router.back();
+    }
+  };
   
   const [purchaseRequest, setPurchaseRequest] = useState<PurchaseRequest | null>(null);
   const [purchase, setPurchase] = useState<Purchase | null>(null);
@@ -1108,7 +1123,7 @@ export default function PurchaseRequestDetailPage() {
               <div className="text-center py-6">
                 <p className="text-red-600 mb-4">Ошибка: {error}</p>
                 <button
-                  onClick={() => router.back()}
+                  onClick={goBack}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
                   Назад
@@ -1165,7 +1180,7 @@ export default function PurchaseRequestDetailPage() {
               {/* Кнопка назад */}
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => router.back()}
+                  onClick={goBack}
                   className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 transition-colors"
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />

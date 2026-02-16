@@ -66,7 +66,7 @@ public class OverviewService {
                     0, 2000,
                     null, null, null, null,
                     null, null, null, null, null, null, null, null,
-                    null, true, List.of(statusGroup), false,
+                    null, null, true, List.of(statusGroup), false,
                     null, null, false, year, null);
             List<OverviewSlaRequestDto> requests = page.getContent().stream()
                     .map(this::toOverviewSlaRequest)
@@ -269,7 +269,7 @@ public class OverviewService {
                     0, Math.min(requestsCount, 2000),
                     null, null, null, null,
                     null, null, null, null, null, null, null, null,
-                    null, true, null, false,
+                    null, null, true, null, false,
                     null, null, false, year, calendarMonth);
             for (PurchaseRequestDto pr : requestsPage.getContent()) {
                 String cfoKey = normalizeCfoKey(pr.getCfo());
@@ -333,7 +333,7 @@ public class OverviewService {
         Page<PurchaseRequestDto> page = purchaseRequestService.findAll(
                 0, 1, null, null, null, null,
                 null, null, null, null, null, null, null, null,
-                null, true, null, false,
+                null, null, true, null, false,
                 null, null, false, year, calendarMonth);
         return (int) page.getTotalElements();
     }

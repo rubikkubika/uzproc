@@ -82,24 +82,24 @@ export default function PurchaseRequestsTableRow({
       }}
     >
       {filteredColumnOrder.map(columnKey => {
-        // Колонка "excludeFromInWork"
+        // Колонка "excludeFromInWork" — только для пользователя admin (роль admin), у остальных кнопка неактивна
         if (columnKey === 'excludeFromInWork') {
           return (
-            <td 
+            <td
               key={columnKey}
               className={`px-2 py-0.5 whitespace-nowrap border-r border-gray-200 ${canEditExcludeFromInWork ? 'cursor-pointer' : 'cursor-not-allowed'}`}
               style={{ width: '48px', minWidth: '48px', maxWidth: '48px' }}
-              onClick={canEditExcludeFromInWork ? handleToggleExclude : undefined}
+              onClick={canEditExcludeFromInWork ? handleToggleExclude : (e) => e.stopPropagation()}
+              aria-disabled={!canEditExcludeFromInWork}
+              title={canEditExcludeFromInWork
+                ? (request.excludeFromInWork ? "Скрыто из вкладки 'В работе' (кликните для изменения)" : "Отображается во вкладке 'В работе' (кликните для изменения)")
+                : "Только администратор может скрывать заявку из вкладки 'В работе'"}
             >
-              <div className={`flex items-center justify-center rounded p-1 transition-colors ${canEditExcludeFromInWork ? 'hover:bg-gray-100' : 'opacity-50'}`}>
+              <div className={`flex items-center justify-center rounded p-1 transition-colors ${canEditExcludeFromInWork ? 'hover:bg-gray-100' : 'opacity-50 pointer-events-none'}`}>
                 {request.excludeFromInWork ? (
-                  <span title={canEditExcludeFromInWork ? "Скрыто из вкладки 'В работе' (кликните для изменения)" : "Скрыто из вкладки 'В работе' (только администратор может изменить)"}>
-                    <EyeOff className="w-4 h-4 text-gray-400" />
-                  </span>
+                  <EyeOff className="w-4 h-4 text-gray-400" />
                 ) : (
-                  <span title={canEditExcludeFromInWork ? "Отображается во вкладке 'В работе' (кликните для изменения)" : "Отображается во вкладке 'В работе' (только администратор может изменить)"}>
-                    <Eye className="w-4 h-4 text-gray-600" />
-                  </span>
+                  <Eye className="w-4 h-4 text-gray-600" />
                 )}
               </div>
             </td>
@@ -376,6 +376,58 @@ export default function PurchaseRequestsTableRow({
                   -
                 </span>
               )}
+            </td>
+          );
+        }
+
+        if (columnKey === 'complexity') {
+          return (
+            <td
+              key={columnKey}
+              className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
+              style={{ width: `${getColumnWidth('complexity')}px`, minWidth: `${getColumnWidth('complexity')}px`, maxWidth: `${getColumnWidth('complexity')}px` }}
+              title={request.complexity ?? ''}
+            >
+              {request.complexity ?? '-'}
+            </td>
+          );
+        }
+
+        // Колонка "Факт. SLA / дельта" — фактический SLA и дельта по той же логике, что на вкладке SLA в обзоре
+        if (columnKey === 'factualSla') {
+          const factual = request.factualSlaDays;
+          const delta = request.slaDelta;
+          const hasFactual = factual != null;
+          const hasDelta = delta != null;
+          let content: React.ReactNode = '—';
+          if (hasFactual || hasDelta) {
+            const factualStr = hasFactual ? String(factual) : '—';
+            const deltaNode = hasDelta ? (
+              delta > 0 ? (
+                <span className="text-green-600">+{delta}</span>
+              ) : delta < 0 ? (
+                <span className="text-red-600">{delta}</span>
+              ) : (
+                <span className="text-gray-600">0</span>
+              )
+            ) : null;
+            content = (
+              <span className="tabular-nums">
+                {factualStr}
+                {hasDelta && (
+                  <span className="ml-1">({deltaNode})</span>
+                )}
+              </span>
+            );
+          }
+          return (
+            <td
+              key={columnKey}
+              className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center"
+              style={{ width: `${getColumnWidth('factualSla')}px`, minWidth: `${getColumnWidth('factualSla')}px`, maxWidth: `${getColumnWidth('factualSla')}px` }}
+              title={hasFactual || hasDelta ? `Факт: ${request.factualSlaDays ?? '—'} дн., дельта: ${request.slaDelta != null ? request.slaDelta : '—'}` : ''}
+            >
+              {content}
             </td>
           );
         }

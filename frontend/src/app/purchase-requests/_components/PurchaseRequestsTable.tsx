@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useCallback, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
 import { Clock, Check, Eye, EyeOff, Settings, Star } from 'lucide-react';
 import PurchaseRequestsSummaryTable from './ui/PurchaseRequestsSummaryTable';
@@ -27,6 +28,7 @@ import { usePurchaseRequestsTable } from './hooks/usePurchaseRequestsTable';
 import { useUserRole } from './hooks/useUserRole';
 import { useRatingModal } from './hooks/useRatingModal';
 import { useLocalStorageSync } from './hooks/useLocalStorageSync';
+import { useSearchParamsSync } from './hooks/useSearchParamsSync';
 import { useMetadata } from './hooks/useMetadata';
 import { useSummary } from './hooks/useSummary';
 import { useInfiniteScroll } from './hooks/useInfiniteScroll';
@@ -242,32 +244,68 @@ export default function PurchaseRequestsTable() {
   const cfoFilterButtonRef = cfoFilterPositionHook.buttonRef;
   const statusFilterButtonRef = statusFilterPositionHook.buttonRef;
   const purchaserFilterButtonRef = purchaserFilterPositionHook.buttonRef;
-  
-  // Используем хук для синхронизации с localStorage
-  const { filtersLoadedRef, filtersLoaded, yearRestored, setYearRestored } = useLocalStorageSync({
+
+  const searchParams = useSearchParams();
+
+  // Синхронизация с localStorage; при pr_ в URL восстановление из URL делает useSearchParamsSync
+  const { filtersLoadedRef, filtersLoaded, setFiltersLoaded, yearRestored, setYearRestored } = useLocalStorageSync({
     filtersFromHook,
     localFilters,
     cfoFilter,
     statusFilter,
+    purchaserFilter,
     selectedYear,
     sortField,
     sortDirection,
     currentPage,
     cfoSearchQuery,
     statusSearchQuery,
+    purchaserSearchQuery,
     activeTab,
     setFilters,
     setLocalFilters,
     setCfoFilter,
     setStatusFilter,
+    setPurchaserFilter,
     setSelectedYear,
     setSortField,
     setSortDirection,
     setCurrentPage,
     setCfoSearchQuery,
     setStatusSearchQuery,
+    setPurchaserSearchQuery,
     setActiveTab,
     filtersStateRef,
+    searchParams,
+  });
+
+  // Источник истины для списка — URL; при изменении state обновляем URL (replace: true)
+  useSearchParamsSync({
+    filtersFromHook,
+    currentPage,
+    pageSize,
+    sortField,
+    sortDirection,
+    activeTab,
+    selectedYear,
+    selectedMonth,
+    cfoFilter,
+    statusFilter,
+    purchaserFilter,
+    setFilters,
+    setLocalFilters,
+    setCurrentPage,
+    setSortField,
+    setSortDirection,
+    setActiveTab,
+    setSelectedYear,
+    setSelectedMonth,
+    setCfoFilter,
+    setStatusFilter,
+    setPurchaserFilter,
+    setFiltersLoaded,
+    filtersLoadedRef,
+    filtersLoaded,
   });
 
   // Используем хук для фильтрации по типу заявки (Закупки/Заказы) - ВАЖНО: до useTabCounts
@@ -287,7 +325,7 @@ export default function PurchaseRequestsTable() {
     kindTab,
   });
 
-  // Используем хук для навигации
+  // Используем хук для навигации; getListUrl — для кнопки «Назад» на детальной странице
   const { openInSameTab, openInNewTab } = usePurchaseRequestNavigation({
     router,
     dataTotalElements: data?.totalElements,
@@ -297,12 +335,16 @@ export default function PurchaseRequestsTable() {
     localFilters,
     cfoFilter,
     statusFilter,
+    purchaserFilter,
     selectedYear,
     sortField,
     sortDirection,
     cfoSearchQuery,
     statusSearchQuery,
+    purchaserSearchQuery,
     activeTab,
+    filtersStateRef,
+    getListUrl: useCallback(() => `/?${searchParams.toString()}`, [searchParams]),
   });
 
   // Используем хук для CSI действий
@@ -339,10 +381,9 @@ export default function PurchaseRequestsTable() {
     activeTab,
     setActiveTab,
     setStatusFilter,
-    setPurchaserFilter,
-    setCfoFilter,
     setCurrentPage,
     setAllItems,
+    purchaserFilter,
   });
   
   // Используем хук для управления колонками по вкладкам
@@ -361,6 +402,7 @@ export default function PurchaseRequestsTable() {
   // Используем хук для управления fetchData
   usePurchaseRequestsFetchController({
     filtersLoadedRef,
+    filtersLoaded,
     yearRestored,
     selectedYear,
     selectedMonth,
@@ -470,6 +512,7 @@ export default function PurchaseRequestsTable() {
     setCfoFilter,
     setStatusFilter,
     setPurchaserFilter,
+    setActiveTab,
     cfoSearchQuery,
     statusSearchQuery,
     purchaserSearchQuery,
@@ -580,6 +623,8 @@ export default function PurchaseRequestsTable() {
       contractType: '',
       contractDurationMonths: '',
       isPlanned: '',
+      hasLinkedPlanItem: '',
+      complexity: '',
       requiresPurchase: '',
       status: '',
     };
@@ -817,6 +862,7 @@ export default function PurchaseRequestsTable() {
             purchaserFilter={purchaserFilter}
             setPurchaserFilter={setPurchaserFilter}
             setCurrentPage={setCurrentPage}
+            setActiveTab={setActiveTab}
           />
         </div>
         {/* Последние оценки CSI feedback - справа от сводной таблицы */}
