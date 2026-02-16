@@ -59,10 +59,11 @@ function buildChartOptions(slaPercentageByMonth: OverviewSlaPercentageByMonth[])
       },
       tooltip: {
         callbacks: {
-          label: (context: { raw?: number; dataIndex: number }) => {
+          label: (context: { raw?: unknown; dataIndex: number }) => {
+            const rawVal = typeof context.raw === 'number' ? context.raw : 0;
             const item = byMonth.get(context.dataIndex + 1);
             if (!item || item.totalCompleted === 0) return 'Нет данных';
-            return `${context.raw != null ? Math.round(context.raw) : 0}% (${item.metSla}/${item.totalCompleted})`;
+            return `${Math.round(rawVal)}% (${item.metSla}/${item.totalCompleted})`;
           },
         },
       },

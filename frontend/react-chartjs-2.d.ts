@@ -11,6 +11,11 @@ declare module 'react-chartjs-2' {
     getElementsAtEvent?: (elements: any) => void;
   }
 
+  export interface ChartProps extends ChartComponentProps {
+    type: 'line' | 'bar' | 'radar' | 'doughnut' | 'polarArea' | 'bubble' | 'pie' | 'scatter';
+  }
+
+  export class Chart extends Component<ChartProps> {}
   export class Line extends Component<ChartComponentProps> {}
   export class Bar extends Component<ChartComponentProps> {}
   export class Pie extends Component<ChartComponentProps> {}

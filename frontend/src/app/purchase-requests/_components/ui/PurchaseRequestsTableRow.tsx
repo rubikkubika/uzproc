@@ -393,30 +393,54 @@ export default function PurchaseRequestsTableRow({
           );
         }
 
-        // Колонка "Факт. SLA / дельта" — фактический SLA и дельта по той же логике, что на вкладке SLA в обзоре
+        // Колонка "Факт. SLA / дельта" — фактический SLA и дельта: плюс — зелёный квадрат (или жёлтый если ≤30% от планового), минус — красный
         if (columnKey === 'factualSla') {
           const factual = request.factualSlaDays;
           const delta = request.slaDelta;
+          const planned = request.plannedSlaDays;
           const hasFactual = factual != null;
           const hasDelta = delta != null;
           let content: React.ReactNode = '—';
           if (hasFactual || hasDelta) {
             const factualStr = hasFactual ? String(factual) : '—';
-            const deltaNode = hasDelta ? (
-              delta > 0 ? (
-                <span className="text-green-600">+{delta}</span>
-              ) : delta < 0 ? (
-                <span className="text-red-600">{delta}</span>
-              ) : (
-                <span className="text-gray-600">0</span>
-              )
-            ) : null;
+            let deltaNode: React.ReactNode = null;
+            if (hasDelta) {
+              const remainderPct = planned != null && planned > 0 && delta > 0
+                ? (delta / planned) * 100
+                : null;
+              const isLowRemainder = remainderPct != null && remainderPct <= 30;
+              const deltaLabel = delta > 0 ? `+${delta}` : String(delta);
+              if (delta > 0) {
+                deltaNode = (
+                  <span
+                    className={`inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1 rounded text-white font-bold tabular-nums ${
+                      isLowRemainder ? 'bg-yellow-400 !text-black' : 'bg-green-600 text-white'
+                    }`}
+                    title={isLowRemainder ? `Остаток ≤30% от планового (${remainderPct?.toFixed(0)}%)` : undefined}
+                  >
+                    {deltaLabel}
+                  </span>
+                );
+              } else if (delta < 0) {
+                deltaNode = (
+                  <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1 rounded bg-red-600 text-white font-bold tabular-nums">
+                    {deltaLabel}
+                  </span>
+                );
+              } else {
+                deltaNode = (
+                  <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1 rounded bg-gray-200 text-gray-700 font-bold tabular-nums">
+                    0
+                  </span>
+                );
+              }
+            }
             content = (
-              <span className="tabular-nums">
-                {factualStr}
-                {hasDelta && (
-                  <span className="ml-1">({deltaNode})</span>
-                )}
+              <span className="tabular-nums inline-flex items-center gap-1 flex-wrap">
+                <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1 rounded bg-gray-200 text-gray-700 font-bold tabular-nums">
+                  {factualStr}
+                </span>
+                {hasDelta && deltaNode}
               </span>
             );
           }

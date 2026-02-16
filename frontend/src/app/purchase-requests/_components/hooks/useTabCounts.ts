@@ -7,6 +7,7 @@ interface Filters {
   name?: string;
   costType?: string;
   contractType?: string;
+  complexity?: string;
   requiresPurchase?: string;
   budgetAmount?: string;
   budgetAmountOperator?: string;

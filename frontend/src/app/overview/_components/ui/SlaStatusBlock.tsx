@@ -296,7 +296,9 @@ export function SlaStatusBlock({ title, statusGroup, year, requests: propsReques
                       {row.status ?? '—'}
                     </td>
                     <td className="px-1.5 py-0.5 text-gray-700 border-r border-gray-200 text-center whitespace-nowrap w-[88px] overflow-hidden text-ellipsis">
-                      {getPlannedSlaDays(row.complexity)}
+                      <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1 rounded bg-gray-200 text-gray-700 font-bold tabular-nums">
+                        {getPlannedSlaDays(row.complexity)}
+                      </span>
                     </td>
                     <td className="px-1.5 py-0.5 text-gray-700 border-r border-gray-200 whitespace-nowrap w-[100px] overflow-hidden text-ellipsis">
                       {formatAssignmentDate(row.approvalAssignmentDate)}
@@ -313,7 +315,12 @@ export function SlaStatusBlock({ title, statusGroup, year, requests: propsReques
                           if (isNaN(start.getTime())) return '—';
                           const end = row.purchaseCompletionDate ? new Date(row.purchaseCompletionDate) : new Date();
                           if (isNaN(end.getTime())) return '—';
-                          return countWorkingDaysBetween(start, end);
+                          const factual = countWorkingDaysBetween(start, end);
+                          return (
+                            <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1 rounded bg-gray-200 text-gray-700 font-bold tabular-nums">
+                              {factual}
+                            </span>
+                          );
                         } catch {
                           return '—';
                         }
@@ -332,9 +339,33 @@ export function SlaStatusBlock({ title, statusGroup, year, requests: propsReques
                           if (isNaN(end.getTime())) return '—';
                           const factual = countWorkingDaysBetween(start, end);
                           const diff = planned - factual;
-                          if (diff > 0) return <span className="text-green-600">+{diff}</span>;
-                          if (diff < 0) return <span className="text-red-600">{diff}</span>;
-                          return '0';
+                          const remainderPct = planned > 0 && diff > 0 ? (diff / planned) * 100 : null;
+                          const isLowRemainder = remainderPct != null && remainderPct <= 30;
+                          const deltaLabel = diff > 0 ? `+${diff}` : String(diff);
+                          if (diff > 0) {
+                            return (
+                              <span
+                                className={`inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1 rounded text-white font-bold tabular-nums ${
+                                  isLowRemainder ? 'bg-yellow-400 !text-black' : 'bg-green-600 text-white'
+                                }`}
+                                title={isLowRemainder ? `Остаток ≤30% от планового (${remainderPct?.toFixed(0)}%)` : undefined}
+                              >
+                                {deltaLabel}
+                              </span>
+                            );
+                          }
+                          if (diff < 0) {
+                            return (
+                              <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1 rounded bg-red-600 text-white font-bold tabular-nums">
+                                {deltaLabel}
+                              </span>
+                            );
+                          }
+                          return (
+                            <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1 rounded bg-gray-200 text-gray-700 font-bold tabular-nums">
+                              0
+                            </span>
+                          );
                         } catch {
                           return '—';
                         }
