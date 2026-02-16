@@ -110,6 +110,7 @@ public class PurchaseRequestService {
             String contractType,
             Boolean isPlanned,
             Boolean hasLinkedPlanItem,
+            String complexity,
             Boolean requiresPurchase,
             List<String> statusGroup,
             Boolean excludePendingStatuses,
@@ -164,7 +165,7 @@ public class PurchaseRequestService {
         boolean includeNullStatuses = size <= 1000;
         
         Specification<PurchaseRequest> spec = buildSpecification(
-                year, month, approvalAssignmentYear, approvalAssignmentMonth, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, statusGroup, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWork, excludeFromInWorkFilter, includeNullStatuses, null, null, null);
+                year, month, approvalAssignmentYear, approvalAssignmentMonth, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, hasLinkedPlanItem, complexity, requiresPurchase, statusGroup, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWork, excludeFromInWorkFilter, includeNullStatuses, null, null, null);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -242,6 +243,7 @@ public class PurchaseRequestService {
             String contractType,
             Boolean isPlanned,
             Boolean hasLinkedPlanItem,
+            String complexity,
             Boolean requiresPurchase,
             java.math.BigDecimal budgetAmount,
             String budgetAmountOperator) {
@@ -270,13 +272,13 @@ public class PurchaseRequestService {
         
         // Подсчитываем для каждой вкладки (фильтр по дате назначения на утверждение)
         counts.put("all", countWithFilters(approvalAssignmentYear, approvalAssignmentMonth, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
-            name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, null, budgetAmount, budgetAmountOperator, false));
+            name, costType, contractType, isPlanned, hasLinkedPlanItem, complexity, requiresPurchase, null, budgetAmount, budgetAmountOperator, false));
         counts.put("in-work", countWithFilters(approvalAssignmentYear, approvalAssignmentMonth, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
-            name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, inWorkStatusGroups, budgetAmount, budgetAmountOperator, true));
+            name, costType, contractType, isPlanned, hasLinkedPlanItem, complexity, requiresPurchase, inWorkStatusGroups, budgetAmount, budgetAmountOperator, true));
         counts.put("completed", countWithFilters(approvalAssignmentYear, approvalAssignmentMonth, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
-            name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, completedStatusGroups, budgetAmount, budgetAmountOperator, false));
+            name, costType, contractType, isPlanned, hasLinkedPlanItem, complexity, requiresPurchase, completedStatusGroups, budgetAmount, budgetAmountOperator, false));
         counts.put("project-rejected", countWithFilters(approvalAssignmentYear, approvalAssignmentMonth, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
-            name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, projectRejectedStatusGroups, budgetAmount, budgetAmountOperator, false));
+            name, costType, contractType, isPlanned, hasLinkedPlanItem, complexity, requiresPurchase, projectRejectedStatusGroups, budgetAmount, budgetAmountOperator, false));
         
         return counts;
     }
@@ -296,6 +298,7 @@ public class PurchaseRequestService {
             String contractType,
             Boolean isPlanned,
             Boolean hasLinkedPlanItem,
+            String complexity,
             Boolean requiresPurchase,
             List<String> statusGroup,
             java.math.BigDecimal budgetAmount,
@@ -304,7 +307,7 @@ public class PurchaseRequestService {
 
         Specification<PurchaseRequest> spec = buildSpecification(
             null, null, approvalAssignmentYear, approvalAssignmentMonth, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser,
-            name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, statusGroup,
+            name, costType, contractType, isPlanned, hasLinkedPlanItem, complexity, requiresPurchase, statusGroup,
             false, budgetAmount, budgetAmountOperator, excludeFromInWork, null, false, null, null, null);
         
         return purchaseRequestRepository.count(spec);
@@ -321,22 +324,22 @@ public class PurchaseRequestService {
         // Плановые — связанные с планом (hasLinkedPlanItem=true). Не включаем «Исключена из в работе» и «Не утверждена».
         Specification<PurchaseRequest> specPlanned = buildSpecification(
                 null, null, approvalYear, approvalMonth, null, null, null, null, null, null, null, null,
-                true, true, null, false, null, null, false, false, false, null, true, List.of(PurchaseRequestStatus.NOT_APPROVED));
+                true, null, true, null, false, null, null, false, false, false, null, true, List.of(PurchaseRequestStatus.NOT_APPROVED));
         dto.setPlanned((int) purchaseRequestRepository.count(specPlanned));
         // Внеплановые — несвязанные с планом (hasLinkedPlanItem=false). Не включаем «Исключена из в работе» и «Не утверждена».
         Specification<PurchaseRequest> specNonPlanned = buildSpecification(
                 null, null, approvalYear, approvalMonth, null, null, null, null, null, null, null, null,
-                false, true, null, false, null, null, false, false, false, null, true, List.of(PurchaseRequestStatus.NOT_APPROVED));
+                false, null, true, null, false, null, null, false, false, false, null, true, List.of(PurchaseRequestStatus.NOT_APPROVED));
         dto.setNonPlanned((int) purchaseRequestRepository.count(specNonPlanned));
         // Неутверждена — статус «Заявка не утверждена»
         Specification<PurchaseRequest> specUnapproved = buildSpecification(
                 null, null, approvalYear, approvalMonth, null, null, null, null, null, null, null, null,
-                null, true, List.of("Заявка не утверждена"), false, null, null, false, null, false, null, true, null);
+                null, null, true, List.of("Заявка не утверждена"), false, null, null, false, null, false, null, true, null);
         dto.setUnapproved((int) purchaseRequestRepository.count(specUnapproved));
         // Исключена — заявки, исключённые из в работе (excludeFromInWork = true)
         Specification<PurchaseRequest> specExcluded = buildSpecification(
                 null, null, approvalYear, approvalMonth, null, null, null, null, null, null, null, null,
-                null, true, null, false, null, null, false, true, false, null, true, null);
+                null, null, true, null, false, null, null, false, true, false, null, true, null);
         dto.setExcluded((int) purchaseRequestRepository.count(specExcluded));
         return dto;
     }
@@ -426,6 +429,18 @@ public class PurchaseRequestService {
             // Сложность — сначала из заявки (alldocuments: «Сложность закупки (уровень) (Заявка на ЗП)»), иначе из связанной позиции плана закупок
             // Сложность — только из заявки (парсится из Excel alldocuments), без подстановки из плана
             dto.setComplexity(entity.getComplexity());
+
+            // Фактический SLA и дельта — по той же логике, что и на вкладке SLA в обзоре
+            Integer plannedSla = getPlannedSlaDays(entity.getComplexity());
+            dto.setPlannedSlaDays(plannedSla);
+            if (approvalAssignmentDate != null) {
+                LocalDateTime end = purchaseCompletionDate != null ? purchaseCompletionDate : LocalDateTime.now();
+                long factual = countWorkingDaysBetween(approvalAssignmentDate, end);
+                dto.setFactualSlaDays((int) factual);
+                if (plannedSla != null) {
+                    dto.setSlaDelta(plannedSla - (int) factual);
+                }
+            }
 
             List<com.uzproc.backend.entity.purchase.Purchase> purchases = purchaseRepository.findByPurchaseRequestId(entity.getIdPurchaseRequest());
             List<Long> purchaseIds = purchases.stream()
@@ -550,6 +565,7 @@ public class PurchaseRequestService {
             String contractType,
             Boolean isPlanned,
             Boolean hasLinkedPlanItem,
+            String complexity,
             Boolean requiresPurchase,
             List<String> statusGroup,
             Boolean excludePendingStatuses,
@@ -801,6 +817,13 @@ public class PurchaseRequestService {
                 logger.info("Added hasLinkedPlanItem filter: {}", hasLinkedPlanItem);
             }
 
+            // Фильтр по сложности (частичное совпадение, без учёта регистра)
+            if (complexity != null && !complexity.trim().isEmpty()) {
+                predicates.add(cb.like(cb.lower(root.get("complexity")), "%" + complexity.trim().toLowerCase() + "%"));
+                predicateCount++;
+                logger.info("Added complexity filter: '{}'", complexity);
+            }
+
             // Фильтр по требуется закупка
             if (requiresPurchase != null) {
                 predicates.add(cb.equal(root.get("requiresPurchase"), requiresPurchase));
@@ -1041,6 +1064,31 @@ public class PurchaseRequestService {
             return Sort.by(direction, sortBy);
         }
         return Sort.unsorted();
+    }
+
+    /** Плановый срок SLA (рабочих дней) по сложности: 1→3, 2→7, 3→15, 4→30. Та же логика, что на вкладке SLA в обзоре. */
+    private Integer getPlannedSlaDays(String complexity) {
+        if (complexity == null || complexity.trim().isEmpty()) return null;
+        switch (complexity.trim()) {
+            case "1": return 3;
+            case "2": return 7;
+            case "3": return 15;
+            case "4": return 30;
+            default: return null;
+        }
+    }
+
+    /** Рабочие дни между датами: со следующего дня после assignment по completion включительно. */
+    private long countWorkingDaysBetween(LocalDateTime assignment, LocalDateTime completion) {
+        if (assignment == null || completion == null) return 0;
+        LocalDate start = assignment.toLocalDate().plusDays(1);
+        LocalDate end = completion.toLocalDate();
+        if (start.isAfter(end)) return 0;
+        long count = 0;
+        for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
+            if (d.getDayOfWeek() != DayOfWeek.SATURDAY && d.getDayOfWeek() != DayOfWeek.SUNDAY) count++;
+        }
+        return count;
     }
 
     @Transactional

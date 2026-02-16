@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
 interface PurchaserSummaryItem {
@@ -41,6 +41,53 @@ interface PurchaseRequestsSummaryTableProps {
   purchaserFilter: Set<string>;
   setPurchaserFilter: (filter: Set<string>) => void;
   setCurrentPage: (page: number) => void;
+  /** При применении фильтра закупщика переключать вкладку на «В работе», если возможно */
+  setActiveTab?: (tab: 'in-work') => void;
+}
+
+/** Одна строка сводной таблицы — закупщик передаётся пропом, при клике вызывается onSelectPurchaser(item.purchaser) */
+function SummaryRow({
+  item,
+  isSelected,
+  onSelectPurchaser,
+}: {
+  item: PurchaserSummaryItem;
+  isSelected: boolean;
+  onSelectPurchaser: (purchaser: string, e: React.MouseEvent<HTMLTableRowElement>) => void;
+}) {
+  const handleClick = useCallback(
+    (e: React.MouseEvent<HTMLTableRowElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onSelectPurchaser(item.purchaser, e);
+    },
+    [item.purchaser, onSelectPurchaser]
+  );
+  return (
+    <tr
+      className={`cursor-pointer transition-colors ${
+        isSelected ? 'bg-blue-100 hover:bg-blue-200' : 'hover:bg-gray-50'
+      }`}
+      onClick={handleClick}
+      title={isSelected ? 'Нажмите для снятия выделения. Ctrl/Cmd+клик для множественного выбора' : 'Нажмите для выделения. Ctrl/Cmd+клик для множественного выбора'}
+    >
+      <td className="px-2 py-1 text-xs text-gray-900 border-r border-gray-200 whitespace-nowrap">
+        {getPurchaserFIO(item.purchaser)}
+      </td>
+      <td className="px-2 py-1 text-xs text-gray-900 text-right border-l-2 border-t border-b border-r border-gray-400 whitespace-nowrap">
+        {item.purchasesCount}
+      </td>
+      <td className="px-2 py-1 text-xs text-gray-900 text-right border-r-2 border-t border-b border-gray-400 whitespace-nowrap">
+        {formatCompactNumber(item.purchasesBudget)}
+      </td>
+      <td className="px-2 py-1 text-xs text-gray-900 text-right border-l-2 border-t border-b border-r border-gray-400 whitespace-nowrap">
+        {item.ordersCount}
+      </td>
+      <td className="px-2 py-1 text-xs text-gray-900 text-right border-r-2 border-t border-b border-gray-400 whitespace-nowrap">
+        {formatCompactNumber(item.ordersBudget)}
+      </td>
+    </tr>
+  );
 }
 
 /**
@@ -52,11 +99,37 @@ export default function PurchaseRequestsSummaryTable({
   purchaserFilter,
   setPurchaserFilter,
   setCurrentPage,
+  setActiveTab,
 }: PurchaseRequestsSummaryTableProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const MAX_VISIBLE_ROWS = 10;
   const displayRows = isExpanded ? purchaserSummary : purchaserSummary.slice(0, MAX_VISIBLE_ROWS);
   const hasMoreRows = purchaserSummary.length > MAX_VISIBLE_ROWS;
+
+  // Используем функциональное обновление, чтобы всегда иметь актуальное состояние и при клике выбирать только этого закупщика (без ctrl — замена, с ctrl — добавление/снятие)
+  const onSelectPurchaser = useCallback(
+    (purchaser: string, e: React.MouseEvent<HTMLTableRowElement>) => {
+      const isClearingOnlySelected =
+        !(e.ctrlKey || e.metaKey) && purchaserFilter.has(purchaser) && purchaserFilter.size === 1;
+
+      if (e.ctrlKey || e.metaKey) {
+        setPurchaserFilter((prev) => {
+          const next = new Set(prev);
+          if (next.has(purchaser)) next.delete(purchaser);
+          else next.add(purchaser);
+          return next;
+        });
+      } else {
+        setPurchaserFilter((prev) => {
+          if (prev.has(purchaser) && prev.size === 1) return new Set();
+          return new Set([purchaser]);
+        });
+      }
+      setCurrentPage(0);
+      if (!isClearingOnlySelected && setActiveTab) setActiveTab('in-work');
+    },
+    [purchaserFilter, setPurchaserFilter, setCurrentPage, setActiveTab]
+  );
 
   return (
     <div className="flex-shrink-0">
@@ -84,61 +157,14 @@ export default function PurchaseRequestsSummaryTable({
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {displayRows.length > 0 ? (
-                displayRows.map((item, index) => {
-                  const isSelected = purchaserFilter.has(item.purchaser);
-                  return (
-                    <tr 
-                      key={index} 
-                      className={`cursor-pointer transition-colors ${
-                        isSelected 
-                          ? 'bg-blue-100 hover:bg-blue-200' 
-                          : 'hover:bg-gray-50'
-                      }`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const newSet = new Set(purchaserFilter);
-                        if (e.ctrlKey || e.metaKey) {
-                          // Множественный выбор через Ctrl/Cmd
-                          if (isSelected) {
-                            newSet.delete(item.purchaser);
-                          } else {
-                            newSet.add(item.purchaser);
-                          }
-                        } else {
-                          // Одиночный выбор - заменяем весь фильтр
-                          if (isSelected && purchaserFilter.size === 1) {
-                            // Если выбран только этот закупщик, сбрасываем фильтр
-                            newSet.clear();
-                          } else {
-                            // Устанавливаем фильтр только на этого закупщика
-                            newSet.clear();
-                            newSet.add(item.purchaser);
-                          }
-                        }
-                        setPurchaserFilter(newSet);
-                        setCurrentPage(0);
-                      }}
-                      title={isSelected ? 'Нажмите для снятия выделения. Ctrl/Cmd+клик для множественного выбора' : 'Нажмите для выделения. Ctrl/Cmd+клик для множественного выбора'}
-                    >
-                      <td className="px-2 py-1 text-xs text-gray-900 border-r border-gray-200 whitespace-nowrap">
-                        {getPurchaserFIO(item.purchaser)}
-                      </td>
-                      <td className="px-2 py-1 text-xs text-gray-900 text-right border-l-2 border-t border-b border-r border-gray-400 whitespace-nowrap">
-                        {item.purchasesCount}
-                      </td>
-                      <td className="px-2 py-1 text-xs text-gray-900 text-right border-r-2 border-t border-b border-gray-400 whitespace-nowrap">
-                        {formatCompactNumber(item.purchasesBudget)}
-                      </td>
-                      <td className="px-2 py-1 text-xs text-gray-900 text-right border-l-2 border-t border-b border-r border-gray-400 whitespace-nowrap">
-                        {item.ordersCount}
-                      </td>
-                      <td className="px-2 py-1 text-xs text-gray-900 text-right border-r-2 border-t border-b border-gray-400 whitespace-nowrap">
-                        {formatCompactNumber(item.ordersBudget)}
-                      </td>
-                    </tr>
-                  );
-                })
+                displayRows.map((item, index) => (
+                  <SummaryRow
+                    key={item.purchaser ? `${item.purchaser}-${index}` : index}
+                    item={item}
+                    isSelected={purchaserFilter.has(item.purchaser)}
+                    onSelectPurchaser={onSelectPurchaser}
+                  />
+                ))
               ) : (
                 <tr>
                   <td colSpan={5} className="px-2 py-1 text-xs text-gray-500 text-center whitespace-nowrap">

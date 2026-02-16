@@ -92,6 +92,10 @@ export function useAvailableStatuses({
           params.append('contractType', filtersFromHook.contractType.trim());
         }
 
+        if (filtersFromHook.complexity && filtersFromHook.complexity.trim() !== '') {
+          params.append('complexity', filtersFromHook.complexity.trim());
+        }
+
         if (filtersFromHook.requiresPurchase && filtersFromHook.requiresPurchase.trim() !== '') {
           const requiresPurchaseValue = filtersFromHook.requiresPurchase.trim();
           if (requiresPurchaseValue === 'Закупка') {

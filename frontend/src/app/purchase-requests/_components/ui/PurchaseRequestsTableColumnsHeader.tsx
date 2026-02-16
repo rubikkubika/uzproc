@@ -1060,6 +1060,56 @@ export default function PurchaseRequestsTableColumnsHeader({
             );
           }
 
+          // Колонка "Сложность"
+          if (columnKey === 'complexity') {
+            return (
+              <SortableHeader
+                key={columnKey}
+                field="complexity"
+                label="Сложность"
+                columnKey="complexity"
+                width={getColumnWidth('complexity')}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={onSort}
+                filterValue={localFilters.complexity || ''}
+                onFilterChange={(value) => handleFilterChangeForHeader('complexity', value)}
+                onFocus={() => handleFocusForHeader('complexity')}
+                onBlur={(e) => handleBlurForHeader(e, 'complexity')}
+                onDragStart={onDragStart}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+                isDragged={isDragging}
+                isDragOver={isDragOver}
+                onResizeStart={onResizeStart}
+              />
+            );
+          }
+
+          // Колонка "Факт. SLA / дельта" — фактический SLA (рабочие дни) и дельта как на вкладке SLA в обзоре
+          if (columnKey === 'factualSla') {
+            return (
+              <th
+                key={columnKey}
+                draggable
+                onDragStart={(e) => onDragStart(e, columnKey)}
+                onDragOver={(e) => onDragOver(e, columnKey)}
+                onDragLeave={onDragLeave}
+                onDrop={(e) => onDrop(e, columnKey)}
+                className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                style={{ width: `${getColumnWidth('factualSla')}px`, minWidth: `${getColumnWidth('factualSla')}px`, maxWidth: `${getColumnWidth('factualSla')}px`, verticalAlign: 'top' }}
+              >
+                <div className="flex flex-col gap-1">
+                  <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }} />
+                  <span className="normal-case min-h-[20px] flex items-center" title="Фактический SLA (рабочие дни) и дельта: плановый − фактический (+ уложились, − просрочка)">
+                    Факт. SLA / дельта
+                  </span>
+                </div>
+              </th>
+            );
+          }
+
           return null;
         })}
       </tr>

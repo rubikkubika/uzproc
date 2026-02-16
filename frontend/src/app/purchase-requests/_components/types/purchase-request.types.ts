@@ -51,6 +51,14 @@ export interface PurchaseRequest {
   hasFeedback: boolean | null;
   averageRating: number | null;
   hasLinkedPlanItem: boolean | null;
+  /** Сложность заявки (из alldocuments) */
+  complexity: string | null;
+  /** Плановый срок SLA (рабочих дней) по сложности: 1→3, 2→7, 3→15, 4→30 */
+  plannedSlaDays: number | null;
+  /** Фактический SLA — рабочие дни со следующего дня после назначения по дату завершения (или по текущую дату) */
+  factualSlaDays: number | null;
+  /** Дельта SLA: плановый − фактический (положительная — уложились, отрицательная — просрочка) */
+  slaDelta: number | null;
 }
 
 export interface PageResponse {

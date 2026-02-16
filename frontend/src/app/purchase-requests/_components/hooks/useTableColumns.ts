@@ -32,7 +32,7 @@ export function useTableColumns() {
   });
 
   // Состояние для порядка колонок
-  const defaultOrder = ['excludeFromInWork', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'purchaseRequestCreationDate', 'comments', 'budgetAmount', 'requiresPurchase', 'hasLinkedPlanItem', 'status', 'track', 'rating'];
+  const defaultOrder = ['excludeFromInWork', 'comments', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'hasLinkedPlanItem', 'purchaseRequestCreationDate', 'complexity', 'factualSla', 'status', 'track', 'rating'];
   const [columnOrder, setColumnOrder] = useState<string[]>(defaultOrder);
 
   // Состояние для ширин колонок
@@ -163,9 +163,15 @@ export function useTableColumns() {
     setVisibleColumns(new Set(ALL_COLUMNS.map(col => col.key)));
   };
 
-  const selectDefaultColumns = () => {
+  const selectDefaultColumns = useCallback(() => {
     setVisibleColumns(new Set(DEFAULT_VISIBLE_COLUMNS));
-  };
+    setColumnOrder(defaultOrder);
+    try {
+      localStorage.setItem('purchaseRequestsTableColumnOrder', JSON.stringify(defaultOrder));
+    } catch (err) {
+      console.error('Error saving column order:', err);
+    }
+  }, []);
 
   // Сохранение порядка колонок
   const saveColumnOrder = useCallback((order: string[]) => {
@@ -281,6 +287,8 @@ export function useTableColumns() {
       status: 150,
       purchaseRequestCreationDate: 128,
       comments: 100,
+      complexity: 96,
+      factualSla: 120,
       costType: 128,
       contractType: 128,
       contractDurationMonths: 128,

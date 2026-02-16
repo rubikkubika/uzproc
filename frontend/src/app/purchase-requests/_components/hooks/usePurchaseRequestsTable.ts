@@ -46,6 +46,7 @@ export function usePurchaseRequestsTable() {
     localFilters: {} as Record<string, string>,
     cfoFilter: new Set<string>(),
     statusFilter: new Set<string>(),
+    purchaserFilter: new Set<string>(),
     selectedYear: null as number | null,
     sortField: null as SortField,
     sortDirection: null as SortDirection,
@@ -53,6 +54,7 @@ export function usePurchaseRequestsTable() {
     pageSize: 100,
     cfoSearchQuery: '',
     statusSearchQuery: '',
+    purchaserSearchQuery: '',
     activeTab: 'in-work' as TabType,
   });
 
@@ -167,6 +169,10 @@ export function usePurchaseRequestsTable() {
         } else if (hasLinkedPlanItemValue === 'Не в плане') {
           params.append('hasLinkedPlanItem', 'false');
         }
+      }
+
+      if (filters.complexity && filters.complexity.trim() !== '') {
+        params.append('complexity', filters.complexity.trim());
       }
 
       // Фильтр по группе статуса

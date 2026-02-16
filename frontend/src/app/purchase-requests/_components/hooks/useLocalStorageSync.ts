@@ -15,12 +15,14 @@ interface FiltersState {
   localFilters: Record<string, string>;
   cfoFilter: Set<string>;
   statusFilter: Set<string>;
+  purchaserFilter: Set<string>;
   selectedYear: number | null;
   sortField: SortField | null;
   sortDirection: SortDirection | null;
   currentPage: number;
   cfoSearchQuery: string;
   statusSearchQuery: string;
+  purchaserSearchQuery: string;
   activeTab: TabType;
 }
 
@@ -33,12 +35,14 @@ interface UseLocalStorageSyncParams {
   localFilters: Record<string, string>;
   cfoFilter: Set<string>;
   statusFilter: Set<string>;
+  purchaserFilter: Set<string>;
   selectedYear: number | null;
   sortField: SortField | null;
   sortDirection: SortDirection | null;
   currentPage: number;
   cfoSearchQuery: string;
   statusSearchQuery: string;
+  purchaserSearchQuery: string;
   activeTab: TabType;
   
   // Сеттеры
@@ -46,16 +50,20 @@ interface UseLocalStorageSyncParams {
   setLocalFilters: (filters: Record<string, string>) => void;
   setCfoFilter: (filter: Set<string>) => void;
   setStatusFilter: (filter: Set<string>) => void;
+  setPurchaserFilter: (filter: Set<string>) => void;
   setSelectedYear: (year: number | null) => void;
   setSortField: (field: SortField | null) => void;
   setSortDirection: (direction: SortDirection | null) => void;
   setCurrentPage: (page: number) => void;
   setCfoSearchQuery: (query: string) => void;
   setStatusSearchQuery: (query: string) => void;
+  setPurchaserSearchQuery: (query: string) => void;
   setActiveTab: (tab: TabType) => void;
   
   // Refs
   filtersStateRef: React.MutableRefObject<FiltersState>;
+  /** Если передан и в URL есть pr_* — не восстанавливаем из localStorage (источник истины URL) */
+  searchParams?: Readonly<URLSearchParams> | null;
 }
 
 /**
@@ -68,30 +76,37 @@ export function useLocalStorageSync(params: UseLocalStorageSyncParams) {
     localFilters,
     cfoFilter,
     statusFilter,
+    purchaserFilter,
     selectedYear,
     sortField,
     sortDirection,
     currentPage,
     cfoSearchQuery,
     statusSearchQuery,
+    purchaserSearchQuery,
     activeTab,
     setFilters,
     setLocalFilters,
     setCfoFilter,
     setStatusFilter,
+    setPurchaserFilter,
     setSelectedYear,
     setSortField,
     setSortDirection,
     setCurrentPage,
     setCfoSearchQuery,
     setStatusSearchQuery,
+    setPurchaserSearchQuery,
     setActiveTab,
     filtersStateRef,
+    searchParams,
   } = params;
 
   const filtersLoadedRef = useRef(false);
   const [filtersLoaded, setFiltersLoaded] = useState(false);
   const [yearRestored, setYearRestored] = useState(false);
+
+  const hasPrParamsInUrl = searchParams && Array.from(searchParams.keys()).some((k) => k.startsWith('pr_'));
 
   // Функция для сохранения всех фильтров в localStorage
   const saveFiltersToLocalStorage = useCallback(() => {
@@ -117,13 +132,15 @@ export function useLocalStorageSync(params: UseLocalStorageSyncParams) {
         localFilters: localFilters, // Сохраняем также localFilters для текстовых полей с debounce
         cfoFilter: Array.from(cfoFilter),
         statusFilter: Array.from(statusFilter),
+        purchaserFilter: Array.from(purchaserFilter),
         // selectedYear НЕ сохраняем - при переходе на страницу всегда "Все"
         sortField,
         sortDirection,
         currentPage,
         // pageSize теперь константа, не сохраняем
-        cfoSearchQuery, // Сохраняем поисковые запросы
+        cfoSearchQuery,
         statusSearchQuery,
+        purchaserSearchQuery,
         activeTab,
       };
       localStorage.setItem('purchaseRequestsTableFilters', JSON.stringify(filtersToSave));
@@ -141,11 +158,17 @@ export function useLocalStorageSync(params: UseLocalStorageSyncParams) {
     } catch (err) {
       console.error('Error saving filters to localStorage:', err);
     }
-  }, [filtersFromHook, localFilters, cfoFilter, statusFilter, selectedYear, sortField, sortDirection, currentPage, cfoSearchQuery, statusSearchQuery, activeTab]);
+  }, [filtersFromHook, localFilters, cfoFilter, statusFilter, purchaserFilter, selectedYear, sortField, sortDirection, currentPage, cfoSearchQuery, statusSearchQuery, purchaserSearchQuery, activeTab]);
 
   // Восстановление фильтров при монтировании
   useEffect(() => {
     try {
+      // Источник истины — URL: если в URL есть pr_*, не восстанавливаем из localStorage;
+      // filtersLoaded выставит useSearchParamsSync после применения состояния из URL
+      if (hasPrParamsInUrl) {
+        return;
+      }
+
       // Проверяем, есть ли данные навигации (возврат с детальной страницы)
       const navigationDataStr = localStorage.getItem('purchaseRequestNavigation');
       console.log('Checking navigation data on mount/update:', navigationDataStr);
@@ -175,21 +198,33 @@ export function useLocalStorageSync(params: UseLocalStorageSyncParams) {
       if (saved) {
         const savedFilters = JSON.parse(saved);
 
-        // Инициализируем дефолтные значения для всех полей фильтров
+        // Инициализируем дефолтные значения для всех полей фильтров (полный набор как в usePurchaseRequestFilters)
         const defaultFilters: Record<string, string> = {
           idPurchaseRequest: '',
+          guid: '',
+          purchaseRequestPlanYear: '',
+          company: '',
+          mcc: '',
           cfo: '',
           purchaseRequestInitiator: '',
           purchaser: '',
           name: '',
+          purchaseRequestCreationDate: '',
+          createdAt: '',
+          updatedAt: '',
           budgetAmount: '',
-          budgetAmountOperator: 'gte', // По умолчанию "больше равно"
+          budgetAmountOperator: 'gte',
+          currency: '',
           costType: '',
           contractType: '',
           contractDurationMonths: '',
           isPlanned: '',
+          hasLinkedPlanItem: '',
+          complexity: '',
           requiresPurchase: '',
           status: '',
+          title: '',
+          innerId: '',
         };
 
         // Восстанавливаем текстовые фильтры, объединяя с дефолтными значениями
@@ -224,6 +259,11 @@ export function useLocalStorageSync(params: UseLocalStorageSyncParams) {
         } else {
           // Если статус фильтр не найден или пустой, оставляем пустым (по умолчанию)
           setStatusFilter(new Set());
+        }
+        if (savedFilters.purchaserFilter && Array.isArray(savedFilters.purchaserFilter)) {
+          setPurchaserFilter(new Set(savedFilters.purchaserFilter));
+        } else {
+          setPurchaserFilter(new Set());
         }
 
         // Восстанавливаем год:
@@ -274,13 +314,12 @@ export function useLocalStorageSync(params: UseLocalStorageSyncParams) {
         if (savedFilters.statusSearchQuery !== undefined) {
           setStatusSearchQuery(savedFilters.statusSearchQuery);
         }
-
-        // Восстанавливаем активную вкладку (только валидное значение, иначе "В работе")
-        if (isValidTabType(savedFilters.activeTab)) {
-          setActiveTab(savedFilters.activeTab);
-        } else {
-          setActiveTab('in-work'); // По умолчанию "В работе"
+        if (savedFilters.purchaserSearchQuery !== undefined) {
+          setPurchaserSearchQuery(savedFilters.purchaserSearchQuery);
         }
+
+        // По умолчанию всегда открываем вкладку «В работе», если она доступна (не восстанавливаем сохранённую вкладку из localStorage)
+        setActiveTab('in-work');
 
         console.log('Filters loaded from localStorage:', {
           filters: savedFilters.filters || savedFilters.localFilters || savedFilters.filtersFromHook,
@@ -310,7 +349,7 @@ export function useLocalStorageSync(params: UseLocalStorageSyncParams) {
       filtersLoadedRef.current = true;
       setFiltersLoaded(true);
     }
-  }, []); // Пустой массив зависимостей - выполняется только один раз при монтировании
+  }, [hasPrParamsInUrl]); // При монтировании; при pr_ в URL не восстанавливаем из localStorage
 
   // Отдельный useEffect для проверки navigationData при возврате с детальной страницы
   // Это резервный механизм на случай, если основной useEffect не сработал
@@ -363,21 +402,23 @@ export function useLocalStorageSync(params: UseLocalStorageSyncParams) {
       localFilters,
       cfoFilter,
       statusFilter,
+      purchaserFilter,
       selectedYear,
       sortField,
       sortDirection,
       currentPage,
       cfoSearchQuery,
       statusSearchQuery,
+      purchaserSearchQuery,
       activeTab,
     };
-  }, [filtersFromHook, localFilters, cfoFilter, statusFilter, selectedYear, sortField, sortDirection, currentPage, cfoSearchQuery, statusSearchQuery, activeTab]);
+  }, [filtersFromHook, localFilters, cfoFilter, statusFilter, purchaserFilter, selectedYear, sortField, sortDirection, currentPage, cfoSearchQuery, statusSearchQuery, purchaserSearchQuery, activeTab]);
 
   // Сохраняем фильтры в localStorage при их изменении (только после загрузки)
   // selectedYear не сохраняется - при переходе на страницу всегда "Все"
   useEffect(() => {
     saveFiltersToLocalStorage();
-  }, [filtersFromHook, cfoFilter, statusFilter, sortField, sortDirection, currentPage, cfoSearchQuery, statusSearchQuery, activeTab, saveFiltersToLocalStorage]);
+  }, [filtersFromHook, cfoFilter, statusFilter, sortField, sortDirection, currentPage, cfoSearchQuery, statusSearchQuery, purchaserSearchQuery, activeTab, saveFiltersToLocalStorage]);
 
   // Сохраняем localFilters с debounce для текстовых полей (чтобы сохранять промежуточные значения)
   useEffect(() => {
@@ -393,9 +434,13 @@ export function useLocalStorageSync(params: UseLocalStorageSyncParams) {
   }, [localFilters, saveFiltersToLocalStorage]);
 
   // Сохраняем фильтры при размонтировании компонента (перед переходом на другую страницу)
+  // Не сохраняем, если в localStorage есть purchaseRequestNavigation: фильтры уже сохранены
+  // в openInSameTab перед router.push(), а сохранение из ref здесь может перезаписать их устаревшими данными
   useEffect(() => {
     return () => {
-      // Используем ref для получения актуальных значений
+      if (localStorage.getItem('purchaseRequestNavigation')) {
+        return; // Переход на детальную заявку — фильтры уже сохранены в usePurchaseRequestNavigation
+      }
       const state = filtersStateRef.current;
       try {
         const filtersToSave = {
@@ -403,12 +448,14 @@ export function useLocalStorageSync(params: UseLocalStorageSyncParams) {
           localFilters: state.localFilters,
           cfoFilter: Array.from(state.cfoFilter),
           statusFilter: Array.from(state.statusFilter),
+          purchaserFilter: Array.from(state.purchaserFilter),
           selectedYear: state.selectedYear,
           sortField: state.sortField,
           sortDirection: state.sortDirection,
           currentPage: state.currentPage,
           cfoSearchQuery: state.cfoSearchQuery,
           statusSearchQuery: state.statusSearchQuery,
+          purchaserSearchQuery: state.purchaserSearchQuery,
           activeTab: state.activeTab ?? 'in-work',
         };
         localStorage.setItem('purchaseRequestsTableFilters', JSON.stringify(filtersToSave));
@@ -430,12 +477,14 @@ export function useLocalStorageSync(params: UseLocalStorageSyncParams) {
           localFilters: state.localFilters,
           cfoFilter: Array.from(state.cfoFilter),
           statusFilter: Array.from(state.statusFilter),
+          purchaserFilter: Array.from(state.purchaserFilter),
           selectedYear: state.selectedYear,
           sortField: state.sortField,
           sortDirection: state.sortDirection,
           currentPage: state.currentPage,
           cfoSearchQuery: state.cfoSearchQuery,
           statusSearchQuery: state.statusSearchQuery,
+          purchaserSearchQuery: state.purchaserSearchQuery,
           activeTab: state.activeTab ?? 'in-work',
         };
         localStorage.setItem('purchaseRequestsTableFilters', JSON.stringify(filtersToSave));
@@ -453,6 +502,7 @@ export function useLocalStorageSync(params: UseLocalStorageSyncParams) {
   return {
     filtersLoadedRef,
     filtersLoaded,
+    setFiltersLoaded,
     yearRestored,
     setYearRestored,
   };

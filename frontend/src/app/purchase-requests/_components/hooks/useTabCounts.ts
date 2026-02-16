@@ -94,6 +94,9 @@ export function useTabCounts({
       if (filtersFromHook.contractType && filtersFromHook.contractType.trim() !== '') {
         params.append('contractType', filtersFromHook.contractType.trim());
       }
+      if (filtersFromHook.complexity && filtersFromHook.complexity.trim() !== '') {
+        params.append('complexity', filtersFromHook.complexity.trim());
+      }
       // Удалили старую обработку requiresPurchase из filtersFromHook, так как теперь используем kindTab
       
       const fetchUrl = `${getBackendUrl()}/api/purchase-requests/tab-counts?${params.toString()}`;

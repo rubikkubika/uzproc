@@ -171,10 +171,14 @@ function DashboardContent() {
 
   // Загружаем активную вкладку из URL или localStorage после монтирования.
   // До восстановления вкладки не рендерим контент (Overview/План закупок и т.д.), чтобы не дергать запросы плана на вкладке «Договоры».
+  // При переходе по ссылке (например из сайдбара) searchParams может обновиться с задержкой — дублируем чтение из window.location, чтобы вкладка открылась с первого клика.
   useEffect(() => {
     if (!isMounted) return;
     try {
-      const tabFromUrl = searchParams.get('tab');
+      let tabFromUrl = searchParams.get('tab');
+      if (!tabFromUrl && typeof window !== 'undefined' && window.location.pathname === '/') {
+        tabFromUrl = new URLSearchParams(window.location.search).get('tab');
+      }
       if (tabFromUrl) {
         setActiveTab(tabFromUrl);
         localStorage.setItem(ACTIVE_TAB_KEY, tabFromUrl);
