@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -84,8 +85,78 @@ public class OverviewService {
             }
         }
         response.setStatusBlocks(blocks);
-        logger.debug("Overview SLA data for year {}: {} blocks", year, blocks.size());
+        List<OverviewSlaPercentageByMonthDto> slaPercentageByMonth = buildSlaPercentageByMonth(blocks, year);
+        response.setSlaPercentageByMonth(slaPercentageByMonth);
+        logger.debug("Overview SLA data for year {}: {} blocks, {} month percentages", year, blocks.size(), slaPercentageByMonth.size());
         return response;
+    }
+
+    /**
+     * Процент закупок, уложившихся в плановый SLA, по месяцу назначения (только завершённые закупки).
+     * Плановый срок по сложности: 1→3, 2→7, 3→15, 4→30 рабочих дней.
+     */
+    private List<OverviewSlaPercentageByMonthDto> buildSlaPercentageByMonth(List<OverviewSlaBlockDto> blocks, int year) {
+        List<OverviewSlaPercentageByMonthDto> result = new ArrayList<>(12);
+        List<OverviewSlaRequestDto> allRequests = blocks.stream()
+                .flatMap(b -> (b.getRequests() != null ? b.getRequests().stream() : java.util.stream.Stream.<OverviewSlaRequestDto>empty()))
+                .collect(Collectors.toList());
+        for (int month = 1; month <= 12; month++) {
+            OverviewSlaPercentageByMonthDto dto = new OverviewSlaPercentageByMonthDto();
+            dto.setMonth(month);
+            int totalCompleted = 0;
+            int metSla = 0;
+            for (OverviewSlaRequestDto r : allRequests) {
+                if (r.getPurchaseCompletionDate() == null || r.getApprovalAssignmentDate() == null) continue;
+                LocalDateTime assignment = parseIsoDateTime(r.getApprovalAssignmentDate());
+                LocalDateTime completion = parseIsoDateTime(r.getPurchaseCompletionDate());
+                if (assignment == null || completion == null) continue;
+                if (assignment.getYear() != year || assignment.getMonthValue() != month) continue;
+                totalCompleted++;
+                Integer planned = getPlannedSlaDays(r.getComplexity());
+                if (planned == null) continue;
+                long factual = countWorkingDaysBetween(assignment, completion);
+                if (factual <= planned) metSla++;
+            }
+            dto.setTotalCompleted(totalCompleted);
+            dto.setMetSla(metSla);
+            dto.setPercentage(totalCompleted > 0 ? (metSla * 100.0 / totalCompleted) : null);
+            result.add(dto);
+        }
+        return result;
+    }
+
+    private LocalDateTime parseIsoDateTime(String iso) {
+        if (iso == null || iso.trim().isEmpty()) return null;
+        try {
+            return LocalDateTime.parse(iso.trim(), ISO_FORMAT);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** Плановый срок SLA (рабочих дней): 1→3, 2→7, 3→15, 4→30. */
+    private Integer getPlannedSlaDays(String complexity) {
+        if (complexity == null || complexity.trim().isEmpty()) return null;
+        switch (complexity.trim()) {
+            case "1": return 3;
+            case "2": return 7;
+            case "3": return 15;
+            case "4": return 30;
+            default: return null;
+        }
+    }
+
+    /** Рабочие дни между датами: со следующего дня после assignment по completion включительно. */
+    private long countWorkingDaysBetween(LocalDateTime assignment, LocalDateTime completion) {
+        if (assignment == null || completion == null) return 0;
+        LocalDate start = assignment.toLocalDate().plusDays(1);
+        LocalDate end = completion.toLocalDate();
+        if (start.isAfter(end)) return 0;
+        long count = 0;
+        for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
+            if (d.getDayOfWeek() != DayOfWeek.SATURDAY && d.getDayOfWeek() != DayOfWeek.SUNDAY) count++;
+        }
+        return count;
     }
 
     /**

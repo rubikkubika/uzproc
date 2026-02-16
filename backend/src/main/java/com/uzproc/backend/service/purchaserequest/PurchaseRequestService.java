@@ -409,13 +409,18 @@ public class PurchaseRequestService {
                     .orElse(null);
             dto.setApprovalAssignmentDate(approvalAssignmentDate);
 
-            // Дата завершения закупки — дата выполнения последнего согласования в этапе «Закупочная комиссия»
+            // Дата завершения закупки — дата выполнения последнего согласования в этапе «Закупочная комиссия»,
+            // только если все согласования этапа завершены (у каждого есть completionDate)
             List<com.uzproc.backend.entity.purchase.PurchaseApproval> commissionApprovals = purchaseApprovalRepository.findByPurchaseRequestIdAndStage(entity.getIdPurchaseRequest(), "Закупочная комиссия");
-            LocalDateTime purchaseCompletionDate = commissionApprovals.stream()
-                    .map(com.uzproc.backend.entity.purchase.PurchaseApproval::getCompletionDate)
-                    .filter(java.util.Objects::nonNull)
-                    .max(LocalDateTime::compareTo)
-                    .orElse(null);
+            boolean allCommissionApprovalsCompleted = !commissionApprovals.isEmpty()
+                    && commissionApprovals.stream().allMatch(a -> a.getCompletionDate() != null);
+            LocalDateTime purchaseCompletionDate = allCommissionApprovalsCompleted
+                    ? commissionApprovals.stream()
+                            .map(com.uzproc.backend.entity.purchase.PurchaseApproval::getCompletionDate)
+                            .filter(java.util.Objects::nonNull)
+                            .max(LocalDateTime::compareTo)
+                            .orElse(null)
+                    : null;
             dto.setPurchaseCompletionDate(purchaseCompletionDate);
 
             // Сложность — сначала из заявки (alldocuments: «Сложность закупки (уровень) (Заявка на ЗП)»), иначе из связанной позиции плана закупок

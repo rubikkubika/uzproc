@@ -21,9 +21,18 @@ export interface OverviewSlaBlock {
   requests: OverviewSlaRequestRow[];
 }
 
+/** Процент уложившихся в плановый SLA по месяцу назначения (месяц 1–12). */
+export interface OverviewSlaPercentageByMonth {
+  month: number;
+  totalCompleted: number;
+  metSla: number;
+  percentage: number | null;
+}
+
 export interface OverviewSlaData {
   year: number;
   statusBlocks: OverviewSlaBlock[];
+  slaPercentageByMonth: OverviewSlaPercentageByMonth[];
 }
 
 /**
@@ -78,9 +87,18 @@ export function useOverviewSlaData(year: number | null) {
           })),
         })
       );
+      const slaPercentageByMonth: OverviewSlaPercentageByMonth[] = (json.slaPercentageByMonth ?? []).map(
+        (m: { month?: number; totalCompleted?: number; metSla?: number; percentage?: number | null }) => ({
+          month: m.month ?? 0,
+          totalCompleted: m.totalCompleted ?? 0,
+          metSla: m.metSla ?? 0,
+          percentage: m.percentage != null ? Number(m.percentage) : null,
+        })
+      );
       setData({
         year: json.year ?? year,
         statusBlocks: blocks,
+        slaPercentageByMonth,
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Ошибка загрузки');
