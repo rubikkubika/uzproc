@@ -75,7 +75,7 @@ function buildOptions(
           ctx.datasetIndex === 0 ? '#ffffff' : '#ffffff',
         font: { weight: 'bold' as const, size: 11 },
         backgroundColor: (ctx: { datasetIndex: number }) =>
-          ctx.datasetIndex === 1 ? 'rgba(0, 0, 0, 0.92)' : undefined,
+          ctx.datasetIndex === 1 ? 'rgba(0, 0, 0, 0.92)' : null,
         padding: (ctx: { datasetIndex: number }) =>
           ctx.datasetIndex === 1 ? 4 : 0,
         borderRadius: (ctx: { datasetIndex: number }) =>
@@ -89,17 +89,14 @@ function buildOptions(
       },
       tooltip: {
         callbacks: {
-          label: (context: {
-            datasetIndex: number;
-            raw?: number;
-            dataIndex: number;
-          }) => {
+          label: (context: { datasetIndex: number; raw?: unknown; dataIndex: number }) => {
+            const rawVal = typeof context.raw === 'number' ? context.raw : 0;
             if (context.datasetIndex === 0) {
-              return `Закупки: ${context.raw ?? 0}`;
+              return `Закупки: ${rawVal}`;
             }
             const item = byMonth.get(context.dataIndex + 1);
             if (!item || item.totalCompleted === 0) return 'SLA: нет данных';
-            return `SLA: ${context.raw != null ? Math.round(context.raw) : 0}% (${item.metSla}/${item.totalCompleted})`;
+            return `SLA: ${Math.round(rawVal)}% (${item.metSla}/${item.totalCompleted})`;
           },
         },
       },

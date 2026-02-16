@@ -113,17 +113,16 @@ export default function PurchaseRequestsSummaryTable({
         !(e.ctrlKey || e.metaKey) && purchaserFilter.has(purchaser) && purchaserFilter.size === 1;
 
       if (e.ctrlKey || e.metaKey) {
-        setPurchaserFilter((prev) => {
-          const next = new Set(prev);
-          if (next.has(purchaser)) next.delete(purchaser);
-          else next.add(purchaser);
-          return next;
-        });
+        const next = new Set<string>(purchaserFilter);
+        if (next.has(purchaser)) next.delete(purchaser);
+        else next.add(purchaser);
+        setPurchaserFilter(next);
       } else {
-        setPurchaserFilter((prev) => {
-          if (prev.has(purchaser) && prev.size === 1) return new Set();
-          return new Set([purchaser]);
-        });
+        if (purchaserFilter.has(purchaser) && purchaserFilter.size === 1) {
+          setPurchaserFilter(new Set<string>());
+        } else {
+          setPurchaserFilter(new Set<string>([purchaser]));
+        }
       }
       setCurrentPage(0);
       if (!isClearingOnlySelected && setActiveTab) setActiveTab('in-work');

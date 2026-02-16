@@ -1,35 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { DEFAULT_VISIBLE_COLUMNS, COLUMNS_VISIBILITY_STORAGE_KEY, ALL_COLUMNS } from '../constants/columns.constants';
+import { DEFAULT_VISIBLE_COLUMNS, ALL_COLUMNS } from '../constants/columns.constants';
 
 export function useTableColumns() {
-  // Состояние для видимости колонок
-  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
-    if (typeof window === 'undefined') {
-      return new Set(DEFAULT_VISIBLE_COLUMNS);
-    }
-    try {
-      const saved = localStorage.getItem(COLUMNS_VISIBILITY_STORAGE_KEY);
-      if (saved) {
-        const savedColumns = JSON.parse(saved);
-        if (Array.isArray(savedColumns)) {
-          const filteredColumns = savedColumns.filter((col: unknown): col is string => typeof col === 'string');
-          const missingCols = DEFAULT_VISIBLE_COLUMNS.filter(col => !filteredColumns.includes(col));
-          if (missingCols.length > 0) {
-            filteredColumns.push(...missingCols);
-            try {
-              localStorage.setItem(COLUMNS_VISIBILITY_STORAGE_KEY, JSON.stringify(filteredColumns));
-            } catch (err) {
-              console.error('Error saving updated column visibility to localStorage:', err);
-            }
-          }
-          return new Set(filteredColumns);
-        }
-      }
-    } catch (err) {
-      console.error('Error loading column visibility from localStorage:', err);
-    }
-    return new Set(DEFAULT_VISIBLE_COLUMNS);
-  });
+  // Состояние для видимости колонок — всегда по умолчанию при открытии страницы
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => new Set(DEFAULT_VISIBLE_COLUMNS));
 
   // Состояние для порядка колонок
   const defaultOrder = ['excludeFromInWork', 'comments', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'hasLinkedPlanItem', 'purchaseRequestCreationDate', 'complexity', 'factualSla', 'status', 'track', 'rating'];
@@ -68,84 +42,6 @@ export function useTableColumns() {
     }
   }, [isColumnsMenuOpen, calculateMenuPosition]);
 
-  // Загружаем порядок колонок из localStorage
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('purchaseRequestsTableColumnOrder');
-
-      if (saved) {
-        const order = JSON.parse(saved);
-
-        // Проверяем, есть ли hasLinkedPlanItem в сохраненном порядке
-        // Если нет - очищаем и используем defaultOrder (миграция)
-        if (!order.includes('hasLinkedPlanItem')) {
-          console.log('Migrating column order to include hasLinkedPlanItem');
-          localStorage.removeItem('purchaseRequestsTableColumnOrder');
-          setColumnOrder(defaultOrder);
-          localStorage.setItem('purchaseRequestsTableColumnOrder', JSON.stringify(defaultOrder));
-          return;
-        }
-
-        const validOrder = order.filter((col: string) => defaultOrder.includes(col));
-        const missingCols = defaultOrder.filter(col => !validOrder.includes(col));
-
-        let finalOrder = [...validOrder, ...missingCols];
-
-        // Вставляем hasLinkedPlanItem перед status
-        const hasLinkedPlanItemIndex = finalOrder.indexOf('hasLinkedPlanItem');
-        const statusIndex = finalOrder.indexOf('status');
-
-        // Если hasLinkedPlanItem есть в массиве и она НЕ непосредственно перед status
-        if (hasLinkedPlanItemIndex !== -1 && statusIndex !== -1 && hasLinkedPlanItemIndex !== statusIndex - 1) {
-          // Удаляем hasLinkedPlanItem из текущего места
-          finalOrder = finalOrder.filter(col => col !== 'hasLinkedPlanItem');
-          // Находим новый индекс status (после удаления hasLinkedPlanItem)
-          const newStatusIndex = finalOrder.indexOf('status');
-          // Вставляем hasLinkedPlanItem перед status
-          if (newStatusIndex !== -1) {
-            finalOrder.splice(newStatusIndex, 0, 'hasLinkedPlanItem');
-          } else {
-            finalOrder.push('hasLinkedPlanItem');
-          }
-        }
-
-        setColumnOrder(finalOrder);
-        try {
-          localStorage.setItem('purchaseRequestsTableColumnOrder', JSON.stringify(finalOrder));
-        } catch (saveErr) {
-          console.error('Error saving column order:', saveErr);
-        }
-      } else {
-        setColumnOrder(defaultOrder);
-      }
-    } catch (err) {
-      console.error('Error loading column order:', err);
-      setColumnOrder(defaultOrder);
-    }
-  }, []);
-
-  // Загружаем ширины колонок из localStorage
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('purchaseRequestsTableColumnWidths');
-      if (saved) {
-        const widths = JSON.parse(saved);
-        setColumnWidths(widths);
-      }
-    } catch (err) {
-      console.error('Error loading column widths:', err);
-    }
-  }, []);
-
-  // Сохраняем видимость колонок в localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem(COLUMNS_VISIBILITY_STORAGE_KEY, JSON.stringify(Array.from(visibleColumns)));
-    } catch (err) {
-      console.error('Error saving column visibility to localStorage:', err);
-    }
-  }, [visibleColumns]);
-
   // Функции для управления видимостью колонок
   const toggleColumnVisibility = (columnKey: string) => {
     setVisibleColumns(prev => {
@@ -166,29 +62,16 @@ export function useTableColumns() {
   const selectDefaultColumns = useCallback(() => {
     setVisibleColumns(new Set(DEFAULT_VISIBLE_COLUMNS));
     setColumnOrder(defaultOrder);
-    try {
-      localStorage.setItem('purchaseRequestsTableColumnOrder', JSON.stringify(defaultOrder));
-    } catch (err) {
-      console.error('Error saving column order:', err);
-    }
   }, []);
 
-  // Сохранение порядка колонок
-  const saveColumnOrder = useCallback((order: string[]) => {
-    try {
-      localStorage.setItem('purchaseRequestsTableColumnOrder', JSON.stringify(order));
-    } catch (err) {
-      console.error('Error saving column order:', err);
-    }
+  // Сохранение порядка колонок (только в state; при открытии страницы всегда используются значения по умолчанию)
+  const saveColumnOrder = useCallback((_order: string[]) => {
+    // Не сохраняем в localStorage — столбцы при открытии страницы всегда по умолчанию
   }, []);
 
-  // Сохранение ширин колонок
-  const saveColumnWidths = useCallback((widths: Record<string, number>) => {
-    try {
-      localStorage.setItem('purchaseRequestsTableColumnWidths', JSON.stringify(widths));
-    } catch (err) {
-      console.error('Error saving column widths:', err);
-    }
+  // Сохранение ширин колонок (только в state; при открытии страницы всегда используются значения по умолчанию)
+  const saveColumnWidths = useCallback((_widths: Record<string, number>) => {
+    // Не сохраняем в localStorage — столбцы при открытии страницы всегда по умолчанию
   }, []);
 
   // Обработчики drag & drop

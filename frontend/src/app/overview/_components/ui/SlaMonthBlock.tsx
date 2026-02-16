@@ -137,7 +137,9 @@ export function SlaMonthBlock({
                       {row.status ?? '—'}
                     </td>
                     <td className="px-1.5 py-1 text-gray-700 text-center whitespace-nowrap">
-                      {getPlannedSlaDays(row.complexity)}
+                      <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1 rounded bg-gray-200 text-gray-700 font-bold tabular-nums">
+                        {getPlannedSlaDays(row.complexity)}
+                      </span>
                     </td>
                   </tr>
                 ))
