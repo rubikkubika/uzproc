@@ -11,6 +11,7 @@ import { OverviewTabs } from './ui/OverviewTabs';
 import { usePurchasePlanMonths } from './hooks/usePurchasePlanMonths';
 import { PurchasePlanMonthBlockView } from './ui/PurchasePlanMonthBlock';
 import { SlaStatusBlock } from './ui/SlaStatusBlock';
+import { SlaCombinedChart } from './ui/SlaCombinedChart';
 import AllCsiFeedback from './ui/AllCsiFeedback';
 
 /**
@@ -62,6 +63,24 @@ export default function Overview() {
       return (delta != null && delta < 0) || (planned != null && planned > 0 && remainingPercent < 30);
     });
   }, [slaData.data?.statusBlocks]);
+
+  /** Закупки завершённые (есть дата завершения), по месяцам назначения на утверждение в выбранном году. */
+  const slaAssignedByMonth = useMemo((): number[] => {
+    const counts = new Array(12).fill(0);
+    const blocks = slaData.data?.statusBlocks ?? [];
+    for (const block of blocks) {
+      for (const row of block.requests) {
+        if (!row.purchaseCompletionDate) continue;
+        const iso = row.approvalAssignmentDate;
+        if (!iso) continue;
+        const d = new Date(iso);
+        if (isNaN(d.getTime()) || d.getFullYear() !== slaYear) continue;
+        const monthIndex = d.getMonth();
+        if (monthIndex >= 0 && monthIndex < 12) counts[monthIndex] += 1;
+      }
+    }
+    return counts;
+  }, [slaData.data?.statusBlocks, slaYear]);
 
   /** Блоки SLA для отображения: первый блок «Требует внимания», затем «Договор в работе» и «Договор подписан» объединены в «Закупка завершена». */
   const slaDisplayBlocks = useMemo((): OverviewSlaBlock[] => {
@@ -125,6 +144,15 @@ export default function Overview() {
                   ))}
                 </select>
               </div>
+            </div>
+            <div className="w-full min-w-0" style={{ position: 'relative', minHeight: 280 }}>
+              <SlaCombinedChart
+                year={slaYear}
+                countsByMonth={slaAssignedByMonth}
+                slaPercentageByMonth={slaData.data?.slaPercentageByMonth ?? []}
+                loading={slaData.loading}
+                error={slaData.error}
+              />
             </div>
             {slaDisplayBlocks.map((block) => (
               <SlaStatusBlock
