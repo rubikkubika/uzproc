@@ -12,6 +12,7 @@ import { usePurchasePlanMonths } from './hooks/usePurchasePlanMonths';
 import { PurchasePlanMonthBlockView } from './ui/PurchasePlanMonthBlock';
 import { SlaStatusBlock } from './ui/SlaStatusBlock';
 import { SlaCombinedChart } from './ui/SlaCombinedChart';
+import { SlaAverageBlock } from './ui/SlaAverageBlock';
 import AllCsiFeedback from './ui/AllCsiFeedback';
 
 /**
@@ -106,6 +107,19 @@ export default function Overview() {
         : rest;
     return [attentionBlock, first, ...lastTwoMerged];
   }, [slaData.data?.statusBlocks, requiresAttentionRequests]);
+  /** Средний % выполнения СЛА в году (взвешенный: сумма metSla / сумма totalCompleted). */
+  const averageSlaPercentage = useMemo((): number | null => {
+    const list = slaData.data?.slaPercentageByMonth ?? [];
+    let totalCompleted = 0;
+    let metSla = 0;
+    for (const m of list) {
+      totalCompleted += m.totalCompleted;
+      metSla += m.metSla;
+    }
+    if (totalCompleted === 0) return null;
+    return (metSla / totalCompleted) * 100;
+  }, [slaData.data?.slaPercentageByMonth]);
+
   const purchasePlanMonthsParam = useMemo(
     () =>
       activeTab === 'purchase-plan'
@@ -125,8 +139,8 @@ export default function Overview() {
       
       <div className="w-full">
         {activeTab === 'sla' && (
-          <div className="space-y-1 sm:space-y-1.5">
-            <div className="bg-white rounded shadow p-1.5 sm:p-2">
+          <div className="space-y-0.5 sm:space-y-1">
+            <div className="bg-white rounded shadow px-1.5 py-1 sm:px-2 sm:py-1">
               <div className="flex items-center gap-1.5">
                 <label htmlFor="sla-year-filter" className="text-xs font-medium text-gray-700 whitespace-nowrap">
                   Год назначения:
@@ -145,14 +159,22 @@ export default function Overview() {
                 </select>
               </div>
             </div>
-            <div className="w-full min-w-0" style={{ position: 'relative', minHeight: 280 }}>
-              <SlaCombinedChart
+            <div className="flex gap-1.5 sm:gap-2 w-full min-w-0 items-stretch">
+              <SlaAverageBlock
                 year={slaYear}
-                countsByMonth={slaAssignedByMonth}
-                slaPercentageByMonth={slaData.data?.slaPercentageByMonth ?? []}
+                averagePercentage={averageSlaPercentage}
                 loading={slaData.loading}
                 error={slaData.error}
               />
+              <div className="flex-1 min-w-0 h-[200px] flex" style={{ position: 'relative' }}>
+                <SlaCombinedChart
+                  year={slaYear}
+                  countsByMonth={slaAssignedByMonth}
+                  slaPercentageByMonth={slaData.data?.slaPercentageByMonth ?? []}
+                  loading={slaData.loading}
+                  error={slaData.error}
+                />
+              </div>
             </div>
             {slaDisplayBlocks.map((block) => (
               <SlaStatusBlock

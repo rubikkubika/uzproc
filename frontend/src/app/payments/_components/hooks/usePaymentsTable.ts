@@ -58,6 +58,8 @@ export const usePaymentsTable = () => {
     filters: Record<string, string>,
     cfoFilter: Set<string>,
     linkedOnlyFlag: boolean,
+    paymentStatus: string,
+    requestStatus: string,
     append: boolean
   ) => {
     if (append) {
@@ -76,8 +78,8 @@ export const usePaymentsTable = () => {
         filters,
         cfoFilter,
         linkedOnlyFlag,
-        filtersHook.paymentStatusFilter,
-        filtersHook.requestStatusFilter
+        paymentStatus,
+        requestStatus
       );
       const items = result?.content ?? [];
       if (append) {
@@ -110,6 +112,8 @@ export const usePaymentsTable = () => {
       filtersHook.filters,
       filtersHook.cfoFilter,
       linkedOnly,
+      filtersHook.paymentStatusFilter,
+      filtersHook.requestStatusFilter,
       false
     );
   }, [
@@ -137,10 +141,12 @@ export const usePaymentsTable = () => {
           filtersHook.filters,
           filtersHook.cfoFilter,
           linkedOnly,
+          filtersHook.paymentStatusFilter,
+          filtersHook.requestStatusFilter,
           true
         );
       }
-    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, sortField, sortDirection, filtersHook.filters, filtersHook.cfoFilter, linkedOnly, fetchData]),
+    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, sortField, sortDirection, filtersHook.filters, filtersHook.cfoFilter, filtersHook.paymentStatusFilter, filtersHook.requestStatusFilter, linkedOnly, fetchData]),
     threshold: 0.1,
   });
 

@@ -54,7 +54,7 @@ function buildOptions(
   return {
     responsive: true,
     maintainAspectRatio: false,
-    layout: { padding: 16 },
+    layout: { padding: 8 },
     interaction: { mode: 'index' as const, intersect: false },
     plugins: {
       title: { display: false },
@@ -179,26 +179,20 @@ export function SlaCombinedChart({
 
   if (error) {
     return (
-      <div className="bg-white rounded-lg shadow p-3 sm:p-4">
-        <h3 className="text-sm font-medium text-gray-700 mb-2">
-          Закупки и SLA по месяцам ({year})
-        </h3>
+      <div className="bg-white rounded-lg shadow px-2 py-1 h-full w-full min-h-0 min-w-0 flex flex-col justify-center">
         <p className="text-sm text-red-600">{error}</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-lg shadow p-3 sm:p-4">
-      <h3 className="text-sm font-medium text-gray-700 mb-2">
-        Закупки и SLA по месяцам ({year})
-      </h3>
+    <div className="bg-white rounded-lg shadow px-2 py-1 h-full w-full min-h-0 min-w-0 flex flex-col">
       {loading ? (
-        <div className="h-[260px] flex items-center justify-center text-sm text-gray-500">
+        <div className="flex-1 min-h-0 flex items-center justify-center text-sm text-gray-500">
           Загрузка…
         </div>
       ) : (
-        <div className="min-h-[260px]" style={{ height: 260 }}>
+        <div className="flex-1 min-h-0" style={{ minHeight: 180 }}>
           <Chart
             type="bar"
             data={chartData}
