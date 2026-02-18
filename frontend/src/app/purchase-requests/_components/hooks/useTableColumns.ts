@@ -6,7 +6,7 @@ export function useTableColumns() {
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => new Set(DEFAULT_VISIBLE_COLUMNS));
 
   // Состояние для порядка колонок
-  const defaultOrder = ['excludeFromInWork', 'comments', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'hasLinkedPlanItem', 'purchaseRequestCreationDate', 'complexity', 'factualSla', 'status', 'track', 'rating'];
+  const defaultOrder = ['excludeFromInWork', 'comments', 'idPurchaseRequest', 'cfo', 'purchaser', 'name', 'budgetAmount', 'requiresPurchase', 'hasLinkedPlanItem', 'purchaseRequestCreationDate', 'complexity', 'status', 'track', 'rating'];
   const [columnOrder, setColumnOrder] = useState<string[]>(defaultOrder);
 
   // Состояние для ширин колонок
@@ -171,7 +171,6 @@ export function useTableColumns() {
       purchaseRequestCreationDate: 128,
       comments: 100,
       complexity: 96,
-      factualSla: 120,
       costType: 128,
       contractType: 128,
       contractDurationMonths: 128,

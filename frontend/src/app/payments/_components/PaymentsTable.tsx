@@ -140,7 +140,39 @@ export default function PaymentsTable() {
               <tr>
                 <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '8%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
-                    <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }} />
+                    <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                      <input
+                        key="filter-mainId"
+                        type="text"
+                        data-filter-field="mainId"
+                        value={filters.localFilters.mainId ?? ''}
+                        onChange={(e) => {
+                          const newValue = e.target.value;
+                          const cursorPos = e.target.selectionStart ?? 0;
+                          filters.handleFilterChange('mainId', newValue);
+                          requestAnimationFrame(() => {
+                            const input = e.target as HTMLInputElement;
+                            if (input && document.activeElement === input) {
+                              input.setSelectionRange(Math.min(cursorPos, newValue.length), Math.min(cursorPos, newValue.length));
+                            }
+                          });
+                        }}
+                        onFocus={(e) => { e.stopPropagation(); filters.setFocusedField('mainId'); }}
+                        onBlur={(e) => {
+                          setTimeout(() => {
+                            const active = document.activeElement as HTMLElement;
+                            if (active && active !== e.target && !active.closest('input[data-filter-field]') && !active.closest('select')) {
+                              filters.setFocusedField(null);
+                            }
+                          }, 200);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => { if (e.key === 'ArrowUp' || e.key === 'ArrowDown') e.stopPropagation(); }}
+                        className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="Фильтр"
+                        style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+                      />
+                    </div>
                     <div className="flex items-center gap-1 min-h-[20px]">
                       <span className="text-xs font-medium text-gray-500 tracking-wider">Номер</span>
                     </div>

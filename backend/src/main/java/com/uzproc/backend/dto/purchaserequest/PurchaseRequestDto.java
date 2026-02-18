@@ -68,6 +68,8 @@ public class PurchaseRequestDto {
     private Integer factualSlaDays;
     /** Дельта SLA: плановый − фактический (положительная — уложились, отрицательная — просрочка) */
     private Integer slaDelta;
+    /** Рабочие дни «договор в работе»: от даты завершения закупки до сегодня (только при статусе «Договор в работе») */
+    private Integer contractWorkingDaysInProgress;
 
     // Constructors
     public PurchaseRequestDto() {
@@ -424,6 +426,14 @@ public class PurchaseRequestDto {
 
     public void setSlaDelta(Integer slaDelta) {
         this.slaDelta = slaDelta;
+    }
+
+    public Integer getContractWorkingDaysInProgress() {
+        return contractWorkingDaysInProgress;
+    }
+
+    public void setContractWorkingDaysInProgress(Integer contractWorkingDaysInProgress) {
+        this.contractWorkingDaysInProgress = contractWorkingDaysInProgress;
     }
 }
 

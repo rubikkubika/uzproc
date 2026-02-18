@@ -24,6 +24,10 @@ export const usePaymentsData = () => {
         params.append('sortDir', sortDirection);
       }
 
+      if (filters.mainId && filters.mainId.trim() !== '') {
+        params.append('mainId', filters.mainId.trim());
+      }
+
       if (filters.comment && filters.comment.trim() !== '') {
         params.append('comment', filters.comment.trim());
       }

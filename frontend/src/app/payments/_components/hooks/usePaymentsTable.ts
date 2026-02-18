@@ -42,8 +42,8 @@ export const usePaymentsTable = () => {
   }, [sortField]);
 
   const handleResetFilters = useCallback(() => {
-    filtersHook.setFilters({ comment: '' });
-    filtersHook.setLocalFilters({ comment: '' });
+    filtersHook.setFilters({ mainId: '', comment: '' });
+    filtersHook.setLocalFilters({ mainId: '', comment: '' });
     filtersHook.setCfoFilter(new Set());
     filtersHook.setPaymentStatusFilter('');
     filtersHook.setRequestStatusFilter('');

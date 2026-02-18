@@ -38,12 +38,13 @@ public class PaymentService {
             String sortBy,
             String sortDir,
             List<String> cfo,
+            String mainId,
             String comment,
             Boolean linkedOnly,
             List<String> paymentStatus,
             List<String> requestStatus) {
 
-        Specification<Payment> spec = buildSpecification(cfo, comment, linkedOnly, paymentStatus, requestStatus);
+        Specification<Payment> spec = buildSpecification(cfo, mainId, comment, linkedOnly, paymentStatus, requestStatus);
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
 
@@ -61,7 +62,7 @@ public class PaymentService {
                 .orElse(null);
     }
 
-    private Specification<Payment> buildSpecification(List<String> cfo, String comment, Boolean linkedOnly,
+    private Specification<Payment> buildSpecification(List<String> cfo, String mainId, String comment, Boolean linkedOnly,
                                                       List<String> paymentStatus, List<String> requestStatus) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -80,6 +81,10 @@ public class PaymentService {
                     predicates.add(cb.lower(cfoJoin.get("name")).in(
                             validCfoValues.stream().map(String::toLowerCase).toList()));
                 }
+            }
+
+            if (mainId != null && !mainId.trim().isEmpty()) {
+                predicates.add(cb.like(cb.lower(root.get("mainId")), "%" + mainId.trim().toLowerCase() + "%"));
             }
 
             if (comment != null && !comment.trim().isEmpty()) {
