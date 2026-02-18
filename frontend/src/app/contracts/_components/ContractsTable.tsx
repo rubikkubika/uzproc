@@ -100,9 +100,6 @@ export default function ContractsTable() {
         }}
       />
 
-      {loading ? (
-        <div className="px-6 py-8 text-center text-gray-500">Загрузка...</div>
-      ) : (
       <div className="flex-1 min-w-0 overflow-auto relative custom-scrollbar">
         <table className="w-full max-w-full border-collapse table-fixed">
           <thead className="bg-gray-50 sticky top-0 z-10">
@@ -111,12 +108,14 @@ export default function ContractsTable() {
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       <input
+                        key="filter-innerId"
                         type="text"
-                        value={filters.localFilters.innerId}
+                        data-filter-field="innerId"
+                        value={filters.localFilters.innerId ?? ''}
                         onChange={(e) => {
                           const newValue = e.target.value;
-                          const cursorPos = e.target.selectionStart || 0;
-                          filters.setLocalFilters(prev => ({ ...prev, innerId: newValue }));
+                          const cursorPos = e.target.selectionStart ?? 0;
+                          filters.handleFilterChange('innerId', newValue);
                           requestAnimationFrame(() => {
                             const input = e.target as HTMLInputElement;
                             if (input && document.activeElement === input) {
@@ -125,10 +124,7 @@ export default function ContractsTable() {
                             }
                           });
                         }}
-                        onFocus={(e) => {
-                          e.stopPropagation();
-                          filters.setFocusedField('innerId');
-                        }}
+                        onFocus={(e) => { e.stopPropagation(); filters.setFocusedField('innerId'); }}
                         onBlur={(e) => {
                           setTimeout(() => {
                             const activeElement = document.activeElement as HTMLElement;
@@ -141,11 +137,8 @@ export default function ContractsTable() {
                           }, 200);
                         }}
                         onClick={(e) => e.stopPropagation()}
-                        onKeyDown={(e) => {
-                          e.stopPropagation();
-                        }}
-                        data-filter-field="innerId"
-                        className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        onKeyDown={(e) => { if (e.key === 'ArrowUp' || e.key === 'ArrowDown') e.stopPropagation(); }}
+                        className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         placeholder="Фильтр"
                         style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
                       />
@@ -280,12 +273,14 @@ export default function ContractsTable() {
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       <input
+                        key="filter-name"
                         type="text"
-                        value={filters.localFilters.name}
+                        data-filter-field="name"
+                        value={filters.localFilters.name ?? ''}
                         onChange={(e) => {
                           const newValue = e.target.value;
-                          const cursorPos = e.target.selectionStart || 0;
-                          filters.setLocalFilters(prev => ({ ...prev, name: newValue }));
+                          const cursorPos = e.target.selectionStart ?? 0;
+                          filters.handleFilterChange('name', newValue);
                           requestAnimationFrame(() => {
                             const input = e.target as HTMLInputElement;
                             if (input && document.activeElement === input) {
@@ -294,10 +289,7 @@ export default function ContractsTable() {
                             }
                           });
                         }}
-                        onFocus={(e) => {
-                          e.stopPropagation();
-                          filters.setFocusedField('name');
-                        }}
+                        onFocus={(e) => { e.stopPropagation(); filters.setFocusedField('name'); }}
                         onBlur={(e) => {
                           setTimeout(() => {
                             const activeElement = document.activeElement as HTMLElement;
@@ -310,11 +302,8 @@ export default function ContractsTable() {
                           }, 200);
                         }}
                         onClick={(e) => e.stopPropagation()}
-                        onKeyDown={(e) => {
-                          e.stopPropagation();
-                        }}
-                        data-filter-field="name"
-                        className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        onKeyDown={(e) => { if (e.key === 'ArrowUp' || e.key === 'ArrowDown') e.stopPropagation(); }}
+                        className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         placeholder="Фильтр"
                         style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
                       />
@@ -343,12 +332,14 @@ export default function ContractsTable() {
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       <input
+                        key="filter-documentForm"
                         type="text"
-                        value={filters.localFilters.documentForm}
+                        data-filter-field="documentForm"
+                        value={filters.localFilters.documentForm ?? ''}
                         onChange={(e) => {
                           const newValue = e.target.value;
-                          const cursorPos = e.target.selectionStart || 0;
-                          filters.setLocalFilters(prev => ({ ...prev, documentForm: newValue }));
+                          const cursorPos = e.target.selectionStart ?? 0;
+                          filters.handleFilterChange('documentForm', newValue);
                           requestAnimationFrame(() => {
                             const input = e.target as HTMLInputElement;
                             if (input && document.activeElement === input) {
@@ -357,10 +348,7 @@ export default function ContractsTable() {
                             }
                           });
                         }}
-                        onFocus={(e) => {
-                          e.stopPropagation();
-                          filters.setFocusedField('documentForm');
-                        }}
+                        onFocus={(e) => { e.stopPropagation(); filters.setFocusedField('documentForm'); }}
                         onBlur={(e) => {
                           setTimeout(() => {
                             const activeElement = document.activeElement as HTMLElement;
@@ -373,11 +361,8 @@ export default function ContractsTable() {
                           }, 200);
                         }}
                         onClick={(e) => e.stopPropagation()}
-                        onKeyDown={(e) => {
-                          e.stopPropagation();
-                        }}
-                        data-filter-field="documentForm"
-                        className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        onKeyDown={(e) => { if (e.key === 'ArrowUp' || e.key === 'ArrowDown') e.stopPropagation(); }}
+                        className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         placeholder="Фильтр"
                         style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
                       />
@@ -492,7 +477,13 @@ export default function ContractsTable() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-              {allItems.length > 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={(filters.activeTab === 'in-work' || filters.activeTab === 'signed') ? 9 : 8} className="px-6 py-8 text-center text-gray-500">
+                    Загрузка...
+                  </td>
+                </tr>
+              ) : allItems.length > 0 ? (
                 allItems.map((contract) => (
                   <tr key={contract.id}>
                     <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-300 overflow-hidden">
@@ -501,8 +492,8 @@ export default function ContractsTable() {
                     <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-300 overflow-hidden">
                       <span className="block truncate" title={contract.cfo || undefined}>{contract.cfo || '-'}</span>
                     </td>
-                    <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 max-w-0 overflow-hidden">
-                      <span className="block truncate" title={contract.name || contract.title || undefined}>
+                    <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 align-top break-words">
+                      <span className="block" title={contract.name || contract.title || undefined}>
                         {contract.name || contract.title || '-'}
                       </span>
                     </td>
@@ -561,7 +552,6 @@ export default function ContractsTable() {
         )}
         <div ref={loadMoreRef} className="h-4 flex items-center justify-center py-1" />
       </div>
-      )}
     </div>
   );
 }
