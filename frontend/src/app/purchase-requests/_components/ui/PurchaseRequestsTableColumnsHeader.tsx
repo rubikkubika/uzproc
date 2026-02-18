@@ -172,7 +172,7 @@ export default function PurchaseRequestsTableColumnsHeader({
             return (
               <th 
                 key={columnKey}
-                className="px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative w-12"
+                className="px-2 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative w-12"
               >
                 <div className="flex items-center justify-center">
                   <Eye className="w-4 h-4 text-gray-400" />
@@ -374,17 +374,17 @@ export default function PurchaseRequestsTableColumnsHeader({
                 onDragOver={(e) => onDragOver(e, columnKey)}
                 onDragLeave={onDragLeave}
                 onDrop={(e) => onDrop(e, columnKey)}
-                className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                className={`px-2 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
                 style={{ width: `${getColumnWidth('purchaseRequestCreationDate')}px`, minWidth: `${getColumnWidth('purchaseRequestCreationDate')}px`, maxWidth: `${getColumnWidth('purchaseRequestCreationDate')}px`, verticalAlign: 'top' }}
               >
-                <div className="flex flex-col gap-1">
-                  <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}>
+                <div className="flex flex-col gap-0.5">
+                  <div className="h-[20px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '20px', maxHeight: '20px' }}>
                     <select
                       value={selectedYear ?? ''}
                       onChange={(e) => onYearChange(e.target.value ? Number(e.target.value) : null)}
                       onClick={(e) => e.stopPropagation()}
                       className="flex-1 min-w-0 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      style={{ height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
+                      style={{ height: '20px', minHeight: '20px', maxHeight: '20px', boxSizing: 'border-box' }}
                       title="Год назначения"
                     >
                       <option value="">Год</option>
@@ -397,7 +397,7 @@ export default function PurchaseRequestsTableColumnsHeader({
                       onChange={(e) => onMonthChange(e.target.value ? Number(e.target.value) : null)}
                       onClick={(e) => e.stopPropagation()}
                       className="flex-1 min-w-0 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      style={{ height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
+                      style={{ height: '20px', minHeight: '20px', maxHeight: '20px', boxSizing: 'border-box' }}
                       title="Месяц"
                     >
                       <option value="">Месяц</option>
@@ -406,7 +406,7 @@ export default function PurchaseRequestsTableColumnsHeader({
                       ))}
                     </select>
                   </div>
-                  <div className="flex items-center gap-1 min-h-[20px]">
+                  <div className="flex items-center gap-1 min-h-[16px]">
                     <button
                       type="button"
                       onClick={() => onSort('purchaseRequestCreationDate')}
@@ -420,7 +420,7 @@ export default function PurchaseRequestsTableColumnsHeader({
                         <ArrowUpDown className="w-3 h-3 text-gray-400" />
                       )}
                     </button>
-                    <span className="text-xs font-medium text-gray-500 tracking-wider">Дата назначения на закупщика</span>
+                    <span className="text-xs font-medium text-gray-500 tracking-wider">Назначение на закупщика</span>
                   </div>
                 </div>
               </th>
@@ -436,12 +436,12 @@ export default function PurchaseRequestsTableColumnsHeader({
                 onDragOver={(e) => onDragOver(e, columnKey)}
                 onDragLeave={onDragLeave}
                 onDrop={(e) => onDrop(e, columnKey)}
-                className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                className={`px-2 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
                 style={{ width: `${getColumnWidth('comments')}px`, minWidth: `${getColumnWidth('comments')}px`, maxWidth: `${getColumnWidth('comments')}px`, verticalAlign: 'top' }}
               >
-                <div className="flex flex-col gap-1">
-                  <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}></div>
-                  <span className="normal-case min-h-[20px] flex items-center">Комментарии</span>
+                <div className="flex flex-col gap-0.5">
+                  <div className="h-[20px] flex items-center flex-shrink-0" style={{ minHeight: '20px', maxHeight: '20px' }}></div>
+                  <span className="normal-case min-h-[16px] flex items-center">Комментарии</span>
                 </div>
                 <div
                   className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
@@ -540,18 +540,18 @@ export default function PurchaseRequestsTableColumnsHeader({
                 onDragOver={(e) => onDragOver(e, columnKey)}
                 onDragLeave={onDragLeave}
                 onDrop={(e) => onDrop(e, columnKey)}
-                className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                className={`px-2 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
                 style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px`, verticalAlign: 'top' }}
               >
-                <div className="flex flex-col gap-1">
-                  <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}>
+                <div className="flex flex-col gap-0.5">
+                  <div className="h-[20px] flex items-center flex-shrink-0" style={{ minHeight: '20px', maxHeight: '20px' }}>
                     <div className="relative cfo-filter-container w-full h-full">
                       <button
                         ref={cfoFilterButtonRef}
                         type="button"
                         onClick={onCfoFilterToggle}
                         className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded bg-white text-left focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center gap-1 hover:bg-gray-50"
-                        style={{ height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
+                        style={{ height: '20px', minHeight: '20px', maxHeight: '20px', boxSizing: 'border-box' }}
                       >
                         <span className="text-gray-600 truncate flex-1 min-w-0 text-left">
                           {cfoFilter.size === 0 
@@ -579,7 +579,7 @@ export default function PurchaseRequestsTableColumnsHeader({
                       />
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 min-h-[20px]">
+                  <div className="flex items-center gap-1 min-h-[16px]">
                     <button
                       onClick={() => onSort('cfo')}
                       className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
@@ -617,18 +617,18 @@ export default function PurchaseRequestsTableColumnsHeader({
                 onDragOver={(e) => onDragOver(e, columnKey)}
                 onDragLeave={onDragLeave}
                 onDrop={(e) => onDrop(e, columnKey)}
-                className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                className={`px-2 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
                 style={{ width: `${getColumnWidth('purchaser')}px`, minWidth: `${getColumnWidth('purchaser')}px`, maxWidth: `${getColumnWidth('purchaser')}px`, verticalAlign: 'top' }}
               >
-                <div className="flex flex-col gap-1">
-                  <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}>
+                <div className="flex flex-col gap-0.5">
+                  <div className="h-[20px] flex items-center flex-shrink-0" style={{ minHeight: '20px', maxHeight: '20px' }}>
                     <div className="relative purchaser-filter-container w-full h-full">
                       <button
                         ref={purchaserFilterButtonRef}
                         type="button"
                         onClick={onPurchaserFilterToggle}
                         className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded bg-white text-left focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center gap-1 hover:bg-gray-50"
-                        style={{ height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
+                        style={{ height: '20px', minHeight: '20px', maxHeight: '20px', boxSizing: 'border-box' }}
                       >
                         <span className="text-gray-600 truncate flex-1 min-w-0 text-left">
                           {purchaserFilter.size === 0
@@ -656,7 +656,7 @@ export default function PurchaseRequestsTableColumnsHeader({
                       />
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 min-h-[20px]">
+                  <div className="flex items-center gap-1 min-h-[16px]">
                     <button
                       onClick={() => onSort('purchaser')}
                       className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
@@ -694,18 +694,18 @@ export default function PurchaseRequestsTableColumnsHeader({
                 onDragOver={(e) => onDragOver(e, columnKey)}
                 onDragLeave={onDragLeave}
                 onDrop={(e) => onDrop(e, columnKey)}
-                className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                className={`px-2 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
                 style={{ verticalAlign: 'top' }}
               >
-                <div className="flex flex-col gap-1">
-                  <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}>
+                <div className="flex flex-col gap-0.5">
+                  <div className="h-[20px] flex items-center flex-shrink-0" style={{ minHeight: '20px', maxHeight: '20px' }}>
                     <div className="relative status-filter-container w-full h-full">
                       <button
                         ref={statusFilterButtonRef}
                         type="button"
                         onClick={onStatusFilterToggle}
                         className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded bg-white text-left focus:ring-1 focus:ring-blue-500 focus:border-blue-500 flex items-center justify-between hover:bg-gray-50"
-                        style={{ height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
+                        style={{ height: '20px', minHeight: '20px', maxHeight: '20px', boxSizing: 'border-box' }}
                       >
                         <span className="text-gray-600 truncate">
                           {statusFilter.size === 0 
@@ -733,7 +733,7 @@ export default function PurchaseRequestsTableColumnsHeader({
                       />
                     </div>
                   </div>
-                  <span className="normal-case min-h-[20px] flex items-center">Статус</span>
+                  <span className="normal-case min-h-[16px] flex items-center">Статус</span>
                 </div>
               </th>
             );
@@ -753,7 +753,7 @@ export default function PurchaseRequestsTableColumnsHeader({
                 style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px`, verticalAlign: 'top' }}
               >
                 <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
-                  <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                  <div className="h-[20px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '20px', maxHeight: '20px', minWidth: 0, width: '100%' }}>
                     <div className="relative flex-1" style={{ minWidth: 0 }}>
                       <select
                         value={localFilters.budgetAmountOperator || 'gte'}
@@ -772,7 +772,7 @@ export default function PurchaseRequestsTableColumnsHeader({
                             ? 'bg-blue-500 text-white font-semibold'
                             : 'bg-gray-50 text-gray-700'
                         }`}
-                        style={{ width: '42px', minWidth: '42px', paddingRight: '4px', height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
+                        style={{ width: '42px', minWidth: '42px', paddingRight: '4px', height: '24px', minHeight: '20px', maxHeight: '20px', boxSizing: 'border-box' }}
                       >
                         <option value="gt">&gt;</option>
                         <option value="gte">&gt;=</option>
@@ -826,11 +826,11 @@ export default function PurchaseRequestsTableColumnsHeader({
                         }}
                         placeholder="Число"
                         className="w-full text-xs border border-gray-300 rounded px-1 py-0.5 pl-11 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+                        style={{ height: '24px', minHeight: '20px', maxHeight: '20px', minWidth: 0, boxSizing: 'border-box' }}
                       />
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 min-h-[20px]">
+                  <div className="flex items-center gap-1 min-h-[16px]">
                     <button
                       onClick={() => onSort('budgetAmount')}
                       className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
@@ -871,12 +871,12 @@ export default function PurchaseRequestsTableColumnsHeader({
                 onDragOver={(e) => onDragOver(e, columnKey)}
                 onDragLeave={onDragLeave}
                 onDrop={(e) => onDrop(e, columnKey)}
-                className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                className={`px-2 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
                 style={{ verticalAlign: 'top' }}
               >
-                <div className="flex flex-col gap-1">
-                  <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}></div>
-                  <span className="normal-case min-h-[20px] flex items-center">Трэк</span>
+                <div className="flex flex-col gap-0.5">
+                  <div className="h-[20px] flex items-center flex-shrink-0" style={{ minHeight: '20px', maxHeight: '20px' }}></div>
+                  <span className="normal-case min-h-[16px] flex items-center">Трэк</span>
                 </div>
               </th>
             );
@@ -887,12 +887,12 @@ export default function PurchaseRequestsTableColumnsHeader({
             return (
               <th
                 key={columnKey}
-                className="px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300"
+                className="px-2 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300"
                 style={{ verticalAlign: 'top' }}
               >
-                <div className="flex flex-col gap-1">
-                  <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}></div>
-                  <span className="normal-case min-h-[20px] flex items-center">Оценка</span>
+                <div className="flex flex-col gap-0.5">
+                  <div className="h-[20px] flex items-center flex-shrink-0" style={{ minHeight: '20px', maxHeight: '20px' }}></div>
+                  <span className="normal-case min-h-[16px] flex items-center">Оценка</span>
                 </div>
               </th>
             );
@@ -1084,29 +1084,6 @@ export default function PurchaseRequestsTableColumnsHeader({
                 isDragOver={isDragOver}
                 onResizeStart={onResizeStart}
               />
-            );
-          }
-
-          // Колонка "Факт. SLA / дельта" — фактический SLA (рабочие дни) и дельта как на вкладке SLA в обзоре
-          if (columnKey === 'factualSla') {
-            return (
-              <th
-                key={columnKey}
-                draggable
-                onDragStart={(e) => onDragStart(e, columnKey)}
-                onDragOver={(e) => onDragOver(e, columnKey)}
-                onDragLeave={onDragLeave}
-                onDrop={(e) => onDrop(e, columnKey)}
-                className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
-                style={{ width: `${getColumnWidth('factualSla')}px`, minWidth: `${getColumnWidth('factualSla')}px`, maxWidth: `${getColumnWidth('factualSla')}px`, verticalAlign: 'top' }}
-              >
-                <div className="flex flex-col gap-1">
-                  <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }} />
-                  <span className="normal-case min-h-[20px] flex items-center" title="Фактический SLA (рабочие дни) и дельта: плановый − фактический (+ уложились, − просрочка)">
-                    Факт. SLA / дельта
-                  </span>
-                </div>
-              </th>
             );
           }
 

@@ -69,12 +69,12 @@ export default function SortableHeader({
       onDragOver={columnKey && onDragOver ? (e) => onDragOver(e, columnKey) : undefined}
       onDragLeave={columnKey && onDragLeave ? onDragLeave : undefined}
       onDrop={columnKey && onDrop ? (e) => onDrop(e, columnKey) : undefined}
-      className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${columnKey ? 'cursor-move' : ''} ${isDragged ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+      className={`px-2 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${columnKey ? 'cursor-move' : ''} ${isDragged ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
       style={style}
     >
-      <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+      <div className="flex flex-col gap-0.5" style={{ minWidth: 0, width: '100%' }}>
         {/* Верхний уровень - фильтр */}
-        <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+        <div className="h-[20px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '20px', maxHeight: '20px', minWidth: 0, width: '100%' }}>
           {filterType === 'select' && filterOptions.length > 0 ? (
             <select
               value={filterValue}
@@ -85,7 +85,7 @@ export default function SortableHeader({
               onClick={(e) => e.stopPropagation()}
               onFocus={(e) => e.stopPropagation()}
               className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+              style={{ height: '20px', minHeight: '20px', maxHeight: '20px', minWidth: 0, boxSizing: 'border-box' }}
             >
               <option value="">Все</option>
               {filterOptions.map((option) => (
@@ -118,15 +118,15 @@ export default function SortableHeader({
               }}
               className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
               placeholder="Фильтр"
-              style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+              style={{ height: '20px', minHeight: '20px', maxHeight: '20px', minWidth: 0, boxSizing: 'border-box' }}
             />
           ) : (
-            <div className="flex-1" style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0 }}></div>
+            <div className="flex-1" style={{ height: '20px', minHeight: '20px', maxHeight: '20px', minWidth: 0 }}></div>
           )}
         </div>
         
         {/* Нижний уровень - сортировка и название */}
-        <div className="flex items-center gap-1 min-h-[20px]">
+        <div className="flex items-center gap-1 min-h-[16px]">
           {field ? (
             <button
               onClick={() => onSort(field)}

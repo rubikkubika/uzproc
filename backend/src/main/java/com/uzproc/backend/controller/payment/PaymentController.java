@@ -25,12 +25,13 @@ public class PaymentController {
             @RequestParam(required = false) String sortBy,
             @RequestParam(required = false) String sortDir,
             @RequestParam(required = false) List<String> cfo,
+            @RequestParam(required = false) String mainId,
             @RequestParam(required = false) String comment,
             @RequestParam(required = false) Boolean linkedOnly,
             @RequestParam(required = false) List<String> paymentStatus,
             @RequestParam(required = false) List<String> requestStatus) {
 
-        Page<PaymentDto> payments = paymentService.findAll(page, size, sortBy, sortDir, cfo, comment, linkedOnly, paymentStatus, requestStatus);
+        Page<PaymentDto> payments = paymentService.findAll(page, size, sortBy, sortDir, cfo, mainId, comment, linkedOnly, paymentStatus, requestStatus);
         return ResponseEntity.ok(payments);
     }
 

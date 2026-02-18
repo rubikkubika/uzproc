@@ -59,6 +59,8 @@ export interface PurchaseRequest {
   factualSlaDays: number | null;
   /** Дельта SLA: плановый − фактический (положительная — уложились, отрицательная — просрочка) */
   slaDelta: number | null;
+  /** Рабочие дни «договор в работе»: от даты завершения закупки до сегодня (только при статусе «Договор в работе») */
+  contractWorkingDaysInProgress: number | null;
 }
 
 export interface PageResponse {

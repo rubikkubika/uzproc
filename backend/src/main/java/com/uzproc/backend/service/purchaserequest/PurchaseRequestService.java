@@ -442,6 +442,12 @@ public class PurchaseRequestService {
                 }
             }
 
+            // Рабочие дни «договор в работе»: от даты завершения закупки до сегодня (только при статусе «Договор в работе»)
+            if (entity.getStatus() != null && entity.getStatus().getGroup() == PurchaseRequestStatusGroup.CONTRACT_IN_PROGRESS && purchaseCompletionDate != null) {
+                long contractDaysInProgress = countWorkingDaysBetween(purchaseCompletionDate.minusDays(1), LocalDateTime.now());
+                dto.setContractWorkingDaysInProgress((int) contractDaysInProgress);
+            }
+
             List<com.uzproc.backend.entity.purchase.Purchase> purchases = purchaseRepository.findByPurchaseRequestId(entity.getIdPurchaseRequest());
             List<Long> purchaseIds = purchases.stream()
                     .map(com.uzproc.backend.entity.purchase.Purchase::getId)

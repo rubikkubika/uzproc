@@ -62,7 +62,7 @@ export default function PurchaseRequestsTableRow({
   return (
     <tr 
       key={request.guid || `${request.id}-${index}`} 
-      className="hover:bg-gray-50 cursor-pointer"
+      className="hover:bg-gray-50 cursor-pointer leading-tight"
       onClick={(e) => {
         const target = e.target as HTMLElement;
         if (target.closest('input') || target.closest('select') || target.closest('button') || target.closest('.cursor-col-resize')) {
@@ -87,7 +87,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td
               key={columnKey}
-              className={`px-2 py-0.5 whitespace-nowrap border-r border-gray-200 ${canEditExcludeFromInWork ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+              className={`px-2 py-0 whitespace-nowrap border-r border-gray-200 ${canEditExcludeFromInWork ? 'cursor-pointer' : 'cursor-not-allowed'}`}
               style={{ width: '48px', minWidth: '48px', maxWidth: '48px' }}
               onClick={canEditExcludeFromInWork ? handleToggleExclude : (e) => e.stopPropagation()}
               aria-disabled={!canEditExcludeFromInWork}
@@ -111,7 +111,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+              className="px-2 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
               style={{ width: `${getColumnWidth('idPurchaseRequest')}px`, minWidth: `${getColumnWidth('idPurchaseRequest')}px`, maxWidth: `${getColumnWidth('idPurchaseRequest')}px` }}
             >
               {request.idPurchaseRequest || '-'}
@@ -123,7 +123,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0.5 text-xs text-gray-900 truncate border-r border-gray-200" 
+              className="px-2 py-0 text-xs text-gray-900 truncate border-r border-gray-200" 
               style={{ width: `${getColumnWidth('guid')}px`, minWidth: `${getColumnWidth('guid')}px`, maxWidth: `${getColumnWidth('guid')}px` }}
               title={request.guid ? String(request.guid) : ''}
             >
@@ -136,7 +136,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+              className="px-2 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
               style={{ width: `${getColumnWidth('purchaseRequestPlanYear')}px`, minWidth: `${getColumnWidth('purchaseRequestPlanYear')}px`, maxWidth: `${getColumnWidth('purchaseRequestPlanYear')}px` }}
             >
               {request.purchaseRequestPlanYear || '-'}
@@ -148,7 +148,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0.5 text-xs text-gray-900 truncate border-r border-gray-200" 
+              className="px-2 py-0 text-xs text-gray-900 truncate border-r border-gray-200" 
               style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px` }}
               title={request.company || ''}
             >
@@ -161,7 +161,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0.5 text-xs text-gray-900 truncate border-r border-gray-200" 
+              className="px-2 py-0 text-xs text-gray-900 truncate border-r border-gray-200" 
               style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px` }}
               title={request.cfo || ''}
             >
@@ -174,7 +174,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0.5 text-xs text-gray-900 truncate border-r border-gray-200" 
+              className="px-2 py-0 text-xs text-gray-900 truncate border-r border-gray-200" 
               style={{ width: `${getColumnWidth('mcc')}px`, minWidth: `${getColumnWidth('mcc')}px`, maxWidth: `${getColumnWidth('mcc')}px` }}
               title={request.mcc || ''}
             >
@@ -187,7 +187,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0.5 text-xs text-gray-900 truncate border-r border-gray-200" 
+              className="px-2 py-0 text-xs text-gray-900 truncate border-r border-gray-200" 
               style={{ width: `${getColumnWidth('purchaseRequestInitiator')}px`, minWidth: `${getColumnWidth('purchaseRequestInitiator')}px`, maxWidth: `${getColumnWidth('purchaseRequestInitiator')}px` }}
               title={request.purchaseRequestInitiator || ''}
             >
@@ -200,7 +200,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td
               key={columnKey}
-              className="px-2 py-0.5 text-xs text-gray-900 truncate border-r border-gray-200"
+              className="px-2 py-0 text-xs text-gray-900 truncate border-r border-gray-200"
               style={{ width: `${getColumnWidth('purchaser')}px`, minWidth: `${getColumnWidth('purchaser')}px`, maxWidth: `${getColumnWidth('purchaser')}px` }}
               title={request.purchaser || ''}
             >
@@ -213,7 +213,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0.5 text-xs text-gray-900 break-words border-r border-gray-200" 
+              className="px-2 py-0 text-xs text-gray-900 break-words border-r border-gray-200" 
               style={{ width: `${getColumnWidth('name')}px`, minWidth: `${getColumnWidth('name')}px`, maxWidth: `${getColumnWidth('name')}px` }}
             >
               {request.name || '-'}
@@ -222,12 +222,12 @@ export default function PurchaseRequestsTableRow({
         }
         
         if (columnKey === 'purchaseRequestCreationDate') {
-          // Колонка «Дата назначения на закупщика»: показываем approvalAssignmentDate (дата назначения на утверждение)
+          // Колонка «Назначение на закупщика»: показываем approvalAssignmentDate (дата назначения на утверждение)
           const dateToShow = request.approvalAssignmentDate ?? request.purchaseRequestCreationDate;
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+              className="px-2 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
               style={{ width: `${getColumnWidth('purchaseRequestCreationDate')}px`, minWidth: `${getColumnWidth('purchaseRequestCreationDate')}px`, maxWidth: `${getColumnWidth('purchaseRequestCreationDate')}px` }}
             >
               {dateToShow ? new Date(dateToShow).toLocaleDateString('ru-RU') : '-'}
@@ -239,7 +239,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td
               key={columnKey}
-              className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
+              className="px-2 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
               style={{ width: `${getColumnWidth('comments')}px`, minWidth: `${getColumnWidth('comments')}px`, maxWidth: `${getColumnWidth('comments')}px` }}
               onClick={(e) => {
                 e.stopPropagation();
@@ -260,7 +260,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+              className="px-2 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
               style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px` }}
             >
               {request.budgetAmount ? (
@@ -280,7 +280,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+              className="px-2 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
               style={{ width: `${getColumnWidth('currency')}px`, minWidth: `${getColumnWidth('currency')}px`, maxWidth: `${getColumnWidth('currency')}px` }}
             >
               {request.currency ? (
@@ -296,7 +296,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0.5 text-xs text-gray-900 truncate border-r border-gray-200" 
+              className="px-2 py-0 text-xs text-gray-900 truncate border-r border-gray-200" 
               style={{ width: `${getColumnWidth('costType')}px`, minWidth: `${getColumnWidth('costType')}px`, maxWidth: `${getColumnWidth('costType')}px` }}
               title={request.costType || ''}
             >
@@ -309,7 +309,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0.5 text-xs text-gray-900 truncate border-r border-gray-200" 
+              className="px-2 py-0 text-xs text-gray-900 truncate border-r border-gray-200" 
               style={{ width: `${getColumnWidth('contractType')}px`, minWidth: `${getColumnWidth('contractType')}px`, maxWidth: `${getColumnWidth('contractType')}px` }}
               title={request.contractType || ''}
             >
@@ -322,7 +322,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center" 
+              className="px-2 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center" 
               style={{ width: `${getColumnWidth('contractDurationMonths')}px`, minWidth: `${getColumnWidth('contractDurationMonths')}px`, maxWidth: `${getColumnWidth('contractDurationMonths')}px` }}
             >
               {request.contractDurationMonths !== null && request.contractDurationMonths !== undefined ? (
@@ -336,19 +336,19 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0.5 whitespace-nowrap text-xs border-r border-gray-200" 
+              className="px-2 py-0 whitespace-nowrap text-xs border-r border-gray-200" 
               style={{ width: `${getColumnWidth('isPlanned')}px`, minWidth: `${getColumnWidth('isPlanned')}px`, maxWidth: `${getColumnWidth('isPlanned')}px` }}
             >
               {request.isPlanned ? (
-                <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                <span className="px-1 py-0 text-xs font-medium bg-green-100 text-green-800 rounded-full">
                   Плановая
                 </span>
               ) : request.isPlanned === false ? (
-                <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
+                <span className="px-1 py-0 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
                   Внеплановая
                 </span>
               ) : (
-                <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
+                <span className="px-1 py-0 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
                   -
                 </span>
               )}
@@ -360,19 +360,19 @@ export default function PurchaseRequestsTableRow({
           return (
             <td
               key={columnKey}
-              className="px-2 py-0.5 whitespace-nowrap text-xs border-r border-gray-200"
+              className="px-2 py-0 whitespace-nowrap text-xs border-r border-gray-200"
               style={{ width: `${getColumnWidth('hasLinkedPlanItem')}px`, minWidth: `${getColumnWidth('hasLinkedPlanItem')}px`, maxWidth: `${getColumnWidth('hasLinkedPlanItem')}px` }}
             >
               {request.hasLinkedPlanItem ? (
-                <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                <span className="px-1 py-0 text-xs font-medium bg-green-100 text-green-800 rounded-full">
                   В плане
                 </span>
               ) : request.hasLinkedPlanItem === false ? (
-                <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
+                <span className="px-1 py-0 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
                   Не в плане
                 </span>
               ) : (
-                <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
+                <span className="px-1 py-0 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
                   -
                 </span>
               )}
@@ -384,7 +384,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td
               key={columnKey}
-              className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
+              className="px-2 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
               style={{ width: `${getColumnWidth('complexity')}px`, minWidth: `${getColumnWidth('complexity')}px`, maxWidth: `${getColumnWidth('complexity')}px` }}
               title={request.complexity ?? ''}
             >
@@ -393,86 +393,23 @@ export default function PurchaseRequestsTableRow({
           );
         }
 
-        // Колонка "Факт. SLA / дельта" — фактический SLA и дельта: плюс — зелёный квадрат (или жёлтый если ≤30% от планового), минус — красный
-        if (columnKey === 'factualSla') {
-          const factual = request.factualSlaDays;
-          const delta = request.slaDelta;
-          const planned = request.plannedSlaDays;
-          const hasFactual = factual != null;
-          const hasDelta = delta != null;
-          let content: React.ReactNode = '—';
-          if (hasFactual || hasDelta) {
-            const factualStr = hasFactual ? String(factual) : '—';
-            let deltaNode: React.ReactNode = null;
-            if (hasDelta) {
-              const remainderPct = planned != null && planned > 0 && delta > 0
-                ? (delta / planned) * 100
-                : null;
-              const isLowRemainder = remainderPct != null && remainderPct <= 30;
-              const deltaLabel = delta > 0 ? `+${delta}` : String(delta);
-              if (delta > 0) {
-                deltaNode = (
-                  <span
-                    className={`inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1 rounded text-white font-bold tabular-nums ${
-                      isLowRemainder ? 'bg-yellow-400 !text-black' : 'bg-green-600 text-white'
-                    }`}
-                    title={isLowRemainder ? `Остаток ≤30% от планового (${remainderPct?.toFixed(0)}%)` : undefined}
-                  >
-                    {deltaLabel}
-                  </span>
-                );
-              } else if (delta < 0) {
-                deltaNode = (
-                  <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1 rounded bg-red-600 text-white font-bold tabular-nums">
-                    {deltaLabel}
-                  </span>
-                );
-              } else {
-                deltaNode = (
-                  <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1 rounded bg-gray-200 text-gray-700 font-bold tabular-nums">
-                    0
-                  </span>
-                );
-              }
-            }
-            content = (
-              <span className="tabular-nums inline-flex items-center gap-1 flex-wrap">
-                <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1 rounded bg-gray-200 text-gray-700 font-bold tabular-nums">
-                  {factualStr}
-                </span>
-                {hasDelta && deltaNode}
-              </span>
-            );
-          }
-          return (
-            <td
-              key={columnKey}
-              className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center"
-              style={{ width: `${getColumnWidth('factualSla')}px`, minWidth: `${getColumnWidth('factualSla')}px`, maxWidth: `${getColumnWidth('factualSla')}px` }}
-              title={hasFactual || hasDelta ? `Факт: ${request.factualSlaDays ?? '—'} дн., дельта: ${request.slaDelta != null ? request.slaDelta : '—'}` : ''}
-            >
-              {content}
-            </td>
-          );
-        }
-
         if (columnKey === 'requiresPurchase') {
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0.5 whitespace-nowrap text-xs border-r border-gray-200" 
+              className="px-2 py-0 whitespace-nowrap text-xs border-r border-gray-200" 
               style={{ width: `${getColumnWidth('requiresPurchase')}px`, minWidth: `${getColumnWidth('requiresPurchase')}px`, maxWidth: `${getColumnWidth('requiresPurchase')}px` }}
             >
               {request.requiresPurchase ? (
-                <span className="px-1.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                <span className="px-1 py-0 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
                   Закупка
                 </span>
               ) : request.requiresPurchase === false ? (
-                <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
+                <span className="px-1 py-0 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
                   Заказ
                 </span>
               ) : (
-                <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
+                <span className="px-1 py-0 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
                   -
                 </span>
               )}
@@ -483,9 +420,9 @@ export default function PurchaseRequestsTableRow({
         if (columnKey === 'status') {
           const statusGroup = request.statusGroup;
           return (
-            <td key={columnKey} className="px-2 py-0.5 text-xs border-r border-gray-200">
+            <td key={columnKey} className="px-2 py-0 text-xs border-r border-gray-200">
               {statusGroup ? (
-                <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                <span className={`px-1.5 py-0.5 text-xs font-medium rounded-full ${
                   statusGroup === 'Договор подписан'
                     ? 'bg-green-100 text-green-800'
                     : statusGroup === 'Спецификация подписана'
@@ -517,7 +454,7 @@ export default function PurchaseRequestsTableRow({
                   {statusGroup}
                 </span>
               ) : (
-                <span className="px-2 py-1 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
+                <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
                   -
                 </span>
               )}
@@ -529,7 +466,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+              className="px-2 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
               style={{ width: `${getColumnWidth('createdAt')}px`, minWidth: `${getColumnWidth('createdAt')}px`, maxWidth: `${getColumnWidth('createdAt')}px` }}
             >
               {request.createdAt ? new Date(request.createdAt).toLocaleString('ru-RU') : '-'}
@@ -541,7 +478,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0.5 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+              className="px-2 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
               style={{ width: `${getColumnWidth('updatedAt')}px`, minWidth: `${getColumnWidth('updatedAt')}px`, maxWidth: `${getColumnWidth('updatedAt')}px` }}
             >
               {request.updatedAt ? new Date(request.updatedAt).toLocaleString('ru-RU') : '-'}
@@ -567,53 +504,92 @@ export default function PurchaseRequestsTableRow({
           const isSpecificationInProgress = request.statusGroup === 'Спецификация в работе';
           const isContractInProgress = request.statusGroup === 'Договор в работе';
           
+          const factual = request.factualSlaDays;
+          const delta = request.slaDelta;
+          const planned = request.plannedSlaDays;
+          const hasFactual = factual != null;
+          const hasDelta = delta != null;
+          let slaDeltaNode: React.ReactNode = null;
+          if (hasDelta) {
+            const remainderPct = planned != null && planned > 0 && delta > 0 ? (delta / planned) * 100 : null;
+            const isLowRemainder = remainderPct != null && remainderPct <= 30;
+            const deltaLabel = delta > 0 ? `+${delta}` : String(delta);
+            if (delta > 0) {
+              slaDeltaNode = (
+                <span
+                  className={`inline-flex items-center justify-center w-5 h-5 rounded text-white text-xs font-bold tabular-nums ${
+                    isLowRemainder ? 'bg-yellow-400 !text-black' : 'bg-green-600 text-white'
+                  }`}
+                  title={isLowRemainder ? `Остаток ≤30% от планового (${remainderPct?.toFixed(0)}%)` : undefined}
+                >
+                  {deltaLabel}
+                </span>
+              );
+            } else if (delta < 0) {
+              slaDeltaNode = (
+                <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-red-600 text-white text-xs font-bold tabular-nums">
+                  {deltaLabel}
+                </span>
+              );
+            } else {
+              slaDeltaNode = (
+                <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-200 text-gray-700 text-xs font-bold tabular-nums">
+                  0
+                </span>
+              );
+            }
+          }
+
           return (
-            <td key={columnKey} className="px-2 py-0.5 text-xs border-r border-gray-200">
-              <div className="flex items-end gap-2">
+            <td key={columnKey} className="px-2 py-0 text-xs border-r border-gray-200">
+              <div className="inline-flex items-center gap-1">
+                {/* Рамка: Заявка + Закупка + СЛА */}
+                <div className="inline-flex flex-col items-start gap-0.5 rounded border border-gray-400 px-1 py-0.5">
+                <div className="flex items-center gap-2">
                 {/* Заявка - активна */}
-                <div className="flex flex-col items-center gap-0.5">
+                <div className="flex flex-col items-center gap-0.5 flex-shrink-0 min-w-[3rem]">
                   {isOnCoordination ? (
                     // Если заявка на согласовании - желтый цвет
-                    <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center" title="Заявка на согласовании">
-                      <Clock className="w-2.5 h-2.5 text-white" />
+                    <div className="relative w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center" title="Заявка на согласовании">
+                      <Clock className="w-3 h-3 text-white" />
                     </div>
                   ) : isAtBuyer ? (
                     // Если заявка у закупщика - зеленый цвет
-                    <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center" title="Заявка у закупщика">
-                      <Check className="w-2.5 h-2.5 text-white" />
+                    <div className="relative w-5 h-5 rounded-full bg-green-500 flex items-center justify-center" title="Заявка у закупщика">
+                      <Check className="w-3 h-3 text-white" />
                     </div>
                   ) : isSpecificationInProgress || isContractInProgress ? (
                     // Если спецификация или договор в работе - заявка зеленая
-                    <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center" title={isSpecificationInProgress ? "Спецификация в работе" : "Договор в работе"}>
-                      <Check className="w-2.5 h-2.5 text-white" />
+                    <div className="relative w-5 h-5 rounded-full bg-green-500 flex items-center justify-center" title={isSpecificationInProgress ? "Спецификация в работе" : "Договор в работе"}>
+                      <Check className="w-3 h-3 text-white" />
                     </div>
                   ) : request.status === 'Спецификация подписана' || request.status === 'Договор подписан' || request.status === 'Договор создан' || request.status === 'Закупка создана' || (request.requiresPurchase === false && hasSpecificationOnCoordination) ? (
-                    <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center" title={
+                    <div className="relative w-5 h-5 rounded-full bg-green-500 flex items-center justify-center" title={
                       hasSpecificationOnCoordination && request.requiresPurchase === false ? "Заявка: Спецификация на согласовании" :
                       request.status === 'Спецификация подписана' ? "Заявка: Спецификация подписана" :
                       request.status === 'Договор подписан' ? "Заявка: Договор подписан" :
                       request.status === 'Договор создан' ? "Заявка: Договор создан" :
                       "Заявка: Закупка создана"
                     }>
-                      <Check className="w-2.5 h-2.5 text-white" />
+                      <Check className="w-3 h-3 text-white" />
                     </div>
                   ) : request.status === 'Утверждена' || request.status === 'Заявка утверждена' || request.status === 'Спецификация создана' ? (
-                    <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center" title={
+                    <div className="relative w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center" title={
                       request.status === 'Спецификация создана' ? "Заявка: Спецификация создана" :
                       "Заявка утверждена"
                     }>
-                      <Clock className="w-2.5 h-2.5 text-white" />
+                      <Clock className="w-3 h-3 text-white" />
                     </div>
                   ) : request.status === 'Заявка не утверждена' || request.status === 'Заявка не согласована' || request.status === 'Закупка не согласована' ? (
-                    <div className="relative w-4 h-4 rounded-full bg-red-500 flex items-center justify-center" title={
+                    <div className="relative w-5 h-5 rounded-full bg-red-500 flex items-center justify-center" title={
                       request.status === 'Закупка не согласована' ? "Заявка: Закупка не согласована" :
                       "Заявка: Заявка не утверждена или Заявка не согласована"
                     }>
-                      <X className="w-2.5 h-2.5 text-white" />
+                      <X className="w-3 h-3 text-white" />
                     </div>
                   ) : (
-                    <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center" title="Заявка">
-                      <Clock className="w-2.5 h-2.5 text-white" />
+                    <div className="relative w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center" title="Заявка">
+                      <Clock className="w-3 h-3 text-white" />
                     </div>
                   )}
                   <span className="text-[10px] text-gray-600 whitespace-nowrap leading-none">Заявка</span>
@@ -622,115 +598,143 @@ export default function PurchaseRequestsTableRow({
                 {/* Если закупка требуется: Заявка → Закупка → Договор */}
                 {request.requiresPurchase !== false ? (
                   <>
-                    {/* Закупка */}
-                    <div className="flex flex-col items-center gap-0.5">
+                    {/* Закупка: круг + цифры в одной строке (как Договор), подпись — строго под кругом (grid) */}
+                    <div className="grid grid-cols-[auto_1fr] gap-x-0 gap-y-0.5 items-center flex-shrink-0 min-w-[3rem]">
                       {isOnCoordination ? (
-                        // Если заявка на согласовании - серый цвет для остальных элементов
-                        <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Закупка"></div>
+                        <div className="w-4 h-4 rounded-full bg-gray-300 flex-shrink-0" title="Закупка"></div>
                       ) : isAtBuyer ? (
-                        // Если заявка у закупщика - желтый цвет для закупки
-                        <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Закупка: Заявка у закупщика">
-                          <Clock className="w-2.5 h-2.5 text-white" />
+                        <div className="relative w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center flex-shrink-0" title="Закупка: Заявка у закупщика">
+                          <Clock className="w-3 h-3 text-white" />
                         </div>
                       ) : isSpecificationInProgress || isContractInProgress ? (
-                        // Если спецификация или договор в работе - закупка зеленая
-                        <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center mt-0.5" title={isSpecificationInProgress ? "Закупка: Спецификация в работе" : "Закупка: Договор в работе"}>
-                          <Check className="w-2.5 h-2.5 text-white" />
+                        <div className="relative w-5 h-5 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0" title={isSpecificationInProgress ? "Закупка: Спецификация в работе" : "Закупка: Договор в работе"}>
+                          <Check className="w-3 h-3 text-white" />
                         </div>
                       ) : request.hasCompletedPurchase ? (
-                        <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Закупка: Завершена">
-                          <Clock className="w-2.5 h-2.5 text-white" />
+                        <div className="relative w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center flex-shrink-0" title="Закупка: Завершена">
+                          <Clock className="w-3 h-3 text-white" />
                         </div>
                       ) : request.status === 'Закупка создана' ? (
-                        <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Закупка: Закупка создана">
-                          <Clock className="w-2.5 h-2.5 text-white" />
+                        <div className="relative w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center flex-shrink-0" title="Закупка: Закупка создана">
+                          <Clock className="w-3 h-3 text-white" />
                         </div>
                       ) : request.status === 'Закупка не согласована' ? (
-                        <div className="relative w-4 h-4 rounded-full bg-red-500 flex items-center justify-center mt-0.5" title="Закупка: Закупка не согласована">
-                          <X className="w-2.5 h-2.5 text-white" />
+                        <div className="relative w-5 h-5 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0" title="Закупка: Закупка не согласована">
+                          <X className="w-3 h-3 text-white" />
                         </div>
                       ) : (
-                        <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Закупка"></div>
+                        <div className="w-4 h-4 rounded-full bg-gray-300 flex-shrink-0" title="Закупка"></div>
                       )}
-                      <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Закупка</span>
-                    </div>
-                    {/* Договор */}
-                    <div className="flex flex-col items-center gap-0.5">
-                      {(() => {
-                        // Если заявка на согласовании или у закупщика - серый цвет для договора
-                        if (isOnCoordination || isAtBuyer) {
-                          return (
-                            <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Договор"></div>
-                          );
-                        }
-                        
-                        // Если спецификация или договор в работе - желтый цвет
-                        if (isSpecificationInProgress || isContractInProgress) {
-                          return (
-                            <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title={isSpecificationInProgress ? "Договор: Спецификация в работе" : "Договор: Договор в работе"}>
-                              <Clock className="w-2.5 h-2.5 text-white" />
-                            </div>
-                          );
-                        }
-                        
-                        const hasSignedContract = request.contracts && request.contracts.some(
-                          (contract: Contract) => contract.status === 'Договор подписан' || contract.status === 'Подписан'
-                        );
-                        const hasProjectContract = request.contracts && request.contracts.some(
-                          (contract: Contract) => contract.status === 'Проект' || contract.status === 'Договор создан'
-                        );
-                        
-                        if (request.status === 'Договор подписан' || hasSignedContract) {
-                          return (
-                            <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center mt-0.5" title="Договор: Договор подписан">
-                              <Check className="w-2.5 h-2.5 text-white" />
-                            </div>
-                          );
-                        } else if (request.status === 'Договор создан' || hasProjectContract) {
-                          return (
-                            <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Договор: Договор в статусе Проект">
-                              <Clock className="w-2.5 h-2.5 text-white" />
-                            </div>
-                          );
-                        } else if (request.hasCompletedPurchase) {
-                          return (
-                            <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Договор: Закупка завершена">
-                              <Clock className="w-2.5 h-2.5 text-white" />
-                            </div>
-                          );
-                        } else {
-                          return (
-                            <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Договор"></div>
-                          );
-                        }
-                      })()}
-                      <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Договор</span>
+                      {(hasFactual || hasDelta) && (
+                        <div
+                          className="tabular-nums inline-flex items-center gap-0.5 flex-shrink-0"
+                          title={`Факт: ${request.factualSlaDays ?? '—'} дн., дельта: ${request.slaDelta != null ? request.slaDelta : '—'}`}
+                        >
+                          {hasFactual && (
+                            <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-200 text-gray-700 text-xs font-bold tabular-nums">
+                              {factual}
+                            </span>
+                          )}
+                          {slaDeltaNode}
+                        </div>
+                      )}
+                      <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none text-center col-start-1">Закупка</span>
                     </div>
                   </>
+                ) : null}
+                </div>
+                </div>
+                {/* Рамка: Договор или Заказ */}
+                {request.requiresPurchase !== false ? (
+                  <div className="inline-flex flex-col items-center gap-0.5 rounded border border-gray-400 px-1 py-0.5">
+                    {(() => {
+                      if (isOnCoordination || isAtBuyer) {
+                        return (
+                          <div className="w-5 h-5 rounded-full bg-gray-300" title="Договор"></div>
+                        );
+                      }
+                      if (isSpecificationInProgress || isContractInProgress) {
+                        return (
+                          <div className="flex items-center gap-1">
+                            <div className="relative w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center flex-shrink-0" title={isSpecificationInProgress ? "Договор: Спецификация в работе" : "Договор: Договор в работе"}>
+                              <Clock className="w-3 h-3 text-white" />
+                            </div>
+                            {isContractInProgress && request.contractWorkingDaysInProgress != null && (
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-200 text-gray-700 text-xs font-bold tabular-nums" title="Рабочих дней в работе (от даты завершения закупки)">
+                                {request.contractWorkingDaysInProgress}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      }
+                      const hasSignedContract = request.contracts && request.contracts.some(
+                        (contract: Contract) => contract.status === 'Договор подписан' || contract.status === 'Подписан'
+                      );
+                      const hasProjectContract = request.contracts && request.contracts.some(
+                        (contract: Contract) => contract.status === 'Проект' || contract.status === 'Договор создан'
+                      );
+                      if (request.status === 'Договор подписан' || hasSignedContract) {
+                        return (
+                          <div className="relative w-5 h-5 rounded-full bg-green-500 flex items-center justify-center" title="Договор: Договор подписан">
+                            <Check className="w-3 h-3 text-white" />
+                          </div>
+                        );
+                      }
+                      if (request.status === 'Договор создан' || hasProjectContract) {
+                        return (
+                          <div className="flex items-center gap-1">
+                            <div className="relative w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center flex-shrink-0" title="Договор: Договор в статусе Проект">
+                              <Clock className="w-3 h-3 text-white" />
+                            </div>
+                            {isContractInProgress && request.contractWorkingDaysInProgress != null && (
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-200 text-gray-700 text-xs font-bold tabular-nums" title="Рабочих дней в работе (от даты завершения закупки)">
+                                {request.contractWorkingDaysInProgress}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      }
+                      if (request.hasCompletedPurchase) {
+                        return (
+                          <div className="flex items-center gap-1">
+                            <div className="relative w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center flex-shrink-0" title="Договор: Закупка завершена">
+                              <Clock className="w-3 h-3 text-white" />
+                            </div>
+                            {isContractInProgress && request.contractWorkingDaysInProgress != null && (
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-200 text-gray-700 text-xs font-bold tabular-nums" title="Рабочих дней в работе (от даты завершения закупки)">
+                                {request.contractWorkingDaysInProgress}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="w-5 h-5 rounded-full bg-gray-300" title="Договор"></div>
+                      );
+                    })()}
+                    <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Договор</span>
+                  </div>
                 ) : (
-                  /* Если закупка не требуется: Заявка → Заказ */
-                  <div className="flex flex-col items-center gap-0.5">
+                  <div className="inline-flex flex-col items-center gap-0.5 rounded border border-gray-400 px-1 py-0.5">
                     {isOnCoordination || isAtBuyer ? (
-                      // Если заявка на согласовании или у закупщика - серый цвет для заказа
-                      <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Заказ"></div>
+                      <div className="w-4 h-4 rounded-full bg-gray-300" title="Заказ"></div>
                     ) : isSpecificationInProgress ? (
-                      // Если спецификация в работе - желтый цвет для заказа
-                      <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Заказ: Спецификация в работе">
-                        <Clock className="w-2.5 h-2.5 text-white" />
+                      <div className="relative w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center" title="Заказ: Спецификация в работе">
+                        <Clock className="w-3 h-3 text-white" />
                       </div>
                     ) : request.status === 'Спецификация подписана' || request.status === 'Договор подписан' ? (
-                      <div className="relative w-4 h-4 rounded-full bg-green-500 flex items-center justify-center mt-0.5" title={
+                      <div className="relative w-5 h-5 rounded-full bg-green-500 flex items-center justify-center" title={
                         request.status === 'Спецификация подписана' ? "Заказ: Спецификация подписана" : 
                         "Заявка: Договор подписан"
                       }>
-                        <Check className="w-2.5 h-2.5 text-white" />
+                        <Check className="w-3 h-3 text-white" />
                       </div>
                     ) : request.status === 'Спецификация создана' ? (
-                      <div className="relative w-4 h-4 rounded-full bg-yellow-500 flex items-center justify-center mt-0.5" title="Заказ: Спецификация создана">
-                        <Clock className="w-2.5 h-2.5 text-white" />
+                      <div className="relative w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center" title="Заказ: Спецификация создана">
+                        <Clock className="w-3 h-3 text-white" />
                       </div>
                     ) : (
-                      <div className="w-3 h-3 rounded-full bg-gray-300 mt-0.5" title="Заказ"></div>
+                      <div className="w-4 h-4 rounded-full bg-gray-300" title="Заказ"></div>
                     )}
                     <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Заказ</span>
                   </div>
@@ -745,7 +749,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey} 
-              className="px-2 py-0.5 text-xs border-r border-gray-200"
+              className="px-2 py-0 text-xs border-r border-gray-200"
               onClick={(e) => e.stopPropagation()}
             >
               {request.csiLink ? (
@@ -755,7 +759,7 @@ export default function PurchaseRequestsTableRow({
                       e.stopPropagation();
                       onFeedbackClick?.(request);
                     }}
-                    className="px-2 py-1 text-xs bg-yellow-100 text-yellow-800 rounded hover:bg-yellow-200 transition-colors flex items-center gap-1"
+                    className="px-1.5 py-0.5 text-xs bg-yellow-100 text-yellow-800 rounded hover:bg-yellow-200 transition-colors flex items-center gap-1"
                   >
                     {request.averageRating ? (() => {
                       const rating = request.averageRating;
@@ -784,7 +788,7 @@ export default function PurchaseRequestsTableRow({
                       e.stopPropagation();
                       onSentInvitationClick?.(request);
                     }}
-                    className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors cursor-pointer"
+                    className="px-1.5 py-0.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors cursor-pointer"
                   >
                     Оценка отправлена
                   </button>
@@ -794,7 +798,7 @@ export default function PurchaseRequestsTableRow({
                       e.stopPropagation();
                       onRatingClick?.(request);
                     }}
-                    className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                    className="px-1.5 py-0.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                   >
                     Оценка
                   </button>

@@ -5,9 +5,11 @@ import { useFocusRestore } from './useFocusRestore';
 
 export const usePaymentsFilters = (setCurrentPage: (page: number) => void) => {
   const [localFilters, setLocalFilters] = useState<Record<string, string>>({
+    mainId: '',
     comment: '',
   });
   const [filters, setFilters] = useState<Record<string, string>>({
+    mainId: '',
     comment: '',
   });
   const [focusedField, setFocusedField] = useState<string | null>(null);
