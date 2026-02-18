@@ -118,6 +118,10 @@ export const useContractsFilters = (setCurrentPage: (page: number) => void) => {
     setCurrentPage(0);
   };
 
+  const handleFilterChange = useCallback((field: string, value: string) => {
+    setLocalFilters(prev => ({ ...prev, [field]: value }));
+  }, []);
+
   // Debounce хук
   useDebouncedFiltersSync({
     localFilters,
@@ -151,6 +155,7 @@ export const useContractsFilters = (setCurrentPage: (page: number) => void) => {
     handleCfoToggle,
     handleCfoSelectAll,
     handleCfoDeselectAll,
+    handleFilterChange,
     activeTab,
     setActiveTab,
     activeTabRef,

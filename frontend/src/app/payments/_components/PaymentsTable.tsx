@@ -134,12 +134,9 @@ export default function PaymentsTable() {
         </button>
       </div>
 
-      {loading ? (
-        <div className="px-6 py-8 text-center text-gray-500">Загрузка...</div>
-      ) : (
-        <div className="flex-1 min-w-0 overflow-auto relative">
-          <table className="w-full max-w-full border-collapse table-fixed">
-            <thead className="bg-gray-50 sticky top-0 z-10">
+      <div className="flex-1 min-w-0 overflow-auto relative">
+        <table className="w-full max-w-full border-collapse table-fixed">
+          <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
                 <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '8%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
@@ -339,13 +336,14 @@ export default function PaymentsTable() {
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       <input
+                        key="filter-comment"
                         type="text"
                         data-filter-field="comment"
                         value={filters.localFilters.comment ?? ''}
                         onChange={(e) => {
                           const newValue = e.target.value;
                           const cursorPos = e.target.selectionStart ?? 0;
-                          filters.setLocalFilters((prev) => ({ ...prev, comment: newValue }));
+                          filters.handleFilterChange('comment', newValue);
                           requestAnimationFrame(() => {
                             const input = e.target as HTMLInputElement;
                             if (input && document.activeElement === input) {
@@ -363,7 +361,7 @@ export default function PaymentsTable() {
                           }, 200);
                         }}
                         onClick={(e) => e.stopPropagation()}
-                        onKeyDown={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => { if (e.key === 'ArrowUp' || e.key === 'ArrowDown') e.stopPropagation(); }}
                         className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         placeholder="Фильтр"
                         style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
@@ -384,7 +382,14 @@ export default function PaymentsTable() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {allItems.map((payment, index) => (
+              {loading ? (
+                <tr>
+                  <td colSpan={12} className="px-6 py-8 text-center text-gray-500">
+                    Загрузка...
+                  </td>
+                </tr>
+              ) : (
+              allItems.map((payment, index) => (
                 <tr key={`${payment.id}-${index}`} className="hover:bg-gray-50">
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0 w-[8%]">
                     <span className="truncate block" title={payment.mainId ?? undefined}>
@@ -405,16 +410,7 @@ export default function PaymentsTable() {
                     )}
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0 w-[18%]" title={payment.contractTitle ?? undefined}>
-                    {payment.contractId != null && payment.contractTitle ? (
-                      <Link
-                        href={`/contract/${payment.contractId}`}
-                        className="text-blue-600 hover:underline line-clamp-2 block min-w-0"
-                      >
-                        {payment.contractTitle}
-                      </Link>
-                    ) : (
-                      <span className="line-clamp-2 block min-w-0">{payment.contractTitle ?? '-'}</span>
-                    )}
+                    <span className="line-clamp-2 block min-w-0">{payment.contractTitle ?? '-'}</span>
                   </td>
                   <td className="px-2 py-2 text-xs border-r border-gray-300 overflow-hidden min-w-0 w-[12%]" title={payment.paymentStatus ?? undefined}>
                     <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium truncate max-w-full ${paymentStatusBadgeClass(payment.paymentStatus)}`}>
@@ -454,7 +450,8 @@ export default function PaymentsTable() {
                     <span className="line-clamp-2 block min-w-0">{payment.comment ?? '-'}</span>
                   </td>
                 </tr>
-              ))}
+              ))
+              )}
             </tbody>
           </table>
           {loadingMore && (
@@ -464,7 +461,6 @@ export default function PaymentsTable() {
           )}
           <div ref={loadMoreRef} className="h-4 flex items-center justify-center py-1" />
         </div>
-      )}
     </div>
   );
 }

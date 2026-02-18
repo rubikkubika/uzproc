@@ -76,6 +76,10 @@ export const usePaymentsFilters = (setCurrentPage: (page: number) => void) => {
     setCurrentPage(0);
   };
 
+  const handleFilterChange = useCallback((field: string, value: string) => {
+    setLocalFilters(prev => ({ ...prev, [field]: value }));
+  }, []);
+
   useDebouncedFiltersSync({
     localFilters,
     filtersFromHook: filters,
@@ -111,5 +115,6 @@ export const usePaymentsFilters = (setCurrentPage: (page: number) => void) => {
     handleCfoToggle,
     handleCfoSelectAll,
     handleCfoDeselectAll,
+    handleFilterChange,
   };
 };
