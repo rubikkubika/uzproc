@@ -162,7 +162,7 @@ export function useTableColumns() {
       cfo: 80,
       purchaseRequestInitiator: 128,
       purchaser: 150,
-      name: 192,
+      name: 288, // +50% от прежнего 192
       budgetAmount: 112,
       isPlanned: 96,
       hasLinkedPlanItem: 112,
