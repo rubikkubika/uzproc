@@ -345,6 +345,7 @@ public class PurchaseRequestStatusUpdateService {
         // 2. Через закупки по contractInnerIds
         boolean allContractsSigned = false;
         boolean hasContracts = false;
+        boolean hasContractsOnRegistration = false;
         try {
             List<Contract> allContracts = new ArrayList<>();
             
@@ -383,9 +384,12 @@ public class PurchaseRequestStatusUpdateService {
                 // Проверяем, все ли договоры имеют статус "Подписан"
                 allContractsSigned = allContracts.stream()
                     .allMatch(contract -> contract.getStatus() == ContractStatus.SIGNED);
+                // Проверяем, есть ли хотя бы один договор со статусом "На регистрации"
+                hasContractsOnRegistration = allContracts.stream()
+                    .anyMatch(contract -> contract.getStatus() == ContractStatus.ON_REGISTRATION);
                 
-                logger.debug("Found {} contracts for purchase request {} (excluding specifications), all signed: {}", 
-                    allContracts.size(), idPurchaseRequest, allContractsSigned);
+                logger.debug("Found {} contracts for purchase request {} (excluding specifications), all signed: {}, has on registration: {}", 
+                    allContracts.size(), idPurchaseRequest, allContractsSigned, hasContractsOnRegistration);
             } else {
                 logger.debug("No contracts found for purchase request {} (excluding specifications)", idPurchaseRequest);
             }
@@ -422,6 +426,11 @@ public class PurchaseRequestStatusUpdateService {
             // Если есть договоры и все они подписаны (для заказов и закупок), устанавливаем статус "Договор подписан"
             newStatus = PurchaseRequestStatus.CONTRACT_SIGNED;
             logger.info("All contracts signed for purchase request {} (requiresPurchase={}), setting status to CONTRACT_SIGNED", 
+                idPurchaseRequest, purchaseRequest.getRequiresPurchase());
+        } else if (hasContracts && hasContractsOnRegistration) {
+            // Если есть договоры и хотя бы один на регистрации (оба этапа согласованы, регистрация в процессе)
+            newStatus = PurchaseRequestStatus.CONTRACT_ON_REGISTRATION;
+            logger.info("Found contract(s) on registration for purchase request {} (requiresPurchase={}), setting status to CONTRACT_ON_REGISTRATION",
                 idPurchaseRequest, purchaseRequest.getRequiresPurchase());
         } else if (hasNotCoordinatedSpecification) {
             // Для заказов (requiresPurchase === false) с не согласованной спецификацией

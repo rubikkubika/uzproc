@@ -678,6 +678,9 @@ export default function PurchaseRequestsTableRow({
                       const hasProjectContract = request.contracts && request.contracts.some(
                         (contract: Contract) => contract.status === 'Проект' || contract.status === 'Договор создан'
                       );
+                      const hasContractOnRegistration = request.contracts && request.contracts.some(
+                        (contract: Contract) => contract.status === 'На регистрации'
+                      );
                       if (request.status === 'Договор подписан' || hasSignedContract) {
                         return (
                           <div className={`flex items-center justify-center gap-1 ${contentMinW}`}>
@@ -687,7 +690,7 @@ export default function PurchaseRequestsTableRow({
                           </div>
                         );
                       }
-                      if (request.status === 'Договор создан' || hasProjectContract) {
+                      if (request.status === 'Договор создан' || request.status === 'Договор на регистрации' || hasProjectContract || hasContractOnRegistration) {
                         return (
                           <div className={`flex items-center gap-1 ${contentMinW}`}>
                             <div className="relative w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center flex-shrink-0" title="Договор: Договор в статусе Проект">
