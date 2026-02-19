@@ -19,6 +19,7 @@ public enum PurchaseRequestStatus {
     PURCHASE_NOT_COORDINATED("Закупка не согласована", PurchaseRequestStatusGroup.PURCHASE_NOT_COORDINATED),
     PURCHASE_COMPLETED("Закупка завершена", PurchaseRequestStatusGroup.CONTRACT_IN_PROGRESS),
     CONTRACT_CREATED("Договор создан", PurchaseRequestStatusGroup.CONTRACT_IN_PROGRESS),
+    CONTRACT_ON_REGISTRATION("Договор на регистрации", PurchaseRequestStatusGroup.CONTRACT_IN_PROGRESS),
     CONTRACT_SIGNED("Договор подписан", PurchaseRequestStatusGroup.CONTRACT_SIGNED);
 
     private final String displayName;

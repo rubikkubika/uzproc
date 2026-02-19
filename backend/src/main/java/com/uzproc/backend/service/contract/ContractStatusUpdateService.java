@@ -39,6 +39,9 @@ public class ContractStatusUpdateService {
      * - "Принятие на хранение: Зарегистрирован"
      * то статус устанавливается в "Подписан"
      * 
+     * Если state содержит "Регистрация: На регистрации" и оба этапа согласованы (Этап 1 и Этап 2),
+     * то статус устанавливается в "На регистрации".
+     *
      * Если state содержит:
      * - "Согласование договора - Этап 1: На согласовании"
      * - "Синхронизация: Исполнен" (когда нет согласования)
@@ -81,6 +84,13 @@ public class ContractStatusUpdateService {
                 stateTrimmed.equals("Согласование договора - Этап 1: Согласован, Согласование договора - Этап 2: Согласован, Синхронизация: Исполнен, Регистрация договора: Зарегистрирован")) {
                 newStatus = ContractStatus.SIGNED;
                 logger.debug("Contract {} state matches signed condition (exact match): {}", contractId, stateTrimmed);
+            }
+            // Проверяем условия для статуса "На регистрации": оба этапа согласованы и регистрация в процессе (до проверки "Подписан" по подстрокам)
+            else if (stateTrimmed.contains("Регистрация: На регистрации") &&
+                     (stateTrimmed.contains("Согласование договора - Этап 1: Согласован") || stateTrimmed.contains("Согласование - Этап 1: Согласован")) &&
+                     (stateTrimmed.contains("Согласование договора - Этап 2: Согласован") || stateTrimmed.contains("Согласование - Этап 2: Согласован"))) {
+                newStatus = ContractStatus.ON_REGISTRATION;
+                logger.debug("Contract {} state matches on registration condition: {}", contractId, stateTrimmed);
             }
             // Проверяем подстроки для статуса "Подписан"
             else if (stateTrimmed.contains("Согласование договора - Этап 1: Согласован") ||

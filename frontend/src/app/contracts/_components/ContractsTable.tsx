@@ -512,6 +512,8 @@ export default function ContractsTable() {
                             ? 'bg-green-100 text-green-800'
                             : contract.status === 'На согласовании'
                             ? 'bg-yellow-100 text-yellow-800'
+                            : contract.status === 'На регистрации'
+                            ? 'bg-blue-100 text-blue-800'
                             : contract.status === 'Не согласован'
                             ? 'bg-red-100 text-red-800'
                             : contract.status === 'Проект'

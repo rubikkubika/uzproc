@@ -2471,7 +2471,13 @@ export default function PurchaseRequestDetailPage() {
                                       ? 'bg-green-100 text-green-800' 
                                       : contract.status === 'Проект'
                                       ? 'bg-gray-100 text-gray-800'
-                                      : 'bg-blue-100 text-blue-800'
+                                      : contract.status === 'На согласовании'
+                                      ? 'bg-yellow-100 text-yellow-800'
+                                      : contract.status === 'На регистрации'
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : contract.status === 'Не согласован'
+                                      ? 'bg-red-100 text-red-800'
+                                      : 'bg-gray-100 text-gray-800'
                                   }`}>
                                     {contract.status}
                                   </span>
@@ -3000,7 +3006,13 @@ export default function PurchaseRequestDetailPage() {
                                           ? 'bg-green-100 text-green-800' 
                                           : (contract.status === 'Проект' || contract.status === 'PROJECT')
                                           ? 'bg-gray-100 text-gray-800'
-                                          : 'bg-blue-100 text-blue-800'
+                                          : contract.status === 'На согласовании'
+                                          ? 'bg-yellow-100 text-yellow-800'
+                                          : (contract.status === 'На регистрации' || contract.status === 'ON_REGISTRATION')
+                                          ? 'bg-blue-100 text-blue-800'
+                                          : contract.status === 'Не согласован'
+                                          ? 'bg-red-100 text-red-800'
+                                          : 'bg-gray-100 text-gray-800'
                                       }`}>
                                         {contract.status}
                                       </span>
