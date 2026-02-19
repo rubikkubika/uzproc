@@ -41,6 +41,7 @@ public class PurchaseStatusUpdateService {
      * Логика (приоритет по убыванию):
      * - Если в согласованиях закупки есть визы "Не согласовано", то статус закупки "Не согласовано"
      * - Статус "Завершена" только если все согласования на этапе "Закупочная комиссия" / "Проверка результата закупочной комиссии" завершены с положительным результатом и нет других активных согласований
+     * - Если есть активные согласования (не завершены) — статус "На согласовании" (в т.ч. понижение с "Завершена")
      *
      * @param purchaseRequestId ID закупки (purchase_request_id)
      */
@@ -157,7 +158,13 @@ public class PurchaseStatusUpdateService {
             logger.info("Purchase {} (purchaseRequestId: {}) has all commission stage approvals completed and no other active approvals, setting status to COMPLETED",
                     purchaseRequestId, purchaseRequestId);
         } else if (hasCompletedCommissionResultCheck && hasOtherActiveApprovals) {
-            logger.info("Purchase {} (purchaseRequestId: {}) has completed commission stage but has other active approvals, not setting status to COMPLETED",
+            newStatus = PurchaseStatus.ON_COORDINATION;
+            logger.info("Purchase {} (purchaseRequestId: {}) has completed commission stage but has other active approvals, setting status to ON_COORDINATION",
+                    purchaseRequestId, purchaseRequestId);
+        } else if (hasOtherActiveApprovals || (!commissionStageApprovals.isEmpty() && !hasCompletedCommissionResultCheck)) {
+            // Есть активные согласования или этап комиссии не полностью завершён — «На согласовании» (в т.ч. понижение с «Завершена»)
+            newStatus = PurchaseStatus.ON_COORDINATION;
+            logger.info("Purchase {} (purchaseRequestId: {}) has active or incomplete approvals, setting status to ON_COORDINATION",
                     purchaseRequestId, purchaseRequestId);
         }
 
