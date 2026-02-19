@@ -517,7 +517,7 @@ export default function PurchaseRequestsTableRow({
             if (delta > 0) {
               slaDeltaNode = (
                 <span
-                  className={`inline-flex items-center justify-center w-5 h-5 rounded text-white text-xs font-bold tabular-nums ${
+                  className={`inline-flex items-center justify-center min-w-[1.75rem] w-[1.75rem] h-5 rounded text-white text-xs font-bold tabular-nums ${
                     isLowRemainder ? 'bg-yellow-400 !text-black' : 'bg-green-600 text-white'
                   }`}
                   title={isLowRemainder ? `Остаток ≤30% от планового (${remainderPct?.toFixed(0)}%)` : undefined}
@@ -527,13 +527,13 @@ export default function PurchaseRequestsTableRow({
               );
             } else if (delta < 0) {
               slaDeltaNode = (
-                <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-red-600 text-white text-xs font-bold tabular-nums">
+                <span className="inline-flex items-center justify-center min-w-[1.75rem] w-[1.75rem] h-5 rounded bg-red-600 text-white text-xs font-bold tabular-nums">
                   {deltaLabel}
                 </span>
               );
             } else {
               slaDeltaNode = (
-                <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-200 text-gray-700 text-xs font-bold tabular-nums">
+                <span className="inline-flex items-center justify-center min-w-[1.75rem] w-[1.75rem] h-5 rounded bg-gray-200 text-gray-700 text-xs font-bold tabular-nums">
                   0
                 </span>
               );
@@ -644,25 +644,30 @@ export default function PurchaseRequestsTableRow({
                 ) : null}
                 </div>
                 </div>
-                {/* Рамка: Договор или Заказ */}
+                {/* Рамка: Договор или Заказ — фиксированная ширина контента как у блока с числом */}
                 {request.requiresPurchase !== false ? (
-                  <div className="inline-flex flex-col items-center gap-0.5 rounded border border-gray-400 px-1 py-0.5">
+                  <div className="inline-flex flex-col items-center gap-0.5 rounded border border-gray-400 px-1 py-0.5 min-w-[3.5rem]">
                     {(() => {
+                      const contentMinW = 'min-w-[2.75rem]'; // круг 20px + отступ + число 20px
                       if (isOnCoordination || isAtBuyer) {
                         return (
-                          <div className="w-5 h-5 rounded-full bg-gray-300" title="Договор"></div>
+                          <div className={`flex items-center justify-center gap-1 ${contentMinW}`}>
+                            <div className="w-5 h-5 rounded-full bg-gray-300 flex-shrink-0" title="Договор"></div>
+                          </div>
                         );
                       }
                       if (isSpecificationInProgress || isContractInProgress) {
                         return (
-                          <div className="flex items-center gap-1">
+                          <div className={`flex items-center gap-1 ${contentMinW}`}>
                             <div className="relative w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center flex-shrink-0" title={isSpecificationInProgress ? "Договор: Спецификация в работе" : "Договор: Договор в работе"}>
                               <Clock className="w-3 h-3 text-white" />
                             </div>
-                            {isContractInProgress && request.contractWorkingDaysInProgress != null && (
-                              <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-200 text-gray-700 text-xs font-bold tabular-nums" title="Рабочих дней в работе (от даты завершения закупки)">
+                            {isContractInProgress && request.contractWorkingDaysInProgress != null ? (
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-200 text-gray-700 text-xs font-bold tabular-nums flex-shrink-0" title="Рабочих дней в работе (от даты завершения закупки)">
                                 {request.contractWorkingDaysInProgress}
                               </span>
+                            ) : (
+                              <span className="w-5 h-5 flex-shrink-0" aria-hidden />
                             )}
                           </div>
                         );
@@ -675,70 +680,97 @@ export default function PurchaseRequestsTableRow({
                       );
                       if (request.status === 'Договор подписан' || hasSignedContract) {
                         return (
-                          <div className="relative w-5 h-5 rounded-full bg-green-500 flex items-center justify-center" title="Договор: Договор подписан">
-                            <Check className="w-3 h-3 text-white" />
+                          <div className={`flex items-center justify-center gap-1 ${contentMinW}`}>
+                            <div className="relative w-5 h-5 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0" title="Договор: Договор подписан">
+                              <Check className="w-3 h-3 text-white" />
+                            </div>
                           </div>
                         );
                       }
                       if (request.status === 'Договор создан' || hasProjectContract) {
                         return (
-                          <div className="flex items-center gap-1">
+                          <div className={`flex items-center gap-1 ${contentMinW}`}>
                             <div className="relative w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center flex-shrink-0" title="Договор: Договор в статусе Проект">
                               <Clock className="w-3 h-3 text-white" />
                             </div>
-                            {isContractInProgress && request.contractWorkingDaysInProgress != null && (
-                              <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-200 text-gray-700 text-xs font-bold tabular-nums" title="Рабочих дней в работе (от даты завершения закупки)">
+                            {isContractInProgress && request.contractWorkingDaysInProgress != null ? (
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-200 text-gray-700 text-xs font-bold tabular-nums flex-shrink-0" title="Рабочих дней в работе (от даты завершения закупки)">
                                 {request.contractWorkingDaysInProgress}
                               </span>
+                            ) : (
+                              <span className="w-5 h-5 flex-shrink-0" aria-hidden />
                             )}
                           </div>
                         );
                       }
                       if (request.hasCompletedPurchase) {
                         return (
-                          <div className="flex items-center gap-1">
+                          <div className={`flex items-center gap-1 ${contentMinW}`}>
                             <div className="relative w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center flex-shrink-0" title="Договор: Закупка завершена">
                               <Clock className="w-3 h-3 text-white" />
                             </div>
-                            {isContractInProgress && request.contractWorkingDaysInProgress != null && (
-                              <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-200 text-gray-700 text-xs font-bold tabular-nums" title="Рабочих дней в работе (от даты завершения закупки)">
+                            {isContractInProgress && request.contractWorkingDaysInProgress != null ? (
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-200 text-gray-700 text-xs font-bold tabular-nums flex-shrink-0" title="Рабочих дней в работе (от даты завершения закупки)">
                                 {request.contractWorkingDaysInProgress}
                               </span>
+                            ) : (
+                              <span className="w-5 h-5 flex-shrink-0" aria-hidden />
                             )}
                           </div>
                         );
                       }
                       return (
-                        <div className="w-5 h-5 rounded-full bg-gray-300" title="Договор"></div>
+                        <div className={`flex items-center justify-center gap-1 ${contentMinW}`}>
+                          <div className="w-5 h-5 rounded-full bg-gray-300 flex-shrink-0" title="Договор"></div>
+                        </div>
                       );
                     })()}
                     <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Договор</span>
                   </div>
                 ) : (
-                  <div className="inline-flex flex-col items-center gap-0.5 rounded border border-gray-400 px-1 py-0.5">
-                    {isOnCoordination || isAtBuyer ? (
-                      <div className="w-4 h-4 rounded-full bg-gray-300" title="Заказ"></div>
-                    ) : isSpecificationInProgress ? (
-                      <div className="relative w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center" title="Заказ: Спецификация в работе">
-                        <Clock className="w-3 h-3 text-white" />
-                      </div>
-                    ) : request.status === 'Спецификация подписана' || request.status === 'Договор подписан' ? (
-                      <div className="relative w-5 h-5 rounded-full bg-green-500 flex items-center justify-center" title={
-                        request.status === 'Спецификация подписана' ? "Заказ: Спецификация подписана" : 
-                        "Заявка: Договор подписан"
-                      }>
-                        <Check className="w-3 h-3 text-white" />
-                      </div>
-                    ) : request.status === 'Спецификация создана' ? (
-                      <div className="relative w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center" title="Заказ: Спецификация создана">
-                        <Clock className="w-3 h-3 text-white" />
-                      </div>
-                    ) : (
-                      <div className="w-4 h-4 rounded-full bg-gray-300" title="Заказ"></div>
-                    )}
+                  <div className="inline-flex flex-col items-center gap-0.5 rounded border border-gray-400 px-1 py-0.5 min-w-[3.5rem]">
+                    <div className="flex items-center justify-center gap-1 min-w-[2.75rem]">
+                      {isOnCoordination || isAtBuyer ? (
+                        <div className="w-5 h-5 rounded-full bg-gray-300 flex-shrink-0" title="Заказ"></div>
+                      ) : isSpecificationInProgress ? (
+                        <div className="relative w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center flex-shrink-0" title="Заказ: Спецификация в работе">
+                          <Clock className="w-3 h-3 text-white" />
+                        </div>
+                      ) : request.status === 'Спецификация подписана' || request.status === 'Договор подписан' ? (
+                        <div className="relative w-5 h-5 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0" title={
+                          request.status === 'Спецификация подписана' ? "Заказ: Спецификация подписана" : 
+                          "Заявка: Договор подписан"
+                        }>
+                          <Check className="w-3 h-3 text-white" />
+                        </div>
+                      ) : request.status === 'Спецификация создана' ? (
+                        <div className="relative w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center flex-shrink-0" title="Заказ: Спецификация создана">
+                          <Clock className="w-3 h-3 text-white" />
+                        </div>
+                      ) : (
+                        <div className="w-5 h-5 rounded-full bg-gray-300 flex-shrink-0" title="Заказ"></div>
+                      )}
+                    </div>
                     <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Заказ</span>
                   </div>
                 )}
+                {/* Рамка: Срок (факт СЛА + срок на договоре) — узкий бейдж */}
+                {(() => {
+                  const factSla = request.factualSlaDays ?? 0;
+                  const contractDays = request.contractWorkingDaysInProgress ?? 0;
+                  const totalDays = factSla + contractDays;
+                  return (
+                    <div
+                      className="inline-flex flex-col items-center gap-0.5 rounded border border-gray-400 px-1 py-0.5 min-w-0"
+                      title={`Срок: факт СЛА ${factSla} дн. + срок на договоре ${contractDays} дн. = ${totalDays} дн.`}
+                    >
+                      <span className="inline-flex items-center justify-center min-w-[1.75rem] w-[1.75rem] h-5 rounded bg-black text-white text-xs font-bold tabular-nums">
+                        {totalDays > 0 ? totalDays : '—'}
+                      </span>
+                      <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Срок</span>
+                    </div>
+                  );
+                })()}
               </div>
             </td>
           );
