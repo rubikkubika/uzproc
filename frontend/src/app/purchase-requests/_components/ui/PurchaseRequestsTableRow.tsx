@@ -831,9 +831,16 @@ export default function PurchaseRequestsTableRow({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (userRole !== 'admin') return;
                       onRatingClick?.(request);
                     }}
-                    className="px-1.5 py-0.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                    className={`px-1.5 py-0.5 text-xs rounded transition-colors ${
+                      userRole === 'admin'
+                        ? 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-70'
+                    }`}
+                    title={userRole !== 'admin' ? 'До первой отправки оценки открывать может только администратор' : undefined}
+                    disabled={userRole !== 'admin'}
                   >
                     Оценка
                   </button>

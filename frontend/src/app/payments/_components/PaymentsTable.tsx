@@ -19,8 +19,6 @@ export default function PaymentsTable() {
     handleResetFilters,
     filters,
     loadMoreRef,
-    paymentsTab,
-    setPaymentsTab,
   } = usePaymentsTable();
 
   if (error) {
@@ -106,32 +104,6 @@ export default function PaymentsTable() {
         <div className="text-xs text-gray-700 flex-shrink-0">
           Показано {allItems.length} из {data?.totalElements ?? 0} записей
         </div>
-      </div>
-
-      {/* Вкладки — стиль как на странице заявок, «Оплата по заявкам» слева и по умолчанию */}
-      <div className="sticky top-0 left-0 right-0 z-30 flex gap-1 pt-2 pb-2 bg-white shadow-sm" style={{ minHeight: '44px', width: '100%' }}>
-        <button
-          type="button"
-          onClick={() => setPaymentsTab('by-request')}
-          className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors shadow-sm ${
-            paymentsTab === 'by-request'
-              ? 'bg-blue-600 text-white border-blue-600'
-              : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-          }`}
-        >
-          Оплата по заявкам
-        </button>
-        <button
-          type="button"
-          onClick={() => setPaymentsTab('all')}
-          className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors shadow-sm ${
-            paymentsTab === 'all'
-              ? 'bg-blue-600 text-white border-blue-600'
-              : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-          }`}
-        >
-          Все оплаты
-        </button>
       </div>
 
       <div className="flex-1 min-w-0 overflow-auto relative">
