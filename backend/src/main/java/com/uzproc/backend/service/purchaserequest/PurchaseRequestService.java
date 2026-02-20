@@ -442,9 +442,9 @@ public class PurchaseRequestService {
                 }
             }
 
-            // Рабочие дни «договор в работе»: от даты завершения закупки до сегодня (только при статусе «Договор в работе»)
+            // Рабочие дни «договор в работе»: со дня, следующего за датой завершения закупки, до сегодня (последний день закупки не входит в срок договора)
             if (entity.getStatus() != null && entity.getStatus().getGroup() == PurchaseRequestStatusGroup.CONTRACT_IN_PROGRESS && purchaseCompletionDate != null) {
-                long contractDaysInProgress = countWorkingDaysBetween(purchaseCompletionDate.minusDays(1), LocalDateTime.now());
+                long contractDaysInProgress = countWorkingDaysBetween(purchaseCompletionDate, LocalDateTime.now());
                 dto.setContractWorkingDaysInProgress((int) contractDaysInProgress);
             }
 
