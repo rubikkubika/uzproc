@@ -1,7 +1,8 @@
 'use client';
 
-import React from 'react';
-import { ArrowUp, ArrowDown, ArrowUpDown, Eye, Search } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { ArrowUp, ArrowDown, ArrowUpDown, Eye, Search, HelpCircle, Check, Clock } from 'lucide-react';
 import { SortField, SortDirection, TabType } from '../types/purchase-request.types';
 import SortableHeader from './SortableHeader';
 import CfoFilterDropdown from '../filters/CfoFilterDropdown';
@@ -160,6 +161,22 @@ export default function PurchaseRequestsTableColumnsHeader({
   onYearChange,
   onMonthChange,
 }: PurchaseRequestsTableColumnsHeaderProps) {
+  const [showTrackTip, setShowTrackTip] = useState(false);
+  const trackTipTriggerRef = useRef<HTMLSpanElement>(null);
+  const [trackTipPosition, setTrackTipPosition] = useState<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    if (!showTrackTip || !trackTipTriggerRef.current) {
+      setTrackTipPosition(null);
+      return;
+    }
+    const rect = trackTipTriggerRef.current.getBoundingClientRect();
+    setTrackTipPosition({
+      x: rect.left + rect.width / 2,
+      y: rect.bottom + 6,
+    });
+  }, [showTrackTip]);
+
   return (
     <thead className="bg-gray-50 sticky top-[44px] z-20">
       <tr>
@@ -876,8 +893,68 @@ export default function PurchaseRequestsTableColumnsHeader({
               >
                 <div className="flex flex-col gap-0.5">
                   <div className="h-[20px] flex items-center flex-shrink-0" style={{ minHeight: '20px', maxHeight: '20px' }}></div>
-                  <span className="normal-case min-h-[16px] flex items-center">Трэк</span>
+                  <div className="normal-case min-h-[16px] flex items-center gap-1">
+                    <span>Трэк</span>
+                    <span
+                      ref={trackTipTriggerRef}
+                      className="inline-flex shrink-0"
+                      onMouseEnter={() => setShowTrackTip(true)}
+                      onMouseLeave={() => setShowTrackTip(false)}
+                    >
+                      <span className="inline-flex text-blue-500 hover:text-blue-600 cursor-help" aria-label="Подсказка по элементам колонки Трэк">
+                        <HelpCircle className="w-3.5 h-3.5" aria-hidden />
+                      </span>
+                    </span>
+                  </div>
                 </div>
+                {typeof document !== 'undefined' &&
+                  showTrackTip &&
+                  trackTipPosition &&
+                  createPortal(
+                    <div
+                      className="fixed z-[9999] px-3 py-2.5 text-xs text-gray-900 bg-white border border-gray-300 rounded-lg shadow-xl pointer-events-none max-w-[320px]"
+                      role="tooltip"
+                      style={{
+                        left: trackTipPosition.x,
+                        top: trackTipPosition.y,
+                        transform: 'translate(-50%, 0)',
+                      }}
+                    >
+                      <div className="font-medium text-gray-700 mb-2">Элементы колонки «Трэк»</div>
+                      {/* Образец контента */}
+                      <div className="inline-flex flex-col gap-1 rounded border border-gray-400 px-1.5 py-1 mb-2 bg-gray-50">
+                        <div className="flex items-center gap-2">
+                          <div className="flex flex-col items-center gap-0.5">
+                            <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                              <Check className="w-3 h-3 text-white" />
+                            </div>
+                            <span className="text-[10px] text-gray-600">Заявка</span>
+                          </div>
+                          <div className="flex flex-col items-center gap-0.5">
+                            <div className="flex items-center gap-0.5">
+                              <div className="w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center flex-shrink-0">
+                                <Clock className="w-3 h-3 text-white" />
+                              </div>
+                              <span className="w-5 h-5 rounded bg-gray-200 flex items-center justify-center text-[10px] font-bold">5</span>
+                              <span className="min-w-[1.75rem] h-5 rounded bg-green-600 flex items-center justify-center text-white text-[10px] font-bold">+2</span>
+                            </div>
+                            <span className="text-[10px] text-gray-600">Закупка</span>
+                          </div>
+                          <div className="flex flex-col items-center gap-0.5">
+                            <div className="w-5 h-5 rounded-full bg-gray-300 flex-shrink-0" />
+                            <span className="text-[10px] text-gray-600">Договор</span>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Пояснения со стрелками */}
+                      <ul className="space-y-1 text-gray-700">
+                        <li><span className="text-gray-500">↳ Заявка</span> — этап заявки: зелёный = пройден, жёлтый = в работе, красный = отклонено</li>
+                        <li><span className="text-gray-500">↳ Закупка</span> — круг (этап) + факт (дни) + дельта (план−факт; зелёный/жёлтый/красный)</li>
+                        <li><span className="text-gray-500">↳ Договор</span> — этап договора по статусу (серый = не начат)</li>
+                      </ul>
+                    </div>,
+                    document.body
+                  )}
               </th>
             );
           }

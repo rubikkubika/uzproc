@@ -18,11 +18,8 @@ export const usePaymentsTable = () => {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [hasMore, setHasMore] = useState(true);
   const loadMoreRef = useRef<HTMLDivElement>(null);
-  /** Вкладка: 'all' — все оплаты, 'by-request' — только оплаты по заявкам (по умолчанию) */
-  const [paymentsTab, setPaymentsTab] = useState<'all' | 'by-request'>('by-request');
-
   const filtersHook = usePaymentsFilters(setCurrentPage);
-  const linkedOnly = paymentsTab === 'by-request';
+  const linkedOnly = false;
   const dataHook = usePaymentsData();
 
   useClickOutside({
@@ -165,8 +162,5 @@ export const usePaymentsTable = () => {
     handleResetFilters,
     filters: filtersHook,
     loadMoreRef,
-    paymentsTab,
-    setPaymentsTab,
-    linkedOnly,
   };
 };
