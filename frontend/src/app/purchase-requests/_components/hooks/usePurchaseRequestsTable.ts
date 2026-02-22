@@ -1,14 +1,14 @@
 import { useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
-import type { PurchaseRequest, PageResponse, SortField, SortDirection, TabType } from '../types/purchase-request.types';
+import type { PurchaseRequest, PageResponse, SortField, SortDirection, TabType, RequestKindTab } from '../types/purchase-request.types';
 import { TAB_STATUS_GROUPS } from '../constants/status.constants';
 import { usePurchaseRequestFilters } from './usePurchaseRequestFilters';
 import { useTableColumns } from './useTableColumns';
 import { usePurchaseRequestsModals } from './usePurchaseRequestsModals';
 import { useFocusRestoreAfterFetch } from './useFocusRestoreAfterFetch';
 
-export function usePurchaseRequestsTable() {
+export function usePurchaseRequestsTable(kindTab: RequestKindTab) {
   const router = useRouter();
 
   // Состояние для данных - создаём currentPage и setCurrentPage ПЕРВЫМИ
@@ -153,13 +153,11 @@ export function usePurchaseRequestsTable() {
         params.append('contractType', filters.contractType.trim());
       }
 
-      if (filters.requiresPurchase && filters.requiresPurchase.trim() !== '') {
-        const requiresPurchaseValue = filters.requiresPurchase.trim();
-        if (requiresPurchaseValue === 'Закупка') {
-          params.append('requiresPurchase', 'true');
-        } else if (requiresPurchaseValue === 'Заказ') {
-          params.append('requiresPurchase', 'false');
-        }
+      // Учитываем тип заявки (Закупки/Заказы): запрос данных всегда по текущей вкладке kindTab
+      if (kindTab === 'purchase') {
+        params.append('requiresPurchase', 'true');
+      } else if (kindTab === 'order') {
+        params.append('requiresPurchase', 'false');
       }
 
       if (filters.hasLinkedPlanItem && filters.hasLinkedPlanItem.trim() !== '') {
@@ -241,7 +239,7 @@ export function usePurchaseRequestsTable() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [filtersHook.activeTabRef, filtersHook.cfoFilter, filtersHook.purchaserFilter, filtersHook.statusFilter]);
+  }, [filtersHook.activeTabRef, filtersHook.cfoFilter, filtersHook.purchaserFilter, filtersHook.statusFilter, kindTab]);
 
   // Восстановление фокуса после загрузки данных
   useFocusRestoreAfterFetch({

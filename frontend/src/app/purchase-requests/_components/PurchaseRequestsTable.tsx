@@ -16,7 +16,7 @@ import FeedbackDetailsModal from './ui/modals/FeedbackDetailsModal';
 import SentInvitationModal from './ui/modals/SentInvitationModal';
 import CommentsModal from './ui/modals/CommentsModal';
 import { fetchCommentCounts } from './services/purchaseRequests.api';
-import type { Contract, PurchaseRequest, PageResponse, SortField, SortDirection, TabType } from './types/purchase-request.types';
+import type { Contract, PurchaseRequest, PageResponse, SortField, SortDirection, TabType, RequestKindTab } from './types/purchase-request.types';
 import { ALL_COLUMNS, DEFAULT_VISIBLE_COLUMNS, COLUMNS_VISIBILITY_STORAGE_KEY } from './constants/columns.constants';
 import { ALL_STATUSES, DEFAULT_STATUSES, TAB_STATUSES, TAB_STATUS_GROUPS } from './constants/status.constants';
 import { getCurrencyIcon } from './utils/currency.utils';
@@ -45,10 +45,23 @@ import { useTotalRecords } from './hooks/useTotalRecords';
 import { useFilterHandlers } from './hooks/useFilterHandlers';
 import { useExcludeFromInWork } from './hooks/useExcludeFromInWork';
 import { useKindTabFilter } from './hooks/useKindTabFilter';
+import { useStatusGroupsByKind } from './hooks/useStatusGroupsByKind';
 
 export default function PurchaseRequestsTable() {
-  // Используем главный композиционный хук
-  const table = usePurchaseRequestsTable();
+  // Состояние вкладки «Закупки/Заказы» — поднято сюда, чтобы передавать в запрос данных и учитывать при фильтре статусов
+  const [kindTab, setKindTab] = useState<RequestKindTab>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('purchaseRequestsKindTab');
+      return (saved === 'purchase' || saved === 'order') ? saved : 'purchase';
+    }
+    return 'purchase';
+  });
+  useEffect(() => {
+    localStorage.setItem('purchaseRequestsKindTab', kindTab);
+  }, [kindTab]);
+
+  // Используем главный композиционный хук (передаём kindTab для учёта типа в запросе данных)
+  const table = usePurchaseRequestsTable(kindTab);
 
   // Деструктурируем для удобного доступа
   const {
@@ -307,8 +320,11 @@ export default function PurchaseRequestsTable() {
     filtersLoaded,
   });
 
-  // Используем хук для фильтрации по типу заявки (Закупки/Заказы) - ВАЖНО: до useTabCounts
-  const { kindTab, setKindTab, itemsToRender } = useKindTabFilter(allItems);
+  // Фильтрация отображаемых строк по типу заявки (Закупки/Заказы); данные уже загружаются с учётом kindTab
+  const { itemsToRender } = useKindTabFilter(allItems, kindTab);
+
+  // Группы статусов только для текущего типа (Закупки/Заказы) — в фильтре «Группа статуса» не показываем группы из заказов в «Закупках» и наоборот
+  const statusGroupsByKind = useStatusGroupsByKind(kindTab);
 
   // Используем хук для загрузки счетчиков вкладок
   useTabCounts({
@@ -406,6 +422,7 @@ export default function PurchaseRequestsTable() {
     selectedYear,
     selectedMonth,
     activeTab,
+    kindTab,
     forceReload,
     filtersFromHook,
     cfoFilter,
@@ -502,6 +519,8 @@ export default function PurchaseRequestsTable() {
     setStatusFilter,
     setPurchaserFilter,
     setActiveTab,
+    activeTab,
+    statusGroupsByKind,
     cfoSearchQuery,
     statusSearchQuery,
     purchaserSearchQuery,
@@ -509,12 +528,13 @@ export default function PurchaseRequestsTable() {
     uniqueValues,
   });
 
-  // Нормализация statusFilter при смене вкладки
-  // Убираем из statusFilter группы статусов, которые не входят в текущую вкладку
+  // Нормализация statusFilter при смене вкладки или типа (Закупки/Заказы)
+  // Убираем из statusFilter группы статусов, которые не входят в текущую вкладку и не относятся к текущему типу
   useEffect(() => {
-    const validForTab = activeTab === 'all'
-      ? new Set(uniqueValues.statusGroup?.length ? uniqueValues.statusGroup : TAB_STATUS_GROUPS['all'])
-      : new Set(TAB_STATUS_GROUPS[activeTab]);
+    const baseForTab = activeTab === 'all' || activeTab === 'hidden'
+      ? (statusGroupsByKind.length ? statusGroupsByKind : (uniqueValues.statusGroup?.length ? uniqueValues.statusGroup : TAB_STATUS_GROUPS['all']))
+      : TAB_STATUS_GROUPS[activeTab].filter(sg => !statusGroupsByKind.length || statusGroupsByKind.includes(sg));
+    const validForTab = new Set(baseForTab);
     const currentStatuses = Array.from(statusFilter);
     const invalidStatuses = currentStatuses.filter(status => !validForTab.has(status));
 
@@ -522,7 +542,7 @@ export default function PurchaseRequestsTable() {
       const cleanedStatuses = new Set(currentStatuses.filter(status => validForTab.has(status)));
       setStatusFilter(cleanedStatuses);
     }
-  }, [activeTab, uniqueValues.statusGroup, statusFilter, setStatusFilter]);
+  }, [activeTab, statusGroupsByKind, uniqueValues.statusGroup, statusFilter, setStatusFilter]);
 
   // Используем хук для excludeFromInWork
   const { updateExcludeFromInWork } = useExcludeFromInWork({

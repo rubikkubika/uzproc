@@ -67,6 +67,17 @@ public class PurchaseRequestController {
         return ResponseEntity.ok(purchaseRequestService.getUniqueFilterValues());
     }
 
+    /**
+     * Уникальные группы статусов только для закупок (requiresPurchase=true) или только для заказов (requiresPurchase=false).
+     * Используется фильтром «Группа статуса» при вкладке «Закупки»/«Заказы».
+     */
+    @GetMapping("/status-groups")
+    public ResponseEntity<List<String>> getStatusGroupsByRequiresPurchase(
+            @RequestParam(required = false) Boolean requiresPurchase) {
+        List<String> groups = purchaseRequestService.getStatusGroupsByRequiresPurchase(requiresPurchase);
+        return ResponseEntity.ok(groups);
+    }
+
     @GetMapping
     public ResponseEntity<Page<PurchaseRequestDto>> getAllPurchaseRequests(
             @RequestParam(defaultValue = "0") int page,

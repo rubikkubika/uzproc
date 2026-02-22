@@ -1392,6 +1392,25 @@ public class PurchaseRequestService {
     }
 
     /**
+     * Уникальные группы статусов только для закупок (requiresPurchase=true) или только для заказов (requiresPurchase=false).
+     * Используется фильтром «Группа статуса» на странице заявок при вкладке «Закупки»/«Заказы».
+     */
+    public List<String> getStatusGroupsByRequiresPurchase(Boolean requiresPurchase) {
+        if (requiresPurchase == null) {
+            return purchaseRequestRepository.findDistinctStatus().stream()
+                    .map(PurchaseRequestStatus::getGroupDisplayName)
+                    .distinct()
+                    .sorted(String.CASE_INSENSITIVE_ORDER)
+                    .collect(Collectors.toList());
+        }
+        return purchaseRequestRepository.findDistinctStatusByRequiresPurchase(requiresPurchase).stream()
+                .map(PurchaseRequestStatus::getGroupDisplayName)
+                .distinct()
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .collect(Collectors.toList());
+    }
+
+    /**
      * Получить список доступных годов из purchaseRequestCreationDate
      */
     public List<Integer> getAvailableYears(Boolean requiresPurchase) {

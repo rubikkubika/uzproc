@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import type { SortField, SortDirection, TabType } from '../types/purchase-request.types';
+import type { SortField, SortDirection, TabType, RequestKindTab } from '../types/purchase-request.types';
 
 interface UsePurchaseRequestsFetchControllerProps {
   filtersLoadedRef: React.MutableRefObject<boolean>;
@@ -9,6 +9,8 @@ interface UsePurchaseRequestsFetchControllerProps {
   selectedYear: number | null;
   selectedMonth: number | null;
   activeTab: TabType;
+  /** Вкладка «Закупки/Заказы» — при смене перезапрашиваем данные */
+  kindTab: RequestKindTab;
   forceReload: number;
   filtersFromHook: Record<string, string>;
   cfoFilter: Set<string>;
@@ -38,6 +40,7 @@ export function usePurchaseRequestsFetchController({
   selectedYear,
   selectedMonth,
   activeTab,
+  kindTab,
   forceReload,
   filtersFromHook,
   cfoFilter,
@@ -102,6 +105,7 @@ export function usePurchaseRequestsFetchController({
     statusFilter.size,
     statusFilterStr,
     activeTab, // ВАЖНО: добавлен activeTab, чтобы fetchData вызывался при переключении вкладок
+    kindTab, // при смене Закупки/Заказы перезапрашиваем данные
     forceReload, // Добавлен forceReload для принудительной перезагрузки при сбросе фильтров
     filtersLoaded,
     filtersLoadedRef,
