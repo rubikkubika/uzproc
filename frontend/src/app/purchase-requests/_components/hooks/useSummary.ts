@@ -3,7 +3,7 @@ import { fetchPurchaseRequests } from '../services/purchaseRequests.api';
 import { normalizePurchaserName } from '../utils/normalizePurchaser';
 import { parseBudgetAmount } from '../utils/buildQueryParams';
 import type { PurchaseRequest } from '../types/purchase-request.types';
-import { TAB_STATUS_GROUPS } from '../constants/status.constants';
+import { TAB_STATUS_GROUPS, FETCH_LIMITS } from '../constants/status.constants';
 
 interface PurchaserSummaryItem {
   purchaser: string;
@@ -37,7 +37,7 @@ export function useSummary(params: UseSummaryParams) {
       try {
         const params = new URLSearchParams();
         params.append('page', '0');
-        params.append('size', '5000'); // Уменьшаем размер запроса для сводной таблицы
+        params.append('size', String(FETCH_LIMITS.SUMMARY_PAGE_SIZE));
 
         // НЕ применяем фильтр по годам - сводная таблица должна показывать все годы
 

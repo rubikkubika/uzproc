@@ -4,6 +4,7 @@ import com.uzproc.backend.service.excel.EntityExcelLoadService;
 import com.uzproc.backend.service.excel.ReportExcelLoadService;
 import com.uzproc.backend.service.payment.PaymentExcelLoadService;
 import com.uzproc.backend.service.purchaseplan.PurchasePlanExcelLoadService;
+import com.uzproc.backend.service.supplier.SupplierExcelLoadService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
@@ -115,6 +116,68 @@ public class ExcelFileAutoLoader {
                 logger.info("Automatic Excel file processing completed. Total loaded {} records", totalLoaded);
             } catch (Exception e) {
                 logger.error("Error during automatic Excel file processing", e);
+            }
+        };
+    }
+
+    @Bean
+    @Order(50) // После alldocuments (0), до report (100)
+    public CommandLineRunner autoLoadSuppliersFile(SupplierExcelLoadService supplierExcelLoadService) {
+        return args -> {
+            try {
+                Path suppliersPath = null;
+                Path dockerPath = Paths.get("/app/suppliers");
+                if (Files.exists(dockerPath)) {
+                    suppliersPath = dockerPath;
+                    logger.info("Found suppliers folder in Docker container: {}", dockerPath);
+                } else {
+                    String userDir = System.getProperty("user.dir");
+                    Path currentDir = Paths.get(userDir).toAbsolutePath().normalize();
+                    Path projectRoot = currentDir;
+                    if (currentDir.getFileName() != null && "backend".equalsIgnoreCase(currentDir.getFileName().toString())) {
+                        projectRoot = currentDir.getParent();
+                    }
+                    suppliersPath = projectRoot.resolve("frontend").resolve("upload").resolve("suppliers").normalize();
+                    if (!Files.exists(suppliersPath)) {
+                        suppliersPath = currentDir.resolve("..").resolve("frontend").resolve("upload").resolve("suppliers").normalize();
+                    }
+                    if (!Files.exists(suppliersPath)) {
+                        Path altPath = Paths.get("frontend", "upload", "suppliers").toAbsolutePath().normalize();
+                        if (Files.exists(altPath)) {
+                            suppliersPath = altPath;
+                        }
+                    }
+                }
+                if (suppliersPath == null || !Files.exists(suppliersPath)) {
+                    logger.info("Suppliers folder not found. Tried paths: /app/suppliers, frontend/upload/suppliers. Skipping automatic suppliers file processing.");
+                    return;
+                }
+                File suppliersDir = suppliersPath.toFile();
+                if (!suppliersDir.isDirectory()) {
+                    logger.warn("Path is not a directory: {}", suppliersPath);
+                    return;
+                }
+                File[] excelFiles = suppliersDir.listFiles((dir, name) ->
+                    (name.endsWith(".xls") || name.endsWith(".xlsx")) && !name.startsWith("~$"));
+                if (excelFiles == null || excelFiles.length == 0) {
+                    logger.info("No Excel files found in suppliers folder: {}", suppliersPath);
+                    return;
+                }
+                logger.info("Found {} Excel file(s) in suppliers folder: {}", excelFiles.length, suppliersPath);
+                int totalLoaded = 0;
+                for (File excelFile : excelFiles) {
+                    try {
+                        logger.info("Processing suppliers file: {}", excelFile.getName());
+                        int loadedCount = supplierExcelLoadService.loadSuppliersFromExcel(excelFile);
+                        totalLoaded += loadedCount;
+                        logger.info("Loaded {} records from suppliers file {}", loadedCount, excelFile.getName());
+                    } catch (Exception e) {
+                        logger.error("Error processing suppliers file {}: {}", excelFile.getName(), e.getMessage(), e);
+                    }
+                }
+                logger.info("Automatic suppliers file processing completed. Total loaded {} records", totalLoaded);
+            } catch (Exception e) {
+                logger.error("Error during automatic suppliers file processing", e);
             }
         };
     }

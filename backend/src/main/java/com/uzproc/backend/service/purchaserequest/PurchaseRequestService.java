@@ -3,6 +3,7 @@ package com.uzproc.backend.service.purchaserequest;
 import com.uzproc.backend.dto.contract.ContractDto;
 import com.uzproc.backend.dto.overview.OverviewPurchaseRequestCountsDto;
 import com.uzproc.backend.dto.purchaserequest.PurchaseRequestDto;
+import com.uzproc.backend.dto.purchaserequest.PurchaseRequestUniqueValuesDto;
 import com.uzproc.backend.dto.purchaserequest.PurchaserStatsDto;
 import com.uzproc.backend.entity.contract.Contract;
 import com.uzproc.backend.entity.purchase.Purchase;
@@ -1291,6 +1292,43 @@ public class PurchaseRequestService {
                 .distinct()
                 .sorted((a, b) -> Integer.compare(b, a))
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Уникальные значения полей заявок для фильтров (лёгкий эндпоинт без загрузки полных записей).
+     * ЦФО загружаются отдельно из /api/cfos/names.
+     */
+    public PurchaseRequestUniqueValuesDto getUniqueFilterValues() {
+        List<String> initiators = purchaseRequestRepository.findDistinctPurchaseRequestInitiator().stream()
+                .map(s -> s == null ? null : s.trim())
+                .filter(s -> s != null && !s.isEmpty())
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .collect(Collectors.toList());
+        List<String> purchasers = purchaseRequestRepository.findDistinctPurchaser().stream()
+                .map(s -> s == null ? null : s.trim())
+                .filter(s -> s != null && !s.isEmpty())
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .collect(Collectors.toList());
+        List<String> statuses = purchaseRequestRepository.findDistinctStatus().stream()
+                .map(PurchaseRequestStatus::getDisplayName)
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .collect(Collectors.toList());
+        List<String> statusGroups = purchaseRequestRepository.findDistinctStatus().stream()
+                .map(PurchaseRequestStatus::getGroupDisplayName)
+                .distinct()
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .collect(Collectors.toList());
+        List<String> costTypes = purchaseRequestRepository.findDistinctCostType().stream()
+                .map(s -> s == null ? null : s.trim())
+                .filter(s -> s != null && !s.isEmpty())
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .collect(Collectors.toList());
+        List<String> contractTypes = purchaseRequestRepository.findDistinctContractType().stream()
+                .map(s -> s == null ? null : s.trim())
+                .filter(s -> s != null && !s.isEmpty())
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .collect(Collectors.toList());
+        return new PurchaseRequestUniqueValuesDto(initiators, purchasers, statuses, statusGroups, costTypes, contractTypes);
     }
 
     /**

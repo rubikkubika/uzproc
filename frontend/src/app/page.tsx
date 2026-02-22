@@ -18,6 +18,7 @@ import ContractsTable from './contracts/_components/ContractsTable';
 import PaymentsTable from './payments/_components/PaymentsTable';
 import SpecificationsTable from './specifications/_components/SpecificationsTable';
 import DeliveryPlan from './delivery-plan/_components/DeliveryPlan';
+import SuppliersTable from './suppliers/_components/SuppliersTable';
 import UploadCSV from './upload/_components/UploadCSV';
 import { getBackendUrl } from '@/utils/api';
 import Presentation from './presentation/_components/Presentation';
@@ -265,13 +266,6 @@ function DashboardContent() {
           </div>
         );
       
-      case 'suppliers':
-        return (
-          <div className="space-y-6">
-            <SupplierChart />
-          </div>
-        );
-      
       case 'analytics':
         return (
           <div className="space-y-6">
@@ -420,6 +414,18 @@ function DashboardContent() {
 
       case 'delivery-plan':
         return <DeliveryPlan />;
+
+      case 'suppliers':
+        return (
+          <div className="space-y-6 h-full flex flex-col">
+            <div className="flex-shrink-0">
+              <h1 className="text-2xl font-bold text-gray-900 mb-4">Поставщики</h1>
+            </div>
+            <div className="flex-1 min-h-0">
+              <SuppliersTable />
+            </div>
+          </div>
+        );
       
       case 'tasks':
         return (

@@ -61,6 +61,24 @@ export function getBackendUrl(): string {
 
 export const API_BASE_URL = getBackendUrl();
 
+/** In-flight request map: same URL → same promise (clone for concurrent callers). Reduces duplicate calls from React Strict Mode. */
+const inFlightMap = new Map<string, Promise<Response>>();
+
+/**
+ * GET-запрос с дедупликацией: повторный вызов с тем же URL пока первый в полёте вернёт клон ответа вместо нового запроса.
+ * Все вызывающие получают клон ответа, чтобы body не потреблялся дважды (Response body only readable once).
+ */
+export function fetchDeduped(url: string, options?: RequestInit): Promise<Response> {
+  const existing = inFlightMap.get(url);
+  if (existing) {
+    return existing.then((r) => r.clone());
+  }
+  const promise = fetch(url, options).then((r) => r);
+  inFlightMap.set(url, promise);
+  promise.finally(() => inFlightMap.delete(url));
+  return promise.then((r) => r.clone());
+}
+
 
 
 

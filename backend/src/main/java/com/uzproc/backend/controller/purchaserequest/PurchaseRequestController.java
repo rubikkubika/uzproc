@@ -2,6 +2,7 @@ package com.uzproc.backend.controller.purchaserequest;
 
 import com.uzproc.backend.dto.purchaserequest.PurchaseRequestCommentDto;
 import com.uzproc.backend.dto.purchaserequest.PurchaseRequestDto;
+import com.uzproc.backend.dto.purchaserequest.PurchaseRequestUniqueValuesDto;
 import com.uzproc.backend.dto.purchaserequest.PurchaserStatsDto;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequestCommentType;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestCommentService;
@@ -54,6 +55,15 @@ public class PurchaseRequestController {
     public ResponseEntity<List<Integer>> getApprovalAssignmentDateYears() {
         List<Integer> years = purchaseRequestService.getApprovalAssignmentDateYears();
         return ResponseEntity.ok(years);
+    }
+
+    /**
+     * Уникальные значения полей заявок для фильтров (лёгкий эндпоинт без загрузки полных записей).
+     * ЦФО загружаются отдельно из /api/cfos/names.
+     */
+    @GetMapping("/unique-values")
+    public ResponseEntity<PurchaseRequestUniqueValuesDto> getUniqueFilterValues() {
+        return ResponseEntity.ok(purchaseRequestService.getUniqueFilterValues());
     }
 
     @GetMapping

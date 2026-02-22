@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { getBackendUrl } from '@/utils/api';
+import { getBackendUrl, fetchDeduped } from '@/utils/api';
 import type { PurchaseRequest, TabType } from '../types/purchase-request.types';
-import { TAB_STATUS_GROUPS } from '../constants/status.constants';
+import { TAB_STATUS_GROUPS, FETCH_LIMITS } from '../constants/status.constants';
 
 interface Filters {
   idPurchaseRequest?: string;
@@ -38,7 +38,7 @@ export function useAvailableStatuses({
       try {
         const params = new URLSearchParams();
         params.append('page', '0');
-        params.append('size', '10000'); // Загружаем достаточно данных для получения всех групп статусов
+        params.append('size', String(FETCH_LIMITS.AVAILABLE_STATUSES_PAGE_SIZE));
 
         // Фильтр по дате назначения на закупщика (год и месяц)
         if (selectedYear !== null) {
@@ -123,7 +123,7 @@ export function useAvailableStatuses({
         }
 
         const fetchUrl = `${getBackendUrl()}/api/purchase-requests?${params.toString()}`;
-        const response = await fetch(fetchUrl);
+        const response = await fetchDeduped(fetchUrl);
 
         if (response.ok) {
           const result = await response.json();
