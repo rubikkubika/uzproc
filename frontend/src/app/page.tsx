@@ -418,12 +418,7 @@ function DashboardContent() {
       case 'suppliers':
         return (
           <div className="space-y-6 h-full flex flex-col">
-            <div className="flex-shrink-0">
-              <h1 className="text-2xl font-bold text-gray-900 mb-4">Поставщики</h1>
-            </div>
-            <div className="flex-1 min-h-0">
-              <SuppliersTable />
-            </div>
+            <SuppliersTable />
           </div>
         );
       

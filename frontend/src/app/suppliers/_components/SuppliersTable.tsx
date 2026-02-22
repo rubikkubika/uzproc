@@ -2,6 +2,7 @@
 
 import { ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { useSuppliersTable } from './hooks/useSuppliersTable';
+import { useInfiniteScroll } from './hooks/useInfiniteScroll';
 import type { SortField } from './types/suppliers.types';
 
 function FilterInput({
@@ -111,22 +112,30 @@ export default function SuppliersTable() {
     data,
     allItems,
     loading,
+    loadingMore,
     error,
     currentPage,
-    setCurrentPage,
     pageSize,
-    setPageSize,
     sortField,
     sortDirection,
     handleSort,
     handleResetFilters,
     filters,
+    hasMore,
+    loadMoreRef,
+    fetchData,
   } = useSuppliersTable();
 
   const totalElements = data?.totalElements ?? 0;
-  const totalPages = data?.totalPages ?? 0;
-  const start = totalElements === 0 ? 0 : currentPage * pageSize + 1;
-  const end = Math.min((currentPage + 1) * pageSize, totalElements);
+
+  useInfiniteScroll(loadMoreRef, {
+    enabled: !loading && !loadingMore && hasMore && allItems.length > 0,
+    onLoadMore: () => {
+      if (hasMore && !loadingMore && allItems.length > 0) {
+        fetchData(currentPage + 1, pageSize, sortField, sortDirection, filters.filters, true);
+      }
+    },
+  });
 
   if (error) {
     return (
@@ -149,11 +158,11 @@ export default function SuppliersTable() {
           </button>
         </div>
         <div className="text-xs text-gray-700 flex-shrink-0">
-          Показано {start}–{end} из {totalElements} записей
+          Показано {allItems.length} из {totalElements} записей
         </div>
       </div>
 
-      <div className="flex-1 min-w-0 overflow-auto relative">
+      <div className="flex-1 min-w-0 overflow-auto relative custom-scrollbar">
         <table className="w-full border-collapse">
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
@@ -200,49 +209,13 @@ export default function SuppliersTable() {
             )}
           </tbody>
         </table>
+        {loadingMore && (
+          <div className="px-4 py-2 text-center text-xs text-gray-500 bg-gray-50 border-t border-gray-200">
+            Загрузка следующих...
+          </div>
+        )}
+        <div ref={loadMoreRef} className="h-4 flex items-center justify-center py-1" />
       </div>
-
-      {totalPages > 0 && (
-        <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-700">Строк на странице:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setCurrentPage(0);
-              }}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={currentPage <= 0}
-              onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
-              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Назад
-            </button>
-            <span className="text-sm text-gray-700">
-              Страница {currentPage + 1} из {totalPages}
-            </span>
-            <button
-              type="button"
-              disabled={currentPage >= totalPages - 1}
-              onClick={() => setCurrentPage((p) => Math.min(totalPages - 1, p + 1))}
-              className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Вперёд
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
