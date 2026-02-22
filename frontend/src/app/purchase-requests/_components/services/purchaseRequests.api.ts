@@ -46,6 +46,19 @@ export async function fetchInWorkPurchaserSummary(
 }
 
 /**
+ * Уникальные группы статусов только для закупок (requiresPurchase=true) или только для заказов (requiresPurchase=false).
+ * Используется фильтром «Группа статуса» при вкладке «Закупки»/«Заказы».
+ */
+export async function fetchStatusGroupsByRequiresPurchase(requiresPurchase: boolean): Promise<string[]> {
+  const url = `${getBackendUrl()}/api/purchase-requests/status-groups?requiresPurchase=${requiresPurchase}`;
+  const response = await fetchDeduped(url);
+  if (!response.ok) {
+    throw new Error('Ошибка загрузки групп статусов по типу заявки');
+  }
+  return response.json();
+}
+
+/**
  * Загружает количество записей по вкладкам
  */
 export async function fetchTabCounts(

@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import type { PurchaseRequest, TabType } from '../types/purchase-request.types';
+import { TAB_STATUS_GROUPS } from '../constants/status.constants';
 
 interface UseFilterHandlersProps {
   filtersFromHook: Record<string, string>;
@@ -15,6 +16,10 @@ interface UseFilterHandlersProps {
   setStatusFilter: (filter: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
   setPurchaserFilter: (filter: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
   setActiveTab?: (tab: TabType) => void;
+  /** Текущая вкладка — опции фильтра «Группа статуса» ограничиваются группами этой вкладки */
+  activeTab: TabType;
+  /** Группы статусов только для текущего типа (Закупки/Заказы) — чтобы в «Закупках» не показывать группы из заказов */
+  statusGroupsByKind: string[];
   cfoSearchQuery: string;
   statusSearchQuery: string;
   purchaserSearchQuery: string;
@@ -36,6 +41,8 @@ export function useFilterHandlers({
   setStatusFilter,
   setPurchaserFilter,
   setActiveTab,
+  activeTab,
+  statusGroupsByKind,
   cfoSearchQuery,
   statusSearchQuery,
   purchaserSearchQuery,
@@ -204,17 +211,20 @@ export function useFilterHandlers({
   }, [purchaserSearchQuery, uniqueValues.purchaser]);
 
   const getFilteredStatusOptions = useMemo(() => {
-    // Используем уникальные группы статусов из метаданных (уже загружаются через useMetadata / unique-values)
-    const statusGroups = uniqueValues.statusGroup || [];
+    // Группы статусов только для текущего типа (Закупки/Заказы) + ограничение по вкладке статусов (В работе, Завершённые и т.д.)
+    const allGroups = statusGroupsByKind.length > 0 ? statusGroupsByKind : (uniqueValues.statusGroup || []);
+    const tabGroups = activeTab === 'all' || activeTab === 'hidden'
+      ? allGroups
+      : allGroups.filter(sg => TAB_STATUS_GROUPS[activeTab].includes(sg));
     if (!statusSearchQuery || !statusSearchQuery.trim()) {
-      return statusGroups;
+      return tabGroups;
     }
     const searchLower = statusSearchQuery.toLowerCase().trim();
-    return statusGroups.filter(statusGroup => {
+    return tabGroups.filter(statusGroup => {
       if (!statusGroup) return false;
       return statusGroup.toLowerCase().includes(searchLower);
     });
-  }, [statusSearchQuery, uniqueValues.statusGroup]);
+  }, [statusSearchQuery, statusGroupsByKind, uniqueValues.statusGroup, activeTab]);
 
   return {
     handleFilterChange,
