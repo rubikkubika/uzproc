@@ -1,5 +1,6 @@
 package com.uzproc.backend.config;
 
+import com.uzproc.backend.service.contract.ContractApprovalExcelLoadService;
 import com.uzproc.backend.service.excel.EntityExcelLoadService;
 import com.uzproc.backend.service.excel.ReportExcelLoadService;
 import com.uzproc.backend.service.payment.PaymentExcelLoadService;
@@ -116,6 +117,68 @@ public class ExcelFileAutoLoader {
                 logger.info("Automatic Excel file processing completed. Total loaded {} records", totalLoaded);
             } catch (Exception e) {
                 logger.error("Error during automatic Excel file processing", e);
+            }
+        };
+    }
+
+    @Bean
+    @Order(25) // После alldocuments (0), до suppliers (50)
+    public CommandLineRunner autoLoadApprovalsFile(ContractApprovalExcelLoadService contractApprovalExcelLoadService) {
+        return args -> {
+            try {
+                Path approvalsPath = null;
+                Path dockerPath = Paths.get("/app/approvals");
+                if (Files.exists(dockerPath)) {
+                    approvalsPath = dockerPath;
+                    logger.info("Found approvals folder in Docker container: {}", dockerPath);
+                } else {
+                    String userDir = System.getProperty("user.dir");
+                    Path currentDir = Paths.get(userDir).toAbsolutePath().normalize();
+                    Path projectRoot = currentDir;
+                    if (currentDir.getFileName() != null && "backend".equalsIgnoreCase(currentDir.getFileName().toString())) {
+                        projectRoot = currentDir.getParent();
+                    }
+                    approvalsPath = projectRoot.resolve("frontend").resolve("upload").resolve("approvals").normalize();
+                    if (!Files.exists(approvalsPath)) {
+                        approvalsPath = currentDir.resolve("..").resolve("frontend").resolve("upload").resolve("approvals").normalize();
+                    }
+                    if (!Files.exists(approvalsPath)) {
+                        Path altPath = Paths.get("frontend", "upload", "approvals").toAbsolutePath().normalize();
+                        if (Files.exists(altPath)) {
+                            approvalsPath = altPath;
+                        }
+                    }
+                }
+                if (approvalsPath == null || !Files.exists(approvalsPath)) {
+                    logger.info("Approvals folder not found. Tried paths: /app/approvals, frontend/upload/approvals. Skipping automatic contract approvals file processing.");
+                    return;
+                }
+                File approvalsDir = approvalsPath.toFile();
+                if (!approvalsDir.isDirectory()) {
+                    logger.warn("Path is not a directory: {}", approvalsPath);
+                    return;
+                }
+                File[] excelFiles = approvalsDir.listFiles((dir, name) ->
+                    (name.endsWith(".xls") || name.endsWith(".xlsx")) && !name.startsWith("~$"));
+                if (excelFiles == null || excelFiles.length == 0) {
+                    logger.info("No Excel files found in approvals folder: {}", approvalsPath);
+                    return;
+                }
+                logger.info("Found {} Excel file(s) in approvals folder: {}", excelFiles.length, approvalsPath);
+                int totalLoaded = 0;
+                for (File excelFile : excelFiles) {
+                    try {
+                        logger.info("Processing contract approvals file: {}", excelFile.getName());
+                        int loadedCount = contractApprovalExcelLoadService.loadContractApprovalsFromExcel(excelFile);
+                        totalLoaded += loadedCount;
+                        logger.info("Loaded {} contract approvals from file {}", loadedCount, excelFile.getName());
+                    } catch (Exception e) {
+                        logger.error("Error processing contract approvals file {}: {}", excelFile.getName(), e.getMessage(), e);
+                    }
+                }
+                logger.info("Automatic contract approvals file processing completed. Total loaded {} records", totalLoaded);
+            } catch (Exception e) {
+                logger.error("Error during automatic contract approvals file processing", e);
             }
         };
     }
