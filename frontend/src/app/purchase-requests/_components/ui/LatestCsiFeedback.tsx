@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { Star } from 'lucide-react';
-import { getBackendUrl } from '@/utils/api';
+import { getBackendUrl, fetchDeduped } from '@/utils/api';
 
 interface CsiFeedbackDto {
   id: number;
@@ -47,10 +47,8 @@ export default function LatestCsiFeedback() {
         setLoading(true);
         setError(null);
 
-        const backendUrl = getBackendUrl();
-        const response = await fetch(
-          `${backendUrl}/api/csi-feedback?page=0&size=1&sortBy=createdAt&sortDir=desc`
-        );
+        const url = `${getBackendUrl()}/api/csi-feedback?page=0&size=1&sortBy=createdAt&sortDir=desc`;
+        const response = await fetchDeduped(url);
 
         if (!response.ok) {
           throw new Error('Ошибка при загрузке оценок');

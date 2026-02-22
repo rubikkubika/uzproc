@@ -21,7 +21,8 @@ import {
   FileText,
   CheckSquare,
   Star,
-  Map
+  Map,
+  Building2
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -45,6 +46,7 @@ const menuItems: Array<{ id: string; label: string; icon: any }> = [];
     { id: 'contracts', label: 'Договоры', icon: Package },
     { id: 'specifications', label: 'Спецификации', icon: Package },
     { id: 'delivery-plan', label: 'План поставок', icon: Calendar },
+    { id: 'suppliers', label: 'Поставщики', icon: Building2 },
   ];
 
   const initiatorItems = [
@@ -263,6 +265,9 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                           setIsMobileMenuOpen(false);
                         } else if (item.id === 'delivery-plan') {
                           router.push('/delivery-plan');
+                          setIsMobileMenuOpen(false);
+                        } else if (item.id === 'suppliers') {
+                          router.push('/?tab=suppliers');
                           setIsMobileMenuOpen(false);
                         } else {
                           handleTabChange(item.id);

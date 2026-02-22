@@ -37,6 +37,12 @@ COPY frontend/upload/plan /app/plan
 # Copy payments folder (доступ к файлам аналогично report и alldocuments)
 COPY frontend/upload/payments /app/payments
 
+# Copy suppliers folder (доступ к файлам аналогично report и payments)
+COPY frontend/upload/suppliers /app/suppliers
+
+# Copy approvals folder (доступ к файлам аналогично report и payments)
+COPY frontend/upload/approvals /app/approvals
+
 # Change ownership to spring user
 RUN chown -R spring:spring /app
 

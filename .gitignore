@@ -57,6 +57,14 @@ backup/*
 frontend/upload/payments/*
 !frontend/upload/payments/.gitkeep
 
+# Suppliers folder (track folder, ignore contents except .gitkeep)
+frontend/upload/suppliers/*
+!frontend/upload/suppliers/.gitkeep
+
+# Approvals folder (track folder, ignore contents except .gitkeep)
+frontend/upload/approvals/*
+!frontend/upload/approvals/.gitkeep
+
 # Data files
 frontend/images/*.csv
 frontend/images/*.xlsx

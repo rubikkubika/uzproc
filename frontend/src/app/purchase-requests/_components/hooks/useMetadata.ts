@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
-import { getBackendUrl } from '@/utils/api';
-import { fetchMetadata, fetchApprovalAssignmentDateYears } from '../services/purchaseRequests.api';
+import { getBackendUrl, fetchDeduped } from '@/utils/api';
+import { fetchUniqueFilterValues, fetchApprovalAssignmentDateYears } from '../services/purchaseRequests.api';
 import { normalizePurchaserName } from '../utils/normalizePurchaser';
-import type { PurchaseRequest } from '../types/purchase-request.types';
 import { CACHE_KEY, CACHE_TTL } from '../constants/status.constants';
 
 /**
@@ -55,96 +54,27 @@ export function useMetadata() {
           }
         }
 
-        // Загружаем данные, если кэш отсутствует или устарел
-        // ЦФО — из лёгкого API /api/cfos/names, остальное — из заявок
-        const params = new URLSearchParams();
-        params.append('page', '0');
-        params.append('size', '50000');
-
-        const [cfoNamesResponse, result] = await Promise.all([
-          fetch(`${getBackendUrl()}/api/cfos/names?for=purchase-requests`),
-          fetchMetadata(params),
+        // Лёгкие эндпоинты: ЦФО + уникальные значения полей заявок (без загрузки полных записей)
+        const cfosUrl = `${getBackendUrl()}/api/cfos/names?for=purchase-requests`;
+        const [cfoNamesResponse, uniqueDto] = await Promise.all([
+          fetchDeduped(cfosUrl).then((r) => (r.ok ? r.json() : [])),
+          fetchUniqueFilterValues(),
         ]);
-        const cfoNames: string[] = cfoNamesResponse.ok ? await cfoNamesResponse.json() : [];
+        const cfoNames: string[] = Array.isArray(cfoNamesResponse) ? cfoNamesResponse : [];
 
-        const values: Record<string, Set<string>> = {
-          cfo: new Set(Array.isArray(cfoNames) ? cfoNames : []),
-          purchaseRequestInitiator: new Set(),
-          costType: new Set(),
-          contractType: new Set(),
-          purchaser: new Set(),
-          status: new Set(),
-          statusGroup: new Set(),
-        };
-
-        result.content.forEach((request: PurchaseRequest) => {
-          // ЦФО уже загружены из /api/cfos/names
-          if (request.purchaseRequestInitiator) values.purchaseRequestInitiator.add(request.purchaseRequestInitiator);
-          // Нормализуем имя закупщика для фильтров используя единую функцию
-          if (request.purchaser) {
-            const normalizedPurchaser = normalizePurchaserName(request.purchaser);
-            values.purchaser.add(normalizedPurchaser);
-          }
-          if (request.status) {
-            // Добавляем статус как строку, убираем пробелы
-            const statusStr = String(request.status).trim();
-            if (statusStr) {
-              values.status.add(statusStr);
-            }
-          }
-          if (request.statusGroup) {
-            // Добавляем группу статуса как строку, убираем пробелы
-            const statusGroupStr = String(request.statusGroup).trim();
-            if (statusGroupStr) {
-              values.statusGroup.add(statusGroupStr);
-            }
-          }
-          if (request.costType) values.costType.add(request.costType);
-          if (request.contractType) values.contractType.add(request.contractType);
-        });
-
-        // Дополнительная проверка статуса "Утверждена"
-        const hasApproved = Array.from(values.status).includes('Утверждена');
-        console.log('Status "Утверждена" found in unique values:', hasApproved);
-        console.log('All unique statuses before sorting:', Array.from(values.status));
+        // Нормализуем имена закупщиков для единообразия с остальным приложением
+        const purchaserNormalized = (uniqueDto.purchaser || []).map((p) => normalizePurchaserName(p));
+        const purchaserUnique = Array.from(new Set(purchaserNormalized)).sort();
 
         const uniqueValuesData = {
-          cfo: Array.from(values.cfo).sort(),
-          purchaseRequestInitiator: Array.from(values.purchaseRequestInitiator).sort(),
-          purchaser: Array.from(values.purchaser).sort(),
-          status: Array.from(values.status).sort(),
-          statusGroup: Array.from(values.statusGroup).sort(),
-          costType: Array.from(values.costType).sort(),
-          contractType: Array.from(values.contractType).sort(),
+          cfo: (cfoNames || []).slice().sort(),
+          purchaseRequestInitiator: (uniqueDto.purchaseRequestInitiator || []).slice().sort(),
+          purchaser: purchaserUnique,
+          status: (uniqueDto.status || []).slice().sort(),
+          statusGroup: (uniqueDto.statusGroup || []).slice().sort(),
+          costType: (uniqueDto.costType || []).slice().sort(),
+          contractType: (uniqueDto.contractType || []).slice().sort(),
         };
-
-        console.log('Loaded unique statuses from data:', uniqueValuesData.status);
-        console.log('Total requests processed:', result.content.length);
-        console.log('Status values found:', Array.from(values.status));
-
-        // Проверяем, что статус "Утверждена" присутствует
-        if (!uniqueValuesData.status.includes('Утверждена')) {
-          console.warn('WARNING: Status "Утверждена" not found in unique values!');
-          console.warn('All statuses:', uniqueValuesData.status);
-          // Пересчитываем статусы для проверки
-          const statusCounts: Record<string, number> = {};
-          result.content.forEach((req: PurchaseRequest) => {
-            if (req.status) {
-              const statusStr = String(req.status).trim();
-              statusCounts[statusStr] = (statusCounts[statusStr] || 0) + 1;
-            }
-          });
-          console.warn('Status counts:', statusCounts);
-
-          // Если статус "Утверждена" есть в данных, но не в уникальных значениях, добавляем его вручную
-          if (statusCounts['Утверждена'] && statusCounts['Утверждена'] > 0) {
-            console.warn('FIXING: Adding "Утверждена" to unique values manually');
-            uniqueValuesData.status.push('Утверждена');
-            uniqueValuesData.status.sort();
-            // Очищаем кэш, чтобы перезагрузить данные
-            localStorage.removeItem(CACHE_KEY);
-          }
-        }
 
         setUniqueValues(uniqueValuesData);
 

@@ -26,5 +26,20 @@ public interface PurchaseRequestRepository extends JpaRepository<PurchaseRequest
 
     @Query("SELECT DISTINCT pr.status FROM PurchaseRequest pr WHERE pr.idPurchaseRequest IN (SELECT p.purchaseRequestId FROM PurchasePlanItem p WHERE p.purchaseRequestId IS NOT NULL) AND pr.status IS NOT NULL")
     List<PurchaseRequestStatus> findDistinctStatusLinkedFromPlan();
+
+    @Query("SELECT DISTINCT pr.purchaseRequestInitiator FROM PurchaseRequest pr WHERE pr.purchaseRequestInitiator IS NOT NULL")
+    List<String> findDistinctPurchaseRequestInitiator();
+
+    @Query("SELECT DISTINCT pr.purchaser FROM PurchaseRequest pr WHERE pr.purchaser IS NOT NULL")
+    List<String> findDistinctPurchaser();
+
+    @Query("SELECT DISTINCT pr.status FROM PurchaseRequest pr WHERE pr.status IS NOT NULL")
+    List<PurchaseRequestStatus> findDistinctStatus();
+
+    @Query("SELECT DISTINCT pr.costType FROM PurchaseRequest pr WHERE pr.costType IS NOT NULL")
+    List<String> findDistinctCostType();
+
+    @Query("SELECT DISTINCT pr.contractType FROM PurchaseRequest pr WHERE pr.contractType IS NOT NULL")
+    List<String> findDistinctContractType();
 }
 

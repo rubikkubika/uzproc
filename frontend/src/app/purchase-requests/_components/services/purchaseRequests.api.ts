@@ -1,4 +1,4 @@
-import { getBackendUrl } from '@/utils/api';
+import { getBackendUrl, fetchDeduped } from '@/utils/api';
 import type { PageResponse } from '../types/purchase-request.types';
 
 /**
@@ -13,7 +13,7 @@ export async function fetchPurchaseRequests(
   signal?: AbortSignal
 ): Promise<PageResponse> {
   const fetchUrl = `${getBackendUrl()}/api/purchase-requests?${params.toString()}`;
-  const response = await fetch(fetchUrl, { signal });
+  const response = await (signal ? fetch(fetchUrl, { signal }) : fetchDeduped(fetchUrl));
 
   if (!response.ok) {
     throw new Error('Ошибка загрузки данных');
@@ -64,7 +64,8 @@ export async function fetchHiddenCount(
  * Загружает общее количество записей
  */
 export async function fetchTotalRecords(): Promise<number> {
-  const response = await fetch(`${getBackendUrl()}/api/purchase-requests?page=0&size=1`);
+  const url = `${getBackendUrl()}/api/purchase-requests?page=0&size=1`;
+  const response = await fetchDeduped(url);
 
   if (!response.ok) {
     throw new Error('Ошибка загрузки общего количества записей');
@@ -97,7 +98,7 @@ export async function fetchCreationDateYears(): Promise<number[]> {
  */
 export async function fetchApprovalAssignmentDateYears(): Promise<number[]> {
   const fetchUrl = `${getBackendUrl()}/api/purchase-requests/approval-assignment-date-years`;
-  const response = await fetch(fetchUrl);
+  const response = await fetchDeduped(fetchUrl);
 
   if (!response.ok) {
     const text = await response.text();
@@ -109,14 +110,38 @@ export async function fetchApprovalAssignmentDateYears(): Promise<number[]> {
 }
 
 /**
- * Загружает заявки для метаданных (uniqueValues)
- * Используется для получения всех уникальных значений полей
+ * Уникальные значения полей заявок для фильтров (лёгкий эндпоинт без загрузки полных записей).
+ * ЦФО загружаются отдельно из /api/cfos/names.
+ */
+export interface PurchaseRequestUniqueValuesDto {
+  purchaseRequestInitiator: string[];
+  purchaser: string[];
+  status: string[];
+  statusGroup: string[];
+  costType: string[];
+  contractType: string[];
+}
+
+export async function fetchUniqueFilterValues(): Promise<PurchaseRequestUniqueValuesDto> {
+  const url = `${getBackendUrl()}/api/purchase-requests/unique-values`;
+  const response = await fetchDeduped(url);
+
+  if (!response.ok) {
+    throw new Error('Ошибка загрузки уникальных значений для фильтров');
+  }
+
+  return response.json();
+}
+
+/**
+ * Загружает заявки для метаданных (uniqueValues).
+ * @deprecated Используйте fetchUniqueFilterValues() + /api/cfos/names для фильтров.
  */
 export async function fetchMetadata(
   params: URLSearchParams
 ): Promise<PageResponse> {
   const fetchUrl = `${getBackendUrl()}/api/purchase-requests?${params.toString()}`;
-  const response = await fetch(fetchUrl);
+  const response = await fetchDeduped(fetchUrl);
 
   if (!response.ok) {
     throw new Error('Ошибка загрузки метаданных');

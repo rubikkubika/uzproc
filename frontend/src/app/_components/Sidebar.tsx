@@ -20,7 +20,8 @@ import {
   FileText,
   Globe,
   Map,
-  Banknote
+  Banknote,
+  Building2
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -43,6 +44,7 @@ const menuItems: Array<{ id: string; label: string; icon: any }> = [];
     { id: 'contracts', label: 'Договоры', icon: FileText },
     { id: 'payments', label: 'Оплаты', icon: Banknote },
     { id: 'delivery-plan', label: 'План поставок', icon: Calendar },
+    { id: 'suppliers', label: 'Поставщики', icon: Building2 },
   ];
 
   const initiatorItems = [

@@ -1,5 +1,5 @@
 import { useEffect, useCallback } from 'react';
-import { getBackendUrl } from '@/utils/api';
+import { getBackendUrl, fetchDeduped } from '@/utils/api';
 import type { TabType, RequestKindTab } from '../types/purchase-request.types';
 
 interface Filters {
@@ -101,7 +101,7 @@ export function useTabCounts({
       // Удалили старую обработку requiresPurchase из filtersFromHook, так как теперь используем kindTab
       
       const fetchUrl = `${getBackendUrl()}/api/purchase-requests/tab-counts?${params.toString()}`;
-      const response = await fetch(fetchUrl);
+      const response = await fetchDeduped(fetchUrl);
       if (response.ok) {
         const result = await response.json();
         
@@ -114,7 +114,7 @@ export function useTabCounts({
         
         let hiddenCount = 0;
         try {
-          const hiddenResponse = await fetch(hiddenFetchUrl);
+          const hiddenResponse = await fetchDeduped(hiddenFetchUrl);
           if (hiddenResponse.ok) {
             const hiddenResult = await hiddenResponse.json();
             hiddenCount = hiddenResult.totalElements || 0;

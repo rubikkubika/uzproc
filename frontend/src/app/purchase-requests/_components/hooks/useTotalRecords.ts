@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { getBackendUrl } from '@/utils/api';
+import { fetchTotalRecords } from '../services/purchaseRequests.api';
 
 interface UseTotalRecordsProps {
   setTotalRecords: (count: number) => void;
@@ -8,19 +8,15 @@ interface UseTotalRecordsProps {
 export function useTotalRecords({
   setTotalRecords,
 }: UseTotalRecordsProps) {
-  // Загружаем общее количество записей без фильтров
   useEffect(() => {
-    const fetchTotalRecords = async () => {
-      try {
-        const response = await fetch(`${getBackendUrl()}/api/purchase-requests?page=0&size=1`);
-        if (response.ok) {
-          const result = await response.json();
-          setTotalRecords(result.totalElements || 0);
-        }
-      } catch (err) {
-        console.error('Error fetching total records:', err);
-      }
-    };
-    fetchTotalRecords();
+    let cancelled = false;
+    fetchTotalRecords()
+      .then((count) => {
+        if (!cancelled) setTotalRecords(count);
+      })
+      .catch((err) => {
+        if (!cancelled) console.error('Error fetching total records:', err);
+      });
+    return () => { cancelled = true; };
   }, [setTotalRecords]);
 }
