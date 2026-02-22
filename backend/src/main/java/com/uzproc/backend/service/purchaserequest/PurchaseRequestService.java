@@ -5,6 +5,7 @@ import com.uzproc.backend.dto.overview.OverviewPurchaseRequestCountsDto;
 import com.uzproc.backend.dto.purchaserequest.PurchaseRequestDto;
 import com.uzproc.backend.dto.purchaserequest.PurchaseRequestUniqueValuesDto;
 import com.uzproc.backend.dto.purchaserequest.PurchaserStatsDto;
+import com.uzproc.backend.dto.purchaserequest.PurchaserSummaryItemDto;
 import com.uzproc.backend.entity.contract.Contract;
 import com.uzproc.backend.entity.purchase.Purchase;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
@@ -312,6 +313,65 @@ public class PurchaseRequestService {
             false, budgetAmount, budgetAmountOperator, excludeFromInWork, null, false, null, null, null);
         
         return purchaseRequestRepository.count(spec);
+    }
+
+    /** Максимум записей для сводки по закупщикам (in-work), чтобы не перегружать память. */
+    private static final int IN_WORK_SUMMARY_MAX_SIZE = 10_000;
+
+    /**
+     * Сводка по закупщикам для заявок «в работе»: количество заказов/закупок и суммы бюджетов.
+     * Используется блоком «Сводка по закупщикам» на странице заявок (без запроса на 1000 полных записей).
+     */
+    public List<PurchaserSummaryItemDto> getInWorkPurchaserSummary(
+            Long idPurchaseRequest,
+            List<String> cfo,
+            String name,
+            String costType,
+            String contractType,
+            Boolean isPlanned,
+            Boolean hasLinkedPlanItem,
+            String complexity,
+            Boolean requiresPurchase,
+            java.math.BigDecimal budgetAmount,
+            String budgetAmountOperator) {
+
+        List<String> inWorkStatusGroups = List.of(
+            "Заявка у закупщика",
+            "Спецификация в работе",
+            "Договор в работе"
+        );
+        Specification<PurchaseRequest> spec = buildSpecification(
+            null, null, null, null, idPurchaseRequest, cfo, null, null,
+            name, costType, contractType, isPlanned, hasLinkedPlanItem, complexity, requiresPurchase, inWorkStatusGroups,
+            false, budgetAmount, budgetAmountOperator != null ? budgetAmountOperator : "gte", false, false, false, null, null, null);
+
+        Pageable limit = PageRequest.of(0, IN_WORK_SUMMARY_MAX_SIZE);
+        List<PurchaseRequest> list = purchaseRequestRepository.findAll(spec, limit).getContent();
+
+        Map<String, PurchaserSummaryItemDto> byPurchaser = new HashMap<>();
+        for (PurchaseRequest pr : list) {
+            String purchaser = (pr.getPurchaser() != null && !pr.getPurchaser().trim().isEmpty())
+                ? pr.getPurchaser().trim()
+                : "Не назначен";
+            PurchaserSummaryItemDto item = byPurchaser.computeIfAbsent(purchaser, k ->
+                new PurchaserSummaryItemDto(k, 0L, 0L, BigDecimal.ZERO, BigDecimal.ZERO));
+
+            boolean isPurchase = Boolean.TRUE.equals(pr.getRequiresPurchase());
+            java.math.BigDecimal budget = pr.getBudgetAmount() != null ? pr.getBudgetAmount() : BigDecimal.ZERO;
+
+            if (isPurchase) {
+                item.setPurchasesCount(item.getPurchasesCount() + 1);
+                item.setPurchasesBudget(item.getPurchasesBudget().add(budget));
+            } else {
+                item.setOrdersCount(item.getOrdersCount() + 1);
+                item.setOrdersBudget(item.getOrdersBudget().add(budget));
+            }
+        }
+
+        return byPurchaser.values().stream()
+            .sorted((a, b) -> (b.getOrdersBudget().add(b.getPurchasesBudget()))
+                .compareTo(a.getOrdersBudget().add(a.getPurchasesBudget())))
+            .collect(Collectors.toList());
     }
 
     /**

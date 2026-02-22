@@ -22,6 +22,29 @@ export async function fetchPurchaseRequests(
   return await response.json();
 }
 
+/** Элемент сводки по закупщику (заявки «в работе») */
+export interface PurchaserSummaryItemDto {
+  purchaser: string;
+  ordersCount: number;
+  purchasesCount: number;
+  ordersBudget: number;
+  purchasesBudget: number;
+}
+
+/**
+ * Загружает сводку по закупщикам для заявок «в работе» (без загрузки полных записей).
+ */
+export async function fetchInWorkPurchaserSummary(
+  params: URLSearchParams
+): Promise<PurchaserSummaryItemDto[]> {
+  const url = `${getBackendUrl()}/api/purchase-requests/in-work-summary?${params.toString()}`;
+  const response = await fetchDeduped(url);
+  if (!response.ok) {
+    throw new Error('Ошибка загрузки сводки по закупщикам');
+  }
+  return response.json();
+}
+
 /**
  * Загружает количество записей по вкладкам
  */

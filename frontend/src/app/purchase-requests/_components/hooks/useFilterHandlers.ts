@@ -20,7 +20,6 @@ interface UseFilterHandlersProps {
   purchaserSearchQuery: string;
   setStatusSearchQuery: (query: string) => void;
   uniqueValues: Record<string, string[]>;
-  availableStatuses: string[];
 }
 
 export function useFilterHandlers({
@@ -42,7 +41,6 @@ export function useFilterHandlers({
   purchaserSearchQuery,
   setStatusSearchQuery,
   uniqueValues,
-  availableStatuses,
 }: UseFilterHandlersProps) {
   const handleFilterChange = useCallback((field: string, value: string, isTextFilter: boolean = false) => {
     if (isTextFilter) {
@@ -206,9 +204,8 @@ export function useFilterHandlers({
   }, [purchaserSearchQuery, uniqueValues.purchaser]);
 
   const getFilteredStatusOptions = useMemo(() => {
-    // Используем только группы статусов, которые есть в текущих данных таблицы (с учетом вкладки и всех фильтров, кроме фильтра по группе статуса)
-    // Это гарантирует, что в фильтре показываются только те группы статусов, которые реально есть в данных текущей вкладки
-    const statusGroups = availableStatuses.length > 0 ? availableStatuses : (uniqueValues.statusGroup || []);
+    // Используем уникальные группы статусов из метаданных (уже загружаются через useMetadata / unique-values)
+    const statusGroups = uniqueValues.statusGroup || [];
     if (!statusSearchQuery || !statusSearchQuery.trim()) {
       return statusGroups;
     }
@@ -217,7 +214,7 @@ export function useFilterHandlers({
       if (!statusGroup) return false;
       return statusGroup.toLowerCase().includes(searchLower);
     });
-  }, [statusSearchQuery, availableStatuses, uniqueValues.statusGroup]);
+  }, [statusSearchQuery, uniqueValues.statusGroup]);
 
   return {
     handleFilterChange,

@@ -18,7 +18,7 @@ import CommentsModal from './ui/modals/CommentsModal';
 import { fetchCommentCounts } from './services/purchaseRequests.api';
 import type { Contract, PurchaseRequest, PageResponse, SortField, SortDirection, TabType } from './types/purchase-request.types';
 import { ALL_COLUMNS, DEFAULT_VISIBLE_COLUMNS, COLUMNS_VISIBILITY_STORAGE_KEY } from './constants/columns.constants';
-import { ALL_STATUSES, DEFAULT_STATUSES, TAB_STATUSES } from './constants/status.constants';
+import { ALL_STATUSES, DEFAULT_STATUSES, TAB_STATUSES, TAB_STATUS_GROUPS } from './constants/status.constants';
 import { getCurrencyIcon } from './utils/currency.utils';
 import { normalizePurchaserName } from './utils/normalizePurchaser';
 import { copyRatingEmail } from './utils/ratingEmail';
@@ -33,7 +33,6 @@ import { useMetadata } from './hooks/useMetadata';
 import { useSummary } from './hooks/useSummary';
 import { useInfiniteScroll } from './hooks/useInfiniteScroll';
 import { useTableExport } from './hooks/useTableExport';
-import { useAvailableStatuses } from './hooks/useAvailableStatuses';
 import { useTabCounts } from './hooks/useTabCounts';
 import { usePurchaseRequestNavigation } from './hooks/usePurchaseRequestNavigation';
 import { useDropdownPosition } from './hooks/useDropdownPosition';
@@ -469,16 +468,6 @@ export default function PurchaseRequestsTable() {
     filtersLoadedRef,
   });
   
-  // Используем хук для получения доступных статусов
-  const availableStatuses = useAvailableStatuses({
-    activeTab,
-    selectedYear,
-    selectedMonth,
-    filtersFromHook,
-    cfoFilter,
-    purchaserFilter,
-  });
-
   // Используем хук для загрузки totalRecords
   useTotalRecords({
     setTotalRecords,
@@ -518,24 +507,22 @@ export default function PurchaseRequestsTable() {
     purchaserSearchQuery,
     setStatusSearchQuery,
     uniqueValues,
-    availableStatuses,
   });
 
   // Нормализация statusFilter при смене вкладки
-  // Убираем из statusFilter статусы, которые не доступны для текущей вкладки
+  // Убираем из statusFilter группы статусов, которые не входят в текущую вкладку
   useEffect(() => {
-    if (availableStatuses.length === 0) return; // Ждём загрузки статусов
-
-    const validStatuses = new Set(availableStatuses); // availableStatuses - массив строк
+    const validForTab = activeTab === 'all'
+      ? new Set(uniqueValues.statusGroup?.length ? uniqueValues.statusGroup : TAB_STATUS_GROUPS['all'])
+      : new Set(TAB_STATUS_GROUPS[activeTab]);
     const currentStatuses = Array.from(statusFilter);
-    const invalidStatuses = currentStatuses.filter(status => !validStatuses.has(status));
+    const invalidStatuses = currentStatuses.filter(status => !validForTab.has(status));
 
     if (invalidStatuses.length > 0) {
-      // Есть невалидные статусы - очищаем их
-      const cleanedStatuses = new Set(currentStatuses.filter(status => validStatuses.has(status)));
+      const cleanedStatuses = new Set(currentStatuses.filter(status => validForTab.has(status)));
       setStatusFilter(cleanedStatuses);
     }
-  }, [activeTab, availableStatuses, statusFilter, setStatusFilter]);
+  }, [activeTab, uniqueValues.statusGroup, statusFilter, setStatusFilter]);
 
   // Используем хук для excludeFromInWork
   const { updateExcludeFromInWork } = useExcludeFromInWork({
