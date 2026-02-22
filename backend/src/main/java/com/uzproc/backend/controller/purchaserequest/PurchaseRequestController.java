@@ -4,6 +4,7 @@ import com.uzproc.backend.dto.purchaserequest.PurchaseRequestCommentDto;
 import com.uzproc.backend.dto.purchaserequest.PurchaseRequestDto;
 import com.uzproc.backend.dto.purchaserequest.PurchaseRequestUniqueValuesDto;
 import com.uzproc.backend.dto.purchaserequest.PurchaserStatsDto;
+import com.uzproc.backend.dto.purchaserequest.PurchaserSummaryItemDto;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequestCommentType;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestCommentService;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestService;
@@ -108,6 +109,29 @@ public class PurchaseRequestController {
         logger.info("=== End PurchaseRequestController.getAllPurchaseRequests ===\n");
         
         return ResponseEntity.ok(purchaseRequests);
+    }
+
+    /**
+     * Сводка по закупщикам для заявок «в работе» (без загрузки полных записей).
+     * Используется блоком «Сводка по закупщикам» на странице заявок.
+     */
+    @GetMapping("/in-work-summary")
+    public ResponseEntity<List<PurchaserSummaryItemDto>> getInWorkPurchaserSummary(
+            @RequestParam(required = false) Long idPurchaseRequest,
+            @RequestParam(required = false) List<String> cfo,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String costType,
+            @RequestParam(required = false) String contractType,
+            @RequestParam(required = false) Boolean isPlanned,
+            @RequestParam(required = false) Boolean hasLinkedPlanItem,
+            @RequestParam(required = false) String complexity,
+            @RequestParam(required = false) Boolean requiresPurchase,
+            @RequestParam(required = false) java.math.BigDecimal budgetAmount,
+            @RequestParam(required = false) String budgetAmountOperator) {
+        List<PurchaserSummaryItemDto> summary = purchaseRequestService.getInWorkPurchaserSummary(
+            idPurchaseRequest, cfo, name, costType, contractType, isPlanned, hasLinkedPlanItem,
+            complexity, requiresPurchase, budgetAmount, budgetAmountOperator);
+        return ResponseEntity.ok(summary);
     }
 
     @GetMapping("/tab-counts")
