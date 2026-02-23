@@ -58,6 +58,7 @@ export const useContractsTable = () => {
       documentForm: '',
       costType: '',
       contractType: '',
+      paymentTerms: '',
     });
     filtersHook.setLocalFilters({
       innerId: '',
@@ -66,6 +67,7 @@ export const useContractsTable = () => {
       documentForm: '',
       costType: '',
       contractType: '',
+      paymentTerms: '',
     });
     filtersHook.setCfoFilter(new Set());
     setSelectedYear(currentYear);

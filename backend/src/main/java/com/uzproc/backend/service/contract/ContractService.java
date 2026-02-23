@@ -1,8 +1,10 @@
 package com.uzproc.backend.service.contract;
 
 import com.uzproc.backend.dto.contract.ContractDto;
+import com.uzproc.backend.dto.supplier.SupplierDto;
 import com.uzproc.backend.entity.contract.Contract;
 import com.uzproc.backend.entity.contract.ContractStatus;
+import com.uzproc.backend.entity.supplier.Supplier;
 import com.uzproc.backend.repository.contract.ContractRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -23,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.Collections;
 
 @Service
 @Transactional(readOnly = true)
@@ -244,6 +247,30 @@ public class ContractService {
         dto.setUpdatedAt(entity.getUpdatedAt());
         dto.setExcludedFromStatusCalculation(entity.getExcludedFromStatusCalculation());
         dto.setExclusionComment(entity.getExclusionComment());
+        dto.setPaymentTerms(entity.getPaymentTerms());
+
+        // Поставщики (контрагенты)
+        if (entity.getSuppliers() != null && !entity.getSuppliers().isEmpty()) {
+            List<SupplierDto> supplierDtos = entity.getSuppliers().stream()
+                .map(this::supplierToDto)
+                .collect(Collectors.toList());
+            dto.setSuppliers(supplierDtos);
+        } else {
+            dto.setSuppliers(Collections.emptyList());
+        }
+        return dto;
+    }
+
+    private SupplierDto supplierToDto(Supplier s) {
+        SupplierDto dto = new SupplierDto();
+        dto.setId(s.getId());
+        dto.setCode(s.getCode());
+        dto.setInn(s.getInn());
+        dto.setName(s.getName());
+        dto.setType(s.getType());
+        dto.setKpp(s.getKpp());
+        dto.setCreatedAt(s.getCreatedAt());
+        dto.setUpdatedAt(s.getUpdatedAt());
         return dto;
     }
 

@@ -31,10 +31,19 @@ export interface OverviewSlaPercentageByMonth {
   percentage: number | null;
 }
 
+/** Выполнение СЛА по году в разрезе закупщиков. */
+export interface OverviewSlaPercentageByPurchaser {
+  purchaser: string;
+  totalCompleted: number;
+  metSla: number;
+  percentage: number | null;
+}
+
 export interface OverviewSlaData {
   year: number;
   statusBlocks: OverviewSlaBlock[];
   slaPercentageByMonth: OverviewSlaPercentageByMonth[];
+  slaPercentageByPurchaser: OverviewSlaPercentageByPurchaser[];
 }
 
 /**
@@ -99,10 +108,19 @@ export function useOverviewSlaData(year: number | null) {
           percentage: m.percentage != null ? Number(m.percentage) : null,
         })
       );
+      const slaPercentageByPurchaser: OverviewSlaPercentageByPurchaser[] = (json.slaPercentageByPurchaser ?? []).map(
+        (p: { purchaser?: string; totalCompleted?: number; metSla?: number; percentage?: number | null }) => ({
+          purchaser: p.purchaser ?? '—',
+          totalCompleted: p.totalCompleted ?? 0,
+          metSla: p.metSla ?? 0,
+          percentage: p.percentage != null ? Number(p.percentage) : null,
+        })
+      );
       setData({
         year: json.year ?? year,
         statusBlocks: blocks,
         slaPercentageByMonth,
+        slaPercentageByPurchaser,
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Ошибка загрузки');

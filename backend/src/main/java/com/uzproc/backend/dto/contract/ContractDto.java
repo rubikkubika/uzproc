@@ -1,8 +1,10 @@
 package com.uzproc.backend.dto.contract;
 
+import com.uzproc.backend.dto.supplier.SupplierDto;
 import com.uzproc.backend.entity.contract.ContractStatus;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 public class ContractDto {
@@ -34,6 +36,12 @@ public class ContractDto {
     private Boolean excludedFromStatusCalculation;
     /** Комментарий к исключению договора из расчёта статуса. */
     private String exclusionComment;
+
+    /** Условия оплаты (парсинг из «График оплаты (Договор)»). */
+    private String paymentTerms;
+
+    /** Поставщики (контрагенты) по договору. */
+    private List<SupplierDto> suppliers;
 
     // Constructors
     public ContractDto() {
@@ -246,6 +254,22 @@ public class ContractDto {
 
     public void setExclusionComment(String exclusionComment) {
         this.exclusionComment = exclusionComment;
+    }
+
+    public String getPaymentTerms() {
+        return paymentTerms;
+    }
+
+    public void setPaymentTerms(String paymentTerms) {
+        this.paymentTerms = paymentTerms;
+    }
+
+    public List<SupplierDto> getSuppliers() {
+        return suppliers;
+    }
+
+    public void setSuppliers(List<SupplierDto> suppliers) {
+        this.suppliers = suppliers;
     }
 }
 

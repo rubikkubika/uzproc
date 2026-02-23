@@ -4,6 +4,7 @@ import React from 'react';
 import { Eye, EyeOff, Check, Clock, X, Star } from 'lucide-react';
 import { PurchaseRequest, TabType, Contract } from '../types/purchase-request.types';
 import { getCurrencyIcon } from '../utils/currency.utils';
+import { purchaserDisplayName } from '@/utils/purchaser';
 
 interface PurchaseRequestsTableRowProps {
   request: PurchaseRequest;
@@ -207,7 +208,7 @@ export default function PurchaseRequestsTableRow({
               style={{ width: `${getColumnWidth('purchaser')}px`, minWidth: `${getColumnWidth('purchaser')}px`, maxWidth: `${getColumnWidth('purchaser')}px` }}
               title={request.purchaser || ''}
             >
-              {request.purchaser || '-'}
+              {purchaserDisplayName(request.purchaser) !== '—' ? purchaserDisplayName(request.purchaser) : '-'}
             </td>
           );
         }

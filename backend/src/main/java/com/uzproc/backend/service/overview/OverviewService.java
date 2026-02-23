@@ -87,7 +87,9 @@ public class OverviewService {
         response.setStatusBlocks(blocks);
         List<OverviewSlaPercentageByMonthDto> slaPercentageByMonth = buildSlaPercentageByMonth(blocks, year);
         response.setSlaPercentageByMonth(slaPercentageByMonth);
-        logger.debug("Overview SLA data for year {}: {} blocks, {} month percentages", year, blocks.size(), slaPercentageByMonth.size());
+        List<OverviewSlaPercentageByPurchaserDto> slaPercentageByPurchaser = buildSlaPercentageByPurchaser(blocks, year);
+        response.setSlaPercentageByPurchaser(slaPercentageByPurchaser);
+        logger.debug("Overview SLA data for year {}: {} blocks, {} month percentages, {} purchaser rows", year, blocks.size(), slaPercentageByMonth.size(), slaPercentageByPurchaser.size());
         return response;
     }
 
@@ -123,6 +125,51 @@ public class OverviewService {
             dto.setPercentage(totalCompleted > 0 ? (metSla * 100.0 / totalCompleted) : null);
             result.add(dto);
         }
+        return result;
+    }
+
+    /**
+     * Выполнение СЛА по году в разрезе закупщиков: для каждого закупщика — всего завершённых, уложившихся в SLA, процент.
+     */
+    private List<OverviewSlaPercentageByPurchaserDto> buildSlaPercentageByPurchaser(List<OverviewSlaBlockDto> blocks, int year) {
+        List<OverviewSlaRequestDto> allRequests = blocks.stream()
+                .flatMap(b -> (b.getRequests() != null ? b.getRequests().stream() : java.util.stream.Stream.<OverviewSlaRequestDto>empty()))
+                .collect(Collectors.toList());
+        Map<String, int[]> byPurchaser = new LinkedHashMap<>();
+        for (OverviewSlaRequestDto r : allRequests) {
+            if (r.getPurchaseCompletionDate() == null || r.getApprovalAssignmentDate() == null) continue;
+            LocalDateTime assignment = parseIsoDateTime(r.getApprovalAssignmentDate());
+            LocalDateTime completion = parseIsoDateTime(r.getPurchaseCompletionDate());
+            if (assignment == null || completion == null) continue;
+            if (assignment.getYear() != year) continue;
+            String purchaser = r.getPurchaser();
+            if (purchaser == null || purchaser.trim().isEmpty()) purchaser = "Не назначен";
+            else purchaser = purchaser.trim();
+            int[] counts = byPurchaser.computeIfAbsent(purchaser, k -> new int[2]);
+            counts[0]++;
+            Integer planned = r.getPlannedSlaDays();
+            if (planned == null) planned = getPlannedSlaDays(r.getComplexity());
+            if (planned != null) {
+                long factual = countWorkingDaysBetween(assignment, completion);
+                if (factual <= planned) counts[1]++;
+            }
+        }
+        List<OverviewSlaPercentageByPurchaserDto> result = new ArrayList<>();
+        for (Map.Entry<String, int[]> e : byPurchaser.entrySet()) {
+            OverviewSlaPercentageByPurchaserDto dto = new OverviewSlaPercentageByPurchaserDto();
+            dto.setPurchaser(e.getKey());
+            int total = e.getValue()[0];
+            int met = e.getValue()[1];
+            dto.setTotalCompleted(total);
+            dto.setMetSla(met);
+            dto.setPercentage(total > 0 ? (met * 100.0 / total) : null);
+            result.add(dto);
+        }
+        result.sort(Comparator.comparing(OverviewSlaPercentageByPurchaserDto::getPurchaser, (a, b) -> {
+            if ("Не назначен".equals(a)) return 1;
+            if ("Не назначен".equals(b)) return -1;
+            return a.compareTo(b);
+        }));
         return result;
     }
 

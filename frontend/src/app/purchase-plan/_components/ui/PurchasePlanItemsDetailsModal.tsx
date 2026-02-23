@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { getBackendUrl } from '@/utils/api';
+import { purchaserDisplayName } from '@/utils/purchaser';
 import { PurchasePlanItem, PurchaseRequest, ModalTab, PurchasePlanItemComment } from '../types/purchase-plan-items.types';
 import { useAuth } from '../hooks/useAuth';
 
@@ -411,7 +412,7 @@ export default function PurchasePlanItemsDetailsModal({
                   </div>
                   <div>
                     <label className="text-xs font-medium text-gray-500">Закупщик</label>
-                    <p className="text-sm text-gray-900">{purchaseRequest.purchaser || '-'}</p>
+                    <p className="text-sm text-gray-900">{purchaseRequest.purchaser ? purchaserDisplayName(purchaseRequest.purchaser) : '-'}</p>
                   </div>
                   <div>
                     <label className="text-xs font-medium text-gray-500">Статус</label>

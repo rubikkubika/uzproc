@@ -2,6 +2,7 @@ package com.uzproc.backend.entity.contract;
 
 import com.uzproc.backend.entity.Cfo;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
+import com.uzproc.backend.entity.supplier.Supplier;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -122,6 +123,19 @@ public class Contract {
     /** Комментарий к исключению договора из расчёта статуса. */
     @Column(name = "exclusion_comment", length = 2000)
     private String exclusionComment;
+
+    /** Условия оплаты. Парсинг из колонки "График оплаты (Договор)" в Excel. */
+    @Column(name = "payment_terms", length = 2000)
+    private String paymentTerms;
+
+    /** Поставщики (контрагенты). Парсинг из колонки "Контрагенты" в Excel. */
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "contract_suppliers",
+            joinColumns = @JoinColumn(name = "contract_id"),
+            inverseJoinColumns = @JoinColumn(name = "supplier_id")
+    )
+    private Set<Supplier> suppliers = new HashSet<>();
 
     public Contract() {
     }
@@ -371,6 +385,22 @@ public class Contract {
 
     public void setExclusionComment(String exclusionComment) {
         this.exclusionComment = exclusionComment;
+    }
+
+    public String getPaymentTerms() {
+        return paymentTerms;
+    }
+
+    public void setPaymentTerms(String paymentTerms) {
+        this.paymentTerms = paymentTerms;
+    }
+
+    public Set<Supplier> getSuppliers() {
+        return suppliers;
+    }
+
+    public void setSuppliers(Set<Supplier> suppliers) {
+        this.suppliers = suppliers != null ? suppliers : new HashSet<>();
     }
 }
 

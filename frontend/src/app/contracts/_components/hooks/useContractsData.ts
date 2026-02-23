@@ -66,6 +66,9 @@ export const useContractsData = () => {
       if (filters.contractType && filters.contractType.trim() !== '') {
         params.append('contractType', filters.contractType.trim());
       }
+      if (filters.paymentTerms && filters.paymentTerms.trim() !== '') {
+        params.append('paymentTerms', filters.paymentTerms.trim());
+      }
 
       // Вкладка "В работе": подготовил = договорник, без договоров в статусе Подписан
       if (activeTab === 'in-work') {

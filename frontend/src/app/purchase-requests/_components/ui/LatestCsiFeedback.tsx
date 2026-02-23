@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useState, useRef } from 'react';
 import { Star } from 'lucide-react';
 import { getBackendUrl, fetchDeduped } from '@/utils/api';
+import { purchaserDisplayName } from '@/utils/purchaser';
 
 interface CsiFeedbackDto {
   id: number;
@@ -217,7 +218,7 @@ export default function LatestCsiFeedback() {
                 )}
                 {feedback.purchaser && (
                   <div className="mt-0.5 text-xs text-gray-500 truncate">
-                    Закупщик: {feedback.purchaser}
+                    Закупщик: {purchaserDisplayName(feedback.purchaser)}
                   </div>
                 )}
               </div>

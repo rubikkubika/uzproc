@@ -4,6 +4,7 @@ import { useState, useEffect, useLayoutEffect, useRef, ReactElement } from 'reac
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
 import { copyToClipboard } from '@/utils/clipboard';
+import { purchaserDisplayName } from '@/utils/purchaser';
 import { useAuth } from '@/contexts/AuthContext';
 import { ArrowLeft, Clock, Check, X, Eye, EyeOff, Copy, Star, History } from 'lucide-react';
 import Sidebar from '../../_components/Sidebar';
@@ -1337,7 +1338,7 @@ export default function PurchaseRequestDetailPage() {
                       <input
                         ref={(el) => setPurchaserInputRef(el)}
                         type="text"
-                        value={purchaserEditValue}
+                        value={isPurchaserEditing ? purchaserEditValue : (purchaseRequest?.purchaser ? purchaserDisplayName(purchaseRequest.purchaser) : '')}
                         onChange={(e) => {
                           setPurchaserEditValue(e.target.value);
                           setShowPurchaserSuggestions(true);

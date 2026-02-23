@@ -7,6 +7,7 @@ import { HelpCircle, X } from 'lucide-react';
 import { useSlaStatusBlockData } from '../hooks/useSlaStatusBlockData';
 import type { OverviewSlaRequestRow } from '../hooks/useOverviewSlaData';
 import { getBackendUrl } from '@/utils/api';
+import { purchaserDisplayName } from '@/utils/purchaser';
 import { countWorkingDaysBetween, getPlannedSlaDays, getPlannedSlaDaysNumber } from '../utils/overviewSlaUtils';
 
 interface SlaCommentItem {
@@ -50,15 +51,6 @@ function formatAmount(value: number | null): string {
   if (abs >= 1e6) return (value / 1e6).toLocaleString('ru-RU', { maximumFractionDigits: 1 }) + ' млн';
   if (abs >= 1e3) return (value / 1e3).toLocaleString('ru-RU', { maximumFractionDigits: 1 }) + ' тыс.';
   return value.toLocaleString('ru-RU', { maximumFractionDigits: 0 });
-}
-
-/** Закупщик: только имя и фамилия (без отчества и лишних частей) */
-function formatPurchaserShort(purchaser: string | null): string {
-  if (purchaser == null || purchaser.trim() === '') return '—';
-  const parts = purchaser.trim().split(/\s+/).filter(Boolean);
-  if (parts.length >= 3) return `${parts[1]} ${parts[0]}`; // Имя Фамилия
-  if (parts.length === 2) return purchaser.trim();
-  return parts[0] ?? '—';
 }
 
 /**
@@ -287,7 +279,7 @@ export function SlaStatusBlock({ title, statusGroup, year, requests: propsReques
                       {formatAmount(row.budgetAmount)}
                     </td>
                     <td className="px-1.5 py-0.5 text-gray-700 border-r border-gray-200 w-[120px] overflow-hidden text-ellipsis">
-                      {formatPurchaserShort(row.purchaser)}
+                      {purchaserDisplayName(row.purchaser)}
                     </td>
                     <td className="px-1.5 py-0.5 text-gray-700 border-r border-gray-200 w-[56px] overflow-hidden text-ellipsis">
                       {row.complexity ?? '—'}

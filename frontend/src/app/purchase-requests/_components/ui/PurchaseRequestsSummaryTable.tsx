@@ -22,19 +22,7 @@ const formatCompactNumber = (value: number): string => {
   }).format(value);
 };
 
-/**
- * Извлекает фамилию и имя из полного имени закупщика (первые 2 слова)
- */
-const getPurchaserFIO = (purchaser: string | null | undefined): string => {
-  if (!purchaser || purchaser.trim() === '') {
-    return 'Не назначен';
-  }
-  
-  const words = purchaser.trim().split(/\s+/);
-  // Берем первые 2 слова (фамилия и имя) или все слова, если их меньше 2
-  const fio = words.slice(0, 2).join(' ');
-  return fio;
-};
+import { purchaserDisplayName } from '@/utils/purchaser';
 
 interface PurchaseRequestsSummaryTableProps {
   purchaserSummary: PurchaserSummaryItem[];
@@ -72,7 +60,7 @@ function SummaryRow({
       title={isSelected ? 'Нажмите для снятия выделения. Ctrl/Cmd+клик для множественного выбора' : 'Нажмите для выделения. Ctrl/Cmd+клик для множественного выбора'}
     >
       <td className="px-2 py-1 text-xs text-gray-900 border-r border-gray-200 whitespace-nowrap">
-        {getPurchaserFIO(item.purchaser)}
+        {purchaserDisplayName(item.purchaser) === '—' ? 'Не назначен' : purchaserDisplayName(item.purchaser)}
       </td>
       <td className="px-2 py-1 text-xs text-gray-900 text-right border-l-2 border-t border-b border-r border-gray-400 whitespace-nowrap">
         {item.purchasesCount}
