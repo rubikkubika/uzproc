@@ -32,7 +32,9 @@ export function useRatingModal(
   setUserSearchQuery: (query: string) => void,
   setSelectedUserEmail: (email: string) => void,
   setEmailText: (text: string) => void,
-  userSearchRef: React.RefObject<HTMLDivElement | null>
+  userSearchRef: React.RefObject<HTMLDivElement | null>,
+  /** При true не подставлять инициатора (например, при открытии из «Редактировать отправку») */
+  skipInitiatorLoadRef?: React.MutableRefObject<boolean>
 ) {
   // Загрузка предложений пользователей для поиска с debounce
   useEffect(() => {
@@ -111,8 +113,9 @@ ${fullUrl}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRatingModalOpen, selectedRequestForRating, selectedUserEmail, selectedUser]);
 
-  // Устанавливаем инициатора заявки по умолчанию при открытии модального окна
+  // Устанавливаем инициатора заявки по умолчанию при открытии модального окна (пропускаем при открытии из «Редактировать отправку»)
   useEffect(() => {
+    if (skipInitiatorLoadRef?.current) return;
     if (isRatingModalOpen && selectedRequestForRating?.purchaseRequestInitiator && !selectedUser) {
       const loadInitiator = async () => {
         try {

@@ -12,6 +12,8 @@ interface SentInvitationModalProps {
   details: SentInvitationDetails | null;
   onClose: () => void;
   onCopy?: () => Promise<void>;
+  /** Открыть окно отправки письма с возможностью скорректировать получателя */
+  onEditSend?: () => void;
 }
 
 export default function SentInvitationModal({
@@ -19,6 +21,7 @@ export default function SentInvitationModal({
   details,
   onClose,
   onCopy,
+  onEditSend,
 }: SentInvitationModalProps) {
   if (!isOpen || !details) {
     return null;
@@ -58,6 +61,14 @@ export default function SentInvitationModal({
         </div>
 
         <div className="flex justify-end gap-2 mt-6">
+          {onEditSend && (
+            <button
+              onClick={onEditSend}
+              className="px-4 py-2 text-sm bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
+            >
+              Редактировать отправку
+            </button>
+          )}
           {onCopy && (
             <button
               onClick={async () => {

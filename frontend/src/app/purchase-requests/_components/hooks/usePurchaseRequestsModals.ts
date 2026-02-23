@@ -25,6 +25,7 @@ export function usePurchaseRequestsModals() {
 
   // Состояние для модального окна просмотра отправленного приглашения
   const [isSentInvitationModalOpen, setIsSentInvitationModalOpen] = useState(false);
+  const [selectedRequestForSentInvitation, setSelectedRequestForSentInvitation] = useState<PurchaseRequest | null>(null);
   const [sentInvitationDetails, setSentInvitationDetails] = useState<{
     recipient: string;
     emailText: string;
@@ -77,6 +78,8 @@ export function usePurchaseRequestsModals() {
     // Sent Invitation Modal
     isSentInvitationModalOpen,
     setIsSentInvitationModalOpen,
+    selectedRequestForSentInvitation,
+    setSelectedRequestForSentInvitation,
     sentInvitationDetails,
     setSentInvitationDetails,
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback, useMemo, useState } from 'react';
+import { useEffect, useCallback, useMemo, useState, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
 import { Clock, Check, Eye, EyeOff, Settings, Star } from 'lucide-react';
@@ -142,6 +142,7 @@ export default function PurchaseRequestsTable() {
     emailCc, setEmailCc,
     userSearchRef,
     isSentInvitationModalOpen, setIsSentInvitationModalOpen,
+    selectedRequestForSentInvitation, setSelectedRequestForSentInvitation,
     sentInvitationDetails, setSentInvitationDetails,
     isFeedbackDetailsModalOpen, setIsFeedbackDetailsModalOpen,
     selectedRequestForFeedback, setSelectedRequestForFeedback,
@@ -173,7 +174,11 @@ export default function PurchaseRequestsTable() {
       setUserRole(userRoleFromHook);
     }
   }, [userRoleFromHook, userRole, setUserRole]);
-  
+
+  // Пропуск авто-заполнения при открытии модалки из «Редактировать отправку»
+  const skipRatingModalInitFillRef = useRef(false);
+  const skipInitiatorLoadRef = useRef(false);
+
   // Используем хук для работы с модалкой рейтинга
   const { generateEmailText } = useRatingModal(
     isRatingModalOpen,
@@ -189,12 +194,17 @@ export default function PurchaseRequestsTable() {
     setUserSearchQuery,
     setSelectedUserEmail,
     setEmailText,
-    userSearchRef
+    userSearchRef,
+    skipInitiatorLoadRef
   );
 
   // При открытии модалки оценки заполняем тему, получателя (инициатор из БД) и копию (только закупщик + r.oskanov, не получатель)
   useEffect(() => {
     if (!isRatingModalOpen || !selectedRequestForRating) return;
+    if (skipRatingModalInitFillRef.current) {
+      skipRatingModalInitFillRef.current = false;
+      return;
+    }
     const num = selectedRequestForRating.idPurchaseRequest ?? '';
     setEmailSubject(`Об обратной связи по заявке № ${num}`);
 
@@ -711,6 +721,7 @@ export default function PurchaseRequestsTable() {
 
   // Обработчики для модальных окон
   const handleRatingModalClose = useCallback(() => {
+    skipInitiatorLoadRef.current = false;
     setIsRatingModalOpen(false);
     setSelectedRequestForRating(null);
     setSelectedUser(null);
@@ -742,6 +753,19 @@ export default function PurchaseRequestsTable() {
       generateEmailText(userEmail, selectedRequestForRating);
     }
   }, [setSelectedUser, setUserSearchQuery, setSelectedUserEmail, setEmailTo, setShowUserSuggestions, selectedRequestForRating, generateEmailText]);
+
+  // При ручном изменении «Email получателя» синхронизируем получателя везде, чтобы при отправке использовался обновлённый адрес
+  const handleEmailToChange = useCallback((value: string) => {
+    setEmailTo(value);
+    setUserSearchQuery(value);
+    setSelectedUserEmail(value);
+    if (selectedUser) {
+      const currentEmail = selectedUser.email || selectedUser.username || '';
+      if (value.trim().toLowerCase() !== currentEmail.trim().toLowerCase()) {
+        setSelectedUser(null);
+      }
+    }
+  }, [setEmailTo, setUserSearchQuery, setSelectedUserEmail, setSelectedUser, selectedUser]);
 
   const handleRatingEmailCopy = useCallback(async () => {
     await copyRatingEmail(emailText);
@@ -802,7 +826,8 @@ export default function PurchaseRequestsTable() {
   const handleSentInvitationModalClose = useCallback(() => {
     setIsSentInvitationModalOpen(false);
     setSentInvitationDetails(null);
-  }, [setIsSentInvitationModalOpen, setSentInvitationDetails]);
+    setSelectedRequestForSentInvitation(null);
+  }, [setIsSentInvitationModalOpen, setSentInvitationDetails, setSelectedRequestForSentInvitation]);
 
   const handleSentInvitationCopy = useCallback(async () => {
     if (!sentInvitationDetails) {
@@ -823,12 +848,58 @@ export default function PurchaseRequestsTable() {
 
   const handleSentInvitationClick = useCallback(async (request: PurchaseRequest) => {
     try {
+      setSelectedRequestForSentInvitation(request);
       await loadInvitationDetails(request);
       setIsSentInvitationModalOpen(true);
     } catch (error) {
       console.error('Error loading invitation details:', error);
+      setSelectedRequestForSentInvitation(null);
     }
-  }, [setIsSentInvitationModalOpen, loadInvitationDetails]);
+  }, [setIsSentInvitationModalOpen, setSelectedRequestForSentInvitation, loadInvitationDetails]);
+
+  const handleEditSentInvitation = useCallback(async () => {
+    if (!selectedRequestForSentInvitation || !sentInvitationDetails) return;
+    skipRatingModalInitFillRef.current = true;
+    skipInitiatorLoadRef.current = true;
+    const ccDefault = 'r.oskanov@uzum.com, a.retsko@uzum.com';
+    const recipientStr = sentInvitationDetails.recipient.trim().toLowerCase();
+    const purchaserName = selectedRequestForSentInvitation.purchaser?.trim();
+
+    setEmailTo(sentInvitationDetails.recipient);
+    setEmailText(sentInvitationDetails.emailText);
+    setUserSearchQuery(sentInvitationDetails.recipient);
+    setEmailSubject(`Об обратной связи по заявке № ${selectedRequestForSentInvitation.idPurchaseRequest ?? ''}`);
+    setSelectedUser(null);
+    setSelectedUserEmail(sentInvitationDetails.recipient);
+    setSelectedRequestForRating(selectedRequestForSentInvitation);
+    setIsSentInvitationModalOpen(false);
+    setSentInvitationDetails(null);
+    setSelectedRequestForSentInvitation(null);
+
+    // Копия — закупщик (если не получатель) + r.oskanov, a.retsko (те же правила, что при обычном открытии)
+    if (purchaserName) {
+      try {
+        const purchaserUser = await findInitiatorByName(purchaserName);
+        const purchaserEmail = purchaserUser?.email?.trim();
+        const purchaserUsername = purchaserUser?.username?.trim();
+        const isPurchaserSameAsRecipient = recipientStr && (
+          (purchaserEmail && purchaserEmail.toLowerCase() === recipientStr) ||
+          (purchaserUsername && purchaserUsername.toLowerCase() === recipientStr)
+        );
+        if (purchaserUser && (purchaserEmail || purchaserUsername) && !isPurchaserSameAsRecipient) {
+          setEmailCc(`${purchaserEmail || purchaserUsername}, ${ccDefault}`);
+        } else {
+          setEmailCc(ccDefault);
+        }
+      } catch {
+        setEmailCc(ccDefault);
+      }
+    } else {
+      setEmailCc(ccDefault);
+    }
+
+    setIsRatingModalOpen(true);
+  }, [selectedRequestForSentInvitation, sentInvitationDetails, setEmailTo, setEmailText, setUserSearchQuery, setEmailSubject, setSelectedUser, setSelectedUserEmail, setSelectedRequestForRating, setIsSentInvitationModalOpen, setSentInvitationDetails, setSelectedRequestForSentInvitation, setEmailCc, setIsRatingModalOpen]);
 
   if (loading) {
     return (
@@ -1024,7 +1095,7 @@ export default function PurchaseRequestsTable() {
         emailTo={emailTo}
         emailCc={emailCc}
         onEmailSubjectChange={setEmailSubject}
-        onEmailToChange={setEmailTo}
+        onEmailToChange={handleEmailToChange}
         onEmailCcChange={setEmailCc}
         onClose={handleRatingModalClose}
         onUserSearchChange={handleUserSearchChange}
@@ -1054,6 +1125,7 @@ export default function PurchaseRequestsTable() {
         details={sentInvitationDetails}
         onClose={handleSentInvitationModalClose}
         onCopy={handleSentInvitationCopy}
+        onEditSend={handleEditSentInvitation}
       />
 
       {/* Модальное окно комментариев заявки */}
