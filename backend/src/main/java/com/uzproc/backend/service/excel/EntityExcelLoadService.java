@@ -14,6 +14,7 @@ import com.uzproc.backend.repository.purchase.PurchaseRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
 import com.uzproc.backend.repository.user.UserRepository;
 import com.uzproc.backend.service.excel.FileProcessingStatsService;
+import com.uzproc.backend.service.purchaserequest.PurchaseRequestChangeService;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestStatusUpdateService;
 import com.uzproc.backend.service.contract.ContractStatusUpdateService;
 import com.uzproc.backend.service.purchase.PurchaseStatusUpdateService;
@@ -115,6 +116,7 @@ public class EntityExcelLoadService {
     private final PurchaseRequestStatusUpdateService statusUpdateService;
     private final ContractStatusUpdateService contractStatusUpdateService;
     private final PurchaseStatusUpdateService purchaseStatusUpdateService;
+    private final PurchaseRequestChangeService purchaseRequestChangeService;
 
     public EntityExcelLoadService(
             PurchaseRequestRepository purchaseRequestRepository,
@@ -125,7 +127,8 @@ public class EntityExcelLoadService {
             FileProcessingStatsService statsService,
             PurchaseRequestStatusUpdateService statusUpdateService,
             ContractStatusUpdateService contractStatusUpdateService,
-            PurchaseStatusUpdateService purchaseStatusUpdateService) {
+            PurchaseStatusUpdateService purchaseStatusUpdateService,
+            PurchaseRequestChangeService purchaseRequestChangeService) {
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.purchaseRepository = purchaseRepository;
         this.contractRepository = contractRepository;
@@ -135,6 +138,7 @@ public class EntityExcelLoadService {
         this.statusUpdateService = statusUpdateService;
         this.contractStatusUpdateService = contractStatusUpdateService;
         this.purchaseStatusUpdateService = purchaseStatusUpdateService;
+        this.purchaseRequestChangeService = purchaseRequestChangeService;
     }
     
     /**
@@ -551,43 +555,49 @@ public class EntityExcelLoadService {
         if (newData.getPurchaseRequestCreationDate() != null) {
             if (existing.getPurchaseRequestCreationDate() == null || 
                 !existing.getPurchaseRequestCreationDate().equals(newData.getPurchaseRequestCreationDate())) {
+                purchaseRequestChangeService.logChange(existing.getId(), existing.getGuid(), "purchaseRequestCreationDate", existing.getPurchaseRequestCreationDate(), newData.getPurchaseRequestCreationDate(), PurchaseRequestChangeService.SOURCE_PARSING, PurchaseRequestChangeService.DISPLAY_NAME_PARSING);
                 existing.setPurchaseRequestCreationDate(newData.getPurchaseRequestCreationDate());
                 updated = true;
                 logger.debug("Updated purchaseRequestCreationDate for request {}", existing.getIdPurchaseRequest());
             }
         }
-        
+
         // Обновляем внутренний номер только если он отличается
         if (newData.getInnerId() != null && !newData.getInnerId().trim().isEmpty()) {
             if (existing.getInnerId() == null || !existing.getInnerId().equals(newData.getInnerId())) {
+                purchaseRequestChangeService.logChange(existing.getId(), existing.getGuid(), "innerId", existing.getInnerId(), newData.getInnerId(), PurchaseRequestChangeService.SOURCE_PARSING, PurchaseRequestChangeService.DISPLAY_NAME_PARSING);
                 existing.setInnerId(newData.getInnerId());
                 updated = true;
                 logger.debug("Updated innerId for request {}: {}", existing.getIdPurchaseRequest(), newData.getInnerId());
             }
         }
-        
+
         // Обновляем ЦФО только если оно отличается
         if (newData.getCfo() != null) {
             Cfo newCfo = newData.getCfo();
             if (existing.getCfo() == null || !newCfo.getId().equals(existing.getCfo().getId())) {
+                String oldCfoName = existing.getCfo() != null ? existing.getCfo().getName() : null;
+                purchaseRequestChangeService.logChange(existing.getId(), existing.getGuid(), "cfo", oldCfoName, newCfo.getName(), PurchaseRequestChangeService.SOURCE_PARSING, PurchaseRequestChangeService.DISPLAY_NAME_PARSING);
                 existing.setCfo(newCfo);
                 updated = true;
                 logger.debug("Updated cfo for request {}: {}", existing.getIdPurchaseRequest(), newCfo.getName());
             }
         }
-        
+
         // Обновляем наименование только если оно отличается
         if (newData.getName() != null && !newData.getName().trim().isEmpty()) {
             if (existing.getName() == null || !existing.getName().equals(newData.getName())) {
+                purchaseRequestChangeService.logChange(existing.getId(), existing.getGuid(), "name", existing.getName(), newData.getName(), PurchaseRequestChangeService.SOURCE_PARSING, PurchaseRequestChangeService.DISPLAY_NAME_PARSING);
                 existing.setName(newData.getName());
                 updated = true;
                 logger.debug("Updated name for request {}: {}", existing.getIdPurchaseRequest(), newData.getName());
             }
         }
-        
+
         // Обновляем заголовок только если он отличается
         if (newData.getTitle() != null && !newData.getTitle().trim().isEmpty()) {
             if (existing.getTitle() == null || !existing.getTitle().equals(newData.getTitle())) {
+                purchaseRequestChangeService.logChange(existing.getId(), existing.getGuid(), "title", existing.getTitle(), newData.getTitle(), PurchaseRequestChangeService.SOURCE_PARSING, PurchaseRequestChangeService.DISPLAY_NAME_PARSING);
                 existing.setTitle(newData.getTitle());
                 updated = true;
                 logger.debug("Updated title for request {}: {}", existing.getIdPurchaseRequest(), newData.getTitle());
@@ -597,79 +607,74 @@ public class EntityExcelLoadService {
         // Обновляем требуется закупка только если оно отличается
         if (newData.getRequiresPurchase() != null) {
             if (existing.getRequiresPurchase() == null || !existing.getRequiresPurchase().equals(newData.getRequiresPurchase())) {
+                purchaseRequestChangeService.logChange(existing.getId(), existing.getGuid(), "requiresPurchase", existing.getRequiresPurchase(), newData.getRequiresPurchase(), PurchaseRequestChangeService.SOURCE_PARSING, PurchaseRequestChangeService.DISPLAY_NAME_PARSING);
                 existing.setRequiresPurchase(newData.getRequiresPurchase());
                 updated = true;
                 logger.debug("Updated requiresPurchase for request {}: {}", existing.getIdPurchaseRequest(), newData.getRequiresPurchase());
             }
         }
-        
+
         // Обновляем план только если оно отличается
         if (newData.getIsPlanned() != null) {
             if (existing.getIsPlanned() == null || !existing.getIsPlanned().equals(newData.getIsPlanned())) {
+                purchaseRequestChangeService.logChange(existing.getId(), existing.getGuid(), "isPlanned", existing.getIsPlanned(), newData.getIsPlanned(), PurchaseRequestChangeService.SOURCE_PARSING, PurchaseRequestChangeService.DISPLAY_NAME_PARSING);
                 existing.setIsPlanned(newData.getIsPlanned());
                 updated = true;
                 logger.debug("Updated isPlanned for request {}: {}", existing.getIdPurchaseRequest(), newData.getIsPlanned());
             }
         }
-        
+
         // Обновляем инициатора только если он отличается
         if (newData.getPurchaseRequestInitiator() != null && !newData.getPurchaseRequestInitiator().trim().isEmpty()) {
             if (existing.getPurchaseRequestInitiator() == null || !existing.getPurchaseRequestInitiator().equals(newData.getPurchaseRequestInitiator())) {
+                purchaseRequestChangeService.logChange(existing.getId(), existing.getGuid(), "purchaseRequestInitiator", existing.getPurchaseRequestInitiator(), newData.getPurchaseRequestInitiator(), PurchaseRequestChangeService.SOURCE_PARSING, PurchaseRequestChangeService.DISPLAY_NAME_PARSING);
                 existing.setPurchaseRequestInitiator(newData.getPurchaseRequestInitiator());
                 updated = true;
                 logger.debug("Updated purchaseRequestInitiator for request {}: {}", existing.getIdPurchaseRequest(), newData.getPurchaseRequestInitiator());
             }
         }
-        
+
         // Обновляем закупщика из Excel (всегда обновляем, если значение есть в Excel)
         if (newData.getPurchaser() != null && !newData.getPurchaser().trim().isEmpty()) {
             String existingPurchaser = existing.getPurchaser();
             String newPurchaser = newData.getPurchaser().trim();
-            
+
             if (existingPurchaser == null || !existingPurchaser.equals(newPurchaser)) {
-                // Закупщик обновляется из Excel
+                purchaseRequestChangeService.logChange(existing.getId(), existing.getGuid(), "purchaser", existingPurchaser, newPurchaser, PurchaseRequestChangeService.SOURCE_PARSING, PurchaseRequestChangeService.DISPLAY_NAME_PARSING);
                 existing.setPurchaser(newPurchaser);
                 updated = true;
-                logger.info("Updated purchaser for request {}: '{}' -> '{}'", 
+                logger.info("Updated purchaser for request {}: '{}' -> '{}'",
                     existing.getIdPurchaseRequest(), existingPurchaser, newPurchaser);
             } else {
-                logger.debug("Purchaser unchanged for request {}: '{}'", 
+                logger.debug("Purchaser unchanged for request {}: '{}'",
                     existing.getIdPurchaseRequest(), existingPurchaser);
             }
         }
-        
-        // Обновляем сложность (из alldocuments: «Сложность закупки (уровень) (Заявка на ЗП)») только если отличается
+
+        // Обновляем сложность только если отличается (один блок, убран дубликат)
         if (newData.getComplexity() != null && !newData.getComplexity().trim().isEmpty()) {
-            if (existing.getComplexity() == null || !existing.getComplexity().equals(newData.getComplexity())) {
-                existing.setComplexity(newData.getComplexity());
-                updated = true;
-                logger.debug("Updated complexity for request {}: {}", existing.getIdPurchaseRequest(), newData.getComplexity());
-            }
-        }
-        
-        // Обновляем сложность (из alldocuments: «Сложность закупки (уровень) (Заявка на ЗП)») только если отличается
-        if (newData.getComplexity() != null && !newData.getComplexity().trim().isEmpty()) {
-            if (existing.getComplexity() == null || !existing.getComplexity().equals(newData.getComplexity())) {
+            if (existing.getComplexity() == null || !existing.getComplexity().equals(newData.getComplexity().trim())) {
+                purchaseRequestChangeService.logChange(existing.getId(), existing.getGuid(), "complexity", existing.getComplexity(), newData.getComplexity().trim(), PurchaseRequestChangeService.SOURCE_PARSING, PurchaseRequestChangeService.DISPLAY_NAME_PARSING);
                 existing.setComplexity(newData.getComplexity().trim());
                 updated = true;
                 logger.debug("Updated complexity for request {}: {}", existing.getIdPurchaseRequest(), newData.getComplexity());
             }
         }
-        
+
         // Обновляем статус только если он отличается
         if (newData.getStatus() != null) {
             if (existing.getStatus() == null || !existing.getStatus().equals(newData.getStatus())) {
-                PurchaseRequestStatus oldStatus = existing.getStatus();
+                purchaseRequestChangeService.logChange(existing.getId(), existing.getGuid(), "status", existing.getStatus(), newData.getStatus(), PurchaseRequestChangeService.SOURCE_PARSING, PurchaseRequestChangeService.DISPLAY_NAME_PARSING);
                 existing.setStatus(newData.getStatus());
                 updated = true;
-                logger.info("Updated status for request {}: {} -> {}", existing.getIdPurchaseRequest(), oldStatus, newData.getStatus());
+                logger.info("Updated status for request {}: {} -> {}", existing.getIdPurchaseRequest(), existing.getStatus(), newData.getStatus());
             } else {
                 logger.debug("Status for request {} unchanged: {}", existing.getIdPurchaseRequest(), existing.getStatus());
             }
         } else {
             logger.debug("New data status is null, skipping status update for request {}", existing.getIdPurchaseRequest());
         }
-        
+
         return updated;
     }
 

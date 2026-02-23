@@ -65,7 +65,8 @@ public class PurchaseRequestService {
     private final CsiFeedbackRepository csiFeedbackRepository;
     private final PurchasePlanPurchaserSyncService purchasePlanPurchaserSyncService;
     private final PurchasePlanItemRepository purchasePlanItemRepository;
-    
+    private final PurchaseRequestChangeService purchaseRequestChangeService;
+
     @Value("${app.frontend.base-url:}")
     private String frontendBaseUrl;
 
@@ -83,7 +84,8 @@ public class PurchaseRequestService {
             PurchaseRequestStatusUpdateService statusUpdateService,
             CsiFeedbackRepository csiFeedbackRepository,
             PurchasePlanPurchaserSyncService purchasePlanPurchaserSyncService,
-            PurchasePlanItemRepository purchasePlanItemRepository) {
+            PurchasePlanItemRepository purchasePlanItemRepository,
+            PurchaseRequestChangeService purchaseRequestChangeService) {
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.approvalRepository = approvalRepository;
         this.purchaseApprovalRepository = purchaseApprovalRepository;
@@ -94,6 +96,7 @@ public class PurchaseRequestService {
         this.csiFeedbackRepository = csiFeedbackRepository;
         this.purchasePlanPurchaserSyncService = purchasePlanPurchaserSyncService;
         this.purchasePlanItemRepository = purchasePlanItemRepository;
+        this.purchaseRequestChangeService = purchaseRequestChangeService;
     }
 
     public Page<PurchaseRequestDto> findAll(
@@ -1159,11 +1162,27 @@ public class PurchaseRequestService {
 
     @Transactional
     public PurchaseRequestDto updateExcludeFromInWork(Long idPurchaseRequest, Boolean excludeFromInWork) {
+        return updateExcludeFromInWork(idPurchaseRequest, excludeFromInWork, null);
+    }
+
+    @Transactional
+    public PurchaseRequestDto updateExcludeFromInWork(Long idPurchaseRequest, Boolean excludeFromInWork, String changedByDisplayName) {
         PurchaseRequest purchaseRequest = purchaseRequestRepository.findByIdPurchaseRequest(idPurchaseRequest)
                 .orElse(null);
         if (purchaseRequest == null) {
             return null;
         }
+        String displayName = (changedByDisplayName != null && !changedByDisplayName.isBlank()) ? changedByDisplayName.trim() : "Пользователь";
+        Boolean oldValue = purchaseRequest.getExcludeFromInWork();
+        purchaseRequestChangeService.logChange(
+                purchaseRequest.getId(),
+                purchaseRequest.getGuid(),
+                "excludeFromInWork",
+                oldValue,
+                excludeFromInWork,
+                PurchaseRequestChangeService.SOURCE_USER,
+                displayName
+        );
         purchaseRequest.setExcludeFromInWork(excludeFromInWork);
         PurchaseRequest saved = purchaseRequestRepository.save(purchaseRequest);
         logger.info("Updated excludeFromInWork for purchase request {}: {}", idPurchaseRequest, excludeFromInWork);
@@ -1172,13 +1191,28 @@ public class PurchaseRequestService {
 
     @Transactional
     public PurchaseRequestDto updatePurchaser(Long idPurchaseRequest, String purchaser) {
+        return updatePurchaser(idPurchaseRequest, purchaser, null);
+    }
+
+    @Transactional
+    public PurchaseRequestDto updatePurchaser(Long idPurchaseRequest, String purchaser, String changedByDisplayName) {
         PurchaseRequest purchaseRequest = purchaseRequestRepository.findByIdPurchaseRequest(idPurchaseRequest)
                 .orElse(null);
         if (purchaseRequest == null) {
             return null;
         }
-        // Если purchaser - пустая строка или null, устанавливаем null
+        String displayName = (changedByDisplayName != null && !changedByDisplayName.isBlank()) ? changedByDisplayName.trim() : "Пользователь";
+        String oldValue = purchaseRequest.getPurchaser();
         String purchaserValue = (purchaser != null && !purchaser.trim().isEmpty()) ? purchaser.trim() : null;
+        purchaseRequestChangeService.logChange(
+                purchaseRequest.getId(),
+                purchaseRequest.getGuid(),
+                "purchaser",
+                oldValue,
+                purchaserValue,
+                PurchaseRequestChangeService.SOURCE_USER,
+                displayName
+        );
         purchaseRequest.setPurchaser(purchaserValue);
         PurchaseRequest saved = purchaseRequestRepository.save(purchaseRequest);
         logger.info("Updated purchaser for purchase request {}: {}", idPurchaseRequest, purchaserValue);
@@ -1197,6 +1231,11 @@ public class PurchaseRequestService {
      */
     @Transactional
     public PurchaseRequestDto updatePlannedSla(Long idPurchaseRequest, Integer plannedSlaDays) {
+        return updatePlannedSla(idPurchaseRequest, plannedSlaDays, null);
+    }
+
+    @Transactional
+    public PurchaseRequestDto updatePlannedSla(Long idPurchaseRequest, Integer plannedSlaDays, String changedByDisplayName) {
         PurchaseRequest purchaseRequest = purchaseRequestRepository.findByIdPurchaseRequest(idPurchaseRequest)
                 .orElse(null);
         if (purchaseRequest == null) {
@@ -1206,6 +1245,17 @@ public class PurchaseRequestService {
             logger.warn("Attempt to update planned SLA for request {} with complexity '{}' (only complexity 4 allowed)", idPurchaseRequest, purchaseRequest.getComplexity());
             return null;
         }
+        String displayName = (changedByDisplayName != null && !changedByDisplayName.isBlank()) ? changedByDisplayName.trim() : "Пользователь";
+        Integer oldValue = purchaseRequest.getPlannedSlaDays();
+        purchaseRequestChangeService.logChange(
+                purchaseRequest.getId(),
+                purchaseRequest.getGuid(),
+                "plannedSlaDays",
+                oldValue,
+                plannedSlaDays,
+                PurchaseRequestChangeService.SOURCE_USER,
+                displayName
+        );
         purchaseRequest.setPlannedSlaDays(plannedSlaDays);
         PurchaseRequest saved = purchaseRequestRepository.save(purchaseRequest);
         logger.info("Updated plannedSlaDays for purchase request {} (complexity 4): {}", idPurchaseRequest, plannedSlaDays);
