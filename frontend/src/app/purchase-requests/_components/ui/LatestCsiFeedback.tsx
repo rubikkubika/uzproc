@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useLayoutEffect, useState, useRef } from 'react';
 import { Star } from 'lucide-react';
 import { getBackendUrl, fetchDeduped } from '@/utils/api';
 
@@ -73,23 +73,29 @@ export default function LatestCsiFeedback() {
     return () => clearInterval(interval);
   }, []);
 
-  // Проверяем, какие комментарии обрезаны
-  useEffect(() => {
+  // Проверяем, какие комментарии обрезаны — после layout, чтобы scrollHeight/clientHeight были корректны
+  useLayoutEffect(() => {
+    if (feedbacks.length === 0) return;
+
     const checkTruncation = () => {
       const truncated = new Set<number>();
       commentRefs.current.forEach((element, id) => {
-        // Проверяем только не развернутые комментарии
-        if (element && !expandedComments.has(id) && element.scrollHeight > element.clientHeight) {
+        if (!element || expandedComments.has(id)) return;
+        if (element.scrollHeight > element.clientHeight) {
           truncated.add(id);
         }
       });
       setTruncatedComments(truncated);
     };
 
-    // Проверяем после рендера
-    if (feedbacks.length > 0) {
-      setTimeout(checkTruncation, 100);
-    }
+    // Двойной rAF: первый — до paint, второй — после layout
+    let rafId = 0;
+    rafId = requestAnimationFrame(() => {
+      rafId = requestAnimationFrame(checkTruncation);
+    });
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+    };
   }, [feedbacks, expandedComments]);
 
   const formatDate = (dateString: string) => {
@@ -220,30 +226,28 @@ export default function LatestCsiFeedback() {
               </div>
             </div>
 
-            {feedback.comment && (
-              <div className="mt-1">
-                <div
-                  ref={(el) => {
-                    if (el) {
-                      commentRefs.current.set(feedback.id, el);
-                    }
-                  }}
-                  className={`text-xs text-gray-700 bg-white rounded p-1 border border-gray-200 ${
-                    !isExpanded ? 'line-clamp-3' : ''
-                  }`}
-                >
-                  {feedback.comment}
-                </div>
-                {truncatedComments.has(feedback.id) && !isExpanded && (
-                  <button
-                    onClick={() => toggleCommentExpansion(feedback.id)}
-                    className="text-xs text-blue-600 hover:text-blue-800 mt-0.5"
-                  >
-                    Развернуть
-                  </button>
-                )}
+            <div className="mt-1">
+              <div
+                ref={(el) => {
+                  if (el) {
+                    commentRefs.current.set(feedback.id, el);
+                  }
+                }}
+                className={`text-xs text-gray-700 bg-white rounded p-1 border border-gray-200 ${
+                  feedback.comment && !isExpanded ? 'line-clamp-3' : ''
+                }`}
+              >
+                {feedback.comment?.trim() || 'Комментарий не оставлен'}
               </div>
-            )}
+              {feedback.comment?.trim() && (truncatedComments.has(feedback.id) || feedback.comment.length > 120) && !isExpanded && (
+                <button
+                  onClick={() => toggleCommentExpansion(feedback.id)}
+                  className="text-xs text-blue-600 hover:text-blue-800 mt-0.5"
+                >
+                  Развернуть
+                </button>
+              )}
+            </div>
 
             <div className="mt-1 flex flex-wrap gap-1.5 text-xs text-gray-500">
               <span>Скорость: {feedback.speedRating.toFixed(1)}</span>
