@@ -28,3 +28,5 @@ export function normalizePurchaserName(name: string | null | undefined): string 
   
   return normalized || 'Не назначен';
 }
+
+export { purchaserDisplayName } from '@/utils/purchaser';

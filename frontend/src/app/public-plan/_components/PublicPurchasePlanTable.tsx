@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { getBackendUrl } from '@/utils/api';
+import { purchaserDisplayName } from '@/utils/purchaser';
 import { useAuth } from '@/contexts/AuthContext';
 import { ArrowUp, ArrowDown, ArrowUpDown, Search, Settings, Download, Check, X } from 'lucide-react';
 import GanttChart from './GanttChart';
@@ -1348,7 +1349,7 @@ export default function PublicPurchasePlanTable() {
       'Дата завершения закупки': item.newContractDate 
         ? new Date(item.newContractDate).toLocaleDateString('ru-RU')
         : '',
-      'Закупщик': item.purchaser || '',
+      'Закупщик': item.purchaser ? purchaserDisplayName(item.purchaser) : '',
       'Продукция': item.product || '',
       'Статус': item.status || '',
       'Категория': item.category || '',
@@ -3171,6 +3172,13 @@ export default function PublicPurchasePlanTable() {
                           return (
                             <td key={columnKey} className={`px-2 py-1 text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('purchaseSubject')}px`, minWidth: `${getColumnWidth('purchaseSubject')}px`, maxWidth: `${getColumnWidth('purchaseSubject')}px` }}>
                               {item.purchaseSubject || '-'}
+                            </td>
+                          );
+                        }
+                        if (columnKey === 'purchaser') {
+                          return (
+                            <td key={columnKey} className={`px-2 py-1 text-xs border-r border-gray-200 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`} style={{ width: `${getColumnWidth('purchaser')}px`, minWidth: `${getColumnWidth('purchaser')}px`, maxWidth: `${getColumnWidth('purchaser')}px` }}>
+                              {purchaserDisplayName(item.purchaser) !== '—' ? purchaserDisplayName(item.purchaser) : '-'}
                             </td>
                           );
                         }

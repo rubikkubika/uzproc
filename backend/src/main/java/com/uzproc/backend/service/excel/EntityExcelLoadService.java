@@ -12,6 +12,7 @@ import com.uzproc.backend.repository.CfoRepository;
 import com.uzproc.backend.repository.contract.ContractRepository;
 import com.uzproc.backend.repository.purchase.PurchaseRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
+import com.uzproc.backend.repository.supplier.SupplierRepository;
 import com.uzproc.backend.repository.user.UserRepository;
 import com.uzproc.backend.service.excel.FileProcessingStatsService;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestChangeService;
@@ -110,6 +111,7 @@ public class EntityExcelLoadService {
     private final ContractRepository contractRepository;
     private final UserRepository userRepository;
     private final CfoRepository cfoRepository;
+    private final SupplierRepository supplierRepository;
     private final DataFormatter dataFormatter = new DataFormatter();
 
     private final FileProcessingStatsService statsService;
@@ -124,6 +126,7 @@ public class EntityExcelLoadService {
             ContractRepository contractRepository,
             UserRepository userRepository,
             CfoRepository cfoRepository,
+            SupplierRepository supplierRepository,
             FileProcessingStatsService statsService,
             PurchaseRequestStatusUpdateService statusUpdateService,
             ContractStatusUpdateService contractStatusUpdateService,
@@ -134,6 +137,7 @@ public class EntityExcelLoadService {
         this.contractRepository = contractRepository;
         this.userRepository = userRepository;
         this.cfoRepository = cfoRepository;
+        this.supplierRepository = supplierRepository;
         this.statsService = statsService;
         this.statusUpdateService = statusUpdateService;
         this.contractStatusUpdateService = contractStatusUpdateService;
@@ -281,6 +285,7 @@ public class EntityExcelLoadService {
                 contractRepository,
                 userRepository,
                 cfoRepository,
+                supplierRepository,
                 stylesTable,
                 sharedStringsTable
             );

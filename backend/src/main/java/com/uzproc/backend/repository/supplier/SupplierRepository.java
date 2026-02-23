@@ -11,4 +11,7 @@ import java.util.Optional;
 public interface SupplierRepository extends JpaRepository<Supplier, Long>, JpaSpecificationExecutor<Supplier> {
 
     Optional<Supplier> findByCode(String code);
+
+    /** Поиск первого поставщика по ИНН (для парсинга колонки "Контрагенты" в договорах). */
+    Optional<Supplier> findFirstByInn(String inn);
 }

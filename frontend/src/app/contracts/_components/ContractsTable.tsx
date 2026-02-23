@@ -462,6 +462,60 @@ export default function ContractsTable() {
                     </div>
                 </div>
               </th>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '10%' }}>
+                  <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                    <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                      <input
+                        key="filter-paymentTerms"
+                        type="text"
+                        data-filter-field="paymentTerms"
+                        value={filters.localFilters.paymentTerms ?? ''}
+                        onChange={(e) => {
+                          const newValue = e.target.value;
+                          const cursorPos = e.target.selectionStart ?? 0;
+                          filters.handleFilterChange('paymentTerms', newValue);
+                          requestAnimationFrame(() => {
+                            const input = e.target as HTMLInputElement;
+                            if (input && document.activeElement === input) {
+                              const newPos = Math.min(cursorPos, newValue.length);
+                              input.setSelectionRange(newPos, newPos);
+                            }
+                          });
+                        }}
+                        onFocus={(e) => { e.stopPropagation(); filters.setFocusedField('paymentTerms'); }}
+                        onBlur={(e) => {
+                          setTimeout(() => {
+                            const activeElement = document.activeElement as HTMLElement;
+                            if (activeElement &&
+                                activeElement !== e.target &&
+                                !activeElement.closest('input[data-filter-field]') &&
+                                !activeElement.closest('select')) {
+                              filters.setFocusedField(null);
+                            }
+                          }, 200);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => { if (e.key === 'ArrowUp' || e.key === 'ArrowDown') e.stopPropagation(); }}
+                        className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="Фильтр"
+                        style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    <div className="flex items-center gap-1 min-h-[20px]">
+                      <span className="text-xs font-medium text-gray-500 tracking-wider">Условия оплаты</span>
+                    </div>
+                </div>
+              </th>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '12%' }}>
+                  <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                    <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                      <div className="flex-1" style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0 }}></div>
+                    </div>
+                    <div className="flex items-center gap-1 min-h-[20px]">
+                      <span className="text-xs font-medium text-gray-500 tracking-wider">Поставщики</span>
+                    </div>
+                </div>
+              </th>
                 {(filters.activeTab === 'in-work' || filters.activeTab === 'signed') && (
                 <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '12%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
@@ -479,7 +533,7 @@ export default function ContractsTable() {
           <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={(filters.activeTab === 'in-work' || filters.activeTab === 'signed') ? 9 : 8} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={(filters.activeTab === 'in-work' || filters.activeTab === 'signed') ? 11 : 10} className="px-6 py-8 text-center text-gray-500">
                     Загрузка...
                   </td>
                 </tr>
@@ -531,6 +585,18 @@ export default function ContractsTable() {
                     <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-300 overflow-hidden">
                       <span className="block truncate" title={contract.state || undefined}>{contract.state || '-'}</span>
                     </td>
+                    <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden">
+                      <span className="block truncate" title={contract.paymentTerms || undefined}>{contract.paymentTerms || '-'}</span>
+                    </td>
+                    <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden">
+                      {contract.suppliers && contract.suppliers.length > 0 ? (
+                        <span className="block truncate" title={contract.suppliers.map(s => s.name && s.inn ? `${s.name} (${s.inn})` : s.name || s.inn || '').join(', ')}>
+                          {contract.suppliers.map(s => s.name && s.inn ? `${s.name} (${s.inn})` : s.name || s.inn || '').join(', ')}
+                        </span>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
                     {(filters.activeTab === 'in-work' || filters.activeTab === 'signed') && (
                     <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-300 overflow-hidden">
                       <span className="block truncate" title={contract.preparedBy || undefined}>{contract.preparedBy || '-'}</span>
@@ -540,7 +606,7 @@ export default function ContractsTable() {
                 ))
               ) : (
             <tr>
-              <td colSpan={(filters.activeTab === 'in-work' || filters.activeTab === 'signed') ? 9 : 8} className="px-6 py-8 text-center text-gray-500">
+              <td colSpan={(filters.activeTab === 'in-work' || filters.activeTab === 'signed') ? 11 : 10} className="px-6 py-8 text-center text-gray-500">
                 Нет данных для отображения
               </td>
             </tr>

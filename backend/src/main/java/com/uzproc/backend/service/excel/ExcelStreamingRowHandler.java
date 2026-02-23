@@ -8,10 +8,12 @@ import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequestStatus;
 import com.uzproc.backend.entity.purchase.PurchaseStatus;
 import com.uzproc.backend.entity.user.User;
+import com.uzproc.backend.entity.supplier.Supplier;
 import com.uzproc.backend.repository.CfoRepository;
 import com.uzproc.backend.repository.contract.ContractRepository;
 import com.uzproc.backend.repository.purchase.PurchaseRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
+import com.uzproc.backend.repository.supplier.SupplierRepository;
 import com.uzproc.backend.repository.user.UserRepository;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.xssf.eventusermodel.ReadOnlySharedStringsTable;
@@ -41,6 +43,7 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private final ContractRepository contractRepository;
     private final UserRepository userRepository;
     private final CfoRepository cfoRepository;
+    private final SupplierRepository supplierRepository;
     private final DataFormatter dataFormatter;
     
     // Кеш ЦФО для оптимизации (загружается один раз в начале)
@@ -102,6 +105,8 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private static final String STATUS_COLUMN = "Состояние";
     private static final String AMOUNT_COLUMN = "Сумма";
     private static final String CURRENCY_COLUMN = "Валюта";
+    /** Колонка графика оплаты в договоре → поле «Условия оплаты». */
+    private static final String PAYMENT_SCHEDULE_COLUMN = "График оплаты (Договор)";
     private static final String MAIN_CONTRACT_COLUMN = "Основной договор";
     private static final String SPECIFICATION_FORM = "Спецификация";
     private static final String EXPENSE_ITEM_COLUMN = "Статья бюджета (PL) (Заявка на ЗП)";
@@ -111,6 +116,8 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private static final String PLANNED_DELIVERY_END_DATE_COLUMN = "Плановая дата окончания поставки (Заявка на ЗП)";
     /** Сложность заявки из alldocuments */
     private static final String COMPLEXITY_COLUMN = "Сложность закупки (уровень) (Заявка на ЗП)";
+    /** Колонка контрагентов в договоре. Формат: "Mega Poligraf Servise Mchj (303459905)" или несколько через запятую. */
+    private static final String CONTRAGENTS_COLUMN = "Контрагенты";
     
     // Оптимизация: статические DateTimeFormatter для парсинга дат (создаются один раз)
     private static final DateTimeFormatter[] DATE_TIME_FORMATTERS = {
@@ -142,6 +149,7 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             ContractRepository contractRepository,
             UserRepository userRepository,
             CfoRepository cfoRepository,
+            SupplierRepository supplierRepository,
             StylesTable stylesTable,
             ReadOnlySharedStringsTable sharedStringsTable) {
         this.excelLoadService = excelLoadService;
@@ -150,6 +158,7 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
         this.contractRepository = contractRepository;
         this.userRepository = userRepository;
         this.cfoRepository = cfoRepository;
+        this.supplierRepository = supplierRepository;
         this.dataFormatter = new DataFormatter();
         
         // Загружаем все ЦФО в кеш один раз при создании обработчика
@@ -1301,6 +1310,20 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 logger.debug("Row {}: currencyColumnIndex is null, skipping currency field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
             }
 
+            // Условия оплаты (опционально) — парсинг из колонки "График оплаты (Договор)"
+            Integer paymentScheduleCol = columnIndices.get(PAYMENT_SCHEDULE_COLUMN);
+            if (paymentScheduleCol == null) {
+                paymentScheduleCol = findColumnIndex(PAYMENT_SCHEDULE_COLUMN);
+            }
+            if (paymentScheduleCol != null) {
+                String paymentTerms = currentRowData.get(paymentScheduleCol);
+                if (paymentTerms != null && !paymentTerms.trim().isEmpty()) {
+                    contract.setPaymentTerms(paymentTerms.trim());
+                    logger.debug("Row {}: parsed paymentTerms from 'График оплаты (Договор)' for contract {}",
+                        currentRowNum + 1, contract.getInnerId());
+                }
+            }
+
             // Подготовил (опционально) - устанавливаем связь с пользователем
             Integer preparedByCol = columnIndices.get(PREPARED_BY_COLUMN);
             if (preparedByCol == null) {
@@ -1348,6 +1371,23 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 }
             } else {
                 logger.debug("Row {}: preparedByColumnIndex is null, skipping preparedBy field", currentRowNum + 1);
+            }
+
+            // Контрагенты (поставщики). Колонка "Контрагенты". Формат: "Mega Poligraf Servise Mchj (303459905)" или несколько через запятую.
+            Integer contragentsCol = columnIndices.get(CONTRAGENTS_COLUMN);
+            if (contragentsCol == null) {
+                contragentsCol = findColumnIndex(CONTRAGENTS_COLUMN);
+            }
+            if (contragentsCol != null) {
+                String contragentsValue = currentRowData.get(contragentsCol);
+                if (contragentsValue != null && !contragentsValue.trim().isEmpty()) {
+                    Set<Supplier> suppliers = parseContragentsToSuppliers(contragentsValue.trim());
+                    if (!suppliers.isEmpty()) {
+                        contract.setSuppliers(new HashSet<>(suppliers));
+                        logger.debug("Row {}: parsed {} supplier(s) from 'Контрагенты' for contract {}",
+                            currentRowNum + 1, suppliers.size(), contract.getInnerId());
+                    }
+                }
             }
 
             // Сохраняем или обновляем (добавляем в batch)
@@ -2137,6 +2177,15 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 logger.debug("Updated currency for contract {}: {}", existing.getInnerId(), newData.getCurrency());
             }
         }
+
+        // Обновляем условия оплаты (paymentTerms)
+        if (newData.getPaymentTerms() != null && !newData.getPaymentTerms().trim().isEmpty()) {
+            if (existing.getPaymentTerms() == null || !existing.getPaymentTerms().equals(newData.getPaymentTerms())) {
+                existing.setPaymentTerms(newData.getPaymentTerms());
+                updated = true;
+                logger.debug("Updated paymentTerms for contract {}", existing.getInnerId());
+            }
+        }
         
         // Обновляем state
         if (newData.getState() != null && !newData.getState().trim().isEmpty()) {
@@ -2207,9 +2256,54 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             }
         }
 
+        // Обновляем поставщиков (контрагентов). Не вызываем existing.getSuppliers() — коллекция LAZY, даёт LazyInitializationException.
+        if (newData.getSuppliers() != null && !newData.getSuppliers().isEmpty()) {
+            existing.setSuppliers(new HashSet<>(newData.getSuppliers()));
+            updated = true;
+            logger.debug("Updated suppliers for contract {}: {} supplier(s)", existing.getInnerId(), newData.getSuppliers().size());
+        }
+
         return updated;
     }
     
+    /**
+     * Парсит колонку "Контрагенты" в набор поставщиков.
+     * Формат одной записи: "Mega Poligraf Servise Mchj (303459905)" — название и ИНН в скобках.
+     * Несколько контрагентов через запятую: "Name1 (INN1), Name2 (INN2)".
+     * Поставщик ищется по ИНН; если не найден — создаётся с code=INN, name=название, inn=INN.
+     */
+    private Set<Supplier> parseContragentsToSuppliers(String value) {
+        Set<Supplier> result = new HashSet<>();
+        if (value == null || value.trim().isEmpty()) {
+            return result;
+        }
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("(.+)\\s*\\((\\d+)\\)");
+        String[] parts = value.split("[,;]");
+        for (String part : parts) {
+            String trimmed = part.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            java.util.regex.Matcher matcher = pattern.matcher(trimmed);
+            if (matcher.matches()) {
+                String name = matcher.group(1).trim();
+                String inn = matcher.group(2).trim();
+                Supplier supplier = supplierRepository.findFirstByInn(inn)
+                    .orElseGet(() -> {
+                        Supplier s = new Supplier();
+                        s.setCode(inn);
+                        s.setInn(inn);
+                        s.setName(name);
+                        return supplierRepository.save(s);
+                    });
+                result.add(supplier);
+            } else {
+                logger.debug("Contragents: could not parse segment '{}' (expected 'Name (INN)')", trimmed);
+            }
+        }
+        return result;
+    }
+
     /**
      * Парсит номер заявки (id_purchase_request) из строки.
      * Поддерживаемые форматы:

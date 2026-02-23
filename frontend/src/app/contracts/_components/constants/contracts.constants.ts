@@ -6,4 +6,5 @@ export const TEXT_FIELDS = [
   'documentForm',
   'costType',
   'contractType',
+  'paymentTerms',
 ];

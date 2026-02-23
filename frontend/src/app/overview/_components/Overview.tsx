@@ -13,6 +13,7 @@ import { PurchasePlanMonthBlockView } from './ui/PurchasePlanMonthBlock';
 import { SlaStatusBlock } from './ui/SlaStatusBlock';
 import { SlaCombinedChart } from './ui/SlaCombinedChart';
 import { SlaAverageBlock } from './ui/SlaAverageBlock';
+import { SlaByPurchaserTable } from './ui/SlaByPurchaserTable';
 import AllCsiFeedback from './ui/AllCsiFeedback';
 
 /**
@@ -163,6 +164,12 @@ export default function Overview() {
               <SlaAverageBlock
                 year={slaYear}
                 averagePercentage={averageSlaPercentage}
+                loading={slaData.loading}
+                error={slaData.error}
+              />
+              <SlaByPurchaserTable
+                year={slaYear}
+                rows={slaData.data?.slaPercentageByPurchaser ?? []}
                 loading={slaData.loading}
                 error={slaData.error}
               />

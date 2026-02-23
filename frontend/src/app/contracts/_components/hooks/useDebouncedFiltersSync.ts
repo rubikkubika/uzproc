@@ -14,6 +14,7 @@ const TEXT_FIELDS = [
   'documentForm',
   'costType',
   'contractType',
+  'paymentTerms',
 ];
 
 export function useDebouncedFiltersSync({

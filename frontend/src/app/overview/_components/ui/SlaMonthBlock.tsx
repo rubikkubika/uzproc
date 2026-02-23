@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { purchaserDisplayName } from '@/utils/purchaser';
 import { useSlaMonthBlockData } from '../hooks/useSlaMonthBlockData';
 
 /** Сумма в сокращённом формате: тыс., млн, млрд, трлн */
@@ -12,15 +13,6 @@ function formatAmount(value: number | null): string {
   if (abs >= 1e6) return (value / 1e6).toLocaleString('ru-RU', { maximumFractionDigits: 1 }) + ' млн';
   if (abs >= 1e3) return (value / 1e3).toLocaleString('ru-RU', { maximumFractionDigits: 1 }) + ' тыс.';
   return value.toLocaleString('ru-RU', { maximumFractionDigits: 0 });
-}
-
-/** Закупщик: только имя и фамилия (без отчества и лишних частей) */
-function formatPurchaserShort(purchaser: string | null): string {
-  if (purchaser == null || purchaser.trim() === '') return '—';
-  const parts = purchaser.trim().split(/\s+/).filter(Boolean);
-  if (parts.length >= 3) return `${parts[1]} ${parts[0]}`; // Имя Фамилия
-  if (parts.length === 2) return purchaser.trim();
-  return parts[0] ?? '—';
 }
 
 /** Плановый срок SLA (дней) по сложности: 1→3, 2→7, 3→15, 4→30 */
@@ -128,7 +120,7 @@ export function SlaMonthBlock({
                       {formatAmount(row.budgetAmount)}
                     </td>
                     <td className="px-1.5 py-1 text-gray-700 border-r border-gray-200">
-                      {formatPurchaserShort(row.purchaser)}
+                      {purchaserDisplayName(row.purchaser)}
                     </td>
                     <td className="px-1.5 py-1 text-gray-700 border-r border-gray-200">
                       {row.complexity ?? '—'}
