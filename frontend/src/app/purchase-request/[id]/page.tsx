@@ -5,7 +5,7 @@ import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
 import { copyToClipboard } from '@/utils/clipboard';
 import { useAuth } from '@/contexts/AuthContext';
-import { ArrowLeft, ArrowRight, Clock, Check, X, Eye, EyeOff, Copy, Star } from 'lucide-react';
+import { ArrowLeft, Clock, Check, X, Eye, EyeOff, Copy, Star, History } from 'lucide-react';
 import Sidebar from '../../_components/Sidebar';
 
 interface PurchaseRequest {
@@ -93,8 +93,29 @@ interface CsiFeedback {
   updatedAt: string;
 }
 
+interface PurchaseRequestChangeItem {
+  id: number;
+  purchaseRequestId: number;
+  fieldName: string;
+  valueBefore: string | null;
+  valueAfter: string | null;
+  changeDate: string;
+  createdAt: string;
+  /** Источник: PARSING | USER */
+  changeSource?: string | null;
+  /** Кто изменил: "Система (парсинг)" или ФИО/email пользователя */
+  changedByDisplayName?: string | null;
+}
+
 const SIDEBAR_COLLAPSED_KEY = 'sidebarCollapsed';
 const ACTIVE_TAB_KEY = 'activeTab';
+
+/** Email из cookie user-email (запасной вариант, если контекст ещё не подгрузился) */
+function getAuthEmailFromCookie(): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(/user-email=([^;]*)/);
+  return match ? decodeURIComponent(match[1].trim()) || null : null;
+}
 
 export default function PurchaseRequestDetailPage() {
   const router = useRouter();
@@ -130,23 +151,8 @@ export default function PurchaseRequestDetailPage() {
   const [specificationApprovals, setSpecificationApprovals] = useState<Approval[]>([]);
   const [specifications, setSpecifications] = useState<Contract[]>([]);
   const [isSpecificationsExpanded, setIsSpecificationsExpanded] = useState(false);
-  const [navigationData, setNavigationData] = useState<{
-    currentIndex: number;
-    page: number;
-    pageSize: number;
-    filters: Record<string, string>;
-    localFilters: Record<string, string>;
-    cfoFilter: string[];
-    statusFilter: string[];
-    selectedYear: number | null;
-    sortField: string | null;
-    sortDirection: string | null;
-    totalElements: number;
-  } | null>(null);
-  const [filteredRequests, setFilteredRequests] = useState<PurchaseRequest[]>([]);
-  const [currentRequestIndex, setCurrentRequestIndex] = useState<number>(-1);
   // Используем глобальный контекст аутентификации
-  const { userRole } = useAuth();
+  const { userRole, userEmail } = useAuth();
   const [purchaserEditValue, setPurchaserEditValue] = useState<string>('');
   const [purchaserOriginalValue, setPurchaserOriginalValue] = useState<string>('');
   const [isSavingPurchaser, setIsSavingPurchaser] = useState(false);
@@ -161,7 +167,10 @@ export default function PurchaseRequestDetailPage() {
   const [contractExclusionModal, setContractExclusionModal] = useState<Contract | null>(null);
   const [exclusionForm, setExclusionForm] = useState<{ excludedFromStatusCalculation: boolean; exclusionComment: string }>({ excludedFromStatusCalculation: false, exclusionComment: '' });
   const [isSavingExclusion, setIsSavingExclusion] = useState(false);
-  
+  const [showChanges, setShowChanges] = useState(false);
+  const [changesList, setChangesList] = useState<PurchaseRequestChangeItem[]>([]);
+  const [changesLoading, setChangesLoading] = useState(false);
+
   // Защита от дублирующих запросов
   const abortControllerRef = useRef<AbortController | null>(null);
   const isFetchingRef = useRef<boolean>(false);
@@ -458,14 +467,6 @@ export default function PurchaseRequestDetailPage() {
             }
           }
           
-          // Обновляем индекс текущей заявки в списке для навигации
-          if (filteredRequests.length > 0) {
-            const currentId = parseInt(id || '0');
-            const index = filteredRequests.findIndex((req: PurchaseRequest) => req.id === currentId);
-            if (index !== currentRequestIndex) {
-              setCurrentRequestIndex(index);
-            }
-          }
         }
       } catch (err) {
         // Игнорируем ошибку отмены запроса
@@ -491,22 +492,6 @@ export default function PurchaseRequestDetailPage() {
     
     // Сбрасываем спецификации при изменении заявки
     setSpecifications([]);
-    
-    // Загружаем данные навигации из localStorage
-    try {
-      const savedNavData = localStorage.getItem('purchaseRequestNavigation');
-      if (savedNavData) {
-        const navData = JSON.parse(savedNavData);
-        console.log('Loading navigation data:', navData);
-        setNavigationData(navData);
-        // Загружаем список заявок с теми же фильтрами
-        fetchFilteredRequests(navData);
-      } else {
-        console.log('No navigation data found in localStorage');
-      }
-    } catch (err) {
-      console.error('Error loading navigation data:', err);
-    }
 
     // Cleanup функция для отмены запроса при размонтировании или изменении id
     return () => {
@@ -521,57 +506,6 @@ export default function PurchaseRequestDetailPage() {
       }
     };
   }, [id]);
-
-  // Обновляем индекс текущей заявки при изменении id или списка заявок
-  useEffect(() => {
-    if (filteredRequests.length > 0 && id) {
-      const currentId = parseInt(id || '0');
-      const index = filteredRequests.findIndex((req: PurchaseRequest) => req.id === currentId);
-      if (index !== currentRequestIndex) {
-        setCurrentRequestIndex(index >= 0 ? index : -1);
-      }
-    }
-  }, [id, filteredRequests, currentRequestIndex]);
-
-  // Обработка клавиш-стрелок для навигации
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Проверяем, что не в поле ввода
-      const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
-        return;
-      }
-
-      // Стрелка влево - предыдущая заявка
-      if (e.key === 'ArrowLeft') {
-        if (navigationData && filteredRequests.length > 0 && currentRequestIndex > 0) {
-          e.preventDefault();
-          const prevRequest = filteredRequests[currentRequestIndex - 1];
-          if (prevRequest) {
-            console.log('Navigating to previous request:', prevRequest.id);
-            router.push(`/purchase-request/${prevRequest.id}`);
-          }
-        }
-      }
-      
-      // Стрелка вправо - следующая заявка
-      if (e.key === 'ArrowRight') {
-        if (navigationData && filteredRequests.length > 0 && currentRequestIndex >= 0 && currentRequestIndex < filteredRequests.length - 1) {
-          e.preventDefault();
-          const nextRequest = filteredRequests[currentRequestIndex + 1];
-          if (nextRequest) {
-            console.log('Navigating to next request:', nextRequest.id);
-            router.push(`/purchase-request/${nextRequest.id}`);
-          }
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [navigationData, filteredRequests, currentRequestIndex, router]);
 
   // Функция для загрузки связанной закупки
   const fetchPurchase = async (purchaseRequestId: number) => {
@@ -646,6 +580,26 @@ export default function PurchaseRequestDetailPage() {
     }
   };
 
+  // Загрузка истории изменений заявки (только при нажатии «Показать изменения»)
+  const fetchChanges = async (requestId: number) => {
+    try {
+      setChangesLoading(true);
+      const response = await fetch(`${getBackendUrl()}/api/purchase-requests/${requestId}/changes?page=0&size=100`);
+      if (response.ok) {
+        const data = await response.json();
+        const content = data.content ?? [];
+        setChangesList(Array.isArray(content) ? content : []);
+      } else {
+        setChangesList([]);
+      }
+    } catch (err) {
+      console.error('Error fetching changes:', err);
+      setChangesList([]);
+    } finally {
+      setChangesLoading(false);
+    }
+  };
+
   // Функция для загрузки спецификаций по parentContractId
   const fetchSpecifications = async (parentContractId: number) => {
     try {
@@ -662,87 +616,6 @@ export default function PurchaseRequestDetailPage() {
     }
   };
 
-
-  // Функция для загрузки списка заявок с фильтрами для навигации
-  const fetchFilteredRequests = async (navData: typeof navigationData) => {
-    if (!navData) return;
-    
-    try {
-      const params = new URLSearchParams();
-      params.append('page', '0');
-      params.append('size', '10000'); // Загружаем много заявок для навигации
-      
-      if (navData.selectedYear !== null && navData.selectedYear !== undefined) {
-        params.append('year', String(navData.selectedYear));
-      }
-      
-      if (navData.sortField && navData.sortDirection) {
-        params.append('sortBy', navData.sortField);
-        params.append('sortDir', navData.sortDirection);
-      }
-      
-      // Добавляем текстовые фильтры
-      Object.entries(navData.filters).forEach(([key, value]) => {
-        if (value && value.trim() !== '') {
-          params.append(key, value);
-        }
-      });
-      
-      // Добавляем множественные фильтры
-      if (navData.cfoFilter && navData.cfoFilter.length > 0) {
-        navData.cfoFilter.forEach(cfo => {
-          params.append('cfo', cfo);
-        });
-      }
-      
-      if (navData.statusFilter && navData.statusFilter.length > 0) {
-        navData.statusFilter.forEach(status => {
-          params.append('status', status);
-        });
-      }
-      
-      const response = await fetch(`${getBackendUrl()}/api/purchase-requests?${params.toString()}`);
-      if (response.ok) {
-        const data = await response.json();
-        const requests = data.content || [];
-        setFilteredRequests(requests);
-        
-        // Находим текущую заявку в списке
-        const currentId = parseInt(id || '0');
-        const index = requests.findIndex((req: PurchaseRequest) => req.id === currentId);
-        setCurrentRequestIndex(index >= 0 ? index : -1);
-        
-        console.log('Filtered requests loaded:', {
-          total: requests.length,
-          currentId,
-          currentIndex: index
-        });
-      }
-    } catch (err) {
-      console.error('Error fetching filtered requests:', err);
-      setFilteredRequests([]);
-    }
-  };
-
-  // Функция для перехода к следующей заявке
-  const goToNext = () => {
-    if (currentRequestIndex >= 0 && currentRequestIndex < filteredRequests.length - 1) {
-      const nextRequest = filteredRequests[currentRequestIndex + 1];
-      if (nextRequest) {
-        router.push(`/purchase-request/${nextRequest.id}`);
-      }
-    }
-  };
-
-  // Функция для перехода к предыдущей заявке
-  const goToPrevious = () => {
-    if (currentRequestIndex > 0) {
-      const prevRequest = filteredRequests[currentRequestIndex - 1];
-      if (prevRequest) {
-        router.push(`/purchase-request/${prevRequest.id}`);
-      }
-    }
-  };
 
   // Функция для сохранения закупщика
   const handleSavePurchaser = async () => {
@@ -766,6 +639,7 @@ export default function PurchaseRequestDetailPage() {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
+          ...((userEmail ?? getAuthEmailFromCookie()) ? { 'X-User-Name': (userEmail ?? getAuthEmailFromCookie())! } : {}),
         },
         body: JSON.stringify({ purchaser: newValue }),
       });
@@ -1186,37 +1060,6 @@ export default function PurchaseRequestDetailPage() {
                   <ArrowLeft className="w-3.5 h-3.5" />
                   <span>Назад к списку</span>
                 </button>
-                
-                {/* Кнопки навигации */}
-                {navigationData ? (
-                  filteredRequests.length > 0 && currentRequestIndex >= 0 ? (
-                    <div className="flex items-center gap-1 border-l border-gray-300 pl-2">
-                      <button
-                        onClick={goToPrevious}
-                        disabled={currentRequestIndex <= 0}
-                        className="flex items-center justify-center w-7 h-7 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Предыдущая заявка (←)"
-                      >
-                        <ArrowLeft className="w-3.5 h-3.5" />
-                      </button>
-                      <span className="text-xs text-gray-500 px-1 min-w-[60px] text-center">
-                        {currentRequestIndex + 1} / {filteredRequests.length}
-                      </span>
-                      <button
-                        onClick={goToNext}
-                        disabled={currentRequestIndex >= filteredRequests.length - 1}
-                        className="flex items-center justify-center w-7 h-7 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Следующая заявка (→)"
-                      >
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1 border-l border-gray-300 pl-2 text-xs text-gray-400">
-                      Загрузка...
-                    </div>
-                  )
-                ) : null}
               </div>
 
               {/* Трекер статусов и даты */}
@@ -1303,6 +1146,22 @@ export default function PurchaseRequestDetailPage() {
                 <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Заявка на закупку</h2>
                 {purchaseRequest && (
                   <div className="flex items-center gap-1">
+                    {/* Кнопка «Показать изменения» — запрос к бэку только при нажатии */}
+                    <button
+                      onClick={() => {
+                        if (showChanges) {
+                          setShowChanges(false);
+                        } else {
+                          setShowChanges(true);
+                          fetchChanges(purchaseRequest.id);
+                        }
+                      }}
+                      className={`flex items-center justify-center rounded p-1 transition-colors hover:bg-gray-200 cursor-pointer ${showChanges ? 'bg-gray-200' : ''}`}
+                      title={showChanges ? 'Скрыть изменения и вернуться к заявке' : 'Показать изменения'}
+                    >
+                      <History className="w-4 h-4 text-gray-600" />
+                      <span className="ml-1 text-xs text-gray-700 hidden sm:inline">{showChanges ? 'Скрыть изменения' : 'Показать изменения'}</span>
+                    </button>
                     {/* Кнопка CSI - копирование ссылки */}
                     {purchaseRequest.csiLink && (
                       <button
@@ -1338,6 +1197,7 @@ export default function PurchaseRequestDetailPage() {
                           headers: {
                             'Content-Type': 'application/json',
                             'X-User-Role': userRole || 'user',
+                            ...((userEmail ?? getAuthEmailFromCookie()) ? { 'X-User-Name': (userEmail ?? getAuthEmailFromCookie())! } : {}),
                           },
                           body: JSON.stringify({ excludeFromInWork: newValue }),
                         });
@@ -1371,6 +1231,44 @@ export default function PurchaseRequestDetailPage() {
                 )}
               </div>
               <div className="p-2">
+                {showChanges ? (
+                  /* Список изменений (запрос к бэку только при первом нажатии «Показать изменения») */
+                  <div className="space-y-2">
+                    {changesLoading ? (
+                      <p className="text-xs text-gray-500">Загрузка изменений...</p>
+                    ) : changesList.length === 0 ? (
+                      <p className="text-xs text-gray-500">Нет записей об изменениях.</p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-gray-50 border-b border-gray-200">
+                              <th className="text-left py-1.5 px-2 font-medium text-gray-600">Дата</th>
+                              <th className="text-left py-1.5 px-2 font-medium text-gray-600">Поле</th>
+                              <th className="text-left py-1.5 px-2 font-medium text-gray-600">Было</th>
+                              <th className="text-left py-1.5 px-2 font-medium text-gray-600">Стало</th>
+                              <th className="text-left py-1.5 px-2 font-medium text-gray-600">Кто изменил</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {changesList.map((ch) => (
+                              <tr key={ch.id} className="border-b border-gray-100">
+                                <td className="py-1.5 px-2 text-gray-900 whitespace-nowrap">
+                                  {ch.changeDate ? new Date(ch.changeDate).toLocaleString('ru-RU') : '-'}
+                                </td>
+                                <td className="py-1.5 px-2 text-gray-900">{ch.fieldName}</td>
+                                <td className="py-1.5 px-2 text-gray-700 max-w-[200px] truncate" title={ch.valueBefore ?? ''}>{ch.valueBefore ?? '—'}</td>
+                                <td className="py-1.5 px-2 text-gray-700 max-w-[200px] truncate" title={ch.valueAfter ?? ''}>{ch.valueAfter ?? '—'}</td>
+                                <td className="py-1.5 px-2 text-gray-700">{ch.changedByDisplayName ?? (ch.changeSource === 'PARSING' ? 'Система (парсинг)' : '—')}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                <>
                 <div className="flex flex-col lg:flex-row gap-4 items-start">
                   {/* Левая часть с полями заявки */}
                   <div className="flex-1">
@@ -1525,6 +1423,7 @@ export default function PurchaseRequestDetailPage() {
                                     method: 'PATCH',
                                     headers: {
                                       'Content-Type': 'application/json',
+                                      ...((userEmail ?? getAuthEmailFromCookie()) ? { 'X-User-Name': (userEmail ?? getAuthEmailFromCookie())! } : {}),
                                     },
                                     body: JSON.stringify({ purchaser: selectedValue || null }),
                                   });
@@ -1605,6 +1504,7 @@ export default function PurchaseRequestDetailPage() {
                                       method: 'PATCH',
                                       headers: {
                                         'Content-Type': 'application/json',
+                                        ...((userEmail ?? getAuthEmailFromCookie()) ? { 'X-User-Name': (userEmail ?? getAuthEmailFromCookie())! } : {}),
                                       },
                                       body: JSON.stringify({ purchaser: selectedValue || null }),
                                     });
@@ -2025,6 +1925,9 @@ export default function PurchaseRequestDetailPage() {
                     </div>
                   </div>
                 </div>
+                </>
+                )
+              }
               </div>
             </div>
 

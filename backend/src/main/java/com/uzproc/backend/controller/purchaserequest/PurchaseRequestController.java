@@ -1,14 +1,18 @@
 package com.uzproc.backend.controller.purchaserequest;
 
+import com.uzproc.backend.dto.purchaserequest.PurchaseRequestChangeDto;
 import com.uzproc.backend.dto.purchaserequest.PurchaseRequestCommentDto;
 import com.uzproc.backend.dto.purchaserequest.PurchaseRequestDto;
 import com.uzproc.backend.dto.purchaserequest.PurchaseRequestUniqueValuesDto;
 import com.uzproc.backend.dto.purchaserequest.PurchaserStatsDto;
 import com.uzproc.backend.dto.purchaserequest.PurchaserSummaryItemDto;
+import com.uzproc.backend.service.purchaserequest.PurchaseRequestChangeService;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequestCommentType;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestCommentService;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestService;
 import com.uzproc.backend.service.excel.EntityExcelLoadService;
+import com.uzproc.backend.service.user.UserService;
+import com.uzproc.backend.entity.user.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -28,14 +32,43 @@ public class PurchaseRequestController {
     private final PurchaseRequestService purchaseRequestService;
     private final EntityExcelLoadService excelLoadService;
     private final PurchaseRequestCommentService purchaseRequestCommentService;
+    private final PurchaseRequestChangeService purchaseRequestChangeService;
+    private final UserService userService;
 
     public PurchaseRequestController(
             PurchaseRequestService purchaseRequestService,
             EntityExcelLoadService excelLoadService,
-            PurchaseRequestCommentService purchaseRequestCommentService) {
+            PurchaseRequestCommentService purchaseRequestCommentService,
+            PurchaseRequestChangeService purchaseRequestChangeService,
+            UserService userService) {
         this.purchaseRequestService = purchaseRequestService;
         this.excelLoadService = excelLoadService;
         this.purchaseRequestCommentService = purchaseRequestCommentService;
+        this.purchaseRequestChangeService = purchaseRequestChangeService;
+        this.userService = userService;
+    }
+
+    /** По заголовку X-User-Name (email) возвращает отображаемое имя: "Фамилия Имя", username или "Администратор" для входа admin. */
+    private String resolveUserDisplayName(String xUserName) {
+        if (xUserName == null || xUserName.isBlank()) {
+            return null;
+        }
+        String trimmed = xUserName.trim();
+        User user = userService.findByEmail(trimmed);
+        if (user != null) {
+            if (user.getSurname() != null && user.getName() != null) {
+                String full = (user.getSurname() + " " + user.getName()).trim();
+                if (!full.isEmpty()) {
+                    return full;
+                }
+            }
+            return user.getUsername() != null ? user.getUsername() : trimmed;
+        }
+        // Вход admin/2025 не создаёт запись в БД — для него в заголовке приходит "admin"
+        if ("admin".equalsIgnoreCase(trimmed)) {
+            return "Администратор";
+        }
+        return trimmed;
     }
 
     /**
@@ -221,6 +254,16 @@ public class PurchaseRequestController {
         return ResponseEntity.notFound().build();
     }
 
+    /** История изменений полей заявки (по entity id). Запрос к бэку только при нажатии «Показать изменения». */
+    @GetMapping("/{id}/changes")
+    public ResponseEntity<Page<PurchaseRequestChangeDto>> getChanges(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        Page<PurchaseRequestChangeDto> changes = purchaseRequestChangeService.getChangesByPurchaseRequestIdPaginated(id, page, size);
+        return ResponseEntity.ok(changes);
+    }
+
     @GetMapping("/by-id-purchase-request/{idPurchaseRequest}/comments")
     public ResponseEntity<List<PurchaseRequestCommentDto>> getPurchaseRequestCommentsByIdPurchaseRequest(
             @PathVariable Long idPurchaseRequest,
@@ -268,7 +311,8 @@ public class PurchaseRequestController {
     public ResponseEntity<?> updateExcludeFromInWork(
             @PathVariable Long idPurchaseRequest,
             @RequestBody Map<String, Boolean> requestBody,
-            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+            @RequestHeader(value = "X-User-Role", required = false) String userRole,
+            @RequestHeader(value = "X-User-Name", required = false) String userName) {
         try {
             // Проверяем, что пользователь является администратором
             if (userRole == null || !"admin".equalsIgnoreCase(userRole.trim())) {
@@ -287,7 +331,8 @@ public class PurchaseRequestController {
                 ));
             }
             
-            PurchaseRequestDto updated = purchaseRequestService.updateExcludeFromInWork(idPurchaseRequest, excludeFromInWork);
+            String displayName = resolveUserDisplayName(userName);
+            PurchaseRequestDto updated = purchaseRequestService.updateExcludeFromInWork(idPurchaseRequest, excludeFromInWork, displayName);
             if (updated != null) {
                 return ResponseEntity.ok(updated);
             }
@@ -304,12 +349,14 @@ public class PurchaseRequestController {
     @PatchMapping("/{idPurchaseRequest}/purchaser")
     public ResponseEntity<?> updatePurchaser(
             @PathVariable Long idPurchaseRequest,
-            @RequestBody Map<String, String> requestBody) {
+            @RequestBody Map<String, String> requestBody,
+            @RequestHeader(value = "X-User-Name", required = false) String userName) {
         try {
             String purchaser = requestBody.get("purchaser");
             // purchaser может быть null или пустой строкой (для очистки поля)
             
-            PurchaseRequestDto updated = purchaseRequestService.updatePurchaser(idPurchaseRequest, purchaser);
+            String displayName = resolveUserDisplayName(userName);
+            PurchaseRequestDto updated = purchaseRequestService.updatePurchaser(idPurchaseRequest, purchaser, displayName);
             if (updated != null) {
                 return ResponseEntity.ok(updated);
             }
@@ -327,7 +374,8 @@ public class PurchaseRequestController {
     @PatchMapping("/{idPurchaseRequest}/planned-sla")
     public ResponseEntity<?> updatePlannedSla(
             @PathVariable Long idPurchaseRequest,
-            @RequestBody Map<String, Integer> requestBody) {
+            @RequestBody Map<String, Integer> requestBody,
+            @RequestHeader(value = "X-User-Name", required = false) String userName) {
         try {
             Integer plannedSlaDays = requestBody != null ? requestBody.get("plannedSlaDays") : null;
             if (plannedSlaDays == null || plannedSlaDays < 0) {
@@ -336,7 +384,8 @@ public class PurchaseRequestController {
                     "message", "plannedSlaDays обязателен и должен быть неотрицательным"
                 ));
             }
-            PurchaseRequestDto updated = purchaseRequestService.updatePlannedSla(idPurchaseRequest, plannedSlaDays);
+            String displayName = resolveUserDisplayName(userName);
+            PurchaseRequestDto updated = purchaseRequestService.updatePlannedSla(idPurchaseRequest, plannedSlaDays, displayName);
             if (updated != null) {
                 return ResponseEntity.ok(updated);
             }

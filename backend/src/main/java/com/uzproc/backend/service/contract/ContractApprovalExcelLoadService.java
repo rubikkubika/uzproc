@@ -107,37 +107,34 @@ public class ContractApprovalExcelLoadService {
             int headerRowIndex = -1;
             Map<String, Integer> columnIndexMap = null;
 
-            // Сначала ищем строку, где есть "Документ.Внутренний номер" (заголовок с нужной колонкой).
-            // Иначе может выбраться строка только с "Вид документа", и колонка не найдётся.
-            for (int i = 0; i < Math.min(15, sheet.getLastRowNum() + 1); i++) {
+            // Обязательные колонки заголовка: строка считается заголовком, если в ней есть все эти колонки.
+            // Поиск в диапазоне первых строк (заголовки могут сдвигаться).
+            final String[] requiredHeaderColumns = { INNER_ID_COLUMN, DOCUMENT_TYPE_COLUMN, STAGE_COLUMN, ROLE_COLUMN };
+            final int headerSearchRows = 20;
+
+            for (int i = 0; i < Math.min(headerSearchRows, sheet.getLastRowNum() + 1); i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
                 Map<String, Integer> tempMap = buildColumnIndexMap(row);
-                Integer innerIdIdx = findColumnIndex(tempMap, INNER_ID_COLUMN);
-                if (innerIdIdx != null) {
+                boolean allRequired = true;
+                for (String col : requiredHeaderColumns) {
+                    if (findColumnIndex(tempMap, col) == null) {
+                        allRequired = false;
+                        break;
+                    }
+                }
+                if (allRequired) {
                     headerRow = row;
                     headerRowIndex = i;
                     columnIndexMap = tempMap;
+                    logger.debug("Contract approvals: header row found at 0-based index {} (row {} in Excel)", i, i + 1);
                     break;
-                }
-            }
-            if (columnIndexMap == null) {
-                for (int i = 0; i < Math.min(15, sheet.getLastRowNum() + 1); i++) {
-                    Row row = sheet.getRow(i);
-                    if (row == null) continue;
-                    Map<String, Integer> tempMap = buildColumnIndexMap(row);
-                    Integer docTypeIdx = findColumnIndex(tempMap, DOCUMENT_TYPE_COLUMN);
-                    if (docTypeIdx != null) {
-                        headerRow = row;
-                        headerRowIndex = i;
-                        columnIndexMap = tempMap;
-                        break;
-                    }
                 }
             }
 
             if (columnIndexMap == null) {
-                logger.warn("Contract approvals: header row not found in file {} (checked first 15 rows)", excelFile.getName());
+                logger.warn("Contract approvals: header row not found in file {} (checked first {} rows, required columns: {})",
+                        excelFile.getName(), headerSearchRows, Arrays.toString(requiredHeaderColumns));
                 return 0;
             }
 

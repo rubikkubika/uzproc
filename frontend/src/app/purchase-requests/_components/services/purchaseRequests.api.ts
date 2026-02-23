@@ -265,6 +265,12 @@ export async function fetchCommentCounts(
   return result;
 }
 
+function getAuthEmailFromCookie(): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(/user-email=([^;]*)/);
+  return match ? decodeURIComponent(match[1].trim()) || null : null;
+}
+
 /**
  * Обновляет плановый СЛА для заявки (только для сложности 4).
  * @param idPurchaseRequest бизнес-ID заявки (idPurchaseRequest)
@@ -275,9 +281,13 @@ export async function updatePlannedSla(
   plannedSlaDays: number
 ): Promise<PurchaseRequest> {
   const url = `${getBackendUrl()}/api/purchase-requests/${idPurchaseRequest}/planned-sla`;
+  const userName = getAuthEmailFromCookie();
   const response = await fetch(url, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(userName ? { 'X-User-Name': userName } : {}),
+    },
     body: JSON.stringify({ plannedSlaDays }),
   });
   if (!response.ok) {
