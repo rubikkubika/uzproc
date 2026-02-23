@@ -169,13 +169,13 @@ export function useTableColumns() {
       requiresPurchase: 96,
       status: 150,
       purchaseRequestCreationDate: 128,
-      comments: 100,
-      complexity: 96,
+      comments: 40, // иконка чата + отступы
+      complexity: 160, // сложность в квадрате + плановый СЛА N дн.
       costType: 128,
       contractType: 128,
       contractDurationMonths: 128,
       track: 120,
-      rating: 96,
+      rating: 88, // звёзды + число/кнопка + отступы
       guid: 192,
       purchaseRequestPlanYear: 96,
       company: 128,

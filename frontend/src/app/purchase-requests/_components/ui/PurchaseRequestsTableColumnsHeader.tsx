@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowUp, ArrowDown, ArrowUpDown, Eye, Search, HelpCircle, Check, Clock } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpDown, Eye, Search, HelpCircle, Check, Clock, MessageCircle, Star } from 'lucide-react';
 import { SortField, SortDirection, TabType } from '../types/purchase-request.types';
 import SortableHeader from './SortableHeader';
 import CfoFilterDropdown from '../filters/CfoFilterDropdown';
@@ -178,7 +178,7 @@ export default function PurchaseRequestsTableColumnsHeader({
   }, [showTrackTip]);
 
   return (
-    <thead className="bg-gray-50 sticky top-[44px] z-20">
+    <thead className="bg-gray-50 sticky top-[88px] z-20 [&_th]:pt-2">
       <tr>
         {filteredColumnOrder.map(columnKey => {
           const isDragging = draggedColumn === columnKey;
@@ -458,7 +458,9 @@ export default function PurchaseRequestsTableColumnsHeader({
               >
                 <div className="flex flex-col gap-0.5">
                   <div className="h-[20px] flex items-center flex-shrink-0" style={{ minHeight: '20px', maxHeight: '20px' }}></div>
-                  <span className="normal-case min-h-[16px] flex items-center">Комментарии</span>
+                  <span className="min-h-[16px] flex items-center justify-center" title="Комментарии">
+                    <MessageCircle className="w-4 h-4 text-gray-500" aria-hidden />
+                  </span>
                 </div>
                 <div
                   className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
@@ -965,11 +967,13 @@ export default function PurchaseRequestsTableColumnsHeader({
               <th
                 key={columnKey}
                 className="px-2 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300"
-                style={{ verticalAlign: 'top' }}
+                style={{ width: `${getColumnWidth('rating')}px`, minWidth: `${getColumnWidth('rating')}px`, maxWidth: `${getColumnWidth('rating')}px`, verticalAlign: 'top' }}
               >
                 <div className="flex flex-col gap-0.5">
                   <div className="h-[20px] flex items-center flex-shrink-0" style={{ minHeight: '20px', maxHeight: '20px' }}></div>
-                  <span className="normal-case min-h-[16px] flex items-center">Оценка</span>
+                  <span className="min-h-[16px] flex items-center justify-center" title="Оценка">
+                    <Star className="w-4 h-4 text-gray-500" aria-hidden />
+                  </span>
                 </div>
               </th>
             );

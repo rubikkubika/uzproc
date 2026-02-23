@@ -49,6 +49,10 @@ export function usePurchaseRequestsModals() {
   const [isCommentsModalOpen, setIsCommentsModalOpen] = useState(false);
   const [selectedRequestForComments, setSelectedRequestForComments] = useState<PurchaseRequest | null>(null);
 
+  // Модальное окно планового СЛА (только для сложности 4)
+  const [isPlannedSlaModalOpen, setIsPlannedSlaModalOpen] = useState(false);
+  const [selectedRequestForPlannedSla, setSelectedRequestForPlannedSla] = useState<PurchaseRequest | null>(null);
+
   return {
     // Rating Modal
     isRatingModalOpen,
@@ -98,5 +102,11 @@ export function usePurchaseRequestsModals() {
     setIsCommentsModalOpen,
     selectedRequestForComments,
     setSelectedRequestForComments,
+
+    // Planned SLA Modal
+    isPlannedSlaModalOpen,
+    setIsPlannedSlaModalOpen,
+    selectedRequestForPlannedSla,
+    setSelectedRequestForPlannedSla,
   };
 }

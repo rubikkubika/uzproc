@@ -1,5 +1,5 @@
 import { getBackendUrl, fetchDeduped } from '@/utils/api';
-import type { PageResponse } from '../types/purchase-request.types';
+import type { PageResponse, PurchaseRequest } from '../types/purchase-request.types';
 
 /**
  * API сервис для работы с заявками на закупку
@@ -263,4 +263,27 @@ export async function fetchCommentCounts(
     }
   });
   return result;
+}
+
+/**
+ * Обновляет плановый СЛА для заявки (только для сложности 4).
+ * @param idPurchaseRequest бизнес-ID заявки (idPurchaseRequest)
+ * @param plannedSlaDays плановый СЛА в рабочих днях
+ */
+export async function updatePlannedSla(
+  idPurchaseRequest: number,
+  plannedSlaDays: number
+): Promise<PurchaseRequest> {
+  const url = `${getBackendUrl()}/api/purchase-requests/${idPurchaseRequest}/planned-sla`;
+  const response = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ plannedSlaDays }),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const msg = (data as { message?: string }).message ?? response.statusText;
+    throw new Error(msg);
+  }
+  return response.json();
 }

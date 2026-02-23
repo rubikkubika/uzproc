@@ -112,7 +112,8 @@ public class OverviewService {
                 if (assignment == null || completion == null) continue;
                 if (assignment.getYear() != year || assignment.getMonthValue() != month) continue;
                 totalCompleted++;
-                Integer planned = getPlannedSlaDays(r.getComplexity());
+                Integer planned = r.getPlannedSlaDays();
+                if (planned == null) planned = getPlannedSlaDays(r.getComplexity());
                 if (planned == null) continue;
                 long factual = countWorkingDaysBetween(assignment, completion);
                 if (factual <= planned) metSla++;
@@ -193,6 +194,7 @@ public class OverviewService {
         r.setBudgetAmount(dto.getBudgetAmount());
         r.setPurchaser(dto.getPurchaser());
         r.setComplexity(dto.getComplexity());
+        r.setPlannedSlaDays(dto.getPlannedSlaDays());
         r.setStatus(dto.getStatus() != null ? dto.getStatus().getDisplayName() : null);
         r.setApprovalAssignmentDate(dto.getApprovalAssignmentDate() != null
                 ? dto.getApprovalAssignmentDate().format(ISO_FORMAT) : null);

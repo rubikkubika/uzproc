@@ -23,6 +23,8 @@ interface PurchaseRequestsTableRowProps {
   // Комментарии: количество и открытие модалки
   commentCount?: number;
   onCommentsClick?: (request: PurchaseRequest) => void;
+  // Плановый СЛА (только для сложности 4): открытие модалки редактирования
+  onPlannedSlaClick?: (request: PurchaseRequest) => void;
 }
 
 /**
@@ -45,6 +47,7 @@ export default function PurchaseRequestsTableRow({
   onSentInvitationClick,
   commentCount = 0,
   onCommentsClick,
+  onPlannedSlaClick,
 }: PurchaseRequestsTableRowProps) {
   const handleToggleExclude = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -381,14 +384,41 @@ export default function PurchaseRequestsTableRow({
         }
 
         if (columnKey === 'complexity') {
+          const planned = request.plannedSlaDays;
+          const isComplexity4 = request.complexity === '4';
           return (
             <td
               key={columnKey}
               className="px-2 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
               style={{ width: `${getColumnWidth('complexity')}px`, minWidth: `${getColumnWidth('complexity')}px`, maxWidth: `${getColumnWidth('complexity')}px` }}
               title={request.complexity ?? ''}
+              onClick={(e) => e.stopPropagation()}
             >
-              {request.complexity ?? '-'}
+              <span className="inline-flex items-center gap-1">
+                <span>{request.complexity ?? '-'}</span>
+                {planned != null && (
+                  isComplexity4 ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onPlannedSlaClick?.(request);
+                      }}
+                      className="inline-flex items-center justify-center min-w-[1.25rem] px-1 py-0.5 rounded bg-gray-200 text-gray-800 font-medium tabular-nums hover:bg-gray-300 cursor-pointer"
+                      title="Изменить плановый СЛА (только для сложности 4)"
+                    >
+                      {planned}
+                    </button>
+                  ) : (
+                    <span
+                      className="inline-flex items-center justify-center min-w-[1.25rem] px-1 py-0.5 rounded bg-gray-200 text-gray-800 font-medium tabular-nums"
+                      title="Плановый СЛА (рабочих дней)"
+                    >
+                      {planned}
+                    </span>
+                  )
+                )}
+              </span>
             </td>
           );
         }

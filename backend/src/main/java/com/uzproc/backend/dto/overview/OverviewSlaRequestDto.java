@@ -12,6 +12,8 @@ public class OverviewSlaRequestDto {
     private BigDecimal budgetAmount;
     private String purchaser;
     private String complexity;
+    /** Плановый СЛА (рабочих дней) по сложности. */
+    private Integer plannedSlaDays;
     private String status;
     private String approvalAssignmentDate;
     private String purchaseCompletionDate;
@@ -63,6 +65,14 @@ public class OverviewSlaRequestDto {
 
     public void setComplexity(String complexity) {
         this.complexity = complexity;
+    }
+
+    public Integer getPlannedSlaDays() {
+        return plannedSlaDays;
+    }
+
+    public void setPlannedSlaDays(Integer plannedSlaDays) {
+        this.plannedSlaDays = plannedSlaDays;
     }
 
     public String getStatus() {

@@ -99,6 +99,10 @@ public class PurchaseRequest {
     @Column(name = "complexity", length = 255)
     private String complexity;
 
+    /** Плановый СЛА (рабочих дней) по сложности: 1→3, 2→7, 3→15, 4→30. Обновляется при обновлении заявки. */
+    @Column(name = "planned_sla_days")
+    private Integer plannedSlaDays;
+
     @Column(name = "is_strategic_product")
     private Boolean isStrategicProduct;
 
@@ -369,7 +373,29 @@ public class PurchaseRequest {
     }
 
     public void setComplexity(String complexity) {
+        if (java.util.Objects.equals(this.complexity, complexity)) return;
         this.complexity = complexity;
+        this.plannedSlaDays = plannedSlaDaysFromComplexity(complexity);
+    }
+
+    /** Плановый срок SLA (рабочих дней) по сложности: 1→3, 2→7, 3→15, 4→30. */
+    private static Integer plannedSlaDaysFromComplexity(String complexity) {
+        if (complexity == null || complexity.trim().isEmpty()) return null;
+        return switch (complexity.trim()) {
+            case "1" -> 3;
+            case "2" -> 7;
+            case "3" -> 15;
+            case "4" -> 30;
+            default -> null;
+        };
+    }
+
+    public Integer getPlannedSlaDays() {
+        return plannedSlaDays;
+    }
+
+    public void setPlannedSlaDays(Integer plannedSlaDays) {
+        this.plannedSlaDays = plannedSlaDays;
     }
 
     public Boolean getIsStrategicProduct() {
