@@ -21,6 +21,8 @@ interface PurchaseRequestsTableBodyProps {
   // Комментарии: количество по id заявки и открытие модалки
   commentCounts?: Record<number, number>;
   onCommentsClick?: (request: PurchaseRequest) => void;
+  // Плановый СЛА (сложность 4): открытие модалки
+  onPlannedSlaClick?: (request: PurchaseRequest) => void;
 }
 
 /**
@@ -42,6 +44,7 @@ export default function PurchaseRequestsTableBody({
   onSentInvitationClick,
   commentCounts = {},
   onCommentsClick,
+  onPlannedSlaClick,
 }: PurchaseRequestsTableBodyProps) {
   const hasData = allItems && allItems.length > 0;
 
@@ -66,6 +69,7 @@ export default function PurchaseRequestsTableBody({
             onSentInvitationClick={onSentInvitationClick}
             commentCount={commentCounts[request.id] ?? 0}
             onCommentsClick={onCommentsClick}
+            onPlannedSlaClick={onPlannedSlaClick}
           />
         ))
       ) : (

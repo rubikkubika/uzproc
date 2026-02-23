@@ -15,6 +15,7 @@ import RatingEmailModal from './ui/modals/RatingEmailModal';
 import FeedbackDetailsModal from './ui/modals/FeedbackDetailsModal';
 import SentInvitationModal from './ui/modals/SentInvitationModal';
 import CommentsModal from './ui/modals/CommentsModal';
+import PlannedSlaModal from './ui/modals/PlannedSlaModal';
 import { fetchCommentCounts } from './services/purchaseRequests.api';
 import type { Contract, PurchaseRequest, PageResponse, SortField, SortDirection, TabType, RequestKindTab } from './types/purchase-request.types';
 import { ALL_COLUMNS, DEFAULT_VISIBLE_COLUMNS, COLUMNS_VISIBILITY_STORAGE_KEY } from './constants/columns.constants';
@@ -150,6 +151,8 @@ export default function PurchaseRequestsTable() {
     loadingFeedbackDetails, setLoadingFeedbackDetails,
     isCommentsModalOpen, setIsCommentsModalOpen,
     selectedRequestForComments, setSelectedRequestForComments,
+    isPlannedSlaModalOpen, setIsPlannedSlaModalOpen,
+    selectedRequestForPlannedSla, setSelectedRequestForPlannedSla,
   } = modalsHook;
 
   // Количество комментариев по id заявки (для колонки «Комментарии»)
@@ -1068,6 +1071,10 @@ export default function PurchaseRequestsTable() {
               setSelectedRequestForComments(request);
               setIsCommentsModalOpen(true);
             }}
+            onPlannedSlaClick={(request) => {
+              setSelectedRequestForPlannedSla(request);
+              setIsPlannedSlaModalOpen(true);
+            }}
           />
         </table>
 
@@ -1143,6 +1150,21 @@ export default function PurchaseRequestsTable() {
               setCommentCounts((prev) => ({ ...prev, ...m }))
             );
           }
+        }}
+      />
+
+      {/* Модальное окно планового СЛА (только для сложности 4) */}
+      <PlannedSlaModal
+        isOpen={isPlannedSlaModalOpen}
+        request={selectedRequestForPlannedSla}
+        onClose={() => {
+          setIsPlannedSlaModalOpen(false);
+          setSelectedRequestForPlannedSla(null);
+        }}
+        onSaved={(updated) => {
+          setAllItems((prev) =>
+            prev.map((r) => (r.id === updated.id ? { ...r, ...updated } : r))
+          );
         }}
       />
     </div>

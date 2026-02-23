@@ -323,6 +323,36 @@ public class PurchaseRequestController {
         }
     }
 
+    /** Обновление планового СЛА (только для сложности 4). */
+    @PatchMapping("/{idPurchaseRequest}/planned-sla")
+    public ResponseEntity<?> updatePlannedSla(
+            @PathVariable Long idPurchaseRequest,
+            @RequestBody Map<String, Integer> requestBody) {
+        try {
+            Integer plannedSlaDays = requestBody != null ? requestBody.get("plannedSlaDays") : null;
+            if (plannedSlaDays == null || plannedSlaDays < 0) {
+                return ResponseEntity.badRequest().body(Map.of(
+                    "success", false,
+                    "message", "plannedSlaDays обязателен и должен быть неотрицательным"
+                ));
+            }
+            PurchaseRequestDto updated = purchaseRequestService.updatePlannedSla(idPurchaseRequest, plannedSlaDays);
+            if (updated != null) {
+                return ResponseEntity.ok(updated);
+            }
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                "success", false,
+                "message", "Изменить плановый СЛА можно только для заявок со сложностью 4"
+            ));
+        } catch (Exception e) {
+            logger.error("Error updating planned SLA for purchase request {}", idPurchaseRequest, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                "success", false,
+                "message", "Ошибка сервера: " + e.getMessage()
+            ));
+        }
+    }
+
     @PostMapping("/update-status/{idPurchaseRequest}")
     public ResponseEntity<Map<String, Object>> updateStatus(@PathVariable Long idPurchaseRequest) {
         try {

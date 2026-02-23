@@ -297,7 +297,7 @@ export function SlaStatusBlock({ title, statusGroup, year, requests: propsReques
                     </td>
                     <td className="px-1.5 py-0.5 text-gray-700 border-r border-gray-200 text-center whitespace-nowrap w-[88px] overflow-hidden text-ellipsis">
                       <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1 rounded bg-gray-200 text-gray-700 font-bold tabular-nums">
-                        {getPlannedSlaDays(row.complexity)}
+                        {row.plannedSlaDays != null ? String(row.plannedSlaDays) : getPlannedSlaDays(row.complexity)}
                       </span>
                     </td>
                     <td className="px-1.5 py-0.5 text-gray-700 border-r border-gray-200 whitespace-nowrap w-[100px] overflow-hidden text-ellipsis">
@@ -330,7 +330,7 @@ export function SlaStatusBlock({ title, statusGroup, year, requests: propsReques
                       {(() => {
                         const assignmentIso = row.approvalAssignmentDate;
                         if (!assignmentIso) return '—';
-                        const planned = getPlannedSlaDaysNumber(row.complexity);
+                        const planned = row.plannedSlaDays ?? getPlannedSlaDaysNumber(row.complexity);
                         if (planned == null) return '—';
                         try {
                           const start = new Date(assignmentIso);

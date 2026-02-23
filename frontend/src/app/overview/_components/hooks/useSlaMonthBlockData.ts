@@ -15,6 +15,8 @@ export interface SlaMonthBlockRequestRow {
   purchaser: string | null;
   /** Сложность (из плана закупок) */
   complexity: string | null;
+  /** Плановый СЛА (рабочих дней) из заявки; для сложности 4 может быть задан вручную */
+  plannedSlaDays: number | null;
   /** Статус заявки */
   status: string | null;
 }
@@ -57,13 +59,14 @@ export function useSlaMonthBlockData(year: number, month: number): SlaMonthBlock
       const data = await res.json();
       const content = data.content ?? [];
       const rows: SlaMonthBlockRequestRow[] = content.map(
-        (r: { id?: number; idPurchaseRequest?: number | null; title?: string | null; name?: string | null; budgetAmount?: number | null; purchaser?: string | null; complexity?: string | null; status?: string | null }) => ({
+        (r: { id?: number; idPurchaseRequest?: number | null; title?: string | null; name?: string | null; budgetAmount?: number | null; purchaser?: string | null; complexity?: string | null; plannedSlaDays?: number | null; status?: string | null }) => ({
           id: r.id ?? 0,
           idPurchaseRequest: r.idPurchaseRequest ?? null,
           name: [r.title, r.name].find(Boolean)?.trim() || '—',
           budgetAmount: r.budgetAmount ?? null,
           purchaser: r.purchaser ?? null,
           complexity: r.complexity ?? null,
+          plannedSlaDays: r.plannedSlaDays != null ? Number(r.plannedSlaDays) : null,
           status: r.status ?? null,
         })
       );

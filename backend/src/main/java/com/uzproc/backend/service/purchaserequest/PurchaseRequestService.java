@@ -487,12 +487,11 @@ public class PurchaseRequestService {
                     : null;
             dto.setPurchaseCompletionDate(purchaseCompletionDate);
 
-            // Сложность — сначала из заявки (alldocuments: «Сложность закупки (уровень) (Заявка на ЗП)»), иначе из связанной позиции плана закупок
             // Сложность — только из заявки (парсится из Excel alldocuments), без подстановки из плана
             dto.setComplexity(entity.getComplexity());
 
-            // Фактический SLA и дельта — по той же логике, что и на вкладке SLA в обзоре
-            Integer plannedSla = getPlannedSlaDays(entity.getComplexity());
+            // Плановый СЛА хранится в заявке (зависит от сложности, обновляется при обновлении заявки)
+            Integer plannedSla = entity.getPlannedSlaDays();
             dto.setPlannedSlaDays(plannedSla);
             if (approvalAssignmentDate != null) {
                 LocalDateTime end = purchaseCompletionDate != null ? purchaseCompletionDate : LocalDateTime.now();
@@ -1190,6 +1189,26 @@ public class PurchaseRequestService {
             logger.info("Synced purchaser to {} plan items for purchase request {}", syncedCount, idPurchaseRequest);
         }
         
+        return toDto(saved);
+    }
+
+    /**
+     * Обновляет плановый СЛА для заявки. Разрешено только для сложности 4.
+     */
+    @Transactional
+    public PurchaseRequestDto updatePlannedSla(Long idPurchaseRequest, Integer plannedSlaDays) {
+        PurchaseRequest purchaseRequest = purchaseRequestRepository.findByIdPurchaseRequest(idPurchaseRequest)
+                .orElse(null);
+        if (purchaseRequest == null) {
+            return null;
+        }
+        if (!"4".equals(purchaseRequest.getComplexity() != null ? purchaseRequest.getComplexity().trim() : null)) {
+            logger.warn("Attempt to update planned SLA for request {} with complexity '{}' (only complexity 4 allowed)", idPurchaseRequest, purchaseRequest.getComplexity());
+            return null;
+        }
+        purchaseRequest.setPlannedSlaDays(plannedSlaDays);
+        PurchaseRequest saved = purchaseRequestRepository.save(purchaseRequest);
+        logger.info("Updated plannedSlaDays for purchase request {} (complexity 4): {}", idPurchaseRequest, plannedSlaDays);
         return toDto(saved);
     }
 

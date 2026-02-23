@@ -14,6 +14,8 @@ export interface SlaStatusBlockRequestRow {
   purchaser: string | null;
   /** Сложность (из плана закупок) */
   complexity: string | null;
+  /** Плановый СЛА (рабочих дней) из заявки; для сложности 4 может быть задан вручную */
+  plannedSlaDays: number | null;
   status: string | null;
   /** Дата назначения на утверждение (ISO string или null) */
   approvalAssignmentDate: string | null;
@@ -63,13 +65,14 @@ export function useSlaStatusBlockData(statusGroup: string, year: number | null):
       const data = await res.json();
       const content = data.content ?? [];
       const rows: SlaStatusBlockRequestRow[] = content.map(
-        (r: { id?: number; idPurchaseRequest?: number | null; title?: string | null; name?: string | null; budgetAmount?: number | null; purchaser?: string | null; complexity?: string | null; status?: string | null; approvalAssignmentDate?: string | null; purchaseCompletionDate?: string | null; slaCommentCount?: number }) => ({
+        (r: { id?: number; idPurchaseRequest?: number | null; title?: string | null; name?: string | null; budgetAmount?: number | null; purchaser?: string | null; complexity?: string | null; plannedSlaDays?: number | null; status?: string | null; approvalAssignmentDate?: string | null; purchaseCompletionDate?: string | null; slaCommentCount?: number }) => ({
           id: r.id ?? 0,
           idPurchaseRequest: r.idPurchaseRequest ?? null,
           name: [r.title, r.name].find(Boolean)?.trim() || '—',
           budgetAmount: r.budgetAmount ?? null,
           purchaser: r.purchaser ?? null,
           complexity: r.complexity ?? null,
+          plannedSlaDays: r.plannedSlaDays != null ? Number(r.plannedSlaDays) : null,
           status: r.status ?? null,
           approvalAssignmentDate: r.approvalAssignmentDate ?? null,
           purchaseCompletionDate: r.purchaseCompletionDate ?? null,
