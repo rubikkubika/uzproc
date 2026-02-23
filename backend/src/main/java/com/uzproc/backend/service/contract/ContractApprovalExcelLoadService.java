@@ -107,17 +107,32 @@ public class ContractApprovalExcelLoadService {
             int headerRowIndex = -1;
             Map<String, Integer> columnIndexMap = null;
 
+            // Сначала ищем строку, где есть "Документ.Внутренний номер" (заголовок с нужной колонкой).
+            // Иначе может выбраться строка только с "Вид документа", и колонка не найдётся.
             for (int i = 0; i < Math.min(15, sheet.getLastRowNum() + 1); i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
                 Map<String, Integer> tempMap = buildColumnIndexMap(row);
-                Integer docTypeIdx = findColumnIndex(tempMap, DOCUMENT_TYPE_COLUMN);
                 Integer innerIdIdx = findColumnIndex(tempMap, INNER_ID_COLUMN);
-                if (docTypeIdx != null || innerIdIdx != null) {
+                if (innerIdIdx != null) {
                     headerRow = row;
                     headerRowIndex = i;
                     columnIndexMap = tempMap;
                     break;
+                }
+            }
+            if (columnIndexMap == null) {
+                for (int i = 0; i < Math.min(15, sheet.getLastRowNum() + 1); i++) {
+                    Row row = sheet.getRow(i);
+                    if (row == null) continue;
+                    Map<String, Integer> tempMap = buildColumnIndexMap(row);
+                    Integer docTypeIdx = findColumnIndex(tempMap, DOCUMENT_TYPE_COLUMN);
+                    if (docTypeIdx != null) {
+                        headerRow = row;
+                        headerRowIndex = i;
+                        columnIndexMap = tempMap;
+                        break;
+                    }
                 }
             }
 
