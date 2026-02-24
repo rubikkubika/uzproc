@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect, useLayoutEffect, useRef, ReactElement } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
 import { copyToClipboard } from '@/utils/clipboard';
 import { purchaserDisplayName, initiatorDisplayName } from '@/utils/purchaser';
 import { useAuth } from '@/contexts/AuthContext';
-import { ArrowLeft, Clock, Check, X, Eye, EyeOff, Copy, Star, History } from 'lucide-react';
+import { ArrowLeft, Clock, Check, X, Eye, EyeOff, Copy, Star, History, MessageSquare } from 'lucide-react';
 import Sidebar from '../../_components/Sidebar';
 
 interface PurchaseRequest {
@@ -180,6 +181,23 @@ export default function PurchaseRequestDetailPage() {
   const [showChanges, setShowChanges] = useState(false);
   const [changesList, setChangesList] = useState<PurchaseRequestChangeItem[]>([]);
   const [changesLoading, setChangesLoading] = useState(false);
+  /** Данные попапа комментария (рендер в портале, чтобы не обрезался). */
+  const [commentPopoverData, setCommentPopoverData] = useState<{ id: number; commentText: string; left: number; top: number } | null>(null);
+
+  // Закрытие попапа комментария при клике вне его (слушатель ставим в следующем тике)
+  useEffect(() => {
+    if (commentPopoverData == null) return;
+    const onDocumentClick = (e: MouseEvent) => {
+      const target = e.target instanceof Node ? e.target : null;
+      if (target && (target as Element).closest?.('[data-comment-popover], [data-comment-popover-portal]')) return;
+      setCommentPopoverData(null);
+    };
+    const t = setTimeout(() => document.addEventListener('click', onDocumentClick), 0);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener('click', onDocumentClick);
+    };
+  }, [commentPopoverData]);
 
   // Защита от дублирующих запросов
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -673,8 +691,11 @@ export default function PurchaseRequestDetailPage() {
     purchaseRequest?.status === 'Договор создан' ||
     purchaseRequest?.status === 'Закупка создана';
 
-  // Логика трэка «Закупка» как в таблице: зелёный = этап пройден (спец/договор в работе), жёлтый = в процессе (у закупщика даже без связанной закупки, закупка создана, закупка завершена)
-  const isPurchaseStepGreen = isSpecificationInProgress || isContractInProgress;
+  // Логика трэка «Закупка»: зелёный = этап пройден (спец/договор в работе или уже подписаны), жёлтый = в процессе
+  const isPurchaseStepGreen = isSpecificationInProgress || isContractInProgress ||
+    purchaseRequest?.status === 'Спецификация подписана' ||
+    purchaseRequest?.status === 'Договор подписан' ||
+    purchaseRequest?.statusGroup === 'Договор подписан';
   const isPurchaseStepYellow = (
     isAtBuyer ||
     (purchase && (purchase.status === 'Закупка создана' || purchase.status === 'Завершена'))
@@ -837,8 +858,8 @@ export default function PurchaseRequestDetailPage() {
             </div>
           </div>
 
-          <main className="flex-1 overflow-y-auto p-2 sm:p-3 lg:p-4 pt-16 sm:pt-20 lg:pt-4">
-            <div className="bg-white rounded-lg shadow-lg p-4">
+          <main className="flex-1 overflow-y-auto p-1.5 sm:p-2 lg:p-2 pt-16 sm:pt-20 lg:pt-4">
+            <div className="bg-white rounded-lg shadow-lg p-2">
               <div className="text-center py-6">
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                 <p className="mt-4 text-gray-500">Загрузка данных...</p>
@@ -884,8 +905,8 @@ export default function PurchaseRequestDetailPage() {
             </div>
           </div>
 
-          <main className="flex-1 overflow-y-auto p-2 sm:p-3 lg:p-4 pt-16 sm:pt-20 lg:pt-4">
-            <div className="bg-white rounded-lg shadow-lg p-4">
+          <main className="flex-1 overflow-y-auto p-1.5 sm:p-2 lg:p-2 pt-16 sm:pt-20 lg:pt-4">
+            <div className="bg-white rounded-lg shadow-lg p-2">
               <div className="text-center py-6">
                 <p className="text-red-600 mb-4">Ошибка: {error}</p>
                 <button
@@ -939,10 +960,10 @@ export default function PurchaseRequestDetailPage() {
           </div>
         </div>
 
-        <main className="flex-1 overflow-y-auto p-2 sm:p-3 lg:p-4 pt-16 sm:pt-20 lg:pt-4">
-          <div className="space-y-2">
+        <main className="flex-1 overflow-y-auto p-1.5 sm:p-2 lg:p-2 pt-16 sm:pt-20 lg:pt-4">
+          <div className="space-y-1">
             {/* Верхняя панель с кнопкой назад и трекером статусов */}
-            <div className="space-y-2">
+            <div className="space-y-1">
               {/* Кнопка назад */}
               <div className="flex items-center gap-2">
                 <button
@@ -955,7 +976,7 @@ export default function PurchaseRequestDetailPage() {
               </div>
 
               {/* Трекер статусов — на всю ширину, круги соединены линиями */}
-              <div className="flex items-end gap-3 flex-wrap w-full">
+              <div className="flex items-end gap-2 flex-wrap w-full">
               <div className="bg-white rounded-lg shadow-lg px-4 py-2 border border-gray-200 hidden sm:block w-full min-w-0 overflow-visible">
                 {/* Верхний ряд: круги и линии (цвет линий и неактивных кругов — как в таблице: gray-300) */}
                 <div className="flex items-center w-full">
@@ -1001,7 +1022,11 @@ export default function PurchaseRequestDetailPage() {
                         </div>
                         <div className="flex-1 min-w-[12px] h-0.5 border-t-2 border-gray-300" aria-hidden />
                         <div className="flex flex-col items-center flex-shrink-0">
-                          {purchase && purchase.status === 'Завершена' ? (
+                          {purchaseRequest?.status === 'Договор подписан' || purchaseRequest?.statusGroup === 'Договор подписан' ? (
+                            <div className="relative w-6 h-6 rounded-full bg-green-500 flex items-center justify-center" title="Договор: Договор подписан">
+                              <Check className="w-4 h-4 text-white" />
+                            </div>
+                          ) : purchase && purchase.status === 'Завершена' ? (
                             <div className="relative w-6 h-6 rounded-full bg-yellow-500 flex items-center justify-center animate-yellow-circle-pulse" title="Договор: Закупка завершена">
                               <Clock className="w-4 h-4 text-white" />
                             </div>
@@ -1060,7 +1085,7 @@ export default function PurchaseRequestDetailPage() {
 
               {/* Раздел: Заявка на закупку */}
             <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-              <div className="px-2 py-1.5 border-b border-gray-300 bg-gray-100 flex items-center justify-between">
+              <div className="px-2 py-1 border-b border-gray-300 bg-gray-100 flex items-center justify-between">
                 <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Заявка на закупку</h2>
                 {purchaseRequest && (
                   <div className="flex items-center gap-1">
@@ -1148,10 +1173,10 @@ export default function PurchaseRequestDetailPage() {
                   </div>
                 )}
               </div>
-              <div className="p-2">
+              <div className="p-1.5">
                 {showChanges ? (
                   /* Список изменений (запрос к бэку только при первом нажатии «Показать изменения») */
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     {changesLoading ? (
                       <p className="text-xs text-gray-500">Загрузка изменений...</p>
                     ) : changesList.length === 0 ? (
@@ -1161,23 +1186,23 @@ export default function PurchaseRequestDetailPage() {
                         <table className="w-full border-collapse text-xs">
                           <thead>
                             <tr className="bg-gray-50 border-b border-gray-200">
-                              <th className="text-left py-1.5 px-2 font-medium text-gray-600">Дата</th>
-                              <th className="text-left py-1.5 px-2 font-medium text-gray-600">Поле</th>
-                              <th className="text-left py-1.5 px-2 font-medium text-gray-600">Было</th>
-                              <th className="text-left py-1.5 px-2 font-medium text-gray-600">Стало</th>
-                              <th className="text-left py-1.5 px-2 font-medium text-gray-600">Кто изменил</th>
+                              <th className="text-left py-1 px-2 font-medium text-gray-600">Дата</th>
+                              <th className="text-left py-1 px-2 font-medium text-gray-600">Поле</th>
+                              <th className="text-left py-1 px-2 font-medium text-gray-600">Было</th>
+                              <th className="text-left py-1 px-2 font-medium text-gray-600">Стало</th>
+                              <th className="text-left py-1 px-2 font-medium text-gray-600">Кто изменил</th>
                             </tr>
                           </thead>
                           <tbody>
                             {changesList.map((ch) => (
                               <tr key={ch.id} className="border-b border-gray-100">
-                                <td className="py-1.5 px-2 text-gray-900 whitespace-nowrap">
+                                <td className="py-1 px-2 text-gray-900 whitespace-nowrap">
                                   {ch.changeDate ? new Date(ch.changeDate).toLocaleString('ru-RU') : '-'}
                                 </td>
-                                <td className="py-1.5 px-2 text-gray-900">{ch.fieldName}</td>
-                                <td className="py-1.5 px-2 text-gray-700 max-w-[200px] truncate" title={ch.valueBefore ?? ''}>{ch.valueBefore ?? '—'}</td>
-                                <td className="py-1.5 px-2 text-gray-700 max-w-[200px] truncate" title={ch.valueAfter ?? ''}>{ch.valueAfter ?? '—'}</td>
-                                <td className="py-1.5 px-2 text-gray-700">{ch.changedByDisplayName ?? (ch.changeSource === 'PARSING' ? 'Система (парсинг)' : '—')}</td>
+                                <td className="py-1 px-2 text-gray-900">{ch.fieldName}</td>
+                                <td className="py-1 px-2 text-gray-700 max-w-[200px] truncate" title={ch.valueBefore ?? ''}>{ch.valueBefore ?? '—'}</td>
+                                <td className="py-1 px-2 text-gray-700 max-w-[200px] truncate" title={ch.valueAfter ?? ''}>{ch.valueAfter ?? '—'}</td>
+                                <td className="py-1 px-2 text-gray-700">{ch.changedByDisplayName ?? (ch.changeSource === 'PARSING' ? 'Система (парсинг)' : '—')}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -1187,25 +1212,25 @@ export default function PurchaseRequestDetailPage() {
                   </div>
                 ) : (
                 <>
-                <div className="grid grid-cols-1 lg:grid-cols-[1fr_minmax(32rem,36rem)] gap-x-2 gap-y-2">
+                <div className="grid grid-cols-1 lg:grid-cols-[1fr_minmax(32rem,36rem)] gap-x-1.5 gap-y-1">
                   {/* Левая часть с полями заявки */}
                   <div className="min-w-0">
                 {/* Номер, инициатор и закупщик только в левой колонке */}
-                <div className="flex flex-wrap items-center justify-between gap-2 pb-2 mb-2 border-b border-gray-200">
-                  <div className="flex items-baseline gap-1.5">
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-1 mb-1 border-b border-gray-200">
+                  <div className="flex items-baseline gap-1">
                     <span className="text-xs font-semibold text-gray-600">Номер:</span>
                     <span className="text-xs text-gray-900">{purchaseRequest.idPurchaseRequest ?? '—'}</span>
                   </div>
-                  <div className="flex items-baseline gap-1.5">
+                  <div className="flex items-baseline gap-1">
                     <span className="text-xs font-semibold text-gray-600">Инициатор:</span>
                     <span className="text-xs text-gray-900">{initiatorDisplayName(purchaseRequest.purchaseRequestInitiator)}</span>
                   </div>
-                  <div className="flex items-baseline gap-1.5">
+                  <div className="flex items-baseline gap-1">
                     <span className="text-xs font-semibold text-gray-600">Закупщик:</span>
                     <span className="text-xs text-gray-900">{purchaserDisplayName(purchaseRequest.purchaser)}</span>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1.5">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1">
                   <div>
                     <label className="block text-xs font-semibold text-gray-600 mb-0">
                       Наименование
@@ -1280,7 +1305,7 @@ export default function PurchaseRequestDetailPage() {
                   {/* Правая часть: дата создания и блок согласований */}
               <div className="w-full min-w-0 flex flex-col min-h-0">
                     <div className="bg-white rounded px-1.5 py-1 space-y-1 flex-1 min-h-0">
-                      <div className="flex items-baseline gap-1.5 pb-1 mb-1 border-b border-gray-200">
+                      <div className="flex items-baseline gap-1 pb-1 mb-1 border-b border-gray-200">
                         <span className="text-xs font-semibold text-gray-600">Дата создания заявки:</span>
                         <span className="text-xs text-gray-900">{formatDate(purchaseRequest.purchaseRequestCreationDate)}</span>
                       </div>
@@ -1362,7 +1387,7 @@ export default function PurchaseRequestDetailPage() {
                               </div>
                             ))
                           ) : (
-                            <div className="text-[10px] text-gray-500 text-center py-0.5">Нет данных</div>
+                            <div className="text-[10px] text-gray-500 text-center py-0">Нет данных</div>
                           )}
                         </div>
                       </div>
@@ -1439,7 +1464,7 @@ export default function PurchaseRequestDetailPage() {
                             </div>
                           ))
                         ) : (
-                          <div className="text-[10px] text-gray-500 text-center py-0.5">Нет данных</div>
+                          <div className="text-[10px] text-gray-500 text-center py-0">Нет данных</div>
                         )}
                       </div>
                       )}
@@ -1515,7 +1540,7 @@ export default function PurchaseRequestDetailPage() {
                             </div>
                           ))
                         ) : (
-                          <div className="text-[10px] text-gray-500 text-center py-0.5">Нет данных</div>
+                          <div className="text-[10px] text-gray-500 text-center py-0">Нет данных</div>
                         )}
                       </div>
                       )}
@@ -1591,7 +1616,7 @@ export default function PurchaseRequestDetailPage() {
                             </div>
                           ))
                         ) : (
-                          <div className="text-[10px] text-gray-500 text-center py-0.5">Нет данных</div>
+                          <div className="text-[10px] text-gray-500 text-center py-0">Нет данных</div>
                         )}
                       </div>
                       )}
@@ -1607,15 +1632,15 @@ export default function PurchaseRequestDetailPage() {
             {/* Раздел: Закупка - показываем только если требуется закупка */}
             {purchaseRequest.requiresPurchase !== false && (
             <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-                <div className="px-2 py-1.5 border-b border-gray-300 bg-gray-100">
+                <div className="px-2 py-1 border-b border-gray-300 bg-gray-100">
                   <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Закупка</h2>
                 </div>
-                <div className="p-2">
-                <div className="flex flex-col lg:flex-row gap-4 items-start">
+                <div className="p-1.5">
+                <div className="flex flex-col lg:flex-row gap-2 items-start">
                   {/* Левая часть с полями закупки */}
                   <div className="flex-1">
                   {purchase ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1.5">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1">
                       <div>
                         <label className="block text-xs font-semibold text-gray-600 mb-0">
                           Внутренний ID
@@ -1662,7 +1687,7 @@ export default function PurchaseRequestDetailPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="text-center py-2 text-xs text-gray-500">
+                    <div className="text-center py-1 text-xs text-gray-500">
                       <p>Связанная закупка не найдена</p>
                     </div>
                   )}
@@ -1671,7 +1696,7 @@ export default function PurchaseRequestDetailPage() {
                     {/* Блок оценки CSI - между закупкой и согласованиями */}
                     <div className="w-full lg:w-80 flex-shrink-0">
                       {csiFeedbackLoading ? (
-                        <div className="border border-gray-200 rounded p-3 bg-gray-50 text-center">
+                        <div className="border border-gray-200 rounded p-2 bg-gray-50 text-center">
                           <div className="text-xs text-gray-400">Загрузка...</div>
                         </div>
                       ) : csiFeedback ? (
@@ -1698,7 +1723,7 @@ export default function PurchaseRequestDetailPage() {
                             </div>
                           )}
 
-                          <div className="mt-1 flex flex-wrap gap-1.5 text-xs text-gray-500">
+                          <div className="mt-1 flex flex-wrap gap-1 text-xs text-gray-500">
                             <span>Скорость: {csiFeedback.speedRating.toFixed(1)}</span>
                             <span>Качество: {csiFeedback.qualityRating.toFixed(1)}</span>
                             <span>Закупщик: {csiFeedback.satisfactionRating.toFixed(1)}</span>
@@ -1708,7 +1733,7 @@ export default function PurchaseRequestDetailPage() {
                           </div>
                         </div>
                       ) : (
-                        <div className="border border-gray-200 rounded p-3 bg-gray-50 text-center">
+                        <div className="border border-gray-200 rounded p-2 bg-gray-50 text-center">
                           <div className="text-xs text-gray-400">Оценки пока нет</div>
                           <div className="text-xs text-gray-400 mt-1">Она появится после получения отзыва</div>
                         </div>
@@ -1796,7 +1821,7 @@ export default function PurchaseRequestDetailPage() {
                               </div>
                             ))
                           ) : (
-                            <div className="text-[10px] text-gray-500 text-center py-0.5">Нет данных</div>
+                            <div className="text-[10px] text-gray-500 text-center py-0">Нет данных</div>
                           )}
                         </div>
                       </div>
@@ -1880,7 +1905,7 @@ export default function PurchaseRequestDetailPage() {
                               </div>
                             ))
                           ) : (
-                            <div className="text-[10px] text-gray-500 text-center py-0.5">Нет данных</div>
+                            <div className="text-[10px] text-gray-500 text-center py-0">Нет данных</div>
                           )}
                         </div>
                       </div>
@@ -1964,7 +1989,7 @@ export default function PurchaseRequestDetailPage() {
                               </div>
                             ))
                           ) : (
-                            <div className="text-[10px] text-gray-500 text-center py-0.5">Нет данных</div>
+                            <div className="text-[10px] text-gray-500 text-center py-0">Нет данных</div>
                           )}
                         </div>
                       </div>
@@ -1974,7 +1999,7 @@ export default function PurchaseRequestDetailPage() {
                         {purchaseResultsApprovalApprovals.length === 0 && 
                          purchaseCommissionApprovals.length === 0 && 
                          purchaseCommissionResultCheckApprovals.length === 0 && (
-                          <div className="border border-gray-200 rounded p-1.5 text-center py-2 text-[10px] text-gray-500">
+                          <div className="border border-gray-200 rounded p-1.5 text-center py-1 text-[10px] text-gray-500">
                             Нет согласований
                           </div>
                         )}
@@ -1998,17 +2023,17 @@ export default function PurchaseRequestDetailPage() {
               // Показываем блок только если есть данные
               return (hasContracts || hasApprovals) ? (
             <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-                <div className="px-2 py-1.5 border-b border-gray-300 bg-gray-100">
+                <div className="px-2 py-1 border-b border-gray-300 bg-gray-100">
                 <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Спецификация</h2>
                 </div>
-                <div className="p-2">
-                <div className="flex flex-col lg:flex-row gap-4 items-start">
+                <div className="p-1.5">
+                <div className="flex flex-col lg:flex-row gap-2 items-start">
                   {/* Левая часть с полями спецификации (договоры) */}
                   <div className="flex-1">
                   {purchaseRequest.contracts && purchaseRequest.contracts.length > 0 ? (
-                    <div className="space-y-3">
+                    <div className="space-y-1.5">
                       {(purchaseRequest.contracts ?? []).map((contract) => (
-                        <div key={contract.id} className="relative border border-gray-200 rounded p-2">
+                        <div key={contract.id} className="relative border border-gray-200 rounded p-1.5">
                           <button
                             type="button"
                             className="absolute top-1 right-1 p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700"
@@ -2021,7 +2046,7 @@ export default function PurchaseRequestDetailPage() {
                               <Eye className="w-4 h-4" />
                             )}
                           </button>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
                             <div>
                               <label className="block text-xs font-semibold text-gray-600 mb-0">
                                 Внутренний ID
@@ -2104,7 +2129,7 @@ export default function PurchaseRequestDetailPage() {
                       ))}
                     </div>
                   ) : (
-                  <div className="text-center py-2 text-xs text-gray-500">
+                  <div className="text-center py-1 text-xs text-gray-500">
                       <p>Нет данных о договоре</p>
                   </div>
                   )}
@@ -2112,70 +2137,74 @@ export default function PurchaseRequestDetailPage() {
 
                   {/* Правая часть - согласования по договорам (из contract_approvals) */}
               <div className="w-full lg:min-w-[32rem] lg:w-[36rem] flex-shrink-0 min-w-0 max-w-full">
-                    <div className="bg-white rounded p-2 space-y-0 min-w-0 overflow-hidden">
+                    <div className="bg-white rounded p-1.5 space-y-0 min-w-0 overflow-hidden">
                       {(purchaseRequest.contracts ?? []).map((contract) => {
                         const list = contractApprovalsByContractId[contract.id] ?? [];
                         const stages = [...new Set(list.map((a) => a.stage || 'Без этапа'))];
                         const stageOrder = getContractSpecStageOrder(stages);
                         return (
-                          <div key={contract.id} className="bg-white rounded-lg shadow-md p-2 min-w-0 overflow-hidden">
+                          <div key={contract.id} className="bg-white rounded-lg shadow-md p-1.5 min-w-0 overflow-hidden">
                             <div className="space-y-0 min-w-0">
                               {list.length > 0 ? (
                                 stageOrder.map((stage) => {
                                   const stageItems = list.filter((a) => (a.stage || 'Без этапа') === stage);
                                   return (
-                                    <div key={stage} className="pb-2 mb-2 border-b border-gray-200 last:border-b-0 last:mb-0 last:pb-0 pt-1 first:pt-0">
-                                      <div className="text-[10px] font-semibold text-gray-900 mb-1 leading-tight">{stage}</div>
+                                    <div key={stage} className="pb-1 mb-1 border-b border-gray-200 last:border-b-0 last:mb-0 last:pb-0 pt-0.5 first:pt-0">
+                                      <div className="text-[10px] font-semibold text-gray-900 mb-0.5 leading-tight">{stage}</div>
                                       <table className="w-full border-collapse min-w-0 table-fixed">
                                         <colgroup>
-                                          <col style={{ width: 14 }} />
-                                          <col style={{ width: '32%' }} />
+                                          <col style={{ width: '38%' }} />
                                           <col style={{ width: '12%' }} />
                                           <col style={{ width: '13%' }} />
                                           <col style={{ width: '13%' }} />
-                                          <col style={{ width: '14%' }} />
                                         </colgroup>
                                         <thead>
                                           <tr className="border-b border-gray-200">
-                                            <th className="pl-0 pr-0.5 py-0.5 text-left w-3" />
                                             <th className="pl-0 pr-0.5 py-0.5 text-left text-[9px] font-semibold text-gray-500 uppercase min-w-0">Роль</th>
                                             <th className="px-0.5 py-0.5 text-left text-[9px] font-semibold text-gray-500 uppercase truncate min-w-0">Исполнитель</th>
                                             <th className="px-0.5 py-0.5 text-left text-[9px] font-semibold text-gray-500 uppercase whitespace-nowrap min-w-[4rem]">Назначение</th>
                                             <th className="px-0.5 py-0.5 text-left text-[9px] font-semibold text-gray-500 uppercase whitespace-nowrap min-w-[4rem]">Выполнение</th>
-                                            <th className="px-0.5 py-0.5 text-left text-[9px] font-semibold text-gray-500 uppercase truncate min-w-0">Комментарий</th>
                                           </tr>
                                         </thead>
                                         <tbody>
-                                        {stageItems.map((approval) => (
+                                        {stageItems.map((approval) => {
+                                          const statusColor = getApprovalStatusColor({ ...approval, daysInWork: null, idPurchaseRequest: purchaseRequest.idPurchaseRequest ?? 0 });
+                                          const StatusIcon = statusColor === 'green'
+                                            ? () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-green-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано'}><Check className="w-2 h-2 text-white" /></div>
+                                            : statusColor === 'orange'
+                                            ? () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-orange-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано с замечаниями'}><Check className="w-2 h-2 text-white" /></div>
+                                            : statusColor === 'yellow'
+                                            ? () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}><Clock className="w-2 h-2 text-white" /></div>
+                                            : () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-red-500 flex items-center justify-center" title={approval.completionResult || 'Не согласовано'}><X className="w-2 h-2 text-white" /></div>;
+                                          const hasComment = approval.commentText != null && String(approval.commentText).trim() !== '';
+                                          return (
                                           <tr key={approval.id} className="border-b border-gray-200 last:border-b-0">
                                             <td className="pl-0 pr-0.5 py-0.5 align-middle">
-                                              {(() => {
-                                                const statusColor = getApprovalStatusColor({ ...approval, daysInWork: null, idPurchaseRequest: purchaseRequest.idPurchaseRequest ?? 0 });
-                                                if (statusColor === 'green') {
-                                                  return <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано'}><Check className="w-2 h-2 text-white" /></div>;
-                                                } else if (statusColor === 'orange') {
-                                                  return <div className="w-3 h-3 rounded-full bg-orange-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано с замечаниями'}><Check className="w-2 h-2 text-white" /></div>;
-                                                } else if (statusColor === 'yellow') {
-                                                  return <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}><Clock className="w-2 h-2 text-white" /></div>;
-                                                } else {
-                                                  return <div className="w-3 h-3 rounded-full bg-red-500 flex items-center justify-center" title={approval.completionResult || 'Не согласовано'}><X className="w-2 h-2 text-white" /></div>;
-                                                }
-                                              })()}
+                                              <div className="flex items-center gap-0.5 min-w-0">
+                                                <StatusIcon />
+                                                <span className="text-[10px] text-gray-900 break-words min-w-0 truncate" title={approval.role}>{approval.role || '-'}</span>
+                                                {hasComment && (
+                                                  <span className="relative inline-flex flex-shrink-0" data-comment-popover>
+                                                    <button type="button" onClick={(e) => { e.stopPropagation(); const rect = e.currentTarget.getBoundingClientRect(); const popoverW = 360; const left = Math.max(16, Math.min(rect.left, (typeof window !== 'undefined' ? window.innerWidth : 400) - popoverW - 16)); setCommentPopoverData(prev => prev?.id === approval.id ? null : { id: approval.id, commentText: approval.commentText ?? '', left, top: rect.top }); }} className="p-0.5 rounded hover:bg-gray-200 text-gray-500 hover:text-gray-700" title="Комментарий" aria-label="Показать комментарий">
+                                                      <MessageSquare className="w-3 h-3" />
+                                                    </button>
+                                                  </span>
+                                                )}
+                                              </div>
                                             </td>
-                                            <td className="pl-0 pr-0.5 py-0.5 text-[10px] text-gray-900 break-words min-w-0" title={approval.role}>{approval.role || '-'}</td>
                                             <td className="px-0.5 py-0.5 text-[10px] text-gray-900 truncate min-w-0" title={approval.executorName ?? ''}>{approval.executorName || '-'}</td>
                                             <td className="px-0.5 py-0.5 text-[10px] text-gray-900 whitespace-nowrap">{formatDate(approval.assignmentDate)}</td>
                                             <td className="px-0.5 py-0.5 text-[10px] text-gray-900 whitespace-nowrap">{formatDate(approval.completionDate)}</td>
-                                            <td className="px-0.5 py-0.5 text-[10px] text-gray-900 truncate min-w-0" title={approval.commentText ?? ''}>{approval.commentText || '-'}</td>
                                           </tr>
-                                        ))}
+                                          );
+                                        })}
                                         </tbody>
                                       </table>
                                     </div>
                                   );
                                 })
                               ) : (
-                                <div className="text-[10px] text-gray-500 text-center py-0.5">Нет данных</div>
+                                <div className="text-[10px] text-gray-500 text-center py-0">Нет данных</div>
                               )}
                             </div>
                           </div>
@@ -2191,21 +2220,21 @@ export default function PurchaseRequestDetailPage() {
 
             {/* Раздел: Договор */}
             <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-              <div className="px-2 py-1.5 border-b border-gray-300 bg-gray-100">
+              <div className="px-2 py-1 border-b border-gray-300 bg-gray-100">
                 <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Договор</h2>
               </div>
-              <div className="p-2">
-                <div className="flex flex-col lg:flex-row gap-4 items-start">
+              <div className="p-1.5">
+                <div className="flex flex-col lg:flex-row gap-2 items-start">
                   {/* Левая часть с полями договора */}
                   <div className="flex-1">
                     {/* Для заказов показываем основной договор, если договор является спецификацией */}
                     {purchaseRequest.requiresPurchase === false && purchaseRequest.contracts && purchaseRequest.contracts.length > 0 && purchaseRequest.contracts.some(c => c.parentContract) ? (
                       <div className="w-full">
                         {/* Содержимое: основной договор и спецификации */}
-                      <div className="flex flex-col lg:flex-row gap-4 items-start w-full">
+                      <div className="flex flex-col lg:flex-row gap-2 items-start w-full">
                         {/* Основной договор слева */}
                           <div className="flex-shrink-0 w-full lg:w-auto">
-                            <div className="mb-2">
+                            <div className="mb-1">
                               <label className="block text-xs font-semibold text-gray-600">
                                 Основной договор
                               </label>
@@ -2213,8 +2242,8 @@ export default function PurchaseRequestDetailPage() {
                           {purchaseRequest.contracts
                             .filter(contract => contract.parentContract)
                             .map((contract) => (
-                              <div key={contract.id} className="bg-white rounded-lg shadow-md p-2">
-                                  <div className="space-y-2">
+                              <div key={contract.id} className="bg-white rounded-lg shadow-md p-1.5">
+                                  <div className="space-y-1">
                                   <div>
                                     <label className="block text-xs font-semibold text-gray-600 mb-0">
                                       Внутренний ID
@@ -2286,7 +2315,7 @@ export default function PurchaseRequestDetailPage() {
                             // Показываем блок только если есть непустые спецификации
                             return sortedSpecs.length > 0 ? (
                               <div className="w-full">
-                                <div className="mb-2 flex items-center justify-between">
+                                <div className="mb-1 flex items-center justify-between">
                                   <label className="block text-xs font-semibold text-gray-600">
                                     Спецификации
                                   </label>
@@ -2304,7 +2333,7 @@ export default function PurchaseRequestDetailPage() {
                                     )}
                                   </div>
                                 </div>
-                                <div className="bg-white rounded-lg shadow-md p-3">
+                                <div className="bg-white rounded-lg shadow-md p-2">
                                 <div className="overflow-x-auto w-full">
                                   <table className="w-full text-[10px] border-collapse" style={{ tableLayout: 'fixed', width: '100%' }}>
                                     <thead>
@@ -2358,9 +2387,9 @@ export default function PurchaseRequestDetailPage() {
                       </div>
                     ) : (purchaseRequest.requiresPurchase === true || purchaseRequest.requiresPurchase === null) && purchaseRequest.contracts && purchaseRequest.contracts.length > 0 ? (
                       // Для закупок показываем договоры (всегда показываем сам договор, не основной)
-                      <div className="space-y-3">
+                      <div className="space-y-1.5">
                         {(purchaseRequest.contracts ?? []).map((contract) => (
-                          <div key={contract.id} className="relative border border-gray-200 rounded p-2">
+                          <div key={contract.id} className="relative border border-gray-200 rounded p-1.5">
                             <button
                               type="button"
                               className="absolute top-1 right-1 p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700"
@@ -2374,7 +2403,7 @@ export default function PurchaseRequestDetailPage() {
                               )}
                             </button>
                             {/* Для закупок всегда показываем сам договор */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
                                 <div>
                                   <label className="block text-xs font-semibold text-gray-600 mb-0">
                                     Внутренний ID
@@ -2458,11 +2487,11 @@ export default function PurchaseRequestDetailPage() {
                       </div>
                     ) : (purchaseRequest.requiresPurchase === true || purchaseRequest.requiresPurchase === null) ? (
                       // Для закупок показываем сообщение, если нет договоров
-                      <div className="text-center py-2 text-xs text-gray-500">
+                      <div className="text-center py-1 text-xs text-gray-500">
                         <p>Нет данных о договоре</p>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
                         <div>
                           <label className="block text-xs font-semibold text-gray-600 mb-0">
                             Наименование
@@ -2494,70 +2523,74 @@ export default function PurchaseRequestDetailPage() {
                   {/* Правая часть - согласования по договорам (из contract_approvals) */}
                   {(purchaseRequest.requiresPurchase === true || purchaseRequest.requiresPurchase === null) && purchaseRequest.contracts && purchaseRequest.contracts.length > 0 && (
                     <div className="w-full lg:min-w-[32rem] lg:w-[36rem] flex-shrink-0 min-w-0 max-w-full">
-                      <div className="bg-white rounded p-2 space-y-0 min-w-0 overflow-hidden">
+                      <div className="bg-white rounded p-1.5 space-y-0 min-w-0 overflow-hidden">
                         {(purchaseRequest.contracts ?? []).map((contract) => {
                           const list = contractApprovalsByContractId[contract.id] ?? [];
                           const stages = [...new Set(list.map((a) => a.stage || 'Без этапа'))];
                           const stageOrder = getContractSpecStageOrder(stages);
                           return (
-                            <div key={contract.id} className="bg-white rounded-lg shadow-md p-2 min-w-0 overflow-hidden">
+                            <div key={contract.id} className="bg-white rounded-lg shadow-md p-1.5 min-w-0 overflow-hidden">
                               <div className="space-y-0 min-w-0">
                                 {list.length > 0 ? (
                                   stageOrder.map((stage) => {
                                     const stageItems = list.filter((a) => (a.stage || 'Без этапа') === stage);
                                     return (
-                                      <div key={stage} className="pb-2 mb-2 border-b border-gray-200 last:border-b-0 last:mb-0 last:pb-0 pt-1 first:pt-0">
-                                        <div className="text-[10px] font-semibold text-gray-900 mb-1 leading-tight">{stage}</div>
+                                      <div key={stage} className="pb-1 mb-1 border-b border-gray-200 last:border-b-0 last:mb-0 last:pb-0 pt-0.5 first:pt-0">
+                                        <div className="text-[10px] font-semibold text-gray-900 mb-0.5 leading-tight">{stage}</div>
                                         <table className="w-full border-collapse min-w-0 table-fixed">
                                           <colgroup>
-                                            <col style={{ width: 14 }} />
-                                            <col style={{ width: '32%' }} />
+                                            <col style={{ width: '38%' }} />
                                             <col style={{ width: '12%' }} />
                                             <col style={{ width: '13%' }} />
                                             <col style={{ width: '13%' }} />
-                                            <col style={{ width: '14%' }} />
                                           </colgroup>
                                           <thead>
                                             <tr className="border-b border-gray-200">
-                                              <th className="pl-0 pr-0.5 py-0.5 text-left w-3" />
                                               <th className="pl-0 pr-0.5 py-0.5 text-left text-[9px] font-semibold text-gray-500 uppercase min-w-0">Роль</th>
                                               <th className="px-0.5 py-0.5 text-left text-[9px] font-semibold text-gray-500 uppercase truncate min-w-0">Исполнитель</th>
                                               <th className="px-0.5 py-0.5 text-left text-[9px] font-semibold text-gray-500 uppercase whitespace-nowrap min-w-[4rem]">Назначение</th>
                                               <th className="px-0.5 py-0.5 text-left text-[9px] font-semibold text-gray-500 uppercase whitespace-nowrap min-w-[4rem]">Выполнение</th>
-                                              <th className="px-0.5 py-0.5 text-left text-[9px] font-semibold text-gray-500 uppercase truncate min-w-0">Комментарий</th>
                                             </tr>
                                           </thead>
                                           <tbody>
-                                          {stageItems.map((approval) => (
+                                          {stageItems.map((approval) => {
+                                            const statusColor = getApprovalStatusColor({ ...approval, daysInWork: null, idPurchaseRequest: purchaseRequest.idPurchaseRequest ?? 0 });
+                                            const StatusIcon = statusColor === 'green'
+                                              ? () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-green-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано'}><Check className="w-2 h-2 text-white" /></div>
+                                              : statusColor === 'orange'
+                                              ? () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-orange-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано с замечаниями'}><Check className="w-2 h-2 text-white" /></div>
+                                              : statusColor === 'yellow'
+                                              ? () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}><Clock className="w-2 h-2 text-white" /></div>
+                                              : () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-red-500 flex items-center justify-center" title={approval.completionResult || 'Не согласовано'}><X className="w-2 h-2 text-white" /></div>;
+                                            const hasComment = approval.commentText != null && String(approval.commentText).trim() !== '';
+                                            return (
                                             <tr key={approval.id} className="border-b border-gray-200 last:border-b-0">
                                               <td className="pl-0 pr-0.5 py-0.5 align-middle">
-                                                {(() => {
-                                                  const statusColor = getApprovalStatusColor({ ...approval, daysInWork: null, idPurchaseRequest: purchaseRequest.idPurchaseRequest ?? 0 });
-                                                  if (statusColor === 'green') {
-                                                    return <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано'}><Check className="w-2 h-2 text-white" /></div>;
-                                                  } else if (statusColor === 'orange') {
-                                                    return <div className="w-3 h-3 rounded-full bg-orange-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано с замечаниями'}><Check className="w-2 h-2 text-white" /></div>;
-                                                  } else if (statusColor === 'yellow') {
-                                                    return <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}><Clock className="w-2 h-2 text-white" /></div>;
-                                                  } else {
-                                                    return <div className="w-3 h-3 rounded-full bg-red-500 flex items-center justify-center" title={approval.completionResult || 'Не согласовано'}><X className="w-2 h-2 text-white" /></div>;
-                                                  }
-                                                })()}
+                                                <div className="flex items-center gap-0.5 min-w-0">
+                                                  <StatusIcon />
+                                                  <span className="text-[10px] text-gray-900 break-words min-w-0 truncate" title={approval.role}>{approval.role || '-'}</span>
+                                                  {hasComment && (
+                                                    <span className="relative inline-flex flex-shrink-0" data-comment-popover>
+                                                      <button type="button" onClick={(e) => { e.stopPropagation(); const rect = e.currentTarget.getBoundingClientRect(); const popoverW = 360; const left = Math.max(16, Math.min(rect.left, (typeof window !== 'undefined' ? window.innerWidth : 400) - popoverW - 16)); setCommentPopoverData(prev => prev?.id === approval.id ? null : { id: approval.id, commentText: approval.commentText ?? '', left, top: rect.top }); }} className="p-0.5 rounded hover:bg-gray-200 text-gray-500 hover:text-gray-700" title="Комментарий" aria-label="Показать комментарий">
+                                                        <MessageSquare className="w-3 h-3" />
+                                                      </button>
+                                                    </span>
+                                                  )}
+                                                </div>
                                               </td>
-                                              <td className="pl-0 pr-0.5 py-0.5 text-[10px] text-gray-900 break-words min-w-0" title={approval.role}>{approval.role || '-'}</td>
                                               <td className="px-0.5 py-0.5 text-[10px] text-gray-900 truncate min-w-0" title={approval.executorName ?? ''}>{approval.executorName || '-'}</td>
                                               <td className="px-0.5 py-0.5 text-[10px] text-gray-900 whitespace-nowrap">{formatDate(approval.assignmentDate)}</td>
                                               <td className="px-0.5 py-0.5 text-[10px] text-gray-900 whitespace-nowrap">{formatDate(approval.completionDate)}</td>
-                                              <td className="px-0.5 py-0.5 text-[10px] text-gray-900 truncate min-w-0" title={approval.commentText ?? ''}>{approval.commentText || '-'}</td>
                                             </tr>
-                                          ))}
+                                            );
+                                          })}
                                           </tbody>
                                         </table>
                                       </div>
                                     );
                                   })
                                 ) : (
-                                  <div className="text-[10px] text-gray-500 text-center py-0.5">Нет данных</div>
+                                  <div className="text-[10px] text-gray-500 text-center py-0">Нет данных</div>
                                 )}
                               </div>
                             </div>
@@ -2570,184 +2603,6 @@ export default function PurchaseRequestDetailPage() {
               </div>
             </div>
 
-            {/* Раздел: Спецификация - показываем после Договора, если закупка требуется */}
-            {purchaseRequest.requiresPurchase !== false && (
-            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-                <div className="px-2 py-1.5 border-b border-gray-300 bg-gray-100">
-                  <h2 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Спецификация</h2>
-                </div>
-                <div className="p-2">
-                <div className="flex flex-col lg:flex-row gap-4 items-start">
-                  {/* Левая часть с полями спецификации */}
-                  <div className="flex-1">
-                  {specifications && specifications.length > 0 ? (
-                    <div className="space-y-3">
-                      {specifications.map((spec) => (
-                        <div key={spec.id} className="border border-gray-200 rounded p-2">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
-                            <div>
-                              <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                Внутренний ID
-                              </label>
-                              <p className="text-xs text-gray-900">
-                                {spec.innerId || '-'}
-                              </p>
-                            </div>
-                            <div>
-                              <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                Наименование
-                              </label>
-                              <p className="text-xs text-gray-900">
-                                {spec.name || '-'}
-                              </p>
-                            </div>
-                            <div>
-                              <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                Заголовок
-                              </label>
-                              <p className="text-xs text-gray-900">
-                                {spec.title || '-'}
-                              </p>
-                            </div>
-                            <div>
-                              <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                Статус
-                              </label>
-                              <p className="text-xs text-gray-900">
-                                {spec.status ? (
-                                  <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${
-                                    spec.status === 'Подписан' 
-                                      ? 'bg-green-100 text-green-800' 
-                                      : spec.status === 'Проект'
-                                      ? 'bg-gray-100 text-gray-800'
-                                      : 'bg-blue-100 text-blue-800'
-                                  }`}>
-                                    {spec.status}
-                                  </span>
-                                ) : '-'}
-                              </p>
-                            </div>
-                            <div>
-                              <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                ЦФО
-                              </label>
-                              <p className="text-xs text-gray-900">
-                                {spec.cfo || '-'}
-                              </p>
-                            </div>
-                            <div>
-                              <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                Дата создания
-                              </label>
-                              <p className="text-xs text-gray-900">
-                                {spec.contractCreationDate ? new Date(spec.contractCreationDate).toLocaleDateString('ru-RU') : '-'}
-                              </p>
-                            </div>
-                            <div>
-                              <label className="block text-xs font-semibold text-gray-600 mb-0">
-                                Сумма договора
-                              </label>
-                              <p className="text-xs text-gray-900">
-                                {spec.budgetAmount ? (
-                                  <span className="flex items-center">
-                                    {new Intl.NumberFormat('ru-RU', { style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(spec.budgetAmount)}
-                                    {getCurrencyIcon(spec.currency)}
-                                  </span>
-                                ) : '-'}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-2 text-xs text-gray-500">
-                      <p>Нет данных о спецификациях</p>
-                    </div>
-                  )}
-              </div>
-
-                  {/* Правая часть - согласования по спецификациям (из contract_approvals) */}
-              <div className="w-full lg:min-w-[32rem] lg:w-[36rem] flex-shrink-0 min-w-0 max-w-full">
-                    <div className="bg-white rounded p-2 space-y-0 min-w-0 overflow-hidden">
-                      {specifications && specifications.length > 0 ? (
-                        specifications.map((spec) => {
-                          const list = contractApprovalsByContractId[spec.id] ?? [];
-                          const stages = [...new Set(list.map((a) => a.stage || 'Без этапа'))];
-                          const stageOrder = getContractSpecStageOrder(stages);
-                          return (
-                            <div key={spec.id} className="bg-white rounded-lg shadow-md p-2 min-w-0 overflow-hidden">
-                              <div className="space-y-0 min-w-0">
-                                {list.length > 0 ? (
-                                  stageOrder.map((stage) => {
-                                    const stageItems = list.filter((a) => (a.stage || 'Без этапа') === stage);
-                                    return (
-                                      <div key={stage} className="pb-2 mb-2 border-b border-gray-200 last:border-b-0 last:mb-0 last:pb-0 pt-1 first:pt-0">
-                                        <div className="text-[10px] font-semibold text-gray-900 mb-1 leading-tight">{stage}</div>
-                                        <table className="w-full border-collapse min-w-0 table-fixed">
-                                          <colgroup>
-                                            <col style={{ width: 14 }} />
-                                            <col style={{ width: '32%' }} />
-                                            <col style={{ width: '12%' }} />
-                                            <col style={{ width: '13%' }} />
-                                            <col style={{ width: '13%' }} />
-                                            <col style={{ width: '14%' }} />
-                                          </colgroup>
-                                          <thead>
-                                            <tr className="border-b border-gray-200">
-                                              <th className="pl-0 pr-0.5 py-0.5 text-left w-3" />
-                                              <th className="pl-0 pr-0.5 py-0.5 text-left text-[9px] font-semibold text-gray-500 uppercase min-w-0">Роль</th>
-                                              <th className="px-0.5 py-0.5 text-left text-[9px] font-semibold text-gray-500 uppercase truncate min-w-0">Исполнитель</th>
-                                              <th className="px-0.5 py-0.5 text-left text-[9px] font-semibold text-gray-500 uppercase whitespace-nowrap min-w-[4rem]">Назначение</th>
-                                              <th className="px-0.5 py-0.5 text-left text-[9px] font-semibold text-gray-500 uppercase whitespace-nowrap min-w-[4rem]">Выполнение</th>
-                                              <th className="px-0.5 py-0.5 text-left text-[9px] font-semibold text-gray-500 uppercase truncate min-w-0">Комментарий</th>
-                                            </tr>
-                                          </thead>
-                                          <tbody>
-                                          {stageItems.map((approval) => (
-                                            <tr key={approval.id} className="border-b border-gray-200 last:border-b-0">
-                                              <td className="pl-0 pr-0.5 py-0.5 align-middle">
-                                                {(() => {
-                                                  const statusColor = getApprovalStatusColor({ ...approval, daysInWork: null, idPurchaseRequest: purchaseRequest.idPurchaseRequest ?? 0 });
-                                                  if (statusColor === 'green') {
-                                                    return <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано'}><Check className="w-2 h-2 text-white" /></div>;
-                                                  } else if (statusColor === 'orange') {
-                                                    return <div className="w-3 h-3 rounded-full bg-orange-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано с замечаниями'}><Check className="w-2 h-2 text-white" /></div>;
-                                                  } else if (statusColor === 'yellow') {
-                                                    return <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}><Clock className="w-2 h-2 text-white" /></div>;
-                                                  } else {
-                                                    return <div className="w-3 h-3 rounded-full bg-red-500 flex items-center justify-center" title={approval.completionResult || 'Не согласовано'}><X className="w-2 h-2 text-white" /></div>;
-                                                  }
-                                                })()}
-                                              </td>
-                                              <td className="pl-0 pr-0.5 py-0.5 text-[10px] text-gray-900 break-words min-w-0" title={approval.role}>{approval.role || '-'}</td>
-                                              <td className="px-0.5 py-0.5 text-[10px] text-gray-900 truncate min-w-0" title={approval.executorName ?? ''}>{approval.executorName || '-'}</td>
-                                              <td className="px-0.5 py-0.5 text-[10px] text-gray-900 whitespace-nowrap">{formatDate(approval.assignmentDate)}</td>
-                                              <td className="px-0.5 py-0.5 text-[10px] text-gray-900 whitespace-nowrap">{formatDate(approval.completionDate)}</td>
-                                              <td className="px-0.5 py-0.5 text-[10px] text-gray-900 truncate min-w-0" title={approval.commentText ?? ''}>{approval.commentText || '-'}</td>
-                                            </tr>
-                                          ))}
-                                          </tbody>
-                                        </table>
-                                      </div>
-                                    );
-                                  })
-                                ) : (
-                                  <div className="text-[10px] text-gray-500 text-center py-0.5">Нет данных</div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })
-                      ) : (
-                        <div className="text-[10px] text-gray-500 text-center py-2">Нет спецификаций для отображения согласований</div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-            )}
           </div>
         </main>
 
@@ -2803,6 +2658,33 @@ export default function PurchaseRequestDetailPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Попап комментария согласования — рендер в портале, чтобы не обрезался таблицей */}
+        {commentPopoverData && typeof document !== 'undefined' && createPortal(
+          <div
+            data-comment-popover-portal
+            className="fixed z-[100] min-w-[200px] max-w-[360px] rounded-lg border border-gray-200 bg-white shadow-lg p-2"
+            style={{
+              left: commentPopoverData.left,
+              top: commentPopoverData.top - 8,
+              transform: 'translateY(-100%)',
+            }}
+          >
+            <div className="flex items-start gap-1">
+              <div className="flex-1 min-w-0 max-h-[50vh] overflow-y-auto">
+                <p className="text-[10px] text-gray-900 break-words whitespace-pre-wrap">{commentPopoverData.commentText}</p>
+              </div>
+              <button type="button" onClick={() => setCommentPopoverData(null)} className="p-0.5 rounded hover:bg-gray-200 flex-shrink-0" aria-label="Закрыть">
+                <X className="w-3 h-3 text-gray-500" />
+              </button>
+            </div>
+            <button type="button" onClick={() => { copyToClipboard(commentPopoverData.commentText); }} className="mt-1.5 w-full flex items-center justify-center gap-1 py-1 px-2 text-[10px] font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded border border-gray-200">
+              <Copy className="w-3 h-3" />
+              Скопировать в буфер
+            </button>
+          </div>,
+          document.body
         )}
       </div>
     </div>
