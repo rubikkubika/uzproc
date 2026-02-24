@@ -89,12 +89,22 @@ public class CsiFeedbackController {
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String sortBy,
             @RequestParam(required = false) String sortDir,
-            @RequestParam(required = false) Long purchaseRequestId) {
+            @RequestParam(required = false) Long purchaseRequestId,
+            @RequestParam(required = false) Integer year) {
 
         Page<CsiFeedbackDto> feedbacks = csiFeedbackService.findAll(
-                page, size, sortBy, sortDir, purchaseRequestId);
+                page, size, sortBy, sortDir, purchaseRequestId, year);
 
         return ResponseEntity.ok(feedbacks);
+    }
+
+    /**
+     * Средние показатели оценок CSI за год.
+     */
+    @GetMapping("/stats")
+    public ResponseEntity<Map<String, Object>> getStats(@RequestParam int year) {
+        Map<String, Object> stats = csiFeedbackService.getStatsByYear(year);
+        return ResponseEntity.ok(stats);
     }
 
     @GetMapping("/{id}")

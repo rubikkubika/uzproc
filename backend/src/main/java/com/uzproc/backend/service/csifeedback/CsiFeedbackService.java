@@ -19,8 +19,11 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -162,11 +165,12 @@ public class CsiFeedbackService {
             int size,
             String sortBy,
             String sortDir,
-            Long purchaseRequestId) {
+            Long purchaseRequestId,
+            Integer year) {
 
-        logger.info("Finding CSI feedback - page: {}, size: {}, purchaseRequestId: {}", page, size, purchaseRequestId);
+        logger.info("Finding CSI feedback - page: {}, size: {}, purchaseRequestId: {}, year: {}", page, size, purchaseRequestId, year);
 
-        Specification<CsiFeedback> spec = buildSpecification(purchaseRequestId);
+        Specification<CsiFeedback> spec = buildSpecification(purchaseRequestId, year);
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
 
@@ -176,6 +180,57 @@ public class CsiFeedbackService {
                 feedbacks.getContent().size(), page, size, feedbacks.getTotalElements());
 
         return feedbacks.map(this::toDto);
+    }
+
+    /**
+     * Средние показатели оценок CSI за год.
+     */
+    public Map<String, Object> getStatsByYear(int year) {
+        Specification<CsiFeedback> spec = buildSpecification(null, year);
+        List<CsiFeedback> all = csiFeedbackRepository.findAll(spec);
+        int count = all.size();
+        Map<String, Object> result = new HashMap<>();
+        result.put("year", year);
+        result.put("count", count);
+        if (count == 0) {
+            result.put("avgSpeed", null);
+            result.put("avgQuality", null);
+            result.put("avgSatisfaction", null);
+            result.put("avgUzproc", null);
+            result.put("avgOverall", null);
+            return result;
+        }
+        double sumSpeed = 0, sumQuality = 0, sumSatisfaction = 0, sumUzproc = 0;
+        int uzprocCount = 0;
+        for (CsiFeedback f : all) {
+            if (f.getSpeedRating() != null) sumSpeed += f.getSpeedRating();
+            if (f.getQualityRating() != null) sumQuality += f.getQualityRating();
+            if (f.getSatisfactionRating() != null) sumSatisfaction += f.getSatisfactionRating();
+            if (f.getUzprocRating() != null) {
+                sumUzproc += f.getUzprocRating();
+                uzprocCount++;
+            }
+        }
+        result.put("avgSpeed", sumSpeed / count);
+        result.put("avgQuality", sumQuality / count);
+        result.put("avgSatisfaction", sumSatisfaction / count);
+        result.put("avgUzproc", uzprocCount > 0 ? sumUzproc / uzprocCount : null);
+        int div = 0;
+        double overallSum = 0;
+        for (CsiFeedback f : all) {
+            int n = 0;
+            double s = 0;
+            if (f.getSpeedRating() != null) { s += f.getSpeedRating(); n++; }
+            if (f.getQualityRating() != null) { s += f.getQualityRating(); n++; }
+            if (f.getSatisfactionRating() != null) { s += f.getSatisfactionRating(); n++; }
+            if (f.getUzprocRating() != null) { s += f.getUzprocRating(); n++; }
+            if (n > 0) {
+                overallSum += s / n;
+                div++;
+            }
+        }
+        result.put("avgOverall", div > 0 ? overallSum / div : null);
+        return result;
     }
 
     public CsiFeedbackDto findById(Long id) {
@@ -194,12 +249,17 @@ public class CsiFeedbackService {
                 .toList();
     }
 
-    private Specification<CsiFeedback> buildSpecification(Long purchaseRequestId) {
+    private Specification<CsiFeedback> buildSpecification(Long purchaseRequestId, Integer year) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
             if (purchaseRequestId != null) {
                 predicates.add(cb.equal(root.get("purchaseRequest").get("id"), purchaseRequestId));
+            }
+            if (year != null) {
+                LocalDateTime startOfYear = LocalDateTime.of(year, 1, 1, 0, 0);
+                LocalDateTime endOfYear = LocalDateTime.of(year, 12, 31, 23, 59, 59, 999_999_999);
+                predicates.add(cb.between(root.get("createdAt"), startOfYear, endOfYear));
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));
