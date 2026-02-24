@@ -28,43 +28,55 @@ public class CsiFeedbackInvitationService {
     }
 
     /**
-     * Создает приглашение для получателя
+     * Создаёт или обновляет приглашение для получателя.
+     * Для заявки хранится одно приглашение: при смене получателя обновляется существующее, второе не создаётся.
      */
     @Transactional
     public CsiFeedbackInvitation createInvitation(String csiToken, String recipient) {
-        logger.info("Creating invitation for token: {}, recipient: {}", csiToken, recipient);
-        
+        logger.info("Creating or updating invitation for token: {}, recipient: {}", csiToken, recipient);
+
         PurchaseRequest purchaseRequest = purchaseRequestRepository.findByCsiToken(csiToken)
                 .orElseThrow(() -> new IllegalArgumentException("Заявка не найдена по CSI токену: " + csiToken));
 
-        // Проверяем, нет ли уже приглашения для этого получателя
-        Optional<CsiFeedbackInvitation> existing = invitationRepository
-                .findByPurchaseRequestIdAndRecipient(purchaseRequest.getId(), recipient);
+        Long requestId = purchaseRequest.getId();
 
-        if (existing.isPresent()) {
+        // Уже есть приглашение с этим получателем — ничего не меняем
+        Optional<CsiFeedbackInvitation> existingSameRecipient = invitationRepository
+                .findByPurchaseRequestIdAndRecipient(requestId, recipient);
+        if (existingSameRecipient.isPresent()) {
             logger.info("Invitation already exists for purchase request {} and recipient {}",
-                    purchaseRequest.getId(), recipient);
-
-            // Устанавливаем флаг отправки приглашения, если он еще не установлен
-            if (purchaseRequest.getCsiInvitationSent() == null || !purchaseRequest.getCsiInvitationSent()) {
-                purchaseRequest.setCsiInvitationSent(true);
-                purchaseRequestRepository.save(purchaseRequest);
-            }
-
-            return existing.get();
+                    requestId, recipient);
+            ensureCsiInvitationSentFlag(purchaseRequest);
+            return existingSameRecipient.get();
         }
 
+        // Есть приглашение с другим получателем — обновляем получателя (не создаём второе)
+        Optional<CsiFeedbackInvitation> existingAny = invitationRepository
+                .findFirstByPurchaseRequestIdOrderByIdDesc(requestId);
+        if (existingAny.isPresent()) {
+            CsiFeedbackInvitation invitation = existingAny.get();
+            invitation.setRecipient(recipient);
+            CsiFeedbackInvitation saved = invitationRepository.save(invitation);
+            logger.info("Updated invitation ID: {} for purchase request {} to recipient: {}",
+                    saved.getId(), requestId, recipient);
+            ensureCsiInvitationSentFlag(purchaseRequest);
+            return saved;
+        }
+
+        // Приглашений нет — создаём первое
         CsiFeedbackInvitation invitation = new CsiFeedbackInvitation(purchaseRequest, recipient);
         CsiFeedbackInvitation saved = invitationRepository.save(invitation);
-
-        // Устанавливаем флаг отправки приглашения
-        purchaseRequest.setCsiInvitationSent(true);
-        purchaseRequestRepository.save(purchaseRequest);
-
         logger.info("Invitation created with ID: {} for purchase request ID: {}, recipient: {}",
-                saved.getId(), purchaseRequest.getId(), recipient);
-
+                saved.getId(), requestId, recipient);
+        ensureCsiInvitationSentFlag(purchaseRequest);
         return saved;
+    }
+
+    private void ensureCsiInvitationSentFlag(PurchaseRequest purchaseRequest) {
+        if (purchaseRequest.getCsiInvitationSent() == null || !purchaseRequest.getCsiInvitationSent()) {
+            purchaseRequest.setCsiInvitationSent(true);
+            purchaseRequestRepository.save(purchaseRequest);
+        }
     }
 
     /**
@@ -83,7 +95,8 @@ public class CsiFeedbackInvitationService {
     }
 
     /**
-     * Находит приглашение только по токену (если получатель не указан)
+     * Находит приглашение только по токену (если получатель не указан).
+     * Возвращает последнее приглашение по id (последняя вставленная запись), чтобы при смене получателя отображался сохранённый получатель.
      */
     public Optional<CsiFeedbackInvitation> findByToken(String csiToken) {
         PurchaseRequest purchaseRequest = purchaseRequestRepository.findByCsiToken(csiToken)
@@ -93,10 +106,7 @@ public class CsiFeedbackInvitationService {
             return Optional.empty();
         }
         
-        // Возвращаем первое приглашение для этой заявки (если есть)
-        return invitationRepository.findByPurchaseRequestId(purchaseRequest.getId())
-                .stream()
-                .findFirst();
+        return invitationRepository.findFirstByPurchaseRequestIdOrderByIdDesc(purchaseRequest.getId());
     }
 
     /**

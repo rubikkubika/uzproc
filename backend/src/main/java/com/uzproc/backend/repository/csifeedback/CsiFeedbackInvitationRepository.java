@@ -11,4 +11,6 @@ import java.util.Optional;
 public interface CsiFeedbackInvitationRepository extends JpaRepository<CsiFeedbackInvitation, Long> {
     List<CsiFeedbackInvitation> findByPurchaseRequestId(Long purchaseRequestId);
     Optional<CsiFeedbackInvitation> findByPurchaseRequestIdAndRecipient(Long purchaseRequestId, String recipient);
+    /** Последнее приглашение по заявке (по id = последняя вставленная запись, надёжнее чем по дате) */
+    Optional<CsiFeedbackInvitation> findFirstByPurchaseRequestIdOrderByIdDesc(Long purchaseRequestId);
 }

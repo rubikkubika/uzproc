@@ -2,6 +2,9 @@ import { useEffect, useRef, useCallback } from 'react';
 import type { PurchaseRequest } from '../types/purchase-request.types';
 import { searchUsersByNameLike, findInitiatorByName, type UserSuggestion } from '../services/users.api';
 
+/** Ref: для какого id заявки уже подставлен инициатор (чтобы не перезаписывать получателя при сбросе выбора) */
+const initiatorLoadedForRequestIdRef = { current: null as number | null };
+
 /**
  * Хук для работы с модальным окном рейтинга
  * Управляет поиском пользователей, автоподстановкой инициатора и генерацией текста письма
@@ -113,49 +116,56 @@ ${fullUrl}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRatingModalOpen, selectedRequestForRating, selectedUserEmail, selectedUser]);
 
-  // Устанавливаем инициатора заявки по умолчанию при открытии модального окна (пропускаем при открытии из «Редактировать отправку»)
+  // Устанавливаем инициатора заявки по умолчанию только при первом открытии модалки для этой заявки (не перезаписываем при сбросе получателя)
   useEffect(() => {
-    if (skipInitiatorLoadRef?.current) return;
-    if (isRatingModalOpen && selectedRequestForRating?.purchaseRequestInitiator && !selectedUser) {
-      const loadInitiator = async () => {
-        try {
-          const initiatorName = selectedRequestForRating?.purchaseRequestInitiator?.trim();
-          if (!initiatorName) return;
-
-          const initiator = await findInitiatorByName(initiatorName);
-
-          if (initiator) {
-            const user = {
-              id: initiator.id,
-              username: initiator.username,
-              email: initiator.email,
-              surname: initiator.surname,
-              name: initiator.name
-            };
-            setSelectedUser(user);
-            const displayName = user.surname && user.name
-              ? `${user.surname} ${user.name}${user.email ? ` (${user.email})` : ''}`
-              : user.email || user.username;
-            setUserSearchQuery(displayName);
-            setSelectedUserEmail(initiator.email || initiator.username);
-            // Генерируем текст письма (приглашение создастся автоматически)
-            generateEmailText(initiator.email || initiator.username, selectedRequestForRating, user).catch(err => {
-              console.error('Error generating email text:', err);
-            });
-          } else {
-            // Если инициатор не найден, все равно устанавливаем его имя в поле поиска
-            setUserSearchQuery(initiatorName);
-          }
-        } catch (error) {
-          console.error('Error loading initiator:', error);
-          // В случае ошибки все равно устанавливаем имя инициатора в поле поиска
-          if (selectedRequestForRating?.purchaseRequestInitiator) {
-            setUserSearchQuery(selectedRequestForRating.purchaseRequestInitiator);
-          }
-        }
-      };
-      loadInitiator();
+    if (!isRatingModalOpen) {
+      initiatorLoadedForRequestIdRef.current = null;
+      return;
     }
+    if (skipInitiatorLoadRef?.current) return;
+    if (!selectedRequestForRating?.purchaseRequestInitiator || selectedUser) return;
+    const requestId = selectedRequestForRating.id;
+    if (requestId != null && initiatorLoadedForRequestIdRef.current === requestId) return;
+
+    initiatorLoadedForRequestIdRef.current = requestId ?? null;
+    const loadInitiator = async () => {
+      try {
+        const initiatorName = selectedRequestForRating?.purchaseRequestInitiator?.trim();
+        if (!initiatorName) return;
+
+        const initiator = await findInitiatorByName(initiatorName);
+
+        if (initiator) {
+          const user = {
+            id: initiator.id,
+            username: initiator.username,
+            email: initiator.email,
+            surname: initiator.surname,
+            name: initiator.name
+          };
+          setSelectedUser(user);
+          const displayName = user.surname && user.name
+            ? `${user.surname} ${user.name}${user.email ? ` (${user.email})` : ''}`
+            : user.email || user.username;
+          setUserSearchQuery(displayName);
+          setSelectedUserEmail(initiator.email || initiator.username);
+          // Генерируем текст письма (приглашение создастся автоматически)
+          generateEmailText(initiator.email || initiator.username, selectedRequestForRating, user).catch(err => {
+            console.error('Error generating email text:', err);
+          });
+        } else {
+          // Если инициатор не найден, все равно устанавливаем его имя в поле поиска
+          setUserSearchQuery(initiatorName);
+        }
+      } catch (error) {
+        console.error('Error loading initiator:', error);
+        // В случае ошибки все равно устанавливаем имя инициатора в поле поиска
+        if (selectedRequestForRating?.purchaseRequestInitiator) {
+          setUserSearchQuery(selectedRequestForRating.purchaseRequestInitiator);
+        }
+      }
+    };
+    loadInitiator();
   }, [isRatingModalOpen, selectedRequestForRating, selectedUser]);
 
   // Закрытие выпадающего списка при клике вне его
