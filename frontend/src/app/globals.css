@@ -92,6 +92,24 @@ main::-webkit-scrollbar {
   animation: fadeIn 0.3s ease-in-out;
 }
 
+/* Пульс для жёлтого круга (статус «В процессе») — явная анимация */
+@keyframes yellow-circle-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(234, 179, 8, 0.6);
+  }
+  50% {
+    opacity: 0.92;
+    transform: scale(1.18);
+    box-shadow: 0 0 0 14px rgba(234, 179, 8, 0);
+  }
+}
+
+.animate-yellow-circle-pulse {
+  animation: yellow-circle-pulse 3s ease-in-out infinite;
+}
+
 /* Кастомный скроллбар для таблицы плана закупок */
 .custom-scrollbar {
   scrollbar-width: thin !important; /* Firefox */

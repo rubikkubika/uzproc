@@ -45,7 +45,8 @@ public class ContractApprovalExcelLoadService {
     private static final String DOCUMENT_FORM_COLUMN = "Форма документа";
     private static final String STAGE_COLUMN = "Этап";
     private static final String ROLE_COLUMN = "Роль";
-    private static final String EXECUTOR_COLUMN = "Исполнитель";
+    private static final String EXECUTOR_FULL_NAME_COLUMN = "Исполнитель.Полное имя";
+    private static final String EXECUTOR_EMAIL_COLUMN = "Исполнитель.Email";
     private static final String ASSIGNMENT_DATE_COLUMN = "Дата назначения";
     private static final String PLANNED_COMPLETION_DATE_COLUMN = "Плановая дата исполнения";
     private static final String COMPLETION_DATE_COLUMN = "Фактическая дата исполнения";
@@ -145,7 +146,8 @@ public class ContractApprovalExcelLoadService {
             Integer documentFormColumnIndex = findColumnIndex(columnIndexMap, DOCUMENT_FORM_COLUMN);
             Integer stageColumnIndex = findColumnIndex(columnIndexMap, STAGE_COLUMN);
             Integer roleColumnIndex = findColumnIndex(columnIndexMap, ROLE_COLUMN);
-            Integer executorColumnIndex = findColumnIndex(columnIndexMap, EXECUTOR_COLUMN);
+            Integer executorFullNameColumnIndex = findColumnIndex(columnIndexMap, EXECUTOR_FULL_NAME_COLUMN);
+            Integer executorEmailColumnIndex = findColumnIndex(columnIndexMap, EXECUTOR_EMAIL_COLUMN);
             Integer assignmentDateColumnIndex = findColumnIndex(columnIndexMap, ASSIGNMENT_DATE_COLUMN);
             Integer plannedCompletionDateColumnIndex = findColumnIndex(columnIndexMap, PLANNED_COMPLETION_DATE_COLUMN);
             Integer completionDateColumnIndex = findColumnIndex(columnIndexMap, COMPLETION_DATE_COLUMN);
@@ -202,7 +204,7 @@ public class ContractApprovalExcelLoadService {
 
                 ContractApproval approval = parseContractApprovalRow(row,
                         innerIdColumnIndex, guidColumnIndex, cfoColumnIndex, documentFormColumnIndex,
-                        stageColumnIndex, roleColumnIndex, executorColumnIndex,
+                        stageColumnIndex, roleColumnIndex, executorFullNameColumnIndex, executorEmailColumnIndex,
                         assignmentDateColumnIndex, plannedCompletionDateColumnIndex, completionDateColumnIndex,
                         completionResultColumnIndex, commentColumnIndex, isWaitingColumnIndex);
                 if (approval == null) continue;
@@ -233,7 +235,7 @@ public class ContractApprovalExcelLoadService {
 
     private ContractApproval parseContractApprovalRow(Row row,
             Integer innerIdColumnIndex, Integer guidColumnIndex, Integer cfoColumnIndex, Integer documentFormColumnIndex,
-            Integer stageColumnIndex, Integer roleColumnIndex, Integer executorColumnIndex,
+            Integer stageColumnIndex, Integer roleColumnIndex, Integer executorFullNameColumnIndex, Integer executorEmailColumnIndex,
             Integer assignmentDateColumnIndex, Integer plannedCompletionDateColumnIndex, Integer completionDateColumnIndex,
             Integer completionResultColumnIndex, Integer commentColumnIndex, Integer isWaitingColumnIndex) {
         ContractApproval a = new ContractApproval();
@@ -286,10 +288,21 @@ public class ContractApprovalExcelLoadService {
             }
         }
 
-        if (executorColumnIndex != null) {
-            String executorStr = getCellValueAsString(row.getCell(executorColumnIndex));
-            if (executorStr != null && !executorStr.trim().isEmpty()) {
-                User executor = findUserByExecutorString(executorStr.trim());
+        if (executorFullNameColumnIndex != null || executorEmailColumnIndex != null) {
+            String fullName = executorFullNameColumnIndex != null ? getCellValueAsString(row.getCell(executorFullNameColumnIndex)) : null;
+            String email = executorEmailColumnIndex != null ? getCellValueAsString(row.getCell(executorEmailColumnIndex)) : null;
+            if (fullName != null && !fullName.trim().isEmpty()) {
+                fullName = fullName.trim();
+            } else {
+                fullName = null;
+            }
+            if (email != null && !email.trim().isEmpty()) {
+                email = email.trim();
+            } else {
+                email = null;
+            }
+            if (fullName != null || email != null) {
+                User executor = findOrCreateUserByFullNameAndEmail(fullName, email);
                 if (executor != null) {
                     a.setExecutor(executor);
                 }
@@ -375,22 +388,80 @@ public class ContractApprovalExcelLoadService {
         return updated;
     }
 
-    private User findUserByExecutorString(String executorValue) {
-        try {
-            int openBracket = executorValue.indexOf('(');
-            String namePart = openBracket > 0 ? executorValue.substring(0, openBracket).trim() : executorValue;
-            String[] parts = namePart.split("\\s+", 2);
-            if (parts.length >= 2) {
-                Optional<User> opt = userRepository.findBySurnameAndName(parts[0].trim(), parts[1].trim());
-                if (opt.isEmpty()) {
-                    opt = userRepository.findBySurnameAndName(parts[1].trim(), parts[0].trim());
-                }
-                return opt.orElse(null);
-            }
-        } catch (Exception e) {
-            logger.debug("Could not parse executor '{}': {}", executorValue, e.getMessage());
+    /**
+     * Находит пользователя по ФИО и email или создаёт нового.
+     * Поиск: сначала по email (если задан), иначе по фамилии и имени (из полного имени).
+     * Если не найден — создаёт пользователя, сохраняет и возвращает его, затем связь с согласованием устанавливается в parseContractApprovalRow.
+     */
+    private User findOrCreateUserByFullNameAndEmail(String fullName, String email) {
+        if ((fullName == null || fullName.trim().isEmpty()) && (email == null || email.trim().isEmpty())) {
+            return null;
         }
-        return null;
+        try {
+            String surname = null;
+            String name = null;
+            if (fullName != null && !fullName.trim().isEmpty()) {
+                String[] parts = fullName.trim().split("\\s+", 2);
+                if (parts.length >= 1) surname = parts[0].trim();
+                if (parts.length >= 2) name = parts[1].trim();
+            }
+
+            User existingUser = null;
+            if (email != null && !email.isEmpty()) {
+                existingUser = userRepository.findByEmail(email).orElse(null);
+            }
+            if (existingUser == null && surname != null && name != null) {
+                existingUser = userRepository.findBySurnameAndName(surname, name).orElse(null);
+                if (existingUser == null) {
+                    existingUser = userRepository.findBySurnameAndName(name, surname).orElse(null);
+                }
+            }
+
+            if (existingUser != null) {
+                boolean updated = false;
+                if (email != null && !email.equals(existingUser.getEmail())) {
+                    existingUser.setEmail(email);
+                    updated = true;
+                }
+                if (surname != null && !surname.equals(existingUser.getSurname())) {
+                    existingUser.setSurname(surname);
+                    updated = true;
+                }
+                if (name != null && !name.equals(existingUser.getName())) {
+                    existingUser.setName(name);
+                    updated = true;
+                }
+                if (updated) {
+                    userRepository.save(existingUser);
+                }
+                return existingUser;
+            }
+
+            String username = (email != null && email.contains("@"))
+                    ? email.substring(0, email.indexOf('@')).replaceAll("[^a-zA-Z0-9_.-]", "_")
+                    : (surname != null ? surname : "") + (name != null ? "_" + name : "");
+            if (username.isEmpty() || username.equals("_")) {
+                username = "user_" + System.currentTimeMillis();
+            }
+            if (userRepository.existsByUsername(username)) {
+                username = username + "_" + System.currentTimeMillis();
+            }
+
+            User newUser = new User();
+            newUser.setUsername(username);
+            newUser.setPassword("");
+            newUser.setSurname(surname);
+            newUser.setName(name);
+            if (email != null && !email.isEmpty()) {
+                newUser.setEmail(email);
+            }
+            newUser = userRepository.save(newUser);
+            logger.debug("Created user for contract approval executor: {} {}, email: {}", surname, name, email);
+            return newUser;
+        } catch (Exception e) {
+            logger.warn("Error findOrCreateUserByFullNameAndEmail fullName='{}' email='{}': {}", fullName, email, e.getMessage());
+            return null;
+        }
     }
 
     private Map<String, Integer> buildColumnIndexMap(Row headerRow) {

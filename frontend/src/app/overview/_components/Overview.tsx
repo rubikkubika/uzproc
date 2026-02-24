@@ -195,7 +195,7 @@ export default function Overview() {
           </div>
         )}
         {activeTab === 'csi' && (
-          <div className="w-1/2">
+          <div className="w-full">
             <AllCsiFeedback />
           </div>
         )}
