@@ -214,11 +214,9 @@ public class ContractApprovalExcelLoadService {
                 Optional<ContractApproval> existingOpt = contractApprovalRepository.findByContractIdAndStageAndRole(contractId, approval.getStage(), approval.getRole());
                 if (existingOpt.isPresent()) {
                     ContractApproval existing = existingOpt.get();
-                    boolean updated = updateContractApprovalFields(existing, approval);
-                    if (updated) {
-                        contractApprovalRepository.save(existing);
-                        loadedCount++;
-                    }
+                    updateContractApprovalFields(existing, approval);
+                    contractApprovalRepository.save(existing);
+                    loadedCount++;
                 } else {
                     contractApprovalRepository.save(approval);
                     loadedCount++;
@@ -342,56 +340,26 @@ public class ContractApprovalExcelLoadService {
         return a;
     }
 
-    private boolean updateContractApprovalFields(ContractApproval existing, ContractApproval newData) {
-        boolean updated = false;
-
-        if (newData.getGuid() != null && !newData.getGuid().equals(existing.getGuid())) {
-            existing.setGuid(newData.getGuid());
-            updated = true;
-        }
-        if (newData.getCfo() != null && (existing.getCfo() == null || !newData.getCfo().getId().equals(existing.getCfoId()))) {
-            existing.setCfo(newData.getCfo());
-            updated = true;
-        }
-        if (newData.getDocumentForm() != null && !newData.getDocumentForm().equals(existing.getDocumentForm())) {
-            existing.setDocumentForm(newData.getDocumentForm());
-            updated = true;
-        }
-        if (newData.getExecutor() != null && (existing.getExecutor() == null || !newData.getExecutor().getId().equals(existing.getExecutorId()))) {
-            existing.setExecutor(newData.getExecutor());
-            updated = true;
-        }
-        if (newData.getAssignmentDate() != null && !newData.getAssignmentDate().equals(existing.getAssignmentDate())) {
-            existing.setAssignmentDate(newData.getAssignmentDate());
-            updated = true;
-        }
-        if (newData.getPlannedCompletionDate() != null && !newData.getPlannedCompletionDate().equals(existing.getPlannedCompletionDate())) {
-            existing.setPlannedCompletionDate(newData.getPlannedCompletionDate());
-            updated = true;
-        }
-        if (newData.getCompletionDate() != null && !newData.getCompletionDate().equals(existing.getCompletionDate())) {
-            existing.setCompletionDate(newData.getCompletionDate());
-            updated = true;
-        }
-        if (newData.getCompletionResult() != null && !newData.getCompletionResult().equals(existing.getCompletionResult())) {
-            existing.setCompletionResult(newData.getCompletionResult());
-            updated = true;
-        }
-        if (newData.getCommentText() != null && !newData.getCommentText().equals(existing.getCommentText())) {
-            existing.setCommentText(newData.getCommentText());
-            updated = true;
-        }
-        if (newData.getIsWaiting() != null && !newData.getIsWaiting().equals(existing.getIsWaiting())) {
-            existing.setIsWaiting(newData.getIsWaiting());
-            updated = true;
-        }
-        return updated;
+    /**
+     * Обновляет поля существующей записи значениями из Excel (включая null — пустые ячейки очищают поле).
+     */
+    private void updateContractApprovalFields(ContractApproval existing, ContractApproval newData) {
+        existing.setGuid(newData.getGuid());
+        existing.setCfo(newData.getCfo());
+        existing.setDocumentForm(newData.getDocumentForm());
+        existing.setExecutor(newData.getExecutor());
+        existing.setAssignmentDate(newData.getAssignmentDate());
+        existing.setPlannedCompletionDate(newData.getPlannedCompletionDate());
+        existing.setCompletionDate(newData.getCompletionDate());
+        existing.setCompletionResult(newData.getCompletionResult());
+        existing.setCommentText(newData.getCommentText());
+        existing.setIsWaiting(newData.getIsWaiting());
     }
 
     /**
-     * Находит пользователя по ФИО и email или создаёт нового.
-     * Поиск: сначала по email (если задан), иначе по фамилии и имени (из полного имени).
-     * Если не найден — создаёт пользователя, сохраняет и возвращает его, затем связь с согласованием устанавливается в parseContractApprovalRow.
+     * Находит пользователя по фамилии и имени из согласования, при необходимости корректирует email и сохраняет.
+     * Поиск: сначала по (surname, name), при отсутствии — по email (если несколько записей с одним email — выбирается по совпадению ФИО или берётся первый с обновлением ФИО и email).
+     * Если не найден — создаёт пользователя. После нахождения/создания пользователь сохраняется, затем связывается с согласованием.
      */
     private User findOrCreateUserByFullNameAndEmail(String fullName, String email) {
         if ((fullName == null || fullName.trim().isEmpty()) && (email == null || email.trim().isEmpty())) {
@@ -406,20 +374,36 @@ public class ContractApprovalExcelLoadService {
                 if (parts.length >= 2) name = parts[1].trim();
             }
 
+            // 1. Приоритет: поиск по фамилии и имени (как в согласовании)
             User existingUser = null;
-            if (email != null && !email.isEmpty()) {
-                existingUser = userRepository.findByEmail(email).orElse(null);
-            }
-            if (existingUser == null && surname != null && name != null) {
+            if (surname != null && name != null) {
                 existingUser = userRepository.findBySurnameAndName(surname, name).orElse(null);
                 if (existingUser == null) {
                     existingUser = userRepository.findBySurnameAndName(name, surname).orElse(null);
                 }
             }
 
+            // 2. Если не найден по ФИО — ищем по email (может быть несколько записей)
+            if (existingUser == null && email != null && !email.isEmpty()) {
+                List<User> byEmail = userRepository.findAllByEmail(email);
+                if (!byEmail.isEmpty()) {
+                    // Среди записей с этим email предпочитаем совпадение по ФИО
+                    User matchByName = null;
+                    for (User u : byEmail) {
+                        boolean sameSurname = (surname == null && u.getSurname() == null) || (surname != null && surname.equals(u.getSurname()));
+                        boolean sameName = (name == null && u.getName() == null) || (name != null && name.equals(u.getName()));
+                        if (sameSurname && sameName) {
+                            matchByName = u;
+                            break;
+                        }
+                    }
+                    existingUser = matchByName != null ? matchByName : byEmail.get(0);
+                }
+            }
+
             if (existingUser != null) {
                 boolean updated = false;
-                if (email != null && !email.equals(existingUser.getEmail())) {
+                if (email != null && !email.isEmpty() && !email.equals(existingUser.getEmail())) {
                     existingUser.setEmail(email);
                     updated = true;
                 }
@@ -432,11 +416,12 @@ public class ContractApprovalExcelLoadService {
                     updated = true;
                 }
                 if (updated) {
-                    userRepository.save(existingUser);
+                    existingUser = userRepository.save(existingUser);
                 }
                 return existingUser;
             }
 
+            // 3. Создаём нового пользователя по данным из согласования
             String username = (email != null && email.contains("@"))
                     ? email.substring(0, email.indexOf('@')).replaceAll("[^a-zA-Z0-9_.-]", "_")
                     : (surname != null ? surname : "") + (name != null ? "_" + name : "");
