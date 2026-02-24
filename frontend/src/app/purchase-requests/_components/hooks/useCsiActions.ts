@@ -30,7 +30,7 @@ export function useCsiActions({
   setLoadingFeedbackDetails,
   setSentInvitationDetails,
 }: UseCsiActionsOptions) {
-  // Отправка приглашения для оценки
+  // Отправка приглашения для оценки (сохранение получателя на бэкенде)
   const sendInvitation = useCallback(async (request: PurchaseRequest, recipientEmail: string): Promise<void> => {
     const token = request.csiLink?.split('/csi/feedback/')[1]?.split('?')[0]?.split('#')[0];
     if (!token) {
@@ -42,7 +42,16 @@ export function useCsiActions({
     });
 
     if (!response.ok) {
-      throw new Error('Ошибка при отправке приглашения');
+      let message = 'Ошибка при сохранении приглашения (получатель не сохранён)';
+      try {
+        const data = (await response.json()) as { message?: string };
+        if (data?.message && typeof data.message === 'string') {
+          message = data.message;
+        }
+      } catch {
+        // тело ответа не JSON или не удалось прочитать — оставляем message по умолчанию
+      }
+      throw new Error(message);
     }
 
     // Обновляем allItems: csiInvitationSent=true

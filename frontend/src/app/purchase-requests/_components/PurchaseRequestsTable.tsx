@@ -790,14 +790,16 @@ export default function PurchaseRequestsTable() {
     }
 
     try {
+      // Сначала сразу сохраняем получателя на бэкенде (при редактировании и смене получателя)
       await sendInvitation(selectedRequestForRating, recipientEmail);
+      handleRatingModalClose();
 
       const ccList = (emailCc ?? '')
         .split(/[,;]/)
         .map((s) => s.trim())
         .filter((s) => s && emailRegex.test(s));
 
-      const response = await fetch(`${getBackendUrl()}/api/email/send-feedback`, {
+      const emailResponse = await fetch(`${getBackendUrl()}/api/email/send-feedback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -808,15 +810,23 @@ export default function PurchaseRequestsTable() {
         }),
       });
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Ошибка при отправке письма');
+      let emailError: string | null = null;
+      try {
+        const data = await emailResponse.json();
+        if (!emailResponse.ok) {
+          emailError = (data && typeof data.error === 'string') ? data.error : 'Ошибка при отправке письма';
+        }
+      } catch {
+        if (!emailResponse.ok) {
+          emailError = `Ошибка при отправке письма (код ${emailResponse.status})`;
+        }
       }
-
-      handleRatingModalClose();
+      if (emailError) {
+        alert(`Получатель сохранён. Письмо не отправлено: ${emailError}`);
+      }
     } catch (error) {
-      console.error('Error sending invitation or email:', error);
-      alert(error instanceof Error ? error.message : 'Ошибка при отправке приглашения');
+      console.error('Error saving invitation or sending email:', error);
+      alert(error instanceof Error ? error.message : 'Ошибка при сохранении приглашения');
     }
   }, [selectedRequestForRating, emailTo, emailCc, emailSubject, emailText, sendInvitation, handleRatingModalClose]);
 
