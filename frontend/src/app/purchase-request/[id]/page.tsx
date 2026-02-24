@@ -2007,7 +2007,7 @@ export default function PurchaseRequestDetailPage() {
                   <div className="flex-1">
                   {purchaseRequest.contracts && purchaseRequest.contracts.length > 0 ? (
                     <div className="space-y-3">
-                      {purchaseRequest.contracts.map((contract) => (
+                      {(purchaseRequest.contracts ?? []).map((contract) => (
                         <div key={contract.id} className="relative border border-gray-200 rounded p-2">
                           <button
                             type="button"
@@ -2113,7 +2113,7 @@ export default function PurchaseRequestDetailPage() {
                   {/* Правая часть - согласования по договорам (из contract_approvals) */}
               <div className="w-full lg:min-w-[32rem] lg:w-[36rem] flex-shrink-0 min-w-0 max-w-full">
                     <div className="bg-white rounded p-2 space-y-0 min-w-0 overflow-hidden">
-                      {purchaseRequest.contracts.map((contract) => {
+                      {(purchaseRequest.contracts ?? []).map((contract) => {
                         const list = contractApprovalsByContractId[contract.id] ?? [];
                         const stages = [...new Set(list.map((a) => a.stage || 'Без этапа'))];
                         const stageOrder = getContractSpecStageOrder(stages);
@@ -2150,7 +2150,7 @@ export default function PurchaseRequestDetailPage() {
                                           <tr key={approval.id} className="border-b border-gray-200 last:border-b-0">
                                             <td className="pl-0 pr-0.5 py-0.5 align-middle">
                                               {(() => {
-                                                const statusColor = getApprovalStatusColor({ ...approval, daysInWork: null });
+                                                const statusColor = getApprovalStatusColor({ ...approval, daysInWork: null, idPurchaseRequest: purchaseRequest.idPurchaseRequest ?? 0 });
                                                 if (statusColor === 'green') {
                                                   return <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано'}><Check className="w-2 h-2 text-white" /></div>;
                                                 } else if (statusColor === 'orange') {
@@ -2359,7 +2359,7 @@ export default function PurchaseRequestDetailPage() {
                     ) : (purchaseRequest.requiresPurchase === true || purchaseRequest.requiresPurchase === null) && purchaseRequest.contracts && purchaseRequest.contracts.length > 0 ? (
                       // Для закупок показываем договоры (всегда показываем сам договор, не основной)
                       <div className="space-y-3">
-                        {purchaseRequest.contracts.map((contract) => (
+                        {(purchaseRequest.contracts ?? []).map((contract) => (
                           <div key={contract.id} className="relative border border-gray-200 rounded p-2">
                             <button
                               type="button"
@@ -2495,7 +2495,7 @@ export default function PurchaseRequestDetailPage() {
                   {(purchaseRequest.requiresPurchase === true || purchaseRequest.requiresPurchase === null) && purchaseRequest.contracts && purchaseRequest.contracts.length > 0 && (
                     <div className="w-full lg:min-w-[32rem] lg:w-[36rem] flex-shrink-0 min-w-0 max-w-full">
                       <div className="bg-white rounded p-2 space-y-0 min-w-0 overflow-hidden">
-                        {purchaseRequest.contracts.map((contract) => {
+                        {(purchaseRequest.contracts ?? []).map((contract) => {
                           const list = contractApprovalsByContractId[contract.id] ?? [];
                           const stages = [...new Set(list.map((a) => a.stage || 'Без этапа'))];
                           const stageOrder = getContractSpecStageOrder(stages);
@@ -2532,7 +2532,7 @@ export default function PurchaseRequestDetailPage() {
                                             <tr key={approval.id} className="border-b border-gray-200 last:border-b-0">
                                               <td className="pl-0 pr-0.5 py-0.5 align-middle">
                                                 {(() => {
-                                                  const statusColor = getApprovalStatusColor({ ...approval, daysInWork: null });
+                                                  const statusColor = getApprovalStatusColor({ ...approval, daysInWork: null, idPurchaseRequest: purchaseRequest.idPurchaseRequest ?? 0 });
                                                   if (statusColor === 'green') {
                                                     return <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано'}><Check className="w-2 h-2 text-white" /></div>;
                                                   } else if (statusColor === 'orange') {
@@ -2708,7 +2708,7 @@ export default function PurchaseRequestDetailPage() {
                                             <tr key={approval.id} className="border-b border-gray-200 last:border-b-0">
                                               <td className="pl-0 pr-0.5 py-0.5 align-middle">
                                                 {(() => {
-                                                  const statusColor = getApprovalStatusColor({ ...approval, daysInWork: null });
+                                                  const statusColor = getApprovalStatusColor({ ...approval, daysInWork: null, idPurchaseRequest: purchaseRequest.idPurchaseRequest ?? 0 });
                                                   if (statusColor === 'green') {
                                                     return <div className="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано'}><Check className="w-2 h-2 text-white" /></div>;
                                                   } else if (statusColor === 'orange') {
