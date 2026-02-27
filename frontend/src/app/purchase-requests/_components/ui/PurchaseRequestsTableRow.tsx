@@ -234,7 +234,11 @@ export default function PurchaseRequestsTableRow({
               className="px-2 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
               style={{ width: `${getColumnWidth('purchaseRequestCreationDate')}px`, minWidth: `${getColumnWidth('purchaseRequestCreationDate')}px`, maxWidth: `${getColumnWidth('purchaseRequestCreationDate')}px` }}
             >
-              {dateToShow ? new Date(dateToShow).toLocaleDateString('ru-RU') : '-'}
+              {dateToShow ? (
+                <span className="inline-block px-1.5 py-0.5 rounded bg-gray-200 text-gray-900 text-xs">
+                  {new Date(dateToShow).toLocaleDateString('ru-RU')}
+                </span>
+              ) : '-'}
             </td>
           );
         }
@@ -540,8 +544,12 @@ export default function PurchaseRequestsTableRow({
           const planned = request.plannedSlaDays;
           const hasFactual = factual != null;
           const hasDelta = delta != null;
+          // Для статуса «Договор в работе» дельту показываем только если она отрицательная (минус)
+          const showDelta = hasDelta && (!isContractInProgress || (delta != null && delta < 0));
+          // Резервируем место под дельту, если она скрыта (чтобы размер блока Заявка/Закупка не менялся)
+          const reserveDeltaPlace = hasDelta && !showDelta;
           let slaDeltaNode: React.ReactNode = null;
-          if (hasDelta) {
+          if (showDelta && delta != null) {
             const remainderPct = planned != null && planned > 0 && delta > 0 ? (delta / planned) * 100 : null;
             const isLowRemainder = remainderPct != null && remainderPct <= 30;
             const deltaLabel = delta > 0 ? `+${delta}` : String(delta);
@@ -666,7 +674,9 @@ export default function PurchaseRequestsTableRow({
                               {factual}
                             </span>
                           )}
-                          {slaDeltaNode}
+                          {slaDeltaNode ?? (reserveDeltaPlace ? (
+                            <span className="min-w-[1.75rem] w-[1.75rem] h-5 flex-shrink-0" aria-hidden />
+                          ) : null)}
                         </div>
                       )}
                       <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none text-center col-start-1">Закупка</span>

@@ -9,14 +9,31 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
  * Сервис для работы с согласованиями договоров (contract_approvals).
+ * Этапы «Синхронизация», «Принятие на хранение», «Регистрация» не отдаются в API.
  */
 @Service
 @Transactional(readOnly = true)
 public class ContractApprovalService {
+
+    private static final Set<String> EXCLUDED_STAGE_PREFIXES = Set.of(
+        "синхронизация",
+        "принятие на хранение",
+        "принятие на хранение:",
+        "регистрация",
+        "регистрация договора",
+        "регистрация:"
+    );
+
+    private static boolean isExcludedStage(String stage) {
+        if (stage == null || stage.trim().isEmpty()) return true;
+        String normalized = stage.trim().toLowerCase();
+        return EXCLUDED_STAGE_PREFIXES.stream().anyMatch(normalized::startsWith);
+    }
 
     private final ContractApprovalRepository contractApprovalRepository;
     private final UserRepository userRepository;
@@ -28,11 +45,14 @@ public class ContractApprovalService {
     }
 
     /**
-     * Получить все согласования по id договора.
+     * Получить все согласования по id договора (без этапов Синхронизация, Принятие на хранение, Регистрация).
      */
     public List<ContractApprovalDto> findByContractId(Long contractId) {
         List<ContractApproval> list = contractApprovalRepository.findByContractId(contractId);
-        return list.stream().map(this::toDto).collect(Collectors.toList());
+        return list.stream()
+            .filter(a -> !isExcludedStage(a.getStage()))
+            .map(this::toDto)
+            .collect(Collectors.toList());
     }
 
     private String formatExecutorName(User user) {

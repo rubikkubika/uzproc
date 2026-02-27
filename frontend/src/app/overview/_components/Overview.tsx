@@ -199,6 +199,16 @@ export default function Overview() {
             <AllCsiFeedback />
           </div>
         )}
+        {activeTab === 'ek' && (
+          <div className="bg-white rounded-lg shadow p-4">
+            <p className="text-sm text-gray-600">Раздел ЕК — в разработке.</p>
+          </div>
+        )}
+        {activeTab === 'approvals' && (
+          <div className="bg-white rounded-lg shadow p-4">
+            <p className="text-sm text-gray-600">Раздел Согласования — в разработке.</p>
+          </div>
+        )}
         {activeTab === 'purchase-plan' && (
           <div className="space-y-2 sm:space-y-3">
             {/* Фильтр по году планирования */}
