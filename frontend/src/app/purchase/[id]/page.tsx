@@ -1226,7 +1226,7 @@ export default function PurchaseDetailPage() {
                                           );
                                         } else if (statusColor === 'yellow') {
                                           return (
-                                            <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}>
+                                            <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center animate-yellow-circle-pulse-fast" title={approval.completionResult || 'В процессе'}>
                                               <Clock className="w-2 h-2 text-white" />
                                             </div>
                                           );
@@ -1310,7 +1310,7 @@ export default function PurchaseDetailPage() {
                                           );
                                         } else if (statusColor === 'yellow') {
                                           return (
-                                            <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}>
+                                            <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center animate-yellow-circle-pulse-fast" title={approval.completionResult || 'В процессе'}>
                                               <Clock className="w-2 h-2 text-white" />
                                             </div>
                                           );
@@ -1394,7 +1394,7 @@ export default function PurchaseDetailPage() {
                                           );
                                         } else if (statusColor === 'yellow') {
                                           return (
-                                            <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}>
+                                            <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center animate-yellow-circle-pulse-fast" title={approval.completionResult || 'В процессе'}>
                                               <Clock className="w-2 h-2 text-white" />
                                             </div>
                                           );
@@ -1595,7 +1595,7 @@ export default function PurchaseDetailPage() {
                                           );
                                         } else if (statusColor === 'yellow') {
                                           return (
-                                            <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}>
+                                            <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center animate-yellow-circle-pulse-fast" title={approval.completionResult || 'В процессе'}>
                                               <Clock className="w-2 h-2 text-white" />
                                             </div>
                                           );
@@ -1673,7 +1673,7 @@ export default function PurchaseDetailPage() {
                                         );
                                       } else if (statusColor === 'yellow') {
                                         return (
-                                          <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}>
+                                          <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center animate-yellow-circle-pulse-fast" title={approval.completionResult || 'В процессе'}>
                                             <Clock className="w-2 h-2 text-white" />
                                           </div>
                                         );
@@ -1757,7 +1757,7 @@ export default function PurchaseDetailPage() {
                                         );
                                       } else if (statusColor === 'yellow') {
                                         return (
-                                          <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}>
+                                          <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center animate-yellow-circle-pulse-fast" title={approval.completionResult || 'В процессе'}>
                                             <Clock className="w-2 h-2 text-white" />
                                           </div>
                                         );
@@ -1985,7 +1985,7 @@ export default function PurchaseDetailPage() {
                                           );
                                         } else if (statusColor === 'yellow') {
                                           return (
-                                            <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}>
+                                            <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center animate-yellow-circle-pulse-fast" title={approval.completionResult || 'В процессе'}>
                                               <Clock className="w-2 h-2 text-white" />
                                             </div>
                                           );
@@ -2062,7 +2062,7 @@ export default function PurchaseDetailPage() {
                                         );
                                       } else if (statusColor === 'yellow') {
                                         return (
-                                          <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}>
+                                          <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center animate-yellow-circle-pulse-fast" title={approval.completionResult || 'В процессе'}>
                                             <Clock className="w-2 h-2 text-white" />
                                           </div>
                                         );
@@ -2138,7 +2138,7 @@ export default function PurchaseDetailPage() {
                                           );
                                       } else if (statusColor === 'yellow') {
                                           return (
-                                          <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}>
+                                          <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center animate-yellow-circle-pulse-fast" title={approval.completionResult || 'В процессе'}>
                                             <Clock className="w-2 h-2 text-white" />
                                           </div>
                                         );
@@ -2214,7 +2214,7 @@ export default function PurchaseDetailPage() {
                                           );
                                         } else if (statusColor === 'yellow') {
                                           return (
-                                            <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}>
+                                            <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center animate-yellow-circle-pulse-fast" title={approval.completionResult || 'В процессе'}>
                                               <Clock className="w-2 h-2 text-white" />
                                             </div>
                                           );

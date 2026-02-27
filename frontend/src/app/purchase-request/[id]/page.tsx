@@ -1301,26 +1301,28 @@ export default function PurchaseRequestDetailPage() {
                     </div>
                   </div>
 
-                  {/* Блок инициатор и закупщик — слева от согласований */}
+                  {/* Блок инициатор — слева от согласований (закупщик перенесён в серую плашку слева от даты) */}
                   <div className="flex-shrink-0 w-full lg:w-auto h-full flex flex-col">
                     <div className="bg-white rounded-lg border border-gray-200 px-2 py-1.5 space-y-1 flex-1 min-h-0">
                       <div className="flex items-baseline gap-1 text-xs whitespace-nowrap min-w-0 overflow-hidden">
                         <span className="font-semibold text-gray-600 flex-shrink-0">Инициатор:</span>
                         <span className="text-gray-900 truncate">{initiatorDisplayName(purchaseRequest.purchaseRequestInitiator)}</span>
                       </div>
-                      <div className="flex items-baseline gap-1 text-xs whitespace-nowrap min-w-0 overflow-hidden">
-                        <span className="font-semibold text-gray-600 flex-shrink-0">Закупщик:</span>
-                        <span className="text-gray-900 truncate">{purchaserDisplayName(purchaseRequest.purchaser)}</span>
-                      </div>
                     </div>
                   </div>
 
-                  {/* Правая часть: дата создания и блок согласований */}
+                  {/* Правая часть: закупщик + дата создания в серой плашке, блок согласований */}
               <div className="w-full min-w-0 flex flex-col min-h-0">
                     <div className="bg-white rounded px-1.5 py-1 space-y-1 flex-1 min-h-0">
-                      <div className="inline-flex items-baseline gap-1.5 px-2 py-1 rounded bg-gray-200 pb-1 mb-1 border-b border-gray-200">
-                        <span className="text-xs font-semibold text-gray-700">Дата создания заявки:</span>
-                        <span className="text-xs text-gray-900">{formatDate(purchaseRequest.purchaseRequestCreationDate)}</span>
+                      <div className="flex flex-wrap items-baseline gap-2 pb-1 mb-1 border-b border-gray-200">
+                        <div className="inline-flex items-baseline gap-1.5 px-2 py-1 rounded bg-gray-200">
+                          <span className="text-xs font-semibold text-gray-700">Закупщик:</span>
+                          <span className="text-xs text-gray-900">{purchaserDisplayName(purchaseRequest.purchaser)}</span>
+                        </div>
+                        <div className="inline-flex items-baseline gap-1.5 px-2 py-1 rounded bg-gray-200">
+                          <span className="text-xs font-semibold text-gray-700">Дата создания заявки:</span>
+                          <span className="text-xs text-gray-900">{formatDate(purchaseRequest.purchaseRequestCreationDate)}</span>
+                        </div>
                       </div>
                       {/* Этап: Согласование */}
                       {approvalStageApprovals.length > 0 && (
@@ -1369,7 +1371,7 @@ export default function PurchaseRequestDetailPage() {
                                           );
                                         } else if (statusColor === 'yellow') {
                                           return (
-                                            <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}>
+                                            <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center animate-yellow-circle-pulse-fast" title={approval.completionResult || 'В процессе'}>
                                               <Clock className="w-2 h-2 text-white" />
                                             </div>
                                           );
@@ -1446,7 +1448,7 @@ export default function PurchaseRequestDetailPage() {
                                         );
                                       } else if (statusColor === 'yellow') {
                                         return (
-                                          <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}>
+                                          <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center animate-yellow-circle-pulse-fast" title={approval.completionResult || 'В процессе'}>
                                             <Clock className="w-2 h-2 text-white" />
                                           </div>
                                         );
@@ -1522,7 +1524,7 @@ export default function PurchaseRequestDetailPage() {
                                         );
                                       } else if (statusColor === 'yellow') {
                                         return (
-                                          <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}>
+                                          <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center animate-yellow-circle-pulse-fast" title={approval.completionResult || 'В процессе'}>
                                             <Clock className="w-2 h-2 text-white" />
                                           </div>
                                         );
@@ -1598,7 +1600,7 @@ export default function PurchaseRequestDetailPage() {
                                         );
                                       } else if (statusColor === 'yellow') {
                                         return (
-                                          <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}>
+                                          <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center animate-yellow-circle-pulse-fast" title={approval.completionResult || 'В процессе'}>
                                             <Clock className="w-2 h-2 text-white" />
                                           </div>
                                         );
@@ -1809,7 +1811,7 @@ export default function PurchaseRequestDetailPage() {
                                           );
                                         } else if (statusColor === 'yellow') {
                                           return (
-                                            <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}>
+                                            <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center animate-yellow-circle-pulse-fast" title={approval.completionResult || 'В процессе'}>
                                               <Clock className="w-2 h-2 text-white" />
                                             </div>
                                           );
@@ -1893,7 +1895,7 @@ export default function PurchaseRequestDetailPage() {
                                           );
                                         } else if (statusColor === 'yellow') {
                                           return (
-                                            <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}>
+                                            <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center animate-yellow-circle-pulse-fast" title={approval.completionResult || 'В процессе'}>
                                               <Clock className="w-2 h-2 text-white" />
                                             </div>
                                           );
@@ -1977,7 +1979,7 @@ export default function PurchaseRequestDetailPage() {
                                           );
                                         } else if (statusColor === 'yellow') {
                                           return (
-                                            <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}>
+                                            <div className="w-3 h-3 rounded-full bg-yellow-500 flex items-center justify-center animate-yellow-circle-pulse-fast" title={approval.completionResult || 'В процессе'}>
                                               <Clock className="w-2 h-2 text-white" />
                                             </div>
                                           );
@@ -2108,10 +2110,6 @@ export default function PurchaseRequestDetailPage() {
                                 </span>
                               </div>
                               <div className="flex items-baseline gap-1 text-xs whitespace-nowrap min-w-0 overflow-hidden">
-                                <span className="font-semibold text-gray-600 flex-shrink-0">Договорник:</span>
-                                <span className="text-gray-900 truncate" title={contract.preparedBy ?? undefined}>{contract.preparedBy || '-'}</span>
-                              </div>
-                              <div className="flex items-baseline gap-1 text-xs whitespace-nowrap min-w-0 overflow-hidden">
                                 <span className="font-semibold text-gray-600 flex-shrink-0">Сумма:</span>
                                 <span className="text-gray-900 truncate">
                                   {contract.budgetAmount ? (
@@ -2125,18 +2123,24 @@ export default function PurchaseRequestDetailPage() {
                             </div>
                           </div>
                           <div className="min-w-0">
-                            <div className="bg-white rounded-lg shadow-md p-1 min-w-0 overflow-hidden">
-                              <div className="inline-flex items-baseline gap-1 px-2 py-0.5 rounded bg-gray-200 border-b border-gray-200">
-                                <span className="text-xs font-semibold text-gray-700">Дата создания договора:</span>
-                                <span className="text-xs text-gray-900">{contract.contractCreationDate ? formatDate(contract.contractCreationDate) : '-'}</span>
+                            <div className="bg-white rounded-lg shadow-md p-0.5 min-w-0 overflow-hidden">
+                              <div className="flex flex-wrap items-baseline gap-2 pb-px mb-px border-b border-gray-200">
+                                <div className="inline-flex items-baseline gap-1.5 px-2 py-0.5 rounded bg-gray-200">
+                                  <span className="text-xs font-semibold text-gray-700">Договорник:</span>
+                                  <span className="text-xs text-gray-900 truncate" title={contract.preparedBy ?? undefined}>{contract.preparedBy || '-'}</span>
+                                </div>
+                                <div className="inline-flex items-baseline gap-1.5 px-2 py-0.5 rounded bg-gray-200">
+                                  <span className="text-xs font-semibold text-gray-700">Дата создания договора:</span>
+                                  <span className="text-xs text-gray-900">{contract.contractCreationDate ? formatDate(contract.contractCreationDate) : '-'}</span>
+                                </div>
                               </div>
                               <div className="space-y-0 min-w-0">
                                 {list.length > 0 ? (
                                   stageOrder.map((stage) => {
                                     const stageItems = list.filter((a) => (a.stage || 'Без этапа') === stage);
                                     return (
-                                      <div key={stage} className="py-0.5 mb-0.5 border-b border-gray-200 last:border-b-0 last:mb-0 last:pb-0 first:pt-0">
-                                        <div className="text-[10px] font-semibold text-gray-900 mb-0.5 leading-tight">{stage}</div>
+                                      <div key={stage} className="py-px mb-px border-b border-gray-200 last:border-b-0 last:mb-0 last:pb-0 first:pt-0">
+                                        <div className="text-[10px] font-semibold text-gray-900 mb-px leading-tight">{stage}</div>
                                         <table className="w-full border-collapse min-w-0 table-fixed">
                                           <colgroup>
                                             <col style={{ width: '33%' }} />
@@ -2147,11 +2151,11 @@ export default function PurchaseRequestDetailPage() {
                                           </colgroup>
                                           <thead>
                                             <tr className="border-b border-gray-200">
-                                              <th className="pl-0 pr-0.5 py-0.5 text-left text-[9px] font-semibold text-gray-500 uppercase min-w-0"></th>
-                                              <th className="px-0.5 py-0.5 text-left text-[9px] font-semibold text-gray-500 uppercase truncate min-w-0">ФИО</th>
-                                              <th className="px-0.5 py-0.5 text-left text-[9px] font-semibold text-gray-500 uppercase whitespace-nowrap min-w-[4rem]">Назначено</th>
-                                              <th className="px-0.5 py-0.5 text-left text-[9px] font-semibold text-gray-500 uppercase whitespace-nowrap min-w-[4rem]">Выполнено</th>
-                                              <th className="px-0.5 py-0.5 text-left text-[9px] font-semibold text-gray-500 uppercase whitespace-nowrap min-w-[2.5rem]">Дней</th>
+                                              <th className="pl-0 pr-0.5 py-px text-left text-[9px] font-semibold text-gray-500 uppercase min-w-0"></th>
+                                              <th className="px-0.5 py-px text-left text-[9px] font-semibold text-gray-500 uppercase truncate min-w-0">ФИО</th>
+                                              <th className="px-0.5 py-px text-left text-[9px] font-semibold text-gray-500 uppercase whitespace-nowrap min-w-[4rem]">Назначено</th>
+                                              <th className="px-0.5 py-px text-left text-[9px] font-semibold text-gray-500 uppercase whitespace-nowrap min-w-[4rem]">Выполнено</th>
+                                              <th className="px-0.5 py-px text-left text-[9px] font-semibold text-gray-500 uppercase whitespace-nowrap min-w-[2.5rem]">Дней</th>
                                             </tr>
                                           </thead>
                                           <tbody>
@@ -2165,12 +2169,12 @@ export default function PurchaseRequestDetailPage() {
                                                 : statusColor === 'orange'
                                                 ? () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-orange-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано с замечаниями'}><Check className="w-2 h-2 text-white" /></div>
                                                 : statusColor === 'yellow'
-                                                ? () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}><Clock className="w-2 h-2 text-white" /></div>
+                                                ? () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-yellow-500 flex items-center justify-center animate-yellow-circle-pulse-fast" title={approval.completionResult || 'В процессе'}><Clock className="w-2 h-2 text-white" /></div>
                                                 : () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-red-500 flex items-center justify-center" title={approval.completionResult || 'Не согласовано'}><X className="w-2 h-2 text-white" /></div>;
                                               const hasComment = approval.commentText != null && String(approval.commentText).trim() !== '';
                                               return (
                                                 <tr key={approval.id} className="border-b border-gray-200 last:border-b-0">
-                                                  <td className="pl-0 pr-0.5 py-0.5 align-middle">
+                                                  <td className="pl-0 pr-0.5 py-px align-middle">
                                                     <div className="flex items-center gap-0.5 min-w-0">
                                                       <StatusIcon />
                                                       <span className="text-[10px] text-gray-900 break-words min-w-0 truncate" title={approval.role}>{approval.role || '-'}</span>
@@ -2183,11 +2187,11 @@ export default function PurchaseRequestDetailPage() {
                                                       )}
                                                     </div>
                                                   </td>
-                                                  <td className="px-0.5 py-0.5 text-[10px] text-gray-900 truncate min-w-0" title={approval.executorName ?? ''}>{approval.executorName || '-'}</td>
-                                                  <td className="px-0.5 py-0.5 text-[10px] text-gray-900 whitespace-nowrap">{formatDate(approval.assignmentDate)}</td>
-                                                  <td className="px-0.5 py-0.5 text-[10px] text-gray-900 whitespace-nowrap">{formatDate(approval.completionDate)}</td>
-                                                  <td className="px-0.5 py-0.5 align-middle">
-                                                    <span className="inline-block min-w-[1.75rem] px-1 py-0.5 text-[10px] text-gray-700 text-center rounded bg-gray-200 font-medium">
+                                                  <td className="px-0.5 py-px text-[10px] text-gray-900 truncate min-w-0" title={approval.executorName ?? ''}>{approval.executorName || '-'}</td>
+                                                  <td className="px-0.5 py-px text-[10px] text-gray-900 whitespace-nowrap">{formatDate(approval.assignmentDate)}</td>
+                                                  <td className="px-0.5 py-px text-[10px] text-gray-900 whitespace-nowrap">{formatDate(approval.completionDate)}</td>
+                                                  <td className="px-0.5 py-px align-middle">
+                                                    <span className="inline-block min-w-[1.75rem] px-1 py-px text-[10px] text-gray-700 text-center rounded bg-gray-200 font-medium">
                                                       {calculateContractApprovalWorkingDays(approval.assignmentDate, approval.completionDate)}
                                                     </span>
                                                   </td>
@@ -2259,10 +2263,6 @@ export default function PurchaseRequestDetailPage() {
                                 </span>
                               </div>
                               <div className="flex items-baseline gap-1 text-xs whitespace-nowrap min-w-0 overflow-hidden">
-                                <span className="font-semibold text-gray-600 flex-shrink-0">Договорник:</span>
-                                <span className="text-gray-900 truncate" title={contract.preparedBy ?? undefined}>{contract.preparedBy || '-'}</span>
-                              </div>
-                              <div className="flex items-baseline gap-1 text-xs whitespace-nowrap min-w-0 overflow-hidden">
                                 <span className="font-semibold text-gray-600 flex-shrink-0">Сумма:</span>
                                 <span className="text-gray-900 truncate">
                                   {contract.budgetAmount ? (
@@ -2276,48 +2276,54 @@ export default function PurchaseRequestDetailPage() {
                             </div>
                           </div>
                           <div className="min-w-0">
-                            <div className="bg-white rounded-lg shadow-md p-1 min-w-0 overflow-hidden">
-                              <div className="inline-flex items-baseline gap-1 px-2 py-0.5 rounded bg-gray-200 border-b border-gray-200">
-                                <span className="text-xs font-semibold text-gray-700">Дата создания договора:</span>
-                                <span className="text-xs text-gray-900">{contract.contractCreationDate ? formatDate(contract.contractCreationDate) : '-'}</span>
+                            <div className="bg-white rounded-lg shadow-md p-0.5 min-w-0 overflow-hidden">
+                              <div className="flex flex-wrap items-baseline gap-2 pb-px mb-px border-b border-gray-200">
+                                <div className="inline-flex items-baseline gap-1.5 px-2 py-0.5 rounded bg-gray-200">
+                                  <span className="text-xs font-semibold text-gray-700">Договорник:</span>
+                                  <span className="text-xs text-gray-900 truncate" title={contract.preparedBy ?? undefined}>{contract.preparedBy || '-'}</span>
+                                </div>
+                                <div className="inline-flex items-baseline gap-1.5 px-2 py-0.5 rounded bg-gray-200">
+                                  <span className="text-xs font-semibold text-gray-700">Дата создания договора:</span>
+                                  <span className="text-xs text-gray-900">{contract.contractCreationDate ? formatDate(contract.contractCreationDate) : '-'}</span>
+                                </div>
                               </div>
                               <div className="space-y-0 min-w-0">
                                 {list.length > 0 ? stageOrder.map((stage) => {
                                   const stageItems = list.filter((a) => (a.stage || 'Без этапа') === stage);
                                   return (
-                                    <div key={stage} className="py-0.5 mb-0.5 border-b border-gray-200 last:border-b-0 last:mb-0 last:pb-0 first:pt-0">
-                                      <div className="text-[10px] font-semibold text-gray-900 mb-0.5 leading-tight">{stage}</div>
+                                    <div key={stage} className="py-px mb-px border-b border-gray-200 last:border-b-0 last:mb-0 last:pb-0 first:pt-0">
+                                      <div className="text-[10px] font-semibold text-gray-900 mb-px leading-tight">{stage}</div>
                                       <table className="w-full border-collapse min-w-0 table-fixed">
                                         <colgroup><col style={{ width: '29%' }} /><col style={{ width: '17%' }} /><col style={{ width: '13%' }} /><col style={{ width: '13%' }} /><col style={{ width: '10%' }} /></colgroup>
                                         <thead>
                                           <tr className="border-b border-gray-200">
-                                            <th className="pl-0 pr-0.5 py-0.5 text-left text-[9px] font-semibold text-gray-500 uppercase min-w-0"></th>
-                                            <th className="px-0.5 py-0.5 text-left text-[9px] font-semibold text-gray-500 uppercase truncate min-w-0">ФИО</th>
-                                            <th className="px-0.5 py-0.5 text-left text-[9px] font-semibold text-gray-500 uppercase whitespace-nowrap min-w-[4rem]">Назначено</th>
-                                            <th className="px-0.5 py-0.5 text-left text-[9px] font-semibold text-gray-500 uppercase whitespace-nowrap min-w-[4rem]">Выполнено</th>
-                                            <th className="px-0.5 py-0.5 text-left text-[9px] font-semibold text-gray-500 uppercase whitespace-nowrap min-w-[2.5rem]">Дней</th>
+                                            <th className="pl-0 pr-0.5 py-px text-left text-[9px] font-semibold text-gray-500 uppercase min-w-0"></th>
+                                            <th className="px-0.5 py-px text-left text-[9px] font-semibold text-gray-500 uppercase truncate min-w-0">ФИО</th>
+                                            <th className="px-0.5 py-px text-left text-[9px] font-semibold text-gray-500 uppercase whitespace-nowrap min-w-[4rem]">Назначено</th>
+                                            <th className="px-0.5 py-px text-left text-[9px] font-semibold text-gray-500 uppercase whitespace-nowrap min-w-[4rem]">Выполнено</th>
+                                            <th className="px-0.5 py-px text-left text-[9px] font-semibold text-gray-500 uppercase whitespace-nowrap min-w-[2.5rem]">Дней</th>
                                           </tr>
                                         </thead>
                                         <tbody>
                                           {stageItems.map((approval) => {
                                             const hasAssignment = approval.assignmentDate != null && String(approval.assignmentDate).trim() !== '';
                                             const statusColor = getApprovalStatusColor({ ...approval, daysInWork: null, idPurchaseRequest: purchaseRequest.idPurchaseRequest ?? 0 });
-                                            const StatusIcon = !hasAssignment ? () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-gray-300 flex items-center justify-center" title="Не назначено" /> : statusColor === 'green' ? () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-green-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано'}><Check className="w-2 h-2 text-white" /></div> : statusColor === 'orange' ? () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-orange-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано с замечаниями'}><Check className="w-2 h-2 text-white" /></div> : statusColor === 'yellow' ? () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}><Clock className="w-2 h-2 text-white" /></div> : () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-red-500 flex items-center justify-center" title={approval.completionResult || 'Не согласовано'}><X className="w-2 h-2 text-white" /></div>;
+                                            const StatusIcon = !hasAssignment ? () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-gray-300 flex items-center justify-center" title="Не назначено" /> : statusColor === 'green' ? () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-green-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано'}><Check className="w-2 h-2 text-white" /></div> : statusColor === 'orange' ? () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-orange-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано с замечаниями'}><Check className="w-2 h-2 text-white" /></div> : statusColor === 'yellow' ? () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-yellow-500 flex items-center justify-center animate-yellow-circle-pulse-fast" title={approval.completionResult || 'В процессе'}><Clock className="w-2 h-2 text-white" /></div> : () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-red-500 flex items-center justify-center" title={approval.completionResult || 'Не согласовано'}><X className="w-2 h-2 text-white" /></div>;
                                             const hasComment = approval.commentText != null && String(approval.commentText).trim() !== '';
                                             return (
                                               <tr key={approval.id} className="border-b border-gray-200 last:border-b-0">
-                                                <td className="pl-0 pr-0.5 py-0.5 align-middle">
+                                                <td className="pl-0 pr-0.5 py-px align-middle">
                                                   <div className="flex items-center gap-0.5 min-w-0">
                                                     <StatusIcon />
                                                     <span className="text-[10px] text-gray-900 break-words min-w-0 truncate" title={approval.role}>{approval.role || '-'}</span>
                                                     {hasComment && (<span className="relative inline-flex flex-shrink-0" data-comment-popover><button type="button" onClick={(e) => { e.stopPropagation(); const rect = e.currentTarget.getBoundingClientRect(); const popoverW = 360; const left = Math.max(16, Math.min(rect.left, (typeof window !== 'undefined' ? window.innerWidth : 400) - popoverW - 16)); setCommentPopoverData(prev => prev?.id === approval.id ? null : { id: approval.id, commentText: approval.commentText ?? '', left, top: rect.top }); }} className="p-0.5 rounded hover:bg-gray-200 text-gray-500 hover:text-gray-700" title="Комментарий" aria-label="Показать комментарий"><MessageSquare className="w-3 h-3" /></button></span>)}
                                                   </div>
                                                 </td>
-                                                <td className="px-0.5 py-0.5 text-[10px] text-gray-900 truncate min-w-0" title={approval.executorName ?? ''}>{approval.executorName || '-'}</td>
-                                                <td className="px-0.5 py-0.5 text-[10px] text-gray-900 whitespace-nowrap">{formatDate(approval.assignmentDate)}</td>
-                                                <td className="px-0.5 py-0.5 text-[10px] text-gray-900 whitespace-nowrap">{formatDate(approval.completionDate)}</td>
-                                                <td className="px-0.5 py-0.5 align-middle">
-                                                  <span className="inline-block min-w-[1.75rem] px-1 py-0.5 text-[10px] text-gray-700 text-center rounded bg-gray-200 font-medium">
+                                                <td className="px-0.5 py-px text-[10px] text-gray-900 truncate min-w-0" title={approval.executorName ?? ''}>{approval.executorName || '-'}</td>
+                                                <td className="px-0.5 py-px text-[10px] text-gray-900 whitespace-nowrap">{formatDate(approval.assignmentDate)}</td>
+                                                <td className="px-0.5 py-px text-[10px] text-gray-900 whitespace-nowrap">{formatDate(approval.completionDate)}</td>
+                                                <td className="px-0.5 py-px align-middle">
+                                                  <span className="inline-block min-w-[1.75rem] px-1 py-px text-[10px] text-gray-700 text-center rounded bg-gray-200 font-medium">
                                                     {calculateContractApprovalWorkingDays(approval.assignmentDate, approval.completionDate)}
                                                   </span>
                                                 </td>

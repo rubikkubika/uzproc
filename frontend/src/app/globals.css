@@ -107,7 +107,12 @@ main::-webkit-scrollbar {
 }
 
 .animate-yellow-circle-pulse {
-  animation: yellow-circle-pulse 3s ease-in-out infinite;
+  animation: yellow-circle-pulse 5s ease-in-out infinite;
+}
+
+/* Пульс для жёлтых кругов в блоках согласований (5 с) */
+.animate-yellow-circle-pulse-fast {
+  animation: yellow-circle-pulse 5s ease-in-out infinite;
 }
 
 /* Кастомный скроллбар для таблицы плана закупок */
