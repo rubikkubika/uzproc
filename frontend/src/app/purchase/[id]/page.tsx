@@ -1175,6 +1175,10 @@ export default function PurchaseDetailPage() {
                   {/* Правая часть с блоком согласований закупки */}
                   <div className="w-full lg:w-64 flex-shrink-0">
                     <div className="bg-white rounded p-2 space-y-1.5">
+                      <div className="inline-flex items-baseline gap-1.5 px-2 py-1 rounded bg-gray-200 pb-1 mb-1 border-b border-gray-200">
+                        <span className="text-xs font-semibold text-gray-700">Дата создания закупки:</span>
+                        <span className="text-xs text-gray-900">{formatDate(purchase.purchaseCreationDate)}</span>
+                      </div>
                       {/* Этап: Согласование результатов ЗП */}
                       {purchaseResultsApprovalApprovals.length > 0 && (
                       <div className="bg-white rounded-lg shadow-md p-2">
@@ -1537,16 +1541,22 @@ export default function PurchaseDetailPage() {
                   {/* Правая часть - согласования договора (только для заказов) */}
                   {isOrder && (
                   <div className="w-full lg:w-64 flex-shrink-0">
-                    <div className="space-y-1.5">
+                    <div className="space-y-1">
+                      {contractsToShow.length > 0 && contractsToShow[0].contractCreationDate != null && (
+                        <div className="inline-flex items-baseline gap-1 px-2 py-0.5 rounded bg-gray-200 border-b border-gray-200">
+                          <span className="text-xs font-semibold text-gray-700">Дата создания договора:</span>
+                          <span className="text-xs text-gray-900">{formatDate(contractsToShow[0].contractCreationDate)}</span>
+                        </div>
+                      )}
                       {/* Этап: Согласование договора */}
                       {contractApprovalStageApprovals.length > 0 && (
-                      <div className="bg-white rounded-lg shadow-md p-2">
-                        <div className="flex items-start gap-1.5 mb-1">
+                      <div className="bg-white rounded-lg shadow-md p-1.5">
+                        <div className="flex items-start gap-1 mb-0.5">
                           <div className="text-[10px] font-semibold text-gray-900 flex-1 leading-tight">Согласование</div>
                         </div>
                         
                         {/* Заголовки колонок */}
-                        <div className="flex gap-x-1 items-end mb-1 pb-1 border-b border-gray-200">
+                        <div className="flex gap-x-1 items-end mb-0.5 pb-0.5 border-b border-gray-200">
                           <div className="flex-[2] min-w-0">
                           </div>
                           <div className="flex-shrink-0" style={{ width: '50px' }}>
@@ -1561,10 +1571,10 @@ export default function PurchaseDetailPage() {
                           </div>
                         </div>
                         
-                        <div className="space-y-1">
+                        <div className="space-y-0.5">
                           {contractApprovalStageApprovals.length > 0 ? (
                             contractApprovalStageApprovals.map((approval) => (
-                              <div key={approval.id} className="flex gap-x-1 items-end border-b border-gray-200 pb-1 last:border-b-0 last:pb-0">
+                              <div key={approval.id} className="flex gap-x-1 items-end border-b border-gray-200 py-0.5 last:border-b-0 last:pb-0">
                                 <div className="flex-[2] min-w-0">
                                   <div className="flex items-center gap-1">
                                     {/* Индикатор статуса */}
@@ -1616,7 +1626,7 @@ export default function PurchaseDetailPage() {
                               </div>
                             ))
                           ) : (
-                            <div className="text-[10px] text-gray-500 text-center py-1">Нет данных</div>
+                            <div className="text-[10px] text-gray-500 text-center py-0.5">Нет данных</div>
                           )}
                         </div>
                       </div>
@@ -1624,13 +1634,13 @@ export default function PurchaseDetailPage() {
 
                       {/* Этап: Руководитель закупщика (договор) */}
                       {contractManagerStageApprovals.length > 0 && (
-                      <div className="bg-white rounded-lg shadow-md p-2">
-                        <div className="flex items-start gap-1.5 mb-1">
+                      <div className="bg-white rounded-lg shadow-md p-1.5">
+                        <div className="flex items-start gap-1 mb-0.5">
                           <div className="text-[10px] font-semibold text-gray-900 flex-1 leading-tight">Руководитель закупок</div>
                         </div>
                         
                         {/* Заголовки колонок */}
-                        <div className="flex gap-x-1 items-end mb-1 pb-1 border-b border-gray-200">
+                        <div className="flex gap-x-1 items-end mb-0.5 pb-0.5 border-b border-gray-200">
                           <div className="flex-[2] min-w-0">
                           </div>
                           <div className="flex-shrink-0" style={{ width: '50px' }}>
@@ -1645,9 +1655,10 @@ export default function PurchaseDetailPage() {
                           </div>
                         </div>
                         
+                        <div className="space-y-0.5">
                         {contractManagerStageApprovals.length > 0 ? (
                           contractManagerStageApprovals.map((approval) => (
-                            <div key={approval.id} className="flex gap-x-1 items-end">
+                            <div key={approval.id} className="flex gap-x-1 items-end py-0.5 first:pt-0 last:pb-0">
                               <div className="flex-[2] min-w-0">
                                 <div className="flex items-center gap-1">
                                   {/* Индикатор статуса */}
@@ -1693,20 +1704,21 @@ export default function PurchaseDetailPage() {
                             </div>
                           ))
                         ) : (
-                          <div className="text-[10px] text-gray-500 text-center py-1">Нет данных</div>
+                          <div className="text-[10px] text-gray-500 text-center py-0.5">Нет данных</div>
                         )}
+                        </div>
                       </div>
                       )}
 
                       {/* Этап: Утверждение договора */}
                       {contractFinalApprovalStageApprovals.length > 0 && (
-                      <div className="bg-white rounded-lg shadow-md p-2">
-                        <div className="flex items-start gap-1.5 mb-1">
+                      <div className="bg-white rounded-lg shadow-md p-1.5">
+                        <div className="flex items-start gap-1 mb-0.5">
                           <div className="text-[10px] font-semibold text-gray-900 flex-1 leading-tight">Утверждение</div>
                         </div>
                         
                         {/* Заголовки колонок */}
-                        <div className="flex gap-x-1 items-end mb-1 pb-1 border-b border-gray-200">
+                        <div className="flex gap-x-1 items-end mb-0.5 pb-0.5 border-b border-gray-200">
                           <div className="flex-[2] min-w-0">
                           </div>
                           <div className="flex-shrink-0" style={{ width: '50px' }}>
@@ -1721,10 +1733,10 @@ export default function PurchaseDetailPage() {
                           </div>
                         </div>
                         
-                        <div className="space-y-1">
+                        <div className="space-y-0.5">
                           {contractFinalApprovalStageApprovals.length > 0 ? (
                             contractFinalApprovalStageApprovals.map((approval) => (
-                            <div key={approval.id} className="flex gap-x-1 items-end border-b border-gray-200 pb-1 last:border-b-0 last:pb-0">
+                            <div key={approval.id} className="flex gap-x-1 items-end border-b border-gray-200 py-0.5 last:border-b-0 last:pb-0">
                               <div className="flex-[2] min-w-0">
                                 <div className="flex items-center gap-1">
                                   {/* Индикатор статуса */}
@@ -1776,7 +1788,7 @@ export default function PurchaseDetailPage() {
                             </div>
                           ))
                         ) : (
-                          <div className="text-[10px] text-gray-500 text-center py-1">Нет данных</div>
+                          <div className="text-[10px] text-gray-500 text-center py-0.5">Нет данных</div>
                         )}
                         </div>
                       </div>
@@ -1784,7 +1796,7 @@ export default function PurchaseDetailPage() {
 
                       {/* Если нет согласований */}
                       {contractApprovals.length === 0 && (
-                        <div className="border border-gray-200 rounded p-1.5 text-center py-2 text-[10px] text-gray-500">
+                        <div className="border border-gray-200 rounded p-1 text-center py-1 text-[10px] text-gray-500">
                           Нет согласований
                         </div>
                       )}
@@ -1832,8 +1844,8 @@ export default function PurchaseDetailPage() {
                       {purchaseRequest.title || '-'}
                                   </p>
                                 </div>
-                                <div>
-                                  <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                <div className="inline-block px-2 py-1 rounded bg-gray-200">
+                                  <label className="block text-xs font-semibold text-gray-700 mb-0">
                       Дата создания заявки
                                   </label>
                                   <p className="text-xs text-gray-900">

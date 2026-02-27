@@ -9,7 +9,7 @@ const DEFAULT_TAB: OverviewTab = 'purchase-plan';
 function getInitialTab(): OverviewTab {
   if (typeof window === 'undefined') return DEFAULT_TAB;
   const saved = localStorage.getItem(OVERVIEW_TAB_KEY);
-  if (saved === 'sla' || saved === 'purchase-plan' || saved === 'csi') return saved;
+  if (saved === 'sla' || saved === 'purchase-plan' || saved === 'csi' || saved === 'ek' || saved === 'approvals') return saved;
   return DEFAULT_TAB;
 }
 

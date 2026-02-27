@@ -15,6 +15,8 @@ export function OverviewTabs({ activeTab, onTabChange }: OverviewTabsProps) {
     { id: 'sla', label: 'SLA' },
     { id: 'purchase-plan', label: 'План закупок' },
     { id: 'csi', label: 'CSI' },
+    { id: 'ek', label: 'ЕК' },
+    { id: 'approvals', label: 'Согласования' },
   ];
 
   return (

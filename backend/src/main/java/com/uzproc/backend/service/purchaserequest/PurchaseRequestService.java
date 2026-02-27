@@ -496,6 +496,8 @@ public class PurchaseRequestService {
             // Плановый СЛА хранится в заявке (зависит от сложности, обновляется при обновлении заявки)
             Integer plannedSla = entity.getPlannedSlaDays();
             dto.setPlannedSlaDays(plannedSla);
+            // Факт СЛА: рабочие дни от (день после назначения на утверждение заявки) по дату завершения закупки включительно.
+            // День выполнения согласования по закупке (последняя дата в этапе «Закупочная комиссия») считается.
             if (approvalAssignmentDate != null) {
                 LocalDateTime end = purchaseCompletionDate != null ? purchaseCompletionDate : LocalDateTime.now();
                 long factual = countWorkingDaysBetween(approvalAssignmentDate, end);
