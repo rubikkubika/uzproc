@@ -64,20 +64,19 @@ function buildOptions(
         labels: { font: { size: 11 } },
       },
       datalabels: {
-        display: (ctx: { datasetIndex: number }) => ctx.datasetIndex === 1,
+        display: (ctx: { datasetIndex: number }) => ctx.datasetIndex === 0 || ctx.datasetIndex === 1,
         formatter: (value: number, ctx: { datasetIndex: number; dataIndex: number }) => {
           if (ctx.datasetIndex === 0) return value > 0 ? value : '';
           const item = byMonth.get(ctx.dataIndex + 1);
           if (item?.totalCompleted === 0) return '';
           return `${Math.round(value)}%`;
         },
-        color: (ctx: { datasetIndex: number }) =>
-          ctx.datasetIndex === 0 ? '#ffffff' : '#ffffff',
+        color: (ctx: { datasetIndex: number }) => '#ffffff',
         font: { weight: 'bold' as const, size: 11 },
         backgroundColor: (ctx: { datasetIndex: number }) =>
           ctx.datasetIndex === 1 ? 'rgba(0, 0, 0, 0.92)' : null,
         padding: (ctx: { datasetIndex: number }) =>
-          ctx.datasetIndex === 1 ? 4 : 0,
+          ctx.datasetIndex === 0 ? 4 : ctx.datasetIndex === 1 ? 4 : 0,
         borderRadius: (ctx: { datasetIndex: number }) =>
           ctx.datasetIndex === 1 ? 0 : 0,
         anchor: (ctx: { datasetIndex: number }) =>
@@ -133,7 +132,7 @@ function buildOptions(
 }
 
 /**
- * Объединённая диаграмма: столбцы — закупки назначенные в месяце (левая ось),
+ * Объединённая диаграмма: столбцы — закупки завершённые в месяце (левая ось),
  * линия — процент уложившихся в плановый SLA (правая ось).
  */
 export function SlaCombinedChart({
@@ -155,7 +154,7 @@ export function SlaCombinedChart({
     datasets: [
       {
         type: 'bar' as const,
-        label: 'закупки назначенные в месяце',
+        label: 'закупки завершённые в месяце',
         data: countsByMonth ?? Array(12).fill(0),
         backgroundColor: 'rgba(59, 130, 246, 0.8)',
         borderColor: 'rgba(59, 130, 246, 1)',
