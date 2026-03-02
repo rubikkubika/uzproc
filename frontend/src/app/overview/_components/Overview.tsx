@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useOverview } from './hooks/useOverview';
 import { useOverviewSlaData } from './hooks/useOverviewSlaData';
 import type { OverviewSlaBlock, OverviewSlaRequestRow } from './hooks/useOverviewSlaData';
-import { countWorkingDaysBetween, getPlannedSlaDaysNumber } from './utils/overviewSlaUtils';
+import { addWorkingDays, countWorkingDaysBetween, getPlannedSlaDaysNumber } from './utils/overviewSlaUtils';
 import { useOverviewPurchasePlanMonthsData } from './hooks/useOverviewPurchasePlanMonthsData';
 import { OverviewTabs } from './ui/OverviewTabs';
 import { usePurchasePlanMonths } from './hooks/usePurchasePlanMonths';
@@ -44,7 +44,7 @@ export default function Overview() {
 
   const slaData = useOverviewSlaData(activeTab === 'sla' ? slaYear : null);
 
-  /** Заявки «Требует внимания»: из группы «Заявка у закупщика», у которых минус в дельте либо осталось менее 30% от планового SLA. */
+  /** Заявки «Требует внимания»: из группы «Заявка у закупщика», у которых минус в дельте либо осталось менее 30% от планового SLA. Плановый срок: из заявки (plannedSlaDays) или по сложности. */
   const requiresAttentionRequests = useMemo((): OverviewSlaRequestRow[] => {
     const blocks = slaData.data?.statusBlocks ?? [];
     const atBuyerBlock = blocks.find((b) => b.statusGroup === 'Заявка у закупщика');
@@ -53,7 +53,7 @@ export default function Overview() {
     return requests.filter((row) => {
       const assignmentIso = row.approvalAssignmentDate;
       if (!assignmentIso) return false;
-      const planned = getPlannedSlaDaysNumber(row.complexity);
+      const planned = row.plannedSlaDays ?? getPlannedSlaDaysNumber(row.complexity);
       const start = new Date(assignmentIso);
       if (isNaN(start.getTime())) return false;
       const end = row.purchaseCompletionDate ? new Date(row.purchaseCompletionDate) : now;
@@ -75,6 +75,74 @@ export default function Overview() {
     }
     return counts;
   }, [slaData.data?.slaPercentageByMonth]);
+
+  /** Текущие год и месяц (для разделения факт/прогноз на диаграмме). */
+  const nowYear = useMemo(() => new Date().getFullYear(), []);
+  const nowMonth = useMemo(() => new Date().getMonth() + 1, []);
+
+  /** Прогноз по месяцам: заявки «Заявка у закупщика», дата назначения + плановый срок → месяц. Если плановый месяц < текущего — в текущий. */
+  const slaForecastByMonth = useMemo((): number[] => {
+    const counts = new Array(12).fill(0);
+    const blocks = slaData.data?.statusBlocks ?? [];
+    const atBuyerBlock = blocks.find((b) => b.statusGroup === 'Заявка у закупщика');
+    const requests = atBuyerBlock?.requests ?? [];
+    for (const row of requests) {
+      const assignmentIso = row.approvalAssignmentDate;
+      if (!assignmentIso) continue;
+      const start = new Date(assignmentIso);
+      if (isNaN(start.getTime())) continue;
+      const plannedDays = row.plannedSlaDays ?? getPlannedSlaDaysNumber(row.complexity) ?? 30;
+      const plannedEnd = addWorkingDays(start, plannedDays);
+      const plannedYear = plannedEnd.getFullYear();
+      const plannedMonth = plannedEnd.getMonth() + 1;
+      if (plannedYear !== slaYear) continue;
+      let targetMonth: number;
+      if (slaYear === nowYear && plannedMonth < nowMonth) {
+        targetMonth = nowMonth;
+      } else {
+        targetMonth = plannedMonth;
+      }
+      if (targetMonth >= 1 && targetMonth <= 12) counts[targetMonth - 1] += 1;
+    }
+    return counts;
+  }, [slaData.data?.statusBlocks, slaYear, nowYear, nowMonth]);
+
+  /** Прогнозный % SLA по месяцам: для каждого месяца — заявки, чьё плановое завершение в этом месяце; «требует внимания» = не выполнение. */
+  const slaForecastSlaByMonth = useMemo((): { percentage: (number | null)[]; met: number[]; total: number[] } => {
+    const percentage: (number | null)[] = new Array(12).fill(null);
+    const met: number[] = new Array(12).fill(0);
+    const total: number[] = new Array(12).fill(0);
+    const attentionIds = new Set(requiresAttentionRequests.map((r) => r.id));
+    const blocks = slaData.data?.statusBlocks ?? [];
+    const atBuyerBlock = blocks.find((b) => b.statusGroup === 'Заявка у закупщика');
+    const requests = atBuyerBlock?.requests ?? [];
+    for (const row of requests) {
+      const assignmentIso = row.approvalAssignmentDate;
+      if (!assignmentIso) continue;
+      const start = new Date(assignmentIso);
+      if (isNaN(start.getTime())) continue;
+      const plannedDays = row.plannedSlaDays ?? getPlannedSlaDaysNumber(row.complexity) ?? 30;
+      const plannedEnd = addWorkingDays(start, plannedDays);
+      const plannedYear = plannedEnd.getFullYear();
+      const plannedMonth = plannedEnd.getMonth() + 1;
+      if (plannedYear !== slaYear) continue;
+      let targetMonth: number;
+      if (slaYear === nowYear && plannedMonth < nowMonth) {
+        targetMonth = nowMonth;
+      } else {
+        targetMonth = plannedMonth;
+      }
+      if (targetMonth >= 1 && targetMonth <= 12) {
+        const i = targetMonth - 1;
+        total[i] += 1;
+        if (!attentionIds.has(row.id)) met[i] += 1;
+      }
+    }
+    for (let i = 0; i < 12; i++) {
+      percentage[i] = total[i] > 0 ? (met[i] / total[i]) * 100 : null;
+    }
+    return { percentage, met, total };
+  }, [slaData.data?.statusBlocks, slaYear, nowYear, nowMonth, requiresAttentionRequests]);
 
   /** Блоки SLA для отображения: первый блок «Требует внимания», затем «Договор в работе» и «Договор подписан» объединены в «Закупка завершена». */
   const slaDisplayBlocks = useMemo((): OverviewSlaBlock[] => {
@@ -169,6 +237,12 @@ export default function Overview() {
                 <SlaCombinedChart
                   year={slaYear}
                   countsByMonth={slaCompletedByMonth}
+                  forecastByMonth={slaForecastByMonth}
+                  forecastSlaPercentageByMonth={slaForecastSlaByMonth.percentage}
+                  forecastSlaMetByMonth={slaForecastSlaByMonth.met}
+                  forecastSlaTotalByMonth={slaForecastSlaByMonth.total}
+                  currentYear={nowYear}
+                  currentMonth={nowMonth}
                   slaPercentageByMonth={slaData.data?.slaPercentageByMonth ?? []}
                   loading={slaData.loading}
                   error={slaData.error}

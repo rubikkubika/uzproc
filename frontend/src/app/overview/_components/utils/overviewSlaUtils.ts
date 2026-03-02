@@ -19,6 +19,25 @@ export function countWorkingDaysBetween(assignmentDate: Date, endDate: Date): nu
   return count;
 }
 
+/** Дата назначения + N рабочих дней (плановое завершение). День назначения не считается. */
+export function addWorkingDays(assignmentDate: Date, workingDays: number): Date {
+  if (workingDays <= 0) {
+    const d = new Date(assignmentDate.getFullYear(), assignmentDate.getMonth(), assignmentDate.getDate());
+    d.setDate(d.getDate() + 1);
+    return d;
+  }
+  const start = new Date(assignmentDate.getFullYear(), assignmentDate.getMonth(), assignmentDate.getDate());
+  start.setDate(start.getDate() + 1); // со следующего дня
+  let remaining = workingDays;
+  const cur = new Date(start);
+  while (remaining > 0) {
+    const d = cur.getDay();
+    if (d !== 0 && d !== 6) remaining--;
+    if (remaining > 0) cur.setDate(cur.getDate() + 1);
+  }
+  return cur;
+}
+
 /** Плановый срок SLA (дней) по сложности: 1→3, 2→7, 3→15, 4→30 — для отображения. */
 export function getPlannedSlaDays(complexity: string | null): string {
   if (complexity == null || complexity.trim() === '') return '—';
