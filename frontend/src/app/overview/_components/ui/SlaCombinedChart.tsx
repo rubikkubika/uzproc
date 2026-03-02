@@ -43,15 +43,17 @@ const barForecastDashedBorderPlugin = {
     const dash = [6, 4];
     const lineWidth = cfg.lineWidth ?? FORECAST_LINE_WIDTH;
 
-    meta.data.forEach((el: { x: number; y: number; base: number; width: number; height: number }, dataIndex: number) => {
+    type BarElement = { x: number; y: number; base: number; width: number; height: number };
+    meta.data.forEach((el, dataIndex) => {
+      const bar = el as unknown as BarElement;
       const month1 = dataIndex + 1;
       const isPast = year < nowYear || (year === nowYear && month1 < nowMonth);
       if (isPast) return;
-      const w = el.width;
-      const h = el.height;
+      const w = bar.width;
+      const h = bar.height;
       if (w <= 0 || h <= 0) return;
-      const left = el.x - w / 2;
-      const top = Math.min(el.y, el.base);
+      const left = bar.x - w / 2;
+      const top = Math.min(bar.y, bar.base);
       ctx.save();
       ctx.strokeStyle = FORECAST_GRAY;
       ctx.lineWidth = lineWidth;
@@ -182,7 +184,7 @@ function buildOptions(
               const suffix = isPast ? ' (факт)' : ' (прогноз)';
               return `Закупки: ${rawVal}${suffix}`;
             }
-            if (barDataOriginal[context.dataIndex] === 0) return null;
+            if (barDataOriginal[context.dataIndex] === 0) return undefined;
             const rawVal = typeof context.raw === 'number' ? context.raw : 0;
             const month1 = context.dataIndex + 1;
             const isPastMonth = year < nowYear || (year === nowYear && month1 < nowMonth);
