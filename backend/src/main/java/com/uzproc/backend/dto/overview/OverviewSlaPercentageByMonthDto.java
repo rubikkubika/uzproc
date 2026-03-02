@@ -1,7 +1,7 @@
 package com.uzproc.backend.dto.overview;
 
 /**
- * Процент закупок, уложившихся в плановый SLA, по месяцу назначения.
+ * Процент закупок, уложившихся в плановый SLA, по месяцу завершения закупки.
  */
 public class OverviewSlaPercentageByMonthDto {
     /** Месяц (1–12) */

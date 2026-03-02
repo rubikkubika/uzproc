@@ -28,7 +28,7 @@ const MONTH_NAMES = [
 export interface SlaCompletedByMonthChartProps {
   /** Год для подписи */
   year: number;
-  /** Количество закупок, назначенных в месяце (индекс 0 = январь, 11 = декабрь) */
+  /** Количество закупок, завершённых в месяце (индекс 0 = январь, 11 = декабрь) */
   countsByMonth: number[];
   /** Загрузка данных */
   loading?: boolean;
@@ -66,7 +66,7 @@ const chartOptions = (maxVal: number) => ({
 
 /**
  * Столбчатая диаграмма: по горизонтальной оси — месяцы года,
- * по столбцам — закупки, назначенные в месяце.
+ * по столбцам — закупки, завершённые в месяце.
  */
 export function SlaCompletedByMonthChart({
   year,
@@ -79,7 +79,7 @@ export function SlaCompletedByMonthChart({
     labels: MONTH_NAMES,
     datasets: [
       {
-        label: 'закупки назначенные в месяце',
+        label: 'закупки завершённые в месяце',
         data: countsByMonth ?? Array(12).fill(0),
         backgroundColor: 'rgba(59, 130, 246, 0.8)',
         borderColor: 'rgba(59, 130, 246, 1)',
@@ -92,9 +92,9 @@ export function SlaCompletedByMonthChart({
     return (
       <div className="bg-white rounded-lg shadow p-3 sm:p-4">
         <h3 className="text-sm font-medium text-gray-700 mb-2">
-          Закупки назначенные по месяцам ({year})
+          Закупки завершённые по месяцам ({year})
         </h3>
-        <p className="text-xs text-gray-500 mb-1">закупки назначенные в месяце</p>
+        <p className="text-xs text-gray-500 mb-1">закупки завершённые в месяце</p>
         <p className="text-sm text-red-600">{error}</p>
       </div>
     );
@@ -103,9 +103,9 @@ export function SlaCompletedByMonthChart({
   return (
     <div className="bg-white rounded-lg shadow p-3 sm:p-4">
       <h3 className="text-sm font-medium text-gray-700 mb-2">
-        Закупки назначенные по месяцам ({year})
+        Закупки завершённые по месяцам ({year})
       </h3>
-      <p className="text-xs text-gray-500 mb-1">закупки назначенные в месяце</p>
+      <p className="text-xs text-gray-500 mb-1">закупки завершённые в месяце</p>
       {loading ? (
         <div className="h-[220px] flex items-center justify-center text-sm text-gray-500">
           Загрузка…

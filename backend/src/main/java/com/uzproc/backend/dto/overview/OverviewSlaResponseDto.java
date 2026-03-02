@@ -8,7 +8,7 @@ import java.util.List;
 public class OverviewSlaResponseDto {
     private Integer year;
     private List<OverviewSlaBlockDto> statusBlocks;
-    /** Процент закупок, уложившихся в плановый SLA, по месяцу назначения (1–12). */
+    /** Процент закупок, уложившихся в плановый SLA, по месяцу завершения закупки (1–12). */
     private List<OverviewSlaPercentageByMonthDto> slaPercentageByMonth;
     /** Выполнение СЛА по году в разрезе закупщиков. */
     private List<OverviewSlaPercentageByPurchaserDto> slaPercentageByPurchaser;
