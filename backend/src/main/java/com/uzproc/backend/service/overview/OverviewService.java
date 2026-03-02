@@ -37,6 +37,8 @@ public class OverviewService {
             "Договор в работе",
             "Договор подписан"
     );
+    /** Закупки в расчётах СЛА учитываются только при назначении на закупщика не ранее этой даты. */
+    private static final LocalDateTime SLA_ASSIGNMENT_CUTOFF = LocalDateTime.of(2026, 1, 1, 0, 0);
 
     private final PurchaseRequestService purchaseRequestService;
     private final PurchasePlanVersionService purchasePlanVersionService;
@@ -94,7 +96,7 @@ public class OverviewService {
     }
 
     /**
-     * Процент закупок, уложившихся в плановый SLA, по месяцу назначения (только завершённые закупки).
+     * Процент закупок, уложившихся в плановый SLA, по месяцу завершения закупки (только завершённые закупки, назначение на закупщика не ранее 01.01.2026).
      * Плановый срок по сложности: 1→3, 2→7, 3→15, 4→30 рабочих дней.
      */
     private List<OverviewSlaPercentageByMonthDto> buildSlaPercentageByMonth(List<OverviewSlaBlockDto> blocks, int year) {
@@ -112,7 +114,8 @@ public class OverviewService {
                 LocalDateTime assignment = parseIsoDateTime(r.getApprovalAssignmentDate());
                 LocalDateTime completion = parseIsoDateTime(r.getPurchaseCompletionDate());
                 if (assignment == null || completion == null) continue;
-                if (assignment.getYear() != year || assignment.getMonthValue() != month) continue;
+                if (assignment.isBefore(SLA_ASSIGNMENT_CUTOFF)) continue;
+                if (completion.getYear() != year || completion.getMonthValue() != month) continue;
                 totalCompleted++;
                 Integer planned = r.getPlannedSlaDays();
                 if (planned == null) planned = getPlannedSlaDays(r.getComplexity());
@@ -130,6 +133,7 @@ public class OverviewService {
 
     /**
      * Выполнение СЛА по году в разрезе закупщиков: для каждого закупщика — всего завершённых, уложившихся в SLA, процент.
+     * Учитываются только закупки с назначением на закупщика не ранее 01.01.2026.
      */
     private List<OverviewSlaPercentageByPurchaserDto> buildSlaPercentageByPurchaser(List<OverviewSlaBlockDto> blocks, int year) {
         List<OverviewSlaRequestDto> allRequests = blocks.stream()
@@ -141,7 +145,8 @@ public class OverviewService {
             LocalDateTime assignment = parseIsoDateTime(r.getApprovalAssignmentDate());
             LocalDateTime completion = parseIsoDateTime(r.getPurchaseCompletionDate());
             if (assignment == null || completion == null) continue;
-            if (assignment.getYear() != year) continue;
+            if (assignment.isBefore(SLA_ASSIGNMENT_CUTOFF)) continue;
+            if (completion.getYear() != year) continue;
             String purchaser = r.getPurchaser();
             if (purchaser == null || purchaser.trim().isEmpty()) purchaser = "Не назначен";
             else purchaser = purchaser.trim();

@@ -23,7 +23,7 @@ export interface OverviewSlaBlock {
   requests: OverviewSlaRequestRow[];
 }
 
-/** Процент уложившихся в плановый SLA по месяцу назначения (месяц 1–12). */
+/** Процент уложившихся в плановый SLA по месяцу завершения закупки (месяц 1–12). */
 export interface OverviewSlaPercentageByMonth {
   month: number;
   totalCompleted: number;

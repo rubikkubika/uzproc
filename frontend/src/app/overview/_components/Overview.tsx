@@ -66,23 +66,15 @@ export default function Overview() {
     });
   }, [slaData.data?.statusBlocks]);
 
-  /** Закупки завершённые (есть дата завершения), по месяцам назначения на утверждение в выбранном году. */
-  const slaAssignedByMonth = useMemo((): number[] => {
+  /** Закупки завершённые по месяцам завершения в выбранном году (из slaPercentageByMonth с бэкенда). */
+  const slaCompletedByMonth = useMemo((): number[] => {
     const counts = new Array(12).fill(0);
-    const blocks = slaData.data?.statusBlocks ?? [];
-    for (const block of blocks) {
-      for (const row of block.requests) {
-        if (!row.purchaseCompletionDate) continue;
-        const iso = row.approvalAssignmentDate;
-        if (!iso) continue;
-        const d = new Date(iso);
-        if (isNaN(d.getTime()) || d.getFullYear() !== slaYear) continue;
-        const monthIndex = d.getMonth();
-        if (monthIndex >= 0 && monthIndex < 12) counts[monthIndex] += 1;
-      }
+    const list = slaData.data?.slaPercentageByMonth ?? [];
+    for (const m of list) {
+      if (m.month >= 1 && m.month <= 12) counts[m.month - 1] = m.totalCompleted;
     }
     return counts;
-  }, [slaData.data?.statusBlocks, slaYear]);
+  }, [slaData.data?.slaPercentageByMonth]);
 
   /** Блоки SLA для отображения: первый блок «Требует внимания», затем «Договор в работе» и «Договор подписан» объединены в «Закупка завершена». */
   const slaDisplayBlocks = useMemo((): OverviewSlaBlock[] => {
@@ -144,7 +136,7 @@ export default function Overview() {
             <div className="bg-white rounded shadow px-1.5 py-1 sm:px-2 sm:py-1">
               <div className="flex items-center gap-1.5">
                 <label htmlFor="sla-year-filter" className="text-xs font-medium text-gray-700 whitespace-nowrap">
-                  Год назначения:
+                  Год завершения:
                 </label>
                 <select
                   id="sla-year-filter"
@@ -176,7 +168,7 @@ export default function Overview() {
               <div className="flex-1 min-w-0 h-[200px] flex" style={{ position: 'relative' }}>
                 <SlaCombinedChart
                   year={slaYear}
-                  countsByMonth={slaAssignedByMonth}
+                  countsByMonth={slaCompletedByMonth}
                   slaPercentageByMonth={slaData.data?.slaPercentageByMonth ?? []}
                   loading={slaData.loading}
                   error={slaData.error}

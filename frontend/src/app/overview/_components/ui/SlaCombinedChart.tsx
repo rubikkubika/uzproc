@@ -38,7 +38,7 @@ const MONTH_NAMES = [
 
 export interface SlaCombinedChartProps {
   year: number;
-  /** Количество завершённых закупок по месяцам назначения (индекс 0 = январь). */
+  /** Количество завершённых закупок по месяцам завершения (индекс 0 = январь). */
   countsByMonth: number[];
   /** Процент уложившихся в SLA по месяцам (1–12). */
   slaPercentageByMonth: OverviewSlaPercentageByMonth[];
