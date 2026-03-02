@@ -21,20 +21,27 @@ import type { OverviewSlaPercentageByMonth } from '../hooks/useOverviewSlaData';
 const FORECAST_GRAY = 'rgba(107, 114, 128, 1)';
 const FORECAST_LINE_WIDTH = 2;
 
+/** Опции кастомного плагина barForecastDashedBorder (Chart.js типы их не содержат). */
+type BarForecastDashedBorderOpts = {
+  year: number;
+  nowYear: number;
+  nowMonth: number;
+  lineWidth?: number;
+};
+
 /** Рисует пунктирную обводку для столбцов прогноза (Chart.js не поддерживает borderDash для bar). */
 const barForecastDashedBorderPlugin = {
   id: 'barForecastDashedBorder',
   afterDraw(chart: ChartJS) {
-    const cfg = chart.options.plugins?.barForecastDashedBorder as
-      | { year: number; nowYear: number; nowMonth: number }
-      | undefined;
+    const customPlugins = chart.options.plugins as Record<string, BarForecastDashedBorderOpts | undefined> | undefined;
+    const cfg = customPlugins?.barForecastDashedBorder;
     if (!cfg) return;
     const meta = chart.getDatasetMeta(0);
     if (!meta?.data?.length) return;
     const { year, nowYear, nowMonth } = cfg;
     const ctx = chart.ctx;
     const dash = [6, 4];
-    const lineWidth = (chart.options.plugins?.barForecastDashedBorder as { lineWidth?: number } | undefined)?.lineWidth ?? FORECAST_LINE_WIDTH;
+    const lineWidth = cfg.lineWidth ?? FORECAST_LINE_WIDTH;
 
     meta.data.forEach((el: { x: number; y: number; base: number; width: number; height: number }, dataIndex: number) => {
       const month1 = dataIndex + 1;
