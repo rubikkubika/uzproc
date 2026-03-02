@@ -629,7 +629,9 @@ export default function PurchaseRequestDetailPage() {
       const hasCompletion = completionDate && String(completionDate).trim() !== '';
       const start = new Date(assignmentDate);
       start.setDate(start.getDate() + 1); // следующий день после назначения
-      const end = hasCompletion ? new Date(completionDate) : new Date();
+      const end = hasCompletion
+        ? new Date(completionDate)
+        : new Date(new Date().setHours(23, 59, 59, 999)); // конец сегодняшнего дня, чтобы сегодня всегда включалось
       if (start > end) {
         // Назначение и выполнение в один день (выполненные) или назначено сегодня (не выполненные): считаем этот день как 1, если рабочий
         const day = end.getDay();

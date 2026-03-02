@@ -582,8 +582,8 @@ export default function ContractsTable() {
                         </span>
                       )}
                     </td>
-                    <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900 border-r border-gray-300 overflow-hidden">
-                      <span className="block truncate" title={contract.state || undefined}>{contract.state || '-'}</span>
+                    <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 align-top break-words min-w-0">
+                      <span className="block" title={contract.state || undefined}>{contract.state || '-'}</span>
                     </td>
                     <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden">
                       <span className="block truncate" title={contract.paymentTerms || undefined}>{contract.paymentTerms || '-'}</span>
