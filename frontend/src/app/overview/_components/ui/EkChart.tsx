@@ -90,18 +90,18 @@ const buildOptions = (maxAmount: number, rows: OverviewEkChartRow[]) => {
       tooltip: {
         callbacks: {
           label: (
-            ctx: { datasetIndex: number; raw: number; dataIndex: number }
+            ctx: { datasetIndex: number; raw: unknown; dataIndex: number }
           ) => {
+            const rawNum = Number(ctx.raw);
             if (ctx.datasetIndex === 0) {
               const row = rows[ctx.dataIndex];
               const curr =
                 row?.currency && row.currency !== 'mixed'
                   ? ` ${currencyLabel(row.currency)}`
                   : ' ₽';
-              return `${Number(ctx.raw).toLocaleString('ru-RU')}${curr}`;
+              return `${rawNum.toLocaleString('ru-RU')}${curr}`;
             }
-            if (ctx.datasetIndex === 1)
-              return `${Number(ctx.raw).toFixed(1)}%`;
+            if (ctx.datasetIndex === 1) return `${rawNum.toFixed(1)}%`;
             return String(ctx.raw);
           },
         },
