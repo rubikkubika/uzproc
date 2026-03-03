@@ -1,5 +1,6 @@
 package com.uzproc.backend.service.overview;
 
+import com.uzproc.backend.config.OverviewEkProperties;
 import com.uzproc.backend.dto.overview.*;
 import com.uzproc.backend.dto.purchaserequest.PurchaseRequestDto;
 import com.uzproc.backend.dto.purchaseplan.PurchasePlanItemDto;
@@ -64,6 +65,7 @@ public class OverviewService {
     private final ContractRepository contractRepository;
     private final PurchaseRequestApprovalRepository purchaseRequestApprovalRepository;
     private final UserRepository userRepository;
+    private final OverviewEkProperties overviewEkProperties;
 
     /** Подстрока способа закупки (mcc) у связанной закупки для признака «Закупка у единственного источника». */
     private static final String SINGLE_SOURCE_MCC_SUBSTRING = "единственного источника";
@@ -76,7 +78,8 @@ public class OverviewService {
             ContractApprovalRepository contractApprovalRepository,
             ContractRepository contractRepository,
             PurchaseRequestApprovalRepository purchaseRequestApprovalRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            OverviewEkProperties overviewEkProperties) {
         this.purchaseRequestService = purchaseRequestService;
         this.purchasePlanVersionService = purchasePlanVersionService;
         this.purchaseRequestCommentService = purchaseRequestCommentService;
@@ -85,6 +88,7 @@ public class OverviewService {
         this.contractRepository = contractRepository;
         this.purchaseRequestApprovalRepository = purchaseRequestApprovalRepository;
         this.userRepository = userRepository;
+        this.overviewEkProperties = overviewEkProperties;
     }
 
     /**
@@ -644,6 +648,15 @@ public class OverviewService {
             list = all;
         }
         String yearType = byAssignmentYear ? "assignment" : "creation";
+        String baseCurrency = overviewEkProperties.getBaseCurrency();
+        // Нужен ли перевод по курсу: есть ли заявки с валютой, отличной от базовой
+        boolean needsConversion = list.stream()
+                .map(PurchaseRequestDto::getCurrency)
+                .filter(c -> c != null && !c.isBlank())
+                .map(String::trim)
+                .anyMatch(c -> !c.equalsIgnoreCase(baseCurrency));
+        boolean amountsInBaseCurrency = needsConversion;
+
         // Группировка по ЦФО
         Map<String, List<PurchaseRequestDto>> byCfo = list.stream()
                 .collect(Collectors.groupingBy(pr -> {
@@ -656,21 +669,35 @@ public class OverviewService {
             String cfo = e.getKey();
             List<PurchaseRequestDto> group = e.getValue();
             BigDecimal totalAmount = group.stream()
-                    .map(pr -> pr.getBudgetAmount() != null ? pr.getBudgetAmount() : BigDecimal.ZERO)
+                    .map(pr -> overviewEkProperties.toBaseCurrency(
+                            pr.getBudgetAmount() != null ? pr.getBudgetAmount() : BigDecimal.ZERO,
+                            pr.getCurrency()))
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
             List<PurchaseRequestDto> singleInGroup = group.stream()
                     .filter(pr -> pr.getIdPurchaseRequest() != null && singleSourceRequestIds.contains(pr.getIdPurchaseRequest()))
                     .toList();
             BigDecimal singleSupplierAmount = singleInGroup.stream()
-                    .map(pr -> pr.getBudgetAmount() != null ? pr.getBudgetAmount() : BigDecimal.ZERO)
+                    .map(pr -> overviewEkProperties.toBaseCurrency(
+                            pr.getBudgetAmount() != null ? pr.getBudgetAmount() : BigDecimal.ZERO,
+                            pr.getCurrency()))
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
             BigDecimal percentByAmount = BigDecimal.ZERO;
             if (totalAmount.compareTo(BigDecimal.ZERO) > 0 && singleSupplierAmount.compareTo(BigDecimal.ZERO) > 0) {
                 percentByAmount = singleSupplierAmount.multiply(BigDecimal.valueOf(100))
                         .divide(totalAmount, 2, java.math.RoundingMode.HALF_UP);
             }
+            Set<String> currenciesInGroup = group.stream()
+                    .map(PurchaseRequestDto::getCurrency)
+                    .filter(c -> c != null && !c.isBlank())
+                    .map(String::trim)
+                    .collect(Collectors.toSet());
+            String rowCurrency = amountsInBaseCurrency
+                    ? baseCurrency
+                    : (currenciesInGroup.isEmpty() ? null : (currenciesInGroup.size() == 1 ? currenciesInGroup.iterator().next() : "mixed"));
+
             OverviewEkChartRowDto row = new OverviewEkChartRowDto();
             row.setCfo(cfo);
+            row.setCurrency(rowCurrency);
             row.setTotalCount(group.size());
             row.setSingleSupplierCount(singleInGroup.size());
             row.setTotalAmount(totalAmount);
@@ -679,7 +706,8 @@ public class OverviewService {
             rows.add(row);
         }
         rows.sort(Comparator.comparing(OverviewEkChartRowDto::getCfo, Comparator.nullsLast(Comparator.naturalOrder())));
-        logger.debug("Overview EK chart for year {}: {} CFO rows (yearType={})", year, rows.size(), yearType);
-        return new OverviewEkChartResponseDto(yearType, rows);
+        logger.debug("Overview EK chart for year {}: {} CFO rows (yearType={}, amountsInBaseCurrency={})",
+                year, rows.size(), yearType, amountsInBaseCurrency);
+        return new OverviewEkChartResponseDto(yearType, rows, amountsInBaseCurrency ? baseCurrency : null, amountsInBaseCurrency);
     }
 }

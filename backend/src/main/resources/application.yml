@@ -90,6 +90,15 @@ app:
   frontend:
     base-url: ${FRONTEND_BASE_URL:}
     csi-link-base-url: ${CSI_LINK_BASE_URL:http://10.123.48.62}
+  # Вкладка ЕК (Обзор): перевод сумм в базовую валюту по курсу при разных валютах
+  overview:
+    ek:
+      base-currency: RUB
+      exchange-rates:
+        RUB: 1
+        RUR: 1
+        USD: 100
+        EUR: 105
 
 management:
   endpoints:

@@ -5,9 +5,12 @@ import java.math.BigDecimal;
 /**
  * Строка для диаграммы ЕК (вкладка Обзор): по ЦФО — кол-во заявок (тип закупка),
  * кол-во закупок у единственного источника, сумма бюджетов, сумма у единственного источника, % по суммам.
+ * currency — преобладающая валюта в заявках ЦФО (или "mixed" при разных валютах).
  */
 public class OverviewEkChartRowDto {
     private String cfo;
+    /** Преобладающая валюта в заявках этого ЦФО; "mixed" если валют несколько. */
+    private String currency;
     /** Всего заявок (тип закупка) в учёте за год назначения на закупщика. */
     private int totalCount;
     /** Заявок, у которых связанная закупка имеет способ закупки (mcc) «Закупка у единственного источника». */
@@ -25,6 +28,14 @@ public class OverviewEkChartRowDto {
 
     public void setCfo(String cfo) {
         this.cfo = cfo;
+    }
+
+    public String getCurrency() {
+        return currency;
+    }
+
+    public void setCurrency(String currency) {
+        this.currency = currency;
     }
 
     public int getTotalCount() {
