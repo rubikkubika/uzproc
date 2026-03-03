@@ -9,7 +9,7 @@ export const prepareExportData = (items: PurchasePlanItem[]) => {
     'Компания': item.company || '',
     'ЦФО': item.cfo || '',
     'Предмет закупки': item.purchaseSubject || '',
-    'Бюджет (UZS)': item.budgetAmount || '',
+    'Бюджет': item.budgetAmount || '',
     'Срок окончания договора': item.contractEndDate 
       ? new Date(item.contractEndDate).toLocaleDateString('ru-RU')
       : '',

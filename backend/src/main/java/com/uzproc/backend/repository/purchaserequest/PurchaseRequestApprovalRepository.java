@@ -2,8 +2,11 @@ package com.uzproc.backend.repository.purchaserequest;
 
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequestApproval;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -39,5 +42,22 @@ public interface PurchaseRequestApprovalRepository extends JpaRepository<Purchas
     
     // Удалить все согласования для заявки
     void deleteByIdPurchaseRequest(Long idPurchaseRequest);
+
+    /**
+     * ID заявок на закупку, у которых дата назначения на закупщика (min assignment_date по этапу «Утверждение заявки на ЗП»)
+     * попадает в указанный диапазон дат (включительно).
+     */
+    @Query(value = """
+        SELECT t.id_purchase_request FROM (
+            SELECT id_purchase_request, MIN(assignment_date) AS min_dt
+            FROM purchase_request_approvals
+            WHERE stage IN ('Утверждение заявки на ЗП', 'Утверждение заявки на ЗП (НЕ требуется ЗП)') AND assignment_date IS NOT NULL
+            GROUP BY id_purchase_request
+        ) t
+        WHERE CAST(t.min_dt AS date) BETWEEN :assignmentDateFrom AND :assignmentDateTo
+        """, nativeQuery = true)
+    List<Long> findPurchaseRequestIdsWithApprovalAssignmentDateBetween(
+            @Param("assignmentDateFrom") LocalDate assignmentDateFrom,
+            @Param("assignmentDateTo") LocalDate assignmentDateTo);
 }
 

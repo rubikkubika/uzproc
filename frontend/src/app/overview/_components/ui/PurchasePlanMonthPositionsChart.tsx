@@ -41,6 +41,11 @@ const chartOptions = (maxVal: number) => ({
   responsive: true,
   maintainAspectRatio: false,
   layout: { padding: 16 },
+  elements: {
+    bar: {
+      borderWidth: 0,
+    },
+  },
   plugins: {
     title: { display: false },
     legend: { display: false },
@@ -51,6 +56,8 @@ const chartOptions = (maxVal: number) => ({
       formatter: (value: number) => value,
       anchor: 'center' as const,
       align: 'center' as const,
+      borderWidth: 0,
+      backgroundColor: null,
     },
   },
   scales: {
@@ -59,9 +66,11 @@ const chartOptions = (maxVal: number) => ({
       max: maxVal,
       display: false,
       ticks: { display: false },
+      grid: { display: false },
     },
     x: {
       ticks: { font: { size: 11 } },
+      grid: { display: false },
     },
   },
 });
@@ -101,12 +110,8 @@ export function PurchasePlanMonthPositionsChart({
           'rgba(59, 130, 246, 0.8)',
           'rgba(239, 68, 68, 0.8)',
         ],
-        borderColor: [
-          'rgba(34, 197, 94, 1)',
-          'rgba(59, 130, 246, 1)',
-          'rgba(239, 68, 68, 1)',
-        ],
-        borderWidth: 1,
+        borderColor: 'transparent',
+        borderWidth: 0,
       },
     ],
   };
@@ -133,13 +138,8 @@ export function PurchasePlanMonthPositionsChart({
           'rgba(251, 191, 36, 0.8)',
           'rgba(239, 68, 68, 0.8)',
         ],
-        borderColor: [
-          'rgba(34, 197, 94, 1)',
-          'rgba(59, 130, 246, 1)',
-          'rgba(251, 191, 36, 1)',
-          'rgba(239, 68, 68, 1)',
-        ],
-        borderWidth: 1,
+        borderColor: 'transparent',
+        borderWidth: 0,
       },
     ],
   };

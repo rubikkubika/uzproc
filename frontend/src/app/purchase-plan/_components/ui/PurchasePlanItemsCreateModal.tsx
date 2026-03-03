@@ -123,7 +123,7 @@ export default function PurchasePlanItemsCreateModal({
           
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Бюджет (UZS)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Бюджет</label>
               <input
                 type="number"
                 step="0.01"

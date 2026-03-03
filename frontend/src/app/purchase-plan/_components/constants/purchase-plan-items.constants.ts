@@ -25,7 +25,7 @@ export const ALL_COLUMNS = [
   { key: 'purchaserCompany', label: 'Исполнитель' },
   { key: 'cfo', label: 'ЦФО' },
   { key: 'purchaseSubject', label: 'Предмет закупки' },
-  { key: 'budgetAmount', label: 'Бюджет (UZS)' },
+  { key: 'budgetAmount', label: 'Бюджет' },
   { key: 'contractEndDate', label: 'Дата окончания договора' },
   { key: 'requestDate', label: 'Дата заявки' },
   { key: 'ganttChart', label: 'Диаграмма Ганта' },

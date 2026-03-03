@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useOverview } from './hooks/useOverview';
 import { useOverviewSlaData } from './hooks/useOverviewSlaData';
 import type { OverviewSlaBlock, OverviewSlaRequestRow } from './hooks/useOverviewSlaData';
@@ -15,6 +14,8 @@ import { SlaCombinedChart } from './ui/SlaCombinedChart';
 import { SlaAverageBlock } from './ui/SlaAverageBlock';
 import { SlaByPurchaserTable } from './ui/SlaByPurchaserTable';
 import AllCsiFeedback from './ui/AllCsiFeedback';
+import { EkTabContent } from './ui/EkTabContent';
+import { ApprovalsByExecutorTable } from './ui/ApprovalsByExecutorTable';
 
 /**
  * Главный компонент страницы обзор
@@ -30,7 +31,6 @@ export default function Overview() {
     return years;
   }, [currentYear]);
   const {
-    previousMonth,
     currentMonth,
     formatMonth,
     goToPreviousMonth,
@@ -181,12 +181,43 @@ export default function Overview() {
     return (metSla / totalCompleted) * 100;
   }, [slaData.data?.slaPercentageByMonth]);
 
+  /** Средний % СЛА с учётом прогноза: факт (завершённые) + заявки у закупщика с плановым завершением в году; «требует внимания» считаем не выполненными. */
+  const averageSlaWithForecast = useMemo((): number | null => {
+    const list = slaData.data?.slaPercentageByMonth ?? [];
+    let totalCompleted = 0;
+    let metSla = 0;
+    for (const m of list) {
+      totalCompleted += m.totalCompleted;
+      metSla += m.metSla;
+    }
+    const attentionIds = new Set(requiresAttentionRequests.map((r) => r.id));
+    const blocks = slaData.data?.statusBlocks ?? [];
+    const atBuyerBlock = blocks.find((b) => b.statusGroup === 'Заявка у закупщика');
+    const requests = atBuyerBlock?.requests ?? [];
+    let forecastTotal = 0;
+    let forecastMet = 0;
+    for (const row of requests) {
+      const assignmentIso = row.approvalAssignmentDate;
+      if (!assignmentIso) continue;
+      const start = new Date(assignmentIso);
+      if (isNaN(start.getTime())) continue;
+      const plannedDays = row.plannedSlaDays ?? getPlannedSlaDaysNumber(row.complexity) ?? 30;
+      const plannedEnd = addWorkingDays(start, plannedDays);
+      if (plannedEnd.getFullYear() !== slaYear) continue;
+      forecastTotal += 1;
+      if (!attentionIds.has(row.id)) forecastMet += 1;
+    }
+    const totalWithForecast = totalCompleted + forecastTotal;
+    if (totalWithForecast === 0) return null;
+    return ((metSla + forecastMet) / totalWithForecast) * 100;
+  }, [slaData.data?.slaPercentageByMonth, slaData.data?.statusBlocks, requiresAttentionRequests, slaYear]);
+
   const purchasePlanMonthsParam = useMemo(
     () =>
       activeTab === 'purchase-plan'
-        ? [previousMonth.getMonth() + 1, currentMonth.getMonth() + 1]
+        ? [currentMonth.getMonth() + 1]
         : [],
-    [activeTab, previousMonth, currentMonth]
+    [activeTab, currentMonth]
   );
   const purchasePlanMonthsData = useOverviewPurchasePlanMonthsData(
     selectedYear,
@@ -224,6 +255,7 @@ export default function Overview() {
               <SlaAverageBlock
                 year={slaYear}
                 averagePercentage={averageSlaPercentage}
+                averageWithForecast={averageSlaWithForecast}
                 loading={slaData.loading}
                 error={slaData.error}
               />
@@ -266,13 +298,13 @@ export default function Overview() {
           </div>
         )}
         {activeTab === 'ek' && (
-          <div className="bg-white rounded-lg shadow p-4">
-            <p className="text-sm text-gray-600">Раздел ЕК — в разработке.</p>
+          <div className="w-full">
+            <EkTabContent />
           </div>
         )}
         {activeTab === 'approvals' && (
-          <div className="bg-white rounded-lg shadow p-4">
-            <p className="text-sm text-gray-600">Раздел Согласования — в разработке.</p>
+          <div className="w-full">
+            <ApprovalsByExecutorTable />
           </div>
         )}
         {activeTab === 'purchase-plan' && (
@@ -298,20 +330,9 @@ export default function Overview() {
               </div>
             </div>
 
-            {/* Кнопка "Предыдущий месяц" сверху */}
-            {hasPreviousMonth && (
-              <button
-                onClick={goToPreviousMonth}
-                className="w-full py-0.5 px-2 min-h-0 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium text-xs rounded transition-colors flex items-center justify-center gap-1"
-              >
-                <ChevronLeft className="w-3.5 h-3.5 shrink-0" />
-                <span>Предыдущий месяц</span>
-              </button>
-            )}
-
-            {/* Сверху: месяц −1 от текущего — данные одним запросом /api/overview/purchase-plan-months */}
+            {/* Текущий месяц — кнопки переключения перед названием месяца на блоке */}
             <PurchasePlanMonthBlockView
-              title={formatMonth(previousMonth)}
+              title={formatMonth(currentMonth)}
               version={purchasePlanMonthsData.months[0]?.version ?? null}
               positionsMarketCount={purchasePlanMonthsData.months[0]?.positionsMarketCount ?? 0}
               positionsLinkedToRequestCount={purchasePlanMonthsData.months[0]?.positionsLinkedToRequestCount ?? 0}
@@ -324,35 +345,11 @@ export default function Overview() {
               summaryByCfo={purchasePlanMonthsData.months[0]?.summaryByCfo ?? []}
               loading={purchasePlanMonthsData.loading}
               error={purchasePlanMonthsData.error}
+              onPrevious={goToPreviousMonth}
+              onNext={goToNextMonth}
+              hasPrevious={hasPreviousMonth}
+              hasNext={hasNextMonth}
             />
-
-            {/* Снизу: текущий месяц */}
-            <PurchasePlanMonthBlockView
-              title={formatMonth(currentMonth)}
-              version={purchasePlanMonthsData.months[1]?.version ?? null}
-              positionsMarketCount={purchasePlanMonthsData.months[1]?.positionsMarketCount ?? 0}
-              positionsLinkedToRequestCount={purchasePlanMonthsData.months[1]?.positionsLinkedToRequestCount ?? 0}
-              positionsExcludedCount={purchasePlanMonthsData.months[1]?.positionsExcludedCount ?? 0}
-              requestsPurchaseCreatedInMonthCount={purchasePlanMonthsData.months[1]?.requestsPurchaseCreatedInMonthCount ?? 0}
-              requestsPurchasePlannedCount={purchasePlanMonthsData.months[1]?.requestsPurchasePlannedCount ?? 0}
-              requestsPurchaseNonPlannedCount={purchasePlanMonthsData.months[1]?.requestsPurchaseNonPlannedCount ?? 0}
-              requestsPurchaseUnapprovedCount={purchasePlanMonthsData.months[1]?.requestsPurchaseUnapprovedCount ?? 0}
-              requestsPurchaseExcludedCount={purchasePlanMonthsData.months[1]?.requestsPurchaseExcludedCount ?? 0}
-              summaryByCfo={purchasePlanMonthsData.months[1]?.summaryByCfo ?? []}
-              loading={purchasePlanMonthsData.loading}
-              error={purchasePlanMonthsData.error}
-            />
-
-            {/* Кнопка "Следующий месяц" снизу */}
-            {hasNextMonth && (
-              <button
-                onClick={goToNextMonth}
-                className="w-full py-0.5 px-2 min-h-0 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium text-xs rounded transition-colors flex items-center justify-center gap-1"
-              >
-                <span>Следующий месяц</span>
-                <ChevronRight className="w-3.5 h-3.5 shrink-0" />
-              </button>
-            )}
           </div>
         )}
       </div>

@@ -6,6 +6,13 @@ import com.uzproc.backend.dto.purchaseplan.PurchasePlanItemDto;
 import com.uzproc.backend.dto.purchaseplan.PurchasePlanVersionDto;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequestCommentType;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequestStatus;
+import com.uzproc.backend.entity.contract.ContractApproval;
+import com.uzproc.backend.entity.user.User;
+import com.uzproc.backend.repository.contract.ContractApprovalRepository;
+import com.uzproc.backend.repository.contract.ContractRepository;
+import com.uzproc.backend.repository.purchase.PurchaseRepository;
+import com.uzproc.backend.repository.purchaserequest.PurchaseRequestApprovalRepository;
+import com.uzproc.backend.repository.user.UserRepository;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestCommentService;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestService;
 import com.uzproc.backend.service.purchaseplan.PurchasePlanVersionService;
@@ -40,17 +47,44 @@ public class OverviewService {
     /** Закупки в расчётах СЛА учитываются только при назначении на закупщика не ранее этой даты. */
     private static final LocalDateTime SLA_ASSIGNMENT_CUTOFF = LocalDateTime.of(2026, 1, 1, 0, 0);
 
+    private static final Set<String> APPROVAL_EXCLUDED_STAGE_PREFIXES = Set.of(
+            "синхронизация",
+            "принятие на хранение",
+            "принятие на хранение:",
+            "регистрация",
+            "регистрация договора",
+            "регистрация:"
+    );
+
     private final PurchaseRequestService purchaseRequestService;
     private final PurchasePlanVersionService purchasePlanVersionService;
     private final PurchaseRequestCommentService purchaseRequestCommentService;
+    private final PurchaseRepository purchaseRepository;
+    private final ContractApprovalRepository contractApprovalRepository;
+    private final ContractRepository contractRepository;
+    private final PurchaseRequestApprovalRepository purchaseRequestApprovalRepository;
+    private final UserRepository userRepository;
+
+    /** Подстрока способа закупки (mcc) у связанной закупки для признака «Закупка у единственного источника». */
+    private static final String SINGLE_SOURCE_MCC_SUBSTRING = "единственного источника";
 
     public OverviewService(
             PurchaseRequestService purchaseRequestService,
             PurchasePlanVersionService purchasePlanVersionService,
-            PurchaseRequestCommentService purchaseRequestCommentService) {
+            PurchaseRequestCommentService purchaseRequestCommentService,
+            PurchaseRepository purchaseRepository,
+            ContractApprovalRepository contractApprovalRepository,
+            ContractRepository contractRepository,
+            PurchaseRequestApprovalRepository purchaseRequestApprovalRepository,
+            UserRepository userRepository) {
         this.purchaseRequestService = purchaseRequestService;
         this.purchasePlanVersionService = purchasePlanVersionService;
         this.purchaseRequestCommentService = purchaseRequestCommentService;
+        this.purchaseRepository = purchaseRepository;
+        this.contractApprovalRepository = contractApprovalRepository;
+        this.contractRepository = contractRepository;
+        this.purchaseRequestApprovalRepository = purchaseRequestApprovalRepository;
+        this.userRepository = userRepository;
     }
 
     /**
@@ -210,6 +244,131 @@ public class OverviewService {
             if (d.getDayOfWeek() != DayOfWeek.SATURDAY && d.getDayOfWeek() != DayOfWeek.SUNDAY) count++;
         }
         return count;
+    }
+
+    /**
+     * Рабочие дни для согласования договора: та же логика, что на странице заявки.
+     * День назначения не считаем. День выполнения считаем. Назначено и выполнено в один день → 1 день.
+     * Не выполненные: от (день после назначения) до сегодня включительно; если назначено сегодня → 0 дней.
+     */
+    private long contractApprovalWorkingDays(LocalDateTime assignmentDate, LocalDateTime completionDate) {
+        if (assignmentDate == null) return 0;
+        LocalDate start = assignmentDate.toLocalDate().plusDays(1);
+        LocalDate end = completionDate != null ? completionDate.toLocalDate() : LocalDate.now();
+        if (start.isAfter(end)) {
+            return (end.getDayOfWeek() != DayOfWeek.SATURDAY && end.getDayOfWeek() != DayOfWeek.SUNDAY) ? 1 : 0;
+        }
+        long count = 0;
+        for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
+            if (d.getDayOfWeek() != DayOfWeek.SATURDAY && d.getDayOfWeek() != DayOfWeek.SUNDAY) count++;
+        }
+        return count;
+    }
+
+    private static boolean isExcludedApprovalStage(String stage) {
+        if (stage == null || stage.trim().isEmpty()) return true;
+        String normalized = stage.trim().toLowerCase();
+        return APPROVAL_EXCLUDED_STAGE_PREFIXES.stream().anyMatch(normalized::startsWith);
+    }
+
+    /**
+     * Список форм документа (Договор, Спецификация и т.д.) для выпадающего фильтра на вкладке «Согласования».
+     */
+    public List<String> getApprovalsDocumentFormOptions() {
+        List<String> list = contractRepository.findDistinctDocumentFormsByPurchaseRequestIdNotNull();
+        return list != null ? list : Collections.emptyList();
+    }
+
+    /**
+     * Исполнители по согласованиям договоров: только договоры, связанные с заявкой на закупку.
+     * По каждому исполнителю: количество договоров, среднее количество рабочих дней (логика как на странице заявки).
+     * Фильтр по дате назначения заявки на закупщика: только заявки, у которых дата назначения на закупщика в диапазоне [assignmentDateFrom, assignmentDateTo].
+     * Фильтр по форме документа: только согласования договоров с указанной формой (Договор, Спецификация и т.д.).
+     * Сортировка: по среднему количеству дней от большего к меньшему (null в конце).
+     *
+     * @param assignmentDateFrom начало периода по дате назначения заявки на закупщика (включительно), может быть null
+     * @param assignmentDateTo   конец периода по дате назначения заявки на закупщика (включительно), может быть null
+     * @param documentForm      форма документа (Договор, Спецификация и т.д.), может быть null/пусто — без фильтра
+     */
+    public List<OverviewApprovalsByExecutorDto> getApprovalsByExecutor(LocalDate assignmentDateFrom, LocalDate assignmentDateTo, String documentForm) {
+        List<ContractApproval> all = contractApprovalRepository.findAllByContractWithPurchaseRequest();
+        List<ContractApproval> filtered = all.stream()
+                .filter(a -> !isExcludedApprovalStage(a.getStage()))
+                .collect(Collectors.toList());
+
+        if (assignmentDateFrom != null && assignmentDateTo != null) {
+            List<Long> allowedPurchaseRequestIds = purchaseRequestApprovalRepository
+                    .findPurchaseRequestIdsWithApprovalAssignmentDateBetween(assignmentDateFrom, assignmentDateTo);
+            Set<Long> allowedIds = new HashSet<>(allowedPurchaseRequestIds);
+            filtered = filtered.stream()
+                    .filter(a -> a.getContract() != null && a.getContract().getPurchaseRequestId() != null
+                            && allowedIds.contains(a.getContract().getPurchaseRequestId()))
+                    .collect(Collectors.toList());
+        }
+
+        if (documentForm != null && !documentForm.trim().isEmpty()) {
+            String form = documentForm.trim();
+            filtered = filtered.stream()
+                    .filter(a -> a.getContract() != null && form.equals(a.getContract().getDocumentForm()))
+                    .collect(Collectors.toList());
+        }
+
+        Set<Long> executorIds = new HashSet<>();
+        for (ContractApproval a : filtered) {
+            if (a.getExecutorId() != null) executorIds.add(a.getExecutorId());
+        }
+        Map<Long, String> executorNames = new HashMap<>();
+        if (!executorIds.isEmpty()) {
+            for (User u : userRepository.findAllById(executorIds)) {
+                String name = formatExecutorName(u);
+                executorNames.put(u.getId(), name != null ? name : "—");
+            }
+        }
+        Map<Long, Set<Long>> contractsByExecutor = new HashMap<>();
+        Map<Long, List<Long>> daysByExecutor = new HashMap<>();
+        for (ContractApproval a : filtered) {
+            Long executorId = a.getExecutorId();
+            if (executorId == null) executorId = -1L;
+            contractsByExecutor.computeIfAbsent(executorId, k -> new HashSet<>()).add(a.getContractId());
+            if (a.getAssignmentDate() != null) {
+                long days = contractApprovalWorkingDays(a.getAssignmentDate(), a.getCompletionDate());
+                daysByExecutor.computeIfAbsent(executorId, k -> new ArrayList<>()).add(days);
+            }
+        }
+        List<OverviewApprovalsByExecutorDto> result = new ArrayList<>();
+        Set<Long> processed = new HashSet<>();
+        for (ContractApproval a : filtered) {
+            Long executorId = a.getExecutorId();
+            if (executorId == null) executorId = -1L;
+            if (processed.add(executorId)) {
+                OverviewApprovalsByExecutorDto dto = new OverviewApprovalsByExecutorDto();
+                dto.setExecutorName(executorId.equals(-1L) ? "Не назначен" : executorNames.getOrDefault(executorId, "—"));
+                dto.setContractCount(contractsByExecutor.getOrDefault(executorId, Collections.emptySet()).size());
+                List<Long> daysList = daysByExecutor.getOrDefault(executorId, Collections.emptyList());
+                if (daysList.isEmpty()) {
+                    dto.setAverageDays(null);
+                } else {
+                    dto.setAverageDays(daysList.stream().mapToLong(Long::longValue).average().orElse(0));
+                }
+                result.add(dto);
+            }
+        }
+        result.sort(Comparator
+                .comparing(OverviewApprovalsByExecutorDto::getAverageDays,
+                        Comparator.nullsLast(Comparator.reverseOrder())));
+        logger.debug("Overview approvals by executor: {} rows (assignmentDateFrom={}, assignmentDateTo={}, documentForm={})",
+                result.size(), assignmentDateFrom, assignmentDateTo, documentForm);
+        return result;
+    }
+
+    private static String formatExecutorName(User user) {
+        if (user == null) return null;
+        String surname = user.getSurname();
+        String name = user.getName();
+        if (surname != null && name != null) return (surname + " " + name).trim();
+        if (name != null) return name.trim();
+        if (surname != null) return surname.trim();
+        return user.getEmail();
     }
 
     /**
@@ -432,5 +591,95 @@ public class OverviewService {
         o.setCfo(dto.getCfo());
         o.setBudgetAmount(dto.getBudgetAmount());
         return o;
+    }
+
+    /**
+     * Данные для диаграммы ЕК: сводка за год по фильтру назначения на закупщика (расчёт на бэкенде).
+     * Учитываются заявки с типом закупка (requiresPurchase=true). Не учитываются: Проект, не согласованные, не утверждённые, исключённые, из в работе.
+     * Возвращает: totalAmount — сумма всех таких заявок; singleSourceAmount — сумма заявок, у которых связанная закупка со способом (mcc) «у единственного источника»; percentSingleSource — процент singleSourceAmount к totalAmount.
+     * Год — год назначения на закупщика. Если по году назначения данных нет, используется год создания заявки.
+     */
+    public OverviewEkChartResponseDto getEkChartData(int year) {
+        List<Long> singleSourceIdsRaw = purchaseRepository.findDistinctPurchaseRequestIdByMccContaining(SINGLE_SOURCE_MCC_SUBSTRING);
+        Set<Long> singleSourceRequestIds = singleSourceIdsRaw.stream()
+                .filter(java.util.Objects::nonNull)
+                .map(id -> id instanceof Long ? id : Long.valueOf(((Number) id).longValue()))
+                .collect(Collectors.toSet());
+        logger.info("Overview EK: single-source purchase request IDs (mcc contains '{}'): {} count, sample: {}",
+                SINGLE_SOURCE_MCC_SUBSTRING, singleSourceRequestIds.size(),
+                singleSourceIdsRaw.isEmpty() ? "none" : singleSourceIdsRaw.subList(0, Math.min(5, singleSourceIdsRaw.size())));
+        int pageSize = 50_000;
+        // Сначала по году назначения на закупщика (assignment_date в этапе «Утверждение заявки на ЗП»)
+        Page<PurchaseRequestDto> page = purchaseRequestService.findAll(
+                0, pageSize,
+                null, null, null, null,
+                null, null, null, null, null, null, null, null,
+                null, null, true, null, true,
+                null, null, false, year, null);
+        List<PurchaseRequestDto> list = page.getContent();
+        boolean byAssignmentYear = true;
+        if (list.isEmpty() && page.getTotalElements() == 0) {
+            // Нет данных по году назначения (например, не загружен отчёт с этапами) — берём по году создания заявки
+            logger.info("Overview EK: no data for assignment year {}, falling back to creation year", year);
+            byAssignmentYear = false;
+            page = purchaseRequestService.findAll(
+                    0, pageSize,
+                    year, null, null, null,
+                    null, null, null, null, null, null, null, null,
+                    null, null, true, null, true,
+                    null, null, false, null, null);
+            list = page.getContent();
+        }
+        if (page.getTotalPages() > 1) {
+            List<PurchaseRequestDto> all = new ArrayList<>(list);
+            for (int p = 1; p < page.getTotalPages(); p++) {
+                Page<PurchaseRequestDto> next = purchaseRequestService.findAll(
+                        p, pageSize,
+                        byAssignmentYear ? null : year, null, null, null,
+                        null, null, null, null, null, null, null, null,
+                        null, null, true, null, true,
+                        null, null, false, byAssignmentYear ? year : null, null);
+                all.addAll(next.getContent());
+            }
+            list = all;
+        }
+        String yearType = byAssignmentYear ? "assignment" : "creation";
+        // Группировка по ЦФО
+        Map<String, List<PurchaseRequestDto>> byCfo = list.stream()
+                .collect(Collectors.groupingBy(pr -> {
+                    String c = pr.getCfo();
+                    return (c != null && !c.isBlank()) ? c.trim() : "(без ЦФО)";
+                }));
+
+        List<OverviewEkChartRowDto> rows = new ArrayList<>();
+        for (Map.Entry<String, List<PurchaseRequestDto>> e : byCfo.entrySet()) {
+            String cfo = e.getKey();
+            List<PurchaseRequestDto> group = e.getValue();
+            BigDecimal totalAmount = group.stream()
+                    .map(pr -> pr.getBudgetAmount() != null ? pr.getBudgetAmount() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            List<PurchaseRequestDto> singleInGroup = group.stream()
+                    .filter(pr -> pr.getIdPurchaseRequest() != null && singleSourceRequestIds.contains(pr.getIdPurchaseRequest()))
+                    .toList();
+            BigDecimal singleSupplierAmount = singleInGroup.stream()
+                    .map(pr -> pr.getBudgetAmount() != null ? pr.getBudgetAmount() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal percentByAmount = BigDecimal.ZERO;
+            if (totalAmount.compareTo(BigDecimal.ZERO) > 0 && singleSupplierAmount.compareTo(BigDecimal.ZERO) > 0) {
+                percentByAmount = singleSupplierAmount.multiply(BigDecimal.valueOf(100))
+                        .divide(totalAmount, 2, java.math.RoundingMode.HALF_UP);
+            }
+            OverviewEkChartRowDto row = new OverviewEkChartRowDto();
+            row.setCfo(cfo);
+            row.setTotalCount(group.size());
+            row.setSingleSupplierCount(singleInGroup.size());
+            row.setTotalAmount(totalAmount);
+            row.setSingleSupplierAmount(singleSupplierAmount);
+            row.setPercentByAmount(percentByAmount);
+            rows.add(row);
+        }
+        rows.sort(Comparator.comparing(OverviewEkChartRowDto::getCfo, Comparator.nullsLast(Comparator.naturalOrder())));
+        logger.debug("Overview EK chart for year {}: {} CFO rows (yearType={})", year, rows.size(), yearType);
+        return new OverviewEkChartResponseDto(yearType, rows);
     }
 }

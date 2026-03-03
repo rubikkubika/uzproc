@@ -97,40 +97,40 @@ export function PurchasePlanMonthCfoTable({ rows }: PurchasePlanMonthCfoTablePro
   const baseFtNowrap = 'px-1.5 py-0.5 text-right text-gray-900 tabular-nums whitespace-nowrap';
   const baseTh = 'px-1.5 py-0.5 text-right font-medium text-gray-700 whitespace-nowrap';
   const thLabel = 'px-1.5 py-0.5 text-left font-medium text-gray-700 whitespace-nowrap border-r border-gray-300';
-  // Группа «Позиции»: рамка border-gray-400
-  const posFirstTh = 'border-l-2 border-t-2 border-r border-gray-400 rounded-tl-lg ' + baseTh;
-  const posMidTh = 'border-t-2 border-r border-gray-400 ' + baseTh;
-  const posLastTh = 'border-r-2 border-t-2 border-gray-400 rounded-tr-lg ' + baseTh;
-  const posFirstTd = 'border-l-2 border-t border-b border-r border-gray-400 ' + baseCell;
-  const posMidTd = 'border-t border-b border-r border-gray-400 ' + baseCell;
-  const posMidTdNowrap = 'border-t border-b border-r border-gray-400 ' + baseCellNowrap;
-  const posLastTd = 'border-r-2 border-t border-b border-gray-400 ' + baseCell;
-  const posFirstFt = 'border-l-2 border-t border-b-2 border-r border-gray-400 rounded-bl-lg ' + baseFt;
-  const posMidFt = 'border-t border-b-2 border-r border-gray-400 ' + baseFt;
-  const posMidFtNowrap = 'border-t border-b-2 border-r border-gray-400 ' + baseFtNowrap;
-  const posLastFt = 'border-r-2 border-t border-b-2 border-gray-400 ' + baseFt;
-  // Группа «Заявки»: Плановые, Внеплановые, Неутверждена, Отмена, Сумма заявок
-  const reqFirstTh = 'border-l-2 border-t-2 border-r border-gray-400 rounded-tl-lg ' + baseTh;
-  const reqMidTh = 'border-t-2 border-r border-gray-400 ' + baseTh;
-  const reqLastTh = 'border-r-2 border-t-2 border-gray-400 ' + baseTh;
-  const reqFirstTd = 'border-l-2 border-t border-b border-r border-gray-400 ' + baseCell;
-  const reqMidTd = 'border-t border-b border-r border-gray-400 ' + baseCell;
-  const reqLastTd = 'border-r-2 border-t border-b border-gray-400 ' + baseCellNowrap;
-  const reqFirstFt = 'border-l-2 border-t border-b-2 border-r border-gray-400 ' + baseFt;
-  const reqMidFt = 'border-t border-b-2 border-r border-gray-400 ' + baseFt;
-  const reqLastFt = 'border-r-2 border-t border-b-2 border-gray-400 ' + baseFtNowrap;
-  const tdLabel = 'px-1.5 py-0.5 text-gray-900 font-medium whitespace-nowrap border-r border-gray-200';
-  const ftLabel = 'px-1.5 py-0.5 text-gray-900 whitespace-nowrap border-r border-gray-200';
-  const thQuality = 'px-1.5 py-0.5 text-right font-medium text-gray-700 whitespace-nowrap border-r border-gray-300 rounded-tr-lg';
-  const tdQuality = 'px-1.5 py-0.5 text-right text-gray-700 tabular-nums border-r border-gray-200';
-  const ftQuality = 'px-1.5 py-0.5 text-right text-gray-900 tabular-nums border-r border-gray-200 rounded-br-lg';
+  const thBorder = 'border-r border-gray-300 ';
+  const tdBorder = 'border-r border-gray-200 ';
+  const posFirstTh = thBorder + baseTh;
+  const posMidTh = thBorder + baseTh;
+  const posLastTh = thBorder + baseTh;
+  const posFirstTd = tdBorder + baseCell;
+  const posMidTd = tdBorder + baseCell;
+  const posMidTdNowrap = tdBorder + baseCellNowrap;
+  const posLastTd = tdBorder + baseCell;
+  const posFirstFt = tdBorder + baseFt;
+  const posMidFt = tdBorder + baseFt;
+  const posMidFtNowrap = tdBorder + baseFtNowrap;
+  const posLastFt = tdBorder + baseFt;
+  const reqFirstTh = thBorder + baseTh;
+  const reqMidTh = thBorder + baseTh;
+  const reqLastTh = thBorder + baseTh;
+  const reqFirstTd = tdBorder + baseCell;
+  const reqMidTd = tdBorder + baseCell;
+  const reqLastTd = tdBorder + baseCellNowrap;
+  const reqFirstFt = tdBorder + baseFt;
+  const reqMidFt = tdBorder + baseFt;
+  const reqLastFt = tdBorder + baseFtNowrap;
+  const tdLabel = 'px-1.5 py-0.5 text-gray-900 font-medium whitespace-nowrap ' + tdBorder;
+  const ftLabel = 'px-1.5 py-0.5 text-gray-900 whitespace-nowrap ' + tdBorder;
+  const thQuality = thBorder + 'px-1.5 py-0.5 text-right font-medium text-gray-700 whitespace-nowrap';
+  const tdQuality = tdBorder + 'px-1.5 py-0.5 text-right text-gray-700 tabular-nums';
+  const ftQuality = tdBorder + 'px-1.5 py-0.5 text-right text-gray-900 tabular-nums';
 
   return (
     <div className="rounded border border-gray-200 bg-gray-50 overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full border-separate text-[11px]" style={{ borderSpacing: 0 }}>
+        <table className="w-full border-collapse text-[11px]">
           <thead className="bg-gray-100">
-            <tr>
+            <tr className="border-b border-gray-300">
               <th className={thLabel}>ЦФО</th>
               <th className={posFirstTh}>Запланированы</th>
               <th className={posMidTh}>Сумма запл.</th>

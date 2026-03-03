@@ -2,6 +2,7 @@ package com.uzproc.backend.controller.csifeedback;
 
 import com.uzproc.backend.dto.csifeedback.CsiFeedbackCreateDto;
 import com.uzproc.backend.dto.csifeedback.CsiFeedbackDto;
+import com.uzproc.backend.dto.csifeedback.CsiFeedbackStatsByPurchaserDto;
 import com.uzproc.backend.dto.purchaserequest.PurchaseRequestInfoDto;
 import com.uzproc.backend.service.csifeedback.CsiFeedbackService;
 import com.uzproc.backend.service.csifeedback.CsiFeedbackInvitationService;
@@ -105,6 +106,15 @@ public class CsiFeedbackController {
     public ResponseEntity<Map<String, Object>> getStats(@RequestParam int year) {
         Map<String, Object> stats = csiFeedbackService.getStatsByYear(year);
         return ResponseEntity.ok(stats);
+    }
+
+    /**
+     * Статистика оценок CSI по закупщикам за год: ФИО, количество оценок, средняя оценка.
+     */
+    @GetMapping("/stats-by-purchaser")
+    public ResponseEntity<List<CsiFeedbackStatsByPurchaserDto>> getStatsByPurchaser(@RequestParam int year) {
+        List<CsiFeedbackStatsByPurchaserDto> list = csiFeedbackService.getStatsByPurchaserByYear(year);
+        return ResponseEntity.ok(list);
     }
 
     @GetMapping("/{id}")

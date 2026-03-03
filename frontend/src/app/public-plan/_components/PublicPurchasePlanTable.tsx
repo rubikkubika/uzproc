@@ -140,7 +140,7 @@ const ALL_COLUMNS = [
   { key: 'purchaserCompany', label: 'Исполнитель' },
   { key: 'cfo', label: 'ЦФО' },
   { key: 'purchaseSubject', label: 'Предмет закупки' },
-  { key: 'budgetAmount', label: 'Бюджет (UZS)' },
+  { key: 'budgetAmount', label: 'Бюджет' },
   { key: 'contractEndDate', label: 'Дата окончания договора' },
   { key: 'requestDate', label: 'Дата заявки' },
   { key: 'newContractDate', label: 'Дата завершения закупки' },
@@ -1339,7 +1339,7 @@ export default function PublicPurchasePlanTable() {
       'Исполнитель': item.purchaserCompany || '',
       'ЦФО': item.cfo || '',
       'Предмет закупки': item.purchaseSubject || '',
-      'Бюджет (UZS)': item.budgetAmount || '',
+      'Бюджет': item.budgetAmount || '',
       'Срок окончания договора': item.contractEndDate 
         ? new Date(item.contractEndDate).toLocaleDateString('ru-RU')
         : '',
@@ -2655,7 +2655,7 @@ export default function PublicPurchasePlanTable() {
                                   <ArrowUpDown className="w-3 h-3 opacity-30 flex-shrink-0" />
                                 )}
                               </button>
-                              <span className="text-xs font-medium text-gray-500 tracking-wider">Бюджет ({selectedCurrency})</span>
+                              <span className="text-xs font-medium text-gray-500 tracking-wider">Бюджет</span>
                             </div>
                             <div className="flex items-center gap-1 mt-1" style={{ minHeight: '20px' }}>
                               <button

@@ -16,4 +16,11 @@ public interface ContractApprovalRepository extends JpaRepository<ContractApprov
     List<ContractApproval> findByContractId(@Param("contractId") Long contractId);
 
     Optional<ContractApproval> findByContractIdAndStageAndRole(Long contractId, String stage, String role);
+
+    /**
+     * Все согласования договоров, у которых есть связь с заявкой на закупку (contract.purchase_request_id IS NOT NULL).
+     * Загружает contract для фильтрации.
+     */
+    @Query("SELECT a FROM ContractApproval a JOIN FETCH a.contract c WHERE c.purchaseRequestId IS NOT NULL")
+    List<ContractApproval> findAllByContractWithPurchaseRequest();
 }

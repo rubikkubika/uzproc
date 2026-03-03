@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { MessageCircle } from 'lucide-react';
 import { ALL_COLUMNS } from '../constants/purchase-plan-items.constants';
 import { SortField, SortDirection } from '../types/purchase-plan-items.types';
 import SortableHeader from './SortableHeader';
@@ -182,7 +183,7 @@ export default function PurchasePlanItemsTableColumnsHeader({
             );
           }
           
-          // Для колонки details создаем простой заголовок без сортировки и фильтров
+          // Для колонки details создаем простой заголовок без сортировки и фильтров (значок комментариев, как на заявках)
           if (columnKey === 'details') {
             return (
               <th 
@@ -196,8 +197,10 @@ export default function PurchasePlanItemsTableColumnsHeader({
                 onDrop={columnKey ? (e) => handleDrop(e, columnKey) : undefined}
                 data-column={columnKey || undefined}
               >
-                <div className="flex items-center gap-1 min-h-[20px]">
-                  <span className="text-xs font-medium text-gray-500 tracking-wider">{column.label}</span>
+                <div className="flex items-center justify-center min-h-[20px]">
+                  <span className="min-h-[16px] flex items-center justify-center" title="Комментарии">
+                    <MessageCircle className="w-4 h-4 text-gray-500" aria-hidden />
+                  </span>
                 </div>
                 {columnKey && handleResizeStart && (
                   <div
