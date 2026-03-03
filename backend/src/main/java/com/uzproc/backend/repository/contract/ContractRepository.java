@@ -32,5 +32,12 @@ public interface ContractRepository extends JpaRepository<Contract, Long>, JpaSp
 
     @Query("SELECT DISTINCT EXTRACT(YEAR FROM c.contractCreationDate) FROM Contract c WHERE c.contractCreationDate IS NOT NULL ORDER BY EXTRACT(YEAR FROM c.contractCreationDate) DESC")
     List<Integer> findDistinctYears();
+
+    /**
+     * Список форм документа (Договор, Спецификация и т.д.) по договорам, связанным с заявкой на закупку.
+     * Для выпадающего списка фильтра на вкладке «Согласования».
+     */
+    @Query("SELECT DISTINCT c.documentForm FROM Contract c WHERE c.purchaseRequestId IS NOT NULL AND c.documentForm IS NOT NULL AND c.documentForm <> '' ORDER BY c.documentForm")
+    List<String> findDistinctDocumentFormsByPurchaseRequestIdNotNull();
 }
 

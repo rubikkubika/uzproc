@@ -2,6 +2,7 @@ package com.uzproc.backend.service.csifeedback;
 
 import com.uzproc.backend.dto.csifeedback.CsiFeedbackCreateDto;
 import com.uzproc.backend.dto.csifeedback.CsiFeedbackDto;
+import com.uzproc.backend.dto.csifeedback.CsiFeedbackStatsByPurchaserDto;
 import com.uzproc.backend.dto.purchaserequest.PurchaseRequestInfoDto;
 import com.uzproc.backend.entity.csifeedback.CsiFeedback;
 import com.uzproc.backend.entity.csifeedback.CsiFeedbackInvitation;
@@ -21,10 +22,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -230,6 +233,46 @@ public class CsiFeedbackService {
             }
         }
         result.put("avgOverall", div > 0 ? overallSum / div : null);
+        return result;
+    }
+
+    /**
+     * Статистика оценок CSI по закупщикам за год: ФИО, количество оценок, средняя оценка.
+     */
+    public List<CsiFeedbackStatsByPurchaserDto> getStatsByPurchaserByYear(int year) {
+        Specification<CsiFeedback> spec = buildSpecification(null, year);
+        List<CsiFeedback> all = csiFeedbackRepository.findAll(spec);
+        if (all.isEmpty()) {
+            return List.of();
+        }
+        // Группируем по закупщику (из заявки). purchaser может быть null — считаем как "—"
+        Map<String, List<CsiFeedback>> byPurchaser = all.stream()
+                .collect(Collectors.groupingBy(f -> {
+                    String p = f.getPurchaseRequest().getPurchaser();
+                    return (p != null && !p.trim().isEmpty()) ? p.trim() : "—";
+                }));
+        List<CsiFeedbackStatsByPurchaserDto> result = new ArrayList<>();
+        for (Map.Entry<String, List<CsiFeedback>> e : byPurchaser.entrySet()) {
+            List<CsiFeedback> list = e.getValue();
+            int n = list.size();
+            double sum = 0;
+            int div = 0;
+            for (CsiFeedback f : list) {
+                int cnt = 0;
+                double s = 0;
+                if (f.getSpeedRating() != null) { s += f.getSpeedRating(); cnt++; }
+                if (f.getQualityRating() != null) { s += f.getQualityRating(); cnt++; }
+                if (f.getSatisfactionRating() != null) { s += f.getSatisfactionRating(); cnt++; }
+                if (f.getUzprocRating() != null) { s += f.getUzprocRating(); cnt++; }
+                if (cnt > 0) {
+                    sum += s / cnt;
+                    div++;
+                }
+            }
+            Double avgRating = div > 0 ? sum / div : null;
+            result.add(new CsiFeedbackStatsByPurchaserDto(e.getKey(), n, avgRating));
+        }
+        result.sort(Comparator.comparing(CsiFeedbackStatsByPurchaserDto::getPurchaser, Comparator.nullsLast(String::compareTo)));
         return result;
     }
 

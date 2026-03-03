@@ -1,5 +1,6 @@
 'use client';
 
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { usePurchasePlanMonthBlockData } from '../hooks/usePurchasePlanMonthBlockData';
 import { PurchasePlanMonthPositionsChart } from './PurchasePlanMonthPositionsChart';
 import { PurchasePlanMonthCfoTable } from './PurchasePlanMonthCfoTable';
@@ -29,6 +30,11 @@ export interface PurchasePlanMonthBlockViewProps {
   summaryByCfo: CfoSummaryRow[];
   loading: boolean;
   error: string | null;
+  /** Кнопки переключения месяца: показываются перед названием месяца */
+  onPrevious?: () => void;
+  onNext?: () => void;
+  hasPrevious?: boolean;
+  hasNext?: boolean;
 }
 
 /**
@@ -48,10 +54,41 @@ export function PurchasePlanMonthBlockView({
   summaryByCfo,
   loading,
   error,
+  onPrevious,
+  onNext,
+  hasPrevious = false,
+  hasNext = false,
 }: PurchasePlanMonthBlockViewProps) {
+  const showNav = (onPrevious != null || onNext != null) && (hasPrevious || hasNext);
   return (
     <div className="bg-white rounded-lg shadow-lg p-3 sm:p-4">
-      <div className="mb-1 flex items-baseline gap-2">
+      <div className="mb-1 flex items-center gap-2 flex-wrap">
+        {showNav && (
+          <div className="flex items-center gap-1 shrink-0">
+            {hasPrevious && onPrevious && (
+              <button
+                type="button"
+                onClick={onPrevious}
+                className="p-1.5 rounded border border-gray-300 bg-gray-50 hover:bg-gray-100 text-gray-700 transition-colors flex items-center gap-1 text-xs font-medium"
+                title="Предыдущий месяц"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span>Предыдущий</span>
+              </button>
+            )}
+            {hasNext && onNext && (
+              <button
+                type="button"
+                onClick={onNext}
+                className="p-1.5 rounded border border-gray-300 bg-gray-50 hover:bg-gray-100 text-gray-700 transition-colors flex items-center gap-1 text-xs font-medium"
+                title="Следующий месяц"
+              >
+                <span>Следующий</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        )}
         <h3 className="text-sm font-semibold text-gray-900 shrink-0">{title}</h3>
         {!loading && version && (
           <span className="text-xs text-gray-600 shrink-0">

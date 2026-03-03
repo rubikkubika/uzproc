@@ -21,50 +21,6 @@ import type { OverviewSlaPercentageByMonth } from '../hooks/useOverviewSlaData';
 const FORECAST_GRAY = 'rgba(107, 114, 128, 1)';
 const FORECAST_LINE_WIDTH = 2;
 
-/** Опции кастомного плагина barForecastDashedBorder (Chart.js типы их не содержат). */
-type BarForecastDashedBorderOpts = {
-  year: number;
-  nowYear: number;
-  nowMonth: number;
-  lineWidth?: number;
-};
-
-/** Рисует пунктирную обводку для столбцов прогноза (Chart.js не поддерживает borderDash для bar). */
-const barForecastDashedBorderPlugin = {
-  id: 'barForecastDashedBorder',
-  afterDraw(chart: ChartJS) {
-    const customPlugins = chart.options.plugins as Record<string, BarForecastDashedBorderOpts | undefined> | undefined;
-    const cfg = customPlugins?.barForecastDashedBorder;
-    if (!cfg) return;
-    const meta = chart.getDatasetMeta(0);
-    if (!meta?.data?.length) return;
-    const { year, nowYear, nowMonth } = cfg;
-    const ctx = chart.ctx;
-    const dash = [6, 4];
-    const lineWidth = cfg.lineWidth ?? FORECAST_LINE_WIDTH;
-
-    type BarElement = { x: number; y: number; base: number; width: number; height: number };
-    meta.data.forEach((el, dataIndex) => {
-      const bar = el as unknown as BarElement;
-      const month1 = dataIndex + 1;
-      const isPast = year < nowYear || (year === nowYear && month1 < nowMonth);
-      if (isPast) return;
-      const w = bar.width;
-      const h = bar.height;
-      if (w <= 0 || h <= 0) return;
-      const left = bar.x - w / 2;
-      const top = Math.min(bar.y, bar.base);
-      ctx.save();
-      ctx.strokeStyle = FORECAST_GRAY;
-      ctx.lineWidth = lineWidth;
-      ctx.setLineDash(dash);
-      ctx.strokeRect(left, top, w, h);
-      ctx.setLineDash([]);
-      ctx.restore();
-    });
-  },
-};
-
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -76,8 +32,7 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
-  ChartDataLabels,
-  barForecastDashedBorderPlugin
+  ChartDataLabels
 );
 
 const MONTH_NAMES = [
@@ -122,7 +77,6 @@ function buildOptions(
     layout: { padding: { top: 4, right: 2, bottom: 2, left: 2 } },
     interaction: { mode: 'index' as const, intersect: false },
     plugins: {
-      barForecastDashedBorder: { year, nowYear, nowMonth, lineWidth: FORECAST_LINE_WIDTH },
       title: { display: false },
       legend: {
         display: true,
@@ -328,11 +282,6 @@ export function SlaCombinedChart({
             const isPast = year < nowYear || (year === nowYear && month1 < nowMonth);
             return isPast ? 'rgba(0, 0, 0, 1)' : FORECAST_GRAY;
           },
-          borderDash: (ctx: { p0DataIndex: number }) => {
-            const month1 = ctx.p0DataIndex + 1;
-            const isPast = year < nowYear || (year === nowYear && month1 < nowMonth);
-            return isPast ? [] : [6, 4];
-          },
           backgroundColor: (ctx: { p0DataIndex: number }) => {
             const month1 = ctx.p0DataIndex + 1;
             const isPast = year < nowYear || (year === nowYear && month1 < nowMonth);
@@ -350,7 +299,6 @@ export function SlaCombinedChart({
         label: 'Прогноз',
         data: Array(12).fill(null),
         borderColor: FORECAST_GRAY,
-        borderDash: [6, 4],
         borderWidth: FORECAST_LINE_WIDTH,
         fill: false,
         pointRadius: 0,

@@ -42,6 +42,12 @@ interface CsiStats {
   avgOverall: number | null;
 }
 
+interface CsiStatsByPurchaser {
+  purchaser: string;
+  count: number;
+  avgRating: number | null;
+}
+
 const PAGE_SIZE = 100;
 
 /**
@@ -58,7 +64,9 @@ export default function AllCsiFeedback() {
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [feedbacks, setFeedbacks] = useState<CsiFeedbackDto[]>([]);
   const [stats, setStats] = useState<CsiStats | null>(null);
+  const [statsByPurchaser, setStatsByPurchaser] = useState<CsiStatsByPurchaser[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [statsByPurchaserLoading, setStatsByPurchaserLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +98,22 @@ export default function AllCsiFeedback() {
       setStats(null);
     } finally {
       setStatsLoading(false);
+    }
+  };
+
+  const fetchStatsByPurchaser = async (year: number) => {
+    try {
+      setStatsByPurchaserLoading(true);
+      const backendUrl = getBackendUrl();
+      const res = await fetch(`${backendUrl}/api/csi-feedback/stats-by-purchaser?year=${year}`);
+      if (!res.ok) throw new Error('Ошибка загрузки данных по закупщикам');
+      const data: CsiStatsByPurchaser[] = await res.json();
+      setStatsByPurchaser(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error fetching CSI stats by purchaser:', err);
+      setStatsByPurchaser([]);
+    } finally {
+      setStatsByPurchaserLoading(false);
     }
   };
 
@@ -143,6 +167,7 @@ export default function AllCsiFeedback() {
 
   useEffect(() => {
     fetchStats(selectedYear);
+    fetchStatsByPurchaser(selectedYear);
   }, [selectedYear]);
 
   useEffect(() => {
@@ -231,6 +256,28 @@ export default function AllCsiFeedback() {
 
   const formatStat = (v: number | null) => (v != null ? v.toFixed(1) : '—');
 
+  /** Звёзды для общих данных: крупнее, без подписи числа справа (число можно вывести отдельно). */
+  const renderStarsSummary = (rating: number | null, size: 'sm' | 'md' | 'lg' = 'md') => {
+    if (rating == null) return <span className="text-gray-400 text-sm">—</span>;
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 >= 0.5;
+    const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+    const sizeClass = size === 'sm' ? 'w-3.5 h-3.5' : size === 'md' ? 'w-4 h-4' : 'w-6 h-6';
+    return (
+      <div className="flex items-center gap-0.5">
+        {Array.from({ length: fullStars }).map((_, i) => (
+          <Star key={`full-${i}`} className={`${sizeClass} fill-amber-400 text-amber-400 shrink-0`} />
+        ))}
+        {hasHalfStar && (
+          <Star className={`${sizeClass} fill-amber-400 text-amber-400 opacity-60 shrink-0`} />
+        )}
+        {Array.from({ length: emptyStars }).map((_, i) => (
+          <Star key={`empty-${i}`} className={`${sizeClass} text-gray-300 shrink-0`} />
+        ))}
+      </div>
+    );
+  };
+
   if (loading && feedbacks.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow-lg p-4">
@@ -257,7 +304,7 @@ export default function AllCsiFeedback() {
 
   return (
     <div className="bg-white rounded-lg shadow-lg p-4 w-full">
-      {/* Фильтр по году и блок средних показателей */}
+      {/* Фильтр по году */}
       <div className="flex flex-wrap items-center gap-4 mb-4">
         <div className="flex items-center gap-2">
           <label htmlFor="csi-year-filter" className="text-sm font-medium text-gray-700 whitespace-nowrap">
@@ -274,23 +321,122 @@ export default function AllCsiFeedback() {
             ))}
           </select>
         </div>
-        <div className="flex flex-wrap items-center gap-4 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
-          <span className="text-xs font-medium text-gray-700">Средние показатели за {selectedYear} г.</span>
+      </div>
+
+      {/* Общие данные за год (слева) и таблица по ФИО закупщика и оценке — справа рядом */}
+      <div className="mb-4 flex flex-wrap sm:flex-nowrap items-stretch gap-2 sm:gap-3">
+        {/* Блок общих данных — по ширине контента */}
+        <div className="w-fit max-w-full p-4 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/80 shadow-sm">
+          <h3 className="text-sm font-semibold text-gray-800 mb-3">Общие данные за {selectedYear} г.</h3>
           {statsLoading ? (
-            <span className="text-xs text-gray-500">Загрузка…</span>
+            <p className="text-sm text-gray-500">Загрузка…</p>
           ) : stats ? (
-            <>
-              <span className="text-xs text-gray-600">Кол-во: <strong className="text-gray-900">{stats.count}</strong></span>
-              <span className="text-xs text-gray-600">Средняя: <strong className="text-gray-900">{formatStat(stats.avgOverall)}</strong></span>
-              <span className="text-xs text-gray-600">Скорость: {formatStat(stats.avgSpeed)}</span>
-              <span className="text-xs text-gray-600">Качество: {formatStat(stats.avgQuality)}</span>
-              <span className="text-xs text-gray-600">Закупщик: {formatStat(stats.avgSatisfaction)}</span>
-              {stats.avgUzproc != null && (
-                <span className="text-xs text-gray-600">Узпрок: {formatStat(stats.avgUzproc)}</span>
-              )}
-            </>
+            <div className="flex flex-wrap items-stretch gap-3">
+              {/* Слева: количество оценок */}
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/80 border border-amber-200/60 shrink-0">
+                <span className="text-xs font-medium text-gray-600">Оценок за год:</span>
+                <span className="text-lg font-bold text-gray-900 tabular-nums">{stats.count}</span>
+              </div>
+              {/* По центру: средняя оценка */}
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-white/80 border border-amber-200/60 shrink-0">
+                <div className="flex flex-col">
+                  <span className="text-xs font-medium text-gray-600 mb-0.5">Средняя оценка</span>
+                  <div className="flex items-center gap-2">
+                    {renderStarsSummary(stats.avgOverall, 'lg')}
+                    <span className="text-xl font-bold text-gray-900 tabular-nums">
+                      {formatStat(stats.avgOverall)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              {/* Столбец оценок по категориям */}
+              <div className="flex flex-col gap-1.5 shrink-0">
+                <div className="flex items-center justify-between gap-3 px-3 py-1.5 rounded-lg bg-white/80 border border-amber-200/60 min-w-[140px]">
+                  <span className="text-xs font-medium text-gray-700 shrink-0">Скорость</span>
+                  <div className="flex items-center gap-1.5">
+                    {renderStarsSummary(stats.avgSpeed, 'sm')}
+                    <span className="text-xs text-gray-600 tabular-nums w-7">{formatStat(stats.avgSpeed)}</span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-3 px-3 py-1.5 rounded-lg bg-white/80 border border-amber-200/60 min-w-[140px]">
+                  <span className="text-xs font-medium text-gray-700 shrink-0">Качество</span>
+                  <div className="flex items-center gap-1.5">
+                    {renderStarsSummary(stats.avgQuality, 'sm')}
+                    <span className="text-xs text-gray-600 tabular-nums w-7">{formatStat(stats.avgQuality)}</span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-3 px-3 py-1.5 rounded-lg bg-white/80 border border-amber-200/60 min-w-[140px]">
+                  <span className="text-xs font-medium text-gray-700 shrink-0">Закупщик</span>
+                  <div className="flex items-center gap-1.5">
+                    {renderStarsSummary(stats.avgSatisfaction, 'sm')}
+                    <span className="text-xs text-gray-600 tabular-nums w-7">{formatStat(stats.avgSatisfaction)}</span>
+                  </div>
+                </div>
+                {stats.avgUzproc != null && (
+                  <div className="flex items-center justify-between gap-3 px-3 py-1.5 rounded-lg bg-white/80 border border-amber-200/60 min-w-[140px]">
+                    <span className="text-xs font-medium text-gray-700 shrink-0">Узпрок</span>
+                    <div className="flex items-center gap-1.5">
+                      {renderStarsSummary(stats.avgUzproc, 'sm')}
+                      <span className="text-xs text-gray-600 tabular-nums w-7">{formatStat(stats.avgUzproc)}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           ) : (
-            <span className="text-xs text-gray-500">—</span>
+            <p className="text-sm text-gray-500">Нет данных</p>
+          )}
+        </div>
+
+        {/* Таблица по ФИО закупщика и оценке — справа рядом с общими данными */}
+        <div className="w-full sm:w-[280px] sm:flex-shrink-0 rounded-xl border border-amber-200/80 bg-white shadow-sm overflow-hidden">
+          <h3 className="text-sm font-semibold text-gray-800 px-3 py-2 bg-amber-50/80 border-b border-amber-200/60">
+            По закупщикам ({selectedYear} г.)
+          </h3>
+          {statsByPurchaserLoading ? (
+            <div className="px-3 py-4 text-sm text-gray-500 text-center">Загрузка…</div>
+          ) : statsByPurchaser.length === 0 ? (
+            <div className="px-3 py-4 text-sm text-gray-500 text-center">Нет данных</div>
+          ) : (
+            <div className="max-h-[220px] overflow-y-auto overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 tracking-wider border-b border-gray-200">
+                      ФИО закупщика
+                    </th>
+                    <th className="px-2 py-1.5 text-right text-xs font-medium text-gray-500 tracking-wider border-b border-gray-200 w-20">
+                      Оценок
+                    </th>
+                    <th className="px-2 py-1.5 text-right text-xs font-medium text-gray-500 tracking-wider border-b border-gray-200 w-24">
+                      Оценка
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {statsByPurchaser.map((row) => (
+                    <tr key={row.purchaser || 'empty'} className="hover:bg-gray-50/80">
+                      <td className="px-2 py-1.5 text-xs text-gray-900 border-r border-gray-100 whitespace-nowrap">
+                        {purchaserDisplayName(row.purchaser) || row.purchaser || '—'}
+                      </td>
+                      <td className="px-2 py-1.5 text-xs text-gray-700 text-right tabular-nums">
+                        {row.count}
+                      </td>
+                      <td className="px-2 py-1.5 text-right">
+                        {row.avgRating != null ? (
+                          <div className="flex items-center justify-end gap-1">
+                            {renderStarsSummary(row.avgRating, 'sm')}
+                            <span className="text-xs text-gray-600 tabular-nums w-7">{row.avgRating.toFixed(1)}</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>

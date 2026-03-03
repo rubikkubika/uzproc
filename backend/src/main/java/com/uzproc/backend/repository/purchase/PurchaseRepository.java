@@ -5,6 +5,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
@@ -14,6 +16,10 @@ import java.util.UUID;
 
 @Repository
 public interface PurchaseRepository extends JpaRepository<Purchase, Long>, JpaSpecificationExecutor<Purchase> {
+
+    /** ID заявок, у которых есть хотя бы одна связанная закупка с указанной подстрокой в способе закупки (mcc). */
+    @Query("SELECT DISTINCT p.purchaseRequestId FROM Purchase p WHERE p.mcc IS NOT NULL AND LOWER(p.mcc) LIKE LOWER(CONCAT(CONCAT('%', :mccSubstring), '%'))")
+    List<Long> findDistinctPurchaseRequestIdByMccContaining(@Param("mccSubstring") String mccSubstring);
     Optional<Purchase> findByGuid(UUID guid);
     boolean existsByGuid(UUID guid);
     Optional<Purchase> findByPurchaseNumber(Long purchaseNumber);
