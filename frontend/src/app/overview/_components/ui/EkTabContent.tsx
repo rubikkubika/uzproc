@@ -13,6 +13,7 @@ function parseRow(raw: Record<string, unknown>): OverviewEkChartRow {
     totalAmount: Number(raw?.totalAmount ?? 0),
     singleSupplierAmount: Number(raw?.singleSupplierAmount ?? 0),
     percentByAmount: Number(raw?.percentByAmount ?? 0),
+    currency: raw?.currency != null ? String(raw.currency) : undefined,
   };
 }
 
@@ -20,6 +21,8 @@ export function EkTabContent() {
   const [year, setYear] = useState<number>(currentYear);
   const [rows, setRows] = useState<OverviewEkChartRow[]>([]);
   const [yearType, setYearType] = useState<'assignment' | 'creation'>('assignment');
+  const [amountsInBaseCurrency, setAmountsInBaseCurrency] = useState(false);
+  const [baseCurrency, setBaseCurrency] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,9 +38,13 @@ export function EkTabContent() {
       const json = await res.json();
       const rawRows = Array.isArray(json?.rows) ? json.rows : [];
       setRows(rawRows.map((r: Record<string, unknown>) => parseRow(r)));
+      setAmountsInBaseCurrency(Boolean(json?.amountsInBaseCurrency));
+      setBaseCurrency(json?.baseCurrency != null ? String(json.baseCurrency) : null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Ошибка загрузки');
       setRows([]);
+      setAmountsInBaseCurrency(false);
+      setBaseCurrency(null);
     } finally {
       setLoading(false);
     }
@@ -66,7 +73,15 @@ export function EkTabContent() {
           </select>
         </div>
       </div>
-      <EkChart year={year} yearType={yearType} rows={rows} loading={loading} error={error} />
+      <EkChart
+        year={year}
+        yearType={yearType}
+        rows={rows}
+        loading={loading}
+        error={error}
+        amountsInBaseCurrency={amountsInBaseCurrency}
+        baseCurrency={baseCurrency}
+      />
     </div>
   );
 }

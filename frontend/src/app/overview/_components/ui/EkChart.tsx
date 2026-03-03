@@ -4,6 +4,7 @@ import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
+  LogarithmicScale,
   BarElement,
   Title,
   Tooltip,
@@ -12,12 +13,26 @@ import {
 import { Chart } from 'react-chartjs-2';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 
+ChartJS.register(LogarithmicScale);
+
 /** Строка по ЦФО с бэкенда. */
 export interface OverviewEkChartRow {
   cfo: string;
   totalAmount: number;
   singleSupplierAmount: number;
   percentByAmount: number;
+  /** Преобладающая валюта по ЦФО; "mixed" при разных валютах. */
+  currency?: string | null;
+}
+
+/** Символ валюты для подписи. */
+function currencyLabel(currency: string | null | undefined): string {
+  if (!currency || currency === 'mixed') return 'Сумма';
+  const u = currency.toUpperCase();
+  if (u === 'RUB' || u === 'RUR' || currency === '₽') return '₽';
+  if (u === 'USD') return 'USD';
+  if (u === 'EUR') return 'EUR';
+  return currency;
 }
 
 interface EkChartProps {
@@ -28,6 +43,10 @@ interface EkChartProps {
   rows: OverviewEkChartRow[];
   loading?: boolean;
   error?: string | null;
+  /** Суммы переведены в базовую валюту по курсу */
+  amountsInBaseCurrency?: boolean;
+  /** Базовая валюта (при пересчёте по курсу) */
+  baseCurrency?: string | null;
 }
 
 /** Форматирование суммы для оси: млн руб при больших значениях. */
@@ -42,8 +61,7 @@ function formatAmount(value: number): string {
   return value.toFixed(0);
 }
 
-const buildOptions = (maxAmount: number) => {
-  const yMax = maxAmount <= 0 ? 1 : maxAmount * 1.15;
+const buildOptions = (maxAmount: number, rows: OverviewEkChartRow[]) => {
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -71,9 +89,19 @@ const buildOptions = (maxAmount: number) => {
       },
       tooltip: {
         callbacks: {
-          label: (ctx: { datasetIndex: number; raw: number }) => {
-            if (ctx.datasetIndex === 0) return `${ctx.raw.toLocaleString('ru-RU')} ₽`;
-            if (ctx.datasetIndex === 1) return `${Number(ctx.raw).toFixed(1)}%`;
+          label: (
+            ctx: { datasetIndex: number; raw: number; dataIndex: number }
+          ) => {
+            if (ctx.datasetIndex === 0) {
+              const row = rows[ctx.dataIndex];
+              const curr =
+                row?.currency && row.currency !== 'mixed'
+                  ? ` ${currencyLabel(row.currency)}`
+                  : ' ₽';
+              return `${Number(ctx.raw).toLocaleString('ru-RU')}${curr}`;
+            }
+            if (ctx.datasetIndex === 1)
+              return `${Number(ctx.raw).toFixed(1)}%`;
             return String(ctx.raw);
           },
         },
@@ -84,32 +112,37 @@ const buildOptions = (maxAmount: number) => {
         ticks: { font: { size: 11 }, maxRotation: 25 },
         barPercentage: 0.6,
         categoryPercentage: 0.8,
+        grid: { display: false },
       },
       y: {
-        type: 'linear' as const,
+        type: 'logarithmic' as const,
         position: 'left' as const,
-        beginAtZero: true,
-        max: yMax,
-        title: { display: true, text: 'Сумма, ₽' },
-        ticks: {
-          font: { size: 10 },
-          callback: (value: number | string) => formatAmount(Number(value)),
-        },
+        min: 1,
+        title: { display: false },
+        ticks: { display: false },
+        grid: { display: false },
       },
       y1: {
-        type: 'linear' as const,
+        type: 'logarithmic' as const,
         position: 'right' as const,
-        min: 0,
-        max: 100,
-        title: { display: true, text: '%' },
-        ticks: { font: { size: 10 }, callback: (value: number | string) => value + '%' },
-        grid: { drawOnChartArea: false },
+        min: 0.1,
+        title: { display: false },
+        ticks: { display: false },
+        grid: { display: false },
       },
     },
   };
 };
 
-export function EkChart({ year, yearType = 'assignment', rows, loading, error }: EkChartProps) {
+export function EkChart({
+  year,
+  yearType = 'assignment',
+  rows,
+  loading,
+  error,
+  amountsInBaseCurrency = false,
+  baseCurrency: baseCurrencyProp = null,
+}: EkChartProps) {
   if (error) {
     return (
       <div className="bg-white rounded-lg shadow px-2 py-4 h-[320px] flex flex-col justify-center">
@@ -120,15 +153,32 @@ export function EkChart({ year, yearType = 'assignment', rows, loading, error }:
 
   const hasData = rows.length > 0 && rows.some((r) => r.totalAmount > 0 || r.singleSupplierAmount > 0 || r.percentByAmount > 0);
   const labels = rows.map((r) => r.cfo);
+  // Масштаб левой оси — только по сумме у единственного источника, чтобы синие столбцы были видны
   const maxAmount = hasData
-    ? Math.max(...rows.map((r) => Math.max(r.singleSupplierAmount, r.totalAmount || 0)), 1)
+    ? Math.max(...rows.map((r) => r.singleSupplierAmount), 1)
     : 1;
+
+  const currencies = [...new Set(rows.map((r) => r.currency).filter(Boolean))];
+  const singleCurrency =
+    currencies.length === 1 && currencies[0] !== 'mixed'
+      ? currencyLabel(currencies[0] as string)
+      : null;
+  const baseLabel = amountsInBaseCurrency && baseCurrencyProp
+    ? currencyLabel(baseCurrencyProp)
+    : singleCurrency;
+  const amountLegendLabel = baseLabel
+    ? `Сумма у единственного источника, ${baseLabel}${amountsInBaseCurrency ? ' (по курсу)' : ''}`
+    : 'Сумма у единственного источника';
 
   const datasets = [
     {
       type: 'bar' as const,
-      label: 'Сумма у единственного источника, ₽',
-      data: hasData ? rows.map((r) => r.singleSupplierAmount) : [],
+      label: amountLegendLabel,
+      data: hasData
+        ? rows.map((r) =>
+            r.singleSupplierAmount <= 0 ? null : r.singleSupplierAmount
+          )
+        : [],
       backgroundColor: 'rgba(59, 130, 246, 0.8)',
       borderColor: 'rgba(59, 130, 246, 1)',
       borderWidth: 1,
@@ -137,7 +187,9 @@ export function EkChart({ year, yearType = 'assignment', rows, loading, error }:
     {
       type: 'bar' as const,
       label: '% от суммы по ЦФО',
-      data: hasData ? rows.map((r) => r.percentByAmount) : [],
+      data: hasData
+        ? rows.map((r) => (r.percentByAmount <= 0 ? null : r.percentByAmount))
+        : [],
       backgroundColor: 'rgba(34, 197, 94, 0.8)',
       borderColor: 'rgba(34, 197, 94, 1)',
       borderWidth: 1,
@@ -152,6 +204,11 @@ export function EkChart({ year, yearType = 'assignment', rows, loading, error }:
       {yearType === 'creation' && hasData && (
         <p className="text-xs text-amber-700 mb-1">
           Данные по году создания заявки (нет дат назначения на закупщика за {year} г.)
+        </p>
+      )}
+      {amountsInBaseCurrency && baseCurrencyProp && hasData && (
+        <p className="text-xs text-gray-600 mb-1">
+          Суммы приведены в {currencyLabel(baseCurrencyProp)} по курсу (разные валюты в заявках).
         </p>
       )}
       {loading ? (
@@ -169,7 +226,7 @@ export function EkChart({ year, yearType = 'assignment', rows, loading, error }:
               key={`ek-${year}-${rows.length}-${rows.map((r) => r.cfo).join('-')}`}
               type="bar"
               data={chartData}
-              options={buildOptions(maxAmount)}
+              options={buildOptions(maxAmount, rows)}
             />
           </div>
         </div>
