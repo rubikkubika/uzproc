@@ -47,22 +47,22 @@ public class PurchaseStatusUpdateService {
      */
     @Transactional
     public void updateStatus(Long purchaseRequestId) {
-        Purchase purchase = purchaseRepository.findFirstByPurchaseRequestId(purchaseRequestId).orElse(null);
+        List<Purchase> purchases = purchaseRepository.findByPurchaseRequestId(purchaseRequestId);
 
-        if (purchase == null) {
-            logger.debug("Purchase with purchaseRequestId {} not found for status update", purchaseRequestId);
+        if (purchases == null || purchases.isEmpty()) {
+            logger.debug("No purchases with purchaseRequestId {} found for status update", purchaseRequestId);
             return;
         }
 
-        logger.info("Updating status for purchase with purchaseRequestId: {}, purchaseId: {}, current status: {}", 
-            purchaseRequestId, purchase.getId(), purchase.getStatus() != null ? purchase.getStatus().getDisplayName() : "null");
+        // Согласования привязаны к заявке (purchase_request_id), общий набор виз для всех закупок по этой заявке
+        Purchase firstPurchase = purchases.get(0);
+        logger.info("Updating status for purchases with purchaseRequestId: {} ({} purchase(s)), first purchaseId: {}, current status: {}",
+            purchaseRequestId, purchases.size(), firstPurchase.getId(),
+            firstPurchase.getStatus() != null ? firstPurchase.getStatus().getDisplayName() : "null");
 
-        // Сохраняем текущий статус для сравнения
-        PurchaseStatus currentStatus = purchase.getStatus();
-
-        // Получаем все согласования для закупки
+        // Получаем все согласования для заявки (общие для всех закупок по этой заявке)
         List<PurchaseApproval> approvals = purchaseApprovalRepository.findByPurchaseRequestId(purchaseRequestId);
-        logger.info("Found {} approvals for purchase {} (purchaseRequestId: {})", approvals.size(), purchase.getId(), purchaseRequestId);
+        logger.info("Found {} approvals for purchaseRequestId: {}", approvals.size(), purchaseRequestId);
 
         // Определяем новый статус на основе согласований
         PurchaseStatus newStatus = null;
@@ -75,48 +75,47 @@ public class PurchaseStatusUpdateService {
         boolean hasOtherActiveApprovals = false;
 
         if (!approvals.isEmpty()) {
-            logger.info("Checking {} approvals for purchase {} (purchaseRequestId: {})", 
-                approvals.size(), purchase.getId(), purchaseRequestId);
+            logger.info("Checking {} approvals for purchaseRequestId: {}", approvals.size(), purchaseRequestId);
             for (PurchaseApproval approval : approvals) {
                 String stage = approval.getStage();
                 String completionResult = approval.getCompletionResult();
-                logger.info("Checking approval for purchase {} (purchaseRequestId: {}): stage={}, role={}, completionResult={}", 
-                    purchase.getId(), purchaseRequestId, stage, approval.getRole(), 
+                logger.info("Checking approval for purchaseRequestId {}: stage={}, role={}, completionResult={}",
+                    purchaseRequestId, stage, approval.getRole(),
                     completionResult != null ? completionResult : "null");
-                
+
                 // Проверяем на "Не согласовано"
                 if (completionResult != null && !completionResult.trim().isEmpty()) {
                     String resultLower = completionResult.toLowerCase().trim();
-                    logger.debug("Checking completion result '{}' (lowercase: '{}') for 'не согласован' patterns", 
+                    logger.debug("Checking completion result '{}' (lowercase: '{}') for 'не согласован' patterns",
                         completionResult, resultLower);
                     // Проверяем различные варианты "не согласован"
-                    if (resultLower.contains("не согласован") || 
+                    if (resultLower.contains("не согласован") ||
                         resultLower.contains("не согласована") ||
                         resultLower.contains("не согласовано") ||
                         resultLower.contains("отклонен") ||
                         resultLower.contains("отклонена")) {
                         hasNotCoordinated = true;
-                        logger.info("Found not coordinated approval for purchase {} (purchaseRequestId: {}): stage={}, role={}, result='{}'", 
-                            purchase.getId(), purchaseRequestId, approval.getStage(), approval.getRole(), completionResult);
+                        logger.info("Found not coordinated approval for purchaseRequestId {}: stage={}, role={}, result='{}'",
+                            purchaseRequestId, approval.getStage(), approval.getRole(), completionResult);
                         break; // Достаточно одного "не согласовано"
                     }
                 } else {
                     logger.debug("Approval has no completion result or it's empty");
                 }
-                
+
                 // Согласования этапа "Закупочная комиссия" / "Проверка результата закупочной комиссии" проверяются после цикла — требуются все завершённые
-                
+
                 // Проверяем, есть ли другие активные согласования (не завершенные)
-                // Незавершенные согласования "Проверка результата закупочной комиссии" и "Закупочная комиссия" 
+                // Незавершенные согласования "Проверка результата закупочной комиссии" и "Закупочная комиссия"
                 // тоже считаются активными и должны блокировать установку статуса "Завершена"
                 if (stage != null && approval.getCompletionDate() == null) {
                     hasOtherActiveApprovals = true;
-                    logger.debug("Found active approval for purchase {} (purchaseRequestId: {}): stage={}, role={}", 
-                        purchase.getId(), purchaseRequestId, stage, approval.getRole());
+                    logger.debug("Found active approval for purchaseRequestId {}: stage={}, role={}",
+                        purchaseRequestId, stage, approval.getRole());
                 }
             }
         } else {
-            logger.info("No approvals found for purchase {} (purchaseRequestId: {})", purchase.getId(), purchaseRequestId);
+            logger.info("No approvals found for purchaseRequestId: {}", purchaseRequestId);
         }
 
         // Проверяем, что все согласования на этапе "Закупочная комиссия" / "Проверка результата закупочной комиссии" завершены с положительным результатом
@@ -139,12 +138,12 @@ public class PurchaseStatusUpdateService {
             });
             if (allCommissionCompleted) {
                 hasCompletedCommissionResultCheck = true;
-                logger.info("All {} commission stage approval(s) completed for purchase {} (purchaseRequestId: {})",
-                        commissionStageApprovals.size(), purchase.getId(), purchaseRequestId);
+                logger.info("All {} commission stage approval(s) completed for purchaseRequestId: {}",
+                        commissionStageApprovals.size(), purchaseRequestId);
             } else {
                 long incompleteCount = commissionStageApprovals.stream().filter(a -> a.getCompletionDate() == null).count();
-                logger.info("Commission stage has {} incomplete approval(s) for purchase {} (purchaseRequestId: {}), not setting COMPLETED",
-                        incompleteCount, purchase.getId(), purchaseRequestId);
+                logger.info("Commission stage has {} incomplete approval(s) for purchaseRequestId: {}, not setting COMPLETED",
+                        incompleteCount, purchaseRequestId);
             }
         }
 
@@ -168,20 +167,31 @@ public class PurchaseStatusUpdateService {
                     purchaseRequestId, purchaseRequestId);
         }
 
-        // Обновляем статус только если он изменился
-        if (newStatus != null && currentStatus != newStatus) {
-            purchase.setStatus(newStatus);
-            purchaseRepository.save(purchase);
-            // Явно синхронизируем изменения с БД
-            purchaseRepository.flush();
-            logger.info("Status updated for purchase {}: {} -> {}", 
-                purchaseRequestId, 
-                currentStatus != null ? currentStatus.getDisplayName() : "null",
-                newStatus.getDisplayName());
-        } else if (newStatus == null) {
-            logger.debug("No status change needed for purchase {} (no not coordinated approvals found)", purchaseRequestId);
+        // Обновляем статус у всех закупок по этой заявке (визы общие для заявки)
+        if (newStatus != null) {
+            int updated = 0;
+            for (Purchase p : purchases) {
+                if (p.getStatus() != newStatus) {
+                    PurchaseStatus oldStatus = p.getStatus();
+                    p.setStatus(newStatus);
+                    purchaseRepository.save(p);
+                    updated++;
+                    logger.info("Status updated for purchase id={}, innerId={}: {} -> {}",
+                        p.getId(), p.getInnerId(),
+                        oldStatus != null ? oldStatus.getDisplayName() : "null",
+                        newStatus.getDisplayName());
+                }
+            }
+            if (updated > 0) {
+                purchaseRepository.flush();
+                logger.info("Status updated for purchaseRequestId {}: {} purchase(s) set to {}",
+                    purchaseRequestId, updated, newStatus.getDisplayName());
+            } else {
+                logger.debug("Status for all {} purchase(s) with purchaseRequestId {} already set to: {}",
+                    purchases.size(), purchaseRequestId, newStatus.getDisplayName());
+            }
         } else {
-            logger.debug("Status for purchase {} already set to: {}", purchaseRequestId, newStatus.getDisplayName());
+            logger.debug("No status change needed for purchaseRequestId {} (newStatus not determined)", purchaseRequestId);
         }
     }
 
