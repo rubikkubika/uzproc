@@ -62,6 +62,7 @@ export default function AllCsiFeedback() {
   }, [currentYear]);
 
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
+  const [purchaserFilter, setPurchaserFilter] = useState<string | null>(null);
   const [feedbacks, setFeedbacks] = useState<CsiFeedbackDto[]>([]);
   const [stats, setStats] = useState<CsiStats | null>(null);
   const [statsByPurchaser, setStatsByPurchaser] = useState<CsiStatsByPurchaser[]>([]);
@@ -77,11 +78,13 @@ export default function AllCsiFeedback() {
   const [truncatedComments, setTruncatedComments] = useState<Set<number>>(new Set());
   const commentRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
-  const fetchStats = async (year: number) => {
+  const fetchStats = async (year: number, purchaser: string | null) => {
     try {
       setStatsLoading(true);
       const backendUrl = getBackendUrl();
-      const res = await fetch(`${backendUrl}/api/csi-feedback/stats?year=${year}`);
+      const params = new URLSearchParams({ year: String(year) });
+      if (purchaser != null && purchaser.trim() !== '') params.set('purchaser', purchaser.trim());
+      const res = await fetch(`${backendUrl}/api/csi-feedback/stats?${params}`);
       if (!res.ok) throw new Error('Ошибка загрузки показателей');
       const data = await res.json();
       setStats({
@@ -101,14 +104,23 @@ export default function AllCsiFeedback() {
     }
   };
 
-  const fetchStatsByPurchaser = async (year: number) => {
+  const fetchStatsByPurchaser = async (year: number, purchaser: string | null) => {
     try {
       setStatsByPurchaserLoading(true);
       const backendUrl = getBackendUrl();
-      const res = await fetch(`${backendUrl}/api/csi-feedback/stats-by-purchaser?year=${year}`);
+      const params = new URLSearchParams({ year: String(year) });
+      if (purchaser != null && purchaser.trim() !== '') params.set('purchaser', purchaser.trim());
+      const res = await fetch(`${backendUrl}/api/csi-feedback/stats-by-purchaser?${params}`);
       if (!res.ok) throw new Error('Ошибка загрузки данных по закупщикам');
       const data: CsiStatsByPurchaser[] = await res.json();
-      setStatsByPurchaser(Array.isArray(data) ? data : []);
+      const sorted = Array.isArray(data) ? [...data] : [];
+      sorted.sort((a, b) => {
+        const ra = a.avgRating ?? 0;
+        const rb = b.avgRating ?? 0;
+        if (rb !== ra) return rb - ra;
+        return (b.count ?? 0) - (a.count ?? 0);
+      });
+      setStatsByPurchaser(sorted);
     } catch (err) {
       console.error('Error fetching CSI stats by purchaser:', err);
       setStatsByPurchaser([]);
@@ -117,7 +129,7 @@ export default function AllCsiFeedback() {
     }
   };
 
-  const fetchPage = async (pageNum: number, append: boolean, year: number) => {
+  const fetchPage = async (pageNum: number, append: boolean, year: number, purchaser: string | null) => {
     try {
       if (pageNum === 0) {
         setLoading(true);
@@ -134,6 +146,7 @@ export default function AllCsiFeedback() {
         sortDir: 'desc',
         year: String(year),
       });
+      if (purchaser != null && purchaser.trim() !== '') params.set('purchaser', purchaser.trim());
       const response = await fetch(`${backendUrl}/api/csi-feedback?${params}`);
 
       if (!response.ok) {
@@ -166,19 +179,23 @@ export default function AllCsiFeedback() {
   };
 
   useEffect(() => {
-    fetchStats(selectedYear);
-    fetchStatsByPurchaser(selectedYear);
-  }, [selectedYear]);
+    fetchStats(selectedYear, purchaserFilter);
+    fetchStatsByPurchaser(selectedYear, purchaserFilter);
+  }, [selectedYear, purchaserFilter]);
 
   useEffect(() => {
     setPage(0);
-    fetchPage(0, false, selectedYear);
-  }, [selectedYear]);
+    fetchPage(0, false, selectedYear, purchaserFilter);
+  }, [selectedYear, purchaserFilter]);
 
   const loadMore = () => {
     if (page + 1 < totalPages && !loadingMore) {
-      fetchPage(page + 1, true, selectedYear);
+      fetchPage(page + 1, true, selectedYear, purchaserFilter);
     }
+  };
+
+  const handleResetFilters = () => {
+    setPurchaserFilter(null);
   };
 
   useEffect(() => {
@@ -303,69 +320,82 @@ export default function AllCsiFeedback() {
   const hasMore = page + 1 < totalPages;
 
   return (
-    <div className="bg-white rounded-lg shadow-lg p-4 w-full">
-      {/* Фильтр по году */}
-      <div className="flex flex-wrap items-center gap-4 mb-4">
-        <div className="flex items-center gap-2">
-          <label htmlFor="csi-year-filter" className="text-sm font-medium text-gray-700 whitespace-nowrap">
+    <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0 p-2 sm:p-3 w-full">
+      {/* Верхняя часть без прокрутки: фильтр по году, сброс фильтров, блоки сводки */}
+      <div className="flex-shrink-0 space-y-2">
+      {/* Фильтр по году и кнопка Сбросить фильтры */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          <label htmlFor="csi-year-filter" className="text-xs font-medium text-gray-700 whitespace-nowrap">
             Год получения оценки:
           </label>
           <select
             id="csi-year-filter"
             value={selectedYear}
             onChange={(e) => setSelectedYear(Number(e.target.value))}
-            className="px-2 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="px-2 py-1 text-sm border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             {availableYears.map((y) => (
               <option key={y} value={y}>{y}</option>
             ))}
           </select>
         </div>
+        <button
+          type="button"
+          onClick={handleResetFilters}
+          className="px-3 py-1 text-xs font-medium bg-red-50 text-red-700 rounded-lg border border-red-300 hover:bg-red-100 hover:border-red-400 transition-colors"
+        >
+          Сбросить фильтры
+        </button>
+        {purchaserFilter != null && purchaserFilter.trim() !== '' && (
+          <span className="text-xs text-gray-500">
+            Фильтр по закупщику: {purchaserDisplayName(purchaserFilter) || purchaserFilter}
+          </span>
+        )}
       </div>
 
       {/* Общие данные за год (слева) и таблица по ФИО закупщика и оценке — справа рядом */}
-      <div className="mb-4 flex flex-wrap sm:flex-nowrap items-stretch gap-2 sm:gap-3">
+      <div className="mb-2 flex flex-wrap sm:flex-nowrap items-stretch gap-1.5 sm:gap-2">
         {/* Блок общих данных — по ширине контента */}
-        <div className="w-fit max-w-full p-4 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/80 shadow-sm">
-          <h3 className="text-sm font-semibold text-gray-800 mb-3">Общие данные за {selectedYear} г.</h3>
+        <div className="w-fit max-w-full p-2 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/80 shadow-sm">
           {statsLoading ? (
-            <p className="text-sm text-gray-500">Загрузка…</p>
+            <p className="text-xs text-gray-500">Загрузка…</p>
           ) : stats ? (
-            <div className="flex flex-wrap items-stretch gap-3">
+            <div className="flex flex-wrap items-stretch gap-2">
               {/* Слева: количество оценок */}
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/80 border border-amber-200/60 shrink-0">
+              <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-white/80 border border-amber-200/60 shrink-0">
                 <span className="text-xs font-medium text-gray-600">Оценок за год:</span>
-                <span className="text-lg font-bold text-gray-900 tabular-nums">{stats.count}</span>
+                <span className="text-base font-bold text-gray-900 tabular-nums">{stats.count}</span>
               </div>
               {/* По центру: средняя оценка */}
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-white/80 border border-amber-200/60 shrink-0">
+              <div className="flex items-center gap-2 p-2 rounded-lg bg-white/80 border border-amber-200/60 shrink-0">
                 <div className="flex flex-col">
-                  <span className="text-xs font-medium text-gray-600 mb-0.5">Средняя оценка</span>
-                  <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-gray-600 mb-0">Средняя оценка</span>
+                  <div className="flex items-center gap-1.5">
                     {renderStarsSummary(stats.avgOverall, 'lg')}
-                    <span className="text-xl font-bold text-gray-900 tabular-nums">
+                    <span className="text-lg font-bold text-gray-900 tabular-nums">
                       {formatStat(stats.avgOverall)}
                     </span>
                   </div>
                 </div>
               </div>
               {/* Столбец оценок по категориям */}
-              <div className="flex flex-col gap-1.5 shrink-0">
-                <div className="flex items-center justify-between gap-3 px-3 py-1.5 rounded-lg bg-white/80 border border-amber-200/60 min-w-[140px]">
+              <div className="flex flex-col gap-1 shrink-0">
+                <div className="flex items-center justify-between gap-2 px-2 py-1 rounded-lg bg-white/80 border border-amber-200/60 min-w-[130px]">
                   <span className="text-xs font-medium text-gray-700 shrink-0">Скорость</span>
                   <div className="flex items-center gap-1.5">
                     {renderStarsSummary(stats.avgSpeed, 'sm')}
                     <span className="text-xs text-gray-600 tabular-nums w-7">{formatStat(stats.avgSpeed)}</span>
                   </div>
                 </div>
-                <div className="flex items-center justify-between gap-3 px-3 py-1.5 rounded-lg bg-white/80 border border-amber-200/60 min-w-[140px]">
+                <div className="flex items-center justify-between gap-2 px-2 py-1 rounded-lg bg-white/80 border border-amber-200/60 min-w-[130px]">
                   <span className="text-xs font-medium text-gray-700 shrink-0">Качество</span>
                   <div className="flex items-center gap-1.5">
                     {renderStarsSummary(stats.avgQuality, 'sm')}
                     <span className="text-xs text-gray-600 tabular-nums w-7">{formatStat(stats.avgQuality)}</span>
                   </div>
                 </div>
-                <div className="flex items-center justify-between gap-3 px-3 py-1.5 rounded-lg bg-white/80 border border-amber-200/60 min-w-[140px]">
+                <div className="flex items-center justify-between gap-2 px-2 py-1 rounded-lg bg-white/80 border border-amber-200/60 min-w-[130px]">
                   <span className="text-xs font-medium text-gray-700 shrink-0">Закупщик</span>
                   <div className="flex items-center gap-1.5">
                     {renderStarsSummary(stats.avgSatisfaction, 'sm')}
@@ -373,7 +403,7 @@ export default function AllCsiFeedback() {
                   </div>
                 </div>
                 {stats.avgUzproc != null && (
-                  <div className="flex items-center justify-between gap-3 px-3 py-1.5 rounded-lg bg-white/80 border border-amber-200/60 min-w-[140px]">
+                  <div className="flex items-center justify-between gap-2 px-2 py-1 rounded-lg bg-white/80 border border-amber-200/60 min-w-[130px]">
                     <span className="text-xs font-medium text-gray-700 shrink-0">Узпрок</span>
                     <div className="flex items-center gap-1.5">
                       {renderStarsSummary(stats.avgUzproc, 'sm')}
@@ -384,45 +414,55 @@ export default function AllCsiFeedback() {
               </div>
             </div>
           ) : (
-            <p className="text-sm text-gray-500">Нет данных</p>
+            <p className="text-xs text-gray-500">Нет данных</p>
           )}
         </div>
 
-        {/* Таблица по ФИО закупщика и оценке — справа рядом с общими данными */}
-        <div className="w-full sm:w-[280px] sm:flex-shrink-0 rounded-xl border border-amber-200/80 bg-white shadow-sm overflow-hidden">
-          <h3 className="text-sm font-semibold text-gray-800 px-3 py-2 bg-amber-50/80 border-b border-amber-200/60">
-            По закупщикам ({selectedYear} г.)
-          </h3>
+        {/* Таблица по ФИО закупщика и оценке — справа, ширина по контенту */}
+        <div className="w-fit max-w-full flex-shrink-0 rounded-xl border border-amber-200/80 bg-white shadow-sm flex flex-col overflow-hidden">
           {statsByPurchaserLoading ? (
-            <div className="px-3 py-4 text-sm text-gray-500 text-center">Загрузка…</div>
+            <div className="px-2 py-2 text-xs text-gray-500 text-center">Загрузка…</div>
           ) : statsByPurchaser.length === 0 ? (
-            <div className="px-3 py-4 text-sm text-gray-500 text-center">Нет данных</div>
+            <div className="px-2 py-2 text-xs text-gray-500 text-center">Нет данных</div>
           ) : (
-            <div className="max-h-[220px] overflow-y-auto overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
+            <div className="flex-1 min-h-0 min-w-0 max-h-[180px] overflow-y-auto overflow-x-auto">
+              <table className="w-full min-w-[240px] border-collapse text-sm">
                 <thead className="bg-gray-50 sticky top-0">
                   <tr>
-                    <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 tracking-wider border-b border-gray-200">
+                    <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-b border-gray-200">
                       ФИО закупщика
                     </th>
-                    <th className="px-2 py-1.5 text-right text-xs font-medium text-gray-500 tracking-wider border-b border-gray-200 w-20">
+                    <th className="px-2 py-1 text-right text-xs font-medium text-gray-500 tracking-wider border-b border-gray-200 w-20">
                       Оценок
                     </th>
-                    <th className="px-2 py-1.5 text-right text-xs font-medium text-gray-500 tracking-wider border-b border-gray-200 w-24">
+                    <th className="px-2 py-1 text-right text-xs font-medium text-gray-500 tracking-wider border-b border-gray-200 w-24">
                       Оценка
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {statsByPurchaser.map((row) => (
-                    <tr key={row.purchaser || 'empty'} className="hover:bg-gray-50/80">
-                      <td className="px-2 py-1.5 text-xs text-gray-900 border-r border-gray-100 whitespace-nowrap">
-                        {purchaserDisplayName(row.purchaser) || row.purchaser || '—'}
+                  {statsByPurchaser.map((row) => {
+                    const purchaserKey = row.purchaser ?? '';
+                    const isSelected = purchaserFilter != null && purchaserFilter.trim() !== '' && (row.purchaser ?? '').trim() === purchaserFilter.trim();
+                    return (
+                    <tr
+                      key={row.purchaser || 'empty'}
+                      className={`hover:bg-gray-50/80 ${isSelected ? 'bg-blue-50' : ''}`}
+                    >
+                      <td className="px-2 py-1 text-xs border-r border-gray-100 whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => setPurchaserFilter(purchaserKey === '' ? null : (purchaserFilter === purchaserKey ? null : purchaserKey))}
+                          className={`text-left w-full font-medium hover:text-blue-700 focus:outline-none focus:underline ${isSelected ? 'text-blue-700' : 'text-gray-900'}`}
+                          title={isSelected ? 'Снять фильтр по закупщику' : 'Показать только оценки этого закупщика'}
+                        >
+                          {purchaserDisplayName(row.purchaser) || row.purchaser || '—'}
+                        </button>
                       </td>
-                      <td className="px-2 py-1.5 text-xs text-gray-700 text-right tabular-nums">
+                      <td className="px-2 py-1 text-xs text-gray-700 text-right tabular-nums">
                         {row.count}
                       </td>
-                      <td className="px-2 py-1.5 text-right">
+                      <td className="px-2 py-1 text-right">
                         {row.avgRating != null ? (
                           <div className="flex items-center justify-end gap-1">
                             {renderStarsSummary(row.avgRating, 'sm')}
@@ -433,36 +473,35 @@ export default function AllCsiFeedback() {
                         )}
                       </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                 </tbody>
               </table>
             </div>
           )}
         </div>
       </div>
+      </div>
 
+      {/* Вертикальная прокрутка с кастомным скроллбаром (как на странице плана закупок) */}
+      <div className="flex-1 min-h-0 overflow-auto custom-scrollbar pr-1 mt-2">
       {feedbacks.length === 0 ? (
-        <div className="border border-gray-200 rounded-lg p-6 bg-gray-50 text-center">
-          <div className="text-sm text-gray-500">Оценок за {selectedYear} год пока нет</div>
-          <div className="text-xs text-gray-400 mt-1">Они появятся после получения отзывов</div>
+        <div className="border border-gray-200 rounded-lg p-4 bg-gray-50 text-center">
+          <div className="text-xs text-gray-500">Оценок за {selectedYear} год пока нет</div>
+          <div className="text-xs text-gray-400 mt-0.5">Они появятся после получения отзывов</div>
         </div>
       ) : (
         <>
-          <div className="text-sm font-medium text-gray-700 mb-2">
-            Оценки CSI
-            <span className="ml-2 text-xs font-normal text-gray-500">(всего {totalElements})</span>
-          </div>
-          <div className="max-h-[70vh] overflow-y-auto pr-1">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5">
               {feedbacks.map((feedback) => {
                 const averageRating = getAverageRating(feedback);
                 const isExpanded = expandedComments.has(feedback.id);
                 return (
                   <div
                     key={feedback.id}
-                    className="border border-gray-200 rounded p-1.5 bg-gray-50 min-w-0"
+                    className="border border-gray-200 rounded p-1 bg-gray-50 min-w-0"
                   >
-                    <div className="flex items-start justify-between mb-0.5 gap-1">
+                    <div className="flex items-start justify-between mb-0 gap-1">
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-1">
                           <span className="text-xs font-medium text-gray-900">
@@ -473,17 +512,17 @@ export default function AllCsiFeedback() {
                           </span>
                         </div>
                         {feedback.cfo && (
-                          <span className="inline-flex items-center px-1 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 mt-0.5">
+                          <span className="inline-flex items-center px-1 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 mt-0">
                             {feedback.cfo}
                           </span>
                         )}
                         {feedback.purchaseRequestSubject && (
-                          <div className="mt-0.5 text-xs text-gray-700 truncate" title={feedback.purchaseRequestSubject}>
+                          <div className="mt-0 text-xs text-gray-700 truncate" title={feedback.purchaseRequestSubject}>
                             {feedback.purchaseRequestSubject}
                           </div>
                         )}
                         {feedback.purchaser && (
-                          <div className="mt-0.5 text-xs text-gray-500 truncate">
+                          <div className="mt-0 text-xs text-gray-500 truncate">
                             {purchaserDisplayName(feedback.purchaser)}
                           </div>
                         )}
@@ -493,31 +532,54 @@ export default function AllCsiFeedback() {
                       </div>
                     </div>
 
-                    {feedback.comment && (
-                      <div className="mt-1">
-                        <div
-                          ref={(el) => {
-                            if (el) commentRefs.current.set(feedback.id, el);
-                          }}
-                          className={`text-xs text-gray-700 bg-white rounded p-1 border border-gray-200 ${
-                            !isExpanded ? 'line-clamp-3' : ''
-                          }`}
-                        >
-                          {feedback.comment}
-                        </div>
-                        {truncatedComments.has(feedback.id) && !isExpanded && (
-                          <button
-                            type="button"
-                            onClick={() => toggleCommentExpansion(feedback.id)}
-                            className="text-xs text-blue-600 hover:text-blue-800 mt-0.5"
+                    {/* Блок комментария: свёрнут — ровно 2 строки текста, кнопка «Развернуть» в конце второй строки; развёрнут — блок растёт по высоте */}
+                    <div
+                      className={`mt-0.5 rounded p-1 border border-gray-200 bg-white flex flex-col min-h-0 ${
+                        feedback.comment && isExpanded ? 'min-h-[3.5rem]' : 'h-[3.5rem] overflow-hidden'
+                      }`}
+                    >
+                      {feedback.comment ? (
+                        isExpanded ? (
+                          <div
+                            ref={(el) => {
+                              if (el) commentRefs.current.set(feedback.id, el);
+                            }}
+                            className="text-xs text-gray-700"
                           >
-                            Развернуть
-                          </button>
-                        )}
-                      </div>
-                    )}
+                            {feedback.comment}
+                          </div>
+                        ) : (
+                          <div className="relative w-full h-full min-h-0 flex flex-col items-start">
+                            <div
+                              ref={(el) => {
+                                if (el) commentRefs.current.set(feedback.id, el);
+                              }}
+                              className="text-xs text-gray-700 line-clamp-2 leading-normal w-full pr-20"
+                            >
+                              {feedback.comment}
+                            </div>
+                            {truncatedComments.has(feedback.id) && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  toggleCommentExpansion(feedback.id);
+                                }}
+                                className="absolute right-0 top-[1rem] text-xs text-blue-600 hover:text-blue-800 whitespace-nowrap"
+                              >
+                                Развернуть
+                              </button>
+                            )}
+                          </div>
+                        )
+                      ) : (
+                        <div className="text-xs text-gray-400 flex-1 flex items-center min-h-0">
+                          Комментария нет
+                        </div>
+                      )}
+                    </div>
 
-                    <div className="mt-1 flex flex-wrap gap-1 text-xs text-gray-500">
+                    <div className="mt-0.5 flex flex-wrap gap-1 text-xs text-gray-500">
                       <span>Скорость: {feedback.speedRating.toFixed(1)}</span>
                       <span>Качество: {feedback.qualityRating.toFixed(1)}</span>
                       <span>Закупщик: {feedback.satisfactionRating.toFixed(1)}</span>
@@ -530,20 +592,20 @@ export default function AllCsiFeedback() {
               })}
             </div>
             {hasMore && (
-              <div className="mt-3 flex justify-center">
+              <div className="mt-2 flex justify-center">
                 <button
                   type="button"
                   onClick={loadMore}
                   disabled={loadingMore}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed text-gray-900"
+                  className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed text-gray-900"
                 >
                   {loadingMore ? 'Загрузка...' : 'Загрузить ещё'}
                 </button>
               </div>
             )}
-          </div>
         </>
       )}
+      </div>
     </div>
   );
 }
