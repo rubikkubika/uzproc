@@ -104,13 +104,11 @@ export default function AllCsiFeedback() {
     }
   };
 
-  const fetchStatsByPurchaser = async (year: number, purchaser: string | null) => {
+  const fetchStatsByPurchaser = async (year: number) => {
     try {
       setStatsByPurchaserLoading(true);
       const backendUrl = getBackendUrl();
-      const params = new URLSearchParams({ year: String(year) });
-      if (purchaser != null && purchaser.trim() !== '') params.set('purchaser', purchaser.trim());
-      const res = await fetch(`${backendUrl}/api/csi-feedback/stats-by-purchaser?${params}`);
+      const res = await fetch(`${backendUrl}/api/csi-feedback/stats-by-purchaser?year=${year}`);
       if (!res.ok) throw new Error('Ошибка загрузки данных по закупщикам');
       const data: CsiStatsByPurchaser[] = await res.json();
       const sorted = Array.isArray(data) ? [...data] : [];
@@ -180,7 +178,7 @@ export default function AllCsiFeedback() {
 
   useEffect(() => {
     fetchStats(selectedYear, purchaserFilter);
-    fetchStatsByPurchaser(selectedYear, purchaserFilter);
+    fetchStatsByPurchaser(selectedYear); // таблица по закупщикам всегда со всеми закупщиками (как сводная на странице заявок)
   }, [selectedYear, purchaserFilter]);
 
   useEffect(() => {
@@ -444,20 +442,18 @@ export default function AllCsiFeedback() {
                   {statsByPurchaser.map((row) => {
                     const purchaserKey = row.purchaser ?? '';
                     const isSelected = purchaserFilter != null && purchaserFilter.trim() !== '' && (row.purchaser ?? '').trim() === purchaserFilter.trim();
+                    const handleRowClick = () => setPurchaserFilter(purchaserKey === '' ? null : (purchaserFilter === purchaserKey ? null : purchaserKey));
                     return (
                     <tr
                       key={row.purchaser || 'empty'}
-                      className={`hover:bg-gray-50/80 ${isSelected ? 'bg-blue-50' : ''}`}
+                      onClick={handleRowClick}
+                      className={`cursor-pointer transition-colors ${isSelected ? 'bg-blue-100 hover:bg-blue-200' : 'hover:bg-gray-50/80'}`}
+                      title={isSelected ? 'Снять фильтр по закупщику' : 'Показать только оценки этого закупщика'}
                     >
                       <td className="px-2 py-1 text-xs border-r border-gray-100 whitespace-nowrap">
-                        <button
-                          type="button"
-                          onClick={() => setPurchaserFilter(purchaserKey === '' ? null : (purchaserFilter === purchaserKey ? null : purchaserKey))}
-                          className={`text-left w-full font-medium hover:text-blue-700 focus:outline-none focus:underline ${isSelected ? 'text-blue-700' : 'text-gray-900'}`}
-                          title={isSelected ? 'Снять фильтр по закупщику' : 'Показать только оценки этого закупщика'}
-                        >
+                        <span className={`font-medium ${isSelected ? 'text-blue-700' : 'text-gray-900'}`}>
                           {purchaserDisplayName(row.purchaser) || row.purchaser || '—'}
-                        </button>
+                        </span>
                       </td>
                       <td className="px-2 py-1 text-xs text-gray-700 text-right tabular-nums">
                         {row.count}
