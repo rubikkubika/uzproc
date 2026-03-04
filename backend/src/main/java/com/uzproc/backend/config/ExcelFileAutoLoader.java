@@ -97,8 +97,9 @@ public class ExcelFileAutoLoader {
                 
                 int totalLoaded = 0;
                 for (File excelFile : excelFiles) {
+                    String fileName = excelFile.getName();
                     try {
-                        logger.info("Processing file: {} (size: {} bytes)", excelFile.getName(), excelFile.length());
+                        logger.info("=== START processing file: {} (alldocuments, size: {} bytes) ===", fileName, excelFile.length());
                         // Используем оптимизированный метод, который открывает файл один раз
                         Map<String, Integer> counts = excelLoadService.loadAllFromExcel(excelFile);
                         int purchaseRequestsCount = counts.getOrDefault("purchaseRequests", 0);
@@ -108,9 +109,10 @@ public class ExcelFileAutoLoader {
                         int loadedCount = purchaseRequestsCount + purchasesCount + contractsCount + usersCount;
                         totalLoaded += loadedCount;
                         logger.info("Loaded {} records from {} ({} purchase requests, {} purchases, {} contracts, {} users)", 
-                            loadedCount, excelFile.getName(), purchaseRequestsCount, purchasesCount, contractsCount, usersCount);
+                            loadedCount, fileName, purchaseRequestsCount, purchasesCount, contractsCount, usersCount);
+                        logger.info("=== END processing file: {} (alldocuments), loaded {} records ===", fileName, loadedCount);
                     } catch (Exception e) {
-                        logger.error("Error processing file {}: {}", excelFile.getName(), e.getMessage(), e);
+                        logger.error("=== END processing file: {} (alldocuments), ERROR: {} ===", fileName, e.getMessage(), e);
                     }
                 }
                 
@@ -167,13 +169,15 @@ public class ExcelFileAutoLoader {
                 logger.info("Found {} Excel file(s) in approvals folder: {}", excelFiles.length, approvalsPath);
                 int totalLoaded = 0;
                 for (File excelFile : excelFiles) {
+                    String fileName = excelFile.getName();
                     try {
-                        logger.info("Processing contract approvals file: {}", excelFile.getName());
+                        logger.info("=== START processing file: {} (approvals) ===", fileName);
                         int loadedCount = contractApprovalExcelLoadService.loadContractApprovalsFromExcel(excelFile);
                         totalLoaded += loadedCount;
-                        logger.info("Loaded {} contract approvals from file {}", loadedCount, excelFile.getName());
+                        logger.info("Loaded {} contract approvals from file {}", loadedCount, fileName);
+                        logger.info("=== END processing file: {} (approvals), loaded {} records ===", fileName, loadedCount);
                     } catch (Exception e) {
-                        logger.error("Error processing contract approvals file {}: {}", excelFile.getName(), e.getMessage(), e);
+                        logger.error("=== END processing file: {} (approvals), ERROR: {} ===", fileName, e.getMessage(), e);
                     }
                 }
                 logger.info("Automatic contract approvals file processing completed. Total loaded {} records", totalLoaded);
@@ -229,13 +233,15 @@ public class ExcelFileAutoLoader {
                 logger.info("Found {} Excel file(s) in suppliers folder: {}", excelFiles.length, suppliersPath);
                 int totalLoaded = 0;
                 for (File excelFile : excelFiles) {
+                    String fileName = excelFile.getName();
                     try {
-                        logger.info("Processing suppliers file: {}", excelFile.getName());
+                        logger.info("=== START processing file: {} (suppliers) ===", fileName);
                         int loadedCount = supplierExcelLoadService.loadSuppliersFromExcel(excelFile);
                         totalLoaded += loadedCount;
-                        logger.info("Loaded {} records from suppliers file {}", loadedCount, excelFile.getName());
+                        logger.info("Loaded {} records from suppliers file {}", loadedCount, fileName);
+                        logger.info("=== END processing file: {} (suppliers), loaded {} records ===", fileName, loadedCount);
                     } catch (Exception e) {
-                        logger.error("Error processing suppliers file {}: {}", excelFile.getName(), e.getMessage(), e);
+                        logger.error("=== END processing file: {} (suppliers), ERROR: {} ===", fileName, e.getMessage(), e);
                     }
                 }
                 logger.info("Automatic suppliers file processing completed. Total loaded {} records", totalLoaded);
@@ -316,13 +322,15 @@ public class ExcelFileAutoLoader {
                 
                 int totalLoaded = 0;
                 for (File excelFile : excelFiles) {
+                    String fileName = excelFile.getName();
                     try {
-                        logger.info("Processing report file: {}", excelFile.getName());
+                        logger.info("=== START processing file: {} (report) ===", fileName);
                         int loadedCount = reportExcelLoadService.loadFromExcel(excelFile);
                         totalLoaded += loadedCount;
-                        logger.info("Loaded {} records from report file {}", loadedCount, excelFile.getName());
+                        logger.info("Loaded {} records from report file {}", loadedCount, fileName);
+                        logger.info("=== END processing file: {} (report), loaded {} records ===", fileName, loadedCount);
                     } catch (Exception e) {
-                        logger.error("Error processing report file {}: {}", excelFile.getName(), e.getMessage(), e);
+                        logger.error("=== END processing file: {} (report), ERROR: {} ===", fileName, e.getMessage(), e);
                     }
                 }
                 
@@ -404,13 +412,15 @@ public class ExcelFileAutoLoader {
                 
                 int totalLoaded = 0;
                 for (File excelFile : excelFiles) {
+                    String fileName = excelFile.getName();
                     try {
-                        logger.info("Processing purchase plan file: {}", excelFile.getName());
+                        logger.info("=== START processing file: {} (plan) ===", fileName);
                         int loadedCount = purchasePlanExcelLoadService.loadPurchasePlanItemsFromExcel(excelFile);
                         totalLoaded += loadedCount;
-                        logger.info("Loaded {} records from purchase plan file {}", loadedCount, excelFile.getName());
+                        logger.info("Loaded {} records from purchase plan file {}", loadedCount, fileName);
+                        logger.info("=== END processing file: {} (plan), loaded {} records ===", fileName, loadedCount);
                     } catch (Exception e) {
-                        logger.error("Error processing purchase plan file {}: {}", excelFile.getName(), e.getMessage(), e);
+                        logger.error("=== END processing file: {} (plan), ERROR: {} ===", fileName, e.getMessage(), e);
                     }
                 }
                 
@@ -471,13 +481,15 @@ public class ExcelFileAutoLoader {
                 logger.info("Found {} Excel file(s) in payments folder: {}", excelFiles.length, paymentsPath);
                 int totalLoaded = 0;
                 for (File excelFile : excelFiles) {
+                    String fileName = excelFile.getName();
                     try {
-                        logger.info("Processing payments file: {}", excelFile.getName());
+                        logger.info("=== START processing file: {} (payments) ===", fileName);
                         int loadedCount = paymentExcelLoadService.loadPaymentsFromExcel(excelFile);
                         totalLoaded += loadedCount;
-                        logger.info("Loaded {} records from payments file {}", loadedCount, excelFile.getName());
+                        logger.info("Loaded {} records from payments file {}", loadedCount, fileName);
+                        logger.info("=== END processing file: {} (payments), loaded {} records ===", fileName, loadedCount);
                     } catch (Exception e) {
-                        logger.error("Error processing payments file {}: {}", excelFile.getName(), e.getMessage(), e);
+                        logger.error("=== END processing file: {} (payments), ERROR: {} ===", fileName, e.getMessage(), e);
                     }
                 }
                 logger.info("Automatic payments file processing completed. Total loaded {} records", totalLoaded);
