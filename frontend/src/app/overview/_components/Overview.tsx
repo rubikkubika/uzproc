@@ -226,10 +226,10 @@ export default function Overview() {
   );
 
   return (
-    <div className="space-y-0.5 sm:space-y-1">
+    <div className="flex flex-col flex-1 min-h-0 gap-0">
       <OverviewTabs activeTab={activeTab} onTabChange={setActiveTab} />
       
-      <div className="w-full">
+      <div className="w-full flex-1 min-h-0 flex flex-col">
         {activeTab === 'sla' && (
           <div className="space-y-0.5 sm:space-y-1">
             <div className="bg-white rounded shadow px-1.5 py-1 sm:px-2 sm:py-1">
@@ -293,7 +293,7 @@ export default function Overview() {
           </div>
         )}
         {activeTab === 'csi' && (
-          <div className="w-full">
+          <div className="w-full flex-1 min-h-0 flex flex-col">
             <AllCsiFeedback />
           </div>
         )}

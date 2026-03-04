@@ -91,29 +91,34 @@ public class CsiFeedbackController {
             @RequestParam(required = false) String sortBy,
             @RequestParam(required = false) String sortDir,
             @RequestParam(required = false) Long purchaseRequestId,
-            @RequestParam(required = false) Integer year) {
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) String purchaser) {
 
         Page<CsiFeedbackDto> feedbacks = csiFeedbackService.findAll(
-                page, size, sortBy, sortDir, purchaseRequestId, year);
+                page, size, sortBy, sortDir, purchaseRequestId, year, purchaser);
 
         return ResponseEntity.ok(feedbacks);
     }
 
     /**
-     * Средние показатели оценок CSI за год.
+     * Средние показатели оценок CSI за год (опционально по закупщику).
      */
     @GetMapping("/stats")
-    public ResponseEntity<Map<String, Object>> getStats(@RequestParam int year) {
-        Map<String, Object> stats = csiFeedbackService.getStatsByYear(year);
+    public ResponseEntity<Map<String, Object>> getStats(
+            @RequestParam int year,
+            @RequestParam(required = false) String purchaser) {
+        Map<String, Object> stats = csiFeedbackService.getStatsByYear(year, purchaser);
         return ResponseEntity.ok(stats);
     }
 
     /**
-     * Статистика оценок CSI по закупщикам за год: ФИО, количество оценок, средняя оценка.
+     * Статистика оценок CSI по закупщикам за год (опционально только по одному закупщику).
      */
     @GetMapping("/stats-by-purchaser")
-    public ResponseEntity<List<CsiFeedbackStatsByPurchaserDto>> getStatsByPurchaser(@RequestParam int year) {
-        List<CsiFeedbackStatsByPurchaserDto> list = csiFeedbackService.getStatsByPurchaserByYear(year);
+    public ResponseEntity<List<CsiFeedbackStatsByPurchaserDto>> getStatsByPurchaser(
+            @RequestParam int year,
+            @RequestParam(required = false) String purchaser) {
+        List<CsiFeedbackStatsByPurchaserDto> list = csiFeedbackService.getStatsByPurchaserByYear(year, purchaser);
         return ResponseEntity.ok(list);
     }
 

@@ -115,9 +115,9 @@ export function PurchasePlanMonthBlockView({
 
       {!loading && (
         <>
-          {/* Диаграмма и сводная таблица по ЦФО справа */}
-          <div className="flex flex-col sm:flex-row gap-3 items-stretch">
-            <div className="flex-1 min-w-0">
+          {/* Диаграммы сверху, таблица по ЦФО снизу — так таблица не перекрывает диаграммы */}
+          <div className="flex flex-col gap-3 w-full min-w-0">
+            <div className="w-full min-w-0">
               <PurchasePlanMonthPositionsChart
                 marketCount={positionsMarketCount}
                 linkedToRequestCount={positionsLinkedToRequestCount}
@@ -128,7 +128,7 @@ export function PurchasePlanMonthBlockView({
                 requestsPurchaseExcludedCount={requestsPurchaseExcludedCount}
               />
             </div>
-            <div className="flex-shrink-0 w-full sm:w-auto sm:min-w-[280px]">
+            <div className="w-full min-w-0 max-w-full">
               <PurchasePlanMonthCfoTable rows={summaryByCfo} />
             </div>
           </div>

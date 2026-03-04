@@ -1,11 +1,41 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { HelpCircle } from 'lucide-react';
 import type { CfoSummaryRow } from '../hooks/usePurchasePlanMonthBlockData';
 
 const QUALITY_TOOLTIP =
   'Качество планирования: заявки инициированы / (запланированы + внеплановые заявки), в %. Одинаковая формула по каждому ЦФО и в итого.';
+
+const HEADERS_FULL = {
+  cfo: 'ЦФО',
+  planned: 'Запланированы',
+  sumPlanned: 'Сумма запл.',
+  initiated: 'Заявки инициированы',
+  excluded: 'Исключена',
+  plannedReq: 'Плановые',
+  nonPlanned: 'Внеплановые',
+  unapproved: 'Неутверждена',
+  canceled: 'Отмена',
+  sumRequests: 'Сумма заявок',
+  quality: 'Кач. план.',
+} as const;
+
+const HEADERS_COMPACT = {
+  cfo: 'ЦФО',
+  planned: 'Запл.',
+  sumPlanned: 'Сумма запл.',
+  initiated: 'Иниц.',
+  excluded: 'Искл.',
+  plannedReq: 'Планов.',
+  nonPlanned: 'Внеплан.',
+  unapproved: 'Неутв.',
+  canceled: 'Отмена',
+  sumRequests: 'Сумма заявок',
+  quality: 'Кач. план.',
+} as const;
+
+const COMPACT_BREAKPOINT = 480;
 
 interface PurchasePlanMonthCfoTableProps {
   rows: CfoSummaryRow[];
@@ -43,9 +73,24 @@ function formatQualityPercentRow(row: { market: number; linked: number; requests
 
 /**
  * Сводная таблица по ЦФО: показатели как в диаграмме + суммы позиций и заявок.
+ * На узких экранах — сокращённые заголовки; один контейнер overflow-x-auto без вложенной вертикальной прокрутки.
  */
 export function PurchasePlanMonthCfoTable({ rows }: PurchasePlanMonthCfoTableProps) {
   const [showQualityTip, setShowQualityTip] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [compact, setCompact] = useState(false);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => setCompact(el.getBoundingClientRect().width < COMPACT_BREAKPOINT);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const headers = compact ? HEADERS_COMPACT : HEADERS_FULL;
 
   // Сортировка по качеству: linked / (market + requestsNonPlanned) от больших к меньшим
   const sortedRows = [...rows].sort((a, b) => {
@@ -126,24 +171,24 @@ export function PurchasePlanMonthCfoTable({ rows }: PurchasePlanMonthCfoTablePro
   const ftQuality = tdBorder + 'px-1.5 py-0.5 text-right text-gray-900 tabular-nums';
 
   return (
-    <div className="rounded border border-gray-200 bg-gray-50 overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-[11px]">
+    <div ref={containerRef} className="rounded border border-gray-200 bg-gray-50 min-w-0 max-w-full overflow-hidden">
+      <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <table className="border-collapse text-[11px] w-max min-w-full">
           <thead className="bg-gray-100">
             <tr className="border-b border-gray-300">
-              <th className={thLabel}>ЦФО</th>
-              <th className={posFirstTh}>Запланированы</th>
-              <th className={posMidTh}>Сумма запл.</th>
-              <th className={posMidTh}>Заявки инициированы</th>
-              <th className={posLastTh}>Исключена</th>
-              <th className={reqFirstTh}>Плановые</th>
-              <th className={reqMidTh}>Внеплановые</th>
-              <th className={reqMidTh}>Неутверждена</th>
-              <th className={reqMidTh}>Отмена</th>
-              <th className={reqLastTh}>Сумма заявок</th>
+              <th className={thLabel}>{headers.cfo}</th>
+              <th className={posFirstTh}>{headers.planned}</th>
+              <th className={posMidTh}>{headers.sumPlanned}</th>
+              <th className={posMidTh}>{headers.initiated}</th>
+              <th className={posLastTh}>{headers.excluded}</th>
+              <th className={reqFirstTh}>{headers.plannedReq}</th>
+              <th className={reqMidTh}>{headers.nonPlanned}</th>
+              <th className={reqMidTh}>{headers.unapproved}</th>
+              <th className={reqMidTh}>{headers.canceled}</th>
+              <th className={reqLastTh}>{headers.sumRequests}</th>
               <th className={thQuality}>
                 <span className="inline-flex items-center justify-end gap-0.5">
-                  Кач. план.
+                  {headers.quality}
                   <span
                     className="relative inline-flex shrink-0"
                     onMouseEnter={() => setShowQualityTip(true)}

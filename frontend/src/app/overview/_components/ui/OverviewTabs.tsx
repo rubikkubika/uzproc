@@ -21,7 +21,7 @@ export function OverviewTabs({ activeTab, onTabChange }: OverviewTabsProps) {
 
   return (
     <div className="bg-white rounded shadow">
-      <div className="flex flex-wrap gap-0.5 border-b border-gray-200 px-1 pt-1">
+      <div className="flex flex-wrap gap-0.5 border-b border-gray-200 px-1 pt-0.5 pb-0">
         {tabs.map((tab) => (
           <button
             key={tab.id}

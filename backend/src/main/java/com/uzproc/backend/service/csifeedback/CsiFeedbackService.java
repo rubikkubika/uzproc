@@ -169,11 +169,12 @@ public class CsiFeedbackService {
             String sortBy,
             String sortDir,
             Long purchaseRequestId,
-            Integer year) {
+            Integer year,
+            String purchaser) {
 
-        logger.info("Finding CSI feedback - page: {}, size: {}, purchaseRequestId: {}, year: {}", page, size, purchaseRequestId, year);
+        logger.info("Finding CSI feedback - page: {}, size: {}, purchaseRequestId: {}, year: {}, purchaser: {}", page, size, purchaseRequestId, year, purchaser);
 
-        Specification<CsiFeedback> spec = buildSpecification(purchaseRequestId, year);
+        Specification<CsiFeedback> spec = buildSpecification(purchaseRequestId, year, purchaser);
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
 
@@ -186,10 +187,10 @@ public class CsiFeedbackService {
     }
 
     /**
-     * Средние показатели оценок CSI за год.
+     * Средние показатели оценок CSI за год (опционально по закупщику).
      */
-    public Map<String, Object> getStatsByYear(int year) {
-        Specification<CsiFeedback> spec = buildSpecification(null, year);
+    public Map<String, Object> getStatsByYear(int year, String purchaser) {
+        Specification<CsiFeedback> spec = buildSpecification(null, year, purchaser);
         List<CsiFeedback> all = csiFeedbackRepository.findAll(spec);
         int count = all.size();
         Map<String, Object> result = new HashMap<>();
@@ -237,10 +238,10 @@ public class CsiFeedbackService {
     }
 
     /**
-     * Статистика оценок CSI по закупщикам за год: ФИО, количество оценок, средняя оценка.
+     * Статистика оценок CSI по закупщикам за год (опционально только по одному закупщику).
      */
-    public List<CsiFeedbackStatsByPurchaserDto> getStatsByPurchaserByYear(int year) {
-        Specification<CsiFeedback> spec = buildSpecification(null, year);
+    public List<CsiFeedbackStatsByPurchaserDto> getStatsByPurchaserByYear(int year, String purchaser) {
+        Specification<CsiFeedback> spec = buildSpecification(null, year, purchaser);
         List<CsiFeedback> all = csiFeedbackRepository.findAll(spec);
         if (all.isEmpty()) {
             return List.of();
@@ -292,7 +293,7 @@ public class CsiFeedbackService {
                 .toList();
     }
 
-    private Specification<CsiFeedback> buildSpecification(Long purchaseRequestId, Integer year) {
+    private Specification<CsiFeedback> buildSpecification(Long purchaseRequestId, Integer year, String purchaser) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -303,6 +304,9 @@ public class CsiFeedbackService {
                 LocalDateTime startOfYear = LocalDateTime.of(year, 1, 1, 0, 0);
                 LocalDateTime endOfYear = LocalDateTime.of(year, 12, 31, 23, 59, 59, 999_999_999);
                 predicates.add(cb.between(root.get("createdAt"), startOfYear, endOfYear));
+            }
+            if (purchaser != null && !purchaser.isBlank()) {
+                predicates.add(cb.equal(root.get("purchaseRequest").get("purchaser"), purchaser.trim()));
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));
