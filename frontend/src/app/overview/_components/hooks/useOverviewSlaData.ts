@@ -48,8 +48,9 @@ export interface OverviewSlaData {
 
 /**
  * Один запрос на бэкенд /api/overview/sla вместо трёх (по одному на каждую группу статусов).
+ * @param purchaser опциональный фильтр по закупщику — показываются только его данные (расчёт на бэкенде).
  */
-export function useOverviewSlaData(year: number | null) {
+export function useOverviewSlaData(year: number | null, purchaser: string | null) {
   const [data, setData] = useState<OverviewSlaData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +65,9 @@ export function useOverviewSlaData(year: number | null) {
     setError(null);
     try {
       const baseUrl = getBackendUrl();
-      const res = await fetch(`${baseUrl}/api/overview/sla?year=${year}`);
+      const params = new URLSearchParams({ year: String(year) });
+      if (purchaser != null && purchaser.trim() !== '') params.set('purchaser', purchaser.trim());
+      const res = await fetch(`${baseUrl}/api/overview/sla?${params}`);
       if (!res.ok) {
         throw new Error('Ошибка загрузки данных SLA');
       }
@@ -128,7 +131,7 @@ export function useOverviewSlaData(year: number | null) {
     } finally {
       setLoading(false);
     }
-  }, [year]);
+  }, [year, purchaser]);
 
   useEffect(() => {
     fetchData();

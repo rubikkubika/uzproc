@@ -1,11 +1,16 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useOverview } from './hooks/useOverview';
 import { useOverviewSlaData } from './hooks/useOverviewSlaData';
-import type { OverviewSlaBlock, OverviewSlaRequestRow } from './hooks/useOverviewSlaData';
+import type {
+  OverviewSlaBlock,
+  OverviewSlaRequestRow,
+  OverviewSlaPercentageByPurchaser,
+} from './hooks/useOverviewSlaData';
 import { addWorkingDays, countWorkingDaysBetween, getPlannedSlaDaysNumber } from './utils/overviewSlaUtils';
 import { useOverviewPurchasePlanMonthsData } from './hooks/useOverviewPurchasePlanMonthsData';
+import { purchaserDisplayName } from '@/utils/purchaser';
 import { OverviewTabs } from './ui/OverviewTabs';
 import { usePurchasePlanMonths } from './hooks/usePurchasePlanMonths';
 import { PurchasePlanMonthBlockView } from './ui/PurchasePlanMonthBlock';
@@ -25,6 +30,7 @@ export default function Overview() {
   const { activeTab, setActiveTab } = useOverview();
   const currentYear = useMemo(() => new Date().getFullYear(), []);
   const [slaYear, setSlaYear] = useState<number>(currentYear);
+  const [slaPurchaserFilter, setSlaPurchaserFilter] = useState<string | null>(null);
   const slaAvailableYears = useMemo(() => {
     const years: number[] = [];
     for (let i = currentYear - 2; i <= currentYear + 5; i++) years.push(i);
@@ -42,7 +48,22 @@ export default function Overview() {
     handleYearChange,
   } = usePurchasePlanMonths();
 
-  const slaData = useOverviewSlaData(activeTab === 'sla' ? slaYear : null);
+  const slaData = useOverviewSlaData(
+    activeTab === 'sla' ? slaYear : null,
+    activeTab === 'sla' ? slaPurchaserFilter : null
+  );
+  /** Список всех закупщиков для таблицы: при отсутствии фильтра берём из ответа; при фильтре показываем последний сохранённый полный список (как на вкладке CSI). */
+  const slaAllPurchasersRef = useRef<OverviewSlaPercentageByPurchaser[]>([]);
+  useEffect(() => {
+    const list = slaData.data?.slaPercentageByPurchaser ?? [];
+    if (slaPurchaserFilter == null || slaPurchaserFilter.trim() === '') {
+      if (list.length > 0) slaAllPurchasersRef.current = list;
+    }
+  }, [slaData.data?.slaPercentageByPurchaser, slaPurchaserFilter]);
+  const slaByPurchaserTableRows =
+    slaPurchaserFilter != null && slaPurchaserFilter.trim() !== ''
+      ? slaAllPurchasersRef.current
+      : slaData.data?.slaPercentageByPurchaser ?? [];
 
   /** Заявки «Требует внимания»: из группы «Заявка у закупщика», у которых минус в дельте либо осталось менее 30% от планового SLA. Плановый срок: из заявки (plannedSlaDays) или по сложности. */
   const requiresAttentionRequests = useMemo((): OverviewSlaRequestRow[] => {
@@ -233,7 +254,7 @@ export default function Overview() {
         {activeTab === 'sla' && (
           <div className="space-y-0.5 sm:space-y-1">
             <div className="bg-white rounded shadow px-1.5 py-1 sm:px-2 sm:py-1">
-              <div className="flex items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <label htmlFor="sla-year-filter" className="text-xs font-medium text-gray-700 whitespace-nowrap">
                   Год завершения:
                 </label>
@@ -249,6 +270,18 @@ export default function Overview() {
                     </option>
                   ))}
                 </select>
+                <button
+                  type="button"
+                  onClick={() => setSlaPurchaserFilter(null)}
+                  className="px-2 py-1 text-xs font-medium bg-red-50 text-red-700 rounded border border-red-300 hover:bg-red-100 hover:border-red-400 transition-colors"
+                >
+                  Сбросить фильтры
+                </button>
+                {slaPurchaserFilter != null && slaPurchaserFilter.trim() !== '' && (
+                  <span className="text-xs text-gray-500">
+                    Фильтр по закупщику: {purchaserDisplayName(slaPurchaserFilter) || slaPurchaserFilter}
+                  </span>
+                )}
               </div>
             </div>
             <div className="flex gap-1.5 sm:gap-2 w-full min-w-0 items-stretch">
@@ -261,9 +294,15 @@ export default function Overview() {
               />
               <SlaByPurchaserTable
                 year={slaYear}
-                rows={slaData.data?.slaPercentageByPurchaser ?? []}
+                rows={slaByPurchaserTableRows}
                 loading={slaData.loading}
                 error={slaData.error}
+                selectedPurchaser={slaPurchaserFilter}
+                onPurchaserClick={(purchaser) =>
+                  setSlaPurchaserFilter(
+                    purchaser === (slaPurchaserFilter ?? '') ? null : purchaser || null
+                  )
+                }
               />
               <div className="flex-1 min-w-0 h-[200px] flex" style={{ position: 'relative' }}>
                 <SlaCombinedChart

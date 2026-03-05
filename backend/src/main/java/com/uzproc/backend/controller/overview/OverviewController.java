@@ -37,9 +37,10 @@ public class OverviewController {
      */
     @GetMapping("/sla")
     public ResponseEntity<OverviewSlaResponseDto> getSlaData(
-            @RequestParam Integer year) {
-        logger.debug("Overview SLA request for year {}", year);
-        OverviewSlaResponseDto data = overviewService.getSlaData(year);
+            @RequestParam Integer year,
+            @RequestParam(required = false) String purchaser) {
+        logger.debug("Overview SLA request for year {}, purchaser={}", year, purchaser);
+        OverviewSlaResponseDto data = overviewService.getSlaData(year, purchaser);
         return ResponseEntity.ok(data);
     }
 
