@@ -65,8 +65,12 @@ function buildChartOptions(
         display: true,
         color: '#ffffff',
         font: { weight: 'bold' as const, size: opts.datalabelFontSize },
-        formatter: (value: number, ctx: { dataset: { rawData?: number[] }; dataIndex: number }) =>
-          ctx.dataset.rawData?.[ctx.dataIndex] ?? value,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- chartjs Context not assignable to custom dataset shape
+        formatter: (value: number, ctx: any) => {
+          const raw = (ctx?.dataset as { rawData?: number[] } | undefined)?.rawData;
+          const dataIndex = ctx?.dataIndex ?? 0;
+          return (raw != null && raw[dataIndex] != null ? raw[dataIndex] : value) as number;
+        },
         anchor: 'center' as const,
         align: 'center' as const,
         borderWidth: 0,
@@ -75,7 +79,7 @@ function buildChartOptions(
     },
     scales: {
       y: {
-        type: 'logarithmic',
+        type: 'logarithmic' as const,
         min: LOG_SCALE_MIN,
         max: Math.max(maxVal + 1, 10),
         display: false,
