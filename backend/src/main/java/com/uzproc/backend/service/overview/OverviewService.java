@@ -93,10 +93,14 @@ public class OverviewService {
 
     /**
      * Данные для вкладки SLA: заявки по группам статусов за год назначения на утверждение.
+     * @param purchaser опциональный фильтр по закупщику (ФИО); при указании возвращаются только его данные.
      */
-    public OverviewSlaResponseDto getSlaData(Integer year) {
+    public OverviewSlaResponseDto getSlaData(Integer year, String purchaser) {
         OverviewSlaResponseDto response = new OverviewSlaResponseDto();
         response.setYear(year);
+        List<String> purchaserFilter = (purchaser != null && !purchaser.trim().isEmpty())
+                ? List.of(purchaser.trim())
+                : null;
         List<OverviewSlaBlockDto> blocks = new ArrayList<>();
         List<Long> allRequestIds = new ArrayList<>();
         for (String statusGroup : SLA_STATUS_GROUPS) {
@@ -105,7 +109,7 @@ public class OverviewService {
             Page<PurchaseRequestDto> page = purchaseRequestService.findAll(
                     0, 2000,
                     null, null, null, null,
-                    null, null, null, null, null, null, null, null,
+                    null, null, null, purchaserFilter, null, null, null, null,
                     null, null, true, List.of(statusGroup), false,
                     null, null, false, year, null);
             List<OverviewSlaRequestDto> requests = page.getContent().stream()

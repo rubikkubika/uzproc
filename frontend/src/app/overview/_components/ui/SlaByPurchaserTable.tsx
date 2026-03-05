@@ -9,13 +9,24 @@ export interface SlaByPurchaserTableProps {
   rows: OverviewSlaPercentageByPurchaser[];
   loading?: boolean;
   error?: string | null;
+  /** Выбранный закупщик (фильтр); при клике по строке вызывается onPurchaserClick. */
+  selectedPurchaser?: string | null;
+  /** Клик по строке закупщика: передаётся purchaser или пустая строка для «Не назначен»; повторный клик по выбранной снимает фильтр. */
+  onPurchaserClick?: (purchaser: string) => void;
 }
 
 /**
  * Таблица «Выполнение СЛА по году в разрезе закупщиков»: закупщик, завершено, в срок, %.
  * Строки отсортированы по % СЛА от большего к меньшему.
  */
-export function SlaByPurchaserTable({ year, rows, loading, error }: SlaByPurchaserTableProps) {
+export function SlaByPurchaserTable({
+  year,
+  rows,
+  loading,
+  error,
+  selectedPurchaser = null,
+  onPurchaserClick,
+}: SlaByPurchaserTableProps) {
   const sortedRows = useMemo(() => {
     return [...rows].sort((a, b) => {
       const pA = a.percentage ?? -1;
@@ -62,22 +73,52 @@ export function SlaByPurchaserTable({ year, rows, loading, error }: SlaByPurchas
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-100">
-              {sortedRows.map((row) => (
-                <tr key={row.purchaser} className="hover:bg-gray-50">
-                  <td className="px-1.5 py-0.5 text-gray-900 whitespace-nowrap border-r border-gray-100">
-                    {purchaserDisplayName(row.purchaser)}
-                  </td>
-                  <td className="px-1.5 py-0.5 text-right text-gray-700 tabular-nums border-r border-gray-100">
-                    {row.totalCompleted}
-                  </td>
-                  <td className="px-1.5 py-0.5 text-right text-gray-700 tabular-nums border-r border-gray-100">
-                    {row.metSla}
-                  </td>
-                  <td className="px-1.5 py-0.5 text-right text-gray-900 tabular-nums font-medium">
-                    {row.percentage != null ? `${Math.round(row.percentage)}%` : '—'}
-                  </td>
-                </tr>
-              ))}
+              {sortedRows.map((row) => {
+                const purchaserKey = row.purchaser ?? '';
+                const isSelected =
+                  selectedPurchaser != null &&
+                  selectedPurchaser.trim() !== '' &&
+                  (row.purchaser ?? '').trim() === selectedPurchaser.trim();
+                const handleRowClick = () =>
+                  onPurchaserClick?.(purchaserKey === '' ? '' : purchaserKey);
+                return (
+                  <tr
+                    key={row.purchaser}
+                    onClick={onPurchaserClick ? handleRowClick : undefined}
+                    className={
+                      onPurchaserClick
+                        ? `cursor-pointer transition-colors ${isSelected ? 'bg-blue-100 hover:bg-blue-200' : 'hover:bg-gray-50'}`
+                        : 'hover:bg-gray-50'
+                    }
+                    title={
+                      onPurchaserClick
+                        ? isSelected
+                          ? 'Снять фильтр по закупщику'
+                          : 'Показать только данные этого закупщика'
+                        : undefined
+                    }
+                  >
+                    <td className="px-1.5 py-0.5 text-gray-900 whitespace-nowrap border-r border-gray-100">
+                      <span
+                        className={
+                          isSelected ? 'font-medium text-blue-700' : ''
+                        }
+                      >
+                        {purchaserDisplayName(row.purchaser)}
+                      </span>
+                    </td>
+                    <td className="px-1.5 py-0.5 text-right text-gray-700 tabular-nums border-r border-gray-100">
+                      {row.totalCompleted}
+                    </td>
+                    <td className="px-1.5 py-0.5 text-right text-gray-700 tabular-nums border-r border-gray-100">
+                      {row.metSla}
+                    </td>
+                    <td className="px-1.5 py-0.5 text-right text-gray-900 tabular-nums font-medium">
+                      {row.percentage != null ? `${Math.round(row.percentage)}%` : '—'}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
