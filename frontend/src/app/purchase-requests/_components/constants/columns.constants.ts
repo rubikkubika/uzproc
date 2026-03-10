@@ -1,7 +1,7 @@
 // Определение всех возможных колонок
 export const ALL_COLUMNS = [
   { key: 'excludeFromInWork', label: 'Скрыть из вкладки' },
-  { key: 'idPurchaseRequest', label: 'Номер' },
+  { key: 'idPurchaseRequest', label: '№' },
   { key: 'guid', label: 'GUID' },
   { key: 'purchaseRequestPlanYear', label: 'Год плана' },
   { key: 'company', label: 'Компания' },
@@ -20,7 +20,7 @@ export const ALL_COLUMNS = [
   { key: 'isPlanned', label: 'Плановость' },
   { key: 'requiresPurchase', label: 'Закупка' },
   { key: 'hasLinkedPlanItem', label: 'План' },
-  { key: 'complexity', label: 'Сложность' },
+  { key: 'complexity', label: 'Слож.' },
   { key: 'status', label: 'Статус' },
   { key: 'createdAt', label: 'Дата создания (системная)' },
   { key: 'updatedAt', label: 'Дата обновления' },

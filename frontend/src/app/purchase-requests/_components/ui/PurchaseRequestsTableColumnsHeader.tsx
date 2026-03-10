@@ -204,7 +204,7 @@ export default function PurchaseRequestsTableColumnsHeader({
               <SortableHeader
                 key={columnKey}
                 field="idPurchaseRequest"
-                label="Номер"
+                label="№"
                 columnKey="idPurchaseRequest"
                 width={getColumnWidth('idPurchaseRequest')}
                 sortField={sortField}
@@ -437,7 +437,7 @@ export default function PurchaseRequestsTableColumnsHeader({
                         <ArrowUpDown className="w-3 h-3 text-gray-400" />
                       )}
                     </button>
-                    <span className="text-xs font-medium text-gray-500 tracking-wider">Назначение на закупщика</span>
+                    <span className="text-xs font-medium text-gray-500 tracking-wider">Назначение</span>
                   </div>
                 </div>
               </th>
@@ -713,8 +713,8 @@ export default function PurchaseRequestsTableColumnsHeader({
                 onDragOver={(e) => onDragOver(e, columnKey)}
                 onDragLeave={onDragLeave}
                 onDrop={(e) => onDrop(e, columnKey)}
-                className={`px-2 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
-                style={{ verticalAlign: 'top' }}
+                className={`px-2 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                style={{ width: `${getColumnWidth('status')}px`, minWidth: `${getColumnWidth('status')}px`, maxWidth: `${getColumnWidth('status')}px`, verticalAlign: 'top' }}
               >
                 <div className="flex flex-col gap-0.5">
                   <div className="h-[20px] flex items-center flex-shrink-0" style={{ minHeight: '20px', maxHeight: '20px' }}>
@@ -754,6 +754,11 @@ export default function PurchaseRequestsTableColumnsHeader({
                   </div>
                   <span className="normal-case min-h-[16px] flex items-center">Статус</span>
                 </div>
+                <div
+                  className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+                  onMouseDown={(e) => onResizeStart(e, 'status')}
+                  style={{ zIndex: 10 }}
+                />
               </th>
             );
           }
@@ -890,8 +895,8 @@ export default function PurchaseRequestsTableColumnsHeader({
                 onDragOver={(e) => onDragOver(e, columnKey)}
                 onDragLeave={onDragLeave}
                 onDrop={(e) => onDrop(e, columnKey)}
-                className={`px-2 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
-                style={{ verticalAlign: 'top' }}
+                className={`px-2 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                style={{ width: `${getColumnWidth('track')}px`, minWidth: `${getColumnWidth('track')}px`, maxWidth: `${getColumnWidth('track')}px`, verticalAlign: 'top' }}
               >
                 <div className="flex flex-col gap-0.5">
                   <div className="h-[20px] flex items-center flex-shrink-0" style={{ minHeight: '20px', maxHeight: '20px' }}></div>
@@ -957,16 +962,21 @@ export default function PurchaseRequestsTableColumnsHeader({
                     </div>,
                     document.body
                   )}
+                <div
+                  className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+                  onMouseDown={(e) => onResizeStart(e, 'track')}
+                  style={{ zIndex: 10 }}
+                />
               </th>
             );
           }
-          
+
           // Колонка "Оценка" - для вкладок "Завершенные" и "В работе"
           if (columnKey === 'rating' && (activeTab === 'completed' || activeTab === 'in-work')) {
             return (
               <th
                 key={columnKey}
-                className="px-2 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300"
+                className="px-2 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative"
                 style={{ width: `${getColumnWidth('rating')}px`, minWidth: `${getColumnWidth('rating')}px`, maxWidth: `${getColumnWidth('rating')}px`, verticalAlign: 'top' }}
               >
                 <div className="flex flex-col gap-0.5">
@@ -975,10 +985,15 @@ export default function PurchaseRequestsTableColumnsHeader({
                     <Star className="w-4 h-4 text-gray-500" aria-hidden />
                   </span>
                 </div>
+                <div
+                  className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+                  onMouseDown={(e) => onResizeStart(e, 'rating')}
+                  style={{ zIndex: 10 }}
+                />
               </th>
             );
           }
-          
+
           // Колонка "Валюта"
           if (columnKey === 'currency') {
             return (
@@ -1147,7 +1162,7 @@ export default function PurchaseRequestsTableColumnsHeader({
               <SortableHeader
                 key={columnKey}
                 field="complexity"
-                label="Сложность"
+                label="Слож."
                 columnKey="complexity"
                 width={getColumnWidth('complexity')}
                 sortField={sortField}
