@@ -27,6 +27,8 @@ interface SortableHeaderProps {
   isDragOver?: boolean;
   // Resize
   onResizeStart?: (e: React.MouseEvent, columnKey: string) => void;
+  // Уменьшенные отступы
+  compact?: boolean;
 }
 
 /**
@@ -54,6 +56,7 @@ export default function SortableHeader({
   isDragged = false,
   isDragOver = false,
   onResizeStart,
+  compact = false,
 }: SortableHeaderProps) {
   const fieldKey = field || '';
   const isSorted = sortField === field;
@@ -69,7 +72,7 @@ export default function SortableHeader({
       onDragOver={columnKey && onDragOver ? (e) => onDragOver(e, columnKey) : undefined}
       onDragLeave={columnKey && onDragLeave ? onDragLeave : undefined}
       onDrop={columnKey && onDrop ? (e) => onDrop(e, columnKey) : undefined}
-      className={`px-2 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${columnKey ? 'cursor-move' : ''} ${isDragged ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+      className={`${compact ? 'px-1' : 'px-2'} py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${columnKey ? 'cursor-move' : ''} ${isDragged ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
       style={style}
     >
       <div className="flex flex-col gap-0.5" style={{ minWidth: 0, width: '100%' }}>

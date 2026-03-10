@@ -148,13 +148,13 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
         flex flex-col
         transform
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-        ${isCollapsed ? 'lg:w-16' : 'w-fit lg:max-w-fit'}
+        ${isCollapsed ? '' : 'w-fit lg:max-w-fit'}
         flex-shrink-0
       `}
       style={{
-        // Явно задаем стили для Safari
         boxSizing: 'border-box',
         WebkitBoxSizing: 'border-box',
+        ...(isCollapsed ? { width: '56px', minWidth: '56px', maxWidth: '56px', overflow: 'hidden' } : {}),
       }}
       data-sidebar-collapsed={isCollapsed ? 'true' : 'false'}
       >
@@ -162,16 +162,16 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
         <div className="absolute right-0 top-0 w-0.5 h-full bg-gradient-to-b from-transparent via-purple-600/30 to-transparent"></div>
         {/* Header */}
         <div className="border-b border-gray-200">
-          <div className={`flex items-center ${isCollapsed ? 'justify-center px-2 py-1 relative' : 'justify-between pl-2 pr-1.5 py-1.5'}`}>
+          <div className={`flex items-center ${isCollapsed ? 'px-0 py-1' : 'justify-between pl-2 pr-1.5 py-1.5'}`}>
             <button
               onClick={() => handleTabChange('overview')}
-              className={`flex items-center ${isCollapsed ? 'justify-center' : ''} cursor-pointer hover:opacity-80 transition-opacity`}
+              className="flex items-center cursor-pointer hover:opacity-80 transition-opacity"
             >
-              <span className={`flex items-center justify-center flex-shrink-0 ${isCollapsed ? 'w-8 h-8' : 'w-8 h-8'}`}>
-                <img 
-                  src="/images/logo-small.svg" 
-                  alt="Logo" 
-                  className={isCollapsed ? 'w-8 h-8' : 'w-8 h-8'}
+              <span className={`flex items-center justify-center flex-shrink-0 w-8 h-8`}>
+                <img
+                  src="/images/logo-small.svg"
+                  alt="Logo"
+                  className="w-8 h-8"
                 />
               </span>
               {!isCollapsed && <h1 className="text-xl font-bold text-black ml-2.5">uzProc</h1>}
@@ -181,8 +181,8 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
               <button
                 onClick={() => setIsCollapsed(!isCollapsed)}
                 className={`hidden lg:flex items-center justify-center w-6 h-6 transition-colors ${
-                  isCollapsed 
-                    ? 'absolute right-1' 
+                  isCollapsed
+                    ? ''
                     : 'rounded-lg hover:bg-gray-100'
                 }`}
                 title={isCollapsed ? 'Развернуть' : 'Свернуть'}
@@ -198,7 +198,7 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 pl-2 pr-1.5 py-1 overflow-y-auto min-h-0">
+        <nav className={`flex-1 ${isCollapsed ? 'px-0 py-1' : 'pl-2 pr-1.5 py-1'} overflow-y-auto min-h-0`}>
           {/* Информация о пользователе и роли — перед разделом для закупщика */}
           {userRole != null && (
             <div className={`mb-2 ${isCollapsed ? 'flex justify-center' : ''}`}>
@@ -231,7 +231,7 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                     <button
                       onClick={() => handleTabChange(item.id)}
                       className={`w-full flex items-center rounded-lg transition-colors relative text-sm ${
-                        isCollapsed ? 'justify-center px-2 py-1' : 'px-2 py-1'
+                        isCollapsed ? 'justify-center py-0.5 px-0' : 'px-2 py-1'
                       } ${
                         isActive
                           ? `text-blue-600 bg-blue-50 ${isCollapsed ? '' : 'border-l-4 border-blue-600'}`
@@ -287,7 +287,7 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                       }}
                       disabled={isDisabled}
                       className={`w-full flex items-center rounded-lg transition-colors relative text-sm ${
-                        isCollapsed ? 'justify-center px-2 py-1' : 'px-2 py-1'
+                        isCollapsed ? 'justify-center py-0.5 px-0' : 'px-2 py-1'
                       } ${
                         isActive
                           ? `text-blue-600 bg-blue-50 ${isCollapsed ? '' : 'border-l-4 border-blue-600'}`
@@ -346,7 +346,7 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                       }}
                       disabled={isDisabled}
                       className={`w-full flex items-center rounded-lg transition-colors relative text-sm ${
-                        isCollapsed ? 'justify-center px-2 py-1' : 'px-2 py-1'
+                        isCollapsed ? 'justify-center py-0.5 px-0' : 'px-2 py-1'
                       } ${
                         isActive
                           ? `text-blue-600 bg-blue-50 ${isCollapsed ? '' : 'border-l-4 border-blue-600'}`
@@ -403,7 +403,7 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                         }
                       }}
                       className={`w-full flex items-center rounded-lg transition-colors relative text-sm ${
-                        isCollapsed ? 'justify-center px-2 py-1' : 'px-2 py-1'
+                        isCollapsed ? 'justify-center py-0.5 px-0' : 'px-2 py-1'
                       } ${
                         isActive
                           ? `text-blue-600 bg-blue-50 ${isCollapsed ? '' : 'border-l-4 border-blue-600'}`
@@ -426,11 +426,11 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
         </nav>
 
         {/* Кнопка загрузки и выхода */}
-        <div className="pl-2 pr-1.5 py-2 border-t border-gray-200 space-y-1">
+        <div className={`${isCollapsed ? 'px-0 py-1' : 'pl-2 pr-1.5 py-2'} border-t border-gray-200 space-y-1`}>
           <button
             onClick={() => handleTabChange('upload')}
             className={`w-full flex items-center rounded-lg transition-colors relative text-sm ${
-              isCollapsed ? 'justify-center px-2 py-1' : 'px-2 py-1'
+              isCollapsed ? 'justify-center py-0.5 px-0' : 'px-2 py-1'
             } ${
               activeTab === 'upload'
                 ? `text-purple-600 bg-purple-50 ${isCollapsed ? '' : 'border-l-4 border-purple-600'}`
@@ -446,7 +446,7 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
           <button
             onClick={handleLogout}
             className={`w-full flex items-center rounded-lg text-gray-700 hover:bg-red-50 hover:text-red-600 transition-colors text-sm ${
-              isCollapsed ? 'justify-center px-2 py-1' : 'px-2 py-1'
+              isCollapsed ? 'justify-center py-0.5 px-0' : 'px-2 py-1'
             }`}
             title={isCollapsed ? 'Выйти' : undefined}
           >

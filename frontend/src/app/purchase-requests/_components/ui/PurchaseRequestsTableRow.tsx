@@ -91,8 +91,8 @@ export default function PurchaseRequestsTableRow({
           return (
             <td
               key={columnKey}
-              className={`px-2 py-0 whitespace-nowrap border-r border-gray-200 ${canEditExcludeFromInWork ? 'cursor-pointer' : 'cursor-not-allowed'}`}
-              style={{ width: '48px', minWidth: '48px', maxWidth: '48px' }}
+              className={`px-0 py-0 whitespace-nowrap border-r border-gray-200 ${canEditExcludeFromInWork ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+              style={{ width: '28px', minWidth: '28px', maxWidth: '28px' }}
               onClick={canEditExcludeFromInWork ? handleToggleExclude : (e) => e.stopPropagation()}
               aria-disabled={!canEditExcludeFromInWork}
               title={canEditExcludeFromInWork
@@ -115,7 +115,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+              className="px-1 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
               style={{ width: `${getColumnWidth('idPurchaseRequest')}px`, minWidth: `${getColumnWidth('idPurchaseRequest')}px`, maxWidth: `${getColumnWidth('idPurchaseRequest')}px` }}
             >
               {request.idPurchaseRequest || '-'}
