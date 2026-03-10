@@ -189,7 +189,8 @@ export default function PurchaseRequestsTableColumnsHeader({
             return (
               <th 
                 key={columnKey}
-                className="px-2 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative w-12"
+                className="px-0 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative"
+                style={{ width: '28px', minWidth: '28px', maxWidth: '28px' }}
               >
                 <div className="flex items-center justify-center">
                   <Eye className="w-4 h-4 text-gray-400" />
@@ -221,10 +222,11 @@ export default function PurchaseRequestsTableColumnsHeader({
                 isDragged={isDragging}
                 isDragOver={isDragOver}
                 onResizeStart={onResizeStart}
+                compact
               />
             );
           }
-          
+
           if (columnKey === 'guid') {
             return (
               <SortableHeader

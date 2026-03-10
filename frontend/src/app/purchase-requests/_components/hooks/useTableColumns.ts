@@ -157,8 +157,8 @@ export function useTableColumns() {
   // Функция для получения ширины колонки по умолчанию
   const getDefaultColumnWidth = (columnKey: string): number => {
     const defaults: Record<string, number> = {
-      excludeFromInWork: 96,
-      idPurchaseRequest: 64,
+      excludeFromInWork: 28,
+      idPurchaseRequest: 54,
       cfo: 80,
       purchaseRequestInitiator: 128,
       purchaser: 150,
@@ -169,7 +169,7 @@ export function useTableColumns() {
       requiresPurchase: 96,
       status: 140,
       purchaseRequestCreationDate: 110,
-      comments: 40, // иконка чата + отступы
+      comments: 32, // иконка чата + отступы
       complexity: 72, // Слож. + плановый СЛА N дн.
       costType: 128,
       contractType: 128,
