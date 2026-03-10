@@ -163,14 +163,14 @@ export function useTableColumns() {
       purchaseRequestInitiator: 128,
       purchaser: 150,
       name: 288, // +50% от прежнего 192
-      budgetAmount: 112,
+      budgetAmount: 90,
       isPlanned: 96,
-      hasLinkedPlanItem: 112,
+      hasLinkedPlanItem: 85,
       requiresPurchase: 96,
-      status: 150,
-      purchaseRequestCreationDate: 128,
+      status: 140,
+      purchaseRequestCreationDate: 110,
       comments: 40, // иконка чата + отступы
-      complexity: 160, // сложность в квадрате + плановый СЛА N дн.
+      complexity: 72, // Слож. + плановый СЛА N дн.
       costType: 128,
       contractType: 128,
       contractDurationMonths: 128,
