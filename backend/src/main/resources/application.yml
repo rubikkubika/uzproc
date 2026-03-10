@@ -42,7 +42,7 @@ spring:
       max-request-size: 50MB
       file-size-threshold: 2KB
 
-  # Настройки почты
+  # Настройки почты (IMAP/POP3 и SMTP - mail.uzumteam.uz; порты 993/587; IMAP SSL, SMTP TLS)
   mail:
     host: ${MAIL_HOST:mail.uzumteam.uz}
     port: ${MAIL_SMTP_PORT:587}
@@ -59,14 +59,20 @@ spring:
           timeout: 20000
           writetimeout: 20000
           ssl:
-            trust: mail.uzumteam.uz
+            trust: ${MAIL_SSL_TRUST:mail.uzumteam.uz}
             enable: false
+            # Явный протокол TLS (часто нужен для корпоративных серверов)
+            protocols: ${MAIL_SMTP_SSL_PROTOCOLS:TLSv1.2}
+            # Если Outlook подключается, а приложение нет — часто из‑за проверки имени в сертификате (внутренний/self-signed)
+            checkserveridentity: ${MAIL_SSL_CHECKSERVERIDENTITY:false}
           debug: ${MAIL_DEBUG:false}
         imap:
           port: ${MAIL_IMAP_PORT:993}
           ssl:
             enable: true
-            trust: mail.uzumteam.uz
+            trust: ${MAIL_SSL_TRUST:mail.uzumteam.uz}
+            protocols: ${MAIL_IMAP_SSL_PROTOCOLS:TLSv1.2}
+            checkserveridentity: ${MAIL_SSL_CHECKSERVERIDENTITY:false}
         store:
           protocol: imap
 
