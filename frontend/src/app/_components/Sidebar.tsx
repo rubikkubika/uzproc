@@ -141,10 +141,11 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
       )}
 
       {/* Сайдбар */}
-      <aside 
+      <aside
         suppressHydrationWarning
         className={`
         fixed lg:static top-0 left-0 z-40 h-screen bg-white border-r border-gray-200
+        flex flex-col
         transform
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         ${isCollapsed ? 'lg:w-16' : 'w-fit lg:max-w-fit'}
@@ -161,7 +162,7 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
         <div className="absolute right-0 top-0 w-0.5 h-full bg-gradient-to-b from-transparent via-purple-600/30 to-transparent"></div>
         {/* Header */}
         <div className="border-b border-gray-200">
-          <div className={`flex items-center ${isCollapsed ? 'justify-center px-2 py-1.5 relative' : 'justify-between pl-2 pr-1.5 py-1.5'}`}>
+          <div className={`flex items-center ${isCollapsed ? 'justify-center px-2 py-1 relative' : 'justify-between pl-2 pr-1.5 py-1.5'}`}>
             <button
               onClick={() => handleTabChange('overview')}
               className={`flex items-center ${isCollapsed ? 'justify-center' : ''} cursor-pointer hover:opacity-80 transition-opacity`}
@@ -197,10 +198,10 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 pl-2 pr-1.5 py-2 overflow-y-auto">
+        <nav className="flex-1 pl-2 pr-1.5 py-1 overflow-y-auto min-h-0">
           {/* Информация о пользователе и роли — перед разделом для закупщика */}
           {userRole != null && (
-            <div className={`mb-4 ${isCollapsed ? 'flex justify-center' : ''}`}>
+            <div className={`mb-2 ${isCollapsed ? 'flex justify-center' : ''}`}>
               {isCollapsed ? (
                 <div className="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center text-white font-semibold text-sm" title={userEmail ?? undefined}>
                   {userRole === 'admin' ? 'A' : userRole === 'user' ? 'U' : userRole.charAt(0).toUpperCase()}
@@ -219,18 +220,18 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
           )}
 
           {/* Основное меню */}
-          <div className="mb-4">
-            <ul className="space-y-2">
+          <div className="mb-2">
+            <ul className="space-y-1">
               {menuItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
-                
+
                 return (
                   <li key={item.id}>
                     <button
                       onClick={() => handleTabChange(item.id)}
                       className={`w-full flex items-center rounded-lg transition-colors relative text-sm ${
-                        isCollapsed ? 'justify-center px-2 py-1.5' : 'px-2 py-1.5'
+                        isCollapsed ? 'justify-center px-2 py-1' : 'px-2 py-1'
                       } ${
                         isActive
                           ? `text-blue-600 bg-blue-50 ${isCollapsed ? '' : 'border-l-4 border-blue-600'}`
@@ -238,8 +239,8 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                       }`}
                       title={isCollapsed ? item.label : undefined}
                     >
-                      <span className={`flex items-center justify-center ${isCollapsed ? 'w-6' : 'w-6'} flex-shrink-0`}>
-                        <Icon className="w-6 h-6" />
+                      <span className={`flex items-center justify-center ${isCollapsed ? 'w-5' : 'w-5'} flex-shrink-0`}>
+                        <Icon className="w-5 h-5" />
                       </span>
                       {!isCollapsed && <span className="ml-2">{item.label}</span>}
                     </button>
@@ -250,7 +251,7 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
           </div>
 
           {/* Для закупщика */}
-          <div className="mb-4">
+          <div className="mb-2">
             {!isCollapsed && (
               <button
                 onClick={() => toggleSection('purchaser')}
@@ -265,7 +266,7 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
               </button>
             )}
             {(!isCollapsed && !sectionsCollapsed.purchaser) || isCollapsed ? (
-              <ul className="space-y-2">
+              <ul className="space-y-1">
               {purchaserItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
@@ -286,7 +287,7 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                       }}
                       disabled={isDisabled}
                       className={`w-full flex items-center rounded-lg transition-colors relative text-sm ${
-                        isCollapsed ? 'justify-center px-2 py-1.5' : 'px-2 py-1.5'
+                        isCollapsed ? 'justify-center px-2 py-1' : 'px-2 py-1'
                       } ${
                         isActive
                           ? `text-blue-600 bg-blue-50 ${isCollapsed ? '' : 'border-l-4 border-blue-600'}`
@@ -296,8 +297,8 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                       }`}
                       title={isCollapsed ? item.label : undefined}
                     >
-                      <span className={`flex items-center justify-center ${isCollapsed ? 'w-6' : 'w-6'} flex-shrink-0`}>
-                        <Icon className="w-6 h-6" />
+                      <span className={`flex items-center justify-center ${isCollapsed ? 'w-5' : 'w-5'} flex-shrink-0`}>
+                        <Icon className="w-5 h-5" />
                       </span>
                       {!isCollapsed && <span className="ml-2">{item.label}</span>}
                     </button>
@@ -309,7 +310,7 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
           </div>
 
           {/* Для инициатора */}
-          <div className="mb-4">
+          <div className="mb-2">
             {!isCollapsed && (
               <button
                 onClick={() => toggleSection('initiator')}
@@ -324,7 +325,7 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
               </button>
             )}
             {(!isCollapsed && !sectionsCollapsed.initiator) || isCollapsed ? (
-              <ul className="space-y-2">
+              <ul className="space-y-1">
               {initiatorItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
@@ -345,7 +346,7 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                       }}
                       disabled={isDisabled}
                       className={`w-full flex items-center rounded-lg transition-colors relative text-sm ${
-                        isCollapsed ? 'justify-center px-2 py-1.5' : 'px-2 py-1.5'
+                        isCollapsed ? 'justify-center px-2 py-1' : 'px-2 py-1'
                       } ${
                         isActive
                           ? `text-blue-600 bg-blue-50 ${isCollapsed ? '' : 'border-l-4 border-blue-600'}`
@@ -355,8 +356,8 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                       }`}
                       title={isCollapsed ? item.label : undefined}
                     >
-                      <span className={`flex items-center justify-center ${isCollapsed ? 'w-6' : 'w-6'} flex-shrink-0`}>
-                        <Icon className="w-6 h-6" />
+                      <span className={`flex items-center justify-center ${isCollapsed ? 'w-5' : 'w-5'} flex-shrink-0`}>
+                        <Icon className="w-5 h-5" />
                       </span>
                       {!isCollapsed && <span className="ml-2">{item.label}</span>}
                     </button>
@@ -369,7 +370,7 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
 
           {/* В разработке - только для админов */}
           {userRole === 'admin' && (
-            <div className="mb-4">
+            <div className="mb-2">
               {!isCollapsed && (
                 <button
                   onClick={() => toggleSection('development')}
@@ -384,7 +385,7 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                 </button>
               )}
               {(!isCollapsed && !sectionsCollapsed.development) || isCollapsed ? (
-                <ul className="space-y-2">
+                <ul className="space-y-1">
                 {initiatorDevelopmentItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
@@ -402,7 +403,7 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                         }
                       }}
                       className={`w-full flex items-center rounded-lg transition-colors relative text-sm ${
-                        isCollapsed ? 'justify-center px-2 py-1.5' : 'px-2 py-1.5'
+                        isCollapsed ? 'justify-center px-2 py-1' : 'px-2 py-1'
                       } ${
                         isActive
                           ? `text-blue-600 bg-blue-50 ${isCollapsed ? '' : 'border-l-4 border-blue-600'}`
@@ -410,8 +411,8 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                       }`}
                       title={isCollapsed ? item.label : undefined}
                     >
-                      <span className={`flex items-center justify-center ${isCollapsed ? 'w-6' : 'w-6'} flex-shrink-0`}>
-                        <Icon className="w-6 h-6" />
+                      <span className={`flex items-center justify-center ${isCollapsed ? 'w-5' : 'w-5'} flex-shrink-0`}>
+                        <Icon className="w-5 h-5" />
                       </span>
                       {!isCollapsed && <span className="ml-2">{item.label}</span>}
                     </button>
@@ -425,11 +426,11 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
         </nav>
 
         {/* Кнопка загрузки и выхода */}
-        <div className="pl-2 pr-1.5 py-2 border-t border-gray-200 space-y-2">
+        <div className="pl-2 pr-1.5 py-2 border-t border-gray-200 space-y-1">
           <button
             onClick={() => handleTabChange('upload')}
             className={`w-full flex items-center rounded-lg transition-colors relative text-sm ${
-              isCollapsed ? 'justify-center px-2 py-1.5' : 'px-2 py-1.5'
+              isCollapsed ? 'justify-center px-2 py-1' : 'px-2 py-1'
             } ${
               activeTab === 'upload'
                 ? `text-purple-600 bg-purple-50 ${isCollapsed ? '' : 'border-l-4 border-purple-600'}`
@@ -437,20 +438,20 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
             }`}
             title={isCollapsed ? 'Загрузка' : undefined}
           >
-            <span className={`flex items-center justify-center ${isCollapsed ? 'w-6' : 'w-6'} flex-shrink-0`}>
-              <Upload className="w-6 h-6" />
+            <span className={`flex items-center justify-center ${isCollapsed ? 'w-5' : 'w-5'} flex-shrink-0`}>
+              <Upload className="w-5 h-5" />
             </span>
             {!isCollapsed && <span className="ml-2">Загрузка</span>}
           </button>
           <button
             onClick={handleLogout}
             className={`w-full flex items-center rounded-lg text-gray-700 hover:bg-red-50 hover:text-red-600 transition-colors text-sm ${
-              isCollapsed ? 'justify-center px-2 py-1.5' : 'px-2 py-1.5'
+              isCollapsed ? 'justify-center px-2 py-1' : 'px-2 py-1'
             }`}
             title={isCollapsed ? 'Выйти' : undefined}
           >
-            <span className={`flex items-center justify-center ${isCollapsed ? 'w-6' : 'w-6'} flex-shrink-0`}>
-              <LogOut className="w-6 h-6" />
+            <span className={`flex items-center justify-center ${isCollapsed ? 'w-5' : 'w-5'} flex-shrink-0`}>
+              <LogOut className="w-5 h-5" />
             </span>
             {!isCollapsed && <span className="ml-2">Выйти</span>}
           </button>

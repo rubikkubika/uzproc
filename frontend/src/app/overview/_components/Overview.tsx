@@ -20,7 +20,7 @@ import { SlaAverageBlock } from './ui/SlaAverageBlock';
 import { SlaByPurchaserTable } from './ui/SlaByPurchaserTable';
 import AllCsiFeedback from './ui/AllCsiFeedback';
 import { EkTabContent } from './ui/EkTabContent';
-import { ApprovalsByExecutorTable } from './ui/ApprovalsByExecutorTable';
+import { ApprovalsTabContent } from './ui/ApprovalsTabContent';
 
 /**
  * Главный компонент страницы обзор
@@ -343,7 +343,7 @@ export default function Overview() {
         )}
         {activeTab === 'approvals' && (
           <div className="w-full">
-            <ApprovalsByExecutorTable />
+            <ApprovalsTabContent />
           </div>
         )}
         {activeTab === 'purchase-plan' && (

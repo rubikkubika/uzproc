@@ -59,5 +59,19 @@ public interface PurchaseRequestApprovalRepository extends JpaRepository<Purchas
     List<Long> findPurchaseRequestIdsWithApprovalAssignmentDateBetween(
             @Param("assignmentDateFrom") LocalDate assignmentDateFrom,
             @Param("assignmentDateTo") LocalDate assignmentDateTo);
+
+    /**
+     * Возвращает (role, assignment_date, completion_date, days_in_work) для завершённых согласований заявок
+     * с фильтром по году назначения. Параметр :year = null → без фильтра по году.
+     */
+    @Query(value = """
+        SELECT a.role, a.assignment_date, a.completion_date, a.days_in_work
+        FROM purchase_request_approvals a
+        WHERE a.completion_date IS NOT NULL
+          AND a.assignment_date IS NOT NULL
+          AND a.role IS NOT NULL AND a.role <> ''
+          AND (CAST(:year AS INTEGER) IS NULL OR EXTRACT(YEAR FROM a.assignment_date) = CAST(:year AS INTEGER))
+        """, nativeQuery = true)
+    List<Object[]> findRoleAndDatesForSummary(@Param("year") Integer year);
 }
 
