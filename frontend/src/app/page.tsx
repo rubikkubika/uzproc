@@ -197,6 +197,28 @@ function DashboardContent() {
     }
   }, [isMounted, searchParams, router]);
 
+  // Авто-сворачивание сайдбара на малых экранах (< 1280px) если нет явной пользовательской настройки
+  useEffect(() => {
+    const XL_BREAKPOINT = 1280;
+    const applyAutoCollapse = () => {
+      const savedPref = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+      // Авто-коллапс только если пользователь не сохранял предпочтение
+      if (savedPref !== null) return;
+      const shouldCollapse = window.innerWidth >= 1024 && window.innerWidth < XL_BREAKPOINT;
+      setIsSidebarCollapsed(shouldCollapse);
+      if (shouldCollapse) {
+        document.documentElement.classList.add('sidebar-collapsed');
+        document.documentElement.style.setProperty('--sidebar-width', '5rem');
+      } else {
+        document.documentElement.classList.remove('sidebar-collapsed');
+        document.documentElement.style.setProperty('--sidebar-width', '16rem');
+      }
+    };
+    applyAutoCollapse();
+    window.addEventListener('resize', applyAutoCollapse);
+    return () => window.removeEventListener('resize', applyAutoCollapse);
+  }, []);
+
   // Информация о пользователе теперь загружается через глобальный контекст AuthProvider
   // Не нужно делать отдельные запросы
 
@@ -567,7 +589,7 @@ function DashboardContent() {
   };
 
         return (
-          <div className="flex h-screen bg-gray-100">
+          <div className="flex h-screen overflow-hidden bg-gray-100">
             <div className="w-full max-w-[1920px] mx-auto flex flex-1 min-h-0 full-width-on-large-screens" style={{ gap: 0 }}>
               <div suppressHydrationWarning style={{ flexShrink: 0, margin: 0, padding: 0 }}>
                 <Sidebar 

@@ -1,16 +1,19 @@
 package com.uzproc.backend.controller.overview;
 
-import com.uzproc.backend.dto.overview.OverviewApprovalsByExecutorDto;
+import com.uzproc.backend.dto.overview.ApprovalPresentationDto;
+import com.uzproc.backend.dto.overview.OverviewApprovalsSummaryResponseDto;
+import com.uzproc.backend.dto.overview.OverviewApprovalsGroupedResponseDto;
+import com.uzproc.backend.dto.overview.OverviewContractDurationResponseDto;
 import com.uzproc.backend.dto.overview.OverviewEkChartResponseDto;
 import com.uzproc.backend.dto.overview.OverviewPurchasePlanMonthsResponseDto;
 import com.uzproc.backend.dto.overview.OverviewSlaResponseDto;
+import com.uzproc.backend.service.overview.ApprovalPresentationService;
 import com.uzproc.backend.service.overview.OverviewService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -26,9 +29,11 @@ public class OverviewController {
     private static final Logger logger = LoggerFactory.getLogger(OverviewController.class);
 
     private final OverviewService overviewService;
+    private final ApprovalPresentationService approvalPresentationService;
 
-    public OverviewController(OverviewService overviewService) {
+    public OverviewController(OverviewService overviewService, ApprovalPresentationService approvalPresentationService) {
         this.overviewService = overviewService;
+        this.approvalPresentationService = approvalPresentationService;
     }
 
     /**
@@ -81,34 +86,75 @@ public class OverviewController {
     }
 
     /**
-     * Список форм документа (Договор, Спецификация и т.д.) для выпадающего фильтра на вкладке «Согласования».
+     * Список форм документа для фильтра на вкладке «Согласования».
      */
-    @GetMapping("/approvals-by-executor/document-forms")
-    public ResponseEntity<List<String>> getApprovalsDocumentFormOptions() {
-        List<String> options = overviewService.getApprovalsDocumentFormOptions();
-        return ResponseEntity.ok(options != null ? options : List.of());
+    @GetMapping("/approvals-summary/document-forms")
+    public ResponseEntity<List<String>> getApprovalDocumentForms() {
+        return ResponseEntity.ok(overviewService.getApprovalDocumentForms());
     }
 
     /**
-     * Исполнители по согласованиям договоров: исполнитель, кол-во договоров, среднее кол-во рабочих дней.
-     * Учитываются только договоры, связанные с заявкой на закупку. Расчёт дней — как на странице заявки.
-     * Сортировка: по среднему кол-ву дней от большего к меньшему.
-     * Фильтр по году назначения заявки на закупщика: assignmentYear (целый год, 1 янв — 31 дек).
-     * Фильтр по форме документа: опционально documentForm (Договор, Спецификация и т.д.).
+     * Сводная таблица согласований по ролям.
+     * Объединяет данные из всех трёх таблиц согласований (заявки, закупки, договоры).
+     * Фильтр: год назначения (year) и форма документа (documentForm).
+     * Учитываются только завершённые согласования. Срок = рабочие дни от назначения до завершения.
      */
-    @GetMapping("/approvals-by-executor")
-    public ResponseEntity<List<OverviewApprovalsByExecutorDto>> getApprovalsByExecutor(
-            @RequestParam(required = false) Integer assignmentYear,
-            @RequestParam(required = false) String documentForm) {
-        LocalDate assignmentDateFrom = null;
-        LocalDate assignmentDateTo = null;
-        if (assignmentYear != null) {
-            assignmentDateFrom = LocalDate.of(assignmentYear, 1, 1);
-            assignmentDateTo = LocalDate.of(assignmentYear, 12, 31);
-        }
-        logger.debug("Overview approvals-by-executor request (assignmentYear={}, documentForm={})",
-                assignmentYear, documentForm);
-        List<OverviewApprovalsByExecutorDto> data = overviewService.getApprovalsByExecutor(assignmentDateFrom, assignmentDateTo, documentForm);
-        return ResponseEntity.ok(data != null ? data : List.of());
+    @GetMapping("/approvals-summary")
+    public ResponseEntity<OverviewApprovalsSummaryResponseDto> getApprovalsSummary(
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) List<String> documentForm) {
+        logger.debug("Overview approvals-summary request (year={}, documentForm={})", year, documentForm);
+        return ResponseEntity.ok(overviewService.getApprovalsSummaryByRole(year, documentForm));
+    }
+
+    /**
+     * Сводная таблица согласований по ФИО исполнителя (только договорные согласования).
+     * Фильтр: год назначения (year) и форма документа (documentForm).
+     */
+    @GetMapping("/approvals-summary/by-person")
+    public ResponseEntity<OverviewApprovalsGroupedResponseDto> getApprovalsSummaryByPerson(
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) List<String> documentForm) {
+        logger.debug("Overview approvals-summary/by-person (year={}, documentForm={})", year, documentForm);
+        return ResponseEntity.ok(overviewService.getApprovalsSummaryByPerson(year, documentForm));
+    }
+
+    /**
+     * Сводная таблица согласований по виду документа (только договорные согласования).
+     * Фильтр: год назначения (year).
+     */
+    @GetMapping("/approvals-summary/by-document-form")
+    public ResponseEntity<OverviewApprovalsGroupedResponseDto> getApprovalsSummaryByDocumentForm(
+            @RequestParam(required = false) Integer year) {
+        logger.debug("Overview approvals-summary/by-document-form (year={})", year);
+        return ResponseEntity.ok(overviewService.getApprovalsSummaryByDocumentForm(year));
+    }
+
+    /**
+     * Список договоров с полным сроком согласования (от первого назначения до последнего завершения).
+     * Только не-технические этапы. Фильтр: год назначения (year) и форма документа (documentForm).
+     */
+    @GetMapping("/approvals-summary/by-contract")
+    public ResponseEntity<OverviewContractDurationResponseDto> getContractDurationSummary(
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) List<String> documentForm) {
+        logger.debug("Overview approvals-summary/by-contract (year={}, documentForm={})", year, documentForm);
+        return ResponseEntity.ok(overviewService.getContractDurationSummary(year, documentForm));
+    }
+
+    /**
+     * Получить сохранённую презентацию согласований (выводы).
+     */
+    @GetMapping("/approval-presentation")
+    public ResponseEntity<ApprovalPresentationDto> getApprovalPresentation() {
+        return ResponseEntity.ok(approvalPresentationService.get());
+    }
+
+    /**
+     * Сохранить презентацию согласований (выводы).
+     */
+    @PutMapping("/approval-presentation")
+    public ResponseEntity<ApprovalPresentationDto> saveApprovalPresentation(@RequestBody ApprovalPresentationDto dto) {
+        return ResponseEntity.ok(approvalPresentationService.save(dto));
     }
 }

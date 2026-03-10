@@ -7,10 +7,10 @@ import com.uzproc.backend.dto.purchaseplan.PurchasePlanItemDto;
 import com.uzproc.backend.dto.purchaseplan.PurchasePlanVersionDto;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequestCommentType;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequestStatus;
-import com.uzproc.backend.entity.contract.ContractApproval;
 import com.uzproc.backend.entity.user.User;
 import com.uzproc.backend.repository.contract.ContractApprovalRepository;
 import com.uzproc.backend.repository.contract.ContractRepository;
+import com.uzproc.backend.repository.purchase.PurchaseApprovalRepository;
 import com.uzproc.backend.repository.purchase.PurchaseRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestApprovalRepository;
 import com.uzproc.backend.repository.user.UserRepository;
@@ -28,6 +28,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -64,6 +65,7 @@ public class OverviewService {
     private final ContractApprovalRepository contractApprovalRepository;
     private final ContractRepository contractRepository;
     private final PurchaseRequestApprovalRepository purchaseRequestApprovalRepository;
+    private final PurchaseApprovalRepository purchaseApprovalRepository;
     private final UserRepository userRepository;
     private final OverviewEkProperties overviewEkProperties;
 
@@ -78,6 +80,7 @@ public class OverviewService {
             ContractApprovalRepository contractApprovalRepository,
             ContractRepository contractRepository,
             PurchaseRequestApprovalRepository purchaseRequestApprovalRepository,
+            PurchaseApprovalRepository purchaseApprovalRepository,
             UserRepository userRepository,
             OverviewEkProperties overviewEkProperties) {
         this.purchaseRequestService = purchaseRequestService;
@@ -87,6 +90,7 @@ public class OverviewService {
         this.contractApprovalRepository = contractApprovalRepository;
         this.contractRepository = contractRepository;
         this.purchaseRequestApprovalRepository = purchaseRequestApprovalRepository;
+        this.purchaseApprovalRepository = purchaseApprovalRepository;
         this.userRepository = userRepository;
         this.overviewEkProperties = overviewEkProperties;
     }
@@ -241,17 +245,27 @@ public class OverviewService {
         }
     }
 
-    /** Рабочие дни между датами: со следующего дня после assignment по completion включительно. */
+    /** Рабочие дни между датами: со следующего дня после assignment по completion включительно. O(1). */
     private long countWorkingDaysBetween(LocalDateTime assignment, LocalDateTime completion) {
         if (assignment == null || completion == null) return 0;
         LocalDate start = assignment.toLocalDate().plusDays(1);
         LocalDate end = completion.toLocalDate();
         if (start.isAfter(end)) return 0;
-        long count = 0;
-        for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
-            if (d.getDayOfWeek() != DayOfWeek.SATURDAY && d.getDayOfWeek() != DayOfWeek.SUNDAY) count++;
+        return workingDaysBetweenInclusive(start, end);
+    }
+
+    /** Количество рабочих дней в диапазоне [start, end] включительно. O(1). */
+    private static long workingDaysBetweenInclusive(LocalDate start, LocalDate end) {
+        long days = ChronoUnit.DAYS.between(start, end) + 1;
+        long fullWeeks = days / 7;
+        long remaining = days % 7;
+        long workdays = fullWeeks * 5;
+        int dow = start.getDayOfWeek().getValue(); // 1=Mon, 7=Sun
+        for (int i = 0; i < remaining; i++) {
+            int d = ((dow - 1 + i) % 7) + 1;
+            if (d < 6) workdays++; // Mon–Fri
         }
-        return count;
+        return workdays;
     }
 
     /**
@@ -266,11 +280,7 @@ public class OverviewService {
         if (start.isAfter(end)) {
             return (end.getDayOfWeek() != DayOfWeek.SATURDAY && end.getDayOfWeek() != DayOfWeek.SUNDAY) ? 1 : 0;
         }
-        long count = 0;
-        for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
-            if (d.getDayOfWeek() != DayOfWeek.SATURDAY && d.getDayOfWeek() != DayOfWeek.SUNDAY) count++;
-        }
-        return count;
+        return workingDaysBetweenInclusive(start, end);
     }
 
     private static boolean isExcludedApprovalStage(String stage) {
@@ -280,103 +290,257 @@ public class OverviewService {
     }
 
     /**
-     * Список форм документа (Договор, Спецификация и т.д.) для выпадающего фильтра на вкладке «Согласования».
+     * Список всех уникальных форм документа из согласований договоров.
+     * Для выпадающего фильтра на вкладке «Согласования».
      */
-    public List<String> getApprovalsDocumentFormOptions() {
-        List<String> list = contractRepository.findDistinctDocumentFormsByPurchaseRequestIdNotNull();
+    public List<String> getApprovalDocumentForms() {
+        List<String> list = contractApprovalRepository.findDistinctDocumentForms();
         return list != null ? list : Collections.emptyList();
     }
 
     /**
-     * Исполнители по согласованиям договоров: только договоры, связанные с заявкой на закупку.
-     * По каждому исполнителю: количество договоров, среднее количество рабочих дней (логика как на странице заявки).
-     * Фильтр по дате назначения заявки на закупщика: только заявки, у которых дата назначения на закупщика в диапазоне [assignmentDateFrom, assignmentDateTo].
-     * Фильтр по форме документа: только согласования договоров с указанной формой (Договор, Спецификация и т.д.).
-     * Сортировка: по среднему количеству дней от большего к меньшему (null в конце).
+     * Сводная таблица согласований по ролям для выбранного года назначения и формы документа.
+     * Объединяет данные из всех трёх таблиц согласований: по заявкам, закупкам и договорам.
+     * Фильтр по году: год assignmentDate. Фильтр по форме документа: только для ContractApproval;
+     * при заданной форме заявки/закупки исключаются.
+     * Учитываются только завершённые согласования (completionDate IS NOT NULL).
+     * Срок = рабочие дни от даты назначения до даты фактического завершения.
+     * Для ContractApproval технические этапы (синхронизация, регистрация и т.д.) исключаются.
      *
-     * @param assignmentDateFrom начало периода по дате назначения заявки на закупщика (включительно), может быть null
-     * @param assignmentDateTo   конец периода по дате назначения заявки на закупщика (включительно), может быть null
-     * @param documentForm      форма документа (Договор, Спецификация и т.д.), может быть null/пусто — без фильтра
+     * @param year         год назначения (assignmentDate), null — без фильтра по году
+     * @param documentForm форма документа для фильтра по ContractApproval, null/пусто — без фильтра
      */
-    public List<OverviewApprovalsByExecutorDto> getApprovalsByExecutor(LocalDate assignmentDateFrom, LocalDate assignmentDateTo, String documentForm) {
-        List<ContractApproval> all = contractApprovalRepository.findAllByContractWithPurchaseRequest();
-        List<ContractApproval> filtered = all.stream()
-                .filter(a -> !isExcludedApprovalStage(a.getStage()))
-                .collect(Collectors.toList());
+    public OverviewApprovalsSummaryResponseDto getApprovalsSummaryByRole(Integer year, List<String> documentForms) {
+        boolean filterByDocForm = documentForms != null && !documentForms.isEmpty();
+        String docFormsParam = filterByDocForm ? String.join(",", documentForms) : null;
 
-        if (assignmentDateFrom != null && assignmentDateTo != null) {
-            List<Long> allowedPurchaseRequestIds = purchaseRequestApprovalRepository
-                    .findPurchaseRequestIdsWithApprovalAssignmentDateBetween(assignmentDateFrom, assignmentDateTo);
-            Set<Long> allowedIds = new HashSet<>(allowedPurchaseRequestIds);
-            filtered = filtered.stream()
-                    .filter(a -> a.getContract() != null && a.getContract().getPurchaseRequestId() != null
-                            && allowedIds.contains(a.getContract().getPurchaseRequestId()))
-                    .collect(Collectors.toList());
-        }
+        // Ключ: роль → [суммарные дни, кол-во]
+        Map<String, long[]> statsByRole = new LinkedHashMap<>();
 
-        if (documentForm != null && !documentForm.trim().isEmpty()) {
-            String form = documentForm.trim();
-            filtered = filtered.stream()
-                    .filter(a -> a.getContract() != null && form.equals(a.getContract().getDocumentForm()))
-                    .collect(Collectors.toList());
+        // Согласования договоров — фильтрация в БД
+        List<Object[]> contractRows = contractApprovalRepository.findRoleAndDatesForSummary(year, docFormsParam);
+        for (Object[] row : contractRows) {
+            String role = ((String) row[0]).trim();
+            LocalDateTime assignmentDate = toLocalDateTime(row[1]);
+            LocalDateTime completionDate = toLocalDateTime(row[2]);
+            long days = countWorkingDaysBetween(assignmentDate, completionDate);
+            long[] stat = statsByRole.computeIfAbsent(role, k -> new long[2]);
+            stat[0] += days;
+            stat[1]++;
         }
 
-        Set<Long> executorIds = new HashSet<>();
-        for (ContractApproval a : filtered) {
-            if (a.getExecutorId() != null) executorIds.add(a.getExecutorId());
-        }
-        Map<Long, String> executorNames = new HashMap<>();
-        if (!executorIds.isEmpty()) {
-            for (User u : userRepository.findAllById(executorIds)) {
-                String name = formatExecutorName(u);
-                executorNames.put(u.getId(), name != null ? name : "—");
+        // Согласования заявок и закупок — только без фильтра по форме документа (договорной фильтр)
+        if (!filterByDocForm) {
+            List<Object[]> prRows = purchaseRequestApprovalRepository.findRoleAndDatesForSummary(year);
+            for (Object[] row : prRows) {
+                String role = ((String) row[0]).trim();
+                LocalDateTime assignmentDate = toLocalDateTime(row[1]);
+                LocalDateTime completionDate = toLocalDateTime(row[2]);
+                Number daysInWork = (Number) row[3];
+                long days = daysInWork != null ? daysInWork.longValue()
+                        : countWorkingDaysBetween(assignmentDate, completionDate);
+                long[] stat = statsByRole.computeIfAbsent(role, k -> new long[2]);
+                stat[0] += days;
+                stat[1]++;
+            }
+
+            List<Object[]> paRows = purchaseApprovalRepository.findRoleAndDatesForSummary(year);
+            for (Object[] row : paRows) {
+                String role = ((String) row[0]).trim();
+                LocalDateTime assignmentDate = toLocalDateTime(row[1]);
+                LocalDateTime completionDate = toLocalDateTime(row[2]);
+                Number daysInWork = (Number) row[3];
+                long days = daysInWork != null ? daysInWork.longValue()
+                        : countWorkingDaysBetween(assignmentDate, completionDate);
+                long[] stat = statsByRole.computeIfAbsent(role, k -> new long[2]);
+                stat[0] += days;
+                stat[1]++;
             }
         }
-        Map<Long, Set<Long>> contractsByExecutor = new HashMap<>();
-        Map<Long, List<Long>> daysByExecutor = new HashMap<>();
-        for (ContractApproval a : filtered) {
-            Long executorId = a.getExecutorId();
-            if (executorId == null) executorId = -1L;
-            contractsByExecutor.computeIfAbsent(executorId, k -> new HashSet<>()).add(a.getContractId());
-            if (a.getAssignmentDate() != null) {
-                long days = contractApprovalWorkingDays(a.getAssignmentDate(), a.getCompletionDate());
-                daysByExecutor.computeIfAbsent(executorId, k -> new ArrayList<>()).add(days);
-            }
+
+        List<OverviewApprovalSummaryRowDto> rows = new ArrayList<>();
+        long totalCount = 0;
+        long totalDaysSum = 0;
+        for (Map.Entry<String, long[]> e : statsByRole.entrySet()) {
+            long daysSum = e.getValue()[0];
+            long count = e.getValue()[1];
+            OverviewApprovalSummaryRowDto dto = new OverviewApprovalSummaryRowDto();
+            dto.setYear(year != null ? year : 0);
+            dto.setRole(e.getKey());
+            dto.setCount((int) count);
+            dto.setAvgDurationDays(count > 0 ? (double) daysSum / count : null);
+            rows.add(dto);
+            totalCount += count;
+            totalDaysSum += daysSum;
         }
-        List<OverviewApprovalsByExecutorDto> result = new ArrayList<>();
-        Set<Long> processed = new HashSet<>();
-        for (ContractApproval a : filtered) {
-            Long executorId = a.getExecutorId();
-            if (executorId == null) executorId = -1L;
-            if (processed.add(executorId)) {
-                OverviewApprovalsByExecutorDto dto = new OverviewApprovalsByExecutorDto();
-                dto.setExecutorName(executorId.equals(-1L) ? "Не назначен" : executorNames.getOrDefault(executorId, "—"));
-                dto.setContractCount(contractsByExecutor.getOrDefault(executorId, Collections.emptySet()).size());
-                List<Long> daysList = daysByExecutor.getOrDefault(executorId, Collections.emptyList());
-                if (daysList.isEmpty()) {
-                    dto.setAverageDays(null);
-                } else {
-                    dto.setAverageDays(daysList.stream().mapToLong(Long::longValue).average().orElse(0));
-                }
-                result.add(dto);
-            }
-        }
-        result.sort(Comparator
-                .comparing(OverviewApprovalsByExecutorDto::getAverageDays,
-                        Comparator.nullsLast(Comparator.reverseOrder())));
-        logger.debug("Overview approvals by executor: {} rows (assignmentDateFrom={}, assignmentDateTo={}, documentForm={})",
-                result.size(), assignmentDateFrom, assignmentDateTo, documentForm);
-        return result;
+        rows.sort(Comparator.comparingInt(OverviewApprovalSummaryRowDto::getCount).reversed());
+
+        OverviewApprovalsSummaryResponseDto response = new OverviewApprovalsSummaryResponseDto();
+        response.setRows(rows);
+        response.setTotalCount((int) totalCount);
+        response.setTotalAvgDurationDays(totalCount > 0 ? (double) totalDaysSum / totalCount : null);
+        logger.debug("Overview approvals summary: {} role rows, totalCount={} (year={}, documentForms={})",
+                rows.size(), totalCount, year, documentForms);
+        return response;
     }
 
-    private static String formatExecutorName(User user) {
-        if (user == null) return null;
-        String surname = user.getSurname();
-        String name = user.getName();
-        if (surname != null && name != null) return (surname + " " + name).trim();
-        if (name != null) return name.trim();
-        if (surname != null) return surname.trim();
-        return user.getEmail();
+    /**
+     * Сводная таблица согласований по ФИО исполнителя (только договорные согласования).
+     */
+    public OverviewApprovalsGroupedResponseDto getApprovalsSummaryByPerson(Integer year, List<String> documentForms) {
+        String docFormsParam = (documentForms != null && !documentForms.isEmpty()) ? String.join(",", documentForms) : null;
+        List<Object[]> rows = contractApprovalRepository.findPersonAndDatesForSummary(year, docFormsParam);
+        return buildPersonGroupedResponse(rows);
+    }
+
+    /**
+     * Сводная таблица согласований по виду документа (только договорные согласования).
+     */
+    public OverviewApprovalsGroupedResponseDto getApprovalsSummaryByDocumentForm(Integer year) {
+        List<Object[]> rows = contractApprovalRepository.findDocumentFormAndDatesForSummary(year);
+        return buildGroupedResponse(rows);
+    }
+
+    /**
+     * Сводка согласований «по документам»: срок каждого договора от первого назначения
+     * до последнего фактического завершения (только не-технические этапы).
+     */
+    public OverviewContractDurationResponseDto getContractDurationSummary(Integer year, List<String> documentForms) {
+        String docFormsParam = (documentForms != null && !documentForms.isEmpty()) ? String.join(",", documentForms) : null;
+        List<Object[]> rawRows = contractApprovalRepository.findContractDurationForSummary(year, docFormsParam);
+        List<OverviewContractDurationRowDto> rows = new ArrayList<>();
+        long totalDays = 0;
+        for (Object[] row : rawRows) {
+            String innerId = row[0] != null ? row[0].toString().trim() : "—";
+            String docForm = row[1] != null ? row[1].toString().trim() : "Не указан";
+            LocalDateTime firstAssignment = toLocalDateTime(row[2]);
+            LocalDateTime lastCompletion = toLocalDateTime(row[3]);
+            long days = countWorkingDaysBetween(firstAssignment, lastCompletion);
+            OverviewContractDurationRowDto dto = new OverviewContractDurationRowDto();
+            dto.setInnerId(innerId);
+            dto.setDocumentForm(docForm);
+            dto.setDurationDays(days);
+            rows.add(dto);
+            totalDays += days;
+        }
+        OverviewContractDurationResponseDto response = new OverviewContractDurationResponseDto();
+        response.setRows(rows);
+        response.setTotalCount(rows.size());
+        response.setAvgDurationDays(rows.isEmpty() ? null : (double) totalDays / rows.size());
+        return response;
+    }
+
+    /**
+     * Строит сгруппированный ответ из результата native-запроса.
+     * Ожидаемые колонки: (key, assignment_date, completion_date[, contract_id]).
+     * Если 4-я колонка (contract_id) присутствует, подсчитываются уникальные договоры на группу.
+     */
+    private OverviewApprovalsGroupedResponseDto buildGroupedResponse(List<Object[]> rawRows) {
+        Map<String, long[]> statsByKey = new LinkedHashMap<>();
+        Map<String, Set<Long>> contractIdsByKey = new LinkedHashMap<>();
+        boolean hasContractIds = !rawRows.isEmpty() && rawRows.get(0).length >= 4;
+        for (Object[] row : rawRows) {
+            String key = row[0] != null ? row[0].toString().trim() : "—";
+            LocalDateTime assignmentDate = toLocalDateTime(row[1]);
+            LocalDateTime completionDate = toLocalDateTime(row[2]);
+            long days = countWorkingDaysBetween(assignmentDate, completionDate);
+            long[] stat = statsByKey.computeIfAbsent(key, k -> new long[2]);
+            stat[0] += days;
+            stat[1]++;
+            if (hasContractIds && row[3] != null) {
+                long contractId = ((Number) row[3]).longValue();
+                contractIdsByKey.computeIfAbsent(key, k -> new HashSet<>()).add(contractId);
+            }
+        }
+        List<OverviewApprovalsGroupedRowDto> resultRows = new ArrayList<>();
+        long totalCount = 0;
+        long totalDaysSum = 0;
+        for (Map.Entry<String, long[]> e : statsByKey.entrySet()) {
+            long daysSum = e.getValue()[0];
+            long count = e.getValue()[1];
+            OverviewApprovalsGroupedRowDto dto = new OverviewApprovalsGroupedRowDto();
+            dto.setKey(e.getKey());
+            dto.setCount((int) count);
+            dto.setAvgDurationDays(count > 0 ? (double) daysSum / count : null);
+            if (hasContractIds) {
+                Set<Long> ids = contractIdsByKey.getOrDefault(e.getKey(), Collections.emptySet());
+                dto.setDocumentCount(ids.size());
+            }
+            resultRows.add(dto);
+            totalCount += count;
+            totalDaysSum += daysSum;
+        }
+        resultRows.sort(Comparator.comparingInt(OverviewApprovalsGroupedRowDto::getCount).reversed());
+        OverviewApprovalsGroupedResponseDto response = new OverviewApprovalsGroupedResponseDto();
+        response.setRows(resultRows);
+        response.setTotalCount((int) totalCount);
+        response.setTotalAvgDurationDays(totalCount > 0 ? (double) totalDaysSum / totalCount : null);
+        return response;
+    }
+
+    /**
+     * Строит сгруппированный ответ по ФИО.
+     * Колонки: (person_name, assignment_date, completion_date, department, role).
+     * В поле department сохраняется наиболее частая роль из согласований (a.role).
+     */
+    private OverviewApprovalsGroupedResponseDto buildPersonGroupedResponse(List<Object[]> rawRows) {
+        Map<String, long[]> statsByKey = new LinkedHashMap<>();
+        // Для каждого ФИО считаем частоту каждой роли, чтобы выбрать наиболее частую
+        Map<String, Map<String, Long>> roleFrequencyByKey = new LinkedHashMap<>();
+        for (Object[] row : rawRows) {
+            String key = row[0] != null ? row[0].toString().trim() : "—";
+            LocalDateTime assignmentDate = toLocalDateTime(row[1]);
+            LocalDateTime completionDate = toLocalDateTime(row[2]);
+            long days = countWorkingDaysBetween(assignmentDate, completionDate);
+            long[] stat = statsByKey.computeIfAbsent(key, k -> new long[2]);
+            stat[0] += days;
+            stat[1]++;
+            // Берём роль из согласования (индекс 4), если нет — используем department (индекс 3)
+            String role = null;
+            if (row.length >= 5 && row[4] != null) {
+                role = row[4].toString().trim();
+            } else if (row.length >= 4 && row[3] != null) {
+                role = row[3].toString().trim();
+            }
+            if (role != null && !role.isEmpty() && !"—".equals(role)) {
+                Map<String, Long> freq = roleFrequencyByKey.computeIfAbsent(key, k -> new LinkedHashMap<>());
+                freq.merge(role, 1L, Long::sum);
+            }
+        }
+        List<OverviewApprovalsGroupedRowDto> resultRows = new ArrayList<>();
+        long totalCount = 0;
+        long totalDaysSum = 0;
+        for (Map.Entry<String, long[]> e : statsByKey.entrySet()) {
+            long daysSum = e.getValue()[0];
+            long count = e.getValue()[1];
+            OverviewApprovalsGroupedRowDto dto = new OverviewApprovalsGroupedRowDto();
+            dto.setKey(e.getKey());
+            dto.setCount((int) count);
+            dto.setAvgDurationDays(count > 0 ? (double) daysSum / count : null);
+            // Наиболее частая роль из согласований
+            Map<String, Long> roleFreq = roleFrequencyByKey.get(e.getKey());
+            String topRole = roleFreq != null ? roleFreq.entrySet().stream()
+                    .max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse("—") : "—";
+            dto.setDepartment(topRole);
+            resultRows.add(dto);
+            totalCount += count;
+            totalDaysSum += daysSum;
+        }
+        resultRows.sort(Comparator.comparingInt(OverviewApprovalsGroupedRowDto::getCount).reversed());
+        OverviewApprovalsGroupedResponseDto response = new OverviewApprovalsGroupedResponseDto();
+        response.setRows(resultRows);
+        response.setTotalCount((int) totalCount);
+        response.setTotalAvgDurationDays(totalCount > 0 ? (double) totalDaysSum / totalCount : null);
+        return response;
+    }
+
+    /** Конвертирует значение из native-запроса в LocalDateTime. */
+    private static LocalDateTime toLocalDateTime(Object value) {
+        if (value == null) return null;
+        if (value instanceof LocalDateTime ldt) return ldt;
+        if (value instanceof java.sql.Timestamp ts) return ts.toLocalDateTime();
+        if (value instanceof java.sql.Date d) return d.toLocalDate().atStartOfDay();
+        return null;
     }
 
     /**
