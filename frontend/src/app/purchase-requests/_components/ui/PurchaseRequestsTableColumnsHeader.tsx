@@ -393,7 +393,7 @@ export default function PurchaseRequestsTableColumnsHeader({
                 onDragOver={(e) => onDragOver(e, columnKey)}
                 onDragLeave={onDragLeave}
                 onDrop={(e) => onDrop(e, columnKey)}
-                className={`px-2 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                className={`px-1 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
                 style={{ width: `${getColumnWidth('purchaseRequestCreationDate')}px`, minWidth: `${getColumnWidth('purchaseRequestCreationDate')}px`, maxWidth: `${getColumnWidth('purchaseRequestCreationDate')}px`, verticalAlign: 'top' }}
               >
                 <div className="flex flex-col gap-0.5">
@@ -455,7 +455,7 @@ export default function PurchaseRequestsTableColumnsHeader({
                 onDragOver={(e) => onDragOver(e, columnKey)}
                 onDragLeave={onDragLeave}
                 onDrop={(e) => onDrop(e, columnKey)}
-                className={`px-2 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                className={`px-1 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
                 style={{ width: `${getColumnWidth('comments')}px`, minWidth: `${getColumnWidth('comments')}px`, maxWidth: `${getColumnWidth('comments')}px`, verticalAlign: 'top' }}
               >
                 <div className="flex flex-col gap-0.5">
@@ -561,7 +561,7 @@ export default function PurchaseRequestsTableColumnsHeader({
                 onDragOver={(e) => onDragOver(e, columnKey)}
                 onDragLeave={onDragLeave}
                 onDrop={(e) => onDrop(e, columnKey)}
-                className={`px-2 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                className={`px-1 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
                 style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px`, verticalAlign: 'top' }}
               >
                 <div className="flex flex-col gap-0.5">
@@ -638,7 +638,7 @@ export default function PurchaseRequestsTableColumnsHeader({
                 onDragOver={(e) => onDragOver(e, columnKey)}
                 onDragLeave={onDragLeave}
                 onDrop={(e) => onDrop(e, columnKey)}
-                className={`px-2 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                className={`px-1 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
                 style={{ width: `${getColumnWidth('purchaser')}px`, minWidth: `${getColumnWidth('purchaser')}px`, maxWidth: `${getColumnWidth('purchaser')}px`, verticalAlign: 'top' }}
               >
                 <div className="flex flex-col gap-0.5">
@@ -715,7 +715,7 @@ export default function PurchaseRequestsTableColumnsHeader({
                 onDragOver={(e) => onDragOver(e, columnKey)}
                 onDragLeave={onDragLeave}
                 onDrop={(e) => onDrop(e, columnKey)}
-                className={`px-2 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                className={`px-1 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
                 style={{ width: `${getColumnWidth('status')}px`, minWidth: `${getColumnWidth('status')}px`, maxWidth: `${getColumnWidth('status')}px`, verticalAlign: 'top' }}
               >
                 <div className="flex flex-col gap-0.5">
@@ -775,7 +775,7 @@ export default function PurchaseRequestsTableColumnsHeader({
                 onDragOver={(e) => onDragOver(e, columnKey)}
                 onDragLeave={onDragLeave}
                 onDrop={(e) => onDrop(e, columnKey)}
-                className={`px-2 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''} cursor-move`}
+                className={`px-1 py-0.5 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''} cursor-move`}
                 style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px`, verticalAlign: 'top' }}
               >
                 <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
@@ -897,7 +897,7 @@ export default function PurchaseRequestsTableColumnsHeader({
                 onDragOver={(e) => onDragOver(e, columnKey)}
                 onDragLeave={onDragLeave}
                 onDrop={(e) => onDrop(e, columnKey)}
-                className={`px-2 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
+                className={`px-1 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative cursor-move ${isDragging ? 'opacity-50' : ''} ${isDragOver ? 'border-l-4 border-l-blue-500' : ''}`}
                 style={{ width: `${getColumnWidth('track')}px`, minWidth: `${getColumnWidth('track')}px`, maxWidth: `${getColumnWidth('track')}px`, verticalAlign: 'top' }}
               >
                 <div className="flex flex-col gap-0.5">
@@ -978,7 +978,7 @@ export default function PurchaseRequestsTableColumnsHeader({
             return (
               <th
                 key={columnKey}
-                className="px-2 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative"
+                className="px-1 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative"
                 style={{ width: `${getColumnWidth('rating')}px`, minWidth: `${getColumnWidth('rating')}px`, maxWidth: `${getColumnWidth('rating')}px`, verticalAlign: 'top' }}
               >
                 <div className="flex flex-col gap-0.5">
