@@ -1,7 +1,17 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { DEFAULT_VISIBLE_COLUMNS, ALL_COLUMNS } from '../constants/columns.constants';
+import type { TabType } from '../types/purchase-request.types';
 
-export function useTableColumns() {
+// Ширина колонки "Статус" по вкладке (по длине самого длинного статуса на вкладке)
+const STATUS_WIDTH_BY_TAB: Record<TabType, number> = {
+  'in-work': 140,           // "Заявка у закупщика"
+  'completed': 148,         // "Спецификация подписана"
+  'project-rejected': 180,  // "Спецификация создана - Архив"
+  'hidden': 140,
+  'all': 180,
+};
+
+export function useTableColumns(activeTab?: TabType) {
   // Состояние для видимости колонок — всегда по умолчанию при открытии страницы
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => new Set(DEFAULT_VISIBLE_COLUMNS));
 
@@ -158,31 +168,31 @@ export function useTableColumns() {
   const getDefaultColumnWidth = (columnKey: string): number => {
     const defaults: Record<string, number> = {
       excludeFromInWork: 28,
-      idPurchaseRequest: 42,
-      cfo: 80,
-      purchaseRequestInitiator: 128,
-      purchaser: 150,
-      name: 288, // +50% от прежнего 192
-      budgetAmount: 90,
-      isPlanned: 96,
-      hasLinkedPlanItem: 85,
-      requiresPurchase: 96,
-      status: 140,
-      purchaseRequestCreationDate: 110,
-      comments: 32, // иконка чата + отступы
-      complexity: 72, // Слож. + плановый СЛА N дн.
-      costType: 128,
-      contractType: 128,
-      contractDurationMonths: 128,
-      track: 120,
-      rating: 88, // звёзды + число/кнопка + отступы
-      guid: 192,
-      purchaseRequestPlanYear: 96,
-      company: 128,
-      mcc: 96,
-      currency: 96,
-      createdAt: 160,
-      updatedAt: 160,
+      idPurchaseRequest: 42,   // "2305" + sort btn
+      cfo: 92,                 // "M - Construction" ~88px
+      purchaseRequestInitiator: 110,
+      purchaser: 142,          // "AKBAROV ABDULAZIZ" ~118px + запас
+      name: 300,               // основная колонка — разумный минимум
+      budgetAmount: 92,        // "119,3 тыс. UZS" ~88px
+      isPlanned: 80,
+      hasLinkedPlanItem: 68,   // "Не в плане" ~65px
+      requiresPurchase: 58,    // "Заказ"/"Закупка"
+      status: activeTab ? STATUS_WIDTH_BY_TAB[activeTab] : 182,
+      purchaseRequestCreationDate: 92, // "Назначение" (10 chars + sort btn + padding)
+      comments: 32,
+      complexity: 50,          // "Слож." header + sort btn
+      costType: 96,
+      contractType: 96,
+      contractDurationMonths: 86,
+      track: 240, // Заявка(48)+Закупка(68)+gap+Договор(56)+gap+Срок(36)+padding = ~236px
+      rating: 62,              // "Отправлена" ~60px
+      guid: 156,
+      purchaseRequestPlanYear: 66,
+      company: 96,
+      mcc: 66,
+      currency: 56,
+      createdAt: 124,
+      updatedAt: 124,
     };
     return defaults[columnKey] || 120;
   };

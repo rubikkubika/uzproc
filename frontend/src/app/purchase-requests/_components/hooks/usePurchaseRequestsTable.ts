@@ -22,7 +22,7 @@ export function usePurchaseRequestsTable(kindTab: RequestKindTab) {
 
   // Используем существующие хуки - передаём setCurrentPage для debounce
   const filtersHook = usePurchaseRequestFilters(setCurrentPage);
-  const columnsHook = useTableColumns();
+  const columnsHook = useTableColumns(filtersHook.activeTab);
   const modalsHook = usePurchaseRequestsModals();
   const [hasMore, setHasMore] = useState(true);
   const loadMoreRef = useRef<HTMLDivElement>(null);

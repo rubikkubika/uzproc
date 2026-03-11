@@ -999,7 +999,7 @@ export default function PurchaseRequestsTable() {
         />
 
         {/* Таблица с закрепленными заголовками */}
-        <table className="w-full border-collapse">
+        <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
           <PurchaseRequestsTableColumnsHeader
             filteredColumnOrder={filteredColumnOrder}
             visibleColumns={visibleColumns}

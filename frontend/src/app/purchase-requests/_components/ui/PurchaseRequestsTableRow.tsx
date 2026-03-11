@@ -115,7 +115,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-1 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
+              className="pl-0.5 pr-0 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 overflow-hidden"
               style={{ width: `${getColumnWidth('idPurchaseRequest')}px`, minWidth: `${getColumnWidth('idPurchaseRequest')}px`, maxWidth: `${getColumnWidth('idPurchaseRequest')}px` }}
             >
               {request.idPurchaseRequest || '-'}
@@ -127,7 +127,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0 text-xs text-gray-900 truncate border-r border-gray-200" 
+              className="pl-0.5 pr-0 py-0 text-xs text-gray-900 truncate border-r border-gray-200 overflow-hidden" 
               style={{ width: `${getColumnWidth('guid')}px`, minWidth: `${getColumnWidth('guid')}px`, maxWidth: `${getColumnWidth('guid')}px` }}
               title={request.guid ? String(request.guid) : ''}
             >
@@ -140,7 +140,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+              className="pl-0.5 pr-0 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 overflow-hidden" 
               style={{ width: `${getColumnWidth('purchaseRequestPlanYear')}px`, minWidth: `${getColumnWidth('purchaseRequestPlanYear')}px`, maxWidth: `${getColumnWidth('purchaseRequestPlanYear')}px` }}
             >
               {request.purchaseRequestPlanYear || '-'}
@@ -152,7 +152,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0 text-xs text-gray-900 truncate border-r border-gray-200" 
+              className="pl-0.5 pr-0 py-0 text-xs text-gray-900 truncate border-r border-gray-200 overflow-hidden" 
               style={{ width: `${getColumnWidth('company')}px`, minWidth: `${getColumnWidth('company')}px`, maxWidth: `${getColumnWidth('company')}px` }}
               title={request.company || ''}
             >
@@ -165,7 +165,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0 text-xs text-gray-900 truncate border-r border-gray-200" 
+              className="pl-0.5 pr-0 py-0 text-xs text-gray-900 truncate border-r border-gray-200 overflow-hidden" 
               style={{ width: `${getColumnWidth('cfo')}px`, minWidth: `${getColumnWidth('cfo')}px`, maxWidth: `${getColumnWidth('cfo')}px` }}
               title={request.cfo || ''}
             >
@@ -178,7 +178,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0 text-xs text-gray-900 truncate border-r border-gray-200" 
+              className="pl-0.5 pr-0 py-0 text-xs text-gray-900 truncate border-r border-gray-200 overflow-hidden" 
               style={{ width: `${getColumnWidth('mcc')}px`, minWidth: `${getColumnWidth('mcc')}px`, maxWidth: `${getColumnWidth('mcc')}px` }}
               title={request.mcc || ''}
             >
@@ -191,7 +191,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0 text-xs text-gray-900 truncate border-r border-gray-200" 
+              className="pl-0.5 pr-0 py-0 text-xs text-gray-900 truncate border-r border-gray-200 overflow-hidden" 
               style={{ width: `${getColumnWidth('purchaseRequestInitiator')}px`, minWidth: `${getColumnWidth('purchaseRequestInitiator')}px`, maxWidth: `${getColumnWidth('purchaseRequestInitiator')}px` }}
               title={request.purchaseRequestInitiator || ''}
             >
@@ -204,7 +204,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td
               key={columnKey}
-              className="px-2 py-0 text-xs text-gray-900 truncate border-r border-gray-200"
+              className="pl-0.5 pr-0 py-0 text-xs text-gray-900 truncate border-r border-gray-200 overflow-hidden"
               style={{ width: `${getColumnWidth('purchaser')}px`, minWidth: `${getColumnWidth('purchaser')}px`, maxWidth: `${getColumnWidth('purchaser')}px` }}
               title={request.purchaser || ''}
             >
@@ -217,7 +217,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0 text-xs text-gray-900 break-words border-r border-gray-200" 
+              className="pl-0.5 pr-0 py-0 text-xs text-gray-900 break-words border-r border-gray-200 overflow-hidden" 
               style={{ width: `${getColumnWidth('name')}px`, minWidth: `${getColumnWidth('name')}px`, maxWidth: `${getColumnWidth('name')}px` }}
             >
               {request.name || '-'}
@@ -231,7 +231,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+              className="pl-0.5 pr-0 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 overflow-hidden" 
               style={{ width: `${getColumnWidth('purchaseRequestCreationDate')}px`, minWidth: `${getColumnWidth('purchaseRequestCreationDate')}px`, maxWidth: `${getColumnWidth('purchaseRequestCreationDate')}px` }}
             >
               {dateToShow ? (
@@ -247,7 +247,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td
               key={columnKey}
-              className="px-2 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
+              className="pl-0.5 pr-0 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 overflow-hidden"
               style={{ width: `${getColumnWidth('comments')}px`, minWidth: `${getColumnWidth('comments')}px`, maxWidth: `${getColumnWidth('comments')}px` }}
               onClick={(e) => {
                 e.stopPropagation();
@@ -268,7 +268,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+              className="pl-0.5 pr-0 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 overflow-hidden" 
               style={{ width: `${getColumnWidth('budgetAmount')}px`, minWidth: `${getColumnWidth('budgetAmount')}px`, maxWidth: `${getColumnWidth('budgetAmount')}px` }}
             >
               {request.budgetAmount ? (
@@ -288,7 +288,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+              className="pl-0.5 pr-0 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 overflow-hidden" 
               style={{ width: `${getColumnWidth('currency')}px`, minWidth: `${getColumnWidth('currency')}px`, maxWidth: `${getColumnWidth('currency')}px` }}
             >
               {request.currency ? (
@@ -304,7 +304,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0 text-xs text-gray-900 truncate border-r border-gray-200" 
+              className="pl-0.5 pr-0 py-0 text-xs text-gray-900 truncate border-r border-gray-200 overflow-hidden" 
               style={{ width: `${getColumnWidth('costType')}px`, minWidth: `${getColumnWidth('costType')}px`, maxWidth: `${getColumnWidth('costType')}px` }}
               title={request.costType || ''}
             >
@@ -317,7 +317,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0 text-xs text-gray-900 truncate border-r border-gray-200" 
+              className="pl-0.5 pr-0 py-0 text-xs text-gray-900 truncate border-r border-gray-200 overflow-hidden" 
               style={{ width: `${getColumnWidth('contractType')}px`, minWidth: `${getColumnWidth('contractType')}px`, maxWidth: `${getColumnWidth('contractType')}px` }}
               title={request.contractType || ''}
             >
@@ -330,7 +330,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center" 
+              className="pl-0.5 pr-0 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 text-center" 
               style={{ width: `${getColumnWidth('contractDurationMonths')}px`, minWidth: `${getColumnWidth('contractDurationMonths')}px`, maxWidth: `${getColumnWidth('contractDurationMonths')}px` }}
             >
               {request.contractDurationMonths !== null && request.contractDurationMonths !== undefined ? (
@@ -344,19 +344,19 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0 whitespace-nowrap text-xs border-r border-gray-200" 
+              className="pl-0.5 pr-0 py-0 whitespace-nowrap text-xs border-r border-gray-200" 
               style={{ width: `${getColumnWidth('isPlanned')}px`, minWidth: `${getColumnWidth('isPlanned')}px`, maxWidth: `${getColumnWidth('isPlanned')}px` }}
             >
               {request.isPlanned ? (
-                <span className="px-1 py-0 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                <span className="pl-0.5 pr-0 py-0 text-xs font-medium bg-green-100 text-green-800 rounded-full">
                   Плановая
                 </span>
               ) : request.isPlanned === false ? (
-                <span className="px-1 py-0 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
+                <span className="pl-0.5 pr-0 py-0 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
                   Внеплановая
                 </span>
               ) : (
-                <span className="px-1 py-0 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
+                <span className="pl-0.5 pr-0 py-0 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
                   -
                 </span>
               )}
@@ -368,19 +368,19 @@ export default function PurchaseRequestsTableRow({
           return (
             <td
               key={columnKey}
-              className="px-2 py-0 whitespace-nowrap text-xs border-r border-gray-200"
+              className="pl-0.5 pr-0 py-0 whitespace-nowrap text-xs border-r border-gray-200"
               style={{ width: `${getColumnWidth('hasLinkedPlanItem')}px`, minWidth: `${getColumnWidth('hasLinkedPlanItem')}px`, maxWidth: `${getColumnWidth('hasLinkedPlanItem')}px` }}
             >
               {request.hasLinkedPlanItem ? (
-                <span className="px-1 py-0 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                <span className="pl-0.5 pr-0 py-0 text-xs font-medium bg-green-100 text-green-800 rounded-full">
                   В плане
                 </span>
               ) : request.hasLinkedPlanItem === false ? (
-                <span className="px-1 py-0 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
+                <span className="pl-0.5 pr-0 py-0 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
                   Не в плане
                 </span>
               ) : (
-                <span className="px-1 py-0 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
+                <span className="pl-0.5 pr-0 py-0 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
                   -
                 </span>
               )}
@@ -394,7 +394,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td
               key={columnKey}
-              className="px-2 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200"
+              className="pl-0.5 pr-0 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 overflow-hidden"
               style={{ width: `${getColumnWidth('complexity')}px`, minWidth: `${getColumnWidth('complexity')}px`, maxWidth: `${getColumnWidth('complexity')}px` }}
               title={request.complexity ?? ''}
               onClick={(e) => e.stopPropagation()}
@@ -432,19 +432,19 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0 whitespace-nowrap text-xs border-r border-gray-200" 
+              className="pl-0.5 pr-0 py-0 whitespace-nowrap text-xs border-r border-gray-200" 
               style={{ width: `${getColumnWidth('requiresPurchase')}px`, minWidth: `${getColumnWidth('requiresPurchase')}px`, maxWidth: `${getColumnWidth('requiresPurchase')}px` }}
             >
               {request.requiresPurchase ? (
-                <span className="px-1 py-0 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                <span className="pl-0.5 pr-0 py-0 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
                   Закупка
                 </span>
               ) : request.requiresPurchase === false ? (
-                <span className="px-1 py-0 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
+                <span className="pl-0.5 pr-0 py-0 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
                   Заказ
                 </span>
               ) : (
-                <span className="px-1 py-0 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
+                <span className="pl-0.5 pr-0 py-0 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
                   -
                 </span>
               )}
@@ -455,7 +455,7 @@ export default function PurchaseRequestsTableRow({
         if (columnKey === 'status') {
           const statusGroup = request.statusGroup;
           return (
-            <td key={columnKey} className="px-2 py-0 text-xs border-r border-gray-200">
+            <td key={columnKey} className="pl-0.5 pr-0 py-0 text-xs border-r border-gray-200">
               {statusGroup ? (
                 <span className={`px-1.5 py-0.5 text-xs font-medium rounded-full ${
                   statusGroup === 'Договор подписан'
@@ -501,7 +501,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+              className="pl-0.5 pr-0 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 overflow-hidden" 
               style={{ width: `${getColumnWidth('createdAt')}px`, minWidth: `${getColumnWidth('createdAt')}px`, maxWidth: `${getColumnWidth('createdAt')}px` }}
             >
               {request.createdAt ? new Date(request.createdAt).toLocaleString('ru-RU') : '-'}
@@ -513,7 +513,7 @@ export default function PurchaseRequestsTableRow({
           return (
             <td 
               key={columnKey}
-              className="px-2 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200" 
+              className="pl-0.5 pr-0 py-0 whitespace-nowrap text-xs text-gray-900 border-r border-gray-200 overflow-hidden" 
               style={{ width: `${getColumnWidth('updatedAt')}px`, minWidth: `${getColumnWidth('updatedAt')}px`, maxWidth: `${getColumnWidth('updatedAt')}px` }}
             >
               {request.updatedAt ? new Date(request.updatedAt).toLocaleString('ru-RU') : '-'}
@@ -580,8 +580,8 @@ export default function PurchaseRequestsTableRow({
           }
 
           return (
-            <td key={columnKey} className="px-2 py-0 text-xs border-r border-gray-200">
-              <div className="inline-flex items-center gap-1">
+            <td key={columnKey} className="pl-0.5 pr-0 py-0 text-xs border-r border-gray-200 overflow-hidden" style={{ width: `${getColumnWidth('track')}px`, minWidth: `${getColumnWidth('track')}px`, maxWidth: `${getColumnWidth('track')}px` }}>
+              <div className="inline-flex items-center gap-1 overflow-hidden">
                 {/* Рамка: Заявка + Закупка + СЛА */}
                 <div className="inline-flex flex-col items-start gap-0.5 rounded border border-gray-400 px-1 py-0.5">
                 <div className="flex items-center gap-2">
@@ -823,9 +823,10 @@ export default function PurchaseRequestsTableRow({
         // Колонка "Оценка" для вкладок "Завершенные" и "В работе"
         if (columnKey === 'rating' && (activeTab === 'completed' || activeTab === 'in-work')) {
           return (
-            <td 
-              key={columnKey} 
-              className="px-2 py-0 text-xs border-r border-gray-200"
+            <td
+              key={columnKey}
+              className="pl-0.5 pr-0 py-0 text-xs border-r border-gray-200 overflow-hidden"
+              style={{ width: `${getColumnWidth('rating')}px`, minWidth: `${getColumnWidth('rating')}px`, maxWidth: `${getColumnWidth('rating')}px` }}
               onClick={(e) => e.stopPropagation()}
             >
               {request.csiLink ? (
@@ -835,28 +836,10 @@ export default function PurchaseRequestsTableRow({
                       e.stopPropagation();
                       onFeedbackClick?.(request);
                     }}
-                    className="px-1.5 py-0.5 text-xs bg-yellow-100 text-yellow-800 rounded hover:bg-yellow-200 transition-colors flex items-center gap-1"
+                    className="px-0.5 py-0.5 text-xs bg-yellow-100 text-yellow-800 rounded hover:bg-yellow-200 transition-colors flex items-center gap-0.5"
                   >
-                    {request.averageRating ? (() => {
-                      const rating = request.averageRating;
-                      const fullStars = Math.floor(rating);
-                      const hasHalfStar = rating % 1 >= 0.5;
-                      const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
-                      return (
-                        <div className="flex items-center gap-0.5">
-                          {Array.from({ length: fullStars }).map((_, i) => (
-                            <Star key={`full-${i}`} className="w-3 h-3 fill-yellow-500 text-yellow-500" />
-                          ))}
-                          {hasHalfStar && (
-                            <Star className="w-3 h-3 fill-yellow-500 text-yellow-500 opacity-50" />
-                          )}
-                          {Array.from({ length: emptyStars }).map((_, i) => (
-                            <Star key={`empty-${i}`} className="w-3 h-3 text-gray-300" />
-                          ))}
-                          <span className="ml-1">{rating.toFixed(1)}</span>
-                        </div>
-                      );
-                    })() : '-'}
+                    <Star className="w-3 h-3 fill-yellow-500 text-yellow-500 flex-shrink-0" />
+                    <span>{request.averageRating ? request.averageRating.toFixed(1) : '-'}</span>
                   </button>
                 ) : request.csiInvitationSent ? (
                   <button
@@ -864,9 +847,9 @@ export default function PurchaseRequestsTableRow({
                       e.stopPropagation();
                       onSentInvitationClick?.(request);
                     }}
-                    className="px-1.5 py-0.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors cursor-pointer"
+                    className="px-0.5 py-0.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors cursor-pointer"
                   >
-                    Оценка отправлена
+                    Отправлена
                   </button>
                 ) : (
                   <button
@@ -875,7 +858,7 @@ export default function PurchaseRequestsTableRow({
                       if (userRole !== 'admin') return;
                       onRatingClick?.(request);
                     }}
-                    className={`px-1.5 py-0.5 text-xs rounded transition-colors ${
+                    className={`px-1 py-0.5 text-xs rounded transition-colors ${
                       userRole === 'admin'
                         ? 'bg-blue-600 text-white hover:bg-blue-700 cursor-pointer'
                         : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-70'
