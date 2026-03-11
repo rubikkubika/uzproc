@@ -178,7 +178,7 @@ export default function PurchaseRequestsTableColumnsHeader({
   }, [showTrackTip]);
 
   return (
-    <thead className="bg-gray-50 sticky top-[88px] z-20 [&_th]:pt-2">
+    <thead className="bg-gray-50 sticky top-[60px] z-20 [&_th]:pt-2">
       <tr>
         {filteredColumnOrder.map(columnKey => {
           const isDragging = draggedColumn === columnKey;

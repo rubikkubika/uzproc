@@ -158,7 +158,7 @@ export function useTableColumns() {
   const getDefaultColumnWidth = (columnKey: string): number => {
     const defaults: Record<string, number> = {
       excludeFromInWork: 28,
-      idPurchaseRequest: 54,
+      idPurchaseRequest: 42,
       cfo: 80,
       purchaseRequestInitiator: 128,
       purchaser: 150,
