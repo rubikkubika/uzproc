@@ -1,10 +1,12 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { getBackendUrl } from '@/utils/api';
 
 interface AuthContextType {
   userRole: string | null;
   userEmail: string | null;
+  userId: number | null;
   loading: boolean;
   canEdit: boolean;
 }
@@ -18,6 +20,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [userId, setUserId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -31,6 +34,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           if (data.email) {
             setUserEmail(data.email);
+            // Найти пользователя по email чтобы получить его ID
+            try {
+              const usersResponse = await fetch(`${getBackendUrl()}/api/users?page=0&size=1&email=${encodeURIComponent(data.email)}`);
+              if (usersResponse.ok) {
+                const usersData = await usersResponse.json();
+                const users = usersData.content || [];
+                if (users.length > 0) {
+                  setUserId(users[0].id);
+                }
+              }
+            } catch {
+              // Ошибка поиска пользователя игнорируется
+            }
           }
         }
       } catch (error) {
@@ -45,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const canEdit = userRole === 'admin';
 
   return (
-    <AuthContext.Provider value={{ userRole, userEmail, loading, canEdit }}>
+    <AuthContext.Provider value={{ userRole, userEmail, userId, loading, canEdit }}>
       {children}
     </AuthContext.Provider>
   );

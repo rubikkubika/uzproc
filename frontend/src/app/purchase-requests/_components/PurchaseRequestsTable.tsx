@@ -27,6 +27,7 @@ import { copyToClipboard } from '@/utils/clipboard';
 import { findInitiatorByName } from './services/users.api';
 import { usePurchaseRequestsTable } from './hooks/usePurchaseRequestsTable';
 import { useUserRole } from './hooks/useUserRole';
+import { useAuth } from '@/contexts/AuthContext';
 import { useRatingModal } from './hooks/useRatingModal';
 import { useLocalStorageSync } from './hooks/useLocalStorageSync';
 import { useSearchParamsSync } from './hooks/useSearchParamsSync';
@@ -170,6 +171,7 @@ export default function PurchaseRequestsTable() {
 
   // Используем хук для работы с ролью пользователя
   const { userRole: userRoleFromHook, canEditExcludeFromInWork } = useUserRole();
+  const { userId: currentUserId } = useAuth();
   
   // Синхронизируем с состоянием из usePurchaseRequestsTable
   useEffect(() => {
@@ -1149,7 +1151,7 @@ export default function PurchaseRequestsTable() {
       <CommentsModal
         isOpen={isCommentsModalOpen}
         request={selectedRequestForComments}
-        currentUserId={null}
+        currentUserId={currentUserId}
         onClose={() => {
           setIsCommentsModalOpen(false);
           setSelectedRequestForComments(null);
