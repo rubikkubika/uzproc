@@ -129,7 +129,7 @@ export default function SortableHeader({
         </div>
         
         {/* Нижний уровень - сортировка и название */}
-        <div className="flex items-center gap-1 min-h-[16px]">
+        <div className="flex items-center gap-0.5 min-h-[16px]">
           {field ? (
             <button
               onClick={() => onSort(field)}

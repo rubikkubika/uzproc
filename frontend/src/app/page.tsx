@@ -376,7 +376,7 @@ function DashboardContent() {
       // Backend разделы
       case 'purchase-requests':
         return (
-          <div className="space-y-6 h-full flex flex-col">
+          <div className="h-full flex flex-col">
             <PurchaseRequestsTable />
           </div>
         );
@@ -629,7 +629,7 @@ function DashboardContent() {
                 )}
               </div>
 
-              <main className="flex-1 flex flex-col min-h-0 overflow-y-auto p-2 sm:p-3 lg:p-4 pt-16 sm:pt-20 lg:pt-4 safari-main-content relative" style={{ marginLeft: 0, flexShrink: 1, minWidth: 0 }}>
+              <main className="flex-1 flex flex-col min-h-0 overflow-y-auto p-1 pt-16 sm:pt-20 lg:pt-1 safari-main-content relative" style={{ marginLeft: 0, flexShrink: 1, minWidth: 0 }}>
                 {renderContent()}
               </main>
             </div>
