@@ -53,15 +53,17 @@ export function ApprovalsSummaryTable() {
       const res = await fetch(`${getBackendUrl()}/api/overview/approvals-summary${qs ? `?${qs}` : ''}`);
       if (!res.ok) throw new Error('Ошибка загрузки данных');
       const json = await res.json();
+      const rows = (Array.isArray(json.rows) ? json.rows : []).map(
+        (r: { role?: string; year?: number; count?: number; avgDurationDays?: number | null }) => ({
+          role: r.role ?? '—',
+          year: Number(r.year ?? 0),
+          count: Number(r.count ?? 0),
+          avgDurationDays: r.avgDurationDays != null ? Number(r.avgDurationDays) : null,
+        })
+      );
+      rows.sort((a, b) => (b.avgDurationDays ?? 0) - (a.avgDurationDays ?? 0));
       setData({
-        rows: (Array.isArray(json.rows) ? json.rows : []).map(
-          (r: { role?: string; year?: number; count?: number; avgDurationDays?: number | null }) => ({
-            role: r.role ?? '—',
-            year: Number(r.year ?? 0),
-            count: Number(r.count ?? 0),
-            avgDurationDays: r.avgDurationDays != null ? Number(r.avgDurationDays) : null,
-          })
-        ),
+        rows,
         totalCount: Number(json.totalCount ?? 0),
         totalAvgDurationDays: json.totalAvgDurationDays != null ? Number(json.totalAvgDurationDays) : null,
       });
@@ -143,7 +145,7 @@ export function ApprovalsSummaryTable() {
         <div className="p-4 text-sm text-gray-500">Нет данных</div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-xs">
+          <table className="border-collapse text-xs">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-2 py-1 text-left font-medium text-gray-500 border-r border-b border-gray-300 whitespace-nowrap">
@@ -153,7 +155,7 @@ export function ApprovalsSummaryTable() {
                   Кол-во
                 </th>
                 <th className="px-2 py-1 text-center font-medium text-gray-500 border-b border-gray-300 whitespace-nowrap">
-                  Ср. срок (раб. дней)
+                  Ср. срок (р.д.)
                 </th>
               </tr>
             </thead>
@@ -163,7 +165,7 @@ export function ApprovalsSummaryTable() {
                   key={row.role}
                   className={idx % 2 === 0 ? 'bg-white hover:bg-gray-50' : 'bg-gray-50/50 hover:bg-gray-100/70'}
                 >
-                  <td className="px-2 py-0.5 text-gray-900 border-r border-gray-200 max-w-[320px] truncate" title={row.role}>
+                  <td className="px-2 py-0.5 text-gray-900 border-r border-gray-200 whitespace-nowrap" title={row.role}>
                     {row.role}
                   </td>
                   <td className="px-2 py-0.5 text-center text-gray-900 tabular-nums border-r border-gray-200">

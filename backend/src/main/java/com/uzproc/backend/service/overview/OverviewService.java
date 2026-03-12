@@ -415,11 +415,16 @@ public class OverviewService {
             String docForm = row[1] != null ? row[1].toString().trim() : "Не указан";
             LocalDateTime firstAssignment = toLocalDateTime(row[2]);
             LocalDateTime lastCompletion = toLocalDateTime(row[3]);
+            boolean hasPurchaseRequest = row[4] != null && Boolean.TRUE.equals(row[4]);
+            if (hasPurchaseRequest) {
+                docForm = toProcurementDocumentForm(docForm);
+            }
             long days = countWorkingDaysBetween(firstAssignment, lastCompletion);
             OverviewContractDurationRowDto dto = new OverviewContractDurationRowDto();
             dto.setInnerId(innerId);
             dto.setDocumentForm(docForm);
             dto.setDurationDays(days);
+            dto.setProcurement(hasPurchaseRequest);
             rows.add(dto);
             totalDays += days;
         }
@@ -428,6 +433,17 @@ public class OverviewService {
         response.setTotalCount(rows.size());
         response.setAvgDurationDays(rows.isEmpty() ? null : (double) totalDays / rows.size());
         return response;
+    }
+
+    /**
+     * Преобразует вид документа для договоров, связанных с заявкой на закупку.
+     * «Договор...» → «Договор (закупочный)», «Спецификация...» → «Спецификация (Закупочная)».
+     */
+    private static String toProcurementDocumentForm(String docForm) {
+        if (docForm == null) return "Договор (закупочный)";
+        String lower = docForm.toLowerCase();
+        if (lower.startsWith("спецификация")) return "Спецификация";
+        return "Договор";
     }
 
     /**

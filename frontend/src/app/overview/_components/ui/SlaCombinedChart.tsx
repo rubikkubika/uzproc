@@ -168,7 +168,7 @@ function buildOptions(
       y1: {
         type: 'linear' as const,
         position: 'right' as const,
-        min: 0,
+        min: -65,
         max: 108,
         ticks: { display: false },
         title: { display: false },
@@ -226,7 +226,7 @@ export function SlaCombinedChart({
   // Нелинейная шкала (sqrt), чтобы мелкие значения (например 1 в мае) были хорошо видны
   const barDataSqrt = barData.map((v) => Math.sqrt(Math.max(v, 0)));
   const maxBarValSqrt = Math.max(...barDataSqrt, 0.01);
-  const yMaxSqrt = maxBarValSqrt * 1.7;
+  const yMaxSqrt = maxBarValSqrt * 3;
 
   const barBackgroundColor = MONTH_NAMES.map((_, i) => {
     const month1 = i + 1;
