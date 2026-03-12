@@ -128,4 +128,30 @@ public interface ContractApprovalRepository extends JpaRepository<ContractApprov
     List<Object[]> findContractDurationForSummary(
             @Param("year") Integer year,
             @Param("documentForms") String documentForms);
+
+    /**
+     * Для вкладки «Сроки закупок»: данные согласования договоров по каждой заявке.
+     * Возвращает (purchase_request_id, contract_id, first_assignment_date, registration_completion_date).
+     * first_assignment_date = MIN(assignment_date) по всем этапам договора.
+     * registration_completion_date = MAX(completion_date) по этапам «регистрация%».
+     * Исключены договоры с excluded_from_status_calculation = true.
+     */
+    @Query(value = """
+        SELECT c.purchase_request_id,
+               c.id AS contract_id,
+               MIN(ca.assignment_date) AS first_assignment_date,
+               reg.registration_completion_date
+        FROM contracts c
+        JOIN contract_approvals ca ON ca.contract_id = c.id AND ca.assignment_date IS NOT NULL
+        LEFT JOIN (
+            SELECT contract_id, MAX(completion_date) AS registration_completion_date
+            FROM contract_approvals
+            WHERE LOWER(stage) LIKE 'регистрация%' AND completion_date IS NOT NULL
+            GROUP BY contract_id
+        ) reg ON reg.contract_id = c.id
+        WHERE c.purchase_request_id IS NOT NULL
+          AND (c.excluded_from_status_calculation IS NULL OR c.excluded_from_status_calculation = false)
+        GROUP BY c.purchase_request_id, c.id, reg.registration_completion_date
+        """, nativeQuery = true)
+    List<Object[]> findContractApprovalDatesForTimelines();
 }

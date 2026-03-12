@@ -21,6 +21,8 @@ import { SlaByPurchaserTable } from './ui/SlaByPurchaserTable';
 import AllCsiFeedback from './ui/AllCsiFeedback';
 import { EkTabContent } from './ui/EkTabContent';
 import { ApprovalsTabContent } from './ui/ApprovalsTabContent';
+import { useOverviewTimelinesData } from './hooks/useOverviewTimelinesData';
+import { TimelinesTabContent } from './ui/TimelinesTabContent';
 
 /**
  * Главный компонент страницы обзор
@@ -233,6 +235,9 @@ export default function Overview() {
     return ((metSla + forecastMet) / totalWithForecast) * 100;
   }, [slaData.data?.slaPercentageByMonth, slaData.data?.statusBlocks, requiresAttentionRequests, slaYear]);
 
+  const [timelinesOnlySigned, setTimelinesOnlySigned] = useState(false);
+  const timelinesData = useOverviewTimelinesData(activeTab === 'timelines', timelinesOnlySigned);
+
   const purchasePlanMonthsParam = useMemo(
     () =>
       activeTab === 'purchase-plan'
@@ -344,6 +349,17 @@ export default function Overview() {
         {activeTab === 'approvals' && (
           <div className="w-full">
             <ApprovalsTabContent />
+          </div>
+        )}
+        {activeTab === 'timelines' && (
+          <div className="w-full">
+            <TimelinesTabContent
+              data={timelinesData.data}
+              loading={timelinesData.loading}
+              error={timelinesData.error}
+              onlySignedContracts={timelinesOnlySigned}
+              onToggleOnlySigned={() => setTimelinesOnlySigned((v) => !v)}
+            />
           </div>
         )}
         {activeTab === 'purchase-plan' && (

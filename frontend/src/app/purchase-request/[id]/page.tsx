@@ -1296,18 +1296,20 @@ export default function PurchaseRequestDetailPage() {
                     <div className="bg-white rounded-lg border border-gray-200 px-2 py-1.5 space-y-1">
                       <div className="flex items-center gap-1 text-xs flex-wrap">
                         <span className="font-semibold text-gray-600 flex-shrink-0">Статус:</span>
-                        {purchaseRequest.status ? (
+                        {purchaseRequest.statusGroup ? (
                           <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${
-                            purchaseRequest.status === 'Утверждена' ? 'bg-green-100 text-green-800'
-                            : purchaseRequest.status === 'Согласована' ? 'bg-green-100 text-green-800'
-                            : purchaseRequest.status === 'Договор подписан' ? 'bg-green-100 text-green-800'
-                            : purchaseRequest.status === 'Спецификация подписана' ? 'bg-green-100 text-green-800'
-                            : purchaseRequest.status === 'На согласовании' ? 'bg-yellow-100 text-yellow-800'
-                            : purchaseRequest.status === 'Отклонена' ? 'bg-red-100 text-red-800'
-                            : purchaseRequest.status === 'Черновик' ? 'bg-gray-100 text-gray-800'
+                            purchaseRequest.statusGroup === 'Договор подписан' ? 'bg-green-100 text-green-800'
+                            : purchaseRequest.statusGroup === 'Спецификация подписана' ? 'bg-green-100 text-green-800'
+                            : purchaseRequest.statusGroup === 'Заявка на согласовании' ? 'bg-yellow-100 text-yellow-800'
+                            : purchaseRequest.statusGroup === 'Заявка не согласована' ? 'bg-red-100 text-red-800'
+                            : purchaseRequest.statusGroup === 'Заявка не утверждена' ? 'bg-red-100 text-red-800'
+                            : purchaseRequest.statusGroup === 'Закупка не согласована' ? 'bg-red-100 text-red-800'
+                            : purchaseRequest.statusGroup === 'Спецификация не согласована' ? 'bg-red-100 text-red-800'
+                            : purchaseRequest.statusGroup === 'Проект' ? 'bg-gray-100 text-gray-800'
+                            : purchaseRequest.statusGroup === 'Не установлен' ? 'bg-gray-100 text-gray-800'
                             : 'bg-blue-100 text-blue-800'
                           }`}>
-                            {purchaseRequest.status}
+                            {purchaseRequest.statusGroup}
                           </span>
                         ) : '-'}
                       </div>

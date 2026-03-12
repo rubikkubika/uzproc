@@ -894,4 +894,265 @@ public class OverviewService {
                 year, rows.size(), yearType, amountsInBaseCurrency);
         return new OverviewEkChartResponseDto(yearType, rows, amountsInBaseCurrency ? baseCurrency : null, amountsInBaseCurrency);
     }
+
+    private static final String STAGE_PREPARATION = "Подготовка ЗнЗ";
+    private static final String STAGE_APPROVAL = "Согласование ЗнЗ";
+    private static final String STAGE_PURCHASE = "Закупка";
+    private static final String STAGE_CONTRACT_PREP = "Подготовка договора";
+    private static final String STAGE_CONTRACT_APPROVAL = "Согласование договора";
+    private static final String STAGE_TOTAL = "Срок";
+    /** Значение сложности для заявок без указанной сложности. */
+    private static final String COMPLEXITY_NONE = "—";
+
+    /**
+     * Данные для вкладки «Сроки закупок»: средние рабочие дни по этапам, сгруппированные по годам.
+     * Этап «Подготовка ЗнЗ»: от даты создания заявки до даты первого назначения согласования.
+     * Этап «Согласование ЗнЗ»: от первого назначения согласования до последнего завершения (день назначения не считается).
+     * Этап «Закупка»: от даты назначения на утверждение закупщика (или последнего завершения ЗнЗ) до последнего завершения согласования закупки.
+     * Этап «Подготовка договора»: от последнего завершения согласования закупки до даты создания первого договора (день завершения закупки не считается).
+     * «Срок»: сумма всех этапов.
+     */
+    public OverviewTimelinesResponseDto getTimelinesData(boolean onlySignedContracts) {
+        List<String> stages = List.of(STAGE_PREPARATION, STAGE_APPROVAL, STAGE_PURCHASE, STAGE_CONTRACT_PREP, STAGE_CONTRACT_APPROVAL, STAGE_TOTAL);
+        List<Object[]> rawRows = purchaseRequestApprovalRepository.findCreationAndFirstAssignmentDates();
+
+        // Этап 5: Согласование договора — загружаем данные отдельным запросом
+        // purchase_request_id → максимальные рабочие дни среди всех связанных договоров
+        Map<Long, Long> contractApprovalDaysByPr = buildContractApprovalDaysMap();
+
+        // Ключ группировки: year + complexity
+        // year → accumulator, year+complexity → accumulator
+        Map<Integer, TimelineAccumulator> byYear = new TreeMap<>();
+        // year → (complexity → accumulator)
+        Map<Integer, Map<String, TimelineAccumulator>> byYearComplexity = new TreeMap<>();
+        for (Object[] row : rawRows) {
+            java.sql.Timestamp creationTs = (java.sql.Timestamp) row[1];
+            java.sql.Timestamp assignmentTs = (java.sql.Timestamp) row[2];
+            java.sql.Timestamp completionTs = row[3] != null ? (java.sql.Timestamp) row[3] : null;
+            java.sql.Timestamp approvalAssignmentTs = row[4] != null ? (java.sql.Timestamp) row[4] : null;
+            java.sql.Timestamp purchaseCompletionTs = row[5] != null ? (java.sql.Timestamp) row[5] : null;
+            String complexity = row[6] != null ? row[6].toString().trim() : "";
+            java.sql.Timestamp contractCreationTs = row[7] != null ? (java.sql.Timestamp) row[7] : null;
+            String status = row[8] != null ? row[8].toString() : null;
+            if (complexity.isEmpty()) complexity = "—";
+            if (creationTs == null || assignmentTs == null) continue;
+            // Исключаем заявки без назначения на утверждение
+            if (approvalAssignmentTs == null) continue;
+            // Фильтр «Только подписанные договора»
+            if (onlySignedContracts && !"CONTRACT_SIGNED".equals(status)) continue;
+            Long prId = ((Number) row[0]).longValue();
+            LocalDateTime creation = creationTs.toLocalDateTime();
+            LocalDateTime assignment = assignmentTs.toLocalDateTime();
+            int year = assignment.getYear();
+            TimelineAccumulator yearAcc = byYear.computeIfAbsent(year, k -> new TimelineAccumulator());
+            TimelineAccumulator complexityAcc = byYearComplexity
+                    .computeIfAbsent(year, k -> new TreeMap<>())
+                    .computeIfAbsent(complexity, k -> new TimelineAccumulator());
+            // Этап 1: Подготовка ЗнЗ
+            long prepDays = countWorkingDaysBetweenDates(creation, assignment);
+            yearAcc.addPrep(prepDays);
+            complexityAcc.addPrep(prepDays);
+            // Этап 2: Согласование ЗнЗ
+            if (completionTs != null) {
+                LocalDateTime completion = completionTs.toLocalDateTime();
+                long approvalDays = countWorkingDaysBetween(assignment, completion);
+                yearAcc.addApproval(approvalDays);
+                complexityAcc.addApproval(approvalDays);
+            }
+            // Этап 3: Закупка
+            if (purchaseCompletionTs != null) {
+                LocalDateTime purchaseCompletion = purchaseCompletionTs.toLocalDateTime();
+                LocalDateTime purchaseStart = approvalAssignmentTs != null
+                        ? approvalAssignmentTs.toLocalDateTime()
+                        : (completionTs != null ? completionTs.toLocalDateTime() : null);
+                if (purchaseStart != null) {
+                    long purchaseDays = countWorkingDaysBetween(purchaseStart, purchaseCompletion);
+                    yearAcc.addPurchase(purchaseDays);
+                    complexityAcc.addPurchase(purchaseDays);
+                }
+            }
+            // Этап 4: Подготовка договора (от завершения закупки до создания первого договора, день завершения не считается)
+            if (purchaseCompletionTs != null && contractCreationTs != null) {
+                LocalDateTime purchaseCompletion = purchaseCompletionTs.toLocalDateTime();
+                LocalDateTime contractCreation = contractCreationTs.toLocalDateTime();
+                long contractPrepDays = countWorkingDaysBetween(purchaseCompletion, contractCreation);
+                yearAcc.addContractPrep(contractPrepDays);
+                complexityAcc.addContractPrep(contractPrepDays);
+            }
+            // Этап 5: Согласование договора (от первого назначения до регистрации, самый долгий договор)
+            Long caMaxDays = contractApprovalDaysByPr.get(prId);
+            if (caMaxDays != null) {
+                yearAcc.addContractApproval(caMaxDays);
+                complexityAcc.addContractApproval(caMaxDays);
+            }
+        }
+        List<OverviewTimelinesYearRowDto> resultRows = new ArrayList<>();
+        for (Map.Entry<Integer, TimelineAccumulator> entry : byYear.entrySet()) {
+            int year = entry.getKey();
+            TimelineAccumulator acc = entry.getValue();
+            Map<String, Double> avgByStage = buildAvgByStage(acc);
+            // Вложенные строки по сложности
+            Map<String, TimelineAccumulator> complexityMap = byYearComplexity.getOrDefault(year, Collections.emptyMap());
+            List<OverviewTimelinesComplexityRowDto> complexityRows = new ArrayList<>();
+            for (Map.Entry<String, TimelineAccumulator> cEntry : complexityMap.entrySet()) {
+                TimelineAccumulator cAcc = cEntry.getValue();
+                Map<String, Double> cAvg = buildAvgByStage(cAcc);
+                complexityRows.add(new OverviewTimelinesComplexityRowDto(cEntry.getKey(), cAcc.count, cAvg));
+            }
+            resultRows.add(new OverviewTimelinesYearRowDto(year, acc.count, avgByStage, complexityRows));
+        }
+        return new OverviewTimelinesResponseDto(stages, resultRows);
+    }
+
+    private Map<String, Double> buildAvgByStage(TimelineAccumulator acc) {
+        Map<String, Double> avgByStage = new LinkedHashMap<>();
+        double prepAvg = roundAvg(acc.prepDays);
+        double approvalAvg = roundAvg(acc.approvalDays);
+        double purchaseAvg = roundAvg(acc.purchaseDays);
+        double contractPrepAvg = roundAvg(acc.contractPrepDays);
+        double contractApprovalAvg = roundAvg(acc.contractApprovalDays);
+        avgByStage.put(STAGE_PREPARATION, prepAvg);
+        avgByStage.put(STAGE_APPROVAL, approvalAvg);
+        avgByStage.put(STAGE_PURCHASE, purchaseAvg);
+        avgByStage.put(STAGE_CONTRACT_PREP, contractPrepAvg);
+        avgByStage.put(STAGE_CONTRACT_APPROVAL, contractApprovalAvg);
+        avgByStage.put(STAGE_TOTAL, Math.round((prepAvg + approvalAvg + purchaseAvg + contractPrepAvg + contractApprovalAvg) * 10.0) / 10.0);
+        return avgByStage;
+    }
+
+    /**
+     * Возвращает список заявок на закупку (DTO) с рабочими днями по этапам,
+     * участвовавших в расчёте для указанного года и сложности.
+     */
+    public List<OverviewTimelinesRequestDto> getTimelinesRequests(int year, String complexity, boolean onlySignedContracts) {
+        List<Object[]> rawRows = purchaseRequestApprovalRepository.findCreationAndFirstAssignmentDates();
+        // id → row (для вычисления дней по этапам)
+        List<Long> ids = new ArrayList<>();
+        Map<Long, Object[]> rowById = new LinkedHashMap<>();
+        for (Object[] row : rawRows) {
+            java.sql.Timestamp assignmentTs = (java.sql.Timestamp) row[2];
+            if (assignmentTs == null) continue;
+            java.sql.Timestamp approvalAssignmentTs = row[4] != null ? (java.sql.Timestamp) row[4] : null;
+            if (approvalAssignmentTs == null) continue;
+            String status = row[8] != null ? row[8].toString() : null;
+            if (onlySignedContracts && !"CONTRACT_SIGNED".equals(status)) continue;
+            int rowYear = assignmentTs.toLocalDateTime().getYear();
+            if (rowYear != year) continue;
+            String rowComplexity = row[6] != null ? row[6].toString().trim() : "";
+            if (rowComplexity.isEmpty()) rowComplexity = COMPLEXITY_NONE;
+            if (!rowComplexity.equals(complexity)) continue;
+            Long id = ((Number) row[0]).longValue();
+            ids.add(id);
+            rowById.put(id, row);
+        }
+        if (ids.isEmpty()) return Collections.emptyList();
+        Map<Long, PurchaseRequestDto> dtoMap = purchaseRequestService.findByIdPurchaseRequestList(ids);
+        Map<Long, Long> contractApprovalDaysByPr = buildContractApprovalDaysMap();
+        List<OverviewTimelinesRequestDto> result = new ArrayList<>();
+        for (Long id : ids) {
+            PurchaseRequestDto dto = dtoMap.get(id);
+            if (dto == null) continue;
+            Object[] row = rowById.get(id);
+            Map<String, Long> daysByStage = computeDaysByStage(row, contractApprovalDaysByPr.get(id));
+            result.add(new OverviewTimelinesRequestDto(dto, daysByStage));
+        }
+        return result;
+    }
+
+    /** Вычисляет рабочие дни по каждому этапу для одной заявки (из строки SQL-запроса). */
+    private Map<String, Long> computeDaysByStage(Object[] row, Long contractApprovalDays) {
+        Map<String, Long> days = new LinkedHashMap<>();
+        java.sql.Timestamp creationTs = (java.sql.Timestamp) row[1];
+        java.sql.Timestamp assignmentTs = (java.sql.Timestamp) row[2];
+        java.sql.Timestamp completionTs = row[3] != null ? (java.sql.Timestamp) row[3] : null;
+        java.sql.Timestamp approvalAssignmentTs = row[4] != null ? (java.sql.Timestamp) row[4] : null;
+        java.sql.Timestamp purchaseCompletionTs = row[5] != null ? (java.sql.Timestamp) row[5] : null;
+        java.sql.Timestamp contractCreationTs = row[7] != null ? (java.sql.Timestamp) row[7] : null;
+
+        // Этап 1: Подготовка ЗнЗ
+        if (creationTs != null && assignmentTs != null) {
+            days.put(STAGE_PREPARATION, countWorkingDaysBetweenDates(creationTs.toLocalDateTime(), assignmentTs.toLocalDateTime()));
+        }
+        // Этап 2: Согласование ЗнЗ
+        if (assignmentTs != null && completionTs != null) {
+            days.put(STAGE_APPROVAL, countWorkingDaysBetween(assignmentTs.toLocalDateTime(), completionTs.toLocalDateTime()));
+        }
+        // Этап 3: Закупка
+        if (purchaseCompletionTs != null) {
+            LocalDateTime purchaseStart = approvalAssignmentTs != null
+                    ? approvalAssignmentTs.toLocalDateTime()
+                    : (completionTs != null ? completionTs.toLocalDateTime() : null);
+            if (purchaseStart != null) {
+                days.put(STAGE_PURCHASE, countWorkingDaysBetween(purchaseStart, purchaseCompletionTs.toLocalDateTime()));
+            }
+        }
+        // Этап 4: Подготовка договора
+        if (purchaseCompletionTs != null && contractCreationTs != null) {
+            days.put(STAGE_CONTRACT_PREP, countWorkingDaysBetween(purchaseCompletionTs.toLocalDateTime(), contractCreationTs.toLocalDateTime()));
+        }
+        // Этап 5: Согласование договора
+        if (contractApprovalDays != null) {
+            days.put(STAGE_CONTRACT_APPROVAL, contractApprovalDays);
+        }
+        // Итого
+        long total = days.values().stream().mapToLong(Long::longValue).sum();
+        days.put(STAGE_TOTAL, total);
+        return days;
+    }
+
+    /**
+     * Строит карту purchase_request_id → максимальные рабочие дни согласования договора.
+     * Для каждого договора: от первого назначения согласования до завершения регистрации.
+     * Если несколько договоров — берётся самый долгий.
+     */
+    private Map<Long, Long> buildContractApprovalDaysMap() {
+        List<Object[]> rows = contractApprovalRepository.findContractApprovalDatesForTimelines();
+        // purchase_request_id → max working days
+        Map<Long, Long> result = new HashMap<>();
+        for (Object[] row : rows) {
+            Long prId = ((Number) row[0]).longValue();
+            java.sql.Timestamp firstAssignment = row[2] != null ? (java.sql.Timestamp) row[2] : null;
+            java.sql.Timestamp regCompletion = row[3] != null ? (java.sql.Timestamp) row[3] : null;
+            if (firstAssignment == null || regCompletion == null) continue;
+            long days = countWorkingDaysBetween(firstAssignment.toLocalDateTime(), regCompletion.toLocalDateTime());
+            result.merge(prId, days, Math::max);
+        }
+        return result;
+    }
+
+    /** Аккумулятор для расчёта средних по этапам. */
+    private static class TimelineAccumulator {
+        int count;
+        final List<Long> prepDays = new ArrayList<>();
+        final List<Long> approvalDays = new ArrayList<>();
+        final List<Long> purchaseDays = new ArrayList<>();
+        final List<Long> contractPrepDays = new ArrayList<>();
+        final List<Long> contractApprovalDays = new ArrayList<>();
+
+        void addPrep(long days) { count++; prepDays.add(days); }
+        void addApproval(long days) { approvalDays.add(days); }
+        void addPurchase(long days) { purchaseDays.add(days); }
+        void addContractPrep(long days) { contractPrepDays.add(days); }
+        void addContractApproval(long days) { contractApprovalDays.add(days); }
+    }
+
+    private static double roundAvg(List<Long> list) {
+        double avg = list.stream().mapToLong(Long::longValue).average().orElse(0.0);
+        return Math.round(avg * 10.0) / 10.0;
+    }
+
+    /**
+     * Рабочие дни между двумя датами: от start до end включительно (оба дня считаются, если рабочие).
+     * Если start == end, возвращается 0 (в один день — 0 рабочих дней ожидания).
+     */
+    private long countWorkingDaysBetweenDates(LocalDateTime start, LocalDateTime end) {
+        if (start == null || end == null) return 0;
+        LocalDate s = start.toLocalDate();
+        LocalDate e = end.toLocalDate();
+        if (!s.isBefore(e)) return 0;
+        // Считаем рабочие дни со следующего дня после start до end включительно
+        LocalDate from = s.plusDays(1);
+        if (from.isAfter(e)) return 0;
+        return workingDaysBetweenInclusive(from, e);
+    }
 }
