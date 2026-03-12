@@ -61,7 +61,7 @@ export function ApprovalsSummaryTable() {
           avgDurationDays: r.avgDurationDays != null ? Number(r.avgDurationDays) : null,
         })
       );
-      rows.sort((a, b) => (b.avgDurationDays ?? 0) - (a.avgDurationDays ?? 0));
+      rows.sort((a: ApprovalSummaryRow, b: ApprovalSummaryRow) => (b.avgDurationDays ?? 0) - (a.avgDurationDays ?? 0));
       setData({
         rows,
         totalCount: Number(json.totalCount ?? 0),

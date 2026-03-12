@@ -20,15 +20,18 @@ interface Props {
   documentFormOptions: string[];
 }
 
+type ContractDurationRaw = { innerId?: string; documentForm?: string; durationDays?: number; procurement?: boolean };
+
 const mapRows = (json: { rows?: unknown[] }): ContractDurationRow[] =>
-  (Array.isArray(json.rows) ? json.rows : []).map(
-    (r: { innerId?: string; documentForm?: string; durationDays?: number; procurement?: boolean }) => ({
-      innerId: r.innerId ?? '—',
-      documentForm: r.documentForm ?? '—',
-      durationDays: Number(r.durationDays ?? 0),
-      procurement: Boolean(r.procurement),
-    })
-  );
+  (Array.isArray(json.rows) ? json.rows : []).map((r: unknown) => {
+    const row = r as ContractDurationRaw;
+    return {
+      innerId: row.innerId ?? '—',
+      documentForm: row.documentForm ?? '—',
+      durationDays: Number(row.durationDays ?? 0),
+      procurement: Boolean(row.procurement),
+    };
+  });
 
 function aggregateByKey(rows: ContractDurationRow[]) {
   const map = new Map<string, { count: number; totalDays: number; procurement: boolean }>();
