@@ -9,6 +9,7 @@ public class OverviewContractDurationRowDto {
     private String innerId;
     private String documentForm;
     private long durationDays;
+    private boolean procurement;
 
     public String getInnerId() { return innerId; }
     public void setInnerId(String innerId) { this.innerId = innerId; }
@@ -18,4 +19,7 @@ public class OverviewContractDurationRowDto {
 
     public long getDurationDays() { return durationDays; }
     public void setDurationDays(long durationDays) { this.durationDays = durationDays; }
+
+    public boolean isProcurement() { return procurement; }
+    public void setProcurement(boolean procurement) { this.procurement = procurement; }
 }

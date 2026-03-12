@@ -110,7 +110,8 @@ public interface ContractApprovalRepository extends JpaRepository<ContractApprov
         SELECT COALESCE(NULLIF(TRIM(c.inner_id), ''), '—') AS inner_id,
                COALESCE(NULLIF(TRIM(c.document_form), ''), 'Не указан') AS doc_form,
                MIN(a.assignment_date) AS first_assignment,
-               MAX(a.completion_date) AS last_completion
+               MAX(a.completion_date) AS last_completion,
+               (c.purchase_request_id IS NOT NULL) AS has_purchase_request
         FROM contract_approvals a
         JOIN contracts c ON a.contract_id = c.id
         WHERE a.assignment_date IS NOT NULL
@@ -120,7 +121,7 @@ public interface ContractApprovalRepository extends JpaRepository<ContractApprov
           AND LOWER(a.stage) NOT LIKE 'регистрация%'
           AND (CAST(:year AS INTEGER) IS NULL OR EXTRACT(YEAR FROM a.assignment_date) = CAST(:year AS INTEGER))
           AND (CAST(:documentForms AS TEXT) IS NULL OR c.document_form = ANY(string_to_array(CAST(:documentForms AS TEXT), ',')))
-        GROUP BY c.id, c.inner_id, c.document_form
+        GROUP BY c.id, c.inner_id, c.document_form, c.purchase_request_id
         HAVING MAX(a.completion_date) IS NOT NULL
         ORDER BY c.inner_id
         """, nativeQuery = true)
