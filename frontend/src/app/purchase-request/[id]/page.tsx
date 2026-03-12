@@ -1294,27 +1294,22 @@ export default function PurchaseRequestDetailPage() {
                   {/* Блок статуса заявки */}
                   <div className="flex-shrink-0 w-full lg:w-auto">
                     <div className="bg-white rounded-lg border border-gray-200 px-2 py-1.5 space-y-1">
-                      <div className="flex items-baseline gap-1 text-xs">
+                      <div className="flex items-center gap-1 text-xs flex-wrap">
                         <span className="font-semibold text-gray-600 flex-shrink-0">Статус:</span>
-                        <span className="relative">
-                          <span aria-hidden className="invisible whitespace-nowrap inline-block px-1.5 py-0.5 text-xs font-medium">На согласовании</span>
-                          <span className="absolute inset-0 flex items-center">
-                            {purchaseRequest.status ? (
-                              <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap ${
-                                purchaseRequest.status === 'Утверждена' ? 'bg-green-100 text-green-800'
-                                : purchaseRequest.status === 'Согласована' ? 'bg-green-100 text-green-800'
-                                : purchaseRequest.status === 'Договор подписан' ? 'bg-green-100 text-green-800'
-                                : purchaseRequest.status === 'Спецификация подписана' ? 'bg-green-100 text-green-800'
-                                : purchaseRequest.status === 'На согласовании' ? 'bg-yellow-100 text-yellow-800'
-                                : purchaseRequest.status === 'Отклонена' ? 'bg-red-100 text-red-800'
-                                : purchaseRequest.status === 'Черновик' ? 'bg-gray-100 text-gray-800'
-                                : 'bg-blue-100 text-blue-800'
-                              }`}>
-                                {purchaseRequest.status}
-                              </span>
-                            ) : '-'}
+                        {purchaseRequest.status ? (
+                          <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${
+                            purchaseRequest.status === 'Утверждена' ? 'bg-green-100 text-green-800'
+                            : purchaseRequest.status === 'Согласована' ? 'bg-green-100 text-green-800'
+                            : purchaseRequest.status === 'Договор подписан' ? 'bg-green-100 text-green-800'
+                            : purchaseRequest.status === 'Спецификация подписана' ? 'bg-green-100 text-green-800'
+                            : purchaseRequest.status === 'На согласовании' ? 'bg-yellow-100 text-yellow-800'
+                            : purchaseRequest.status === 'Отклонена' ? 'bg-red-100 text-red-800'
+                            : purchaseRequest.status === 'Черновик' ? 'bg-gray-100 text-gray-800'
+                            : 'bg-blue-100 text-blue-800'
+                          }`}>
+                            {purchaseRequest.status}
                           </span>
-                        </span>
+                        ) : '-'}
                       </div>
                     </div>
                   </div>
@@ -1746,23 +1741,18 @@ export default function PurchaseRequestDetailPage() {
                   {/* Блок статуса закупки */}
                   <div className="flex-shrink-0 w-full lg:w-auto">
                     <div className="bg-white rounded-lg border border-gray-200 px-2 py-1.5 space-y-1">
-                      <div className="flex items-baseline gap-1 text-xs">
+                      <div className="flex items-center gap-1 text-xs flex-wrap">
                         <span className="font-semibold text-gray-600 flex-shrink-0">Статус:</span>
-                        <span className="relative">
-                          <span aria-hidden className="invisible whitespace-nowrap inline-block px-1.5 py-0.5 text-xs font-medium">Не согласовано</span>
-                          <span className="absolute inset-0 flex items-center">
-                            {purchase?.status ? (
-                              <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap ${
-                                purchase.status === 'Завершена' ? 'bg-green-100 text-green-800'
-                                : purchase.status === 'Не согласовано' ? 'bg-red-100 text-red-800'
-                                : purchase.status === 'Проект' ? 'bg-gray-100 text-gray-800'
-                                : 'bg-blue-100 text-blue-800'
-                              }`}>
-                                {purchase.status}
-                              </span>
-                            ) : '-'}
+                        {purchase?.status ? (
+                          <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${
+                            purchase.status === 'Завершена' ? 'bg-green-100 text-green-800'
+                            : purchase.status === 'Не согласовано' ? 'bg-red-100 text-red-800'
+                            : purchase.status === 'Проект' ? 'bg-gray-100 text-gray-800'
+                            : 'bg-blue-100 text-blue-800'
+                          }`}>
+                            {purchase.status}
                           </span>
-                        </span>
+                        ) : '-'}
                       </div>
                     </div>
                   </div>
@@ -2114,25 +2104,20 @@ export default function PurchaseRequestDetailPage() {
                           </div>
                           <div className="flex-shrink-0 w-full lg:w-auto">
                             <div className="bg-white rounded-lg border border-gray-200 px-2 py-1.5 space-y-1">
-                              <div className="flex items-baseline gap-1 text-xs">
+                              <div className="flex items-center gap-1 text-xs flex-wrap">
                                 <span className="font-semibold text-gray-600 flex-shrink-0">Статус:</span>
-                                <span className="relative">
-                                  <span aria-hidden className="invisible whitespace-nowrap inline-block px-1.5 py-0.5 text-xs font-medium">На согласовании</span>
-                                  <span className="absolute inset-0 flex items-center">
-                                    {contract.status ? (
-                                      <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap ${
-                                        contract.status === 'Подписан' ? 'bg-green-100 text-green-800'
-                                        : contract.status === 'Проект' ? 'bg-gray-100 text-gray-800'
-                                        : contract.status === 'На согласовании' ? 'bg-yellow-100 text-yellow-800'
-                                        : contract.status === 'На регистрации' ? 'bg-blue-100 text-blue-800'
-                                        : contract.status === 'Не согласован' ? 'bg-red-100 text-red-800'
-                                        : 'bg-gray-100 text-gray-800'
-                                      }`}>
-                                        {contract.status}
-                                      </span>
-                                    ) : '-'}
+                                {contract.status ? (
+                                  <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${
+                                    contract.status === 'Подписан' ? 'bg-green-100 text-green-800'
+                                    : contract.status === 'Проект' ? 'bg-gray-100 text-gray-800'
+                                    : contract.status === 'На согласовании' ? 'bg-yellow-100 text-yellow-800'
+                                    : contract.status === 'На регистрации' ? 'bg-blue-100 text-blue-800'
+                                    : contract.status === 'Не согласован' ? 'bg-red-100 text-red-800'
+                                    : 'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {contract.status}
                                   </span>
-                                </span>
+                                ) : '-'}
                               </div>
                               <div className="flex items-baseline gap-1 text-xs whitespace-nowrap min-w-0 overflow-hidden">
                                 <span className="font-semibold text-gray-600 flex-shrink-0">Сумма:</span>
