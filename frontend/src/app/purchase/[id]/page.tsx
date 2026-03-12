@@ -1175,9 +1175,17 @@ export default function PurchaseDetailPage() {
                   {/* Правая часть с блоком согласований закупки */}
                   <div className="w-full lg:w-64 flex-shrink-0">
                     <div className="bg-white rounded p-2 space-y-1.5">
-                      <div className="inline-flex items-baseline gap-1.5 px-2 py-1 rounded bg-gray-200 pb-1 mb-1 border-b border-gray-200">
-                        <span className="text-xs font-semibold text-gray-700">Дата создания закупки:</span>
-                        <span className="text-xs text-gray-900">{formatDate(purchase.purchaseCreationDate)}</span>
+                      <div className="flex flex-wrap items-baseline gap-2 pb-px mb-px border-b border-gray-200">
+                        {purchaseRequest?.purchaser && (
+                          <div className="inline-flex items-baseline gap-1.5 px-2 py-0.5 rounded bg-gray-200">
+                            <span className="text-xs font-semibold text-gray-700">Закупщик:</span>
+                            <span className="text-xs text-gray-900">{purchaseRequest.purchaser}</span>
+                          </div>
+                        )}
+                        <div className="inline-flex items-baseline gap-1.5 px-2 py-0.5 rounded bg-gray-200">
+                          <span className="text-xs font-semibold text-gray-700">Дата создания закупки:</span>
+                          <span className="text-xs text-gray-900">{formatDate(purchase.purchaseCreationDate)}</span>
+                        </div>
                       </div>
                       {/* Этап: Согласование результатов ЗП */}
                       {purchaseResultsApprovalApprovals.length > 0 && (

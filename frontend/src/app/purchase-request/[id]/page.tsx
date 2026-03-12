@@ -1238,90 +1238,96 @@ export default function PurchaseRequestDetailPage() {
                   </div>
                 ) : (
                 <>
-                <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_auto_auto_minmax(32rem,36rem)] gap-x-1.5 gap-y-1 items-stretch">
-                  {/* Левая часть с полями заявки */}
-                  <div className="min-w-0">
-                <div className="flex items-baseline gap-1 pb-1 mb-1 border-b border-gray-200">
-                  <span className="text-xs font-semibold text-gray-600">Номер:</span>
-                  <span className="text-xs text-gray-900">{purchaseRequest.idPurchaseRequest ?? '—'}</span>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-0">
-                      Наименование
-                    </label>
-                    <p className="text-xs text-gray-900">
-                      {purchaseRequest.name || '-'}
-                    </p>
-                  </div>
-              </div>
-              </div>
-
-                  {/* Блок План, Требуется закупка — слева от ЦФО/Бюджет */}
-                  <div className="flex-shrink-0 w-full lg:w-auto h-full flex flex-col">
-                    <div className="bg-white rounded-lg border border-gray-200 px-2 py-1.5 space-y-1 flex-1 min-h-0">
-                      <div className="flex items-baseline gap-1 text-xs whitespace-nowrap min-w-0 overflow-hidden">
-                        <span className="font-semibold text-gray-600 flex-shrink-0">План:</span>
-                        <span className="text-gray-900 truncate">{purchaseRequest.isPlanned === true ? 'В плане' : purchaseRequest.isPlanned === false ? 'Не в плане' : '—'}</span>
+                <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_minmax(32rem,36rem)] gap-x-1.5 gap-y-1 items-start">
+                  {/* Левая часть */}
+                  <div className="min-w-0 flex flex-col gap-1">
+                    {/* Номер + Наименование в одну строку */}
+                    <div className="flex items-baseline gap-2 pb-px mb-px border-b border-gray-200 min-w-0">
+                      <span className="text-xs font-semibold text-gray-600 flex-shrink-0">Номер:</span>
+                      <span className="text-xs text-gray-900 flex-shrink-0">{purchaseRequest.idPurchaseRequest ?? '—'}</span>
+                      <span className="text-xs font-semibold text-gray-600 flex-shrink-0 ml-2">Наименование:</span>
+                      <span className="text-xs text-gray-900 truncate min-w-0">{purchaseRequest.name || '-'}</span>
+                    </div>
+                    {/* Блоки с деталями */}
+                    <div className="flex flex-wrap gap-1.5 items-stretch">
+                      {/* Блок План, Требуется закупка */}
+                      <div className="flex-shrink-0">
+                        <div className="bg-white rounded-lg border border-gray-200 px-2 py-1.5 space-y-1">
+                          <div className="flex items-baseline gap-1 text-xs whitespace-nowrap min-w-0 overflow-hidden">
+                            <span className="font-semibold text-gray-600 flex-shrink-0">План:</span>
+                            <span className="text-gray-900 truncate">{purchaseRequest.isPlanned === true ? 'В плане' : purchaseRequest.isPlanned === false ? 'Не в плане' : '—'}</span>
+                          </div>
+                          <div className="flex items-baseline gap-1 text-xs whitespace-nowrap min-w-0 overflow-hidden">
+                            <span className="font-semibold text-gray-600 flex-shrink-0">Требуется закупка:</span>
+                            <span className="truncate">
+                              {purchaseRequest.requiresPurchase === true ? (
+                                <span className="inline-flex px-1.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">Да</span>
+                              ) : purchaseRequest.requiresPurchase === false ? (
+                                <span className="inline-flex px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">Нет</span>
+                              ) : (
+                                <span className="inline-flex px-1.5 py-0.5 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">—</span>
+                              )}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex items-baseline gap-1 text-xs whitespace-nowrap min-w-0 overflow-hidden">
-                        <span className="font-semibold text-gray-600 flex-shrink-0">Требуется закупка:</span>
-                        <span className="truncate">
-                          {purchaseRequest.requiresPurchase === true ? (
-                            <span className="inline-flex px-1.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
-                              Да
-                            </span>
-                          ) : purchaseRequest.requiresPurchase === false ? (
-                            <span className="inline-flex px-1.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">
-                              Нет
-                            </span>
-                          ) : (
-                            <span className="inline-flex px-1.5 py-0.5 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">
-                              —
-                            </span>
-                          )}
+                      {/* Блок ЦФО, Бюджет, Статья расходов */}
+                      <div className="flex-shrink-0">
+                        <div className="bg-white rounded-lg border border-gray-200 px-2 py-1.5 space-y-1">
+                          <div className="flex items-baseline gap-1 text-xs whitespace-nowrap min-w-0 overflow-hidden">
+                            <span className="font-semibold text-gray-600 flex-shrink-0">ЦФО:</span>
+                            <span className="text-gray-900 truncate">{purchaseRequest.cfo || '-'}</span>
+                          </div>
+                          <div className="flex items-baseline gap-1 text-xs whitespace-nowrap min-w-0 overflow-hidden">
+                            <span className="font-semibold text-gray-600 flex-shrink-0">Бюджет:</span>
+                            <span className="text-gray-900 truncate">{formatCurrency(purchaseRequest.budgetAmount ? Number(purchaseRequest.budgetAmount) : null, purchaseRequest.currency)}</span>
+                          </div>
+                          <div className="flex items-baseline gap-1 text-xs whitespace-nowrap min-w-0 overflow-hidden">
+                            <span className="font-semibold text-gray-600 flex-shrink-0">Статья расходов:</span>
+                            <span className="text-gray-900 truncate">{purchaseRequest.expenseItem || '-'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Блок статуса заявки */}
+                  <div className="flex-shrink-0 w-full lg:w-auto">
+                    <div className="bg-white rounded-lg border border-gray-200 px-2 py-1.5 space-y-1">
+                      <div className="flex items-baseline gap-1 text-xs">
+                        <span className="font-semibold text-gray-600 flex-shrink-0">Статус:</span>
+                        <span className="relative">
+                          <span aria-hidden className="invisible whitespace-nowrap inline-block px-1.5 py-0.5 text-xs font-medium">На согласовании</span>
+                          <span className="absolute inset-0 flex items-center">
+                            {purchaseRequest.status ? (
+                              <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap ${
+                                purchaseRequest.status === 'Утверждена' ? 'bg-green-100 text-green-800'
+                                : purchaseRequest.status === 'Согласована' ? 'bg-green-100 text-green-800'
+                                : purchaseRequest.status === 'Договор подписан' ? 'bg-green-100 text-green-800'
+                                : purchaseRequest.status === 'Спецификация подписана' ? 'bg-green-100 text-green-800'
+                                : purchaseRequest.status === 'На согласовании' ? 'bg-yellow-100 text-yellow-800'
+                                : purchaseRequest.status === 'Отклонена' ? 'bg-red-100 text-red-800'
+                                : purchaseRequest.status === 'Черновик' ? 'bg-gray-100 text-gray-800'
+                                : 'bg-blue-100 text-blue-800'
+                              }`}>
+                                {purchaseRequest.status}
+                              </span>
+                            ) : '-'}
+                          </span>
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Блок ЦФО, Бюджет, Статья расходов — слева от инициатора/закупщика */}
-                  <div className="flex-shrink-0 w-full lg:w-auto h-full flex flex-col">
-                    <div className="bg-white rounded-lg border border-gray-200 px-2 py-1.5 space-y-1 flex-1 min-h-0">
-                      <div className="flex items-baseline gap-1 text-xs whitespace-nowrap min-w-0 overflow-hidden">
-                        <span className="font-semibold text-gray-600 flex-shrink-0">ЦФО:</span>
-                        <span className="text-gray-900 truncate">{purchaseRequest.cfo || '-'}</span>
-                      </div>
-                      <div className="flex items-baseline gap-1 text-xs whitespace-nowrap min-w-0 overflow-hidden">
-                        <span className="font-semibold text-gray-600 flex-shrink-0">Бюджет:</span>
-                        <span className="text-gray-900 truncate">{formatCurrency(purchaseRequest.budgetAmount ? Number(purchaseRequest.budgetAmount) : null, purchaseRequest.currency)}</span>
-                      </div>
-                      <div className="flex items-baseline gap-1 text-xs whitespace-nowrap min-w-0 overflow-hidden">
-                        <span className="font-semibold text-gray-600 flex-shrink-0">Статья расходов:</span>
-                        <span className="text-gray-900 truncate">{purchaseRequest.expenseItem || '-'}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Блок инициатор — слева от согласований (закупщик перенесён в серую плашку слева от даты) */}
-                  <div className="flex-shrink-0 w-full lg:w-auto h-full flex flex-col">
-                    <div className="bg-white rounded-lg border border-gray-200 px-2 py-1.5 space-y-1 flex-1 min-h-0">
-                      <div className="flex items-baseline gap-1 text-xs whitespace-nowrap min-w-0 overflow-hidden">
-                        <span className="font-semibold text-gray-600 flex-shrink-0">Инициатор:</span>
-                        <span className="text-gray-900 truncate">{initiatorDisplayName(purchaseRequest.purchaseRequestInitiator)}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Правая часть: закупщик + дата создания в серой плашке, блок согласований */}
+                  {/* Правая часть: инициатор + дата создания в серой плашке, блок согласований */}
               <div className="w-full min-w-0 flex flex-col min-h-0">
                     <div className="bg-white rounded px-1.5 py-1 space-y-1 flex-1 min-h-0">
-                      <div className="flex flex-wrap items-baseline gap-2 pb-1 mb-1 border-b border-gray-200">
-                        <div className="inline-flex items-baseline gap-1.5 px-2 py-1 rounded bg-gray-200">
-                          <span className="text-xs font-semibold text-gray-700">Закупщик:</span>
-                          <span className="text-xs text-gray-900">{purchaserDisplayName(purchaseRequest.purchaser)}</span>
+                      <div className="flex flex-wrap items-baseline gap-2 pb-px mb-px border-b border-gray-200">
+                        <div className="inline-flex items-baseline gap-1.5 px-2 py-0.5 rounded bg-gray-200">
+                          <span className="text-xs font-semibold text-gray-700">Инициатор:</span>
+                          <span className="text-xs text-gray-900">{initiatorDisplayName(purchaseRequest.purchaseRequestInitiator)}</span>
                         </div>
-                        <div className="inline-flex items-baseline gap-1.5 px-2 py-1 rounded bg-gray-200">
+                        <div className="inline-flex items-baseline gap-1.5 px-2 py-0.5 rounded bg-gray-200">
                           <span className="text-xs font-semibold text-gray-700">Дата создания заявки:</span>
                           <span className="text-xs text-gray-900">{formatDate(purchaseRequest.purchaseRequestCreationDate)}</span>
                         </div>
@@ -1653,11 +1659,11 @@ export default function PurchaseRequestDetailPage() {
                   <span className="text-sm font-semibold text-gray-700">Закупка</span>
                 </div>
                 <div className="p-1.5">
-                <div className="flex flex-col lg:flex-row gap-2 items-start">
+                <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto_auto_minmax(32rem,36rem)] gap-x-1.5 gap-y-1 items-start">
                   {/* Левая часть с полями закупки */}
-                  <div className="flex-1">
+                  <div className="min-w-0">
                   {purchase ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-1">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1">
                       <div>
                         <label className="block text-xs font-semibold text-gray-600 mb-0">
                           Внутренний ID
@@ -1682,36 +1688,16 @@ export default function PurchaseRequestDetailPage() {
                           {purchase.purchaseMethod || '-'}
                         </p>
                       </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-0">
-                          Статус
-                        </label>
-                        {purchase.status ? (
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                            purchase.status === 'Завершена'
-                              ? 'bg-green-100 text-green-800'
-                              : purchase.status === 'Не согласовано' 
-                              ? 'bg-red-100 text-red-800' 
-                              : purchase.status === 'Проект'
-                              ? 'bg-gray-100 text-gray-800'
-                              : 'bg-blue-100 text-blue-800'
-                          }`}>
-                            {purchase.status}
-                          </span>
-                        ) : (
-                          <p className="text-xs text-gray-500">-</p>
-                        )}
-                      </div>
                     </div>
                   ) : (
                     <div className="text-center py-1 text-xs text-gray-500">
                       <p>Связанная закупка не найдена</p>
                     </div>
                   )}
-              </div>
+                  </div>
 
                     {/* Блок оценки CSI - между закупкой и согласованиями */}
-                    <div className="w-full lg:w-80 flex-shrink-0">
+                    <div className="flex-shrink-0 w-full lg:w-80">
                       {csiFeedbackLoading ? (
                         <div className="border border-gray-200 rounded p-2 bg-gray-50 text-center">
                           <div className="text-xs text-gray-400">Загрузка...</div>
@@ -1757,13 +1743,47 @@ export default function PurchaseRequestDetailPage() {
                       )}
                     </div>
 
+                  {/* Блок статуса закупки */}
+                  <div className="flex-shrink-0 w-full lg:w-auto">
+                    <div className="bg-white rounded-lg border border-gray-200 px-2 py-1.5 space-y-1">
+                      <div className="flex items-baseline gap-1 text-xs">
+                        <span className="font-semibold text-gray-600 flex-shrink-0">Статус:</span>
+                        <span className="relative">
+                          <span aria-hidden className="invisible whitespace-nowrap inline-block px-1.5 py-0.5 text-xs font-medium">Не согласовано</span>
+                          <span className="absolute inset-0 flex items-center">
+                            {purchase?.status ? (
+                              <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap ${
+                                purchase.status === 'Завершена' ? 'bg-green-100 text-green-800'
+                                : purchase.status === 'Не согласовано' ? 'bg-red-100 text-red-800'
+                                : purchase.status === 'Проект' ? 'bg-gray-100 text-gray-800'
+                                : 'bg-blue-100 text-blue-800'
+                              }`}>
+                                {purchase.status}
+                              </span>
+                            ) : '-'}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
                     {/* Правая часть с блоком согласований */}
-              <div className="w-full lg:min-w-[32rem] lg:w-[36rem] flex-shrink-0 min-w-0 max-w-full">
+              <div className="w-full min-w-0">
                     <div className="bg-white rounded px-1.5 py-1 space-y-1">
-                      {purchase && purchase.purchaseCreationDate != null && (
-                        <div className="inline-flex items-baseline gap-1.5 px-2 py-1 rounded bg-gray-200 pb-1 mb-1 border-b border-gray-200">
-                          <span className="text-xs font-semibold text-gray-700">Дата создания закупки:</span>
-                          <span className="text-xs text-gray-900">{formatDate(purchase.purchaseCreationDate)}</span>
+                      {purchase && (
+                        <div className="flex flex-wrap items-baseline gap-2 pb-px mb-px border-b border-gray-200">
+                          {purchaseRequest?.purchaser && (
+                            <div className="inline-flex items-baseline gap-1.5 px-2 py-0.5 rounded bg-gray-200">
+                              <span className="text-xs font-semibold text-gray-700">Закупщик:</span>
+                              <span className="text-xs text-gray-900">{purchaserDisplayName(purchaseRequest.purchaser)}</span>
+                            </div>
+                          )}
+                          {purchase.purchaseCreationDate != null && (
+                            <div className="inline-flex items-baseline gap-1.5 px-2 py-0.5 rounded bg-gray-200">
+                              <span className="text-xs font-semibold text-gray-700">Дата создания закупки:</span>
+                              <span className="text-xs text-gray-900">{formatDate(purchase.purchaseCreationDate)}</span>
+                            </div>
+                          )}
                         </div>
                       )}
                       {/* Этап: Согласование результатов ЗП */}
@@ -2094,21 +2114,24 @@ export default function PurchaseRequestDetailPage() {
                           </div>
                           <div className="flex-shrink-0 w-full lg:w-auto">
                             <div className="bg-white rounded-lg border border-gray-200 px-2 py-1.5 space-y-1">
-                              <div className="flex items-baseline gap-1 text-xs whitespace-nowrap min-w-0 overflow-hidden">
+                              <div className="flex items-baseline gap-1 text-xs">
                                 <span className="font-semibold text-gray-600 flex-shrink-0">Статус:</span>
-                                <span className="text-gray-900 truncate">
-                                  {contract.status ? (
-                                    <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${
-                                      contract.status === 'Подписан' ? 'bg-green-100 text-green-800'
-                                      : contract.status === 'Проект' ? 'bg-gray-100 text-gray-800'
-                                      : contract.status === 'На согласовании' ? 'bg-yellow-100 text-yellow-800'
-                                      : contract.status === 'На регистрации' ? 'bg-blue-100 text-blue-800'
-                                      : contract.status === 'Не согласован' ? 'bg-red-100 text-red-800'
-                                      : 'bg-gray-100 text-gray-800'
-                                    }`}>
-                                      {contract.status}
-                                    </span>
-                                  ) : '-'}
+                                <span className="relative">
+                                  <span aria-hidden className="invisible whitespace-nowrap inline-block px-1.5 py-0.5 text-xs font-medium">На согласовании</span>
+                                  <span className="absolute inset-0 flex items-center">
+                                    {contract.status ? (
+                                      <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium whitespace-nowrap ${
+                                        contract.status === 'Подписан' ? 'bg-green-100 text-green-800'
+                                        : contract.status === 'Проект' ? 'bg-gray-100 text-gray-800'
+                                        : contract.status === 'На согласовании' ? 'bg-yellow-100 text-yellow-800'
+                                        : contract.status === 'На регистрации' ? 'bg-blue-100 text-blue-800'
+                                        : contract.status === 'Не согласован' ? 'bg-red-100 text-red-800'
+                                        : 'bg-gray-100 text-gray-800'
+                                      }`}>
+                                        {contract.status}
+                                      </span>
+                                    ) : '-'}
+                                  </span>
                                 </span>
                               </div>
                               <div className="flex items-baseline gap-1 text-xs whitespace-nowrap min-w-0 overflow-hidden">
