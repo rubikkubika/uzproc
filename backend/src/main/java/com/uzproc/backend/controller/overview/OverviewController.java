@@ -7,10 +7,13 @@ import com.uzproc.backend.dto.overview.OverviewContractDurationResponseDto;
 import com.uzproc.backend.dto.overview.OverviewEkChartResponseDto;
 import com.uzproc.backend.dto.overview.OverviewPurchasePlanMonthsResponseDto;
 import com.uzproc.backend.dto.overview.OverviewSlaResponseDto;
+import com.uzproc.backend.dto.overview.OverviewTimelinesResponseDto;
 import com.uzproc.backend.service.overview.ApprovalPresentationService;
 import com.uzproc.backend.service.overview.OverviewService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.uzproc.backend.dto.overview.OverviewTimelinesRequestDto;
+import com.uzproc.backend.dto.purchaserequest.PurchaseRequestDto;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -140,6 +143,30 @@ public class OverviewController {
             @RequestParam(required = false) List<String> documentForm) {
         logger.debug("Overview approvals-summary/by-contract (year={}, documentForm={})", year, documentForm);
         return ResponseEntity.ok(overviewService.getContractDurationSummary(year, documentForm));
+    }
+
+    /**
+     * Данные для вкладки «Сроки закупок»: средние рабочие дни по этапам, сгруппированные по годам.
+     */
+    @GetMapping("/timelines")
+    public ResponseEntity<OverviewTimelinesResponseDto> getTimelinesData(
+            @RequestParam(required = false, defaultValue = "false") boolean onlySignedContracts) {
+        logger.debug("Overview timelines request (onlySignedContracts={})", onlySignedContracts);
+        OverviewTimelinesResponseDto data = overviewService.getTimelinesData(onlySignedContracts);
+        return ResponseEntity.ok(data);
+    }
+
+    /**
+     * Список заявок на закупку, участвовавших в расчёте «Сроки закупок» для указанного года и сложности.
+     */
+    @GetMapping("/timelines/requests")
+    public ResponseEntity<List<OverviewTimelinesRequestDto>> getTimelinesRequests(
+            @RequestParam int year,
+            @RequestParam String complexity,
+            @RequestParam(required = false, defaultValue = "false") boolean onlySignedContracts) {
+        logger.debug("Overview timelines requests for year={}, complexity={}, onlySignedContracts={}", year, complexity, onlySignedContracts);
+        List<OverviewTimelinesRequestDto> requests = overviewService.getTimelinesRequests(year, complexity, onlySignedContracts);
+        return ResponseEntity.ok(requests);
     }
 
     /**
