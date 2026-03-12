@@ -110,9 +110,10 @@ public class ContractStatusUpdateService {
             }
             // Проверяем условия для статуса "На согласовании"
             // Приоритет: сначала проверяем "На согласовании", потом "Не согласован"
-            else if (stateTrimmed.contains("Согласование договора - Этап 1: На согласовании") ||
+            else if (stateTrimmed.contains("Согласование договора: На согласовании") ||
+                     stateTrimmed.contains("Согласование договора - Этап 1: На согласовании") ||
                      stateTrimmed.contains("Согласование - Этап 1: На согласовании") ||
-                     (stateTrimmed.contains("Синхронизация: Исполнен") && 
+                     (stateTrimmed.contains("Синхронизация: Исполнен") &&
                       !stateTrimmed.contains("Согласование договора - Этап 1: Согласован") &&
                       !stateTrimmed.contains("Согласование - Этап 1: Согласован"))) {
                 newStatus = ContractStatus.ON_COORDINATION;
