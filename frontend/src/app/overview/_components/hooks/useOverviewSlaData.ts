@@ -16,6 +16,10 @@ export interface OverviewSlaRequestRow {
   approvalAssignmentDate: string | null;
   purchaseCompletionDate: string | null;
   slaCommentCount?: number;
+  /** Общий срок закупки (рабочих дней): от даты назначения на закупщика до первого назначения согласования */
+  purchaseGeneralDays: number | null;
+  /** Итоги закупки (рабочих дней): от первого назначения согласования до последнего выполнения */
+  purchaseResultDays: number | null;
 }
 
 export interface OverviewSlaBlock {
@@ -84,6 +88,8 @@ export function useOverviewSlaData(year: number | null, purchaser: string | null
         approvalAssignmentDate?: string | null;
         purchaseCompletionDate?: string | null;
         slaCommentCount?: number;
+        purchaseGeneralDays?: number | null;
+        purchaseResultDays?: number | null;
       };
       const blocks: OverviewSlaBlock[] = (json.statusBlocks ?? []).map(
         (b: { statusGroup?: string; requests?: RawSlaRequest[] }) => ({
@@ -100,6 +106,8 @@ export function useOverviewSlaData(year: number | null, purchaser: string | null
             approvalAssignmentDate: r.approvalAssignmentDate ?? null,
             purchaseCompletionDate: r.purchaseCompletionDate ?? null,
             slaCommentCount: r.slaCommentCount ?? 0,
+            purchaseGeneralDays: r.purchaseGeneralDays != null ? Number(r.purchaseGeneralDays) : null,
+            purchaseResultDays: r.purchaseResultDays != null ? Number(r.purchaseResultDays) : null,
           })),
         })
       );

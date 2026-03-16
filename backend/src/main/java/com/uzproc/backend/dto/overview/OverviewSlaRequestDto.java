@@ -18,6 +18,10 @@ public class OverviewSlaRequestDto {
     private String approvalAssignmentDate;
     private String purchaseCompletionDate;
     private Integer slaCommentCount;
+    /** Общий срок закупки (рабочих дней): от даты назначения на закупщика до даты первого назначения согласования закупочной процедуры. */
+    private Integer purchaseGeneralDays;
+    /** Итоги закупки (рабочих дней): от даты первого назначения согласования закупочной процедуры до даты последнего выполнения. */
+    private Integer purchaseResultDays;
 
     public Long getId() {
         return id;
@@ -105,5 +109,21 @@ public class OverviewSlaRequestDto {
 
     public void setSlaCommentCount(Integer slaCommentCount) {
         this.slaCommentCount = slaCommentCount;
+    }
+
+    public Integer getPurchaseGeneralDays() {
+        return purchaseGeneralDays;
+    }
+
+    public void setPurchaseGeneralDays(Integer purchaseGeneralDays) {
+        this.purchaseGeneralDays = purchaseGeneralDays;
+    }
+
+    public Integer getPurchaseResultDays() {
+        return purchaseResultDays;
+    }
+
+    public void setPurchaseResultDays(Integer purchaseResultDays) {
+        this.purchaseResultDays = purchaseResultDays;
     }
 }

@@ -30,6 +30,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -123,12 +124,55 @@ public class OverviewService {
             blocks.add(new OverviewSlaBlockDto(statusGroup, requests));
         }
         Map<Long, Long> slaCounts = purchaseRequestCommentService.getSlaCommentCountByPurchaseRequestIds(allRequestIds);
+        // Bulk-загрузка PurchaseApproval для вычисления purchaseGeneralDays и purchaseResultDays
+        Map<Long, List<com.uzproc.backend.entity.purchase.PurchaseApproval>> approvalsByRequestId = Collections.emptyMap();
+        if (!allRequestIds.isEmpty()) {
+            List<Long> allIdPurchaseRequests = blocks.stream()
+                    .flatMap(b -> b.getRequests().stream())
+                    .filter(r -> r.getIdPurchaseRequest() != null)
+                    .map(OverviewSlaRequestDto::getIdPurchaseRequest)
+                    .distinct()
+                    .collect(Collectors.toList());
+            if (!allIdPurchaseRequests.isEmpty()) {
+                approvalsByRequestId = purchaseApprovalRepository.findByPurchaseRequestIdIn(allIdPurchaseRequests)
+                        .stream()
+                        .collect(Collectors.groupingBy(com.uzproc.backend.entity.purchase.PurchaseApproval::getPurchaseRequestId));
+            }
+        }
         for (OverviewSlaBlockDto block : blocks) {
             for (OverviewSlaRequestDto r : block.getRequests()) {
                 if (r.getId() != null && slaCounts.containsKey(r.getId())) {
                     r.setSlaCommentCount(slaCounts.get(r.getId()).intValue());
                 } else {
                     r.setSlaCommentCount(0);
+                }
+                // Вычисление purchaseGeneralDays и purchaseResultDays
+                if (r.getIdPurchaseRequest() != null && r.getApprovalAssignmentDate() != null) {
+                    List<com.uzproc.backend.entity.purchase.PurchaseApproval> approvals =
+                            approvalsByRequestId.getOrDefault(r.getIdPurchaseRequest(), Collections.emptyList());
+                    if (!approvals.isEmpty()) {
+                        LocalDateTime firstApprovalAssignment = approvals.stream()
+                                .map(com.uzproc.backend.entity.purchase.PurchaseApproval::getAssignmentDate)
+                                .filter(Objects::nonNull)
+                                .min(LocalDateTime::compareTo)
+                                .orElse(null);
+                        LocalDateTime lastApprovalCompletion = approvals.stream()
+                                .map(com.uzproc.backend.entity.purchase.PurchaseApproval::getCompletionDate)
+                                .filter(Objects::nonNull)
+                                .max(LocalDateTime::compareTo)
+                                .orElse(null);
+                        LocalDateTime approvalAssignment = parseIsoDateTime(r.getApprovalAssignmentDate());
+                        // Общий: от даты назначения на закупщика до первого назначения согласования (день назначения на закупщика не считается)
+                        if (approvalAssignment != null && firstApprovalAssignment != null) {
+                            long generalDays = countWorkingDaysBetween(approvalAssignment, firstApprovalAssignment);
+                            r.setPurchaseGeneralDays((int) generalDays);
+                        }
+                        // Итоги: от первого назначения согласования до последнего выполнения (день назначения не считается)
+                        if (firstApprovalAssignment != null && lastApprovalCompletion != null) {
+                            long resultDays = countWorkingDaysBetween(firstApprovalAssignment, lastApprovalCompletion);
+                            r.setPurchaseResultDays((int) resultDays);
+                        }
+                    }
                 }
             }
         }
@@ -898,6 +942,8 @@ public class OverviewService {
     private static final String STAGE_PREPARATION = "Подготовка ЗнЗ";
     private static final String STAGE_APPROVAL = "Согласование ЗнЗ";
     private static final String STAGE_PURCHASE = "Закупка";
+    private static final String STAGE_PURCHASE_GENERAL = "Закупка Общий";
+    private static final String STAGE_PURCHASE_RESULT = "Закупка Итоги";
     private static final String STAGE_CONTRACT_PREP = "Подготовка договора";
     private static final String STAGE_CONTRACT_APPROVAL = "Согласование договора";
     private static final String STAGE_TOTAL = "Срок";
@@ -913,7 +959,7 @@ public class OverviewService {
      * «Срок»: сумма всех этапов.
      */
     public OverviewTimelinesResponseDto getTimelinesData(boolean onlySignedContracts) {
-        List<String> stages = List.of(STAGE_PREPARATION, STAGE_APPROVAL, STAGE_PURCHASE, STAGE_CONTRACT_PREP, STAGE_CONTRACT_APPROVAL, STAGE_TOTAL);
+        List<String> stages = List.of(STAGE_PREPARATION, STAGE_APPROVAL, STAGE_PURCHASE, STAGE_PURCHASE_GENERAL, STAGE_PURCHASE_RESULT, STAGE_CONTRACT_PREP, STAGE_CONTRACT_APPROVAL, STAGE_TOTAL);
         List<Object[]> rawRows = purchaseRequestApprovalRepository.findCreationAndFirstAssignmentDates();
 
         // Этап 5: Согласование договора — загружаем данные отдельным запросом
@@ -934,6 +980,7 @@ public class OverviewService {
             String complexity = row[6] != null ? row[6].toString().trim() : "";
             java.sql.Timestamp contractCreationTs = row[7] != null ? (java.sql.Timestamp) row[7] : null;
             String status = row[8] != null ? row[8].toString() : null;
+            java.sql.Timestamp purchaseFirstAssignmentTs = row[9] != null ? (java.sql.Timestamp) row[9] : null;
             if (complexity.isEmpty()) complexity = "—";
             if (creationTs == null || assignmentTs == null) continue;
             // Исключаем заявки без назначения на утверждение
@@ -959,7 +1006,7 @@ public class OverviewService {
                 yearAcc.addApproval(approvalDays);
                 complexityAcc.addApproval(approvalDays);
             }
-            // Этап 3: Закупка
+            // Этап 3: Закупка (общий — от назначения на закупщика до завершения последнего согласования закупки)
             if (purchaseCompletionTs != null) {
                 LocalDateTime purchaseCompletion = purchaseCompletionTs.toLocalDateTime();
                 LocalDateTime purchaseStart = approvalAssignmentTs != null
@@ -970,6 +1017,18 @@ public class OverviewService {
                     yearAcc.addPurchase(purchaseDays);
                     complexityAcc.addPurchase(purchaseDays);
                 }
+            }
+            // Этап 3а: Закупка Общий (от назначения на закупщика до первого назначения согласования закупки)
+            if (approvalAssignmentTs != null && purchaseFirstAssignmentTs != null) {
+                long generalDays = countWorkingDaysBetween(approvalAssignmentTs.toLocalDateTime(), purchaseFirstAssignmentTs.toLocalDateTime());
+                yearAcc.addPurchaseGeneral(generalDays);
+                complexityAcc.addPurchaseGeneral(generalDays);
+            }
+            // Этап 3б: Закупка Итоги (от первого назначения согласования закупки до последнего завершения)
+            if (purchaseFirstAssignmentTs != null && purchaseCompletionTs != null) {
+                long resultDays = countWorkingDaysBetween(purchaseFirstAssignmentTs.toLocalDateTime(), purchaseCompletionTs.toLocalDateTime());
+                yearAcc.addPurchaseResult(resultDays);
+                complexityAcc.addPurchaseResult(resultDays);
             }
             // Этап 4: Подготовка договора (от завершения закупки до создания первого договора, день завершения не считается)
             if (purchaseCompletionTs != null && contractCreationTs != null) {
@@ -1009,11 +1068,15 @@ public class OverviewService {
         double prepAvg = roundAvg(acc.prepDays);
         double approvalAvg = roundAvg(acc.approvalDays);
         double purchaseAvg = roundAvg(acc.purchaseDays);
+        double purchaseGeneralAvg = roundAvg(acc.purchaseGeneralDays);
+        double purchaseResultAvg = roundAvg(acc.purchaseResultDays);
         double contractPrepAvg = roundAvg(acc.contractPrepDays);
         double contractApprovalAvg = roundAvg(acc.contractApprovalDays);
         avgByStage.put(STAGE_PREPARATION, prepAvg);
         avgByStage.put(STAGE_APPROVAL, approvalAvg);
         avgByStage.put(STAGE_PURCHASE, purchaseAvg);
+        avgByStage.put(STAGE_PURCHASE_GENERAL, purchaseGeneralAvg);
+        avgByStage.put(STAGE_PURCHASE_RESULT, purchaseResultAvg);
         avgByStage.put(STAGE_CONTRACT_PREP, contractPrepAvg);
         avgByStage.put(STAGE_CONTRACT_APPROVAL, contractApprovalAvg);
         avgByStage.put(STAGE_TOTAL, Math.round((prepAvg + approvalAvg + purchaseAvg + contractPrepAvg + contractApprovalAvg) * 10.0) / 10.0);
@@ -1068,6 +1131,7 @@ public class OverviewService {
         java.sql.Timestamp approvalAssignmentTs = row[4] != null ? (java.sql.Timestamp) row[4] : null;
         java.sql.Timestamp purchaseCompletionTs = row[5] != null ? (java.sql.Timestamp) row[5] : null;
         java.sql.Timestamp contractCreationTs = row[7] != null ? (java.sql.Timestamp) row[7] : null;
+        java.sql.Timestamp purchaseFirstAssignmentTs = row.length > 9 && row[9] != null ? (java.sql.Timestamp) row[9] : null;
 
         // Этап 1: Подготовка ЗнЗ
         if (creationTs != null && assignmentTs != null) {
@@ -1085,6 +1149,14 @@ public class OverviewService {
             if (purchaseStart != null) {
                 days.put(STAGE_PURCHASE, countWorkingDaysBetween(purchaseStart, purchaseCompletionTs.toLocalDateTime()));
             }
+        }
+        // Этап 3а: Закупка Общий (от назначения на закупщика до первого назначения согласования закупки)
+        if (approvalAssignmentTs != null && purchaseFirstAssignmentTs != null) {
+            days.put(STAGE_PURCHASE_GENERAL, countWorkingDaysBetween(approvalAssignmentTs.toLocalDateTime(), purchaseFirstAssignmentTs.toLocalDateTime()));
+        }
+        // Этап 3б: Закупка Итоги (от первого назначения согласования закупки до последнего завершения)
+        if (purchaseFirstAssignmentTs != null && purchaseCompletionTs != null) {
+            days.put(STAGE_PURCHASE_RESULT, countWorkingDaysBetween(purchaseFirstAssignmentTs.toLocalDateTime(), purchaseCompletionTs.toLocalDateTime()));
         }
         // Этап 4: Подготовка договора
         if (purchaseCompletionTs != null && contractCreationTs != null) {
@@ -1126,12 +1198,16 @@ public class OverviewService {
         final List<Long> prepDays = new ArrayList<>();
         final List<Long> approvalDays = new ArrayList<>();
         final List<Long> purchaseDays = new ArrayList<>();
+        final List<Long> purchaseGeneralDays = new ArrayList<>();
+        final List<Long> purchaseResultDays = new ArrayList<>();
         final List<Long> contractPrepDays = new ArrayList<>();
         final List<Long> contractApprovalDays = new ArrayList<>();
 
         void addPrep(long days) { count++; prepDays.add(days); }
         void addApproval(long days) { approvalDays.add(days); }
         void addPurchase(long days) { purchaseDays.add(days); }
+        void addPurchaseGeneral(long days) { purchaseGeneralDays.add(days); }
+        void addPurchaseResult(long days) { purchaseResultDays.add(days); }
         void addContractPrep(long days) { contractPrepDays.add(days); }
         void addContractApproval(long days) { contractApprovalDays.add(days); }
     }

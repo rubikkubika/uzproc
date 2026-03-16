@@ -54,6 +54,11 @@ public interface PurchaseApprovalRepository extends JpaRepository<PurchaseApprov
           AND (CAST(:year AS INTEGER) IS NULL OR EXTRACT(YEAR FROM a.assignment_date) = CAST(:year AS INTEGER))
         """, nativeQuery = true)
     List<Object[]> findRoleAndDatesForSummary(@Param("year") Integer year);
+
+    /**
+     * Находит все согласования для нескольких purchaseRequestId (bulk-запрос).
+     */
+    List<PurchaseApproval> findByPurchaseRequestIdIn(List<Long> purchaseRequestIds);
 }
 
 

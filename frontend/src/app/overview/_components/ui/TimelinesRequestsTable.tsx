@@ -18,7 +18,9 @@ const STAGE_COLUMNS: StageCol[] = [
   { key: 'Заявка', label: 'Заявка', isMain: true, isTotal: false, sumOf: ['Подготовка ЗнЗ', 'Согласование ЗнЗ'] },
   { key: 'Подготовка ЗнЗ', label: 'Подг.', isMain: false, isTotal: false },
   { key: 'Согласование ЗнЗ', label: 'Согл.', isMain: false, isTotal: false },
-  { key: 'Закупка', label: 'Закупка', isMain: true, isTotal: false },
+  { key: 'Закупка', label: 'Закупка', isMain: true, isTotal: false, sumOf: ['Закупка Общий', 'Закупка Итоги'] },
+  { key: 'Закупка Общий', label: 'Общий', isMain: false, isTotal: false },
+  { key: 'Закупка Итоги', label: 'Итоги', isMain: false, isTotal: false },
   { key: 'Договор', label: 'Договор', isMain: true, isTotal: false, sumOf: ['Подготовка договора', 'Согласование договора'] },
   { key: 'Подготовка договора', label: 'Подг.', isMain: false, isTotal: false },
   { key: 'Согласование договора', label: 'Согл.', isMain: false, isTotal: false },
@@ -121,13 +123,17 @@ export function TimelinesRequestsTable({ year, complexity, items, loading, error
       )}
       {!loading && !error && items.length > 0 && (
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
+          <table className="w-full table-fixed text-xs border-collapse" style={{ minWidth: '980px' }}>
+            <colgroup><col style={{ width: '55px' }} /><col style={{ width: '60px' }} /><col style={{ width: '90px' }} /><col style={{ width: '150px' }} /><col style={{ width: '72px' }} /><col style={{ width: '80px' }} /><col style={{ width: '40px' }} /><col style={{ width: '90px' }} />{STAGE_COLUMNS.map((sc) => (
+                <col key={sc.key} style={{ width: sc.isTotal ? '44px' : sc.isMain ? '52px' : '40px' }} />
+              ))}</colgroup>
             <thead>
               <tr className="bg-gray-50">
                 {DATA_COLUMNS.map((col) => (
                   <th
                     key={col.key}
-                    className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-b border-gray-300"
+                    className="px-1 py-1.5 text-left text-[11px] font-medium text-gray-500 tracking-wider border-r border-b border-gray-300 truncate"
+                    title={col.label}
                   >
                     {col.label}
                   </th>
@@ -137,7 +143,7 @@ export function TimelinesRequestsTable({ year, complexity, items, loading, error
                   return (
                     <th
                       key={sc.key}
-                      className={`px-2 py-2 text-center text-xs font-medium border-r border-b border-gray-300 ${thClass}`}
+                      className={`px-1 py-1.5 text-center text-[11px] font-medium border-r border-b border-gray-300 ${thClass}`}
                     >
                       {sc.label}
                     </th>
@@ -155,7 +161,7 @@ export function TimelinesRequestsTable({ year, complexity, items, loading, error
                   {DATA_COLUMNS.map((col) => (
                     <td
                       key={col.key}
-                      className={`px-2 py-2 text-xs text-gray-900 border-r border-gray-300 truncate ${col.key === 'name' ? 'max-w-[200px]' : ''}`}
+                      className="px-1 py-1.5 text-[11px] text-gray-900 border-r border-gray-300 truncate overflow-hidden text-ellipsis"
                       title={getCellValue(item.request, col.key)}
                     >
                       {getCellValue(item.request, col.key)}
@@ -167,7 +173,7 @@ export function TimelinesRequestsTable({ year, complexity, items, loading, error
                     return (
                       <td
                         key={sc.key}
-                        className={`px-2 py-2 text-xs text-center border-r border-gray-300 ${tdClass}`}
+                        className={`px-1 py-1.5 text-[11px] text-center border-r border-gray-300 ${tdClass}`}
                       >
                         {val != null ? val : '—'}
                       </td>

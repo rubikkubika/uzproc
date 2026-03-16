@@ -64,7 +64,7 @@ public interface PurchaseRequestApprovalRepository extends JpaRepository<Purchas
      * Для вкладки «Сроки закупок»: возвращает данные по этапам для каждой заявки.
      * Колонки: id_purchase_request, purchase_request_creation_date, min_assignment_date,
      * max_completion_date, approval_assignment_date, max_purchase_completion_date,
-     * complexity, max_contract_creation_date.
+     * complexity, max_contract_creation_date, status, min_purchase_assignment_date.
      */
     @Query(value = """
         SELECT pr.id_purchase_request,
@@ -75,7 +75,8 @@ public interface PurchaseRequestApprovalRepository extends JpaRepository<Purchas
                pa_sub.max_purchase_completion_date,
                pr.complexity,
                c_sub.min_contract_creation_date,
-               pr.status
+               pr.status,
+               pa_first_sub.min_purchase_assignment_date
         FROM purchase_requests pr
         JOIN (
             SELECT id_purchase_request,
@@ -98,6 +99,12 @@ public interface PurchaseRequestApprovalRepository extends JpaRepository<Purchas
             WHERE completion_date IS NOT NULL
             GROUP BY purchase_request_id
         ) pa_sub ON pa_sub.purchase_request_id = pr.id_purchase_request
+        LEFT JOIN (
+            SELECT purchase_request_id, MIN(assignment_date) AS min_purchase_assignment_date
+            FROM purchase_approvals
+            WHERE assignment_date IS NOT NULL
+            GROUP BY purchase_request_id
+        ) pa_first_sub ON pa_first_sub.purchase_request_id = pr.id_purchase_request
         LEFT JOIN (
             SELECT purchase_request_id, MAX(contract_creation_date) AS min_contract_creation_date
             FROM contracts

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import type { TimelinesData, TimelinesYearRow } from '../hooks/useOverviewTimelinesData';
 import { useTimelinesRequests } from '../hooks/useTimelinesRequests';
 import { TimelinesRequestsTable } from './TimelinesRequestsTable';
@@ -9,7 +9,9 @@ const STAGE_HELP: Record<string, string> = {
   'Подготовка ЗнЗ': 'От даты создания заявки до даты первого назначения согласования. День создания не считается.',
   'Согласование ЗнЗ': 'От первого назначения согласования до последнего завершения согласования заявки. День назначения не считается.',
   'Заявка': 'Сумма этапов: Подготовка ЗнЗ + Согласование ЗнЗ.',
-  'Закупка': 'От даты назначения на утверждение закупщика (или последнего завершения согласования ЗнЗ, если этапа утверждения нет) до последнего завершения согласования закупки. День назначения не считается.',
+  'Закупка': 'Сумма этапов: Общий + Итоги.',
+  'Закупка Общий': 'От даты назначения на утверждение закупщика до даты первого назначения согласования закупочной процедуры. День назначения не считается.',
+  'Закупка Итоги': 'От даты первого назначения согласования закупочной процедуры до даты последнего завершения согласования. День назначения не считается.',
   'Подготовка договора': 'От последнего завершения согласования закупки до даты создания первого договора (исключая договоры, исключённые из расчёта статуса). День завершения закупки не считается.',
   'Согласование договора': 'От первого назначения согласования договора до завершения этапа регистрации. Если несколько договоров — берётся самый долгий. День назначения не считается.',
   'Договор': 'Сумма этапов: Подготовка договора + Согласование договора.',
@@ -41,7 +43,9 @@ const STAGE_COLUMNS: StageColumn[] = [
   { key: 'Заявка', label: 'Заявка', isMain: true, isTotal: false, sumOf: ['Подготовка ЗнЗ', 'Согласование ЗнЗ'] },
   { key: 'Подготовка ЗнЗ', label: 'Подг.', isMain: false, isTotal: false },
   { key: 'Согласование ЗнЗ', label: 'Согл.', isMain: false, isTotal: false },
-  { key: 'Закупка', label: 'Закупка', isMain: true, isTotal: false },
+  { key: 'Закупка', label: 'Закупка', isMain: true, isTotal: false, sumOf: ['Закупка Общий', 'Закупка Итоги'] },
+  { key: 'Закупка Общий', label: 'Общий', isMain: false, isTotal: false },
+  { key: 'Закупка Итоги', label: 'Итоги', isMain: false, isTotal: false },
   { key: 'Договор', label: 'Договор', isMain: true, isTotal: false, sumOf: ['Подготовка договора', 'Согласование договора'] },
   { key: 'Подготовка договора', label: 'Подг.', isMain: false, isTotal: false },
   { key: 'Согласование договора', label: 'Согл.', isMain: false, isTotal: false },
@@ -117,20 +121,55 @@ interface TimelinesTabContentProps {
 }
 
 export function TimelinesTabContent({ data, loading, error, onlySignedContracts, onToggleOnlySigned }: TimelinesTabContentProps) {
-  const [expandedYears, setExpandedYears] = useState<Set<number>>(new Set());
+  const [expandedYears, setExpandedYears] = useState<Set<number>>(() => {
+    if (typeof window === 'undefined') return new Set();
+    try {
+      const saved = sessionStorage.getItem('overview_timelinesExpanded');
+      return saved ? new Set(JSON.parse(saved) as number[]) : new Set();
+    } catch { return new Set(); }
+  });
   const reqData = useTimelinesRequests(onlySignedContracts);
+
+  // Восстановление выбранной сложности из sessionStorage при монтировании
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (restoredRef.current || !data || data.rows.length === 0) return;
+    restoredRef.current = true;
+    try {
+      const saved = sessionStorage.getItem('overview_timelinesSelection');
+      if (saved) {
+        const sel = JSON.parse(saved) as { year: number; complexity: string };
+        if (sel.year && sel.complexity) reqData.select(sel.year, sel.complexity);
+      }
+    } catch { /* ignore */ }
+  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleYear = useCallback((year: number) => {
     setExpandedYears((prev) => {
       const next = new Set(prev);
       if (next.has(year)) next.delete(year);
       else next.add(year);
+      if (typeof window !== 'undefined') sessionStorage.setItem('overview_timelinesExpanded', JSON.stringify([...next]));
       return next;
     });
   }, []);
 
   const handleComplexityClick = useCallback((year: number, complexity: string) => {
     reqData.select(year, complexity);
+    if (typeof window !== 'undefined') {
+      // Если повторный клик — убираем, иначе сохраняем
+      const saved = sessionStorage.getItem('overview_timelinesSelection');
+      if (saved) {
+        try {
+          const sel = JSON.parse(saved) as { year: number; complexity: string };
+          if (sel.year === year && sel.complexity === complexity) {
+            sessionStorage.removeItem('overview_timelinesSelection');
+            return;
+          }
+        } catch { /* ignore */ }
+      }
+      sessionStorage.setItem('overview_timelinesSelection', JSON.stringify({ year, complexity }));
+    }
   }, [reqData]);
 
   if (loading) {

@@ -31,8 +31,26 @@ import { TimelinesTabContent } from './ui/TimelinesTabContent';
 export default function Overview() {
   const { activeTab, setActiveTab } = useOverview();
   const currentYear = useMemo(() => new Date().getFullYear(), []);
-  const [slaYear, setSlaYear] = useState<number>(currentYear);
-  const [slaPurchaserFilter, setSlaPurchaserFilter] = useState<string | null>(null);
+  const [slaYear, setSlaYearState] = useState<number>(() => {
+    if (typeof window === 'undefined') return currentYear;
+    const saved = sessionStorage.getItem('overview_slaYear');
+    return saved ? Number(saved) : currentYear;
+  });
+  const setSlaYear = (year: number) => {
+    setSlaYearState(year);
+    if (typeof window !== 'undefined') sessionStorage.setItem('overview_slaYear', String(year));
+  };
+  const [slaPurchaserFilter, setSlaPurchaserFilterState] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return sessionStorage.getItem('overview_slaPurchaser') || null;
+  });
+  const setSlaPurchaserFilter = (v: string | null) => {
+    setSlaPurchaserFilterState(v);
+    if (typeof window !== 'undefined') {
+      if (v) sessionStorage.setItem('overview_slaPurchaser', v);
+      else sessionStorage.removeItem('overview_slaPurchaser');
+    }
+  };
   const slaAvailableYears = useMemo(() => {
     const years: number[] = [];
     for (let i = currentYear - 2; i <= currentYear + 5; i++) years.push(i);
@@ -235,7 +253,17 @@ export default function Overview() {
     return ((metSla + forecastMet) / totalWithForecast) * 100;
   }, [slaData.data?.slaPercentageByMonth, slaData.data?.statusBlocks, requiresAttentionRequests, slaYear]);
 
-  const [timelinesOnlySigned, setTimelinesOnlySigned] = useState(false);
+  const [timelinesOnlySigned, setTimelinesOnlySignedState] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return sessionStorage.getItem('overview_timelinesOnlySigned') === 'true';
+  });
+  const setTimelinesOnlySigned = (v: boolean | ((prev: boolean) => boolean)) => {
+    setTimelinesOnlySignedState((prev) => {
+      const next = typeof v === 'function' ? v(prev) : v;
+      if (typeof window !== 'undefined') sessionStorage.setItem('overview_timelinesOnlySigned', String(next));
+      return next;
+    });
+  };
   const timelinesData = useOverviewTimelinesData(activeTab === 'timelines', timelinesOnlySigned);
 
   const purchasePlanMonthsParam = useMemo(

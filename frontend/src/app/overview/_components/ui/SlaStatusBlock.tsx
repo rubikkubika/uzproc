@@ -167,19 +167,7 @@ export function SlaStatusBlock({ title, statusGroup, year, requests: propsReques
       {!loading && !error && (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1100px] table-fixed border-collapse text-[11px] leading-snug">
-            <colgroup>
-              <col style={{ width: '72px' }} />
-              <col style={{ width: '220px' }} />
-              <col style={{ width: '80px' }} />
-              <col style={{ width: '120px' }} />
-              <col style={{ width: '56px' }} />
-              <col style={{ width: '130px' }} />
-              <col style={{ width: '88px' }} />
-              <col style={{ width: '100px' }} />
-              <col style={{ width: '100px' }} />
-              <col style={{ width: '72px' }} />
-              <col style={{ width: '90px' }} />
-            </colgroup>
+            <colgroup><col style={{ width: '72px' }} /><col style={{ width: '220px' }} /><col style={{ width: '80px' }} /><col style={{ width: '120px' }} /><col style={{ width: '56px' }} /><col style={{ width: '130px' }} /><col style={{ width: '88px' }} /><col style={{ width: '100px' }} /><col style={{ width: '100px' }} /><col style={{ width: '72px' }} /><col style={{ width: '72px' }} /><col style={{ width: '90px' }} /></colgroup>
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="px-1.5 py-0.5 text-left text-[11px] font-medium text-gray-500 tracking-wider border-r border-gray-300 w-[72px]">
@@ -298,7 +286,7 @@ export function SlaStatusBlock({ title, statusGroup, year, requests: propsReques
                     <td className="px-1.5 py-0.5 text-gray-700 border-r border-gray-200 whitespace-nowrap w-[100px] overflow-hidden text-ellipsis">
                       {formatAssignmentDate(row.purchaseCompletionDate)}
                     </td>
-                    <td className="px-1.5 py-0.5 text-gray-700 border-r border-gray-200 text-center whitespace-nowrap w-[72px] overflow-hidden text-ellipsis">
+                    <td className="px-1.5 py-0.5 text-gray-700 border-r border-gray-200 text-center whitespace-nowrap overflow-hidden text-ellipsis">
                       {(() => {
                         const assignmentIso = row.approvalAssignmentDate;
                         if (!assignmentIso) return '—';

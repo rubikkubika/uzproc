@@ -23,6 +23,10 @@ export interface SlaStatusBlockRequestRow {
   purchaseCompletionDate: string | null;
   /** Количество комментариев SLA */
   slaCommentCount: number;
+  /** Общий срок закупки (рабочих дней) */
+  purchaseGeneralDays: number | null;
+  /** Итоги закупки (рабочих дней) */
+  purchaseResultDays: number | null;
 }
 
 export interface SlaStatusBlockData {
@@ -65,7 +69,7 @@ export function useSlaStatusBlockData(statusGroup: string, year: number | null):
       const data = await res.json();
       const content = data.content ?? [];
       const rows: SlaStatusBlockRequestRow[] = content.map(
-        (r: { id?: number; idPurchaseRequest?: number | null; title?: string | null; name?: string | null; budgetAmount?: number | null; purchaser?: string | null; complexity?: string | null; plannedSlaDays?: number | null; status?: string | null; approvalAssignmentDate?: string | null; purchaseCompletionDate?: string | null; slaCommentCount?: number }) => ({
+        (r: { id?: number; idPurchaseRequest?: number | null; title?: string | null; name?: string | null; budgetAmount?: number | null; purchaser?: string | null; complexity?: string | null; plannedSlaDays?: number | null; status?: string | null; approvalAssignmentDate?: string | null; purchaseCompletionDate?: string | null; slaCommentCount?: number; purchaseGeneralDays?: number | null; purchaseResultDays?: number | null }) => ({
           id: r.id ?? 0,
           idPurchaseRequest: r.idPurchaseRequest ?? null,
           name: [r.title, r.name].find(Boolean)?.trim() || '—',
@@ -77,6 +81,8 @@ export function useSlaStatusBlockData(statusGroup: string, year: number | null):
           approvalAssignmentDate: r.approvalAssignmentDate ?? null,
           purchaseCompletionDate: r.purchaseCompletionDate ?? null,
           slaCommentCount: r.slaCommentCount ?? 0,
+          purchaseGeneralDays: r.purchaseGeneralDays != null ? Number(r.purchaseGeneralDays) : null,
+          purchaseResultDays: r.purchaseResultDays != null ? Number(r.purchaseResultDays) : null,
         })
       );
       setRequests(rows);
