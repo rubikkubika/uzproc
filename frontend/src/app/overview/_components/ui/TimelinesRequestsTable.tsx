@@ -78,7 +78,7 @@ function getCellValue(pr: PurchaseRequest, key: string): string {
     case 'status':
       return pr.status ?? '—';
     default: {
-      const val = (pr as Record<string, unknown>)[key];
+      const val = (pr as unknown as Record<string, unknown>)[key];
       return val != null ? String(val) : '—';
     }
   }
