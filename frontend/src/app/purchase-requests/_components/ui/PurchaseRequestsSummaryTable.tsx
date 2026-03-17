@@ -68,12 +68,6 @@ function SummaryRow({
       <td className="px-2 py-1 text-xs text-gray-900 text-right border-r-2 border-t border-b border-gray-400 whitespace-nowrap">
         {formatCompactNumber(item.purchasesBudget)}
       </td>
-      <td className="px-2 py-1 text-xs text-gray-900 text-right border-l-2 border-t border-b border-r border-gray-400 whitespace-nowrap">
-        {item.ordersCount}
-      </td>
-      <td className="px-2 py-1 text-xs text-gray-900 text-right border-r-2 border-t border-b border-gray-400 whitespace-nowrap">
-        {formatCompactNumber(item.ordersBudget)}
-      </td>
     </tr>
   );
 }
@@ -91,8 +85,9 @@ export default function PurchaseRequestsSummaryTable({
 }: PurchaseRequestsSummaryTableProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const MAX_VISIBLE_ROWS = 10;
-  const displayRows = isExpanded ? purchaserSummary : purchaserSummary.slice(0, MAX_VISIBLE_ROWS);
-  const hasMoreRows = purchaserSummary.length > MAX_VISIBLE_ROWS;
+  const filteredSummary = purchaserSummary.filter(item => item.purchasesCount > 0);
+  const displayRows = isExpanded ? filteredSummary : filteredSummary.slice(0, MAX_VISIBLE_ROWS);
+  const hasMoreRows = filteredSummary.length > MAX_VISIBLE_ROWS;
 
   // Используем функциональное обновление, чтобы всегда иметь актуальное состояние и при клике выбирать только этого закупщика (без ctrl — замена, с ctrl — добавление/снятие)
   const onSelectPurchaser = useCallback(
@@ -134,12 +129,6 @@ export default function PurchaseRequestsSummaryTable({
                 <th className="px-2 py-1 text-right text-xs font-medium text-gray-500 tracking-wider border-r-2 border-t-2 border-gray-400 rounded-tr-lg whitespace-nowrap">
                   Сумма закупок
                 </th>
-                <th className="px-2 py-1 text-right text-xs font-medium text-gray-500 tracking-wider border-l-2 border-t-2 border-r border-gray-400 rounded-tl-lg whitespace-nowrap">
-                  Заказы
-                </th>
-                <th className="px-2 py-1 text-right text-xs font-medium text-gray-500 tracking-wider border-r-2 border-t-2 border-gray-400 rounded-tr-lg whitespace-nowrap">
-                  Сумма заказов
-                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -154,7 +143,7 @@ export default function PurchaseRequestsSummaryTable({
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="px-2 py-1 text-xs text-gray-500 text-center whitespace-nowrap">
+                  <td colSpan={3} className="px-2 py-1 text-xs text-gray-500 text-center whitespace-nowrap">
                     Нет данных
                   </td>
                 </tr>
@@ -175,14 +164,8 @@ export default function PurchaseRequestsSummaryTable({
                 <td className="px-2 py-1 text-xs font-semibold text-gray-700 text-right border-l-2 border-t border-b-2 border-r border-gray-400 rounded-bl-lg whitespace-nowrap">
                   {purchaserSummary.reduce((sum, item) => sum + item.purchasesCount, 0)}
                 </td>
-                <td className="px-2 py-1 text-xs font-semibold text-gray-700 text-right border-r-2 border-t border-b-2 border-gray-400 whitespace-nowrap">
-                  {formatCompactNumber(purchaserSummary.reduce((sum, item) => sum + item.purchasesBudget, 0))}
-                </td>
-                <td className="px-2 py-1 text-xs font-semibold text-gray-700 text-right border-l-2 border-t border-b-2 border-r border-gray-400 whitespace-nowrap">
-                  {purchaserSummary.reduce((sum, item) => sum + item.ordersCount, 0)}
-                </td>
                 <td className="px-2 py-1 text-xs font-semibold text-gray-700 text-right border-r-2 border-t border-b-2 border-gray-400 rounded-br-lg whitespace-nowrap">
-                  {formatCompactNumber(purchaserSummary.reduce((sum, item) => sum + item.ordersBudget, 0))}
+                  {formatCompactNumber(purchaserSummary.reduce((sum, item) => sum + item.purchasesBudget, 0))}
                 </td>
               </tr>
             </tfoot>

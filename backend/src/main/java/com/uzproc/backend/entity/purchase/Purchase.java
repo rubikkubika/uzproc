@@ -77,6 +77,9 @@ public class Purchase {
     @Column(name = "expense_item", length = 255)
     private String expenseItem;
 
+    @Column(name = "savings", precision = 15, scale = 2)
+    private BigDecimal savings;
+
     @Column(name = "is_strategic_product")
     private Boolean isStrategicProduct;
 
@@ -381,6 +384,14 @@ public class Purchase {
 
     public void setStatus(PurchaseStatus status) {
         this.status = status;
+    }
+
+    public BigDecimal getSavings() {
+        return savings;
+    }
+
+    public void setSavings(BigDecimal savings) {
+        this.savings = savings;
     }
 
     public Boolean getIsStrategicProduct() {

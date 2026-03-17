@@ -51,6 +51,7 @@ interface Purchase {
   status: string | null;
   purchaseMethod: string | null; // Способ закупки (mcc)
   purchaseCreationDate: string | null;
+  savings: number | null;
 }
 
 interface Contract {
@@ -1683,6 +1684,14 @@ export default function PurchaseRequestDetailPage() {
                         </label>
                         <p className="text-xs text-gray-900">
                           {purchase.purchaseMethod || '-'}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-0">
+                          Экономия
+                        </label>
+                        <p className="text-xs text-gray-900">
+                          {purchase.savings != null ? purchase.savings.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'}
                         </p>
                       </div>
                     </div>

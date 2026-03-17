@@ -162,10 +162,10 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
         <div className="absolute right-0 top-0 w-0.5 h-full bg-gradient-to-b from-transparent via-purple-600/30 to-transparent"></div>
         {/* Header */}
         <div className="border-b border-gray-200">
-          <div className={`flex items-center ${isCollapsed ? 'px-0 py-1' : 'justify-between pl-2 pr-1.5 py-1.5'}`}>
+          <div className={`flex items-center relative ${isCollapsed ? 'justify-center px-0 py-1' : 'justify-between pl-2 pr-1.5 py-1.5'}`}>
             <button
               onClick={() => handleTabChange('overview')}
-              className="flex items-center cursor-pointer hover:opacity-80 transition-opacity"
+              className={`flex items-center cursor-pointer hover:opacity-80 transition-opacity ${isCollapsed ? 'justify-center' : ''}`}
             >
               <span className={`flex items-center justify-center flex-shrink-0 w-8 h-8`}>
                 <img
@@ -182,7 +182,7 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                 onClick={() => setIsCollapsed(!isCollapsed)}
                 className={`hidden lg:flex items-center justify-center w-6 h-6 transition-colors ${
                   isCollapsed
-                    ? ''
+                    ? 'absolute left-[38px] top-1/2 -translate-y-1/2'
                     : 'rounded-lg hover:bg-gray-100'
                 }`}
                 title={isCollapsed ? 'Развернуть' : 'Свернуть'}

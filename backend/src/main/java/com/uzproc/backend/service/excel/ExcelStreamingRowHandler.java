@@ -118,6 +118,8 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private static final String COMPLEXITY_COLUMN = "Сложность закупки (уровень) (Заявка на ЗП)";
     /** Колонка контрагентов в договоре. Формат: "Mega Poligraf Servise Mchj (303459905)" или несколько через запятую. */
     private static final String CONTRAGENTS_COLUMN = "Контрагенты";
+    /** Экономия закупочной процедуры */
+    private static final String SAVINGS_COLUMN = "Экономия (Закупочная процедура)";
     
     // Оптимизация: статические DateTimeFormatter для парсинга дат (создаются один раз)
     private static final DateTimeFormatter[] DATE_TIME_FORMATTERS = {
@@ -882,7 +884,29 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             } else {
                 logger.debug("Row {}: expenseItemColumnIndex is null, skipping expenseItem field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
             }
-            
+
+            // Экономия (опционально) - парсим поле "Экономия (Закупочная процедура)" в поле savings
+            Integer savingsCol = columnIndices.get(SAVINGS_COLUMN);
+            if (savingsCol == null) {
+                savingsCol = findColumnIndex(SAVINGS_COLUMN);
+            }
+            if (savingsCol != null) {
+                String savingsStr = currentRowData.get(savingsCol);
+                if (savingsStr != null && !savingsStr.trim().isEmpty()) {
+                    java.math.BigDecimal savingsValue = parseBigDecimalString(savingsStr);
+                    if (savingsValue != null) {
+                        purchase.setSavings(savingsValue);
+                        logger.info("Row {}: parsed savings value: '{}' for purchase {}", currentRowNum + 1, savingsValue, purchase.getInnerId());
+                    } else {
+                        logger.debug("Row {}: cannot parse savings value '{}' for purchase {}", currentRowNum + 1, savingsStr, purchase.getInnerId());
+                    }
+                } else {
+                    logger.debug("Row {}: savings cell is empty or null", currentRowNum + 1);
+                }
+            } else {
+                logger.debug("Row {}: savingsColumnIndex is null, skipping savings field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
+            }
+
             // Внутренний номер договора (опционально) - парсим из колонки "Договор.Внутренний номер"
             // Используем findColumnIndex для поиска колонки (как для других колонок)
             Integer contractInnerIdCol = columnIndices.get(CONTRACT_INNER_ID_COLUMN);
@@ -1949,7 +1973,20 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 logger.debug("Updated mcc for purchase {}: {}", existing.getInnerId(), newData.getMcc());
             }
         }
-        
+
+        // Обновляем savings (экономия)
+        if (newData.getSavings() != null) {
+            if (existing.getSavings() == null || !existing.getSavings().equals(newData.getSavings())) {
+                existing.setSavings(newData.getSavings());
+                updated = true;
+                logger.info("Updated savings for purchase {}: {} (existing was: {})", existing.getInnerId(), newData.getSavings(), existing.getSavings());
+            } else {
+                logger.debug("Savings for purchase {} unchanged: {}", existing.getInnerId(), existing.getSavings());
+            }
+        } else {
+            logger.debug("newData.getSavings() is null for purchase {}", existing.getInnerId());
+        }
+
         // Обновляем contractInnerIds (множественные договоры)
         // ВАЖНО: Избегаем LazyInitializationException - не сравниваем существующие contractInnerIds,
         // а просто обновляем на основе новых данных из Excel

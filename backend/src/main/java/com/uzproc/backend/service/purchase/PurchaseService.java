@@ -120,6 +120,7 @@ public class PurchaseService {
         dto.setStatus(entity.getStatus());
         dto.setState(entity.getState());
         dto.setExpenseItem(entity.getExpenseItem());
+        dto.setSavings(entity.getSavings());
         // Конвертируем Set<String> в List<String> для DTO
         if (entity.getContractInnerIds() != null && !entity.getContractInnerIds().isEmpty()) {
             dto.setContractInnerIds(new java.util.ArrayList<>(entity.getContractInnerIds()));
