@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.uzproc.backend.entity.purchase.PurchaseStatus;
+import com.uzproc.backend.entity.purchase.SavingsType;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -91,6 +92,23 @@ public class PurchaseService {
         return toDto(purchase);
     }
 
+    @Transactional
+    public PurchaseDto updateSavingsType(Long id, String savingsTypeStr) {
+        Purchase purchase = purchaseRepository.findById(id).orElse(null);
+        if (purchase == null) {
+            return null;
+        }
+        if (savingsTypeStr == null || savingsTypeStr.trim().isEmpty()) {
+            purchase.setSavingsType(null);
+        } else {
+            SavingsType savingsType = SavingsType.fromDisplayName(savingsTypeStr);
+            purchase.setSavingsType(savingsType);
+        }
+        purchaseRepository.save(purchase);
+        logger.info("Updated savingsType for purchase {}: {}", purchase.getInnerId(), savingsTypeStr);
+        return toDto(purchase);
+    }
+
     /**
      * Конвертирует Purchase entity в PurchaseDto
      */
@@ -121,6 +139,7 @@ public class PurchaseService {
         dto.setState(entity.getState());
         dto.setExpenseItem(entity.getExpenseItem());
         dto.setSavings(entity.getSavings());
+        dto.setSavingsType(entity.getSavingsType() != null ? entity.getSavingsType().getDisplayName() : null);
         // Конвертируем Set<String> в List<String> для DTO
         if (entity.getContractInnerIds() != null && !entity.getContractInnerIds().isEmpty()) {
             dto.setContractInnerIds(new java.util.ArrayList<>(entity.getContractInnerIds()));

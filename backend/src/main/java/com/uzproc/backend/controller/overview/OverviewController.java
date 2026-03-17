@@ -17,6 +17,8 @@ import com.uzproc.backend.dto.purchaserequest.PurchaseRequestDto;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.uzproc.backend.dto.overview.OverviewSavingsResponseDto;
+import com.uzproc.backend.dto.overview.OverviewSavingsPurchaseDetailDto;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -37,6 +39,17 @@ public class OverviewController {
     public OverviewController(OverviewService overviewService, ApprovalPresentationService approvalPresentationService) {
         this.overviewService = overviewService;
         this.approvalPresentationService = approvalPresentationService;
+    }
+
+    /**
+     * Данные для вкладки «Экономия»: сумма экономии по закупкам за год.
+     */
+    @GetMapping("/savings")
+    public ResponseEntity<OverviewSavingsResponseDto> getSavingsData(
+            @RequestParam Integer year) {
+        logger.debug("Overview Savings request for year {}", year);
+        OverviewSavingsResponseDto data = overviewService.getSavingsData(year);
+        return ResponseEntity.ok(data);
     }
 
     /**
@@ -167,6 +180,17 @@ public class OverviewController {
         logger.debug("Overview timelines requests for year={}, complexity={}, onlySignedContracts={}", year, complexity, onlySignedContracts);
         List<OverviewTimelinesRequestDto> requests = overviewService.getTimelinesRequests(year, complexity, onlySignedContracts);
         return ResponseEntity.ok(requests);
+    }
+
+    /**
+     * Детали закупок с экономией для конкретного закупщика за год.
+     */
+    @GetMapping("/savings/purchases")
+    public ResponseEntity<List<OverviewSavingsPurchaseDetailDto>> getSavingsPurchaseDetails(
+            @RequestParam int year,
+            @RequestParam String purchaser) {
+        logger.debug("Overview savings/purchases request for year={}, purchaser={}", year, purchaser);
+        return ResponseEntity.ok(overviewService.getSavingsPurchaseDetails(year, purchaser));
     }
 
     /**

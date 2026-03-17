@@ -80,6 +80,10 @@ public class Purchase {
     @Column(name = "savings", precision = 15, scale = 2)
     private BigDecimal savings;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "savings_type", length = 50)
+    private SavingsType savingsType;
+
     @Column(name = "is_strategic_product")
     private Boolean isStrategicProduct;
 
@@ -392,6 +396,14 @@ public class Purchase {
 
     public void setSavings(BigDecimal savings) {
         this.savings = savings;
+    }
+
+    public SavingsType getSavingsType() {
+        return savingsType;
+    }
+
+    public void setSavingsType(SavingsType savingsType) {
+        this.savingsType = savingsType;
     }
 
     public Boolean getIsStrategicProduct() {

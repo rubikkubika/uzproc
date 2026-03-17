@@ -1231,4 +1231,245 @@ public class OverviewService {
         if (from.isAfter(e)) return 0;
         return workingDaysBetweenInclusive(from, e);
     }
+
+    /**
+     * Расчёт экономии по закупкам за год (по дате завершения закупки — purchaseCreationDate).
+     * Возвращает общую экономию, по типам (от медианы / от существующего договора / без типа),
+     * а также помесячную разбивку.
+     */
+    public OverviewSavingsResponseDto getSavingsData(int year) {
+        logger.info("getSavingsData: year={}", year);
+
+        LocalDateTime startOfYear = LocalDateTime.of(year, 1, 1, 0, 0);
+        LocalDateTime endOfYear = LocalDateTime.of(year, 12, 31, 23, 59, 59, 999999999);
+
+        // Загружаем все закупки за год с непустой экономией
+        var spec = (org.springframework.data.jpa.domain.Specification<com.uzproc.backend.entity.purchase.Purchase>) (root, query, cb) -> {
+            // Fetch join для избежания N+1
+            if (query.getResultType() == com.uzproc.backend.entity.purchase.Purchase.class) {
+                root.fetch("cfo", jakarta.persistence.criteria.JoinType.LEFT);
+                root.fetch("purchaseRequest", jakarta.persistence.criteria.JoinType.LEFT);
+            }
+            var predicates = new ArrayList<jakarta.persistence.criteria.Predicate>();
+            predicates.add(cb.isNotNull(root.get("savings")));
+            predicates.add(cb.isNotNull(root.get("purchaseCreationDate")));
+            predicates.add(cb.between(root.get("purchaseCreationDate"), startOfYear, endOfYear));
+            return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+        };
+
+        List<com.uzproc.backend.entity.purchase.Purchase> purchases = purchaseRepository.findAll(spec);
+        logger.info("getSavingsData: found {} purchases with savings in year {}", purchases.size(), year);
+
+        // Бюджет всех завершённых закупок за год (независимо от наличия экономии)
+        var budgetSpec = (org.springframework.data.jpa.domain.Specification<com.uzproc.backend.entity.purchase.Purchase>) (root, query, cb) -> {
+            var preds = new ArrayList<jakarta.persistence.criteria.Predicate>();
+            preds.add(cb.equal(root.get("status"), com.uzproc.backend.entity.purchase.PurchaseStatus.COMPLETED));
+            preds.add(cb.isNotNull(root.get("purchaseCreationDate")));
+            preds.add(cb.between(root.get("purchaseCreationDate"), startOfYear, endOfYear));
+            return cb.and(preds.toArray(new jakarta.persistence.criteria.Predicate[0]));
+        };
+        List<com.uzproc.backend.entity.purchase.Purchase> completedPurchases = purchaseRepository.findAll(budgetSpec);
+        BigDecimal totalBudget = BigDecimal.ZERO;
+        int totalBudgetCount = 0;
+        for (var p : completedPurchases) {
+            if (p.getBudgetAmount() != null) {
+                totalBudget = totalBudget.add(p.getBudgetAmount());
+            }
+            totalBudgetCount++;
+        }
+        logger.info("getSavingsData: found {} completed purchases with total budget in year {}", totalBudgetCount, year);
+        BigDecimal totalSavings = BigDecimal.ZERO;
+        BigDecimal fromMedian = BigDecimal.ZERO;
+        BigDecimal fromExistingContract = BigDecimal.ZERO;
+        BigDecimal untyped = BigDecimal.ZERO;
+        int totalCount = 0;
+        int fromMedianCount = 0;
+        int fromExistingContractCount = 0;
+        int untypedCount = 0;
+
+        // Помесячная разбивка
+        BigDecimal[] monthTotal = new BigDecimal[12];
+        BigDecimal[] monthFromMedian = new BigDecimal[12];
+        BigDecimal[] monthFromExisting = new BigDecimal[12];
+        BigDecimal[] monthUntyped = new BigDecimal[12];
+        int[] monthCount = new int[12];
+        for (int i = 0; i < 12; i++) {
+            monthTotal[i] = BigDecimal.ZERO;
+            monthFromMedian[i] = BigDecimal.ZERO;
+            monthFromExisting[i] = BigDecimal.ZERO;
+            monthUntyped[i] = BigDecimal.ZERO;
+        }
+
+        // Группировка по ЦФО
+        Map<String, BigDecimal[]> cfoMap = new LinkedHashMap<>(); // cfo -> [total, fromMedian, fromExisting, untyped]
+        Map<String, Integer> cfoCountMap = new LinkedHashMap<>();
+
+        // Группировка по закупщику
+        Map<String, BigDecimal[]> purchaserMap = new LinkedHashMap<>();
+        Map<String, Integer> purchaserCountMap = new LinkedHashMap<>();
+
+        for (var purchase : purchases) {
+            BigDecimal savings = purchase.getSavings();
+            if (savings == null) continue;
+
+            totalSavings = totalSavings.add(savings);
+            totalCount++;
+
+            int monthIdx = purchase.getPurchaseCreationDate().getMonthValue() - 1;
+            monthTotal[monthIdx] = monthTotal[monthIdx].add(savings);
+            monthCount[monthIdx]++;
+
+            // ЦФО
+            String cfoName = purchase.getCfo() != null ? purchase.getCfo().getName() : "Не указан";
+            cfoMap.computeIfAbsent(cfoName, k -> new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO});
+            cfoCountMap.merge(cfoName, 1, Integer::sum);
+            cfoMap.get(cfoName)[0] = cfoMap.get(cfoName)[0].add(savings);
+
+            // Закупщик (из заявки на закупку)
+            String purchaserName = "Не указан";
+            if (purchase.getPurchaseRequest() != null && purchase.getPurchaseRequest().getPurchaser() != null
+                    && !purchase.getPurchaseRequest().getPurchaser().isBlank()) {
+                purchaserName = purchase.getPurchaseRequest().getPurchaser();
+            }
+            purchaserMap.computeIfAbsent(purchaserName, k -> new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO});
+            purchaserCountMap.merge(purchaserName, 1, Integer::sum);
+            purchaserMap.get(purchaserName)[0] = purchaserMap.get(purchaserName)[0].add(savings);
+
+            var savingsType = purchase.getSavingsType();
+            if (savingsType == com.uzproc.backend.entity.purchase.SavingsType.FROM_MEDIAN) {
+                fromMedian = fromMedian.add(savings);
+                fromMedianCount++;
+                monthFromMedian[monthIdx] = monthFromMedian[monthIdx].add(savings);
+                cfoMap.get(cfoName)[1] = cfoMap.get(cfoName)[1].add(savings);
+                purchaserMap.get(purchaserName)[1] = purchaserMap.get(purchaserName)[1].add(savings);
+            } else if (savingsType == com.uzproc.backend.entity.purchase.SavingsType.FROM_EXISTING_CONTRACT) {
+                fromExistingContract = fromExistingContract.add(savings);
+                fromExistingContractCount++;
+                monthFromExisting[monthIdx] = monthFromExisting[monthIdx].add(savings);
+                cfoMap.get(cfoName)[2] = cfoMap.get(cfoName)[2].add(savings);
+                purchaserMap.get(purchaserName)[2] = purchaserMap.get(purchaserName)[2].add(savings);
+            } else {
+                untyped = untyped.add(savings);
+                untypedCount++;
+                monthUntyped[monthIdx] = monthUntyped[monthIdx].add(savings);
+                cfoMap.get(cfoName)[3] = cfoMap.get(cfoName)[3].add(savings);
+                purchaserMap.get(purchaserName)[3] = purchaserMap.get(purchaserName)[3].add(savings);
+            }
+        }
+
+        // Собираем помесячные данные
+        List<OverviewSavingsMonthDto> byMonth = new ArrayList<>();
+        for (int i = 0; i < 12; i++) {
+            OverviewSavingsMonthDto m = new OverviewSavingsMonthDto();
+            m.setMonth(i + 1);
+            m.setTotalSavings(monthTotal[i]);
+            m.setSavingsFromMedian(monthFromMedian[i]);
+            m.setSavingsFromExistingContract(monthFromExisting[i]);
+            m.setSavingsUntyped(monthUntyped[i]);
+            m.setCount(monthCount[i]);
+            byMonth.add(m);
+        }
+
+        OverviewSavingsResponseDto response = new OverviewSavingsResponseDto();
+        response.setYear(year);
+        response.setTotalBudget(totalBudget);
+        response.setTotalBudgetCount(totalBudgetCount);
+        response.setTotalSavings(totalSavings);
+        response.setSavingsFromMedian(fromMedian);
+        response.setSavingsFromExistingContract(fromExistingContract);
+        response.setSavingsUntyped(untyped);
+        response.setTotalCount(totalCount);
+        response.setFromMedianCount(fromMedianCount);
+        response.setFromExistingContractCount(fromExistingContractCount);
+        response.setUntypedCount(untypedCount);
+        response.setByMonth(byMonth);
+
+        // Собираем данные по ЦФО, сортируем по убыванию общей экономии
+        List<OverviewSavingsByCfoDto> byCfo = new ArrayList<>();
+        for (var entry : cfoMap.entrySet()) {
+            OverviewSavingsByCfoDto dto = new OverviewSavingsByCfoDto();
+            dto.setCfo(entry.getKey());
+            dto.setTotalSavings(entry.getValue()[0]);
+            dto.setSavingsFromMedian(entry.getValue()[1]);
+            dto.setSavingsFromExistingContract(entry.getValue()[2]);
+            dto.setSavingsUntyped(entry.getValue()[3]);
+            dto.setCount(cfoCountMap.getOrDefault(entry.getKey(), 0));
+            byCfo.add(dto);
+        }
+        byCfo.sort((a, b) -> b.getTotalSavings().compareTo(a.getTotalSavings()));
+        response.setByCfo(byCfo);
+
+        // Собираем данные по закупщикам
+        List<OverviewSavingsByPurchaserDto> byPurchaser = new ArrayList<>();
+        for (var entry : purchaserMap.entrySet()) {
+            OverviewSavingsByPurchaserDto dto = new OverviewSavingsByPurchaserDto();
+            dto.setPurchaser(entry.getKey());
+            dto.setTotalSavings(entry.getValue()[0]);
+            dto.setSavingsFromMedian(entry.getValue()[1]);
+            dto.setSavingsFromExistingContract(entry.getValue()[2]);
+            dto.setSavingsUntyped(entry.getValue()[3]);
+            dto.setCount(purchaserCountMap.getOrDefault(entry.getKey(), 0));
+            byPurchaser.add(dto);
+        }
+        byPurchaser.sort((a, b) -> b.getTotalSavings().compareTo(a.getTotalSavings()));
+        response.setByPurchaser(byPurchaser);
+
+        return response;
+    }
+
+    /**
+     * Детали закупок с экономией для конкретного закупщика за год.
+     */
+    public List<OverviewSavingsPurchaseDetailDto> getSavingsPurchaseDetails(int year, String purchaser) {
+        logger.info("getSavingsPurchaseDetails: year={}, purchaser={}", year, purchaser);
+
+        LocalDateTime startOfYear = LocalDateTime.of(year, 1, 1, 0, 0);
+        LocalDateTime endOfYear = LocalDateTime.of(year, 12, 31, 23, 59, 59, 999999999);
+
+        var spec = (org.springframework.data.jpa.domain.Specification<com.uzproc.backend.entity.purchase.Purchase>) (root, query, cb) -> {
+            if (query.getResultType() == com.uzproc.backend.entity.purchase.Purchase.class) {
+                root.fetch("cfo", jakarta.persistence.criteria.JoinType.LEFT);
+                root.fetch("purchaseRequest", jakarta.persistence.criteria.JoinType.LEFT);
+            }
+            var predicates = new ArrayList<jakarta.persistence.criteria.Predicate>();
+            predicates.add(cb.isNotNull(root.get("savings")));
+            predicates.add(cb.isNotNull(root.get("purchaseCreationDate")));
+            predicates.add(cb.between(root.get("purchaseCreationDate"), startOfYear, endOfYear));
+            return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+        };
+
+        List<com.uzproc.backend.entity.purchase.Purchase> purchases = purchaseRepository.findAll(spec);
+
+        return purchases.stream()
+                .filter(p -> {
+                    String pName = "Не указан";
+                    if (p.getPurchaseRequest() != null && p.getPurchaseRequest().getPurchaser() != null
+                            && !p.getPurchaseRequest().getPurchaser().isBlank()) {
+                        pName = p.getPurchaseRequest().getPurchaser();
+                    }
+                    return pName.equals(purchaser);
+                })
+                .map(p -> {
+                    var dto = new OverviewSavingsPurchaseDetailDto();
+                    var pr = p.getPurchaseRequest();
+                    dto.setIdPurchaseRequest(pr != null ? pr.getIdPurchaseRequest() : null);
+                    dto.setCfo(p.getCfo() != null ? p.getCfo().getName() : null);
+                    dto.setPurchaser(pr != null ? pr.getPurchaser() : null);
+                    dto.setName(pr != null ? pr.getName() : p.getName());
+                    dto.setPurchaseCreationDate(p.getPurchaseCreationDate() != null
+                            ? p.getPurchaseCreationDate().format(ISO_FORMAT) : null);
+                    dto.setBudgetAmount(p.getBudgetAmount());
+                    dto.setSavings(p.getSavings());
+                    dto.setSavingsType(p.getSavingsType() != null ? p.getSavingsType().name() : null);
+                    dto.setStatus(p.getStatus() != null ? p.getStatus().name() : null);
+                    dto.setComplexity(pr != null ? pr.getComplexity() : null);
+                    return dto;
+                })
+                .sorted((a, b) -> {
+                    BigDecimal sa = a.getSavings() != null ? a.getSavings() : BigDecimal.ZERO;
+                    BigDecimal sb = b.getSavings() != null ? b.getSavings() : BigDecimal.ZERO;
+                    return sb.compareTo(sa);
+                })
+                .collect(Collectors.toList());
+    }
 }

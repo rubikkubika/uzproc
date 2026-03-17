@@ -12,6 +12,7 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificationExecutor<User> {
     Optional<User> findByUsername(String username);
     Optional<User> findByEmail(String email);
+    Optional<User> findFirstByEmail(String email);
     /** Все пользователи с данным email (для случая дубликатов). */
     List<User> findAllByEmail(String email);
     boolean existsByUsername(String username);

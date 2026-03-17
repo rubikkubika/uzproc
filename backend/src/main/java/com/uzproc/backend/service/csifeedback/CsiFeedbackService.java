@@ -7,8 +7,10 @@ import com.uzproc.backend.dto.purchaserequest.PurchaseRequestInfoDto;
 import com.uzproc.backend.entity.csifeedback.CsiFeedback;
 import com.uzproc.backend.entity.csifeedback.CsiFeedbackInvitation;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
+import com.uzproc.backend.entity.user.User;
 import com.uzproc.backend.repository.csifeedback.CsiFeedbackRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
+import com.uzproc.backend.repository.user.UserRepository;
 import jakarta.persistence.criteria.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,14 +40,17 @@ public class CsiFeedbackService {
     private final CsiFeedbackRepository csiFeedbackRepository;
     private final PurchaseRequestRepository purchaseRequestRepository;
     private final CsiFeedbackInvitationService invitationService;
+    private final UserRepository userRepository;
 
     public CsiFeedbackService(
             CsiFeedbackRepository csiFeedbackRepository,
             PurchaseRequestRepository purchaseRequestRepository,
-            CsiFeedbackInvitationService invitationService) {
+            CsiFeedbackInvitationService invitationService,
+            UserRepository userRepository) {
         this.csiFeedbackRepository = csiFeedbackRepository;
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.invitationService = invitationService;
+        this.userRepository = userRepository;
     }
 
     @Transactional
@@ -360,6 +365,20 @@ public class CsiFeedbackService {
         dto.setSatisfactionRating(feedback.getSatisfactionRating());
         dto.setComment(feedback.getComment());
         dto.setRecipient(feedback.getRecipient());
+        // Резолвим имя получателя по email
+        if (feedback.getRecipient() != null && !feedback.getRecipient().isBlank()) {
+            try {
+                userRepository.findFirstByEmail(feedback.getRecipient()).ifPresent(user -> {
+                    String name = ((user.getSurname() != null ? user.getSurname() : "") + " " +
+                            (user.getName() != null ? user.getName() : "")).trim();
+                    if (!name.isEmpty()) {
+                        dto.setRecipientName(name);
+                    }
+                });
+            } catch (Exception e) {
+                logger.debug("Could not resolve recipient name for email: {}", feedback.getRecipient());
+            }
+        }
         dto.setCreatedAt(feedback.getCreatedAt());
         dto.setUpdatedAt(feedback.getUpdatedAt());
         return dto;

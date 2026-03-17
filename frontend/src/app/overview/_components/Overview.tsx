@@ -23,13 +23,14 @@ import { EkTabContent } from './ui/EkTabContent';
 import { ApprovalsTabContent } from './ui/ApprovalsTabContent';
 import { useOverviewTimelinesData } from './hooks/useOverviewTimelinesData';
 import { TimelinesTabContent } from './ui/TimelinesTabContent';
+import { SavingsTabContent } from './ui/SavingsTabContent';
 
 /**
  * Главный компонент страницы обзор
  * Интегрирует все вкладки и их содержимое
  */
 export default function Overview() {
-  const { activeTab, setActiveTab } = useOverview();
+  const { activeTopTab, setActiveTopTab, activeTab, setActiveTab } = useOverview();
   const currentYear = useMemo(() => new Date().getFullYear(), []);
   const [slaYear, setSlaYearState] = useState<number>(() => {
     if (typeof window === 'undefined') return currentYear;
@@ -281,10 +282,17 @@ export default function Overview() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0 gap-0">
-      <OverviewTabs activeTab={activeTab} onTabChange={setActiveTab} />
+      <OverviewTabs activeTopTab={activeTopTab} onTopTabChange={setActiveTopTab} activeTab={activeTab} onTabChange={setActiveTab} />
       
       <div className="w-full flex-1 min-h-0 flex flex-col">
-        {activeTab === 'sla' && (
+        {activeTopTab === 'management-reporting' && (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <p className="text-sm text-gray-500">Раздел в разработке</p>
+            </div>
+          </div>
+        )}
+        {activeTopTab === 'dashboards' && activeTab === 'sla' && (
           <div className="space-y-0.5 sm:space-y-1">
             <div className="bg-white rounded shadow px-1.5 py-1 sm:px-2 sm:py-1">
               <div className="flex flex-wrap items-center gap-1.5">
@@ -364,22 +372,22 @@ export default function Overview() {
             ))}
           </div>
         )}
-        {activeTab === 'csi' && (
+        {activeTopTab === 'dashboards' && activeTab === 'csi' && (
           <div className="w-full flex-1 min-h-0 flex flex-col">
             <AllCsiFeedback />
           </div>
         )}
-        {activeTab === 'ek' && (
+        {activeTopTab === 'dashboards' && activeTab === 'ek' && (
           <div className="w-full">
             <EkTabContent />
           </div>
         )}
-        {activeTab === 'approvals' && (
+        {activeTopTab === 'dashboards' && activeTab === 'approvals' && (
           <div className="w-full">
             <ApprovalsTabContent />
           </div>
         )}
-        {activeTab === 'timelines' && (
+        {activeTopTab === 'dashboards' && activeTab === 'timelines' && (
           <div className="w-full">
             <TimelinesTabContent
               data={timelinesData.data}
@@ -390,7 +398,7 @@ export default function Overview() {
             />
           </div>
         )}
-        {activeTab === 'purchase-plan' && (
+        {activeTopTab === 'dashboards' && activeTab === 'purchase-plan' && (
           <div className="space-y-2 sm:space-y-3">
             {/* Фильтр по году планирования */}
             <div className="bg-white rounded-lg shadow-lg p-2 sm:p-3">
@@ -433,6 +441,11 @@ export default function Overview() {
               hasPrevious={hasPreviousMonth}
               hasNext={hasNextMonth}
             />
+          </div>
+        )}
+        {activeTopTab === 'dashboards' && activeTab === 'savings' && (
+          <div className="w-full">
+            <SavingsTabContent />
           </div>
         )}
       </div>

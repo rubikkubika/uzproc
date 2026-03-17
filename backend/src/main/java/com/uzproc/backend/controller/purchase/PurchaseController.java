@@ -65,6 +65,18 @@ public class PurchaseController {
         return ResponseEntity.notFound().build();
     }
 
+    @PatchMapping("/{id}/savings-type")
+    public ResponseEntity<PurchaseDto> updateSavingsType(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body) {
+        String savingsType = body.get("savingsType");
+        PurchaseDto updated = purchaseService.updateSavingsType(id, savingsType);
+        if (updated != null) {
+            return ResponseEntity.ok(updated);
+        }
+        return ResponseEntity.notFound().build();
+    }
+
     @GetMapping("/monthly-stats")
     public ResponseEntity<Map<String, Object>> getMonthlyStats(
             @RequestParam(required = false) Integer year,

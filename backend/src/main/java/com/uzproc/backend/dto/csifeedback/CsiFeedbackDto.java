@@ -24,6 +24,7 @@ public class CsiFeedbackDto {
     private Double satisfactionRating;
     private String comment;
     private String recipient;
+    private String recipientName;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -141,6 +142,14 @@ public class CsiFeedbackDto {
 
     public void setRecipient(String recipient) {
         this.recipient = recipient;
+    }
+
+    public String getRecipientName() {
+        return recipientName;
+    }
+
+    public void setRecipientName(String recipientName) {
+        this.recipientName = recipientName;
     }
 
     public LocalDateTime getCreatedAt() {

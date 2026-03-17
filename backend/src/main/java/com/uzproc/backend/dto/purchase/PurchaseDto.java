@@ -30,6 +30,7 @@ public class PurchaseDto {
     private String state;
     private String expenseItem;
     private BigDecimal savings;
+    private String savingsType;
     private List<String> contractInnerIds; // Список внутренних номеров договоров
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -218,6 +219,14 @@ public class PurchaseDto {
 
     public void setSavings(BigDecimal savings) {
         this.savings = savings;
+    }
+
+    public String getSavingsType() {
+        return savingsType;
+    }
+
+    public void setSavingsType(String savingsType) {
+        this.savingsType = savingsType;
     }
 
     public List<String> getContractInnerIds() {

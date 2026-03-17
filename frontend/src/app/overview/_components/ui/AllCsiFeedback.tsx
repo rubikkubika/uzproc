@@ -20,6 +20,7 @@ interface CsiFeedbackDto {
   satisfactionRating: number;
   comment?: string;
   recipient?: string;
+  recipientName?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -517,16 +518,21 @@ export default function AllCsiFeedback() {
                             {feedback.purchaseRequestSubject}
                           </div>
                         )}
-                        {feedback.purchaser && (
-                          <div className="mt-0 text-xs text-gray-500 truncate">
-                            {purchaserDisplayName(feedback.purchaser)}
-                          </div>
-                        )}
                       </div>
                       <div className="flex-shrink-0">
                         {renderStars(averageRating)}
                       </div>
                     </div>
+                    {(feedback.purchaser || feedback.recipient) && (
+                      <div className="text-xs text-gray-500 mt-0">
+                        {feedback.purchaser && (
+                          <div>Закупщик: {purchaserDisplayName(feedback.purchaser)}</div>
+                        )}
+                        {feedback.recipient && (
+                          <div>Оценил: {feedback.recipientName || feedback.recipient}</div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Блок комментария: свёрнут — ровно 2 строки текста, кнопка «Развернуть» в конце второй строки; развёрнут — блок растёт по высоте */}
                     <div

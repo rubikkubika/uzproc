@@ -19,6 +19,7 @@ interface CsiFeedbackDto {
   satisfactionRating: number;
   comment?: string;
   recipient?: string;
+  recipientName?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -217,8 +218,13 @@ export default function LatestCsiFeedback() {
                   </div>
                 )}
                 {feedback.purchaser && (
-                  <div className="mt-0.5 text-xs text-gray-500 truncate">
+                  <div className="mt-0.5 text-xs text-gray-500">
                     Закупщик: {purchaserDisplayName(feedback.purchaser)}
+                  </div>
+                )}
+                {feedback.recipient && (
+                  <div className="text-xs text-gray-500">
+                    Оценил: {feedback.recipientName || feedback.recipient}
                   </div>
                 )}
               </div>

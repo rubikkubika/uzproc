@@ -52,6 +52,7 @@ interface Purchase {
   purchaseMethod: string | null; // Способ закупки (mcc)
   purchaseCreationDate: string | null;
   savings: number | null;
+  savingsType: string | null;
 }
 
 interface Contract {
@@ -255,6 +256,23 @@ export default function PurchaseRequestDetailPage() {
       console.error('Error saving active tab:', err);
     }
     setIsMobileMenuOpen(false);
+  };
+
+  const handleSavingsTypeChange = async (newSavingsType: string) => {
+    if (!purchase) return;
+    try {
+      const res = await fetch(`${getBackendUrl()}/api/purchases/${purchase.id}/savings-type`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ savingsType: newSavingsType || null }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setPurchase(prev => prev ? { ...prev, savingsType: updated.savingsType } : prev);
+      }
+    } catch (e) {
+      console.error('Failed to update savings type', e);
+    }
   };
 
   const handleSaveContractExclusion = async () => {
@@ -1693,6 +1711,20 @@ export default function PurchaseRequestDetailPage() {
                         <p className="text-xs text-gray-900">
                           {purchase.savings != null ? purchase.savings.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'}
                         </p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-0">
+                          Тип экономии
+                        </label>
+                        <select
+                          value={purchase.savingsType || ''}
+                          onChange={(e) => handleSavingsTypeChange(e.target.value)}
+                          className="text-xs border border-gray-300 rounded px-1 py-0.5 text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        >
+                          <option value="">—</option>
+                          <option value="От медианы">От медианы</option>
+                          <option value="От существующего договора">От существующего договора</option>
+                        </select>
                       </div>
                     </div>
                   ) : (
