@@ -24,6 +24,7 @@ import { ApprovalsTabContent } from './ui/ApprovalsTabContent';
 import { useOverviewTimelinesData } from './hooks/useOverviewTimelinesData';
 import { TimelinesTabContent } from './ui/TimelinesTabContent';
 import { SavingsTabContent } from './ui/SavingsTabContent';
+import { ManagementReportingContent } from './ui/ManagementReportingContent';
 
 /**
  * Главный компонент страницы обзор
@@ -69,8 +70,9 @@ export default function Overview() {
     handleYearChange,
   } = usePurchasePlanMonths();
 
+  const slaEnabled = activeTab === 'sla' || activeTopTab === 'management-reporting';
   const slaData = useOverviewSlaData(
-    activeTab === 'sla' ? slaYear : null,
+    slaEnabled ? slaYear : null,
     activeTab === 'sla' ? slaPurchaserFilter : null
   );
   /** Список всех закупщиков для таблицы: при отсутствии фильтра берём из ответа; при фильтре показываем последний сохранённый полный список (как на вкладке CSI). */
@@ -286,11 +288,16 @@ export default function Overview() {
       
       <div className="w-full flex-1 min-h-0 flex flex-col">
         {activeTopTab === 'management-reporting' && (
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <p className="text-sm text-gray-500">Раздел в разработке</p>
-            </div>
-          </div>
+          <ManagementReportingContent
+            slaYear={slaYear}
+            averageSlaPercentage={averageSlaPercentage}
+            slaCompletedByMonth={slaCompletedByMonth}
+            slaPercentageByMonth={slaData.data?.slaPercentageByMonth ?? []}
+            slaLoading={slaData.loading}
+            slaError={slaData.error}
+            nowYear={nowYear}
+            nowMonth={nowMonth}
+          />
         )}
         {activeTopTab === 'dashboards' && activeTab === 'sla' && (
           <div className="space-y-0.5 sm:space-y-1">

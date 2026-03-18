@@ -1803,7 +1803,7 @@ export default function PurchaseRequestDetailPage() {
                     {/* Правая часть с блоком согласований */}
               <div className="w-full min-w-0">
                     <div className="bg-white rounded px-1.5 py-1 space-y-1">
-                      {purchase && (
+                      {(purchaseRequest?.purchaser || purchase?.purchaseCreationDate != null) && (
                         <div className="flex flex-wrap items-baseline gap-2 pb-px mb-px border-b border-gray-200">
                           {purchaseRequest?.purchaser && (
                             <div className="inline-flex items-baseline gap-1.5 px-2 py-0.5 rounded bg-gray-200">
@@ -1811,7 +1811,7 @@ export default function PurchaseRequestDetailPage() {
                               <span className="text-xs text-gray-900">{purchaserDisplayName(purchaseRequest.purchaser)}</span>
                             </div>
                           )}
-                          {purchase.purchaseCreationDate != null && (
+                          {purchase?.purchaseCreationDate != null && (
                             <div className="inline-flex items-baseline gap-1.5 px-2 py-0.5 rounded bg-gray-200">
                               <span className="text-xs font-semibold text-gray-700">Дата создания закупки:</span>
                               <span className="text-xs text-gray-900">{formatDate(purchase.purchaseCreationDate)}</span>

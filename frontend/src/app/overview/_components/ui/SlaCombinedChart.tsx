@@ -58,6 +58,8 @@ export interface SlaCombinedChartProps {
   slaPercentageByMonth: OverviewSlaPercentageByMonth[];
   loading?: boolean;
   error?: string | null;
+  /** Скрыть прогноз из легенды и данных. */
+  hideForecast?: boolean;
 }
 
 function buildOptions(
@@ -208,6 +210,7 @@ export function SlaCombinedChart({
   slaPercentageByMonth,
   loading,
   error,
+  hideForecast,
 }: SlaCombinedChartProps) {
   const nowYear = currentYear ?? new Date().getFullYear();
   const nowMonth = currentMonth ?? new Date().getMonth() + 1;
@@ -294,7 +297,7 @@ export function SlaCombinedChart({
         pointRadius: 0,
         pointHoverRadius: 4,
       },
-      {
+      ...(!hideForecast ? [{
         type: 'line' as const,
         label: 'Прогноз',
         data: Array(12).fill(null),
@@ -304,7 +307,7 @@ export function SlaCombinedChart({
         pointRadius: 0,
         yAxisID: 'y1',
         order: -1,
-      },
+      }] : []),
     ],
   };
 

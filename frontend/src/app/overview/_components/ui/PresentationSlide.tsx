@@ -372,7 +372,72 @@ function Slide({ d25, d26, conclusions, editable, onUpdate, onAdd, onRemove }: {
   );
 }
 
+/* ─── Слайд-заглушка (редактируемый) ─────────────────────────────────────── */
+
+function EmptySlide({ title, items, editable, onUpdateTitle, onUpdate, onAdd, onRemove }: {
+  title: string;
+  items: string[];
+  editable?: boolean;
+  onUpdateTitle?: (val: string) => void;
+  onUpdate?: (idx: number, val: string) => void;
+  onAdd?: () => void;
+  onRemove?: (idx: number) => void;
+}) {
+  const titleRef = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (titleRef.current && titleRef.current.textContent !== title) {
+      titleRef.current.textContent = title;
+    }
+  }, [title]);
+
+  return (
+    <div className="presentation-slide" style={{ ...SLIDE_STYLE, height: 'auto', minHeight: '190mm' }}>
+      {/* Заголовок */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1.5px solid #1e3a5f', paddingBottom: '1.5mm' }}>
+        <span
+          ref={titleRef}
+          contentEditable={editable}
+          suppressContentEditableWarning
+          onBlur={(e) => onUpdateTitle?.(e.currentTarget.textContent || '')}
+          style={{
+            fontSize: '12pt', fontWeight: 700, color: '#1e3a5f', letterSpacing: '0.03em',
+            outline: 'none', borderBottom: editable ? '0.5px dashed #93c5fd' : 'none',
+            cursor: editable ? 'text' : 'default', minWidth: '100px',
+          }}
+        >
+          {title}
+        </span>
+      </div>
+
+      {/* Контент — редактируемые пункты */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '3mm', paddingTop: '4mm' }}>
+        {items.map((item, i) => (
+          <ConclusionItem
+            key={i}
+            text={item}
+            editable={!!editable}
+            onBlur={(val) => onUpdate?.(i, val)}
+            onRemove={() => onRemove?.(i)}
+          />
+        ))}
+        {editable && (
+          <button
+            type="button"
+            className="slide-edit-controls"
+            onClick={() => onAdd?.()}
+            style={{ fontSize: '8pt', color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', padding: '0', marginTop: '2mm', textAlign: 'left', fontFamily: 'Arial, sans-serif' }}
+          >
+            + Добавить пункт
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ─── Главный компонент ─────────────────────────────────────────────────── */
+
+const TOTAL_SLIDES = 3;
 
 export function PresentationSlide() {
   const [data25, setData25] = useState<YearData | null>(null);
@@ -386,6 +451,35 @@ export function PresentationSlide() {
   const [docFormDropdownOpen, setDocFormDropdownOpen] = useState(false);
   const docFormDropdownRef = useRef<HTMLDivElement>(null);
   const loadedRef = useRef(false);
+
+  // Навигация по слайдам
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  // Адаптивный масштаб слайда под ширину контейнера
+  const slideContainerRef = useRef<HTMLDivElement>(null);
+  const [slideScale, setSlideScale] = useState(0.72);
+  const SLIDE_WIDTH_PX = 1047; // 277mm ≈ 1047px
+  const SLIDE_HEIGHT_PX = 718; // 190mm ≈ 718px
+
+  useEffect(() => {
+    const container = slideContainerRef.current;
+    if (!container) return;
+    const updateScale = () => {
+      const availableWidth = container.clientWidth - 32; // padding 16px * 2
+      const scale = Math.min(1, availableWidth / SLIDE_WIDTH_PX);
+      setSlideScale(scale);
+    };
+    updateScale();
+    const ro = new ResizeObserver(updateScale);
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, []);
+
+  // Данные для слайдов 2 и 3 (редактируемые)
+  const [slide2Title, setSlide2Title] = useState('СЛАЙД 2 — ЗАГОЛОВОК');
+  const [slide2Items, setSlide2Items] = useState<string[]>(['Нажмите для редактирования']);
+  const [slide3Title, setSlide3Title] = useState('СЛАЙД 3 — ЗАГОЛОВОК');
+  const [slide3Items, setSlide3Items] = useState<string[]>(['Нажмите для редактирования']);
 
   useEffect(() => {
     fetch(`${getBackendUrl()}/api/overview/approvals-summary/document-forms`)
@@ -439,6 +533,11 @@ export function PresentationSlide() {
         const saved = await savedResp.json();
         initial = Array.isArray(saved.conclusions) && saved.conclusions.length > 0
           ? saved.conclusions : generateConclusions(y25, y26);
+        // Загружаем данные слайдов 2 и 3 если сохранены
+        if (saved.slide2Title) setSlide2Title(saved.slide2Title);
+        if (Array.isArray(saved.slide2Items) && saved.slide2Items.length > 0) setSlide2Items(saved.slide2Items);
+        if (saved.slide3Title) setSlide3Title(saved.slide3Title);
+        if (Array.isArray(saved.slide3Items) && saved.slide3Items.length > 0) setSlide3Items(saved.slide3Items);
       } else {
         initial = generateConclusions(y25, y26);
       }
@@ -456,6 +555,10 @@ export function PresentationSlide() {
   useEffect(() => { fetchAll(selectedDocForms.size > 0 ? selectedDocForms : undefined); }, [fetchAll, selectedDocFormsStr]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Автосохранение с дебаунсом 1.5с
+  const slide2TitleStr = slide2Title;
+  const slide2ItemsStr = JSON.stringify(slide2Items);
+  const slide3TitleStr = slide3Title;
+  const slide3ItemsStr = JSON.stringify(slide3Items);
   useEffect(() => {
     if (!loadedRef.current) return;
     setSaveStatus('saving');
@@ -464,7 +567,7 @@ export function PresentationSlide() {
         const res = await fetch(`${getBackendUrl()}/api/overview/approval-presentation`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ conclusions }),
+          body: JSON.stringify({ conclusions, slide2Title, slide2Items, slide3Title, slide3Items }),
         });
         setSaveStatus(res.ok ? 'saved' : 'error');
         if (res.ok) setTimeout(() => setSaveStatus('idle'), 2000);
@@ -472,7 +575,7 @@ export function PresentationSlide() {
     }, 1500);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conclusions]);
+  }, [conclusions, slide2TitleStr, slide2ItemsStr, slide3TitleStr, slide3ItemsStr]);
 
   const handlePrint = useCallback(() => { window.print(); }, []);
   const updateConclusion = useCallback((idx: number, val: string) =>
@@ -481,6 +584,24 @@ export function PresentationSlide() {
     setConclusions(prev => [...prev, 'Новый вывод']), []);
   const removeConclusion = useCallback((idx: number) =>
     setConclusions(prev => prev.filter((_, i) => i !== idx)), []);
+
+  const goToSlide = useCallback((idx: number) => {
+    setCurrentSlide(Math.max(0, Math.min(TOTAL_SLIDES - 1, idx)));
+  }, []);
+
+  // Переключение слайдов колёсиком мыши
+  const wheelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (wheelTimeoutRef.current) return; // debounce
+    if (Math.abs(e.deltaY) < 10) return; // игнорируем мелкие скроллы
+    if (e.deltaY > 0) {
+      setCurrentSlide(prev => Math.min(TOTAL_SLIDES - 1, prev + 1));
+    } else {
+      setCurrentSlide(prev => Math.max(0, prev - 1));
+    }
+    wheelTimeoutRef.current = setTimeout(() => { wheelTimeoutRef.current = null; }, 400);
+  }, []);
+
   return (
     <>
       <style>{`
@@ -490,30 +611,67 @@ export function PresentationSlide() {
           .slide-print-area,
           .slide-print-area * { visibility: visible !important; }
           .slide-print-area {
-            position: fixed !important;
+            position: absolute !important;
             top: 0 !important; left: 0 !important;
-            width: 297mm !important; height: 210mm !important;
+            width: 297mm !important;
+            background: white !important;
+            padding: 0 !important;
+            display: block !important;
+          }
+          .slide-print-page {
+            width: 297mm !important;
+            height: 210mm !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
             background: white !important;
-            padding: 0 !important;
+            page-break-after: always !important;
+            break-after: page !important;
+          }
+          .slide-print-page:last-child {
+            page-break-after: auto !important;
+            break-after: auto !important;
           }
           .slide-print-scale {
             transform: none !important;
             margin-bottom: 0 !important;
+            box-shadow: none !important;
           }
           .presentation-slide { box-shadow: none !important; }
           .slide-edit-controls { display: none !important; }
+          .slide-nav-controls { display: none !important; }
           .presentation-slide [contenteditable] { border-bottom: none !important; }
+        }
+        @media screen {
+          .slide-print-page { display: none; }
+          .slide-print-page.slide-print-page--active { display: flex; }
         }
       `}</style>
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
         {/* Панель управления */}
         <div className="px-3 py-1.5 border-b border-gray-200 bg-gray-50 flex items-center gap-3 flex-wrap">
-          <span className="text-xs font-medium text-gray-700">Сводка согласований — 2025/2026</span>
-          {docFormOptions.length > 0 && (
+          <span className="text-xs font-medium text-gray-700">Управленческая отчётность</span>
+          {/* Навигация по слайдам */}
+          <div className="slide-nav-controls flex items-center gap-1.5">
+            <button type="button" onClick={() => goToSlide(currentSlide - 1)} disabled={currentSlide === 0}
+              className="px-1.5 py-0.5 text-xs border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-gray-700">
+              ‹
+            </button>
+            {Array.from({ length: TOTAL_SLIDES }, (_, i) => (
+              <button key={i} type="button" onClick={() => goToSlide(i)}
+                className={`px-2 py-0.5 text-xs rounded font-medium transition-colors ${
+                  i === currentSlide ? 'bg-blue-600 text-white' : 'border border-gray-300 text-gray-700 hover:bg-gray-100'
+                }`}>
+                {i + 1}
+              </button>
+            ))}
+            <button type="button" onClick={() => goToSlide(currentSlide + 1)} disabled={currentSlide === TOTAL_SLIDES - 1}
+              className="px-1.5 py-0.5 text-xs border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-gray-700">
+              ›
+            </button>
+          </div>
+          {currentSlide === 0 && docFormOptions.length > 0 && (
             <div className="relative" ref={docFormDropdownRef}>
               <button
                 type="button"
@@ -558,27 +716,65 @@ export function PresentationSlide() {
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
               </svg>
-              Сохранить PDF
+              Сохранить PDF (все слайды)
             </button>
           </div>
         </div>
 
-        {/* Превью слайда — оно же используется для печати */}
-        <div className="slide-print-area p-4 bg-gray-100 flex justify-center overflow-x-auto" style={{ minHeight: '380px' }}>
+        {/* Превью слайдов — используются для печати */}
+        <div ref={slideContainerRef} onWheel={handleWheel} className="slide-print-area p-4 bg-gray-100 flex justify-center overflow-hidden" style={{ minHeight: Math.round(SLIDE_HEIGHT_PX * slideScale) + 32 }}>
           {loading ? (
             <div className="flex items-center justify-center w-full text-sm text-gray-500">Загрузка данных за 2025 и 2026…</div>
           ) : error ? (
             <div className="flex items-center justify-center w-full text-sm text-red-600">{error}</div>
           ) : data25 && data26 ? (
-            <div className="slide-print-scale" style={{ transform: 'scale(0.72)', transformOrigin: 'top center', width: '277mm', marginBottom: 'calc((190mm * 0.72) - 190mm)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
-              <Slide
-                d25={data25} d26={data26} conclusions={conclusions}
-                editable
-                onUpdate={updateConclusion}
-                onAdd={addConclusion}
-                onRemove={removeConclusion}
-              />
-            </div>
+            <>
+              {/* Слайд 1: Сводка согласований */}
+              <div className={`slide-print-page ${currentSlide === 0 ? 'slide-print-page--active' : ''}`}
+                style={{ justifyContent: 'center', alignItems: 'flex-start' }}>
+                <div className="slide-print-scale" style={{ transform: `scale(${slideScale})`, transformOrigin: 'top center', width: '277mm', height: `${Math.round(SLIDE_HEIGHT_PX * slideScale)}px`, boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
+                  <Slide
+                    d25={data25} d26={data26} conclusions={conclusions}
+                    editable
+                    onUpdate={updateConclusion}
+                    onAdd={addConclusion}
+                    onRemove={removeConclusion}
+                  />
+                </div>
+              </div>
+
+              {/* Слайд 2: Редактируемый */}
+              <div className={`slide-print-page ${currentSlide === 1 ? 'slide-print-page--active' : ''}`}
+                style={{ justifyContent: 'center', alignItems: 'flex-start' }}>
+                <div className="slide-print-scale" style={{ transform: `scale(${slideScale})`, transformOrigin: 'top center', width: '277mm', height: `${Math.round(SLIDE_HEIGHT_PX * slideScale)}px`, boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
+                  <EmptySlide
+                    title={slide2Title}
+                    items={slide2Items}
+                    editable
+                    onUpdateTitle={setSlide2Title}
+                    onUpdate={(idx, val) => setSlide2Items(prev => prev.map((c, i) => i === idx ? val : c))}
+                    onAdd={() => setSlide2Items(prev => [...prev, 'Новый пункт'])}
+                    onRemove={(idx) => setSlide2Items(prev => prev.filter((_, i) => i !== idx))}
+                  />
+                </div>
+              </div>
+
+              {/* Слайд 3: Редактируемый */}
+              <div className={`slide-print-page ${currentSlide === 2 ? 'slide-print-page--active' : ''}`}
+                style={{ justifyContent: 'center', alignItems: 'flex-start' }}>
+                <div className="slide-print-scale" style={{ transform: `scale(${slideScale})`, transformOrigin: 'top center', width: '277mm', height: `${Math.round(SLIDE_HEIGHT_PX * slideScale)}px`, boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
+                  <EmptySlide
+                    title={slide3Title}
+                    items={slide3Items}
+                    editable
+                    onUpdateTitle={setSlide3Title}
+                    onUpdate={(idx, val) => setSlide3Items(prev => prev.map((c, i) => i === idx ? val : c))}
+                    onAdd={() => setSlide3Items(prev => [...prev, 'Новый пункт'])}
+                    onRemove={(idx) => setSlide3Items(prev => prev.filter((_, i) => i !== idx))}
+                  />
+                </div>
+              </div>
+            </>
           ) : null}
         </div>
       </div>

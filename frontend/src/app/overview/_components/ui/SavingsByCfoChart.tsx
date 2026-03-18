@@ -12,6 +12,7 @@ import {
 import { Bar } from 'react-chartjs-2';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import type { SavingsByCfoData } from '../hooks/useOverviewSavingsData';
+import { useRef, useState } from 'react';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ChartDataLabels);
 
@@ -38,10 +39,34 @@ function cbrtScale(v: number): number {
 }
 
 export function SavingsByCfoChart({ data, year, currency = 'UZS' }: SavingsByCfoChartProps) {
-  // Храним оригинальные значения для подписей
   const rawMedian = data.map((d) => d.savingsFromMedian);
   const rawContract = data.map((d) => d.savingsFromExistingContract);
   const rawUntyped = data.map((d) => d.savingsUntyped);
+  const totals = data.map((d) => d.totalSavings);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const chartRef = useRef<any>(null);
+  const [tickPositions, setTickPositions] = useState<number[]>([]);
+  const [legendHeight, setLegendHeight] = useState(30);
+
+  // Плагин для считывания позиций тиков после отрисовки
+  const syncPlugin = useRef({
+    id: 'syncPositions',
+    afterDraw(chart: ChartJS) {
+      const yScale = chart.scales?.['y'];
+      if (!yScale) return;
+      const positions = data.map((_, i) => yScale.getPixelForTick(i));
+      const lh = chart.legend?.height || 30;
+      // Обновляем через RAF чтобы не вызвать setState во время рендера Chart
+      requestAnimationFrame(() => {
+        setTickPositions(prev => {
+          if (prev.length === positions.length && prev.every((v, j) => Math.abs(v - positions[j]) < 1)) return prev;
+          return positions;
+        });
+        setLegendHeight(prev => Math.abs(prev - lh) < 1 ? prev : lh);
+      });
+    },
+  }).current;
 
   const chartData = {
     labels: data.map((d) => d.cfo),
@@ -51,6 +76,7 @@ export function SavingsByCfoChart({ data, year, currency = 'UZS' }: SavingsByCfo
         data: rawMedian.map(cbrtScale),
         backgroundColor: 'rgba(59, 130, 246, 0.8)',
         borderRadius: 2,
+        barThickness: 10,
         rawData: rawMedian,
       },
       {
@@ -58,6 +84,7 @@ export function SavingsByCfoChart({ data, year, currency = 'UZS' }: SavingsByCfo
         data: rawContract.map(cbrtScale),
         backgroundColor: 'rgba(34, 197, 94, 0.8)',
         borderRadius: 2,
+        barThickness: 10,
         rawData: rawContract,
       },
       {
@@ -65,6 +92,7 @@ export function SavingsByCfoChart({ data, year, currency = 'UZS' }: SavingsByCfo
         data: rawUntyped.map(cbrtScale),
         backgroundColor: 'rgba(156, 163, 175, 0.8)',
         borderRadius: 2,
+        barThickness: 10,
         rawData: rawUntyped,
       },
     ],
@@ -74,10 +102,9 @@ export function SavingsByCfoChart({ data, year, currency = 'UZS' }: SavingsByCfo
     responsive: true,
     maintainAspectRatio: false,
     indexAxis: 'y' as const,
+    layout: { padding: { right: 60 } },
     plugins: {
-      title: {
-        display: false,
-      },
+      title: { display: false },
       legend: {
         display: true,
         position: 'top' as const,
@@ -85,7 +112,7 @@ export function SavingsByCfoChart({ data, year, currency = 'UZS' }: SavingsByCfo
       },
       tooltip: {
         callbacks: {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- chartjs Context not assignable to custom dataset shape
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           label: (ctx: any) => {
             const raw = ctx.dataset?.rawData?.[ctx.dataIndex] ?? 0;
             return `${ctx.dataset?.label}: ${formatAmount(raw, currency)}`;
@@ -93,20 +120,28 @@ export function SavingsByCfoChart({ data, year, currency = 'UZS' }: SavingsByCfo
         },
       },
       datalabels: {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- chartjs Context not assignable to custom dataset shape
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         display: (ctx: any) => {
           const raw = ctx.dataset?.rawData?.[ctx.dataIndex] ?? 0;
           return raw > 0;
         },
         color: '#ffffff',
-        font: { weight: 'bold' as const, size: 14 },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- chartjs Context not assignable to custom dataset shape
+        font: { weight: 'bold' as const, size: 9 },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         formatter: (_value: number, ctx: any) => {
           const raw = ctx.dataset?.rawData?.[ctx.dataIndex] ?? 0;
           return formatAmount(raw, currency);
         },
-        anchor: 'center' as const,
-        align: 'center' as const,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        backgroundColor: (ctx: any) => {
+          const colors = ['rgb(59, 130, 246)', 'rgb(34, 197, 94)', 'rgb(156, 163, 175)'];
+          return colors[ctx.datasetIndex] ?? 'rgb(0,0,0)';
+        },
+        borderRadius: 4,
+        padding: { top: 3, bottom: 3, left: 6, right: 6 },
+        anchor: 'end' as const,
+        align: 'end' as const,
+        offset: -2,
       },
     },
     scales: {
@@ -116,7 +151,7 @@ export function SavingsByCfoChart({ data, year, currency = 'UZS' }: SavingsByCfo
       },
       y: {
         stacked: true,
-        ticks: { font: { size: 10 } },
+        display: false, // Скрываем — подписи рисуем через HTML
       },
     },
   };
@@ -129,5 +164,33 @@ export function SavingsByCfoChart({ data, year, currency = 'UZS' }: SavingsByCfo
     );
   }
 
-  return <Bar data={chartData} options={options} />;
+  return (
+    <div className="flex h-full w-full">
+      {/* HTML-подписи ЦФО + бейджики */}
+      <div className="shrink-0 relative" style={{ width: 160 }}>
+        {data.map((d, i) => (
+          <div
+            key={d.cfo}
+            className="absolute right-0 flex items-center gap-1"
+            style={{
+              top: tickPositions[i] != null ? tickPositions[i] : 0,
+              transform: 'translateY(-50%)',
+              opacity: tickPositions[i] != null ? 1 : 0,
+            }}
+          >
+            <span className="text-[10px] text-gray-700 text-right whitespace-nowrap">{d.cfo}</span>
+            {totals[i] > 0 && (
+              <span className="text-[11px] font-bold text-white bg-blue-800 rounded px-1.5 py-0.5 whitespace-nowrap">
+                {formatAmount(totals[i], currency)}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+      {/* Диаграмма */}
+      <div className="flex-1 min-w-0 h-full">
+        <Bar ref={chartRef} data={chartData} options={options} plugins={[syncPlugin]} />
+      </div>
+    </div>
+  );
 }
