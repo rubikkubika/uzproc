@@ -70,7 +70,8 @@ function buildOptions(
   nowMonth: number,
   forecastSlaMetByMonth: number[],
   forecastSlaTotalByMonth: number[],
-  barDataOriginal: number[]
+  barDataOriginal: number[],
+  hideForecast?: boolean
 ) {
   const byMonth = new Map(slaPercentageByMonth.map((m) => [m.month, m]));
   return {
@@ -93,6 +94,12 @@ function buildOptions(
             return orig != null && orig > 0 ? orig : '';
           }
           if (value == null || barDataOriginal[ctx.dataIndex] === 0) return '';
+          if (hideForecast) {
+            const month1 = ctx.dataIndex + 1;
+            const item = byMonth.get(month1);
+            if (!item || item.totalCompleted === 0) return '';
+            return `${Math.round(value)}%`;
+          }
           const month1 = ctx.dataIndex + 1;
           const isPastMonth = year < nowYear || (year === nowYear && month1 < nowMonth);
           if (!isPastMonth) return `${Math.round(value)}%`;
@@ -113,6 +120,7 @@ function buildOptions(
         backgroundColor: (ctx: { datasetIndex: number; dataIndex: number }) => {
           if (ctx.datasetIndex === 0) return null;
           if (ctx.datasetIndex === 1) {
+            if (hideForecast) return 'rgba(0, 0, 0, 0.92)';
             const month1 = ctx.dataIndex + 1;
             const isPastMonth = year < nowYear || (year === nowYear && month1 < nowMonth);
             return isPastMonth ? 'rgba(0, 0, 0, 0.92)' : 'rgba(107, 114, 128, 0.92)';
@@ -135,15 +143,33 @@ function buildOptions(
           label: (context: { datasetIndex: number; raw?: unknown; dataIndex: number }) => {
             if (context.datasetIndex === 0) {
               const rawVal = barDataOriginal[context.dataIndex] ?? 0;
+              if (hideForecast) return `Закупки: ${rawVal}`;
               const month1 = context.dataIndex + 1;
               const isPast = year < nowYear || (year === nowYear && month1 < nowMonth);
-              const suffix = isPast ? ' (факт)' : ' (прогноз)';
+              const isCurrent = year === nowYear && month1 === nowMonth;
+              const suffix = isPast ? ' (факт)' : isCurrent ? ' (факт + прогноз)' : ' (прогноз)';
               return `Закупки: ${rawVal}${suffix}`;
             }
             if (barDataOriginal[context.dataIndex] === 0) return undefined;
             const rawVal = typeof context.raw === 'number' ? context.raw : 0;
             const month1 = context.dataIndex + 1;
+            if (hideForecast) {
+              const item = byMonth.get(month1);
+              if (!item || item.totalCompleted === 0) return 'SLA: нет данных';
+              return `SLA: ${Math.round(rawVal)}% (${item.metSla}/${item.totalCompleted})`;
+            }
             const isPastMonth = year < nowYear || (year === nowYear && month1 < nowMonth);
+            const isCurrentMonth = year === nowYear && month1 === nowMonth;
+            if (isCurrentMonth) {
+              const item = byMonth.get(month1);
+              const factMet = item?.metSla ?? 0;
+              const factTotal = item?.totalCompleted ?? 0;
+              const fcMet = forecastSlaMetByMonth[context.dataIndex] ?? 0;
+              const fcTotal = forecastSlaTotalByMonth[context.dataIndex] ?? 0;
+              const totalAll = factTotal + fcTotal;
+              const metAll = factMet + fcMet;
+              return totalAll > 0 ? `SLA (факт + прогноз): ${Math.round(rawVal)}% (в срок: ${metAll} из ${totalAll})` : `SLA: нет данных`;
+            }
             if (!isPastMonth) {
               const t = forecastSlaTotalByMonth[context.dataIndex] ?? 0;
               const m = forecastSlaMetByMonth[context.dataIndex] ?? 0;
@@ -221,9 +247,13 @@ export function SlaCombinedChart({
   const forecastTotalByMonth = forecastSlaTotalByMonth.length === 12 ? forecastSlaTotalByMonth : Array(12).fill(0);
 
   const barData = MONTH_NAMES.map((_, i) => {
+    if (hideForecast) return actual[i];
     const month1 = i + 1;
     const isPast = year < nowYear || (year === nowYear && month1 < nowMonth);
-    return isPast ? actual[i] : forecast[i];
+    const isCurrent = year === nowYear && month1 === nowMonth;
+    if (isPast) return actual[i];
+    if (isCurrent) return actual[i] + forecast[i];
+    return forecast[i];
   });
 
   // Нелинейная шкала (sqrt), чтобы мелкие значения (например 1 в мае) были хорошо видны
@@ -232,12 +262,14 @@ export function SlaCombinedChart({
   const yMaxSqrt = maxBarValSqrt * 3;
 
   const barBackgroundColor = MONTH_NAMES.map((_, i) => {
+    if (hideForecast) return BAR_COLOR_ACTUAL;
     const month1 = i + 1;
     const isPast = year < nowYear || (year === nowYear && month1 < nowMonth);
     return isPast ? BAR_COLOR_ACTUAL : FORECAST_GRAY_FILL;
   });
 
   const barBorderColor = MONTH_NAMES.map((_, i) => {
+    if (hideForecast) return BAR_BORDER_ACTUAL;
     const month1 = i + 1;
     const isPast = year < nowYear || (year === nowYear && month1 < nowMonth);
     return isPast ? BAR_BORDER_ACTUAL : FORECAST_GRAY;
@@ -248,10 +280,26 @@ export function SlaCombinedChart({
   const percentages = MONTH_NAMES.map((_, i) => {
     if (barData[i] === 0) return null;
     const month1 = i + 1;
+    if (hideForecast) {
+      const m = sorted.find((x) => x.month === month1);
+      return m?.percentage != null ? m.percentage : null;
+    }
     const isPast = year < nowYear || (year === nowYear && month1 < nowMonth);
+    const isCurrent = year === nowYear && month1 === nowMonth;
     if (isPast) {
       const m = sorted.find((x) => x.month === month1);
       return m?.percentage != null ? m.percentage : null;
+    }
+    if (isCurrent) {
+      // Объединяем факт + прогноз для текущего месяца
+      const m = sorted.find((x) => x.month === month1);
+      const factMet = m?.metSla ?? 0;
+      const factTotal = m?.totalCompleted ?? 0;
+      const fcMet = forecastMetByMonth[i] ?? 0;
+      const fcTotal = forecastTotalByMonth[i] ?? 0;
+      const totalAll = factTotal + fcTotal;
+      const metAll = factMet + fcMet;
+      return totalAll > 0 ? (metAll / totalAll) * 100 : null;
     }
     return forecastPctByMonth[i] ?? null;
   });
@@ -330,7 +378,7 @@ export function SlaCombinedChart({
           <Chart
             type="bar"
             data={chartData}
-            options={buildOptions(yMaxSqrt, sorted, year, nowYear, nowMonth, forecastMetByMonth, forecastTotalByMonth, barData)}
+            options={buildOptions(yMaxSqrt, sorted, year, nowYear, nowMonth, forecastMetByMonth, forecastTotalByMonth, barData, hideForecast)}
           />
         </div>
       )}
