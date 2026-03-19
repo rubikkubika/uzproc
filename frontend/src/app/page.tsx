@@ -16,6 +16,7 @@ import PurchasesTable from './purchases/_components/PurchasesTable';
 import PurchasePlanItemsTable from './purchase-plan/_components/PurchasePlanItemsTable';
 import ContractsTable from './contracts/_components/ContractsTable';
 import PaymentsTable from './payments/_components/PaymentsTable';
+import ArrivalsTable from './arrivals/_components/ArrivalsTable';
 import SpecificationsTable from './specifications/_components/SpecificationsTable';
 import DeliveryPlan from './delivery-plan/_components/DeliveryPlan';
 import SuppliersTable from './suppliers/_components/SuppliersTable';
@@ -415,6 +416,13 @@ function DashboardContent() {
         return (
           <div className="space-y-6 h-full flex flex-col">
             <PaymentsTable />
+          </div>
+        );
+
+      case 'arrivals':
+        return (
+          <div className="space-y-6 h-full flex flex-col">
+            <ArrivalsTable />
           </div>
         );
 

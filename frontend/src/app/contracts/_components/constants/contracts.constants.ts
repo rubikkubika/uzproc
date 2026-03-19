@@ -7,4 +7,5 @@ export const TEXT_FIELDS = [
   'costType',
   'contractType',
   'paymentTerms',
+  'purchaseRequestInnerId',
 ];

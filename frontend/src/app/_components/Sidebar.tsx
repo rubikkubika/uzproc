@@ -18,8 +18,6 @@ import {
   Upload,
   Mail,
   FileText,
-  Globe,
-  Map,
   Banknote,
   Building2
 } from 'lucide-react';
@@ -43,22 +41,19 @@ const menuItems: Array<{ id: string; label: string; icon: any }> = [];
     { id: 'purchase-requests', label: 'Заявки на закупку', icon: Package },
     { id: 'contracts', label: 'Договоры', icon: FileText },
     { id: 'payments', label: 'Оплаты', icon: Banknote },
+    { id: 'arrivals', label: 'Поступления', icon: Package },
     { id: 'delivery-plan', label: 'План поставок', icon: Calendar },
     { id: 'suppliers', label: 'Поставщики', icon: Building2 },
   ];
 
   const initiatorItems = [
     { id: 'create-purchase', label: 'Создать закупку', icon: Package, disabled: true },
-    { id: 'public-plan', label: 'План закупок (публичный)', icon: FileText, isExternal: true },
+    { id: 'public-plan', label: 'План закупок(п)', icon: FileText, isExternal: true },
   ];
 
   const initiatorDevelopmentItems = [
-    { id: 'specifications', label: 'Спецификации', icon: Package },
-    { id: 'purchases', label: 'Закупки', icon: Package },
     { id: 'test', label: 'Тест', icon: Mail },
     { id: 'users', label: 'Пользователи', icon: Users },
-    { id: 'roadmap', label: 'Roadmap', icon: Map },
-    { id: 'portal', label: 'Портал', icon: Globe, isExternal: true },
   ];
 
   const backendItems: Array<{ id: string; label: string; icon: any }> = [];

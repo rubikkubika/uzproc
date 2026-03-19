@@ -3,6 +3,7 @@ package com.uzproc.backend.config;
 import com.uzproc.backend.service.contract.ContractApprovalExcelLoadService;
 import com.uzproc.backend.service.excel.EntityExcelLoadService;
 import com.uzproc.backend.service.excel.ReportExcelLoadService;
+import com.uzproc.backend.service.arrival.ArrivalExcelLoadService;
 import com.uzproc.backend.service.payment.PaymentExcelLoadService;
 import com.uzproc.backend.service.purchaseplan.PurchasePlanExcelLoadService;
 import com.uzproc.backend.service.supplier.SupplierExcelLoadService;
@@ -495,6 +496,71 @@ public class ExcelFileAutoLoader {
                 logger.info("Automatic payments file processing completed. Total loaded {} records", totalLoaded);
             } catch (Exception e) {
                 logger.error("Error during automatic payments file processing", e);
+            }
+        };
+    }
+
+    @Bean
+    @Order(350) // После payments (300), до обновления статусов (Order = 1000)
+    public CommandLineRunner autoLoadArrivalsFile(ArrivalExcelLoadService arrivalExcelLoadService) {
+        return args -> {
+            try {
+                logger.info("=== Starting automatic arrivals file processing ===");
+                Path arrivalsPath = null;
+                Path dockerPath = Paths.get("/app/arrivals");
+                if (Files.exists(dockerPath)) {
+                    arrivalsPath = dockerPath;
+                    logger.info("Found arrivals folder in Docker container: {}", dockerPath);
+                } else {
+                    String userDir = System.getProperty("user.dir");
+                    Path currentDir = Paths.get(userDir).toAbsolutePath().normalize();
+                    Path projectRoot = currentDir;
+                    if (currentDir.getFileName() != null && "backend".equalsIgnoreCase(currentDir.getFileName().toString())) {
+                        projectRoot = currentDir.getParent();
+                    }
+                    arrivalsPath = projectRoot.resolve("frontend").resolve("upload").resolve("arrivals").normalize();
+                    if (!Files.exists(arrivalsPath)) {
+                        arrivalsPath = currentDir.resolve("..").resolve("frontend").resolve("upload").resolve("arrivals").normalize();
+                    }
+                    if (!Files.exists(arrivalsPath)) {
+                        Path altPath = Paths.get("frontend", "upload", "arrivals").toAbsolutePath().normalize();
+                        if (Files.exists(altPath)) {
+                            arrivalsPath = altPath;
+                        }
+                    }
+                }
+                if (arrivalsPath == null || !Files.exists(arrivalsPath)) {
+                    logger.info("Arrivals folder not found. Skipping automatic arrivals file processing.");
+                    return;
+                }
+                File arrivalsDir = arrivalsPath.toFile();
+                if (!arrivalsDir.isDirectory()) {
+                    logger.warn("Path is not a directory: {}", arrivalsPath);
+                    return;
+                }
+                File[] excelFiles = arrivalsDir.listFiles((dir, name) ->
+                        (name.endsWith(".xls") || name.endsWith(".xlsx")) && !name.startsWith("~$"));
+                if (excelFiles == null || excelFiles.length == 0) {
+                    logger.info("No Excel files found in arrivals folder: {}", arrivalsPath);
+                    return;
+                }
+                logger.info("Found {} Excel file(s) in arrivals folder: {}", excelFiles.length, arrivalsPath);
+                int totalLoaded = 0;
+                for (File excelFile : excelFiles) {
+                    String fileName = excelFile.getName();
+                    try {
+                        logger.info("=== START processing file: {} (arrivals) ===", fileName);
+                        int loadedCount = arrivalExcelLoadService.loadArrivalsFromExcel(excelFile);
+                        totalLoaded += loadedCount;
+                        logger.info("Loaded {} records from arrivals file {}", loadedCount, fileName);
+                        logger.info("=== END processing file: {} (arrivals), loaded {} records ===", fileName, loadedCount);
+                    } catch (Exception e) {
+                        logger.error("=== END processing file: {} (arrivals), ERROR: {} ===", fileName, e.getMessage(), e);
+                    }
+                }
+                logger.info("Automatic arrivals file processing completed. Total loaded {} records", totalLoaded);
+            } catch (Exception e) {
+                logger.error("Error during automatic arrivals file processing", e);
             }
         };
     }

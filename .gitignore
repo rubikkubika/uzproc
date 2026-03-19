@@ -65,6 +65,10 @@ frontend/upload/suppliers/*
 frontend/upload/approvals/*
 !frontend/upload/approvals/.gitkeep
 
+# Arrival folder (track folder, ignore contents except .gitkeep)
+frontend/upload/arrivals/*
+!frontend/upload/arrivals/.gitkeep
+
 # Data files
 frontend/images/*.csv
 frontend/images/*.xlsx

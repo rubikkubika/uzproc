@@ -28,6 +28,8 @@ export interface Contract {
   /** Поставщики (контрагенты). */
   suppliers: ContractSupplier[] | null;
   preparedBy: string | null;  // ФИО пользователя (договорника), который подготовил договор
+  purchaseRequestId: number | null;
+  purchaseRequestInnerId: number | null;  // Внутренний номер связанной заявки
   createdAt: string;
   updatedAt: string;
 }

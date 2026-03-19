@@ -56,14 +56,15 @@ public class ContractService {
             String contractType,
             Long currentUserId,
             Boolean inWorkTab,
-            Boolean signedTab) {
-        
+            Boolean signedTab,
+            String purchaseRequestInnerId) {
+
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, innerId: '{}', cfo: {}, name: '{}', documentForm: '{}', costType: '{}', contractType: '{}', currentUserId: {}, inWorkTab: {}, signedTab: {}",
-                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab);
+        logger.info("Filter parameters - year: {}, innerId: '{}', cfo: {}, name: '{}', documentForm: '{}', costType: '{}', contractType: '{}', currentUserId: {}, inWorkTab: {}, signedTab: {}, purchaseRequestInnerId: '{}'",
+                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, purchaseRequestInnerId);
 
         Specification<Contract> spec = buildSpecification(
-                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab);
+                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, purchaseRequestInnerId);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -218,6 +219,10 @@ public class ContractService {
         dto.setStatus(entity.getStatus());
         dto.setState(entity.getState());
         dto.setPurchaseRequestId(entity.getPurchaseRequestId());
+        // Маппинг внутреннего номера заявки
+        if (entity.getPurchaseRequest() != null) {
+            dto.setPurchaseRequestInnerId(entity.getPurchaseRequest().getIdPurchaseRequest());
+        }
         dto.setParentContractId(entity.getParentContractId());
         
         // Загружаем основной договор, если есть parentContractId
@@ -284,8 +289,9 @@ public class ContractService {
             String contractType,
             Long currentUserId,
             Boolean inWorkTab,
-            Boolean signedTab) {
-        
+            Boolean signedTab,
+            String purchaseRequestInnerId) {
+
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             int predicateCount = 0;
@@ -350,6 +356,26 @@ public class ContractService {
                 predicates.add(cb.equal(root.get("contractType"), contractType.trim()));
                 predicateCount++;
                 logger.info("Added contractType filter: '{}'", contractType);
+            }
+
+            // Фильтр по номеру заявки (idPurchaseRequest через join)
+            if (purchaseRequestInnerId != null && !purchaseRequestInnerId.trim().isEmpty()) {
+                try {
+                    Long prInnerId = Long.parseLong(purchaseRequestInnerId.trim());
+                    jakarta.persistence.criteria.Join<Contract, com.uzproc.backend.entity.purchaserequest.PurchaseRequest> prJoin = root.join("purchaseRequest", jakarta.persistence.criteria.JoinType.INNER);
+                    predicates.add(cb.equal(prJoin.get("idPurchaseRequest"), prInnerId));
+                    predicateCount++;
+                    logger.info("Added purchaseRequestInnerId filter: {}", prInnerId);
+                } catch (NumberFormatException e) {
+                    // Если не числовое значение — ищем по частичному совпадению как строку
+                    jakarta.persistence.criteria.Join<Contract, com.uzproc.backend.entity.purchaserequest.PurchaseRequest> prJoin = root.join("purchaseRequest", jakarta.persistence.criteria.JoinType.INNER);
+                    predicates.add(cb.like(
+                        cb.toString(prJoin.get("idPurchaseRequest")),
+                        "%" + purchaseRequestInnerId.trim() + "%"
+                    ));
+                    predicateCount++;
+                    logger.info("Added purchaseRequestInnerId partial filter: '{}'", purchaseRequestInnerId);
+                }
             }
 
             // Фильтр для вкладки "В работе": подготовил = договорник, все статусы кроме "Подписан" (Проект, На согласовании, Не согласован, null)

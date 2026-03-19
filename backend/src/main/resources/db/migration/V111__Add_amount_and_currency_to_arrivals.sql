@@ -1,0 +1,2 @@
+ALTER TABLE arrivals ADD COLUMN amount NUMERIC(18, 2);
+ALTER TABLE arrivals ADD COLUMN currency VARCHAR(10);

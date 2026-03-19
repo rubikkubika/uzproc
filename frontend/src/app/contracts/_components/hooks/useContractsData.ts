@@ -69,6 +69,9 @@ export const useContractsData = () => {
       if (filters.paymentTerms && filters.paymentTerms.trim() !== '') {
         params.append('paymentTerms', filters.paymentTerms.trim());
       }
+      if (filters.purchaseRequestInnerId && filters.purchaseRequestInnerId.trim() !== '') {
+        params.append('purchaseRequestInnerId', filters.purchaseRequestInnerId.trim());
+      }
 
       // Вкладка "В работе": подготовил = договорник, без договоров в статусе Подписан
       if (activeTab === 'in-work') {

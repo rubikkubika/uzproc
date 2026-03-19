@@ -483,9 +483,9 @@ public class PaymentExcelLoadService {
             User existingUser = null;
             if (surname != null && name != null) {
                 existingUser = userRepository.findBySurnameAndName(surname, name).orElse(null);
-                if (existingUser == null) {
-                    existingUser = userRepository.findByUsername(username).orElse(null);
-                }
+            }
+            if (existingUser == null) {
+                existingUser = userRepository.findByUsername(username).orElse(null);
             }
 
             if (existingUser != null) {

@@ -37,6 +37,9 @@ public class ContractDto {
     /** Комментарий к исключению договора из расчёта статуса. */
     private String exclusionComment;
 
+    /** Внутренний номер связанной заявки (idPurchaseRequest). */
+    private Long purchaseRequestInnerId;
+
     /** Условия оплаты (парсинг из «График оплаты (Договор)»). */
     private String paymentTerms;
 
@@ -254,6 +257,14 @@ public class ContractDto {
 
     public void setExclusionComment(String exclusionComment) {
         this.exclusionComment = exclusionComment;
+    }
+
+    public Long getPurchaseRequestInnerId() {
+        return purchaseRequestInnerId;
+    }
+
+    public void setPurchaseRequestInnerId(Long purchaseRequestInnerId) {
+        this.purchaseRequestInnerId = purchaseRequestInnerId;
     }
 
     public String getPaymentTerms() {
