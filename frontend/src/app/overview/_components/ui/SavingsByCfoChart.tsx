@@ -12,7 +12,7 @@ import {
 import { Bar } from 'react-chartjs-2';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import type { SavingsByCfoData } from '../hooks/useOverviewSavingsData';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ChartDataLabels);
 
@@ -39,6 +39,12 @@ function cbrtScale(v: number): number {
 }
 
 export function SavingsByCfoChart({ data, year, currency = 'UZS' }: SavingsByCfoChartProps) {
+  // Делаем data доступной для плагина без создания нового плагина при каждом ререндере.
+  const dataRef = useRef<SavingsByCfoData[]>(data);
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
+
   const rawMedian = data.map((d) => d.savingsFromMedian);
   const rawContract = data.map((d) => d.savingsFromExistingContract);
   const rawUntyped = data.map((d) => d.savingsUntyped);
@@ -46,19 +52,32 @@ export function SavingsByCfoChart({ data, year, currency = 'UZS' }: SavingsByCfo
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const chartRef = useRef<any>(null);
+  const chartCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const isMountedRef = useRef(true);
   const [tickPositions, setTickPositions] = useState<number[]>([]);
   const [legendHeight, setLegendHeight] = useState(30);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // Плагин для считывания позиций тиков после отрисовки
   const syncPlugin = useRef({
     id: 'syncPositions',
     afterDraw(chart: ChartJS) {
+      // Скоупим плагин только на наш canvas, чтобы не влиять на другие графики.
+      if (chartCanvasRef.current && chart.canvas !== chartCanvasRef.current) return;
+
       const yScale = chart.scales?.['y'];
       if (!yScale) return;
-      const positions = data.map((_, i) => yScale.getPixelForTick(i));
+      const positions = dataRef.current.map((_, i) => yScale.getPixelForTick(i));
       const lh = chart.legend?.height || 30;
       // Обновляем через RAF чтобы не вызвать setState во время рендера Chart
       requestAnimationFrame(() => {
+        if (!isMountedRef.current) return;
         setTickPositions(prev => {
           if (prev.length === positions.length && prev.every((v, j) => Math.abs(v - positions[j]) < 1)) return prev;
           return positions;
@@ -67,6 +86,16 @@ export function SavingsByCfoChart({ data, year, currency = 'UZS' }: SavingsByCfo
       });
     },
   }).current;
+
+  useEffect(() => {
+    chartCanvasRef.current = chartRef.current?.canvas ?? null;
+    ChartJS.register(syncPlugin);
+    return () => {
+      // Снимаем плагин после размонтирования компонента, чтобы не было утечек setState.
+      ChartJS.unregister(syncPlugin);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const chartData = {
     labels: data.map((d) => d.cfo),
@@ -189,7 +218,8 @@ export function SavingsByCfoChart({ data, year, currency = 'UZS' }: SavingsByCfo
       </div>
       {/* Диаграмма */}
       <div className="flex-1 min-w-0 h-full">
-        <Bar ref={chartRef} data={chartData} options={options} plugins={[syncPlugin]} />
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <Bar ref={chartRef} data={chartData} options={options} {...{plugins: [syncPlugin]} as any} />
       </div>
     </div>
   );
