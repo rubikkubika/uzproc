@@ -66,6 +66,15 @@ public class ArrivalService {
                 .orElse(null);
     }
 
+    public List<ArrivalDto> findBySupplierIds(List<Long> supplierIds) {
+        if (supplierIds == null || supplierIds.isEmpty()) {
+            return List.of();
+        }
+        return arrivalRepository.findBySupplierIdIn(supplierIds).stream()
+                .map(this::toDto)
+                .toList();
+    }
+
     private Specification<Arrival> buildSpecification(
             String number, String supplierName, String invoice, String warehouse,
             String operationType, String department, String incomingNumber,

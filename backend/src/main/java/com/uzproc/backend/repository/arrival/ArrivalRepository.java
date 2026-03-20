@@ -11,4 +11,7 @@ import java.util.Optional;
 public interface ArrivalRepository extends JpaRepository<Arrival, Long>, JpaSpecificationExecutor<Arrival> {
 
     Optional<Arrival> findFirstByNumber(String number);
+
+    /** Все поступления по списку поставщиков */
+    java.util.List<Arrival> findBySupplierIdIn(java.util.List<Long> supplierIds);
 }

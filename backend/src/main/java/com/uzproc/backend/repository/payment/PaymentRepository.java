@@ -16,4 +16,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long>, JpaSpec
 
     /** Поиск существующей оплаты по основному номеру (main_id) для дедупликации при загрузке Excel */
     Optional<Payment> findFirstByMainId(String mainId);
+
+    /** Все оплаты, привязанные к указанному договору */
+    java.util.List<Payment> findByContractId(Long contractId);
 }

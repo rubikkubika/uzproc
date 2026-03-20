@@ -28,6 +28,7 @@ import UsersTable from './users/_components/UsersTable';
 import CSIForm from './csi/_components/CSIForm';
 import RoadmapTimeline from './roadmap/_components/RoadmapTimeline';
 import Overview from './overview/_components/Overview';
+import DocumentOcr from './document-ocr/_components/DocumentOcr';
 
 // Компонент для тестирования отправки почты
 function TestEmailForm() {
@@ -485,6 +486,13 @@ function DashboardContent() {
         return (
           <div className="space-y-6">
             <RoadmapTimeline />
+          </div>
+        );
+
+      case 'document-ocr':
+        return (
+          <div className="space-y-6 h-full flex flex-col">
+            <DocumentOcr />
           </div>
         );
 

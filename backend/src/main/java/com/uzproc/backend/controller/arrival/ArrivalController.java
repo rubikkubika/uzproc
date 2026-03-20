@@ -6,6 +6,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/arrivals")
 public class ArrivalController {
@@ -48,5 +50,11 @@ public class ArrivalController {
             return ResponseEntity.ok(arrival);
         }
         return ResponseEntity.notFound().build();
+    }
+
+    @GetMapping("/by-suppliers")
+    public ResponseEntity<List<ArrivalDto>> getBySupplierIds(@RequestParam List<Long> supplierIds) {
+        List<ArrivalDto> arrivals = arrivalService.findBySupplierIds(supplierIds);
+        return ResponseEntity.ok(arrivals);
     }
 }

@@ -62,6 +62,12 @@ public class PaymentService {
                 .orElse(null);
     }
 
+    public List<PaymentDto> findByContractId(Long contractId) {
+        return paymentRepository.findByContractId(contractId).stream()
+                .map(this::toDto)
+                .toList();
+    }
+
     private Specification<Payment> buildSpecification(List<String> cfo, String mainId, String comment, Boolean linkedOnly,
                                                       List<String> paymentStatus, List<String> requestStatus) {
         return (root, query, cb) -> {

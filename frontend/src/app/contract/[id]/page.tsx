@@ -55,6 +55,35 @@ interface ChildContract {
   currency: string | null;
 }
 
+interface PaymentItem {
+  id: number;
+  mainId: string | null;
+  amount: number | null;
+  cfo: string | null;
+  comment: string | null;
+  paymentStatus: string | null;
+  requestStatus: string | null;
+  plannedExpenseDate: string | null;
+  paymentDate: string | null;
+  executorDisplayName: string | null;
+  responsibleDisplayName: string | null;
+}
+
+interface ArrivalItem {
+  id: number;
+  date: string | null;
+  number: string | null;
+  supplierName: string | null;
+  invoice: string | null;
+  warehouse: string | null;
+  operationType: string | null;
+  incomingDate: string | null;
+  incomingNumber: string | null;
+  amount: number | null;
+  currency: string | null;
+  comment: string | null;
+}
+
 const SIDEBAR_COLLAPSED_KEY = 'sidebarCollapsed';
 
 export default function ContractDetailPage() {
@@ -78,6 +107,8 @@ export default function ContractDetailPage() {
 
   const [contract, setContract] = useState<ContractDetail | null>(null);
   const [childContracts, setChildContracts] = useState<ChildContract[]>([]);
+  const [payments, setPayments] = useState<PaymentItem[]>([]);
+  const [arrivals, setArrivals] = useState<ArrivalItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -103,7 +134,7 @@ export default function ContractDetailPage() {
       try {
         const response = await fetch(`${getBackendUrl()}/api/contracts/${id}`);
         if (!response.ok) throw new Error(`Ошибка загрузки: ${response.status}`);
-        const data = await response.json();
+        const data: ContractDetail = await response.json();
         setContract(data);
 
         // Загрузим дочерние договоры (спецификации), если это основной договор
@@ -115,6 +146,30 @@ export default function ContractDetailPage() {
           }
         } catch {
           // ignore
+        }
+
+        // Загрузим оплаты по contractId
+        try {
+          const payRes = await fetch(`${getBackendUrl()}/api/payments/by-contract/${data.id}`);
+          if (payRes.ok) {
+            setPayments(await payRes.json());
+          }
+        } catch {
+          // ignore
+        }
+
+        // Загрузим поступления по supplierIds
+        if (data.suppliers && data.suppliers.length > 0) {
+          try {
+            const supplierIds = data.suppliers.map(s => s.id);
+            const params = supplierIds.map(sid => `supplierIds=${sid}`).join('&');
+            const arrRes = await fetch(`${getBackendUrl()}/api/arrivals/by-suppliers?${params}`);
+            if (arrRes.ok) {
+              setArrivals(await arrRes.json());
+            }
+          } catch {
+            // ignore
+          }
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Неизвестная ошибка');
@@ -146,6 +201,16 @@ export default function ContractDetailPage() {
       status === 'Проект' ? 'bg-gray-200 text-gray-700' :
       'bg-gray-100 text-gray-800';
     return <span className={`px-2 py-1 text-xs font-medium rounded-full ${colorClass}`}>{status}</span>;
+  };
+
+  const getPaymentStatusBadge = (status: string | null) => {
+    if (!status) return null;
+    const colorClass =
+      status === 'Оплачена' ? 'bg-green-100 text-green-800' :
+      status === 'К оплате' ? 'bg-yellow-100 text-yellow-800' :
+      status === 'Оплата возвращена' ? 'bg-red-100 text-red-800' :
+      'bg-gray-100 text-gray-800';
+    return <span className={`px-1.5 py-0.5 text-xs font-medium rounded ${colorClass}`}>{status}</span>;
   };
 
   return (
@@ -184,140 +249,226 @@ export default function ContractDetailPage() {
           ) : error ? (
             <div className="text-center py-12 text-red-500">Ошибка: {error}</div>
           ) : contract ? (
-            <div className="space-y-4 max-w-5xl mx-auto">
-              {/* Заголовок */}
-              <div className="bg-white rounded-lg shadow-sm p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h1 className="text-lg font-bold text-gray-900">
-                      Договор {contract.innerId || `#${contract.id}`}
-                    </h1>
-                    <p className="text-sm text-gray-600 mt-1">{contract.name || contract.title || '-'}</p>
-                  </div>
-                  <div>{getStatusBadge(contract.status)}</div>
-                </div>
-              </div>
-
-              {/* Основная информация */}
-              <div className="bg-white rounded-lg shadow-sm p-4">
-                <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Основная информация</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-3">
-                  <InfoField label="Внутренний номер" value={contract.innerId} />
-                  <InfoField label="Номер заявки" value={contract.purchaseRequestInnerId != null ? String(contract.purchaseRequestInnerId) : null} />
-                  <InfoField label="ЦФО" value={contract.cfo} />
-                  <InfoField label="Форма документа" value={contract.documentForm} />
-                  <InfoField label="Тип затрат" value={contract.costType} />
-                  <InfoField label="Тип договора" value={contract.contractType} />
-                  <InfoField label="МСС" value={contract.mcc} />
-                  <InfoField label="Дата создания" value={formatDate(contract.contractCreationDate)} />
-                  <InfoField label="Срок действия (мес.)" value={contract.contractDurationMonths != null ? String(contract.contractDurationMonths) : null} />
-                  <InfoField label="Состояние" value={contract.state} />
-                  <InfoField label="Подготовил" value={contract.preparedBy} />
-                </div>
-              </div>
-
-              {/* Финансовая информация */}
-              <div className="bg-white rounded-lg shadow-sm p-4">
-                <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Финансовая информация</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-3">
-                  <InfoField label="Сумма бюджета" value={formatAmount(contract.budgetAmount, contract.currency)} />
-                  <InfoField label="Валюта" value={contract.currency} />
-                </div>
-              </div>
-
-              {/* Условия оплаты */}
-              {contract.paymentTerms && (
+            <div className="flex gap-4 max-w-7xl mx-auto">
+              {/* Левая колонка — информация о договоре */}
+              <div className="flex-1 min-w-0 space-y-4">
+                {/* Заголовок */}
                 <div className="bg-white rounded-lg shadow-sm p-4">
-                  <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Условия оплаты</h2>
-                  <p className="text-sm text-gray-900 whitespace-pre-wrap">{contract.paymentTerms}</p>
-                </div>
-              )}
-
-              {/* Поставщики */}
-              {contract.suppliers && contract.suppliers.length > 0 && (
-                <div className="bg-white rounded-lg shadow-sm p-4">
-                  <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Поставщики</h2>
-                  <div className="space-y-2">
-                    {contract.suppliers.map((s) => (
-                      <div key={s.id} className="flex items-center gap-2 text-sm text-gray-900">
-                        <span>{s.name || '-'}</span>
-                        {s.inn && <span className="text-gray-500">(ИНН: {s.inn})</span>}
-                        {s.code && <span className="text-gray-500">[{s.code}]</span>}
-                      </div>
-                    ))}
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h1 className="text-lg font-bold text-gray-900">
+                        Договор {contract.innerId || `#${contract.id}`}
+                      </h1>
+                      <p className="text-sm text-gray-600 mt-1">{contract.name || contract.title || '-'}</p>
+                    </div>
+                    <div>{getStatusBadge(contract.status)}</div>
                   </div>
                 </div>
-              )}
 
-              {/* Плановые сроки поставки */}
-              {(contract.plannedDeliveryStartDate || contract.plannedDeliveryEndDate) && (
+                {/* Основная информация */}
                 <div className="bg-white rounded-lg shadow-sm p-4">
-                  <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Плановые сроки поставки</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
-                    <InfoField label="Начало" value={formatDate(contract.plannedDeliveryStartDate)} />
-                    <InfoField label="Окончание" value={formatDate(contract.plannedDeliveryEndDate)} />
+                  <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Основная информация</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-3">
+                    <InfoField label="Внутренний номер" value={contract.innerId} />
+                    <InfoField label="Номер заявки" value={contract.purchaseRequestInnerId != null ? String(contract.purchaseRequestInnerId) : null} />
+                    <InfoField label="ЦФО" value={contract.cfo} />
+                    <InfoField label="Форма документа" value={contract.documentForm} />
+                    <InfoField label="Тип затрат" value={contract.costType} />
+                    <InfoField label="Тип договора" value={contract.contractType} />
+                    <InfoField label="МСС" value={contract.mcc} />
+                    <InfoField label="Дата создания" value={formatDate(contract.contractCreationDate)} />
+                    <InfoField label="Срок действия (мес.)" value={contract.contractDurationMonths != null ? String(contract.contractDurationMonths) : null} />
+                    <InfoField label="Состояние" value={contract.state} />
+                    <InfoField label="Подготовил" value={contract.preparedBy} />
                   </div>
                 </div>
-              )}
 
-              {/* Основной договор (если это спецификация) */}
-              {contract.parentContract && (
+                {/* Финансовая информация */}
                 <div className="bg-white rounded-lg shadow-sm p-4">
-                  <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Основной договор</h2>
-                  <button
-                    onClick={() => router.push(`/contract/${contract.parentContract!.id}`)}
-                    className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
-                  >
-                    {contract.parentContract.innerId || `#${contract.parentContract.id}`} — {contract.parentContract.name || contract.parentContract.title || '-'}
-                  </button>
+                  <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Финансовая информация</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-3">
+                    <InfoField label="Сумма бюджета" value={formatAmount(contract.budgetAmount, contract.currency)} />
+                    <InfoField label="Валюта" value={contract.currency} />
+                  </div>
                 </div>
-              )}
 
-              {/* Спецификации (дочерние договоры) */}
-              {childContracts.length > 0 && (
-                <div className="bg-white rounded-lg shadow-sm p-4">
-                  <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Спецификации ({childContracts.length})</h2>
-                  <div className="space-y-2">
-                    {childContracts.map((child) => (
-                      <div key={child.id} className="flex items-center justify-between p-2 rounded hover:bg-gray-50">
-                        <button
-                          onClick={() => router.push(`/contract/${child.id}`)}
-                          className="text-sm text-blue-600 hover:text-blue-800 hover:underline text-left"
-                        >
-                          {child.innerId || `#${child.id}`} — {child.name || child.title || '-'}
-                        </button>
-                        <div className="flex items-center gap-2">
-                          {child.budgetAmount != null && (
-                            <span className="text-xs text-gray-500">
-                              {formatAmount(child.budgetAmount, child.currency)}
-                            </span>
-                          )}
-                          {getStatusBadge(child.status)}
+                {/* Условия оплаты */}
+                {contract.paymentTerms && (
+                  <div className="bg-white rounded-lg shadow-sm p-4">
+                    <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Условия оплаты</h2>
+                    <p className="text-sm text-gray-900 whitespace-pre-wrap">{contract.paymentTerms}</p>
+                  </div>
+                )}
+
+                {/* Поставщики */}
+                {contract.suppliers && contract.suppliers.length > 0 && (
+                  <div className="bg-white rounded-lg shadow-sm p-4">
+                    <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Поставщики</h2>
+                    <div className="space-y-2">
+                      {contract.suppliers.map((s) => (
+                        <div key={s.id} className="flex items-center gap-2 text-sm text-gray-900">
+                          <span>{s.name || '-'}</span>
+                          {s.inn && <span className="text-gray-500">(ИНН: {s.inn})</span>}
+                          {s.code && <span className="text-gray-500">[{s.code}]</span>}
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Плановые сроки поставки */}
+                {(contract.plannedDeliveryStartDate || contract.plannedDeliveryEndDate) && (
+                  <div className="bg-white rounded-lg shadow-sm p-4">
+                    <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Плановые сроки поставки</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
+                      <InfoField label="Начало" value={formatDate(contract.plannedDeliveryStartDate)} />
+                      <InfoField label="Окончание" value={formatDate(contract.plannedDeliveryEndDate)} />
+                    </div>
+                  </div>
+                )}
+
+                {/* Основной договор (если это спецификация) */}
+                {contract.parentContract && (
+                  <div className="bg-white rounded-lg shadow-sm p-4">
+                    <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Основной договор</h2>
+                    <button
+                      onClick={() => router.push(`/contract/${contract.parentContract!.id}`)}
+                      className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                    >
+                      {contract.parentContract.innerId || `#${contract.parentContract.id}`} — {contract.parentContract.name || contract.parentContract.title || '-'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Спецификации (дочерние договоры) */}
+                {childContracts.length > 0 && (
+                  <div className="bg-white rounded-lg shadow-sm p-4">
+                    <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Спецификации ({childContracts.length})</h2>
+                    <div className="space-y-2">
+                      {childContracts.map((child) => (
+                        <div key={child.id} className="flex items-center justify-between p-2 rounded hover:bg-gray-50">
+                          <button
+                            onClick={() => router.push(`/contract/${child.id}`)}
+                            className="text-sm text-blue-600 hover:text-blue-800 hover:underline text-left"
+                          >
+                            {child.innerId || `#${child.id}`} — {child.name || child.title || '-'}
+                          </button>
+                          <div className="flex items-center gap-2">
+                            {child.budgetAmount != null && (
+                              <span className="text-xs text-gray-500">
+                                {formatAmount(child.budgetAmount, child.currency)}
+                              </span>
+                            )}
+                            {getStatusBadge(child.status)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Исключение из расчёта статуса */}
+                {contract.excludedFromStatusCalculation && (
+                  <div className="bg-yellow-50 rounded-lg shadow-sm p-4 border border-yellow-200">
+                    <h2 className="text-sm font-semibold text-yellow-800 mb-2">Исключён из расчёта статуса заявки</h2>
+                    {contract.exclusionComment && (
+                      <p className="text-sm text-yellow-700">{contract.exclusionComment}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Системная информация */}
+                <div className="bg-white rounded-lg shadow-sm p-4">
+                  <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Системная информация</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-3">
+                    <InfoField label="ID" value={String(contract.id)} />
+                    <InfoField label="GUID" value={contract.guid} />
+                    <InfoField label="Создано" value={formatDate(contract.createdAt)} />
+                    <InfoField label="Обновлено" value={formatDate(contract.updatedAt)} />
                   </div>
                 </div>
-              )}
+              </div>
 
-              {/* Исключение из расчёта статуса */}
-              {contract.excludedFromStatusCalculation && (
-                <div className="bg-yellow-50 rounded-lg shadow-sm p-4 border border-yellow-200">
-                  <h2 className="text-sm font-semibold text-yellow-800 mb-2">Исключён из расчёта статуса заявки</h2>
-                  {contract.exclusionComment && (
-                    <p className="text-sm text-yellow-700">{contract.exclusionComment}</p>
+              {/* Правая колонка — Оплаты и Поступления */}
+              <div className="w-[420px] flex-shrink-0 space-y-4">
+                {/* Блок Оплаты */}
+                <div className="bg-white rounded-lg shadow-sm p-4">
+                  <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">
+                    Оплаты {payments.length > 0 && <span className="text-gray-400 font-normal">({payments.length})</span>}
+                  </h2>
+                  {payments.length === 0 ? (
+                    <p className="text-sm text-gray-400">Нет оплат</p>
+                  ) : (
+                    <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                      {payments.map((p) => (
+                        <div key={p.id} className="border border-gray-200 rounded p-2.5 hover:bg-gray-50">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-medium text-gray-900">{p.mainId || `#${p.id}`}</span>
+                            {getPaymentStatusBadge(p.paymentStatus)}
+                          </div>
+                          {p.amount != null && (
+                            <div className="text-sm font-semibold text-gray-900">
+                              {new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(p.amount)}
+                            </div>
+                          )}
+                          <div className="mt-1 space-y-0.5">
+                            {p.paymentDate && (
+                              <div className="text-xs text-gray-500">Оплата: {formatDate(p.paymentDate)}</div>
+                            )}
+                            {p.plannedExpenseDate && (
+                              <div className="text-xs text-gray-500">План: {formatDate(p.plannedExpenseDate)}</div>
+                            )}
+                            {p.comment && (
+                              <div className="text-xs text-gray-500 truncate" title={p.comment}>{p.comment}</div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
-              )}
 
-              {/* Системная информация */}
-              <div className="bg-white rounded-lg shadow-sm p-4">
-                <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Системная информация</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-3">
-                  <InfoField label="ID" value={String(contract.id)} />
-                  <InfoField label="GUID" value={contract.guid} />
-                  <InfoField label="Создано" value={formatDate(contract.createdAt)} />
-                  <InfoField label="Обновлено" value={formatDate(contract.updatedAt)} />
+                {/* Блок Поступления */}
+                <div className="bg-white rounded-lg shadow-sm p-4">
+                  <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">
+                    Поступления {arrivals.length > 0 && <span className="text-gray-400 font-normal">({arrivals.length})</span>}
+                  </h2>
+                  {arrivals.length === 0 ? (
+                    <p className="text-sm text-gray-400">Нет поступлений</p>
+                  ) : (
+                    <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                      {arrivals.map((a) => (
+                        <div key={a.id} className="border border-gray-200 rounded p-2.5 hover:bg-gray-50">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-medium text-gray-900">{a.number || `#${a.id}`}</span>
+                            {a.incomingDate && (
+                              <span className="text-xs text-gray-500">{formatDate(a.incomingDate)}</span>
+                            )}
+                          </div>
+                          {a.amount != null && (
+                            <div className="text-sm font-semibold text-gray-900">
+                              {new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(a.amount)}
+                              {a.currency && <span className="text-xs text-gray-500 ml-1">{a.currency}</span>}
+                            </div>
+                          )}
+                          <div className="mt-1 space-y-0.5">
+                            {a.supplierName && (
+                              <div className="text-xs text-gray-500 truncate" title={a.supplierName}>{a.supplierName}</div>
+                            )}
+                            {a.invoice && (
+                              <div className="text-xs text-gray-500 truncate" title={a.invoice}>Счёт: {a.invoice}</div>
+                            )}
+                            {a.warehouse && (
+                              <div className="text-xs text-gray-500 truncate" title={a.warehouse}>Склад: {a.warehouse}</div>
+                            )}
+                            {a.comment && (
+                              <div className="text-xs text-gray-500 truncate" title={a.comment}>{a.comment}</div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

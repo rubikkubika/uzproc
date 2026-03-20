@@ -76,6 +76,11 @@ frontend/images/*.xls
 frontend/images/~$*.xlsx
 frontend/images/~$*.xls
 
+# Python
+.venv/
+__pycache__/
+*.pyc
+
 # Spring Boot / Java
 .apt_generated
 .classpath

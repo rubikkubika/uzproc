@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { 
-  TrendingUp, 
-  Package, 
-  Users, 
+import {
+  TrendingUp,
+  Package,
+  Users,
   Calendar,
   Settings,
   Home,
@@ -19,7 +19,8 @@ import {
   Mail,
   FileText,
   Banknote,
-  Building2
+  Building2,
+  ScanText
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -54,6 +55,7 @@ const menuItems: Array<{ id: string; label: string; icon: any }> = [];
   const initiatorDevelopmentItems = [
     { id: 'test', label: 'Тест', icon: Mail },
     { id: 'users', label: 'Пользователи', icon: Users },
+    { id: 'document-ocr', label: 'Распознавание', icon: ScanText },
   ];
 
   const backendItems: Array<{ id: string; label: string; icon: any }> = [];

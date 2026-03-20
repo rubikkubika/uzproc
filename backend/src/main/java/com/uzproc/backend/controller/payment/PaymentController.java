@@ -43,4 +43,10 @@ public class PaymentController {
         }
         return ResponseEntity.notFound().build();
     }
+
+    @GetMapping("/by-contract/{contractId}")
+    public ResponseEntity<List<PaymentDto>> getByContractId(@PathVariable Long contractId) {
+        List<PaymentDto> payments = paymentService.findByContractId(contractId);
+        return ResponseEntity.ok(payments);
+    }
 }
