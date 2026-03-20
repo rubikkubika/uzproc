@@ -315,12 +315,14 @@
    - **Windows:** Проверить Maven: `where mvn` или `mvn --version`
    - Убедиться, что Java 17+ установлена: `java -version` (работает на всех платформах)
 
-### Запуск PostgreSQL
+### Запуск PostgreSQL и Invoice Parser
 
-PostgreSQL должен быть запущен в Docker (инфраструктура):
+PostgreSQL и Invoice Parser должны быть запущены в Docker (инфраструктура):
 ```bash
-docker compose up -d postgres
+docker compose up -d postgres invoice-parser
 ```
+- Invoice Parser — сервис парсинга счёт-фактур, порт 8020, Swagger UI: http://localhost:8020/docs
+- **КРИТИЧЕСКИ ВАЖНО:** Invoice Parser **ВСЕГДА** запускается в Docker, никогда локально через pip/venv
 
 ### Запуск фронтенда
 
@@ -404,7 +406,7 @@ docker compose up -d postgres
 - **npm должен быть в PATH:**
   - macOS: настроено через `.bash_profile` и `.zshrc` для автоматической загрузки nvm
   - Windows: Node.js должен быть установлен и добавлен в PATH системы (обычно делается автоматически при установке)
-- PostgreSQL запускается в Docker, так как это инфраструктура (команда `docker compose up -d postgres` работает одинаково на всех платформах)
+- PostgreSQL и Invoice Parser запускаются в Docker, так как это инфраструктура (команда `docker compose up -d postgres invoice-parser` работает одинаково на всех платформах)
 - **КРИТИЧЕСКИ ВАЖНО — всегда завершать процессы перед запуском:** Перед перезапуском обязательно завершить процессы на портах 8080 и 3000 (backend и frontend); только после этого запускать новые. Сначала остановить (Git Bash: `lsof -ti:8080,3000 2>/dev/null | xargs -r kill -9 2>/dev/null || true`), подождать 1–2 сек, затем запускать скрипт.
 - Запускать сервисы в фоновом режиме (`is_background: true`) или с перенаправлением вывода для логирования
 - **На Windows использовать Git Bash через PowerShell:** `& "C:\Program Files\Git\bin\bash.exe" -c "команда"`

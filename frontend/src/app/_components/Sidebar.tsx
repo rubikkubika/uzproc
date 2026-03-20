@@ -55,7 +55,7 @@ const menuItems: Array<{ id: string; label: string; icon: any }> = [];
   const initiatorDevelopmentItems = [
     { id: 'test', label: 'Тест', icon: Mail },
     { id: 'users', label: 'Пользователи', icon: Users },
-    { id: 'document-ocr', label: 'Распознавание', icon: ScanText },
+    { id: 'invoice-recognition', label: 'Распознавание', icon: ScanText },
   ];
 
   const backendItems: Array<{ id: string; label: string; icon: any }> = [];

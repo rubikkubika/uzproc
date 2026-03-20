@@ -72,6 +72,17 @@ docker compose up -d postgres                          # Start PostgreSQL only
 docker exec -i uzproc-postgres psql -U uzproc_user -d uzproc  # Connect to DB
 ```
 
+### Invoice Parser (Python in Docker)
+**КРИТИЧЕСКИ ВАЖНО:** Сервис парсинга счёт-фактур (`invoice-parser`) **ВСЕГДА** запускается в Docker, аналогично PostgreSQL. Никогда не запускать его локально через pip/venv.
+```bash
+docker compose up -d invoice-parser                    # Start invoice parser (port 8020)
+docker compose logs -f invoice-parser                  # View logs
+docker compose restart invoice-parser                  # Restart after code changes
+```
+- Порт: 8020
+- Swagger UI: http://localhost:8020/docs
+- При локальной разработке запускать вместе с postgres: `docker compose up -d postgres invoice-parser`
+
 ### Full Stack (Docker)
 ```bash
 docker compose up -d           # Start all services (postgres, backend, frontend, nginx)
@@ -199,7 +210,7 @@ docker compose ps              # Check service status
 - **КРИТИЧЕСКИ ВАЖНО:** При создании фильтров таблиц **ОБЯЗАТЕЛЬНО** следовать паттерну debounce с разделением состояний (см. раздел "Архитектура фильтров с debounce" ниже)
 
 **Local Development Workflow:**
-- PostgreSQL always runs in Docker (`docker compose up -d postgres`)
+- PostgreSQL and Invoice Parser always run in Docker (`docker compose up -d postgres invoice-parser`)
 - Backend and frontend run locally (not in Docker) for development
 - Auto-restore DB from latest backup (`backup/uzproc_backup_*.sql`) before local backend restart
 - Use Git Bash for all terminal operations and scripts; on Windows run `.sh` scripts in Git Bash (not PowerShell)

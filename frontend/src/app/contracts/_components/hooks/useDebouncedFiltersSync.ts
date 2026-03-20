@@ -15,6 +15,7 @@ const TEXT_FIELDS = [
   'costType',
   'contractType',
   'paymentTerms',
+  'purchaseRequestInnerId',
 ];
 
 export function useDebouncedFiltersSync({

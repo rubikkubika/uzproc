@@ -22,6 +22,7 @@ export const useContractsFilters = (setCurrentPage: (page: number) => void) => {
     costType: '',
     contractType: '',
     paymentTerms: '',
+    purchaseRequestInnerId: '',
   });
 
   const [filters, setFilters] = useState<Record<string, string>>({
@@ -32,6 +33,7 @@ export const useContractsFilters = (setCurrentPage: (page: number) => void) => {
     costType: '',
     contractType: '',
     paymentTerms: '',
+    purchaseRequestInnerId: '',
   });
 
   const [focusedField, setFocusedField] = useState<string | null>(null);
