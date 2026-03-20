@@ -153,3 +153,62 @@ main::-webkit-scrollbar {
     max-width: none !important;
   }
 }
+
+/* ─── Print: Управленческая отчётность ─── */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 6mm;
+  }
+
+  /* Скрываем сайдбар, навигацию и кнопки */
+  aside,
+  nav,
+  header,
+  footer,
+  [data-print-hide] {
+    display: none !important;
+  }
+
+  /* Убираем отступ от сайдбара у main */
+  main {
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+    width: 100% !important;
+  }
+
+  /* Контент на весь экран без отступов */
+  #mr-print-root {
+    position: static !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: white !important;
+  }
+
+  /* Страница 1 — показатели: разрыв после */
+  .mr-print-page1 {
+    page-break-after: always !important;
+    break-after: page !important;
+    width: 100% !important;
+  }
+
+  /* Страница 2 — оценки: разрыв перед */
+  .mr-print-page2 {
+    page-break-before: always !important;
+    break-before: page !important;
+    width: 100% !important;
+  }
+
+  /* При печати разворачиваем все комментарии */
+  .mr-feedback-comment {
+    height: auto !important;
+    overflow: visible !important;
+    min-height: 0 !important;
+  }
+
+  /* Скрываем карточки, которые не влезут на 1 страницу A4 landscape (12 штук: 3 ряда по 4) */
+  .mr-feedback-card:nth-child(n+13) {
+    display: none !important;
+  }
+}
