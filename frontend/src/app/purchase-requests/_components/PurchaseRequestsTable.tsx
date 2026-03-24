@@ -495,9 +495,6 @@ export default function PurchaseRequestsTable() {
   // Используем хуки для метаданных и summary
   const { allYears, uniqueValues } = useMetadata();
   const { purchaserSummary, completedPurchaserSummary } = useSummary({
-    filtersFromHook,
-    cfoFilter,
-    filtersLoadedRef,
     currentYear,
     kindTab,
   });
