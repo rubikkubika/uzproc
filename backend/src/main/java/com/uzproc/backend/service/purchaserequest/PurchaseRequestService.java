@@ -323,6 +323,7 @@ public class PurchaseRequestService {
 
     /** Максимум записей для сводки по закупщикам (in-work), чтобы не перегружать память. */
     private static final int IN_WORK_SUMMARY_MAX_SIZE = 10_000;
+    private static final int COMPLETED_SUMMARY_MAX_SIZE = 10_000;
 
     /**
      * Сводка по закупщикам для заявок «в работе»: количество заказов/закупок и суммы бюджетов.
@@ -360,17 +361,20 @@ public class PurchaseRequestService {
                 ? pr.getPurchaser().trim()
                 : "Не назначен";
             PurchaserSummaryItemDto item = byPurchaser.computeIfAbsent(purchaser, k ->
-                new PurchaserSummaryItemDto(k, 0L, 0L, BigDecimal.ZERO, BigDecimal.ZERO));
+                new PurchaserSummaryItemDto(k, 0L, 0L, BigDecimal.ZERO, BigDecimal.ZERO, 0L, 0L));
 
             boolean isPurchase = Boolean.TRUE.equals(pr.getRequiresPurchase());
             java.math.BigDecimal budget = pr.getBudgetAmount() != null ? pr.getBudgetAmount() : BigDecimal.ZERO;
+            long complexityValue = parseComplexityValue(pr.getComplexity());
 
             if (isPurchase) {
                 item.setPurchasesCount(item.getPurchasesCount() + 1);
                 item.setPurchasesBudget(item.getPurchasesBudget().add(budget));
+                item.setPurchasesComplexity(item.getPurchasesComplexity() + complexityValue);
             } else {
                 item.setOrdersCount(item.getOrdersCount() + 1);
                 item.setOrdersBudget(item.getOrdersBudget().add(budget));
+                item.setOrdersComplexity(item.getOrdersComplexity() + complexityValue);
             }
         }
 
@@ -378,6 +382,209 @@ public class PurchaseRequestService {
             .sorted((a, b) -> (b.getOrdersBudget().add(b.getPurchasesBudget()))
                 .compareTo(a.getOrdersBudget().add(a.getPurchasesBudget())))
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Сводка по закупщикам для завершенных заявок за год.
+     * Год применяется по полю purchaseRequestCreationDate/createdAt (через общий фильтр year).
+     */
+    public List<PurchaserSummaryItemDto> getCompletedPurchaserSummary(
+            Integer year,
+            Long idPurchaseRequest,
+            List<String> cfo,
+            String name,
+            String costType,
+            String contractType,
+            Boolean isPlanned,
+            Boolean hasLinkedPlanItem,
+            String complexity,
+            Boolean requiresPurchase,
+            java.math.BigDecimal budgetAmount,
+            String budgetAmountOperator) {
+
+        int effectiveYear = year != null ? year : java.time.LocalDate.now().getYear();
+
+        // 1. Берём все закупки со статусом COMPLETED (аналогично обзору)
+        List<com.uzproc.backend.entity.purchase.Purchase> allCompletedPurchases = purchaseRepository.findAll(
+            (org.springframework.data.jpa.domain.Specification<com.uzproc.backend.entity.purchase.Purchase>) (root, query, cb) -> {
+                if (query.getResultType() == com.uzproc.backend.entity.purchase.Purchase.class) {
+                    root.fetch("purchaseRequest", jakarta.persistence.criteria.JoinType.LEFT);
+                }
+                return cb.equal(root.get("status"), com.uzproc.backend.entity.purchase.PurchaseStatus.COMPLETED);
+            }
+        );
+
+        // 2. Собираем purchaseRequestIds для фильтра по дате завершения комиссии
+        List<Long> allPrIds = allCompletedPurchases.stream()
+            .map(com.uzproc.backend.entity.purchase.Purchase::getPurchaseRequestId)
+            .filter(java.util.Objects::nonNull)
+            .distinct()
+            .toList();
+
+        // 3. Определяем дату завершения по completionDate этапа "Закупочная комиссия"
+        Map<Long, java.time.LocalDateTime> completionDateByPrId = new HashMap<>();
+        if (!allPrIds.isEmpty()) {
+            List<com.uzproc.backend.entity.purchase.PurchaseApproval> approvals = purchaseApprovalRepository.findByPurchaseRequestIdIn(allPrIds);
+            Map<Long, List<com.uzproc.backend.entity.purchase.PurchaseApproval>> byPr = approvals.stream()
+                .filter(a -> "Закупочная комиссия".equals(a.getStage()))
+                .collect(Collectors.groupingBy(com.uzproc.backend.entity.purchase.PurchaseApproval::getPurchaseRequestId));
+
+            for (Map.Entry<Long, List<com.uzproc.backend.entity.purchase.PurchaseApproval>> entry : byPr.entrySet()) {
+                List<com.uzproc.backend.entity.purchase.PurchaseApproval> commissionApprovals = entry.getValue();
+                boolean allCompleted = !commissionApprovals.isEmpty()
+                    && commissionApprovals.stream().allMatch(a -> a.getCompletionDate() != null);
+                if (allCompleted) {
+                    java.time.LocalDateTime completionDate = commissionApprovals.stream()
+                        .map(com.uzproc.backend.entity.purchase.PurchaseApproval::getCompletionDate)
+                        .filter(java.util.Objects::nonNull)
+                        .max(java.time.LocalDateTime::compareTo)
+                        .orElse(null);
+                    if (completionDate != null) {
+                        completionDateByPrId.put(entry.getKey(), completionDate);
+                    }
+                }
+            }
+        }
+
+        // 4. Фильтруем закупки по дате завершения комиссии в году
+        Set<Long> completedInYearPrIds = new HashSet<>();
+        for (Map.Entry<Long, java.time.LocalDateTime> entry : completionDateByPrId.entrySet()) {
+            if (entry.getValue().getYear() == effectiveYear) {
+                completedInYearPrIds.add(entry.getKey());
+            }
+        }
+
+        // 5. Загружаем заявки по отфильтрованным ID с применением фильтров пользователя
+        Specification<PurchaseRequest> spec = (root, query, cb) -> {
+            var predicates = new ArrayList<jakarta.persistence.criteria.Predicate>();
+            predicates.add(root.get("idPurchaseRequest").in(completedInYearPrIds));
+            return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+        };
+
+        if (!completedInYearPrIds.isEmpty()) {
+            // Применяем пользовательские фильтры
+            Specification<PurchaseRequest> userFilters = buildSpecification(
+                null, null, null, null, idPurchaseRequest, cfo, null, null,
+                name, costType, contractType, isPlanned, hasLinkedPlanItem, complexity, requiresPurchase, null,
+                false, budgetAmount, budgetAmountOperator != null ? budgetAmountOperator : "gte", false, false, false, null, null, null);
+            spec = spec.and(userFilters);
+        }
+
+        List<PurchaseRequest> list = completedInYearPrIds.isEmpty()
+            ? List.of()
+            : purchaseRequestRepository.findAll(spec);
+
+        Map<String, PurchaserSummaryItemDto> byPurchaser = new HashMap<>();
+        for (PurchaseRequest pr : list) {
+            String purchaser = (pr.getPurchaser() != null && !pr.getPurchaser().trim().isEmpty())
+                ? pr.getPurchaser().trim()
+                : "Не назначен";
+            PurchaserSummaryItemDto item = byPurchaser.computeIfAbsent(purchaser, k ->
+                new PurchaserSummaryItemDto(k, 0L, 0L, BigDecimal.ZERO, BigDecimal.ZERO, 0L, 0L));
+
+            boolean isPurchase = Boolean.TRUE.equals(pr.getRequiresPurchase());
+            java.math.BigDecimal budget = pr.getBudgetAmount() != null ? pr.getBudgetAmount() : BigDecimal.ZERO;
+            long complexityValue = parseComplexityValue(pr.getComplexity());
+
+            if (isPurchase) {
+                item.setPurchasesCount(item.getPurchasesCount() + 1);
+                item.setPurchasesBudget(item.getPurchasesBudget().add(budget));
+                item.setPurchasesComplexity(item.getPurchasesComplexity() + complexityValue);
+            } else {
+                item.setOrdersCount(item.getOrdersCount() + 1);
+                item.setOrdersBudget(item.getOrdersBudget().add(budget));
+                item.setOrdersComplexity(item.getOrdersComplexity() + complexityValue);
+            }
+        }
+
+        // Расчёт экономии: берём savings из связанной закупки (purchases)
+        List<Long> businessIds = list.stream()
+            .map(PurchaseRequest::getIdPurchaseRequest)
+            .filter(java.util.Objects::nonNull)
+            .distinct()
+            .toList();
+
+        Map<Long, BigDecimal> savingsByPrId = new HashMap<>();
+        if (!businessIds.isEmpty()) {
+            List<com.uzproc.backend.entity.purchase.Purchase> purchases = purchaseRepository.findByPurchaseRequestIdIn(businessIds);
+            for (com.uzproc.backend.entity.purchase.Purchase p : purchases) {
+                if (p.getPurchaseRequestId() != null && p.getSavings() != null) {
+                    savingsByPrId.merge(p.getPurchaseRequestId(), p.getSavings(), BigDecimal::add);
+                }
+            }
+        }
+
+        // Расчёт средней оценки CSI по закупщику (по дате создания отзыва в году, как в обзоре)
+        java.time.LocalDateTime yearStart = java.time.LocalDate.of(effectiveYear, 1, 1).atStartOfDay();
+        java.time.LocalDateTime yearEnd = java.time.LocalDate.of(effectiveYear, 12, 31).atTime(23, 59, 59);
+
+        // Собираем закупщиков из сводки
+        Set<String> purchasersInSummary = byPurchaser.keySet();
+
+        Map<String, List<Double>> ratingsByPurchaser = new HashMap<>();
+        if (!purchasersInSummary.isEmpty()) {
+            // Загружаем все отзывы за год
+            List<com.uzproc.backend.entity.csifeedback.CsiFeedback> feedbacks = csiFeedbackRepository.findAll(
+                (org.springframework.data.jpa.domain.Specification<com.uzproc.backend.entity.csifeedback.CsiFeedback>) (root, query, cb) -> {
+                    if (query.getResultType() == com.uzproc.backend.entity.csifeedback.CsiFeedback.class) {
+                        root.fetch("purchaseRequest", jakarta.persistence.criteria.JoinType.LEFT);
+                    }
+                    return cb.between(root.get("createdAt"), yearStart, yearEnd);
+                }
+            );
+            for (com.uzproc.backend.entity.csifeedback.CsiFeedback fb : feedbacks) {
+                PurchaseRequest pr = fb.getPurchaseRequest();
+                if (pr == null) continue;
+                String p = (pr.getPurchaser() != null && !pr.getPurchaser().trim().isEmpty())
+                    ? pr.getPurchaser().trim() : "Не назначен";
+                if (!purchasersInSummary.contains(p)) continue;
+                List<Double> fbRatings = new ArrayList<>();
+                if (fb.getSpeedRating() != null) fbRatings.add(fb.getSpeedRating());
+                if (fb.getQualityRating() != null) fbRatings.add(fb.getQualityRating());
+                if (fb.getSatisfactionRating() != null) fbRatings.add(fb.getSatisfactionRating());
+                if (fb.getUzprocRating() != null) fbRatings.add(fb.getUzprocRating());
+                if (!fbRatings.isEmpty()) {
+                    double avgFb = fbRatings.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+                    ratingsByPurchaser.computeIfAbsent(p, k -> new ArrayList<>()).add(avgFb);
+                }
+            }
+        }
+
+        // Агрегируем экономию по закупщику
+        Map<String, BigDecimal> savingsByPurchaser = new HashMap<>();
+        for (PurchaseRequest pr : list) {
+            String purchaser = (pr.getPurchaser() != null && !pr.getPurchaser().trim().isEmpty())
+                ? pr.getPurchaser().trim() : "Не назначен";
+            BigDecimal saving = savingsByPrId.getOrDefault(pr.getIdPurchaseRequest(), BigDecimal.ZERO);
+            savingsByPurchaser.merge(purchaser, saving, BigDecimal::add);
+        }
+
+        for (Map.Entry<String, PurchaserSummaryItemDto> entry : byPurchaser.entrySet()) {
+            entry.getValue().setSavings(savingsByPurchaser.getOrDefault(entry.getKey(), BigDecimal.ZERO));
+            List<Double> ratings = ratingsByPurchaser.get(entry.getKey());
+            if (ratings != null && !ratings.isEmpty()) {
+                double avg = ratings.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+                entry.getValue().setAverageRating(Math.round(avg * 10.0) / 10.0);
+            }
+        }
+
+        return byPurchaser.values().stream()
+            .sorted((a, b) -> Long.compare(
+                b.getOrdersCount() + b.getPurchasesCount(),
+                a.getOrdersCount() + a.getPurchasesCount()
+            ))
+            .collect(Collectors.toList());
+    }
+
+    private long parseComplexityValue(String complexity) {
+        if (complexity == null || complexity.trim().isEmpty()) {
+            return 0L;
+        }
+        try {
+            return Long.parseLong(complexity.trim());
+        } catch (NumberFormatException e) {
+            return 0L;
+        }
     }
 
     /**

@@ -29,6 +29,10 @@ export interface PurchaserSummaryItemDto {
   purchasesCount: number;
   ordersBudget: number;
   purchasesBudget: number;
+  ordersComplexity: number;
+  purchasesComplexity: number;
+  savings: number;
+  averageRating: number | null;
 }
 
 /**
@@ -41,6 +45,20 @@ export async function fetchInWorkPurchaserSummary(
   const response = await fetchDeduped(url);
   if (!response.ok) {
     throw new Error('Ошибка загрузки сводки по закупщикам');
+  }
+  return response.json();
+}
+
+/**
+ * Загружает сводку по закупщикам для завершенных заявок за год.
+ */
+export async function fetchCompletedPurchaserSummary(
+  params: URLSearchParams
+): Promise<PurchaserSummaryItemDto[]> {
+  const url = `${getBackendUrl()}/api/purchase-requests/completed-summary?${params.toString()}`;
+  const response = await fetchDeduped(url);
+  if (!response.ok) {
+    throw new Error('Ошибка загрузки сводки завершенных заявок');
   }
   return response.json();
 }

@@ -178,6 +178,30 @@ public class PurchaseRequestController {
         return ResponseEntity.ok(summary);
     }
 
+    /**
+     * Сводка по закупщикам для завершенных заявок за указанный год.
+     * По умолчанию используется текущий год.
+     */
+    @GetMapping("/completed-summary")
+    public ResponseEntity<List<PurchaserSummaryItemDto>> getCompletedPurchaserSummary(
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Long idPurchaseRequest,
+            @RequestParam(required = false) List<String> cfo,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String costType,
+            @RequestParam(required = false) String contractType,
+            @RequestParam(required = false) Boolean isPlanned,
+            @RequestParam(required = false) Boolean hasLinkedPlanItem,
+            @RequestParam(required = false) String complexity,
+            @RequestParam(required = false) Boolean requiresPurchase,
+            @RequestParam(required = false) java.math.BigDecimal budgetAmount,
+            @RequestParam(required = false) String budgetAmountOperator) {
+        List<PurchaserSummaryItemDto> summary = purchaseRequestService.getCompletedPurchaserSummary(
+            year, idPurchaseRequest, cfo, name, costType, contractType, isPlanned, hasLinkedPlanItem,
+            complexity, requiresPurchase, budgetAmount, budgetAmountOperator);
+        return ResponseEntity.ok(summary);
+    }
+
     @GetMapping("/tab-counts")
     public ResponseEntity<Map<String, Long>> getTabCounts(
             @RequestParam(required = false) Integer approvalAssignmentYear,

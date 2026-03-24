@@ -494,10 +494,12 @@ export default function PurchaseRequestsTable() {
 
   // Используем хуки для метаданных и summary
   const { allYears, uniqueValues } = useMetadata();
-  const { summaryData, setSummaryData, purchaserSummary } = useSummary({
+  const { purchaserSummary, completedPurchaserSummary } = useSummary({
     filtersFromHook,
     cfoFilter,
     filtersLoadedRef,
+    currentYear,
+    kindTab,
   });
   
   // Используем хук для загрузки totalRecords
@@ -952,6 +954,8 @@ export default function PurchaseRequestsTable() {
         <div className="flex-1">
           <PurchaseRequestsSummaryTable
             purchaserSummary={purchaserSummary}
+            completedPurchaserSummary={completedPurchaserSummary}
+            currentYear={currentYear}
             purchaserFilter={purchaserFilter}
             setPurchaserFilter={setPurchaserFilter}
             setCurrentPage={setCurrentPage}

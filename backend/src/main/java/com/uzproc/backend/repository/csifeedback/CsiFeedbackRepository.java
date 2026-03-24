@@ -15,4 +15,6 @@ public interface CsiFeedbackRepository extends JpaRepository<CsiFeedback, Long>,
     List<CsiFeedback> findByPurchaseRequestId(Long purchaseRequestId);
 
     Page<CsiFeedback> findByPurchaseRequestId(Long purchaseRequestId, Pageable pageable);
+
+    List<CsiFeedback> findByPurchaseRequest_IdIn(List<Long> technicalIds);
 }

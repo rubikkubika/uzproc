@@ -81,12 +81,50 @@ export default function Overview() {
   );
   /** Список всех закупщиков для таблицы: при отсутствии фильтра берём из ответа; при фильтре показываем последний сохранённый полный список (как на вкладке CSI). */
   const slaAllPurchasersRef = useRef<OverviewSlaPercentageByPurchaser[]>([]);
+  const slaFullListLoadedRef = useRef(false);
   useEffect(() => {
     const list = slaData.data?.slaPercentageByPurchaser ?? [];
     if (slaPurchaserFilter == null || slaPurchaserFilter.trim() === '') {
-      if (list.length > 0) slaAllPurchasersRef.current = list;
+      if (list.length > 0) {
+        slaAllPurchasersRef.current = list;
+        slaFullListLoadedRef.current = true;
+      }
     }
   }, [slaData.data?.slaPercentageByPurchaser, slaPurchaserFilter]);
+
+  // При возврате на страницу с фильтром — ref пуст, загружаем полный список без фильтра
+  useEffect(() => {
+    if (
+      slaPurchaserFilter != null &&
+      slaPurchaserFilter.trim() !== '' &&
+      slaAllPurchasersRef.current.length === 0 &&
+      !slaFullListLoadedRef.current &&
+      slaEnabled &&
+      slaYear != null
+    ) {
+      const loadFullList = async () => {
+        try {
+          const { getBackendUrl } = await import('@/utils/api');
+          const params = new URLSearchParams({ year: String(slaYear) });
+          const res = await fetch(`${getBackendUrl()}/api/overview/sla?${params}`);
+          if (res.ok) {
+            const json = await res.json();
+            const list = json.slaPercentageByPurchaser ?? [];
+            if (list.length > 0) {
+              slaAllPurchasersRef.current = list;
+              slaFullListLoadedRef.current = true;
+              // Триггерим ререндер
+              setSlaPurchaserFilter(slaPurchaserFilter);
+            }
+          }
+        } catch {
+          // ignore
+        }
+      };
+      loadFullList();
+    }
+  }, [slaPurchaserFilter, slaEnabled, slaYear]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const slaByPurchaserTableRows =
     slaPurchaserFilter != null && slaPurchaserFilter.trim() !== ''
       ? slaAllPurchasersRef.current

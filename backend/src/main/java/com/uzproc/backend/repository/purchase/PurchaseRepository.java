@@ -29,6 +29,7 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long>, JpaSp
     Page<Purchase> findByPurchaseCreationDateBetween(LocalDateTime start, LocalDateTime end, Pageable pageable);
     List<Purchase> findByPurchaseRequestId(Long purchaseRequestId);
     Optional<Purchase> findFirstByPurchaseRequestId(Long purchaseRequestId);
+    List<Purchase> findByPurchaseRequestIdIn(List<Long> purchaseRequestIds);
 }
 
 

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { fetchInWorkPurchaserSummary } from '../services/purchaseRequests.api';
+import { fetchInWorkPurchaserSummary, fetchCompletedPurchaserSummary } from '../services/purchaseRequests.api';
 import { normalizePurchaserName } from '../utils/normalizePurchaser';
 import { parseBudgetAmount } from '../utils/buildQueryParams';
+import type { RequestKindTab } from '../types/purchase-request.types';
 
 interface PurchaserSummaryItem {
   purchaser: string;
@@ -9,12 +10,18 @@ interface PurchaserSummaryItem {
   purchasesCount: number;
   ordersBudget: number;
   purchasesBudget: number;
+  ordersComplexity: number;
+  purchasesComplexity: number;
+  savings: number;
+  averageRating: number | null;
 }
 
 interface UseSummaryParams {
   filtersFromHook: Record<string, string>;
   cfoFilter: Set<string>;
   filtersLoadedRef: React.MutableRefObject<boolean>;
+  currentYear: number;
+  kindTab: RequestKindTab;
 }
 
 /**
@@ -22,8 +29,9 @@ interface UseSummaryParams {
  * Загружает сводку по закупщикам через эндпоинт in-work-summary (без запроса на 1000 полных записей).
  */
 export function useSummary(params: UseSummaryParams) {
-  const { filtersFromHook, cfoFilter, filtersLoadedRef } = params;
+  const { filtersFromHook, cfoFilter, filtersLoadedRef, currentYear, kindTab } = params;
   const [purchaserSummary, setPurchaserSummary] = useState<PurchaserSummaryItem[]>([]);
+  const [completedPurchaserSummary, setCompletedPurchaserSummary] = useState<PurchaserSummaryItem[]>([]);
 
   useEffect(() => {
     if (!filtersLoadedRef.current) {
@@ -99,26 +107,47 @@ export function useSummary(params: UseSummaryParams) {
           }
         }
 
-        const result = await fetchInWorkPurchaserSummary(params);
-        const normalized = result.map((item) => ({
+        // Сводка должна учитывать текущую верхнюю вкладку: Закупки / Заказы
+        if (kindTab === 'purchase') {
+          params.set('requiresPurchase', 'true');
+        } else if (kindTab === 'order') {
+          params.set('requiresPurchase', 'false');
+        }
+
+        const completedParams = new URLSearchParams(params.toString());
+        completedParams.set('year', String(currentYear));
+        const [inWorkResult, completedResult] = await Promise.all([
+          fetchInWorkPurchaserSummary(params),
+          fetchCompletedPurchaserSummary(completedParams),
+        ]);
+
+        const normalizeItem = (item: PurchaserSummaryItem) => ({
           ...item,
           purchaser: item.purchaser ? normalizePurchaserName(item.purchaser) : item.purchaser,
           ordersBudget: Number(item.ordersBudget),
           purchasesBudget: Number(item.purchasesBudget),
-        }));
-        setPurchaserSummary(normalized);
+          ordersComplexity: Number(item.ordersComplexity || 0),
+          purchasesComplexity: Number(item.purchasesComplexity || 0),
+          savings: Number(item.savings || 0),
+          averageRating: item.averageRating != null ? Number(item.averageRating) : null,
+        });
+
+        setPurchaserSummary(inWorkResult.map(normalizeItem));
+        setCompletedPurchaserSummary(completedResult.map(normalizeItem));
       } catch (err) {
         console.error('Error fetching summary data:', err);
         setPurchaserSummary([]);
+        setCompletedPurchaserSummary([]);
       }
     };
 
     fetchSummaryData();
-  }, [filtersFromHook, cfoFilter, filtersLoadedRef]);
+  }, [filtersFromHook, cfoFilter, filtersLoadedRef, currentYear, kindTab]);
 
   return {
     summaryData: [],
     setSummaryData: () => {},
     purchaserSummary,
+    completedPurchaserSummary,
   };
 }

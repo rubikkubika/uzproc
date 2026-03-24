@@ -18,6 +18,7 @@ public interface ContractRepository extends JpaRepository<Contract, Long>, JpaSp
     Optional<Contract> findByInnerId(String innerId);
     boolean existsByInnerId(String innerId);
     List<Contract> findByPurchaseRequestId(Long purchaseRequestId);
+    List<Contract> findByPurchaseRequestIdIn(List<Long> purchaseRequestIds);
     Optional<Contract> findByName(String name);
     /** Поиск договора по заголовку (для связывания оплат из комментария Excel). Берётся первый при совпадении. */
     Optional<Contract> findFirstByTitle(String title);

@@ -1205,32 +1205,105 @@ public class OverviewService {
         LocalDateTime startOfYear = LocalDateTime.of(year, 1, 1, 0, 0);
         LocalDateTime endOfYear = LocalDateTime.of(year, 12, 31, 23, 59, 59, 999999999);
 
-        // Загружаем все закупки за год с непустой экономией
+        // Загружаем все закупки COMPLETED с непустой экономией
         var spec = (org.springframework.data.jpa.domain.Specification<com.uzproc.backend.entity.purchase.Purchase>) (root, query, cb) -> {
-            // Fetch join для избежания N+1
             if (query.getResultType() == com.uzproc.backend.entity.purchase.Purchase.class) {
                 root.fetch("cfo", jakarta.persistence.criteria.JoinType.LEFT);
                 root.fetch("purchaseRequest", jakarta.persistence.criteria.JoinType.LEFT);
             }
             var predicates = new ArrayList<jakarta.persistence.criteria.Predicate>();
             predicates.add(cb.isNotNull(root.get("savings")));
-            predicates.add(cb.isNotNull(root.get("purchaseCreationDate")));
-            predicates.add(cb.between(root.get("purchaseCreationDate"), startOfYear, endOfYear));
+            predicates.add(cb.equal(root.get("status"), com.uzproc.backend.entity.purchase.PurchaseStatus.COMPLETED));
             return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
         };
 
-        List<com.uzproc.backend.entity.purchase.Purchase> purchases = purchaseRepository.findAll(spec);
-        logger.info("getSavingsData: found {} purchases with savings in year {}", purchases.size(), year);
+        List<com.uzproc.backend.entity.purchase.Purchase> allPurchasesWithSavings = purchaseRepository.findAll(spec);
 
-        // Бюджет всех завершённых закупок за год (независимо от наличия экономии)
+        // Определяем дату завершения комиссии для каждой закупки
+        List<Long> allPrIds = allPurchasesWithSavings.stream()
+            .map(com.uzproc.backend.entity.purchase.Purchase::getPurchaseRequestId)
+            .filter(java.util.Objects::nonNull)
+            .distinct()
+            .toList();
+
+        Map<Long, LocalDateTime> completionDateByPrId = new java.util.HashMap<>();
+        if (!allPrIds.isEmpty()) {
+            List<com.uzproc.backend.entity.purchase.PurchaseApproval> approvals = purchaseApprovalRepository.findByPurchaseRequestIdIn(allPrIds);
+            Map<Long, List<com.uzproc.backend.entity.purchase.PurchaseApproval>> byPr = approvals.stream()
+                .filter(a -> "Закупочная комиссия".equals(a.getStage()))
+                .collect(java.util.stream.Collectors.groupingBy(com.uzproc.backend.entity.purchase.PurchaseApproval::getPurchaseRequestId));
+
+            for (var entry : byPr.entrySet()) {
+                var commissionApprovals = entry.getValue();
+                boolean allCompleted = !commissionApprovals.isEmpty()
+                    && commissionApprovals.stream().allMatch(a -> a.getCompletionDate() != null);
+                if (allCompleted) {
+                    LocalDateTime completionDate = commissionApprovals.stream()
+                        .map(com.uzproc.backend.entity.purchase.PurchaseApproval::getCompletionDate)
+                        .filter(java.util.Objects::nonNull)
+                        .max(LocalDateTime::compareTo)
+                        .orElse(null);
+                    if (completionDate != null) {
+                        completionDateByPrId.put(entry.getKey(), completionDate);
+                    }
+                }
+            }
+        }
+
+        // Фильтруем по дате завершения комиссии в году
+        List<com.uzproc.backend.entity.purchase.Purchase> purchases = allPurchasesWithSavings.stream()
+            .filter(p -> {
+                Long prId = p.getPurchaseRequestId();
+                if (prId == null) return false;
+                LocalDateTime cd = completionDateByPrId.get(prId);
+                return cd != null && cd.getYear() == year;
+            })
+            .toList();
+
+        logger.info("getSavingsData: found {} purchases with savings in year {} (by commission completion date)", purchases.size(), year);
+
+        // Бюджет всех завершённых закупок за год (по дате завершения комиссии, независимо от наличия экономии)
         var budgetSpec = (org.springframework.data.jpa.domain.Specification<com.uzproc.backend.entity.purchase.Purchase>) (root, query, cb) -> {
             var preds = new ArrayList<jakarta.persistence.criteria.Predicate>();
             preds.add(cb.equal(root.get("status"), com.uzproc.backend.entity.purchase.PurchaseStatus.COMPLETED));
-            preds.add(cb.isNotNull(root.get("purchaseCreationDate")));
-            preds.add(cb.between(root.get("purchaseCreationDate"), startOfYear, endOfYear));
             return cb.and(preds.toArray(new jakarta.persistence.criteria.Predicate[0]));
         };
-        List<com.uzproc.backend.entity.purchase.Purchase> completedPurchases = purchaseRepository.findAll(budgetSpec);
+        List<com.uzproc.backend.entity.purchase.Purchase> allCompleted = purchaseRepository.findAll(budgetSpec);
+
+        // Дополняем completionDateByPrId для закупок без savings (чтобы бюджет считался по всем COMPLETED)
+        List<Long> budgetPrIds = allCompleted.stream()
+            .map(com.uzproc.backend.entity.purchase.Purchase::getPurchaseRequestId)
+            .filter(id -> id != null && !completionDateByPrId.containsKey(id))
+            .distinct()
+            .toList();
+        if (!budgetPrIds.isEmpty()) {
+            List<com.uzproc.backend.entity.purchase.PurchaseApproval> budgetApprovals = purchaseApprovalRepository.findByPurchaseRequestIdIn(budgetPrIds);
+            Map<Long, List<com.uzproc.backend.entity.purchase.PurchaseApproval>> byPrBudget = budgetApprovals.stream()
+                .filter(a -> "Закупочная комиссия".equals(a.getStage()))
+                .collect(java.util.stream.Collectors.groupingBy(com.uzproc.backend.entity.purchase.PurchaseApproval::getPurchaseRequestId));
+            for (var entry : byPrBudget.entrySet()) {
+                var commApprovals = entry.getValue();
+                boolean allDone = !commApprovals.isEmpty()
+                    && commApprovals.stream().allMatch(a -> a.getCompletionDate() != null);
+                if (allDone) {
+                    LocalDateTime cd = commApprovals.stream()
+                        .map(com.uzproc.backend.entity.purchase.PurchaseApproval::getCompletionDate)
+                        .filter(java.util.Objects::nonNull)
+                        .max(LocalDateTime::compareTo)
+                        .orElse(null);
+                    if (cd != null) completionDateByPrId.put(entry.getKey(), cd);
+                }
+            }
+        }
+
+        List<com.uzproc.backend.entity.purchase.Purchase> completedPurchases = allCompleted.stream()
+            .filter(p -> {
+                Long prId = p.getPurchaseRequestId();
+                if (prId == null) return false;
+                LocalDateTime cd = completionDateByPrId.get(prId);
+                return cd != null && cd.getYear() == year;
+            })
+            .toList();
         BigDecimal totalBudget = BigDecimal.ZERO;
         int totalBudgetCount = 0;
         for (var p : completedPurchases) {
@@ -1277,7 +1350,8 @@ public class OverviewService {
             totalSavings = totalSavings.add(savings);
             totalCount++;
 
-            int monthIdx = purchase.getPurchaseCreationDate().getMonthValue() - 1;
+            LocalDateTime commissionDate = completionDateByPrId.get(purchase.getPurchaseRequestId());
+            int monthIdx = commissionDate != null ? commissionDate.getMonthValue() - 1 : 0;
             monthTotal[monthIdx] = monthTotal[monthIdx].add(savings);
             monthCount[monthIdx]++;
 
@@ -1385,9 +1459,6 @@ public class OverviewService {
     public List<OverviewSavingsPurchaseDetailDto> getSavingsPurchaseDetails(int year, String purchaser) {
         logger.info("getSavingsPurchaseDetails: year={}, purchaser={}", year, purchaser);
 
-        LocalDateTime startOfYear = LocalDateTime.of(year, 1, 1, 0, 0);
-        LocalDateTime endOfYear = LocalDateTime.of(year, 12, 31, 23, 59, 59, 999999999);
-
         var spec = (org.springframework.data.jpa.domain.Specification<com.uzproc.backend.entity.purchase.Purchase>) (root, query, cb) -> {
             if (query.getResultType() == com.uzproc.backend.entity.purchase.Purchase.class) {
                 root.fetch("cfo", jakarta.persistence.criteria.JoinType.LEFT);
@@ -1395,12 +1466,49 @@ public class OverviewService {
             }
             var predicates = new ArrayList<jakarta.persistence.criteria.Predicate>();
             predicates.add(cb.isNotNull(root.get("savings")));
-            predicates.add(cb.isNotNull(root.get("purchaseCreationDate")));
-            predicates.add(cb.between(root.get("purchaseCreationDate"), startOfYear, endOfYear));
+            predicates.add(cb.equal(root.get("status"), com.uzproc.backend.entity.purchase.PurchaseStatus.COMPLETED));
             return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
         };
 
-        List<com.uzproc.backend.entity.purchase.Purchase> purchases = purchaseRepository.findAll(spec);
+        List<com.uzproc.backend.entity.purchase.Purchase> allPurchases = purchaseRepository.findAll(spec);
+
+        // Определяем дату завершения комиссии
+        List<Long> prIds = allPurchases.stream()
+            .map(com.uzproc.backend.entity.purchase.Purchase::getPurchaseRequestId)
+            .filter(java.util.Objects::nonNull)
+            .distinct()
+            .toList();
+
+        Map<Long, LocalDateTime> completionDateByPrId = new java.util.HashMap<>();
+        if (!prIds.isEmpty()) {
+            List<com.uzproc.backend.entity.purchase.PurchaseApproval> approvals = purchaseApprovalRepository.findByPurchaseRequestIdIn(prIds);
+            Map<Long, List<com.uzproc.backend.entity.purchase.PurchaseApproval>> byPr = approvals.stream()
+                .filter(a -> "Закупочная комиссия".equals(a.getStage()))
+                .collect(java.util.stream.Collectors.groupingBy(com.uzproc.backend.entity.purchase.PurchaseApproval::getPurchaseRequestId));
+            for (var entry : byPr.entrySet()) {
+                var commissionApprovals = entry.getValue();
+                boolean allCompleted = !commissionApprovals.isEmpty()
+                    && commissionApprovals.stream().allMatch(a -> a.getCompletionDate() != null);
+                if (allCompleted) {
+                    LocalDateTime cd = commissionApprovals.stream()
+                        .map(com.uzproc.backend.entity.purchase.PurchaseApproval::getCompletionDate)
+                        .filter(java.util.Objects::nonNull)
+                        .max(LocalDateTime::compareTo)
+                        .orElse(null);
+                    if (cd != null) completionDateByPrId.put(entry.getKey(), cd);
+                }
+            }
+        }
+
+        // Фильтруем по году завершения комиссии
+        List<com.uzproc.backend.entity.purchase.Purchase> purchases = allPurchases.stream()
+            .filter(p -> {
+                Long prId = p.getPurchaseRequestId();
+                if (prId == null) return false;
+                LocalDateTime cd = completionDateByPrId.get(prId);
+                return cd != null && cd.getYear() == year;
+            })
+            .toList();
 
         return purchases.stream()
                 .filter(p -> {
