@@ -33,7 +33,7 @@ function savingsTypeLabel(type: string | null): string {
   if (!type) return '—';
   if (type === 'FROM_MEDIAN') return 'Медиана';
   if (type === 'FROM_EXISTING_CONTRACT') return 'Сущ. дог.';
-  return 'Без типа';
+  return 'Комбинированный';
 }
 
 function statusLabel(status: string | null): string {
@@ -109,7 +109,7 @@ export function SavingsByPurchaserTable({ data, year, currency = 'UZS' }: Saving
             <th className="px-2 py-1 text-right text-gray-600 font-medium border-b border-gray-200">Всего</th>
             <th className="px-2 py-1 text-right text-blue-600 font-medium border-b border-gray-200">Медиана</th>
             <th className="px-2 py-1 text-right text-green-600 font-medium border-b border-gray-200">Сущ. дог.</th>
-            <th className="px-2 py-1 text-right text-gray-500 font-medium border-b border-gray-200">Без типа</th>
+            <th className="px-2 py-1 text-right text-gray-500 font-medium border-b border-gray-200">Комбинированный</th>
             <th className="px-2 py-1 text-right text-gray-600 font-medium border-b border-gray-200">Кол-во</th>
           </tr>
         </thead>

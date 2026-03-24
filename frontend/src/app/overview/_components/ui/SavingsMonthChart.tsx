@@ -57,7 +57,7 @@ export function SavingsMonthChart({ data, year }: SavingsMonthChartProps) {
         rawData: rawContract,
       },
       {
-        label: 'Без типа',
+        label: 'Комбинированный',
         data: rawUntyped.map(sqrtScale),
         backgroundColor: 'rgba(156, 163, 175, 0.8)',
         borderRadius: 2,

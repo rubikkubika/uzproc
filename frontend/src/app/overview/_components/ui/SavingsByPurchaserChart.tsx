@@ -60,7 +60,7 @@ export function SavingsByPurchaserChart({ data, year, currency = 'UZS' }: Saving
         rawData: rawContract,
       },
       {
-        label: 'Без типа',
+        label: 'Комбинированный',
         data: rawUntyped.map(cbrtScale),
         backgroundColor: 'rgba(156, 163, 175, 0.8)',
         borderRadius: 2,

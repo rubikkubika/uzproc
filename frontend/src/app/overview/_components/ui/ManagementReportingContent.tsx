@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, type ReactNode } from 'react';
 import { Star, Printer } from 'lucide-react';
 import { getBackendUrl } from '@/utils/api';
 import { SlaCombinedChart } from './SlaCombinedChart';
@@ -51,6 +51,30 @@ function formatAmount(value: number, currency: 'UZS' | 'USD' = 'UZS'): string {
 
 function formatStat(val: number | null): string {
   return val != null ? val.toFixed(1) : '—';
+}
+
+/** Компактная подпись цели справа от заголовка KPI */
+function KpiTargetChip({
+  children,
+  valueClassName = 'text-indigo-900',
+  valueBackgroundClassName = 'bg-white border-indigo-200',
+}: {
+  children: ReactNode;
+  valueClassName?: string;
+  valueBackgroundClassName?: string;
+}) {
+  return (
+    <div
+      className="rounded-lg border border-indigo-300 bg-indigo-100 px-1.5 py-0.5 text-[11px] leading-tight shrink-0 max-w-[min(100%,13rem)] text-indigo-800 shadow-sm font-medium"
+      role="note"
+      aria-label="Целевой показатель"
+    >
+      <span className="font-semibold uppercase tracking-wide text-slate-700">Цель:</span>{' '}
+      <span className={`inline-flex items-center rounded-md px-1 py-[1px] font-semibold border ${valueBackgroundClassName} ${valueClassName}`}>
+        {children}
+      </span>
+    </div>
+  );
 }
 
 function renderStarsSummary(rating: number | null, size: 'sm' | 'lg' = 'sm') {
@@ -144,32 +168,40 @@ export function ManagementReportingContent({
 
       {/* ═══ Страница 1 PDF: показатели ═══ */}
       <div ref={page1Ref} className="bg-white rounded-lg mr-print-page1">
-        <div className="flex gap-1.5 relative">
+        <div className="flex gap-1.5 relative mr-page1-layout">
           {/* ── Левая колонка: Экономия (58%) ── */}
-          <div className="absolute top-0 bottom-0 left-0 bg-white rounded shadow px-2 py-1.5 flex flex-col overflow-hidden" style={{ width: 'calc(58% - 3px)' }}>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs font-semibold text-gray-700">Экономия — {currentYear}</span>
-              <div className="flex items-center gap-0.5">
-                <button
-                  onClick={() => setCurrency('UZS')}
-                  className={`px-1.5 py-0.5 text-xs border rounded transition-colors ${
-                    currency === 'UZS'
-                      ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium'
-                      : 'border-gray-300 text-gray-700 hover:bg-gray-100'
-                  }`}
+          <div className="absolute top-0 bottom-0 left-0 bg-white rounded shadow px-2 py-1.5 flex flex-col overflow-hidden mr-page1-left" style={{ width: 'calc(58% - 3px)' }}>
+            <div className="flex items-center gap-2 mb-1 min-w-0">
+              <div className="flex items-center gap-1 min-w-0">
+                <span className="text-xs font-semibold text-gray-700 shrink-0">Экономия — {currentYear}</span>
+                <KpiTargetChip
+                  valueClassName="text-slate-700"
+                  valueBackgroundClassName="bg-sky-50 border-sky-300"
                 >
-                  UZS
-                </button>
-                <button
-                  onClick={() => setCurrency('USD')}
-                  className={`px-1.5 py-0.5 text-xs border rounded transition-colors ${
-                    currency === 'USD'
-                      ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium'
-                      : 'border-gray-300 text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  USD
-                </button>
+                  10% от бюджета закупок
+                </KpiTargetChip>
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <button
+                    onClick={() => setCurrency('UZS')}
+                    className={`px-1.5 py-0.5 text-xs border rounded transition-colors ${
+                      currency === 'UZS'
+                        ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium'
+                        : 'border-gray-300 text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    UZS
+                  </button>
+                  <button
+                    onClick={() => setCurrency('USD')}
+                    className={`px-1.5 py-0.5 text-xs border rounded transition-colors ${
+                      currency === 'USD'
+                        ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium'
+                        : 'border-gray-300 text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    USD
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -214,7 +246,7 @@ export function ManagementReportingContent({
                     </div>
                     <div className="flex items-center text-gray-600 text-lg font-bold shrink-0">+</div>
                     <div className="bg-white rounded shadow px-1.5 py-1 flex-1 min-w-0 border-l-2 border-gray-400">
-                      <div className="text-[10px] text-gray-500 uppercase tracking-wider truncate">Без типа</div>
+                      <div className="text-[10px] text-gray-500 uppercase tracking-wider truncate">Комбинированный</div>
                       <div className="text-sm font-bold text-gray-600 truncate">{formatAmount(savings.data.savingsUntyped, currency)}</div>
                       <div className="text-[10px] text-gray-400 truncate">{savings.data.untypedCount} закупок</div>
                     </div>
@@ -230,22 +262,26 @@ export function ManagementReportingContent({
           </div>
 
           {/* ── Правая колонка: SLA + CSI (42%) ── */}
-          <div className="min-w-0 flex flex-col gap-1.5" style={{ marginLeft: 'calc(58% + 3px)', width: 'calc(42% - 3px)' }}>
+          <div className="min-w-0 flex flex-col gap-1.5 mr-page1-right" style={{ marginLeft: 'calc(58% + 3px)', width: 'calc(42% - 3px)' }}>
             {/* SLA */}
             <div className="bg-white rounded shadow px-2 py-1.5">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs font-semibold text-gray-700">SLA — {slaYear}</span>
-                {slaLoading ? (
-                  <span className="text-xs text-gray-400">Загрузка…</span>
-                ) : slaError ? (
-                  <span className="text-xs text-red-500">{slaError}</span>
-                ) : (
-                  <span className="text-sm font-bold text-gray-900">
-                    {averageSlaPercentage != null ? `${Math.round(averageSlaPercentage)}%` : '—'}
-                  </span>
-                )}
+              <div className="flex items-center gap-1 mb-1 min-w-0">
+                <div className="flex items-center gap-1 min-w-0">
+                  <span className="text-xs font-semibold text-gray-700 shrink-0">SLA — {slaYear}</span>
+                  <KpiTargetChip
+                    valueClassName="text-slate-700"
+                    valueBackgroundClassName="bg-sky-50 border-sky-300"
+                  >
+                    75%
+                  </KpiTargetChip>
+                  {slaLoading ? (
+                    <span className="text-xs text-gray-400">Загрузка…</span>
+                  ) : slaError ? (
+                    <span className="text-xs text-red-500">{slaError}</span>
+                  ) : null}
+                </div>
               </div>
-              <div className="min-w-0 h-[160px] flex overflow-hidden" style={{ position: 'relative' }}>
+              <div className="min-w-0 h-[190px] flex overflow-hidden" style={{ position: 'relative' }}>
                 <SlaCombinedChart
                   year={slaYear}
                   countsByMonth={slaCompletedByMonth}
@@ -254,6 +290,7 @@ export function ManagementReportingContent({
                   slaPercentageByMonth={slaPercentageByMonth}
                   loading={slaLoading}
                   error={slaError}
+                  averageSlaPercentage={averageSlaPercentage}
                   hideForecast
                 />
               </div>
@@ -261,7 +298,18 @@ export function ManagementReportingContent({
 
             {/* CSI */}
             <div className="bg-white rounded shadow px-2 py-1.5">
-              <div className="text-xs font-semibold text-gray-700 mb-1">CSI — {currentYear}</div>
+              <div className="flex items-center gap-1 mb-1 min-w-0">
+                <span className="text-xs font-semibold text-gray-700 shrink-0">CSI — {currentYear}</span>
+                <KpiTargetChip
+                  valueClassName="text-slate-700"
+                  valueBackgroundClassName="bg-sky-50 border-sky-300"
+                >
+                  <span className="inline-flex items-center gap-1">
+                    <span className="tabular-nums">4</span>
+                    <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" aria-hidden />
+                  </span>
+                </KpiTargetChip>
+              </div>
               {csiLoading ? (
                 <p className="text-xs text-gray-500">Загрузка…</p>
               ) : csiStats ? (

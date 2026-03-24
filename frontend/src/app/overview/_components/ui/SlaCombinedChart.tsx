@@ -58,6 +58,8 @@ export interface SlaCombinedChartProps {
   slaPercentageByMonth: OverviewSlaPercentageByMonth[];
   loading?: boolean;
   error?: string | null;
+  /** Средний % SLA за год (показывается отдельным серым блоком над легендой). */
+  averageSlaPercentage?: number | null;
   /** Скрыть прогноз из легенды и данных. */
   hideForecast?: boolean;
 }
@@ -82,7 +84,7 @@ function buildOptions(
     plugins: {
       title: { display: false },
       legend: {
-        display: true,
+        display: false,
         position: 'top' as const,
         labels: { font: { size: 11 } },
       },
@@ -236,6 +238,7 @@ export function SlaCombinedChart({
   slaPercentageByMonth,
   loading,
   error,
+  averageSlaPercentage,
   hideForecast,
 }: SlaCombinedChartProps) {
   const nowYear = currentYear ?? new Date().getFullYear();
@@ -374,12 +377,29 @@ export function SlaCombinedChart({
           Загрузка…
         </div>
       ) : (
-        <div className="flex-1 min-h-0" style={{ minHeight: 180 }}>
-          <Chart
-            type="bar"
-            data={chartData}
-            options={buildOptions(yMaxSqrt, sorted, year, nowYear, nowMonth, forecastMetByMonth, forecastTotalByMonth, barData, hideForecast)}
-          />
+        <div className="flex-1 min-h-0 flex flex-col" style={{ minHeight: 180 }}>
+          <div className="mb-1 flex items-center justify-between gap-2 min-w-0">
+            <div className="rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/80 shadow-sm px-2 py-0.5 text-[10px] text-gray-700 shrink-0">
+              Средний SLA: <span className="font-semibold text-gray-900">{averageSlaPercentage != null ? `${Math.round(averageSlaPercentage)}%` : '—'}</span>
+            </div>
+            <div className="flex items-center gap-2 text-[10px] text-gray-700 min-w-0">
+              <span className="inline-flex items-center gap-1 shrink-0">
+                <span className="inline-block w-2.5 h-2.5 rounded-sm bg-blue-500 border border-blue-600" />
+                завершённые закупки
+              </span>
+              <span className="inline-flex items-center gap-1 shrink-0">
+                <span className="inline-block w-3.5 h-0.5 bg-black" />
+                уложились в SLA, %
+              </span>
+            </div>
+          </div>
+          <div className="flex-1 min-h-0">
+            <Chart
+              type="bar"
+              data={chartData}
+              options={buildOptions(yMaxSqrt, sorted, year, nowYear, nowMonth, forecastMetByMonth, forecastTotalByMonth, barData, hideForecast)}
+            />
+          </div>
         </div>
       )}
     </div>

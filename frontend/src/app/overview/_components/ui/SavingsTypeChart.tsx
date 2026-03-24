@@ -28,7 +28,7 @@ export function SavingsTypeChart({ fromMedian, fromExistingContract, untyped }: 
   const hasData = fromMedian > 0 || fromExistingContract > 0 || untyped > 0;
 
   const chartData = {
-    labels: ['От медианы', 'От сущ. договора', 'Без типа'],
+    labels: ['От медианы', 'От сущ. договора', 'Комбинированный'],
     datasets: [
       {
         data: [fromMedian, fromExistingContract, untyped],

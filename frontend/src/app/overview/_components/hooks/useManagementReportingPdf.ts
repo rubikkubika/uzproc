@@ -3,8 +3,8 @@
 import { useCallback, useRef } from 'react';
 
 /**
- * Хук для экспорта управленческой отчётности через window.print() (Print to PDF).
- * Использует CSS @media print для разбиения на страницы.
+ * Хук для экспорта управленческой отчётности через window.print().
+ * Разбиение на страницы выполняется через @media print в globals.css.
  */
 export function useManagementReportingPdf() {
   const page1Ref = useRef<HTMLDivElement>(null);

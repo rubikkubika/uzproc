@@ -161,43 +161,76 @@ main::-webkit-scrollbar {
     margin: 6mm;
   }
 
-  /* Скрываем сайдбар, навигацию и кнопки */
-  aside,
-  nav,
-  header,
-  footer,
+  /* Печатаем только блок отчёта, остальное скрываем */
+  body * {
+    visibility: hidden !important;
+  }
+  #mr-print-root,
+  #mr-print-root * {
+    visibility: visible !important;
+  }
   [data-print-hide] {
     display: none !important;
   }
 
-  /* Убираем отступ от сайдбара у main */
-  main {
-    margin-left: 0 !important;
-    padding-left: 0 !important;
-    width: 100% !important;
-  }
-
   /* Контент на весь экран без отступов */
   #mr-print-root {
-    position: static !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    display: block !important;
     width: 100% !important;
     padding: 0 !important;
     margin: 0 !important;
     background: white !important;
   }
 
+  /* Печатаем цвета/фоны как в интерфейсе */
+  #mr-print-root,
+  #mr-print-root * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
   /* Страница 1 — показатели: разрыв после */
   .mr-print-page1 {
     page-break-after: always !important;
     break-after: page !important;
+    display: block !important;
     width: 100% !important;
+  }
+
+  /* Первая страница в PDF должна повторять интерфейс без абсолютных смещений */
+  .mr-print-page1 .mr-page1-layout {
+    display: flex !important;
+    align-items: stretch !important;
+    gap: 6px !important;
+    position: static !important;
+  }
+
+  .mr-print-page1 .mr-page1-left {
+    position: static !important;
+    inset: auto !important;
+    width: calc(58% - 3px) !important;
+  }
+
+  .mr-print-page1 .mr-page1-right {
+    margin-left: 0 !important;
+    width: calc(42% - 3px) !important;
   }
 
   /* Страница 2 — оценки: разрыв перед */
   .mr-print-page2 {
     page-break-before: always !important;
     break-before: page !important;
+    display: block !important;
     width: 100% !important;
+  }
+
+  /* Явно оставляем обе страницы видимыми в печати */
+  .mr-print-page1,
+  .mr-print-page2 {
+    visibility: visible !important;
   }
 
   /* При печати разворачиваем все комментарии */

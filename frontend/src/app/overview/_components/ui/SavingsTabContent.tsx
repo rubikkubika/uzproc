@@ -123,7 +123,7 @@ export function SavingsTabContent() {
               </div>
               <div className="flex items-center text-gray-600 text-lg font-bold">+</div>
               <div className="bg-white rounded shadow px-2 py-1.5 min-w-[110px] border-l-2 border-gray-400">
-                <div className="text-[10px] text-gray-500 uppercase tracking-wider">Без типа</div>
+                <div className="text-[10px] text-gray-500 uppercase tracking-wider">Комбинированный</div>
                 <div className="text-sm font-bold text-gray-600">{formatAmount(data.savingsUntyped, currency)}</div>
                 <div className="text-[10px] text-gray-400">{data.untypedCount} закупок</div>
               </div>
