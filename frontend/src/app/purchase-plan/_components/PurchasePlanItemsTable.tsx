@@ -8,7 +8,6 @@ import { usePurchasePlanItemsTable } from './hooks/usePurchasePlanItemsTable';
 import { getCompanyLogoPath, getPurchaseRequestStatusColor } from './utils/purchase-plan-items.utils';
 import { prepareExportData } from './utils/export.utils';
 import { getBackendUrl } from '@/utils/api';
-import { calculateNewContractDate } from './utils/date.utils';
 import { FILTERS_STORAGE_KEY, DEFAULT_STATUSES } from './constants/purchase-plan-items.constants';
 
 // UI компоненты
@@ -823,6 +822,7 @@ function PurchasePlanItemsTableContent() {
             setEditingDate={table.editing.setEditingDate}
             canEdit={table.modals.canEdit}
             isViewingArchiveVersion={table.versions.isViewingArchiveVersion}
+            holidayDateKeys={table.holidayDateKeys}
           />
         </table>
 
@@ -876,6 +876,7 @@ function PurchasePlanItemsTableContent() {
           table.editing.handleCreateItem();
         }}
         onClose={() => table.modals.setIsCreateModalOpen(false)}
+        holidayDateKeys={table.holidayDateKeys}
       />
 
       {/* Модальное окно авторизации: для доступа к редактированию */}

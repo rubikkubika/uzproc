@@ -13,6 +13,8 @@ interface PurchasePlanItemsCreateModalProps {
   onDataChange: (data: Partial<PurchasePlanItem>) => void;
   onCreate: () => void;
   onClose: () => void;
+  /** Ключи YYYY-MM-DD из /api/holidays для расчёта даты нового договора */
+  holidayDateKeys?: Set<string>;
 }
 
 /**
@@ -25,6 +27,7 @@ export default function PurchasePlanItemsCreateModal({
   onDataChange,
   onCreate,
   onClose,
+  holidayDateKeys,
 }: PurchasePlanItemsCreateModalProps) {
   if (!isOpen) return null;
 
@@ -35,7 +38,11 @@ export default function PurchasePlanItemsCreateModal({
     if (field === 'complexity' || field === 'requestDate') {
       const requestDate = field === 'requestDate' ? value : newItemData.requestDate;
       const complexity = field === 'complexity' ? value : newItemData.complexity;
-      const calculatedDate = calculateNewContractDate(requestDate || null, complexity || null);
+      const calculatedDate = calculateNewContractDate(
+        requestDate || null,
+        complexity || null,
+        holidayDateKeys
+      );
       updated.newContractDate = calculatedDate || null;
     }
     

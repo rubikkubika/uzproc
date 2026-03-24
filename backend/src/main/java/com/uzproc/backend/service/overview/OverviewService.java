@@ -14,6 +14,7 @@ import com.uzproc.backend.repository.purchase.PurchaseApprovalRepository;
 import com.uzproc.backend.repository.purchase.PurchaseRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestApprovalRepository;
 import com.uzproc.backend.repository.user.UserRepository;
+import com.uzproc.backend.service.calendar.WorkingDayService;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestCommentService;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestService;
 import com.uzproc.backend.service.purchaseplan.PurchasePlanVersionService;
@@ -24,11 +25,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -69,6 +68,7 @@ public class OverviewService {
     private final PurchaseApprovalRepository purchaseApprovalRepository;
     private final UserRepository userRepository;
     private final OverviewEkProperties overviewEkProperties;
+    private final WorkingDayService workingDayService;
 
     /** Подстрока способа закупки (mcc) у связанной закупки для признака «Закупка у единственного источника». */
     private static final String SINGLE_SOURCE_MCC_SUBSTRING = "единственного источника";
@@ -83,7 +83,8 @@ public class OverviewService {
             PurchaseRequestApprovalRepository purchaseRequestApprovalRepository,
             PurchaseApprovalRepository purchaseApprovalRepository,
             UserRepository userRepository,
-            OverviewEkProperties overviewEkProperties) {
+            OverviewEkProperties overviewEkProperties,
+            WorkingDayService workingDayService) {
         this.purchaseRequestService = purchaseRequestService;
         this.purchasePlanVersionService = purchasePlanVersionService;
         this.purchaseRequestCommentService = purchaseRequestCommentService;
@@ -94,6 +95,7 @@ public class OverviewService {
         this.purchaseApprovalRepository = purchaseApprovalRepository;
         this.userRepository = userRepository;
         this.overviewEkProperties = overviewEkProperties;
+        this.workingDayService = workingDayService;
     }
 
     /**
@@ -289,42 +291,9 @@ public class OverviewService {
         }
     }
 
-    /** Рабочие дни между датами: со следующего дня после assignment по completion включительно. O(1). */
+    /** Рабочие дни между датами: со следующего дня после assignment по completion включительно. */
     private long countWorkingDaysBetween(LocalDateTime assignment, LocalDateTime completion) {
-        if (assignment == null || completion == null) return 0;
-        LocalDate start = assignment.toLocalDate().plusDays(1);
-        LocalDate end = completion.toLocalDate();
-        if (start.isAfter(end)) return 0;
-        return workingDaysBetweenInclusive(start, end);
-    }
-
-    /** Количество рабочих дней в диапазоне [start, end] включительно. O(1). */
-    private static long workingDaysBetweenInclusive(LocalDate start, LocalDate end) {
-        long days = ChronoUnit.DAYS.between(start, end) + 1;
-        long fullWeeks = days / 7;
-        long remaining = days % 7;
-        long workdays = fullWeeks * 5;
-        int dow = start.getDayOfWeek().getValue(); // 1=Mon, 7=Sun
-        for (int i = 0; i < remaining; i++) {
-            int d = ((dow - 1 + i) % 7) + 1;
-            if (d < 6) workdays++; // Mon–Fri
-        }
-        return workdays;
-    }
-
-    /**
-     * Рабочие дни для согласования договора: та же логика, что на странице заявки.
-     * День назначения не считаем. День выполнения считаем. Назначено и выполнено в один день → 1 день.
-     * Не выполненные: от (день после назначения) до сегодня включительно; если назначено сегодня → 0 дней.
-     */
-    private long contractApprovalWorkingDays(LocalDateTime assignmentDate, LocalDateTime completionDate) {
-        if (assignmentDate == null) return 0;
-        LocalDate start = assignmentDate.toLocalDate().plusDays(1);
-        LocalDate end = completionDate != null ? completionDate.toLocalDate() : LocalDate.now();
-        if (start.isAfter(end)) {
-            return (end.getDayOfWeek() != DayOfWeek.SATURDAY && end.getDayOfWeek() != DayOfWeek.SUNDAY) ? 1 : 0;
-        }
-        return workingDaysBetweenInclusive(start, end);
+        return workingDayService.countFromDayAfterThroughInclusive(assignment, completion);
     }
 
     private static boolean isExcludedApprovalStage(String stage) {
@@ -1222,14 +1191,7 @@ public class OverviewService {
      * Если start == end, возвращается 0 (в один день — 0 рабочих дней ожидания).
      */
     private long countWorkingDaysBetweenDates(LocalDateTime start, LocalDateTime end) {
-        if (start == null || end == null) return 0;
-        LocalDate s = start.toLocalDate();
-        LocalDate e = end.toLocalDate();
-        if (!s.isBefore(e)) return 0;
-        // Считаем рабочие дни со следующего дня после start до end включительно
-        LocalDate from = s.plusDays(1);
-        if (from.isAfter(e)) return 0;
-        return workingDaysBetweenInclusive(from, e);
+        return workingDayService.countFromDayAfterStartThroughEndInclusive(start, end);
     }
 
     /**

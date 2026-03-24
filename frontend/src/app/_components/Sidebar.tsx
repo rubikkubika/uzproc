@@ -21,7 +21,9 @@ import {
   Banknote,
   Building2,
   ScanText,
-  GraduationCap
+  GraduationCap,
+  BookOpen,
+  CalendarDays,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -64,17 +66,20 @@ const menuItems: Array<{ id: string; label: string; icon: any }> = [];
 
 const SIDEBAR_SECTIONS_KEY = 'sidebarSectionsCollapsed';
 
+const DEFAULT_SECTIONS_COLLAPSED = {
+  purchaser: false,
+  initiator: false,
+  development: false,
+  /** Подгруппа «Справочники» внутри «В разработке» */
+  directories: true,
+};
+
 export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setIsMobileMenuOpen, isCollapsed = false, setIsCollapsed }: SidebarProps) {
   const router = useRouter();
   
   const { userEmail, userRole } = useAuth();
 
-  // Состояние сворачивания разделов
-  const [sectionsCollapsed, setSectionsCollapsed] = useState({
-    purchaser: false,
-    initiator: false,
-    development: false,
-  });
+  const [sectionsCollapsed, setSectionsCollapsed] = useState(DEFAULT_SECTIONS_COLLAPSED);
 
   // Загружаем состояние из localStorage при монтировании
   useEffect(() => {
@@ -83,7 +88,7 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          setSectionsCollapsed(parsed);
+          setSectionsCollapsed({ ...DEFAULT_SECTIONS_COLLAPSED, ...parsed });
         } catch (e) {
           console.error('Ошибка загрузки состояния разделов:', e);
         }
@@ -98,10 +103,10 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
     }
   }, [sectionsCollapsed]);
 
-  const toggleSection = (section: keyof typeof sectionsCollapsed) => {
+  const toggleSection = (section: keyof typeof DEFAULT_SECTIONS_COLLAPSED) => {
     setSectionsCollapsed(prev => ({
       ...prev,
-      [section]: !prev[section]
+      [section]: !prev[section],
     }));
   };
 
@@ -385,6 +390,67 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
               )}
               {(!isCollapsed && !sectionsCollapsed.development) || isCollapsed ? (
                 <ul className="space-y-1">
+                  {!isCollapsed && (
+                    <li>
+                      <button
+                        type="button"
+                        onClick={() => toggleSection('directories')}
+                        className="w-full flex items-center justify-between rounded-lg transition-colors text-sm px-2 py-1 text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                      >
+                        <span className="flex items-center min-w-0">
+                          <span className="flex items-center justify-center w-5 flex-shrink-0">
+                            <BookOpen className="w-5 h-5" />
+                          </span>
+                          <span className="ml-2 text-left truncate">Справочники</span>
+                        </span>
+                        {sectionsCollapsed.directories ? (
+                          <ChevronDown className="w-3 h-3 flex-shrink-0 text-gray-500" />
+                        ) : (
+                          <ChevronUp className="w-3 h-3 flex-shrink-0 text-gray-500" />
+                        )}
+                      </button>
+                      {!sectionsCollapsed.directories && (
+                        <ul className="mt-1 ml-2 pl-2 border-l border-gray-200 space-y-1">
+                          <li>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleTabChange('reference-holidays');
+                              }}
+                              className={`w-full flex items-center rounded-lg transition-colors relative text-sm px-2 py-1 ${
+                                activeTab === 'reference-holidays'
+                                  ? 'text-blue-600 bg-blue-50 border-l-4 border-blue-600'
+                                  : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                              }`}
+                            >
+                              <span className="flex items-center justify-center w-5 flex-shrink-0">
+                                <CalendarDays className="w-5 h-5" />
+                              </span>
+                              <span className="ml-2 text-left">Справочник праздников</span>
+                            </button>
+                          </li>
+                        </ul>
+                      )}
+                    </li>
+                  )}
+                  {isCollapsed && (
+                    <li>
+                      <button
+                        type="button"
+                        onClick={() => handleTabChange('reference-holidays')}
+                        className={`w-full flex items-center rounded-lg transition-colors relative text-sm justify-center py-0.5 px-0 ${
+                          activeTab === 'reference-holidays'
+                            ? 'text-blue-600 bg-blue-50 border-l-4 border-blue-600'
+                            : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                        }`}
+                        title="Справочник праздников"
+                      >
+                        <span className="flex items-center justify-center w-5 flex-shrink-0">
+                          <CalendarDays className="w-5 h-5" />
+                        </span>
+                      </button>
+                    </li>
+                  )}
                 {initiatorDevelopmentItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;

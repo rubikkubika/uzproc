@@ -1,16 +1,29 @@
 /**
- * Рабочие дни: со следующего дня после даты назначения по дату завершения включительно (только пн–пт).
+ * Рабочие дни: со следующего дня после даты назначения по дату завершения включительно (пн–пт, без праздников из БД).
  */
 
-function isWeekday(d: Date): boolean {
-  const day = d.getDay();
-  return day !== 0 && day !== 6;
+function toLocalDateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function isWorkingDay(d: Date, holidayKeys?: Set<string>): boolean {
+  const w = d.getDay();
+  if (w === 0 || w === 6) return false;
+  if (holidayKeys && holidayKeys.size > 0 && holidayKeys.has(toLocalDateKey(d))) return false;
+  return true;
 }
 
 /**
  * Количество рабочих дней между датами: с (assignmentDate + 1 день) по completionDate включительно.
  */
-export function countWorkingDays(assignmentDate: Date, completionDate: Date): number {
+export function countWorkingDays(
+  assignmentDate: Date,
+  completionDate: Date,
+  holidayKeys?: Set<string>
+): number {
   const start = new Date(assignmentDate);
   start.setDate(start.getDate() + 1);
   const end = new Date(completionDate);
@@ -20,7 +33,7 @@ export function countWorkingDays(assignmentDate: Date, completionDate: Date): nu
   let count = 0;
   const cur = new Date(start);
   while (cur.getTime() <= end.getTime()) {
-    if (isWeekday(cur)) count++;
+    if (isWorkingDay(cur, holidayKeys)) count++;
     cur.setDate(cur.getDate() + 1);
   }
   return count;
@@ -28,9 +41,8 @@ export function countWorkingDays(assignmentDate: Date, completionDate: Date): nu
 
 /**
  * Дата, отстоящая на N рабочих дней от даты назначения (со следующего дня после assignment).
- * Возвращает дату завершения: assignment + 1 день + N рабочих дней.
  */
-export function addWorkingDays(assignmentDate: Date, days: number): Date {
+export function addWorkingDays(assignmentDate: Date, days: number, holidayKeys?: Set<string>): Date {
   const start = new Date(assignmentDate);
   start.setDate(start.getDate() + 1);
   start.setHours(0, 0, 0, 0);
@@ -38,7 +50,7 @@ export function addWorkingDays(assignmentDate: Date, days: number): Date {
   const cur = new Date(start);
   let added = 0;
   while (added < days) {
-    if (isWeekday(cur)) added++;
+    if (isWorkingDay(cur, holidayKeys)) added++;
     if (added < days) cur.setDate(cur.getDate() + 1);
   }
   return cur;

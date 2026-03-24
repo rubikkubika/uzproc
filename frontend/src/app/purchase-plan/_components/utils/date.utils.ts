@@ -1,17 +1,29 @@
-// Функция для добавления рабочих дней к дате (исключая выходные: суббота и воскресенье)
-export const addWorkingDays = (date: Date, workingDays: number): Date => {
+function toLocalDateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function isWorkingDay(d: Date, holidayKeys?: Set<string>): boolean {
+  const dayOfWeek = d.getDay();
+  if (dayOfWeek === 0 || dayOfWeek === 6) return false;
+  if (holidayKeys && holidayKeys.size > 0 && holidayKeys.has(toLocalDateKey(d))) return false;
+  return true;
+}
+
+/** Рабочие дни от даты: первый шаг — следующий календарный день (как на бэкенде). */
+export const addWorkingDays = (date: Date, workingDays: number, holidayKeys?: Set<string>): Date => {
   const result = new Date(date);
   let daysAdded = 0;
-  
+
   while (daysAdded < workingDays) {
     result.setDate(result.getDate() + 1);
-    const dayOfWeek = result.getDay(); // 0 = воскресенье, 6 = суббота
-    // Пропускаем выходные (суббота и воскресенье)
-    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+    if (isWorkingDay(result, holidayKeys)) {
       daysAdded++;
     }
   }
-  
+
   return result;
 };
 
@@ -29,7 +41,11 @@ export const getWorkingDaysByComplexity = (complexity: string | null | undefined
 };
 
 // Функция для расчета даты нового договора на основе сложности и даты заявки
-export const calculateNewContractDate = (requestDate: string | null, complexity: string | null): string | null => {
+export const calculateNewContractDate = (
+  requestDate: string | null,
+  complexity: string | null,
+  holidayKeys?: Set<string>
+): string | null => {
   if (!requestDate || !complexity) return null;
   
   const workingDays = getWorkingDaysByComplexity(complexity);
@@ -40,7 +56,7 @@ export const calculateNewContractDate = (requestDate: string | null, complexity:
     const requestDateObj = new Date(requestDate + 'T00:00:00');
     if (isNaN(requestDateObj.getTime())) return null;
     
-    const newContractDateObj = addWorkingDays(requestDateObj, workingDays);
+    const newContractDateObj = addWorkingDays(requestDateObj, workingDays, holidayKeys);
     // Форматируем дату обратно в YYYY-MM-DD
     const year = newContractDateObj.getFullYear();
     const month = String(newContractDateObj.getMonth() + 1).padStart(2, '0');

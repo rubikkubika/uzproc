@@ -30,6 +30,7 @@ import RoadmapTimeline from './roadmap/_components/RoadmapTimeline';
 import Overview from './overview/_components/Overview';
 import InvoiceRecognition from './invoice-recognition/_components/InvoiceRecognition';
 import TrainingPage from './training/_components/TrainingPage';
+import HolidaysReferencePage from './reference-holidays/_components/HolidaysReferencePage';
 
 // Компонент для тестирования отправки почты
 function TestEmailForm() {
@@ -501,6 +502,22 @@ function DashboardContent() {
         return (
           <div className="h-full flex flex-col">
             <TrainingPage />
+          </div>
+        );
+
+      case 'reference-holidays':
+        if (userRole !== 'admin') {
+          return (
+            <div className="space-y-6">
+              <div className="bg-white p-6 rounded-lg shadow-lg">
+                <p className="text-gray-600">Доступ к справочнику праздников только для администратора.</p>
+              </div>
+            </div>
+          );
+        }
+        return (
+          <div className="h-full flex flex-col min-h-0">
+            <HolidaysReferencePage />
           </div>
         );
 

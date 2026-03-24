@@ -21,6 +21,7 @@ import com.uzproc.backend.repository.purchase.PurchaseApprovalRepository;
 import com.uzproc.backend.repository.purchase.PurchaseRepository;
 import com.uzproc.backend.repository.purchaseplan.PurchasePlanItemRepository;
 import com.uzproc.backend.entity.csifeedback.CsiFeedback;
+import com.uzproc.backend.service.calendar.WorkingDayService;
 import com.uzproc.backend.service.contract.ContractService;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestStatusUpdateService;
 import com.uzproc.backend.service.purchaseplan.PurchasePlanPurchaserSyncService;
@@ -38,7 +39,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -66,6 +66,7 @@ public class PurchaseRequestService {
     private final PurchasePlanPurchaserSyncService purchasePlanPurchaserSyncService;
     private final PurchasePlanItemRepository purchasePlanItemRepository;
     private final PurchaseRequestChangeService purchaseRequestChangeService;
+    private final WorkingDayService workingDayService;
 
     @Value("${app.frontend.base-url:}")
     private String frontendBaseUrl;
@@ -85,7 +86,8 @@ public class PurchaseRequestService {
             CsiFeedbackRepository csiFeedbackRepository,
             PurchasePlanPurchaserSyncService purchasePlanPurchaserSyncService,
             PurchasePlanItemRepository purchasePlanItemRepository,
-            PurchaseRequestChangeService purchaseRequestChangeService) {
+            PurchaseRequestChangeService purchaseRequestChangeService,
+            WorkingDayService workingDayService) {
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.approvalRepository = approvalRepository;
         this.purchaseApprovalRepository = purchaseApprovalRepository;
@@ -97,6 +99,7 @@ public class PurchaseRequestService {
         this.purchasePlanPurchaserSyncService = purchasePlanPurchaserSyncService;
         this.purchasePlanItemRepository = purchasePlanItemRepository;
         this.purchaseRequestChangeService = purchaseRequestChangeService;
+        this.workingDayService = workingDayService;
     }
 
     public Page<PurchaseRequestDto> findAll(
@@ -450,7 +453,7 @@ public class PurchaseRequestService {
             creationDate = entity.getCreatedAt().toLocalDate();
         }
         if (creationDate != null) {
-            long daysSinceCreation = calculateWorkingDays(creationDate, LocalDate.now());
+            long daysSinceCreation = workingDayService.countWorkingDaysInclusive(creationDate, LocalDate.now());
             dto.setDaysSinceCreation(daysSinceCreation);
         }
         
@@ -458,7 +461,8 @@ public class PurchaseRequestService {
         if (entity.getRequiresPurchase() != null && entity.getRequiresPurchase() != false) {
             // Срок в статусе: количество рабочих дней между датой обновления статуса и сегодня
             if (entity.getUpdatedAt() != null) {
-                long daysInStatus = calculateWorkingDays(entity.getUpdatedAt().toLocalDate(), LocalDate.now());
+                long daysInStatus = workingDayService.countWorkingDaysInclusive(
+                        entity.getUpdatedAt().toLocalDate(), LocalDate.now());
                 dto.setDaysInStatus(daysInStatus);
             }
         }
@@ -500,7 +504,7 @@ public class PurchaseRequestService {
             // День выполнения согласования по закупке (последняя дата в этапе «Закупочная комиссия») считается.
             if (approvalAssignmentDate != null) {
                 LocalDateTime end = purchaseCompletionDate != null ? purchaseCompletionDate : LocalDateTime.now();
-                long factual = countWorkingDaysBetween(approvalAssignmentDate, end);
+                long factual = workingDayService.countFromDayAfterThroughInclusive(approvalAssignmentDate, end);
                 dto.setFactualSlaDays((int) factual);
                 if (plannedSla != null) {
                     dto.setSlaDelta(plannedSla - (int) factual);
@@ -509,7 +513,8 @@ public class PurchaseRequestService {
 
             // Рабочие дни «договор в работе»: со дня, следующего за датой завершения закупки, до сегодня (последний день закупки не входит в срок договора)
             if (entity.getStatus() != null && entity.getStatus().getGroup() == PurchaseRequestStatusGroup.CONTRACT_IN_PROGRESS && purchaseCompletionDate != null) {
-                long contractDaysInProgress = countWorkingDaysBetween(purchaseCompletionDate, LocalDateTime.now());
+                long contractDaysInProgress = workingDayService.countFromDayAfterThroughInclusive(
+                        purchaseCompletionDate, LocalDateTime.now());
                 dto.setContractWorkingDaysInProgress((int) contractDaysInProgress);
             }
 
@@ -1147,19 +1152,6 @@ public class PurchaseRequestService {
             case "4": return 30;
             default: return null;
         }
-    }
-
-    /** Рабочие дни между датами: со следующего дня после assignment по completion включительно. */
-    private long countWorkingDaysBetween(LocalDateTime assignment, LocalDateTime completion) {
-        if (assignment == null || completion == null) return 0;
-        LocalDate start = assignment.toLocalDate().plusDays(1);
-        LocalDate end = completion.toLocalDate();
-        if (start.isAfter(end)) return 0;
-        long count = 0;
-        for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
-            if (d.getDayOfWeek() != DayOfWeek.SATURDAY && d.getDayOfWeek() != DayOfWeek.SUNDAY) count++;
-        }
-        return count;
     }
 
     @Transactional
@@ -1902,33 +1894,6 @@ public class PurchaseRequestService {
         long totalDays = 0;
         long requestsWithDays = 0;
         BigDecimal totalAmount = BigDecimal.ZERO;
-    }
-    
-    /**
-     * Подсчитывает количество рабочих дней между двумя датами (исключая выходные - суббота и воскресенье)
-     * 
-     * @param startDate начальная дата
-     * @param endDate конечная дата
-     * @return количество рабочих дней
-     */
-    private long calculateWorkingDays(LocalDate startDate, LocalDate endDate) {
-        if (startDate == null || endDate == null || startDate.isAfter(endDate)) {
-            return 0;
-        }
-        
-        long workingDays = 0;
-        LocalDate currentDate = startDate;
-        
-        while (!currentDate.isAfter(endDate)) {
-            DayOfWeek dayOfWeek = currentDate.getDayOfWeek();
-            // Считаем только рабочие дни (понедельник - пятница)
-            if (dayOfWeek != DayOfWeek.SATURDAY && dayOfWeek != DayOfWeek.SUNDAY) {
-                workingDays++;
-            }
-            currentDate = currentDate.plusDays(1);
-        }
-        
-        return workingDays;
     }
     
     /**

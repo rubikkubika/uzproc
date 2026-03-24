@@ -3,36 +3,56 @@
  * Используются в SlaStatusBlock и при формировании блока «Требует внимания».
  */
 
-/** Количество рабочих дней (пн–пт) между датами: день назначения не учитывается, считаем со следующего дня по end включительно. */
-export function countWorkingDaysBetween(assignmentDate: Date, endDate: Date): number {
+function toLocalDateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function isWorkingDayDate(d: Date, holidayKeys?: Set<string>): boolean {
+  const w = d.getDay();
+  if (w === 0 || w === 6) return false;
+  const key = toLocalDateKey(d);
+  if (holidayKeys && holidayKeys.size > 0 && holidayKeys.has(key)) return false;
+  return true;
+}
+
+/**
+ * Количество рабочих дней между датами: день назначения не учитывается, со следующего дня по end включительно.
+ * holidayKeys — даты YYYY-MM-DD из /api/holidays (необязательно).
+ */
+export function countWorkingDaysBetween(
+  assignmentDate: Date,
+  endDate: Date,
+  holidayKeys?: Set<string>
+): number {
   const start = new Date(assignmentDate.getFullYear(), assignmentDate.getMonth(), assignmentDate.getDate());
-  start.setDate(start.getDate() + 1); // со следующего дня после назначения
+  start.setDate(start.getDate() + 1);
   const e = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
   if (start.getTime() > e.getTime()) return 0;
   let count = 0;
   const cur = new Date(start);
   while (cur.getTime() <= e.getTime()) {
-    const d = cur.getDay();
-    if (d !== 0 && d !== 6) count++;
+    if (isWorkingDayDate(cur, holidayKeys)) count++;
     cur.setDate(cur.getDate() + 1);
   }
   return count;
 }
 
 /** Дата назначения + N рабочих дней (плановое завершение). День назначения не считается. */
-export function addWorkingDays(assignmentDate: Date, workingDays: number): Date {
+export function addWorkingDays(assignmentDate: Date, workingDays: number, holidayKeys?: Set<string>): Date {
   if (workingDays <= 0) {
     const d = new Date(assignmentDate.getFullYear(), assignmentDate.getMonth(), assignmentDate.getDate());
     d.setDate(d.getDate() + 1);
     return d;
   }
   const start = new Date(assignmentDate.getFullYear(), assignmentDate.getMonth(), assignmentDate.getDate());
-  start.setDate(start.getDate() + 1); // со следующего дня
+  start.setDate(start.getDate() + 1);
   let remaining = workingDays;
   const cur = new Date(start);
   while (remaining > 0) {
-    const d = cur.getDay();
-    if (d !== 0 && d !== 6) remaining--;
+    if (isWorkingDayDate(cur, holidayKeys)) remaining--;
     if (remaining > 0) cur.setDate(cur.getDate() + 1);
   }
   return cur;

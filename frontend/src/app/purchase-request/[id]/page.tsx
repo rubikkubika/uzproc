@@ -7,6 +7,7 @@ import { getBackendUrl } from '@/utils/api';
 import { copyToClipboard } from '@/utils/clipboard';
 import { purchaserDisplayName, initiatorDisplayName } from '@/utils/purchaser';
 import { useAuth } from '@/contexts/AuthContext';
+import { useHolidayDateKeys } from '@/hooks/useHolidayDateKeys';
 import { ArrowLeft, Clock, Check, X, Eye, EyeOff, Copy, Star, History, MessageSquare } from 'lucide-react';
 import Sidebar from '../../_components/Sidebar';
 
@@ -139,6 +140,20 @@ function getAuthEmailFromCookie(): string | null {
   return match ? decodeURIComponent(match[1].trim()) || null : null;
 }
 
+function prLocalDateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function prIsWorkingDay(d: Date, holidayKeys: Set<string>): boolean {
+  const w = d.getDay();
+  if (w === 0 || w === 6) return false;
+  if (holidayKeys.size > 0 && holidayKeys.has(prLocalDateKey(d))) return false;
+  return true;
+}
+
 export default function PurchaseRequestDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -177,6 +192,7 @@ export default function PurchaseRequestDetailPage() {
   const [isSpecificationsExpanded, setIsSpecificationsExpanded] = useState(false);
   // Используем глобальный контекст аутентификации
   const { userRole, userEmail } = useAuth();
+  const prHolidayKeys = useHolidayDateKeys('2020-01-01', '2035-12-31');
   const [csiFeedback, setCsiFeedback] = useState<CsiFeedback | null>(null);
   const [csiFeedbackLoading, setCsiFeedbackLoading] = useState(false);
   const [contractExclusionModal, setContractExclusionModal] = useState<Contract | null>(null);
@@ -652,15 +668,12 @@ export default function PurchaseRequestDetailPage() {
         ? new Date(completionDate)
         : new Date(new Date().setHours(23, 59, 59, 999)); // конец сегодняшнего дня, чтобы сегодня всегда включалось
       if (start > end) {
-        // Назначение и выполнение в один день (выполненные) или назначено сегодня (не выполненные): считаем этот день как 1, если рабочий
-        const day = end.getDay();
-        return (day !== 0 && day !== 6) ? '1' : '0';
+        return prIsWorkingDay(end, prHolidayKeys) ? '1' : '0';
       }
       let count = 0;
       const d = new Date(start);
       while (d <= end) {
-        const day = d.getDay();
-        if (day !== 0 && day !== 6) count++;
+        if (prIsWorkingDay(d, prHolidayKeys)) count++;
         d.setDate(d.getDate() + 1);
       }
       return count.toString();

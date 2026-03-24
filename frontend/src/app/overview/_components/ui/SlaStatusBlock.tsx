@@ -30,6 +30,8 @@ interface SlaStatusBlockProps {
   requests?: OverviewSlaRequestRow[];
   loading?: boolean;
   error?: string | null;
+  /** Даты YYYY-MM-DD праздников (с /api/holidays) */
+  holidayKeys?: Set<string>;
 }
 
 function formatAssignmentDate(iso: string | null): string {
@@ -57,7 +59,15 @@ function formatAmount(value: number | null): string {
  * Блок SLA: таблица заявок (тип закупка) по группе статусов — номер заявки, наименование, закупщик, статус, дата назначения на утверждение, дата завершения закупки.
  * Если переданы requests/loading/error — используются они (данные с /api/overview/sla); иначе вызывается useSlaStatusBlockData(statusGroup, year).
  */
-export function SlaStatusBlock({ title, statusGroup, year, requests: propsRequests, loading: propsLoading, error: propsError }: SlaStatusBlockProps) {
+export function SlaStatusBlock({
+  title,
+  statusGroup,
+  year,
+  requests: propsRequests,
+  loading: propsLoading,
+  error: propsError,
+  holidayKeys,
+}: SlaStatusBlockProps) {
   const [showFactualSlaTip, setShowFactualSlaTip] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState<{ x: number; y: number } | null>(null);
   const factualSlaTriggerRef = useRef<HTMLSpanElement>(null);
@@ -295,7 +305,7 @@ export function SlaStatusBlock({ title, statusGroup, year, requests: propsReques
                           if (isNaN(start.getTime())) return '—';
                           const end = row.purchaseCompletionDate ? new Date(row.purchaseCompletionDate) : new Date();
                           if (isNaN(end.getTime())) return '—';
-                          const factual = countWorkingDaysBetween(start, end);
+                          const factual = countWorkingDaysBetween(start, end, holidayKeys);
                           return (
                             <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1 rounded bg-gray-200 text-gray-700 font-bold tabular-nums">
                               {factual}
@@ -317,7 +327,7 @@ export function SlaStatusBlock({ title, statusGroup, year, requests: propsReques
                           if (isNaN(start.getTime())) return '—';
                           const end = row.purchaseCompletionDate ? new Date(row.purchaseCompletionDate) : new Date();
                           if (isNaN(end.getTime())) return '—';
-                          const factual = countWorkingDaysBetween(start, end);
+                          const factual = countWorkingDaysBetween(start, end, holidayKeys);
                           const diff = planned - factual;
                           const remainderPct = planned > 0 && diff > 0 ? (diff / planned) * 100 : null;
                           const isLowRemainder = remainderPct != null && remainderPct <= 30;

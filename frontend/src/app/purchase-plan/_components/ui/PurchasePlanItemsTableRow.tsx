@@ -56,6 +56,7 @@ interface PurchasePlanItemsTableRowProps {
   setAnimatingDates?: (updater: (prev: Record<number, boolean>) => Record<number, boolean>) => void;
   canEdit?: boolean;
   isViewingArchiveVersion?: boolean;
+  holidayDateKeys?: Set<string>;
 }
 
 /**
@@ -107,6 +108,7 @@ export default function PurchasePlanItemsTableRow({
   setAnimatingDates,
   canEdit = false,
   isViewingArchiveVersion = false,
+  holidayDateKeys,
 }: PurchasePlanItemsTableRowProps) {
   const isInactive = item.status === 'Исключена';
   const hasPurchaseRequest = item.purchaseRequestId !== null && item.purchaseRequestId !== undefined;
@@ -344,7 +346,7 @@ export default function PurchasePlanItemsTableRow({
                   // Пересчитываем newContractDate на основе requestDate и сложности
                   let finalNewContractDate = newContrDate;
                   if (item.complexity && reqDate) {
-                    const calculatedDate = calculateNewContractDate(reqDate, item.complexity);
+                    const calculatedDate = calculateNewContractDate(reqDate, item.complexity, holidayDateKeys);
                     if (calculatedDate) {
                       finalNewContractDate = calculatedDate;
                     }

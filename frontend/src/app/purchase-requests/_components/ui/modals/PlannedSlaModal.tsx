@@ -10,6 +10,7 @@ import {
   toDateInputValue,
   parseDateInputValue,
 } from '../../utils/workingDays.utils';
+import { useHolidayDateKeys } from '@/hooks/useHolidayDateKeys';
 
 interface PlannedSlaModalProps {
   isOpen: boolean;
@@ -33,23 +34,32 @@ export default function PlannedSlaModal({
     ? new Date(request.approvalAssignmentDate)
     : null;
 
+  const assignmentYear =
+    request?.approvalAssignmentDate != null
+      ? new Date(request.approvalAssignmentDate).getFullYear()
+      : new Date().getFullYear();
+  const modalHolidayKeys = useHolidayDateKeys(
+    `${assignmentYear - 1}-01-01`,
+    `${assignmentYear + 2}-12-31`
+  );
+
   const syncFromDays = useCallback(
     (days: number) => {
       if (!assignmentDate || days < 0) return;
-      const target = addWorkingDays(assignmentDate, days);
+      const target = addWorkingDays(assignmentDate, days, modalHolidayKeys);
       setTargetCompletionDateStr(toDateInputValue(target));
     },
-    [assignmentDate]
+    [assignmentDate, modalHolidayKeys]
   );
 
   const syncFromDate = useCallback(
     (dateStr: string) => {
       if (!assignmentDate || !dateStr) return;
       const target = parseDateInputValue(dateStr);
-      const days = countWorkingDays(assignmentDate, target);
+      const days = countWorkingDays(assignmentDate, target, modalHolidayKeys);
       setPlannedSlaDays(days >= 0 ? days : 0);
     },
-    [assignmentDate]
+    [assignmentDate, modalHolidayKeys]
   );
 
   // Инициализация только при открытии модалки или смене заявки (не завися от assignmentDate — объект Date создаётся заново каждый рендер и сбрасывал ввод даты)
@@ -60,12 +70,12 @@ export default function PlannedSlaModal({
     setPlannedSlaDays(days);
     const assignment = request.approvalAssignmentDate ? new Date(request.approvalAssignmentDate) : null;
     if (assignment) {
-      const target = addWorkingDays(assignment, days);
+      const target = addWorkingDays(assignment, days, modalHolidayKeys);
       setTargetCompletionDateStr(toDateInputValue(target));
     } else {
       setTargetCompletionDateStr('');
     }
-  }, [isOpen, request?.id, request?.plannedSlaDays ?? -1, request?.approvalAssignmentDate ?? '']);
+  }, [isOpen, request?.id, request?.plannedSlaDays ?? -1, request?.approvalAssignmentDate ?? '', modalHolidayKeys]);
 
   const handleDaysChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value === '' ? 0 : parseInt(e.target.value, 10);

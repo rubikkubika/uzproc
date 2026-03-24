@@ -8,6 +8,7 @@ import com.uzproc.backend.entity.purchaseplan.PurchasePlanItemStatus;
 import com.uzproc.backend.repository.CfoRepository;
 import com.uzproc.backend.repository.purchaseplan.PurchasePlanItemRepository;
 import com.uzproc.backend.repository.user.UserRepository;
+import com.uzproc.backend.service.calendar.WorkingDayService;
 import com.uzproc.backend.service.excel.FileProcessingStatsService;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
@@ -76,6 +77,7 @@ public class PurchasePlanExcelLoadService {
     private final UserRepository userRepository;
     private final DataFormatter dataFormatter = new DataFormatter();
     private final FileProcessingStatsService statsService;
+    private final WorkingDayService workingDayService;
     
     // Кеш ЦФО для оптимизации (загружается один раз в начале)
     private Map<String, Cfo> cfoCache = null;
@@ -89,11 +91,13 @@ public class PurchasePlanExcelLoadService {
             PurchasePlanItemRepository purchasePlanItemRepository,
             CfoRepository cfoRepository,
             UserRepository userRepository,
-            FileProcessingStatsService statsService) {
+            FileProcessingStatsService statsService,
+            WorkingDayService workingDayService) {
         this.purchasePlanItemRepository = purchasePlanItemRepository;
         this.cfoRepository = cfoRepository;
         this.userRepository = userRepository;
         this.statsService = statsService;
+        this.workingDayService = workingDayService;
     }
 
     /**
@@ -1404,25 +1408,6 @@ public class PurchasePlanExcelLoadService {
     }
 
     /**
-     * Добавляет рабочие дни к дате (исключая выходные: суббота и воскресенье)
-     */
-    private LocalDate addWorkingDays(LocalDate date, int workingDays) {
-        LocalDate result = date;
-        int daysAdded = 0;
-        
-        while (daysAdded < workingDays) {
-            result = result.plusDays(1);
-            int dayOfWeek = result.getDayOfWeek().getValue(); // 1 = понедельник, 7 = воскресенье
-            // Пропускаем выходные (суббота = 6, воскресенье = 7)
-            if (dayOfWeek != 6 && dayOfWeek != 7) {
-                daysAdded++;
-            }
-        }
-        
-        return result;
-    }
-
-    /**
      * Получает количество рабочих дней на основе сложности
      */
     private Integer getWorkingDaysByComplexity(String complexity) {
@@ -1456,7 +1441,7 @@ public class PurchasePlanExcelLoadService {
             return null;
         }
         
-        return addWorkingDays(requestDate, workingDays);
+        return workingDayService.addWorkingDaysAfterDate(requestDate, workingDays);
     }
     
     /**

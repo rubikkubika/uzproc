@@ -11,6 +11,7 @@ import com.uzproc.backend.repository.contract.ContractRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestApprovalRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
 import com.uzproc.backend.repository.purchase.PurchaseRepository;
+import com.uzproc.backend.service.calendar.WorkingDayService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;
@@ -20,10 +21,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -46,18 +45,21 @@ public class PurchaseRequestStatusUpdateService {
     private final ContractRepository contractRepository;
     private final PurchaseRepository purchaseRepository;
     private final PurchaseRequestStatusUpdater statusUpdater;
+    private final WorkingDayService workingDayService;
 
     public PurchaseRequestStatusUpdateService(
             PurchaseRequestRepository purchaseRequestRepository,
             PurchaseRequestApprovalRepository approvalRepository,
             ContractRepository contractRepository,
             PurchaseRepository purchaseRepository,
-            PurchaseRequestStatusUpdater statusUpdater) {
+            PurchaseRequestStatusUpdater statusUpdater,
+            WorkingDayService workingDayService) {
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.approvalRepository = approvalRepository;
         this.contractRepository = contractRepository;
         this.purchaseRepository = purchaseRepository;
         this.statusUpdater = statusUpdater;
+        this.workingDayService = workingDayService;
     }
 
     /**
@@ -258,7 +260,8 @@ public class PurchaseRequestStatusUpdateService {
                                 }
                                 
                                 if (creationDate != null) {
-                                    long workingDays = calculateWorkingDays(creationDate.toLocalDate(), LocalDate.now());
+                                    long workingDays = workingDayService.countWorkingDaysInclusive(
+                                            creationDate.toLocalDate(), LocalDate.now());
                                     if (workingDays > 60) {
                                         hasArchivedSpecification = true;
                                         logger.info("Found {} project specification(s) for purchase request {} (order type) and {} working days passed (>60), marking as archive", 
@@ -568,31 +571,5 @@ public class PurchaseRequestStatusUpdateService {
             idPurchaseRequests.size(), updatedCount, errorCount, processingTime);
     }
     
-    /**
-     * Подсчитывает количество рабочих дней между двумя датами (исключая выходные - суббота и воскресенье)
-     * 
-     * @param startDate начальная дата
-     * @param endDate конечная дата
-     * @return количество рабочих дней
-     */
-    private long calculateWorkingDays(LocalDate startDate, LocalDate endDate) {
-        if (startDate == null || endDate == null || startDate.isAfter(endDate)) {
-            return 0;
-        }
-        
-        long workingDays = 0;
-        LocalDate currentDate = startDate;
-        
-        while (!currentDate.isAfter(endDate)) {
-            DayOfWeek dayOfWeek = currentDate.getDayOfWeek();
-            // Считаем только рабочие дни (понедельник - пятница)
-            if (dayOfWeek != DayOfWeek.SATURDAY && dayOfWeek != DayOfWeek.SUNDAY) {
-                workingDays++;
-            }
-            currentDate = currentDate.plusDays(1);
-        }
-        
-        return workingDays;
-    }
 }
 

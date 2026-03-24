@@ -28,6 +28,7 @@ interface PurchasePlanItemsTableBodyProps {
   setEditingDate?: (date: { itemId: number; field: 'requestDate' } | null) => void;
   canEdit?: boolean;
   isViewingArchiveVersion?: boolean;
+  holidayDateKeys?: Set<string>;
 }
 
 /**
@@ -54,6 +55,7 @@ export default function PurchasePlanItemsTableBody({
   setEditingDate,
   canEdit,
   isViewingArchiveVersion,
+  holidayDateKeys,
 }: PurchasePlanItemsTableBodyProps) {
   if (!allItems || allItems.length === 0) {
     return (
@@ -119,6 +121,7 @@ export default function PurchasePlanItemsTableBody({
           setAnimatingDates={setAnimatingDates}
           canEdit={canEdit}
           isViewingArchiveVersion={isViewingArchiveVersion}
+          holidayDateKeys={holidayDateKeys}
         />
       ))}
     </tbody>

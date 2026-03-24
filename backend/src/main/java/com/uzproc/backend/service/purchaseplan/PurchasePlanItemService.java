@@ -15,6 +15,7 @@ import com.uzproc.backend.repository.purchaseplan.PurchasePlanItemCommentReposit
 import com.uzproc.backend.repository.purchaseplan.PurchasePlanItemRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
 import com.uzproc.backend.repository.user.UserRepository;
+import com.uzproc.backend.service.calendar.WorkingDayService;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestCommentService;
 import jakarta.persistence.criteria.Predicate;
 import org.slf4j.Logger;
@@ -52,6 +53,7 @@ public class PurchasePlanItemService {
     private final UserRepository userRepository;
     private final PurchasePlanPurchaserSyncService purchaserSyncService;
     private final PurchaseRequestCommentService purchaseRequestCommentService;
+    private final WorkingDayService workingDayService;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -64,7 +66,8 @@ public class PurchasePlanItemService {
             CfoRepository cfoRepository,
             UserRepository userRepository,
             PurchasePlanPurchaserSyncService purchaserSyncService,
-            PurchaseRequestCommentService purchaseRequestCommentService) {
+            PurchaseRequestCommentService purchaseRequestCommentService,
+            WorkingDayService workingDayService) {
         this.purchasePlanItemRepository = purchasePlanItemRepository;
         this.purchasePlanItemCommentRepository = purchasePlanItemCommentRepository;
         this.purchasePlanItemChangeService = purchasePlanItemChangeService;
@@ -73,6 +76,7 @@ public class PurchasePlanItemService {
         this.userRepository = userRepository;
         this.purchaserSyncService = purchaserSyncService;
         this.purchaseRequestCommentService = purchaseRequestCommentService;
+        this.workingDayService = workingDayService;
     }
 
     public Page<PurchasePlanItemDto> findAll(
@@ -346,25 +350,6 @@ public class PurchasePlanItemService {
     }
 
     /**
-     * Добавляет рабочие дни к дате (исключая выходные: суббота и воскресенье)
-     */
-    private LocalDate addWorkingDays(LocalDate date, int workingDays) {
-        LocalDate result = date;
-        int daysAdded = 0;
-        
-        while (daysAdded < workingDays) {
-            result = result.plusDays(1);
-            int dayOfWeek = result.getDayOfWeek().getValue(); // 1 = понедельник, 7 = воскресенье
-            // Пропускаем выходные (суббота = 6, воскресенье = 7)
-            if (dayOfWeek != 6 && dayOfWeek != 7) {
-                daysAdded++;
-            }
-        }
-        
-        return result;
-    }
-
-    /**
      * Получает количество рабочих дней на основе сложности
      */
     private Integer getWorkingDaysByComplexity(String complexity) {
@@ -398,7 +383,7 @@ public class PurchasePlanItemService {
             return null;
         }
         
-        return addWorkingDays(requestDate, workingDays);
+        return workingDayService.addWorkingDaysAfterDate(requestDate, workingDays);
     }
 
     @Transactional

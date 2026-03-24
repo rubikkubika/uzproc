@@ -32,7 +32,8 @@ export const usePurchasePlanItemsEditing = (
   sortField?: any,
   sortDirection?: any,
   filters?: Record<string, string>,
-  selectedMonths?: Set<number>
+  selectedMonths?: Set<number>,
+  holidayDateKeys?: Set<string>
 ) => {
   const [tempDates, setTempDates] = useState<Record<number, { requestDate: string | null; newContractDate: string | null }>>({});
   const [animatingDates, setAnimatingDates] = useState<Record<number, boolean>>({});
@@ -132,7 +133,11 @@ export const usePurchasePlanItemsEditing = (
       let normalizedNewContractDate = newContractDate ? newContractDate.split('T')[0] : null;
       
       if (normalizedRequestDate && item.complexity && requestDate !== item.requestDate) {
-        const calculatedDate = calculateNewContractDate(normalizedRequestDate, item.complexity);
+        const calculatedDate = calculateNewContractDate(
+          normalizedRequestDate,
+          item.complexity,
+          holidayDateKeys
+        );
         if (calculatedDate) {
           normalizedNewContractDate = calculatedDate;
         }
@@ -246,7 +251,7 @@ export const usePurchasePlanItemsEditing = (
       let newContractDate = field === 'newContractDate' ? normalizedDate : currentNewContractDate;
       
       if (field === 'requestDate' && item.complexity) {
-        const calculatedDate = calculateNewContractDate(normalizedDate, item.complexity);
+        const calculatedDate = calculateNewContractDate(normalizedDate, item.complexity, holidayDateKeys);
         if (calculatedDate) {
           newContractDate = calculatedDate;
         }

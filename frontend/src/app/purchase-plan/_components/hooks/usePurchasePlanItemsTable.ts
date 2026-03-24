@@ -11,6 +11,7 @@ import { usePurchasePlanItemsModals } from './usePurchasePlanItemsModals';
 import { usePurchasePlanItemsVersions } from './usePurchasePlanItemsVersions';
 import { useFocusRestoreAfterFetch } from '../../../purchase-requests/_components/hooks/useFocusRestoreAfterFetch';
 import { useInfiniteScroll } from '../../../purchase-requests/_components/hooks/useInfiniteScroll';
+import { useHolidayDateKeys } from '@/hooks/useHolidayDateKeys';
 
 export const usePurchasePlanItemsTable = () => {
   const printRef = useRef<HTMLDivElement>(null);
@@ -927,6 +928,10 @@ export const usePurchasePlanItemsTable = () => {
     setTimeout(() => refetchMonthlyDistributionRef.current?.(), 400);
   }, []);
 
+  const holidayFrom = `${(selectedYear ?? new Date().getFullYear()) - 1}-01-01`;
+  const holidayTo = `${(selectedYear ?? new Date().getFullYear()) + 2}-12-31`;
+  const holidayDateKeys = useHolidayDateKeys(holidayFrom, holidayTo);
+
   // Инициализируем editingHook после определения fetchData
   const editingHook = usePurchasePlanItemsEditing(
     data,
@@ -949,7 +954,8 @@ export const usePurchasePlanItemsTable = () => {
     sortField,
     sortDirection,
     filtersHook.filters,
-    selectedMonths
+    selectedMonths,
+    holidayDateKeys
   );
 
   // Восстановление фокуса после загрузки данных
@@ -1661,5 +1667,6 @@ export const usePurchasePlanItemsTable = () => {
     editing: editingHook,
     modals: modalsHook,
     versions: versionsHook,
+    holidayDateKeys,
   };
 };

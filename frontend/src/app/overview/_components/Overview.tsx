@@ -25,6 +25,7 @@ import { useOverviewTimelinesData } from './hooks/useOverviewTimelinesData';
 import { TimelinesTabContent } from './ui/TimelinesTabContent';
 import { SavingsTabContent } from './ui/SavingsTabContent';
 import { ManagementReportingContent } from './ui/ManagementReportingContent';
+import { useHolidayDateKeys } from '@/hooks/useHolidayDateKeys';
 
 /**
  * Главный компонент страницы обзор
@@ -58,6 +59,9 @@ export default function Overview() {
     for (let i = currentYear - 2; i <= currentYear + 5; i++) years.push(i);
     return years;
   }, [currentYear]);
+  const overviewHolidayFrom = `${slaYear - 2}-01-01`;
+  const overviewHolidayTo = `${slaYear + 5}-12-31`;
+  const overviewHolidayKeys = useHolidayDateKeys(overviewHolidayFrom, overviewHolidayTo);
   const {
     currentMonth,
     formatMonth,
@@ -102,13 +106,13 @@ export default function Overview() {
       if (isNaN(start.getTime())) return false;
       const end = row.purchaseCompletionDate ? new Date(row.purchaseCompletionDate) : now;
       if (isNaN(end.getTime())) return false;
-      const factual = countWorkingDaysBetween(start, end);
+      const factual = countWorkingDaysBetween(start, end, overviewHolidayKeys);
       const delta = planned != null ? planned - factual : null;
       const remainingPercent =
         planned != null && planned > 0 ? ((planned - factual) / planned) * 100 : 100;
       return (delta != null && delta < 0) || (planned != null && planned > 0 && remainingPercent < 30);
     });
-  }, [slaData.data?.statusBlocks]);
+  }, [slaData.data?.statusBlocks, overviewHolidayKeys]);
 
   /** Закупки завершённые по месяцам завершения в выбранном году (из slaPercentageByMonth с бэкенда). */
   const slaCompletedByMonth = useMemo((): number[] => {
@@ -136,7 +140,7 @@ export default function Overview() {
       const start = new Date(assignmentIso);
       if (isNaN(start.getTime())) continue;
       const plannedDays = row.plannedSlaDays ?? getPlannedSlaDaysNumber(row.complexity) ?? 30;
-      const plannedEnd = addWorkingDays(start, plannedDays);
+      const plannedEnd = addWorkingDays(start, plannedDays, overviewHolidayKeys);
       const plannedYear = plannedEnd.getFullYear();
       const plannedMonth = plannedEnd.getMonth() + 1;
       if (plannedYear !== slaYear) continue;
@@ -149,7 +153,7 @@ export default function Overview() {
       if (targetMonth >= 1 && targetMonth <= 12) counts[targetMonth - 1] += 1;
     }
     return counts;
-  }, [slaData.data?.statusBlocks, slaYear, nowYear, nowMonth]);
+  }, [slaData.data?.statusBlocks, slaYear, nowYear, nowMonth, overviewHolidayKeys]);
 
   /** Прогнозный % SLA по месяцам: для каждого месяца — заявки, чьё плановое завершение в этом месяце; «требует внимания» = не выполнение. */
   const slaForecastSlaByMonth = useMemo((): { percentage: (number | null)[]; met: number[]; total: number[] } => {
@@ -166,7 +170,7 @@ export default function Overview() {
       const start = new Date(assignmentIso);
       if (isNaN(start.getTime())) continue;
       const plannedDays = row.plannedSlaDays ?? getPlannedSlaDaysNumber(row.complexity) ?? 30;
-      const plannedEnd = addWorkingDays(start, plannedDays);
+      const plannedEnd = addWorkingDays(start, plannedDays, overviewHolidayKeys);
       const plannedYear = plannedEnd.getFullYear();
       const plannedMonth = plannedEnd.getMonth() + 1;
       if (plannedYear !== slaYear) continue;
@@ -186,7 +190,7 @@ export default function Overview() {
       percentage[i] = total[i] > 0 ? (met[i] / total[i]) * 100 : null;
     }
     return { percentage, met, total };
-  }, [slaData.data?.statusBlocks, slaYear, nowYear, nowMonth, requiresAttentionRequests]);
+  }, [slaData.data?.statusBlocks, slaYear, nowYear, nowMonth, requiresAttentionRequests, overviewHolidayKeys]);
 
   /** Блоки SLA для отображения: первый блок «Требует внимания», затем «Договор в работе» и «Договор подписан» объединены в «Закупка завершена». */
   const slaDisplayBlocks = useMemo((): OverviewSlaBlock[] => {
@@ -246,7 +250,7 @@ export default function Overview() {
       const start = new Date(assignmentIso);
       if (isNaN(start.getTime())) continue;
       const plannedDays = row.plannedSlaDays ?? getPlannedSlaDaysNumber(row.complexity) ?? 30;
-      const plannedEnd = addWorkingDays(start, plannedDays);
+      const plannedEnd = addWorkingDays(start, plannedDays, overviewHolidayKeys);
       if (plannedEnd.getFullYear() !== slaYear) continue;
       forecastTotal += 1;
       if (!attentionIds.has(row.id)) forecastMet += 1;
@@ -254,7 +258,7 @@ export default function Overview() {
     const totalWithForecast = totalCompleted + forecastTotal;
     if (totalWithForecast === 0) return null;
     return ((metSla + forecastMet) / totalWithForecast) * 100;
-  }, [slaData.data?.slaPercentageByMonth, slaData.data?.statusBlocks, requiresAttentionRequests, slaYear]);
+  }, [slaData.data?.slaPercentageByMonth, slaData.data?.statusBlocks, requiresAttentionRequests, slaYear, overviewHolidayKeys]);
 
   const [timelinesOnlySigned, setTimelinesOnlySignedState] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -375,6 +379,7 @@ export default function Overview() {
                 requests={block.requests}
                 loading={slaData.loading}
                 error={slaData.error}
+                holidayKeys={overviewHolidayKeys}
               />
             ))}
           </div>
