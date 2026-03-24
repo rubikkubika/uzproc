@@ -53,6 +53,10 @@ backend/logs/
 backup/*
 !backup/.gitkeep
 
+# Счёт-фактуры (загрузки бэкенда): папка в репозитории, файлы — нет
+backend/uploads/invoices/*
+!backend/uploads/invoices/.gitkeep
+
 # Payments folder (track folder, ignore contents except .gitkeep)
 frontend/upload/payments/*
 !frontend/upload/payments/.gitkeep

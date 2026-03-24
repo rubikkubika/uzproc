@@ -18,6 +18,9 @@ backend/logs
 # Backup folder
 backup
 
+# Загруженные счёт-фактуры (runtime), не включать в образ
+backend/uploads
+
 
 
 

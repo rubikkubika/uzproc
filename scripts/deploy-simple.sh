@@ -21,10 +21,13 @@ echo ""
 echo "Step 2: Saving images to tar files..."
 docker save uzproc-frontend:latest -o uzproc-frontend.tar
 docker save uzproc-backend:latest -o uzproc-backend.tar
+docker save uzproc-invoice-parser:latest -o uzproc-invoice-parser.tar
 FRONTEND_SIZE=$(du -h uzproc-frontend.tar | cut -f1)
 BACKEND_SIZE=$(du -h uzproc-backend.tar | cut -f1)
+INVOICE_PARSER_SIZE=$(du -h uzproc-invoice-parser.tar | cut -f1)
 echo "Frontend image saved: uzproc-frontend.tar ($FRONTEND_SIZE)"
 echo "Backend image saved: uzproc-backend.tar ($BACKEND_SIZE)"
+echo "Invoice-parser image saved: uzproc-invoice-parser.tar ($INVOICE_PARSER_SIZE)"
 
 echo ""
 echo "Step 3: Creating database backup on server..."
@@ -107,11 +110,15 @@ echo "Copying backend image (this may take several minutes)..."
 rsync -avz --progress -e "ssh -o ConnectTimeout=60" uzproc-backend.tar "${SERVER}:${REMOTE_PATH}/"
 echo "Backend image copied successfully"
 
+echo "Copying invoice-parser image..."
+rsync -avz --progress -e "ssh -o ConnectTimeout=60" uzproc-invoice-parser.tar "${SERVER}:${REMOTE_PATH}/"
+echo "Invoice-parser image copied successfully"
+
 echo "Files copied to server"
 
 echo ""
 echo "Step 6: Updating containers on server..."
-ssh -o ConnectTimeout=10 "$SERVER" "cd $REMOTE_PATH && docker compose down && docker load -i uzproc-frontend.tar && docker load -i uzproc-backend.tar && rm -f uzproc-frontend.tar uzproc-backend.tar && docker compose up -d && docker compose ps"
+ssh -o ConnectTimeout=10 "$SERVER" "cd $REMOTE_PATH && docker compose down && docker load -i uzproc-frontend.tar && docker load -i uzproc-backend.tar && docker load -i uzproc-invoice-parser.tar && rm -f uzproc-frontend.tar uzproc-backend.tar uzproc-invoice-parser.tar && docker compose up -d --no-build && docker compose ps"
 
 echo ""
 echo "Deployment completed successfully!"
