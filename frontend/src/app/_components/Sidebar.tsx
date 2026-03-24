@@ -20,7 +20,8 @@ import {
   FileText,
   Banknote,
   Building2,
-  ScanText
+  ScanText,
+  GraduationCap
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -56,6 +57,7 @@ const menuItems: Array<{ id: string; label: string; icon: any }> = [];
     { id: 'test', label: 'Тест', icon: Mail },
     { id: 'users', label: 'Пользователи', icon: Users },
     { id: 'invoice-recognition', label: 'Распознавание', icon: ScanText },
+    { id: 'training', label: 'Обучение', icon: GraduationCap },
   ];
 
   const backendItems: Array<{ id: string; label: string; icon: any }> = [];

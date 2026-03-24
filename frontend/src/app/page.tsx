@@ -29,6 +29,7 @@ import CSIForm from './csi/_components/CSIForm';
 import RoadmapTimeline from './roadmap/_components/RoadmapTimeline';
 import Overview from './overview/_components/Overview';
 import InvoiceRecognition from './invoice-recognition/_components/InvoiceRecognition';
+import TrainingPage from './training/_components/TrainingPage';
 
 // Компонент для тестирования отправки почты
 function TestEmailForm() {
@@ -493,6 +494,13 @@ function DashboardContent() {
         return (
           <div className="space-y-6 h-full flex flex-col">
             <InvoiceRecognition />
+          </div>
+        );
+
+      case 'training':
+        return (
+          <div className="h-full flex flex-col">
+            <TrainingPage />
           </div>
         );
 
