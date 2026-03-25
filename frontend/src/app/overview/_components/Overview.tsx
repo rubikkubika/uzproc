@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { useOverview } from './hooks/useOverview';
 import { useOverviewSlaData } from './hooks/useOverviewSlaData';
 import type {
@@ -324,9 +324,13 @@ export default function Overview() {
     activeTab === 'purchase-plan'
   );
 
+  const handleExportPdf = useCallback(() => {
+    window.print();
+  }, []);
+
   return (
     <div className="flex flex-col flex-1 min-h-0 gap-0">
-      <OverviewTabs activeTopTab={activeTopTab} onTopTabChange={setActiveTopTab} activeTab={activeTab} onTabChange={setActiveTab} />
+      <OverviewTabs activeTopTab={activeTopTab} onTopTabChange={setActiveTopTab} activeTab={activeTab} onTabChange={setActiveTab} onExportPdf={handleExportPdf} />
       
       <div className="w-full flex-1 min-h-0 flex flex-col">
         {activeTopTab === 'management-reporting' && (
@@ -407,6 +411,7 @@ export default function Overview() {
                   slaPercentageByMonth={slaData.data?.slaPercentageByMonth ?? []}
                   loading={slaData.loading}
                   error={slaData.error}
+                  averageSlaPercentage={averageSlaPercentage}
                 />
               </div>
             </div>

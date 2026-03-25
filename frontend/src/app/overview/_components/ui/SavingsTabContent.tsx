@@ -108,26 +108,6 @@ export function SavingsTabContent() {
               <div className="text-sm font-bold text-gray-900">{formatAmount(data.totalSavings, currency)}</div>
               <div className="text-[10px] text-gray-600">{data.totalCount} закупок</div>
             </div>
-            {/* Группа: составляющие экономии */}
-            <div className="rounded-xl bg-white border border-gray-200 shadow-sm p-1 flex gap-1">
-              <div className="bg-white rounded shadow px-2 py-1.5 min-w-[110px] border-l-2 border-blue-400">
-                <div className="text-[10px] text-gray-500 uppercase tracking-wider">От медианы</div>
-                <div className="text-sm font-bold text-blue-600">{formatAmount(data.savingsFromMedian, currency)}</div>
-                <div className="text-[10px] text-gray-400">{data.fromMedianCount} закупок</div>
-              </div>
-              <div className="flex items-center text-gray-600 text-lg font-bold">+</div>
-              <div className="bg-white rounded shadow px-2 py-1.5 min-w-[110px] border-l-2 border-green-400">
-                <div className="text-[10px] text-gray-500 uppercase tracking-wider">От сущ. договора</div>
-                <div className="text-sm font-bold text-green-600">{formatAmount(data.savingsFromExistingContract, currency)}</div>
-                <div className="text-[10px] text-gray-400">{data.fromExistingContractCount} закупок</div>
-              </div>
-              <div className="flex items-center text-gray-600 text-lg font-bold">+</div>
-              <div className="bg-white rounded shadow px-2 py-1.5 min-w-[110px] border-l-2 border-gray-400">
-                <div className="text-[10px] text-gray-500 uppercase tracking-wider">Комбинированный</div>
-                <div className="text-sm font-bold text-gray-600">{formatAmount(data.savingsUntyped, currency)}</div>
-                <div className="text-[10px] text-gray-400">{data.untypedCount} закупок</div>
-              </div>
-            </div>
           </div>
 
           {/* Диаграмма по ЦФО и таблица по закупщикам */}

@@ -1,5 +1,6 @@
 'use client';
 
+import { Printer } from 'lucide-react';
 import { OverviewTab, OverviewTabItem, OverviewTopTab, OverviewTopTabItem } from '../types/overview.types';
 
 interface OverviewTabsProps {
@@ -7,6 +8,7 @@ interface OverviewTabsProps {
   onTopTabChange: (tab: OverviewTopTab) => void;
   activeTab: OverviewTab;
   onTabChange: (tab: OverviewTab) => void;
+  onExportPdf?: () => void;
 }
 
 const topTabs: OverviewTopTabItem[] = [
@@ -27,11 +29,11 @@ const dashboardTabs: OverviewTabItem[] = [
 /**
  * UI компонент для отображения вкладок страницы обзор
  */
-export function OverviewTabs({ activeTopTab, onTopTabChange, activeTab, onTabChange }: OverviewTabsProps) {
+export function OverviewTabs({ activeTopTab, onTopTabChange, activeTab, onTabChange, onExportPdf }: OverviewTabsProps) {
   return (
     <div className="bg-white rounded shadow">
       {/* Верхний уровень вкладок */}
-      <div className="flex flex-wrap gap-0.5 border-b border-gray-300 px-1 pt-0.5 pb-0">
+      <div className="flex items-center gap-0.5 border-b border-gray-300 px-1 pt-0.5 pb-0">
         {topTabs.map((tab) => (
           <button
             key={tab.id}
@@ -45,6 +47,15 @@ export function OverviewTabs({ activeTopTab, onTopTabChange, activeTab, onTabCha
             {tab.label}
           </button>
         ))}
+        {activeTopTab === 'management-reporting' && onExportPdf && (
+          <button
+            onClick={onExportPdf}
+            className="ml-auto flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm print:hidden"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            Сохранить PDF
+          </button>
+        )}
       </div>
       {/* Вложенные вкладки дэшбордов */}
       {activeTopTab === 'dashboards' && (

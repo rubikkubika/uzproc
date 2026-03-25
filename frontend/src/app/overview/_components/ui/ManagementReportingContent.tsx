@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, type ReactNode } from 'react';
-import { Star, Printer } from 'lucide-react';
+import { Star } from 'lucide-react';
 import { getBackendUrl } from '@/utils/api';
 import { SlaCombinedChart } from './SlaCombinedChart';
 import { SavingsByCfoChart } from './SavingsByCfoChart';
@@ -57,7 +57,7 @@ function formatStat(val: number | null): string {
 function KpiTargetChip({
   children,
   valueClassName = 'text-indigo-900',
-  valueBackgroundClassName = 'bg-white border-indigo-200',
+  valueBackgroundClassName = 'bg-transparent border-transparent',
 }: {
   children: ReactNode;
   valueClassName?: string;
@@ -65,7 +65,7 @@ function KpiTargetChip({
 }) {
   return (
     <div
-      className="rounded-lg border border-indigo-300 bg-indigo-100 px-1.5 py-0.5 text-[11px] leading-tight shrink-0 max-w-[min(100%,13rem)] text-indigo-800 shadow-sm font-medium"
+      className="rounded-lg border border-indigo-300 bg-indigo-100 px-1.5 py-0.5 text-[11px] shrink-0 max-w-[min(100%,13rem)] text-indigo-800 shadow-sm font-semibold"
       role="note"
       aria-label="Целевой показатель"
     >
@@ -151,21 +151,10 @@ export function ManagementReportingContent({
   const savings = useOverviewSavingsData(currentYear);
 
   /* PDF экспорт */
-  const { page1Ref, page2Ref, exportPdf } = useManagementReportingPdf();
+  const { page1Ref, page2Ref } = useManagementReportingPdf();
 
   return (
     <div id="mr-print-root" className="p-1 flex flex-col gap-1.5">
-      {/* Кнопка экспорта */}
-      <div className="flex justify-end print:hidden" data-print-hide>
-        <button
-          onClick={exportPdf}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-        >
-          <Printer className="w-3.5 h-3.5" />
-          Сохранить PDF
-        </button>
-      </div>
-
       {/* ═══ Страница 1 PDF: показатели ═══ */}
       <div ref={page1Ref} className="bg-white rounded-lg mr-print-page1">
         <div className="flex gap-1.5 relative mr-page1-layout">
@@ -176,10 +165,19 @@ export function ManagementReportingContent({
                 <span className="text-xs font-semibold text-gray-700 shrink-0">Экономия — {currentYear}</span>
                 <KpiTargetChip
                   valueClassName="text-slate-700"
-                  valueBackgroundClassName="bg-sky-50 border-sky-300"
+                  valueBackgroundClassName="bg-transparent border-transparent"
                 >
                   10% от бюджета закупок
                 </KpiTargetChip>
+                {savings.data && !savings.loading && (
+                  <span className={`rounded-lg px-1.5 py-0.5 text-[11px] font-semibold shadow-sm border ${
+                    savings.data.totalBudget > 0 && (savings.data.totalSavings / savings.data.totalBudget) * 100 >= 10
+                      ? 'bg-green-100 border-green-300 text-green-800'
+                      : 'bg-red-100 border-red-300 text-red-800'
+                  }`}>
+                    Выполнение: {savings.data.totalBudget > 0 ? ((savings.data.totalSavings / savings.data.totalBudget) * 100).toFixed(1) + '%' : '—'}
+                  </span>
+                )}
                 <div className="flex items-center gap-0.5 shrink-0">
                   <button
                     onClick={() => setCurrency('UZS')}
@@ -232,25 +230,6 @@ export function ManagementReportingContent({
                     <div className="text-sm font-bold text-gray-900">{formatAmount(savings.data.totalSavings, currency)}</div>
                     <div className="text-[10px] text-gray-600">{savings.data.totalCount} закупок</div>
                   </div>
-                  <div className="rounded-xl bg-white border border-gray-200 shadow-sm p-1 flex gap-1 flex-nowrap min-w-0 flex-1">
-                    <div className="bg-white rounded shadow px-1.5 py-1 flex-1 min-w-0 border-l-2 border-blue-400">
-                      <div className="text-[10px] text-gray-500 uppercase tracking-wider truncate">От медианы</div>
-                      <div className="text-sm font-bold text-blue-600 truncate">{formatAmount(savings.data.savingsFromMedian, currency)}</div>
-                      <div className="text-[10px] text-gray-400 truncate">{savings.data.fromMedianCount} закупок</div>
-                    </div>
-                    <div className="flex items-center text-gray-600 text-lg font-bold shrink-0">+</div>
-                    <div className="bg-white rounded shadow px-1.5 py-1 flex-1 min-w-0 border-l-2 border-green-400">
-                      <div className="text-[10px] text-gray-500 uppercase tracking-wider truncate">От сущ. договора</div>
-                      <div className="text-sm font-bold text-green-600 truncate">{formatAmount(savings.data.savingsFromExistingContract, currency)}</div>
-                      <div className="text-[10px] text-gray-400 truncate">{savings.data.fromExistingContractCount} закупок</div>
-                    </div>
-                    <div className="flex items-center text-gray-600 text-lg font-bold shrink-0">+</div>
-                    <div className="bg-white rounded shadow px-1.5 py-1 flex-1 min-w-0 border-l-2 border-gray-400">
-                      <div className="text-[10px] text-gray-500 uppercase tracking-wider truncate">Комбинированный</div>
-                      <div className="text-sm font-bold text-gray-600 truncate">{formatAmount(savings.data.savingsUntyped, currency)}</div>
-                      <div className="text-[10px] text-gray-400 truncate">{savings.data.untypedCount} закупок</div>
-                    </div>
-                  </div>
                 </div>
 
                 {/* Диаграмма по ЦФО */}
@@ -270,10 +249,19 @@ export function ManagementReportingContent({
                   <span className="text-xs font-semibold text-gray-700 shrink-0">SLA — {slaYear}</span>
                   <KpiTargetChip
                     valueClassName="text-slate-700"
-                    valueBackgroundClassName="bg-sky-50 border-sky-300"
+                    valueBackgroundClassName="bg-transparent border-transparent"
                   >
                     75%
                   </KpiTargetChip>
+                  {!slaLoading && averageSlaPercentage != null && (
+                    <span className={`rounded-lg px-1.5 py-0.5 text-[11px] font-semibold shadow-sm border ${
+                      averageSlaPercentage >= 75
+                        ? 'bg-green-100 border-green-300 text-green-800'
+                        : 'bg-red-100 border-red-300 text-red-800'
+                    }`}>
+                      Выполнение: {Math.round(averageSlaPercentage)}%
+                    </span>
+                  )}
                   {slaLoading ? (
                     <span className="text-xs text-gray-400">Загрузка…</span>
                   ) : slaError ? (
@@ -302,13 +290,22 @@ export function ManagementReportingContent({
                 <span className="text-xs font-semibold text-gray-700 shrink-0">CSI — {currentYear}</span>
                 <KpiTargetChip
                   valueClassName="text-slate-700"
-                  valueBackgroundClassName="bg-sky-50 border-sky-300"
+                  valueBackgroundClassName="bg-transparent border-transparent"
                 >
                   <span className="inline-flex items-center gap-1">
                     <span className="tabular-nums">4</span>
                     <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" aria-hidden />
                   </span>
                 </KpiTargetChip>
+                {!csiLoading && csiStats && (
+                  <span className={`rounded-lg px-1.5 py-0.5 text-[11px] font-semibold shadow-sm border ${
+                    csiStats.avgOverall != null && csiStats.avgOverall >= 4
+                      ? 'bg-green-100 border-green-300 text-green-800'
+                      : 'bg-red-100 border-red-300 text-red-800'
+                  }`}>
+                    Выполнение: <span className="inline-flex items-center gap-0.5">{csiStats.avgOverall != null ? formatStat(csiStats.avgOverall) : '—'}<Star className="w-3 h-3 text-amber-500 fill-amber-500" /></span>
+                  </span>
+                )}
               </div>
               {csiLoading ? (
                 <p className="text-xs text-gray-500">Загрузка…</p>
