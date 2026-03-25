@@ -66,6 +66,8 @@ public class PaymentExcelLoadService {
 
     /** Префикс комментария 1С: после него идёт заголовок документа/договора (допускается пробел или ": " после слова) */
     private static final String COMMENT_PREFIX_1C = "Создана по документу 1С:Документооборот";
+    /** Паттерн для служебной части в скобках: " ( ... от ...)" — номер/дата документа 1С, не часть названия договора */
+    private static final Pattern SERVICE_PAREN_SUFFIX = Pattern.compile("\\s+\\([^)]*от[^)]*\\)\\s*$");
 
     /** Паттерн для извлечения номера заявки из комментария: "Создана по документу ... N 1898 - ..." или "N1898" */
     private static final Pattern REQUEST_NUMBER_IN_COMMENT = Pattern.compile("N\\s*(\\d+)");
@@ -568,8 +570,8 @@ public class PaymentExcelLoadService {
         if (comment == null || !comment.startsWith(COMMENT_PREFIX_1C)) return;
         String afterPrefix = comment.substring(COMMENT_PREFIX_1C.length()).replaceFirst("^[:\\s]+", "").trim();
         if (afterPrefix.isEmpty()) return;
-        int parenIdx = afterPrefix.indexOf(" (");
-        String title = parenIdx > 0 ? afterPrefix.substring(0, parenIdx).trim() : afterPrefix;
+        Matcher parenMatcher = SERVICE_PAREN_SUFFIX.matcher(afterPrefix);
+        String title = parenMatcher.find() ? afterPrefix.substring(0, parenMatcher.start()).trim() : afterPrefix;
         if (title.length() > 500) {
             title = title.substring(0, 500);
         }
