@@ -559,12 +559,47 @@ public class PurchaseRequestService {
             savingsByPurchaser.merge(purchaser, saving, BigDecimal::add);
         }
 
+        // Расчёт среднего SLA (рабочие дни от даты назначения до даты завершения закупки) по закупщику
+        java.util.Set<String> approvalStages = java.util.Set.of("Утверждение заявки на ЗП", "Утверждение заявки на ЗП (НЕ требуется ЗП)");
+        Map<String, List<Long>> slaDaysByPurchaser = new HashMap<>();
+        if (!businessIds.isEmpty()) {
+            // Получаем даты назначения из PurchaseRequestApproval
+            List<PurchaseRequestApproval> allApprovals = approvalRepository.findByStageInAndAssignmentDateIsNotNull(
+                    List.of("Утверждение заявки на ЗП", "Утверждение заявки на ЗП (НЕ требуется ЗП)"));
+            Map<Long, java.time.LocalDateTime> assignmentDateByPrId = new HashMap<>();
+            for (PurchaseRequestApproval a : allApprovals) {
+                if (a.getIdPurchaseRequest() != null && businessIds.contains(a.getIdPurchaseRequest())) {
+                    java.time.LocalDateTime existing = assignmentDateByPrId.get(a.getIdPurchaseRequest());
+                    if (existing == null || (a.getAssignmentDate() != null && a.getAssignmentDate().isBefore(existing))) {
+                        assignmentDateByPrId.put(a.getIdPurchaseRequest(), a.getAssignmentDate());
+                    }
+                }
+            }
+
+            for (PurchaseRequest pr : list) {
+                Long prId = pr.getIdPurchaseRequest();
+                java.time.LocalDateTime assignmentDate = assignmentDateByPrId.get(prId);
+                java.time.LocalDateTime completionDate = completionDateByPrId.get(prId);
+                if (assignmentDate != null && completionDate != null) {
+                    long days = workingDayService.countFromDayAfterThroughInclusive(assignmentDate, completionDate);
+                    String purchaser = (pr.getPurchaser() != null && !pr.getPurchaser().trim().isEmpty())
+                        ? pr.getPurchaser().trim() : "Не назначен";
+                    slaDaysByPurchaser.computeIfAbsent(purchaser, k -> new ArrayList<>()).add(days);
+                }
+            }
+        }
+
         for (Map.Entry<String, PurchaserSummaryItemDto> entry : byPurchaser.entrySet()) {
             entry.getValue().setSavings(savingsByPurchaser.getOrDefault(entry.getKey(), BigDecimal.ZERO));
             List<Double> ratings = ratingsByPurchaser.get(entry.getKey());
             if (ratings != null && !ratings.isEmpty()) {
                 double avg = ratings.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
                 entry.getValue().setAverageRating(Math.round(avg * 10.0) / 10.0);
+            }
+            List<Long> slaDays = slaDaysByPurchaser.get(entry.getKey());
+            if (slaDays != null && !slaDays.isEmpty()) {
+                double avgSla = slaDays.stream().mapToLong(Long::longValue).average().orElse(0.0);
+                entry.getValue().setAverageSlaDays(Math.round(avgSla * 10.0) / 10.0);
             }
         }
 

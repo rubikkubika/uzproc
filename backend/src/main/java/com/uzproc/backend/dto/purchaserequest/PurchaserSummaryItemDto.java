@@ -16,6 +16,7 @@ public class PurchaserSummaryItemDto {
     private long purchasesComplexity;
     private BigDecimal savings;
     private Double averageRating;
+    private Double averageSlaDays;
 
     public PurchaserSummaryItemDto() {
     }
@@ -104,5 +105,13 @@ public class PurchaserSummaryItemDto {
 
     public void setAverageRating(Double averageRating) {
         this.averageRating = averageRating;
+    }
+
+    public Double getAverageSlaDays() {
+        return averageSlaDays;
+    }
+
+    public void setAverageSlaDays(Double averageSlaDays) {
+        this.averageSlaDays = averageSlaDays;
     }
 }

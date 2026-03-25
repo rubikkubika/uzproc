@@ -111,9 +111,9 @@ public class WorkingDayService {
         LocalDate start = assignment.toLocalDate().plusDays(1);
         LocalDate endDate = end.toLocalDate();
         if (start.isAfter(endDate)) {
-            return 0;
+            return 1; // минимум 1 день, если назначение и завершение в один день
         }
-        return countWorkingDaysInclusive(start, endDate);
+        return Math.max(1, countWorkingDaysInclusive(start, endDate));
     }
 
     /**

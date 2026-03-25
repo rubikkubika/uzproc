@@ -14,6 +14,7 @@ interface PurchaserSummaryItem {
   purchasesComplexity: number;
   savings: number;
   averageRating: number | null;
+  averageSlaDays: number | null;
 }
 
 const renderStars = (rating: number) => {
@@ -113,7 +114,7 @@ export default function PurchaseRequestsSummaryTable({
                 <th colSpan={3} className="px-1 py-1 text-center text-[11px] font-semibold text-blue-900 border-r border-gray-300 whitespace-nowrap">
                   Заявки в работе
                 </th>
-                <th colSpan={5} className="px-1 py-1 text-center text-[11px] font-semibold text-green-900 whitespace-nowrap">
+                <th colSpan={6} className="px-1 py-1 text-center text-[11px] font-semibold text-green-900 whitespace-nowrap">
                   {`Завершенные заявки - ${currentYear}`}
                 </th>
               </tr>
@@ -142,6 +143,9 @@ export default function PurchaseRequestsSummaryTable({
                 <th className="px-1 py-1 text-right text-[11px] font-medium text-gray-500 tracking-wider border-r border-t-2 border-gray-400 whitespace-nowrap min-w-[56px]">
                   Экономия
                 </th>
+                <th className="px-1 py-1 text-right text-[11px] font-medium text-gray-500 tracking-wider border-r border-t-2 border-gray-400 whitespace-nowrap min-w-[40px]">
+                  SLA
+                </th>
                 <th className="px-1 py-1 text-center text-[11px] font-medium text-gray-500 tracking-wider border-r-2 border-t-2 border-gray-400 rounded-tr-lg whitespace-nowrap min-w-[40px]">
                   <Star className="w-3 h-3 fill-yellow-400 text-yellow-400 inline" />
                 </th>
@@ -160,6 +164,7 @@ export default function PurchaseRequestsSummaryTable({
                   const completedComplexity = (completed?.ordersComplexity || 0) + (completed?.purchasesComplexity || 0);
                   const completedSavings = completed?.savings || 0;
                   const completedRating = completed?.averageRating;
+                  const completedSlaDays = completed?.averageSlaDays;
 
                   return (
                     <tr
@@ -177,13 +182,14 @@ export default function PurchaseRequestsSummaryTable({
                       <td className="px-1 py-1 text-[11px] text-gray-900 text-right border-r-2 border-t border-b border-gray-400 whitespace-nowrap">{formatCompactNumber(completedBudget)}</td>
                       <td className="px-1 py-1 text-[11px] text-gray-900 text-right border-r border-t border-b border-gray-400 whitespace-nowrap">{completedComplexity}</td>
                       <td className={`px-1 py-1 text-[11px] text-right border-r border-t border-b border-gray-400 whitespace-nowrap ${completedSavings > 0 ? 'text-green-700' : completedSavings < 0 ? 'text-red-600' : 'text-gray-900'}`}>{formatCompactNumber(completedSavings)}</td>
+                      <td className="px-1 py-1 text-[11px] text-gray-900 text-right border-r border-t border-b border-gray-400 whitespace-nowrap">{completedSlaDays != null ? completedSlaDays : '—'}</td>
                       <td className="px-1 py-1 text-[11px] text-gray-900 text-center border-r-2 border-t border-b border-gray-400 whitespace-nowrap">{completedRating != null ? renderStars(completedRating) : '—'}</td>
                     </tr>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan={9} className="px-1 py-1 text-[11px] text-gray-500 text-center whitespace-nowrap">
+                  <td colSpan={10} className="px-1 py-1 text-[11px] text-gray-500 text-center whitespace-nowrap">
                     Нет данных
                   </td>
                 </tr>
@@ -218,6 +224,14 @@ export default function PurchaseRequestsSummaryTable({
                 </td>
                 <td className={`px-1 py-1 text-[11px] font-semibold text-right border-r border-t border-b-2 border-gray-400 whitespace-nowrap ${completedPurchaserSummary.reduce((sum, item) => sum + (item.savings || 0), 0) > 0 ? 'text-green-700' : completedPurchaserSummary.reduce((sum, item) => sum + (item.savings || 0), 0) < 0 ? 'text-red-600' : 'text-gray-700'}`}>
                   {formatCompactNumber(completedPurchaserSummary.reduce((sum, item) => sum + (item.savings || 0), 0))}
+                </td>
+                <td className="px-1 py-1 text-[11px] font-semibold text-gray-700 text-right border-r border-t border-b-2 border-gray-400 whitespace-nowrap">
+                  {(() => {
+                    const slaDays = completedPurchaserSummary.filter(item => item.averageSlaDays != null).map(item => item.averageSlaDays!);
+                    if (slaDays.length === 0) return '—';
+                    const avg = slaDays.reduce((sum, d) => sum + d, 0) / slaDays.length;
+                    return Math.round(avg * 10) / 10;
+                  })()}
                 </td>
                 <td className="px-1 py-1 text-[11px] font-semibold text-gray-700 text-center border-r-2 border-t border-b-2 border-gray-400 rounded-br-lg whitespace-nowrap">
                   {(() => {

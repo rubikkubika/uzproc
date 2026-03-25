@@ -29,7 +29,7 @@ export function countWorkingDays(
   const end = new Date(completionDate);
   start.setHours(0, 0, 0, 0);
   end.setHours(0, 0, 0, 0);
-  if (start.getTime() > end.getTime()) return 0;
+  if (start.getTime() > end.getTime()) return 1; // минимум 1 день, если назначение и завершение в один день
   let count = 0;
   const cur = new Date(start);
   while (cur.getTime() <= end.getTime()) {

@@ -30,7 +30,7 @@ export function countWorkingDaysBetween(
   const start = new Date(assignmentDate.getFullYear(), assignmentDate.getMonth(), assignmentDate.getDate());
   start.setDate(start.getDate() + 1);
   const e = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
-  if (start.getTime() > e.getTime()) return 0;
+  if (start.getTime() > e.getTime()) return 1; // минимум 1 день, если назначение и завершение в один день
   let count = 0;
   const cur = new Date(start);
   while (cur.getTime() <= e.getTime()) {

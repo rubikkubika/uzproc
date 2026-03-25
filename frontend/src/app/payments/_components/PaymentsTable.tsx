@@ -395,16 +395,16 @@ export default function PaymentsTable() {
               ) : (
               allItems.map((payment, index) => (
                 <tr key={`${payment.id}-${index}`} className="hover:bg-gray-50">
-                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0 w-[8%]">
-                    <span className="truncate block" title={payment.mainId ?? undefined}>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 min-w-0 w-[8%]">
+                    <span className="block" title={payment.mainId ?? undefined}>
                       {payment.mainId ?? '-'}
                     </span>
                   </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0 w-[10%]">
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 min-w-0 w-[10%]">
                     {payment.purchaseRequestId != null ? (
                       <Link
                         href={`/purchase-request/${payment.purchaseRequestId}`}
-                        className="text-blue-600 hover:underline truncate block"
+                        className="text-blue-600 hover:underline block"
                         title={payment.purchaseRequestNumber != null ? String(payment.purchaseRequestNumber) : undefined}
                       >
                         {payment.purchaseRequestNumber != null ? String(payment.purchaseRequestNumber) : '-'}
@@ -413,44 +413,53 @@ export default function PaymentsTable() {
                       '-'
                     )}
                   </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0 w-[18%]" title={payment.contractTitle ?? undefined}>
-                    <span className="line-clamp-2 block min-w-0">{payment.contractTitle ?? '-'}</span>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 min-w-0 w-[18%]" title={payment.contractTitle ?? undefined}>
+                    {payment.contractId != null ? (
+                      <Link
+                        href={`/contract/${payment.contractId}`}
+                        className="text-blue-600 hover:underline block"
+                      >
+                        {payment.contractTitle ?? '-'}
+                      </Link>
+                    ) : (
+                      <span className="block min-w-0">{payment.contractTitle ?? '-'}</span>
+                    )}
                   </td>
-                  <td className="px-2 py-2 text-xs border-r border-gray-300 overflow-hidden min-w-0 w-[12%]" title={payment.paymentStatus ?? undefined}>
-                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium truncate max-w-full ${paymentStatusBadgeClass(payment.paymentStatus)}`}>
+                  <td className="px-2 py-2 text-xs border-r border-gray-300 min-w-0 w-[12%]" title={payment.paymentStatus ?? undefined}>
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${paymentStatusBadgeClass(payment.paymentStatus)}`}>
                       {payment.paymentStatus ?? '-'}
                     </span>
                   </td>
-                  <td className="px-2 py-2 text-xs border-r border-gray-300 overflow-hidden min-w-0 w-[12%]" title={payment.requestStatus ?? undefined}>
-                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium truncate max-w-full ${requestStatusBadgeClass(payment.requestStatus)}`}>
+                  <td className="px-2 py-2 text-xs border-r border-gray-300 min-w-0 w-[12%]" title={payment.requestStatus ?? undefined}>
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${requestStatusBadgeClass(payment.requestStatus)}`}>
                       {payment.requestStatus ?? '-'}
                     </span>
                   </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0 w-[10%]" title={payment.plannedExpenseDate ?? undefined}>
-                    <span className="truncate block">{payment.plannedExpenseDate ? formatDate(payment.plannedExpenseDate) : '-'}</span>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 min-w-0 w-[10%]" title={payment.plannedExpenseDate ?? undefined}>
+                    <span className="block">{payment.plannedExpenseDate ? formatDate(payment.plannedExpenseDate) : '-'}</span>
                   </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0 w-[10%]" title={payment.paymentDate ?? undefined}>
-                    <span className="truncate block">{payment.paymentDate ? formatDate(payment.paymentDate) : '-'}</span>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 min-w-0 w-[10%]" title={payment.paymentDate ?? undefined}>
+                    <span className="block">{payment.paymentDate ? formatDate(payment.paymentDate) : '-'}</span>
                   </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0 w-[12%]" title={payment.amount != null ? new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(payment.amount) : undefined}>
-                    <span className="truncate block">{formatAmount(payment.amount)}</span>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 min-w-0 w-[12%]" title={payment.amount != null ? new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(payment.amount) : undefined}>
+                    <span className="block">{formatAmount(payment.amount)}</span>
                   </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0 w-[18%]">
-                    <span className="truncate block" title={payment.cfo ?? undefined}>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 min-w-0 w-[18%]">
+                    <span className="block" title={payment.cfo ?? undefined}>
                       {payment.cfo ?? '-'}
                     </span>
                   </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0 w-[14%]">
-                    <span className="truncate block" title={payment.executorDisplayName ?? undefined}>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 min-w-0 w-[14%]">
+                    <span className="block" title={payment.executorDisplayName ?? undefined}>
                       {payment.executorDisplayName ?? '-'}
                     </span>
                   </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0 w-[14%]">
-                    <span className="truncate block" title={payment.responsibleDisplayName ?? undefined}>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 min-w-0 w-[14%]">
+                    <span className="block" title={payment.responsibleDisplayName ?? undefined}>
                       {payment.responsibleDisplayName ?? '-'}
                     </span>
                   </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0" title={payment.comment ?? undefined}>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 min-w-0" title={payment.comment ?? undefined}>
                     <span className="line-clamp-2 block min-w-0">{payment.comment ?? '-'}</span>
                   </td>
                 </tr>

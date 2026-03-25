@@ -175,7 +175,7 @@ export function ManagementReportingContent({
                       ? 'bg-green-100 border-green-300 text-green-800'
                       : 'bg-red-100 border-red-300 text-red-800'
                   }`}>
-                    Выполнение: {savings.data.totalBudget > 0 ? ((savings.data.totalSavings / savings.data.totalBudget) * 100).toFixed(1) + '%' : '—'}
+                    ФАКТ: {savings.data.totalBudget > 0 ? ((savings.data.totalSavings / savings.data.totalBudget) * 100).toFixed(1) + '%' : '—'}
                   </span>
                 )}
                 <div className="flex items-center gap-0.5 shrink-0">
@@ -259,7 +259,7 @@ export function ManagementReportingContent({
                         ? 'bg-green-100 border-green-300 text-green-800'
                         : 'bg-red-100 border-red-300 text-red-800'
                     }`}>
-                      Выполнение: {Math.round(averageSlaPercentage)}%
+                      ФАКТ: {Math.round(averageSlaPercentage)}%
                     </span>
                   )}
                   {slaLoading ? (
@@ -303,7 +303,7 @@ export function ManagementReportingContent({
                       ? 'bg-green-100 border-green-300 text-green-800'
                       : 'bg-red-100 border-red-300 text-red-800'
                   }`}>
-                    Выполнение: <span className="inline-flex items-center gap-0.5">{csiStats.avgOverall != null ? formatStat(csiStats.avgOverall) : '—'}<Star className="w-3 h-3 text-amber-500 fill-amber-500" /></span>
+                    ФАКТ: <span className="inline-flex items-center gap-0.5">{csiStats.avgOverall != null ? formatStat(csiStats.avgOverall) : '—'}<Star className="w-3 h-3 text-amber-500 fill-amber-500" /></span>
                   </span>
                 )}
               </div>
