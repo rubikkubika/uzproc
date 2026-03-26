@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react';
-import { fetchInWorkPurchaserSummary, fetchCompletedPurchaserSummary } from '../services/purchaseRequests.api';
+import {
+  fetchInWorkPurchaserSummary,
+  fetchCompletedPurchaserSummary,
+  type PurchaserSummaryItemDto,
+} from '../services/purchaseRequests.api';
 import { normalizePurchaserName } from '../utils/normalizePurchaser';
 import type { RequestKindTab } from '../types/purchase-request.types';
 import type { PurchaserSummaryItem } from '../types/purchase-requests-summary.types';
@@ -37,7 +41,7 @@ export function useSummary(params: UseSummaryParams) {
           fetchCompletedPurchaserSummary(completedParams),
         ]);
 
-        const normalizeItem = (item: PurchaserSummaryItem) => ({
+        const normalizeItem = (item: PurchaserSummaryItemDto): PurchaserSummaryItem => ({
           ...item,
           purchaser: item.purchaser ? normalizePurchaserName(item.purchaser) : item.purchaser,
           ordersBudget: Number(item.ordersBudget),
