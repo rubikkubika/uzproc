@@ -33,6 +33,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -263,8 +264,8 @@ public class PaymentExcelLoadService {
             if (comment != null && !comment.trim().isEmpty()) {
                 String trimmed = comment.trim();
                 payment.setComment(trimmed);
-                linkContractFromComment(payment, trimmed);
                 linkPurchaseRequestFromComment(payment, trimmed);
+                linkContractFromComment(payment, trimmed);
             }
         }
 
@@ -592,8 +593,54 @@ public class PaymentExcelLoadService {
             payment.setContract(contractOpt.get());
             logger.info("Payment linked to contract by title: {}", title.length() > 80 ? title.substring(0, 80) + "..." : title);
         } else {
-            logger.debug("Payment: no contract found for title (excerpt): '{}'", title.length() > 80 ? title.substring(0, 80) + "..." : title);
+            // Fallback: if payment is already linked to purchase request, try contract lookup within that request.
+            // This allows re-imports to link contracts later when direct title matching fails.
+            linkContractByPurchaseRequest(payment, normalizedTitle, title);
+            if (payment.getContract() == null) {
+                logger.debug("Payment: no contract found for title (excerpt): '{}'", title.length() > 80 ? title.substring(0, 80) + "..." : title);
+            }
         }
+    }
+
+    private void linkContractByPurchaseRequest(Payment payment, String normalizedTitle, String originalTitle) {
+        if (payment.getPurchaseRequest() == null || payment.getPurchaseRequest().getIdPurchaseRequest() == null) {
+            return;
+        }
+
+        Long purchaseRequestId = payment.getPurchaseRequest().getIdPurchaseRequest();
+        List<Contract> contracts = contractRepository.findByPurchaseRequestId(purchaseRequestId);
+        if (contracts == null || contracts.isEmpty()) {
+            return;
+        }
+
+        if (contracts.size() == 1) {
+            payment.setContract(contracts.get(0));
+            logger.info("Payment linked to contract by purchaseRequestId={} (single contract)", purchaseRequestId);
+            return;
+        }
+
+        for (Contract contract : contracts) {
+            if (contract.getTitle() != null &&
+                normalizeTitleForMatch(contract.getTitle()).equals(normalizedTitle)) {
+                payment.setContract(contract);
+                logger.info("Payment linked to contract by purchaseRequestId={} and normalized title", purchaseRequestId);
+                return;
+            }
+        }
+
+        for (Contract contract : contracts) {
+            if (contract.getName() != null &&
+                normalizeTitleForMatch(contract.getName()).equals(normalizedTitle)) {
+                payment.setContract(contract);
+                logger.info("Payment linked to contract by purchaseRequestId={} and normalized name", purchaseRequestId);
+                return;
+            }
+        }
+
+        logger.debug("Payment: {} contracts found for purchaseRequestId={}, but no exact title/name match for '{}'",
+            contracts.size(),
+            purchaseRequestId,
+            originalTitle.length() > 80 ? originalTitle.substring(0, 80) + "..." : originalTitle);
     }
 
     /**
