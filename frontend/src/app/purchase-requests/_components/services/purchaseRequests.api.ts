@@ -33,6 +33,7 @@ export interface PurchaserSummaryItemDto {
   purchasesComplexity: number;
   savings: number;
   averageRating: number | null;
+  averageSlaDays?: number | null;
 }
 
 /**

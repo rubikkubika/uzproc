@@ -2,18 +2,7 @@ import { useState, useEffect } from 'react';
 import { fetchInWorkPurchaserSummary, fetchCompletedPurchaserSummary } from '../services/purchaseRequests.api';
 import { normalizePurchaserName } from '../utils/normalizePurchaser';
 import type { RequestKindTab } from '../types/purchase-request.types';
-
-interface PurchaserSummaryItem {
-  purchaser: string;
-  ordersCount: number;
-  purchasesCount: number;
-  ordersBudget: number;
-  purchasesBudget: number;
-  ordersComplexity: number;
-  purchasesComplexity: number;
-  savings: number;
-  averageRating: number | null;
-}
+import type { PurchaserSummaryItem } from '../types/purchase-requests-summary.types';
 
 interface UseSummaryParams {
   currentYear: number;
@@ -57,6 +46,7 @@ export function useSummary(params: UseSummaryParams) {
           purchasesComplexity: Number(item.purchasesComplexity || 0),
           savings: Number(item.savings || 0),
           averageRating: item.averageRating != null ? Number(item.averageRating) : null,
+          averageSlaDays: item.averageSlaDays != null ? Number(item.averageSlaDays) : null,
         });
 
         setPurchaserSummary(inWorkResult.map(normalizeItem));

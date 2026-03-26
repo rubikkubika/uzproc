@@ -3,19 +3,7 @@
 import React, { useState, useCallback } from 'react';
 import { ChevronDown, ChevronUp, Star } from 'lucide-react';
 import { purchaserDisplayName } from '@/utils/purchaser';
-
-interface PurchaserSummaryItem {
-  purchaser: string;
-  ordersCount: number;
-  purchasesCount: number;
-  ordersBudget: number;
-  purchasesBudget: number;
-  ordersComplexity: number;
-  purchasesComplexity: number;
-  savings: number;
-  averageRating: number | null;
-  averageSlaDays: number | null;
-}
+import type { PurchaserSummaryItem } from '../types/purchase-requests-summary.types';
 
 const renderStars = (rating: number) => {
   const fullStars = Math.floor(rating);
