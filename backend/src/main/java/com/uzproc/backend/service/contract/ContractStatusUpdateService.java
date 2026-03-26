@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Set;
 import java.util.List;
 
 /**
@@ -19,6 +20,28 @@ import java.util.List;
 public class ContractStatusUpdateService {
 
     private static final Logger logger = LoggerFactory.getLogger(ContractStatusUpdateService.class);
+    private static final Set<String> SIGNED_EXACT_STATES = Set.of(
+        "Согласование договора - Этап 1: Согласован, Синхронизация: Исполнен",
+        "Согласование - Этап 1: Согласован, Синхронизация: Исполнен",
+        "Согласование договора: Согласован, Синхронизация: Исполнен",
+        "Согласование договора - Этап 1: Согласован, Синхронизация: Исполнен, Регистрация договора: Зарегистрирован",
+        "Согласование договора - Этап 1: Согласован, Согласование договора - Этап 2: Согласован, Синхронизация: Исполнен",
+        "Согласование договора - Этап 1: Согласован, Согласование договора - Этап 2: Согласован, Синхронизация: Исполнен, Регистрация договора: Зарегистрирован",
+        "Регистрация договора: Зарегистрирован",
+        "Регистрация: Зарегистрирован",
+        "Принятие на хранение: Зарегистрирован",
+        "Подписать или вернуть: Подписан"
+    );
+    private static final Set<String> ON_COORDINATION_EXACT_STATES = Set.of(
+        "Согласование договора: На согласовании",
+        "Согласование договора - Этап 1: На согласовании",
+        "Согласование - Этап 1: На согласовании",
+        "Синхронизация: Исполнен"
+    );
+    private static final Set<String> NOT_COORDINATED_EXACT_STATES = Set.of(
+        "Не согласован",
+        "не согласован"
+    );
     
     private final ContractRepository contractRepository;
 
@@ -80,12 +103,7 @@ public class ContractStatusUpdateService {
             
             // Проверяем условия для статуса "Подписан"
             // Точные совпадения (полные строки)
-            if (stateTrimmed.equals("Согласование договора - Этап 1: Согласован, Синхронизация: Исполнен") ||
-                stateTrimmed.equals("Согласование - Этап 1: Согласован, Синхронизация: Исполнен") ||
-                stateTrimmed.equals("Согласование договора: Согласован, Синхронизация: Исполнен") ||
-                stateTrimmed.equals("Согласование договора - Этап 1: Согласован, Синхронизация: Исполнен, Регистрация договора: Зарегистрирован") ||
-                stateTrimmed.equals("Согласование договора - Этап 1: Согласован, Согласование договора - Этап 2: Согласован, Синхронизация: Исполнен") ||
-                stateTrimmed.equals("Согласование договора - Этап 1: Согласован, Согласование договора - Этап 2: Согласован, Синхронизация: Исполнен, Регистрация договора: Зарегистрирован")) {
+            if (SIGNED_EXACT_STATES.contains(stateTrimmed)) {
                 newStatus = ContractStatus.SIGNED;
                 logger.debug("Contract {} state matches signed condition (exact match): {}", contractId, stateTrimmed);
             }
@@ -100,31 +118,14 @@ public class ContractStatusUpdateService {
                 newStatus = ContractStatus.ON_REGISTRATION;
                 logger.debug("Contract {} state matches on registration condition: {}", contractId, stateTrimmed);
             }
-            // Проверяем подстроки для статуса "Подписан"
-            else if (stateTrimmed.contains("Согласование договора: Согласован") ||
-                     stateTrimmed.contains("Согласование договора - Этап 1: Согласован") ||
-                     stateTrimmed.contains("Согласование - Этап 1: Согласован") ||
-                     stateTrimmed.contains("Регистрация договора: Зарегистрирован") ||
-                     stateTrimmed.contains("Регистрация: Зарегистрирован") ||
-                     stateTrimmed.contains("Принятие на хранение: Зарегистрирован") ||
-                     stateTrimmed.contains("Подписать или вернуть: Подписан")) {
-                newStatus = ContractStatus.SIGNED;
-                logger.debug("Contract {} state matches signed condition (contains): {}", contractId, stateTrimmed);
-            }
             // Проверяем условия для статуса "На согласовании"
             // Приоритет: сначала проверяем "На согласовании", потом "Не согласован"
-            else if (stateTrimmed.contains("Согласование договора: На согласовании") ||
-                     stateTrimmed.contains("Согласование договора - Этап 1: На согласовании") ||
-                     stateTrimmed.contains("Согласование - Этап 1: На согласовании") ||
-                     (stateTrimmed.contains("Синхронизация: Исполнен") &&
-                      !stateTrimmed.contains("Согласование договора: Согласован") &&
-                      !stateTrimmed.contains("Согласование договора - Этап 1: Согласован") &&
-                      !stateTrimmed.contains("Согласование - Этап 1: Согласован"))) {
+            else if (ON_COORDINATION_EXACT_STATES.contains(stateTrimmed)) {
                 newStatus = ContractStatus.ON_COORDINATION;
                 logger.debug("Contract {} state matches on coordination condition: {}", contractId, stateTrimmed);
             }
             // Проверяем условия для статуса "Не согласован"
-            else if (stateTrimmed.contains("Не согласован") || stateTrimmed.contains("не согласован")) {
+            else if (NOT_COORDINATED_EXACT_STATES.contains(stateTrimmed)) {
                 newStatus = ContractStatus.NOT_COORDINATED;
                 logger.debug("Contract {} state matches not coordinated condition: {}", contractId, stateTrimmed);
             }
