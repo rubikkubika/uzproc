@@ -16,25 +16,29 @@ import type { SavingsMonthData } from '../hooks/useOverviewSavingsData';
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ChartDataLabels);
 
 const MONTH_LABELS = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+const USD_TO_UZS_RATE = 12000;
 
-function formatAmount(value: number): string {
-  if (value === 0) return '0';
-  if (Math.abs(value) >= 1_000_000_000) return (value / 1_000_000_000).toFixed(1) + ' млрд';
-  if (Math.abs(value) >= 1_000_000) return (value / 1_000_000).toFixed(1) + ' млн';
-  if (Math.abs(value) >= 1_000) return (value / 1_000).toFixed(0) + ' тыс';
-  return value.toFixed(0);
+function formatAmount(value: number, currency: 'UZS' | 'USD' = 'UZS'): string {
+  const v = currency === 'USD' ? value / USD_TO_UZS_RATE : value;
+  const suffix = currency === 'USD' ? ' $' : '';
+  if (v === 0) return '0' + suffix;
+  if (Math.abs(v) >= 1_000_000_000) return (v / 1_000_000_000).toFixed(1) + ' млрд' + suffix;
+  if (Math.abs(v) >= 1_000_000) return (v / 1_000_000).toFixed(1) + ' млн' + suffix;
+  if (Math.abs(v) >= 1_000) return (v / 1_000).toFixed(0) + ' тыс' + suffix;
+  return v.toFixed(0) + suffix;
 }
 
 interface SavingsMonthChartProps {
   data: SavingsMonthData[];
   year: number;
+  currency?: 'UZS' | 'USD';
 }
 
 function sqrtScale(v: number): number {
   return v >= 0 ? Math.sqrt(v) : -Math.sqrt(-v);
 }
 
-export function SavingsMonthChart({ data, year }: SavingsMonthChartProps) {
+export function SavingsMonthChart({ data, year, currency = 'UZS' }: SavingsMonthChartProps) {
   const rawMedian = data.map((m) => m.savingsFromMedian);
   const rawContract = data.map((m) => m.savingsFromExistingContract);
   const rawUntyped = data.map((m) => m.savingsUntyped);
@@ -85,7 +89,7 @@ export function SavingsMonthChart({ data, year }: SavingsMonthChartProps) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any -- chartjs Context not assignable to custom dataset shape
           label: (ctx: any) => {
             const raw = ctx.dataset?.rawData?.[ctx.dataIndex] ?? 0;
-            return `${ctx.dataset?.label}: ${formatAmount(raw)}`;
+            return `${ctx.dataset?.label}: ${formatAmount(raw, currency)}`;
           },
         },
       },
@@ -100,7 +104,7 @@ export function SavingsMonthChart({ data, year }: SavingsMonthChartProps) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any -- chartjs Context not assignable to custom dataset shape
         formatter: (_value: number, ctx: any) => {
           const raw = ctx.dataset?.rawData?.[ctx.dataIndex] ?? 0;
-          return formatAmount(raw);
+          return formatAmount(raw, currency);
         },
         anchor: 'center' as const,
         align: 'center' as const,

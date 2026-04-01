@@ -378,11 +378,11 @@ export function SlaCombinedChart({
         </div>
       ) : (
         <div className="flex-1 min-h-0 flex flex-col" style={{ minHeight: 180 }}>
-          <div className="mb-1 flex items-center justify-between gap-2 min-w-0">
+          <div className="mb-1 flex flex-wrap items-center justify-start gap-2 min-w-0">
             <div className="rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/80 shadow-sm px-2 py-0.5 text-[10px] text-gray-700 shrink-0">
               Средний SLA: <span className="font-semibold text-gray-900">{averageSlaPercentage != null ? `${Math.round(averageSlaPercentage)}%` : '—'}</span>
             </div>
-            <div className="flex items-center gap-2 text-[10px] text-gray-700 min-w-0">
+            <div className="flex flex-wrap items-center gap-2 text-[10px] text-gray-700 min-w-0">
               <span className="inline-flex items-center gap-1 shrink-0">
                 <span className="inline-block w-2.5 h-2.5 rounded-sm bg-blue-500 border border-blue-600" />
                 завершённые закупки

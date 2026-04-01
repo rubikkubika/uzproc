@@ -175,14 +175,14 @@ main::-webkit-scrollbar {
 
   /* Контент на весь экран без отступов */
   #mr-print-root {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
+    /* Важно: position:absolute часто ломает page-break в браузерах при печати */
+    position: static !important;
     display: block !important;
     width: 100% !important;
     padding: 0 !important;
     margin: 0 !important;
-    background: white !important;
+    /* Фон не форсируем: берём из разметки (нужно для "промежутков" между KPI-блоками). */
+    background: transparent !important;
   }
 
   /* Печатаем цвета/фоны как в интерфейсе */
@@ -192,31 +192,30 @@ main::-webkit-scrollbar {
     print-color-adjust: exact !important;
   }
 
+  /* В PDF тени часто выглядят как "серая рамка" — отключаем их */
+  #mr-print-root .shadow,
+  #mr-print-root .shadow-sm,
+  #mr-print-root .shadow-md,
+  #mr-print-root .shadow-lg,
+  #mr-print-root .shadow-xl,
+  #mr-print-root .shadow-2xl {
+    box-shadow: none !important;
+  }
+
   /* Страница 1 — показатели: разрыв после */
   .mr-print-page1 {
     page-break-after: always !important;
     break-after: page !important;
     display: block !important;
     width: 100% !important;
+    break-inside: avoid !important;
+    height: auto !important;
+    overflow: visible !important;
   }
 
-  /* Первая страница в PDF должна повторять интерфейс без абсолютных смещений */
+  /* Первая страница: не переопределяем layout — печатаем как в UI */
   .mr-print-page1 .mr-page1-layout {
-    display: flex !important;
-    align-items: stretch !important;
-    gap: 6px !important;
     position: static !important;
-  }
-
-  .mr-print-page1 .mr-page1-left {
-    position: static !important;
-    inset: auto !important;
-    width: calc(58% - 3px) !important;
-  }
-
-  .mr-print-page1 .mr-page1-right {
-    margin-left: 0 !important;
-    width: calc(42% - 3px) !important;
   }
 
   /* Страница 2 — оценки: разрыв перед */
@@ -225,6 +224,9 @@ main::-webkit-scrollbar {
     break-before: page !important;
     display: block !important;
     width: 100% !important;
+    break-inside: avoid !important;
+    height: auto !important;
+    overflow: visible !important;
   }
 
   /* Явно оставляем обе страницы видимыми в печати */

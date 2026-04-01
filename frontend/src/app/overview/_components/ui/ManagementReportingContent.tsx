@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo, type ReactNode } from 'react';
 import { Star } from 'lucide-react';
 import { getBackendUrl } from '@/utils/api';
 import { SlaCombinedChart } from './SlaCombinedChart';
-import { SavingsByCfoChart } from './SavingsByCfoChart';
 import { ManagementReportingFeedbackGrid } from './ManagementReportingFeedbackGrid';
 import { useOverviewSavingsData } from '../hooks/useOverviewSavingsData';
 import { useManagementReportingPdf } from '../hooks/useManagementReportingPdf';
@@ -147,8 +146,8 @@ export function ManagementReportingContent({
   }, [currentYear]);
 
   /* Savings данные */
-  const [currency, setCurrency] = useState<'UZS' | 'USD'>('UZS');
   const savings = useOverviewSavingsData(currentYear);
+  const currency: 'USD' = 'USD';
 
   /* PDF экспорт */
   const { page1Ref, page2Ref } = useManagementReportingPdf();
@@ -156,136 +155,104 @@ export function ManagementReportingContent({
   return (
     <div id="mr-print-root" className="p-1 flex flex-col gap-1.5">
       {/* ═══ Страница 1 PDF: показатели ═══ */}
-      <div ref={page1Ref} className="bg-white rounded-lg mr-print-page1">
-        <div className="flex gap-1.5 relative mr-page1-layout">
-          {/* ── Левая колонка: Экономия (58%) ── */}
-          <div className="absolute top-0 bottom-0 left-0 bg-white rounded shadow px-2 py-1.5 flex flex-col overflow-hidden mr-page1-left" style={{ width: 'calc(58% - 3px)' }}>
-            <div className="flex items-center gap-2 mb-1 min-w-0">
-              <div className="flex items-center gap-1 min-w-0">
-                <span className="text-xs font-semibold text-gray-700 shrink-0">Экономия — {currentYear}</span>
-                <KpiTargetChip
-                  valueClassName="text-slate-700"
-                  valueBackgroundClassName="bg-transparent border-transparent"
-                >
-                  10% от бюджета закупок
-                </KpiTargetChip>
-                {savings.data && !savings.loading && (
-                  <span className={`rounded-lg px-1.5 py-0.5 text-[11px] font-semibold shadow-sm border ${
-                    savings.data.totalBudget > 0 && (savings.data.totalSavings / savings.data.totalBudget) * 100 >= 10
-                      ? 'bg-green-100 border-green-300 text-green-800'
-                      : 'bg-red-100 border-red-300 text-red-800'
-                  }`}>
-                    ФАКТ: {savings.data.totalBudget > 0 ? ((savings.data.totalSavings / savings.data.totalBudget) * 100).toFixed(1) + '%' : '—'}
-                  </span>
-                )}
-                <div className="flex items-center gap-0.5 shrink-0">
-                  <button
-                    onClick={() => setCurrency('UZS')}
-                    className={`px-1.5 py-0.5 text-xs border rounded transition-colors ${
-                      currency === 'UZS'
-                        ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium'
-                        : 'border-gray-300 text-gray-700 hover:bg-gray-100'
-                    }`}
-                  >
-                    UZS
-                  </button>
-                  <button
-                    onClick={() => setCurrency('USD')}
-                    className={`px-1.5 py-0.5 text-xs border rounded transition-colors ${
-                      currency === 'USD'
-                        ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium'
-                        : 'border-gray-300 text-gray-700 hover:bg-gray-100'
-                    }`}
-                  >
-                    USD
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {savings.loading && (
-              <div className="text-center text-xs text-gray-500 py-2">Загрузка...</div>
-            )}
-            {savings.error && (
-              <div className="text-center text-xs text-red-500 py-2">{savings.error}</div>
-            )}
-
-            {savings.data && !savings.loading && (
-              <div className="flex flex-col flex-1 min-h-0">
-                {/* Итоговые карточки — всё в одну строку */}
-                <div className="flex gap-1 mb-1 shrink-0 flex-nowrap items-stretch">
-                  <div className="bg-slate-500 rounded-xl shadow px-2 py-1 shrink-0">
-                    <div className="text-[10px] text-slate-200 uppercase tracking-wider">Бюджет закупок</div>
-                    <div className="text-sm font-bold text-white">{formatAmount(savings.data.totalBudget, currency)}</div>
-                    <div className="text-[10px] text-slate-200">{savings.data.totalBudgetCount} закупок</div>
-                  </div>
-                  <div className="rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/80 shadow-sm px-1.5 py-1 shrink-0">
-                    <div className="text-[10px] text-gray-700 uppercase tracking-wider">% экономии</div>
-                    <div className="text-sm font-bold text-gray-900">
-                      {savings.data.totalBudget > 0 ? ((savings.data.totalSavings / savings.data.totalBudget) * 100).toFixed(1) + '%' : '—'}
-                    </div>
-                  </div>
-                  <div className="rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/80 shadow-sm px-2 py-1 shrink-0">
-                    <div className="text-[10px] text-gray-700 uppercase tracking-wider font-semibold">Общая экономия</div>
-                    <div className="text-sm font-bold text-gray-900">{formatAmount(savings.data.totalSavings, currency)}</div>
-                    <div className="text-[10px] text-gray-600">{savings.data.totalCount} закупок</div>
-                  </div>
-                </div>
-
-                {/* Диаграмма по ЦФО */}
-                <div className="flex-1 min-h-0">
-                  <SavingsByCfoChart data={savings.data.byCfo} year={currentYear} currency={currency} />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* ── Правая колонка: SLA + CSI (42%) ── */}
-          <div className="min-w-0 flex flex-col gap-1.5 mr-page1-right" style={{ marginLeft: 'calc(58% + 3px)', width: 'calc(42% - 3px)' }}>
-            {/* SLA */}
-            <div className="bg-white rounded shadow px-2 py-1.5">
-              <div className="flex items-center gap-1 mb-1 min-w-0">
+      <div ref={page1Ref} className="bg-slate-50 rounded-lg mr-print-page1">
+        <div className="mr-page1-layout">
+          {/* Верхний ряд: Экономия слева, CSI справа */}
+          <div
+            className="grid gap-1.5"
+            style={{ gridTemplateColumns: '58% 42%', alignItems: 'stretch' }}
+          >
+            {/* ── Экономия ── */}
+            <div className="bg-white rounded border-2 border-gray-300 shadow px-2 py-1.5 flex flex-col overflow-hidden">
+              <div className="flex items-center gap-2 mb-1 min-w-0">
                 <div className="flex items-center gap-1 min-w-0">
-                  <span className="text-xs font-semibold text-gray-700 shrink-0">SLA — {slaYear}</span>
+                  <span className="text-xs font-semibold text-gray-700 shrink-0">Экономия — {currentYear}</span>
                   <KpiTargetChip
                     valueClassName="text-slate-700"
                     valueBackgroundClassName="bg-transparent border-transparent"
                   >
-                    75%
+                    10% от бюджета закупок
                   </KpiTargetChip>
-                  {!slaLoading && averageSlaPercentage != null && (
+                  {savings.data && !savings.loading && (
                     <span className={`rounded-lg px-1.5 py-0.5 text-[11px] font-semibold shadow-sm border ${
-                      averageSlaPercentage >= 75
+                      savings.data.totalBudget > 0 && (savings.data.totalSavings / savings.data.totalBudget) * 100 >= 10
                         ? 'bg-green-100 border-green-300 text-green-800'
                         : 'bg-red-100 border-red-300 text-red-800'
                     }`}>
-                      ФАКТ: {Math.round(averageSlaPercentage)}%
+                      ФАКТ: {savings.data.totalBudget > 0 ? ((savings.data.totalSavings / savings.data.totalBudget) * 100).toFixed(1) + '%' : '—'}
                     </span>
                   )}
-                  {slaLoading ? (
-                    <span className="text-xs text-gray-400">Загрузка…</span>
-                  ) : slaError ? (
-                    <span className="text-xs text-red-500">{slaError}</span>
-                  ) : null}
                 </div>
               </div>
-              <div className="min-w-0 h-[190px] flex overflow-hidden" style={{ position: 'relative' }}>
-                <SlaCombinedChart
-                  year={slaYear}
-                  countsByMonth={slaCompletedByMonth}
-                  currentYear={nowYear}
-                  currentMonth={nowMonth}
-                  slaPercentageByMonth={slaPercentageByMonth}
-                  loading={slaLoading}
-                  error={slaError}
-                  averageSlaPercentage={averageSlaPercentage}
-                  hideForecast
-                />
-              </div>
+
+              {savings.loading && (
+                <div className="text-center text-xs text-gray-500 py-2">Загрузка...</div>
+              )}
+              {savings.error && (
+                <div className="text-center text-xs text-red-500 py-2">{savings.error}</div>
+              )}
+
+              {savings.data && !savings.loading && (
+                <div className="flex flex-col flex-1 min-h-0">
+                  {/* Итоговые карточки */}
+                  <div className="flex gap-1 mb-1 shrink-0 flex-nowrap items-stretch">
+                    <div className="bg-slate-500 rounded-xl shadow px-2 py-1 shrink-0">
+                      <div className="text-[10px] text-slate-200 uppercase tracking-wider">Бюджет закупок</div>
+                      <div className="text-sm font-bold text-white">{formatAmount(savings.data.totalBudget, currency)}</div>
+                      <div className="text-[10px] text-slate-200">{savings.data.totalBudgetCount} закупок</div>
+                    </div>
+                    <div className="rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/80 shadow-sm px-1.5 py-1 shrink-0">
+                      <div className="text-[10px] text-gray-700 uppercase tracking-wider">% экономии</div>
+                      <div className="text-sm font-bold text-gray-900">
+                        {savings.data.totalBudget > 0 ? ((savings.data.totalSavings / savings.data.totalBudget) * 100).toFixed(1) + '%' : '—'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Формула экономии */}
+                  <div className="mt-1 shrink-0 flex items-stretch gap-1 flex-nowrap">
+                    <div className="rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/80 shadow-sm px-2 py-1 shrink-0">
+                      <div className="text-[10px] text-gray-700 uppercase tracking-wider font-semibold">Общая экономия</div>
+                      <div className="text-sm font-bold text-gray-900 tabular-nums">{formatAmount(savings.data.totalSavings, currency)}</div>
+                      <div className="text-[10px] text-gray-600">{savings.data.totalCount} закупок</div>
+                    </div>
+
+                    <div className="flex items-center justify-center px-1 text-sm font-bold text-gray-500 select-none shrink-0" aria-hidden>
+                      =
+                    </div>
+
+                    <div className="rounded-xl bg-white border border-blue-200/70 shadow-sm px-2 py-1 shrink-0">
+                      <div className="text-[10px] text-gray-700 uppercase tracking-wider">От медианы</div>
+                      <div className="text-sm font-bold text-gray-900 tabular-nums">{formatAmount(savings.data.savingsFromMedian, currency)}</div>
+                      <div className="text-[10px] text-gray-600">{savings.data.fromMedianCount} закупок</div>
+                    </div>
+
+                    <div className="flex items-center justify-center px-1 text-sm font-bold text-gray-500 select-none shrink-0" aria-hidden>
+                      +
+                    </div>
+
+                    <div className="rounded-xl bg-white border border-green-200/70 shadow-sm px-2 py-1 shrink-0">
+                      <div className="text-[10px] text-gray-700 uppercase tracking-wider">От сущ. договора</div>
+                      <div className="text-sm font-bold text-gray-900 tabular-nums">{formatAmount(savings.data.savingsFromExistingContract, currency)}</div>
+                      <div className="text-[10px] text-gray-600">{savings.data.fromExistingContractCount} закупок</div>
+                    </div>
+
+                    <div className="flex items-center justify-center px-1 text-sm font-bold text-gray-500 select-none shrink-0" aria-hidden>
+                      +
+                    </div>
+
+                    <div className="rounded-xl bg-white border border-gray-200 shadow-sm px-2 py-1 shrink-0">
+                      <div className="text-[10px] text-gray-700 uppercase tracking-wider">Комбинированный</div>
+                      <div className="text-sm font-bold text-gray-900 tabular-nums">{formatAmount(savings.data.savingsUntyped, currency)}</div>
+                      <div className="text-[10px] text-gray-600">{savings.data.untypedCount} закупок</div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* CSI */}
-            <div className="bg-white rounded shadow px-2 py-1.5">
+            {/* ── CSI (оценки) ── */}
+            <div className="bg-white rounded border-2 border-gray-300 shadow px-2 py-1.5">
               <div className="flex items-center gap-1 mb-1 min-w-0">
                 <span className="text-xs font-semibold text-gray-700 shrink-0">CSI — {currentYear}</span>
                 <KpiTargetChip
@@ -366,11 +333,53 @@ export function ManagementReportingContent({
               )}
             </div>
           </div>
+
+          {/* Нижний ряд: SLA под экономией и оценками */}
+          <div className="bg-white rounded border-2 border-gray-300 shadow px-2 py-1.5 mt-1.5">
+            <div className="flex items-center gap-1 mb-1 min-w-0">
+              <div className="flex items-center gap-1 min-w-0">
+                <span className="text-xs font-semibold text-gray-700 shrink-0">SLA — {slaYear}</span>
+                <KpiTargetChip
+                  valueClassName="text-slate-700"
+                  valueBackgroundClassName="bg-transparent border-transparent"
+                >
+                  75%
+                </KpiTargetChip>
+                {!slaLoading && averageSlaPercentage != null && (
+                  <span className={`rounded-lg px-1.5 py-0.5 text-[11px] font-semibold shadow-sm border ${
+                    averageSlaPercentage >= 75
+                      ? 'bg-green-100 border-green-300 text-green-800'
+                      : 'bg-red-100 border-red-300 text-red-800'
+                  }`}>
+                    ФАКТ: {Math.round(averageSlaPercentage)}%
+                  </span>
+                )}
+                {slaLoading ? (
+                  <span className="text-xs text-gray-400">Загрузка…</span>
+                ) : slaError ? (
+                  <span className="text-xs text-red-500">{slaError}</span>
+                ) : null}
+              </div>
+            </div>
+            <div className="min-w-0 h-[190px] flex overflow-hidden" style={{ position: 'relative' }}>
+              <SlaCombinedChart
+                year={slaYear}
+                countsByMonth={slaCompletedByMonth}
+                currentYear={nowYear}
+                currentMonth={nowMonth}
+                slaPercentageByMonth={slaPercentageByMonth}
+                loading={slaLoading}
+                error={slaError}
+                averageSlaPercentage={averageSlaPercentage}
+                hideForecast
+              />
+            </div>
+          </div>
         </div>
       </div>
 
       {/* ═══ Страница 2 PDF: сетка оценок ═══ */}
-      <div ref={page2Ref} className="bg-white rounded-lg p-2 mr-print-page2">
+      <div ref={page2Ref} className="bg-white rounded-lg border-2 border-gray-300 p-2 mr-print-page2">
         <div className="text-xs font-semibold text-gray-700 mb-1.5">
           Последние оценки CSI — {currentYear}
         </div>
