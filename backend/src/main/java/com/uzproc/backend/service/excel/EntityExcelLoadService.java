@@ -14,6 +14,7 @@ import com.uzproc.backend.repository.purchase.PurchaseRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
 import com.uzproc.backend.repository.supplier.SupplierRepository;
 import com.uzproc.backend.repository.user.UserRepository;
+import com.uzproc.backend.service.user.UserImportEmailPolicy;
 import com.uzproc.backend.service.excel.FileProcessingStatsService;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestChangeService;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestStatusUpdateService;
@@ -1550,7 +1551,9 @@ public class EntityExcelLoadService {
                     existingUser.setPosition(position);
                     updated = true;
                 }
-                if (email != null && !email.trim().isEmpty() && !email.trim().equals(existingUser.getEmail())) {
+                if (!UserImportEmailPolicy.shouldSkipEmailFromImport(surname, name)
+                        && email != null && !email.trim().isEmpty()
+                        && !email.trim().equals(existingUser.getEmail())) {
                     existingUser.setEmail(email.trim());
                     updated = true;
                 }
@@ -1568,7 +1571,8 @@ public class EntityExcelLoadService {
                 newUser.setName(name);
                 newUser.setDepartment(department);
                 newUser.setPosition(position);
-                if (email != null && !email.trim().isEmpty()) {
+                if (!UserImportEmailPolicy.shouldSkipEmailFromImport(surname, name)
+                        && email != null && !email.trim().isEmpty()) {
                     newUser.setEmail(email.trim());
                 }
                 userRepository.save(newUser);

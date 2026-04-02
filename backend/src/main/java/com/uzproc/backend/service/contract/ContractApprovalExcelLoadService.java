@@ -8,6 +8,7 @@ import com.uzproc.backend.repository.CfoRepository;
 import com.uzproc.backend.repository.contract.ContractApprovalRepository;
 import com.uzproc.backend.repository.contract.ContractRepository;
 import com.uzproc.backend.repository.user.UserRepository;
+import com.uzproc.backend.service.user.UserImportEmailPolicy;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -372,6 +373,10 @@ public class ContractApprovalExcelLoadService {
                 String[] parts = fullName.trim().split("\\s+", 2);
                 if (parts.length >= 1) surname = parts[0].trim();
                 if (parts.length >= 2) name = parts[1].trim();
+            }
+
+            if (UserImportEmailPolicy.shouldSkipEmailFromImport(surname, name)) {
+                email = null;
             }
 
             // 1. Приоритет: поиск по фамилии и имени (как в согласовании)
