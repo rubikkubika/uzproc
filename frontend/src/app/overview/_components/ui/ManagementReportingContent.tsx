@@ -38,6 +38,9 @@ export interface ManagementReportingContentProps {
 
 const USD_TO_UZS_RATE = 12000;
 
+/** Целевой % выполнения SLA в блоке «Управленческая отчётность». */
+const MANAGEMENT_REPORTING_SLA_TARGET_PERCENT = 80;
+
 function formatAmount(value: number, currency: 'UZS' | 'USD' = 'UZS'): string {
   const v = currency === 'USD' ? value / USD_TO_UZS_RATE : value;
   const suffix = currency === 'USD' ? ' $' : '';
@@ -343,11 +346,11 @@ export function ManagementReportingContent({
                   valueClassName="text-slate-700"
                   valueBackgroundClassName="bg-transparent border-transparent"
                 >
-                  75%
+                  {MANAGEMENT_REPORTING_SLA_TARGET_PERCENT}%
                 </KpiTargetChip>
                 {!slaLoading && averageSlaPercentage != null && (
                   <span className={`rounded-lg px-1.5 py-0.5 text-[11px] font-semibold shadow-sm border ${
-                    averageSlaPercentage >= 75
+                    averageSlaPercentage >= MANAGEMENT_REPORTING_SLA_TARGET_PERCENT
                       ? 'bg-green-100 border-green-300 text-green-800'
                       : 'bg-red-100 border-red-300 text-red-800'
                   }`}>
