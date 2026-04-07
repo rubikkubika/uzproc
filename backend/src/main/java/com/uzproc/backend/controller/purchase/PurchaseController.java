@@ -44,15 +44,15 @@ public class PurchaseController {
             @RequestParam(required = false) List<String> status,
             @RequestParam(required = false) java.math.BigDecimal budgetAmount,
             @RequestParam(required = false) String budgetAmountOperator,
-            @RequestParam(required = false) String mcc) {
-        
+            @RequestParam(required = false) String purchaseMethod) {
+
         System.out.println("=== PurchaseController.getAllPurchases ===");
         System.out.println("Received budget filter parameters: budgetAmount=" + budgetAmount + ", budgetAmountOperator='" + budgetAmountOperator + "'");
-        
+
         Page<PurchaseDto> purchases = purchaseService.findAll(
                 page, size, year, month, sortBy, sortDir, innerId, purchaseNumber, cfo, purchaseInitiator,
                 name, costType, contractType, purchaseRequestId, purchaser, status,
-                budgetAmount, budgetAmountOperator, mcc);
+                budgetAmount, budgetAmountOperator, purchaseMethod);
         
         System.out.println("Returned " + purchases.getTotalElements() + " purchases");
         System.out.println("=== End PurchaseController.getAllPurchases ===\n");

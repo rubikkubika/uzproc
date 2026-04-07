@@ -70,7 +70,7 @@ public class OverviewService {
     private final OverviewEkProperties overviewEkProperties;
     private final WorkingDayService workingDayService;
 
-    /** Подстрока способа закупки (mcc) у связанной закупки для признака «Закупка у единственного источника». */
+    /** Подстрока способа закупки у связанной закупки для признака «Закупка у единственного источника». */
     private static final String SINGLE_SOURCE_MCC_SUBSTRING = "единственного источника";
 
     public OverviewService(
@@ -797,16 +797,16 @@ public class OverviewService {
     /**
      * Данные для диаграммы ЕК: сводка за год по фильтру назначения на закупщика (расчёт на бэкенде).
      * Учитываются заявки с типом закупка (requiresPurchase=true). Не учитываются: Проект, не согласованные, не утверждённые, исключённые, из в работе.
-     * Возвращает: totalAmount — сумма всех таких заявок; singleSourceAmount — сумма заявок, у которых связанная закупка со способом (mcc) «у единственного источника»; percentSingleSource — процент singleSourceAmount к totalAmount.
+     * Возвращает: totalAmount — сумма всех таких заявок; singleSourceAmount — сумма заявок, у которых связанная закупка со способом закупки «у единственного источника»; percentSingleSource — процент singleSourceAmount к totalAmount.
      * Год — год назначения на закупщика. Если по году назначения данных нет, используется год создания заявки.
      */
     public OverviewEkChartResponseDto getEkChartData(int year) {
-        List<Long> singleSourceIdsRaw = purchaseRepository.findDistinctPurchaseRequestIdByMccContaining(SINGLE_SOURCE_MCC_SUBSTRING);
+        List<Long> singleSourceIdsRaw = purchaseRepository.findDistinctPurchaseRequestIdByPurchaseMethodContaining(SINGLE_SOURCE_MCC_SUBSTRING);
         Set<Long> singleSourceRequestIds = singleSourceIdsRaw.stream()
                 .filter(java.util.Objects::nonNull)
                 .map(id -> id instanceof Long ? id : Long.valueOf(((Number) id).longValue()))
                 .collect(Collectors.toSet());
-        logger.info("Overview EK: single-source purchase request IDs (mcc contains '{}'): {} count, sample: {}",
+        logger.info("Overview EK: single-source purchase request IDs (purchaseMethod contains '{}'): {} count, sample: {}",
                 SINGLE_SOURCE_MCC_SUBSTRING, singleSourceRequestIds.size(),
                 singleSourceIdsRaw.isEmpty() ? "none" : singleSourceIdsRaw.subList(0, Math.min(5, singleSourceIdsRaw.size())));
         int pageSize = 50_000;

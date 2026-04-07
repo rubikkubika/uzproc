@@ -59,14 +59,14 @@ public class PurchaseService {
             List<String> status,
             java.math.BigDecimal budgetAmount,
             String budgetAmountOperator,
-            String mcc) {
-        
+            String purchaseMethod) {
+
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, month: {}, innerId: '{}', purchaseNumber: {}, cfo: {}, purchaseInitiator: '{}', name: '{}', costType: '{}', contractType: '{}', purchaseRequestId: {}, purchaser: {}, status: {}, budgetAmount: {}, budgetAmountOperator: '{}', mcc: '{}'",
-                year, month, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType, purchaseRequestId, purchaser, status, budgetAmount, budgetAmountOperator, mcc);
-        
+        logger.info("Filter parameters - year: {}, month: {}, innerId: '{}', purchaseNumber: {}, cfo: {}, purchaseInitiator: '{}', name: '{}', costType: '{}', contractType: '{}', purchaseRequestId: {}, purchaser: {}, status: {}, budgetAmount: {}, budgetAmountOperator: '{}', purchaseMethod: '{}'",
+                year, month, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType, purchaseRequestId, purchaser, status, budgetAmount, budgetAmountOperator, purchaseMethod);
+
         Specification<Purchase> spec = buildSpecification(
-                year, month, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType, purchaseRequestId, purchaser, status, budgetAmount, budgetAmountOperator, mcc);
+                year, month, innerId, purchaseNumber, cfo, purchaseInitiator, name, costType, contractType, purchaseRequestId, purchaser, status, budgetAmount, budgetAmountOperator, purchaseMethod);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -122,7 +122,7 @@ public class PurchaseService {
         dto.setName(entity.getName());
         dto.setTitle(entity.getTitle());
         dto.setCfo(entity.getCfo() != null ? entity.getCfo().getName() : null);
-        dto.setMcc(entity.getMcc());
+        dto.setPurchaseMethod(entity.getPurchaseMethod());
         dto.setPurchaseInitiator(entity.getPurchaseInitiator());
         dto.setPurchaseSubject(entity.getPurchaseSubject());
         dto.setBudgetAmount(entity.getBudgetAmount());
@@ -150,8 +150,7 @@ public class PurchaseService {
         dto.setUpdatedAt(entity.getUpdatedAt());
         
         // Новые поля для таблицы закупок
-        // Способ закупки (mcc)
-        dto.setPurchaseMethod(entity.getMcc());
+        dto.setPurchaseMethod(entity.getPurchaseMethod());
         
         // Дата создания заявки на закупку (связанной)
         if (entity.getPurchaseRequest() != null) {
@@ -200,8 +199,8 @@ public class PurchaseService {
             List<String> status,
             java.math.BigDecimal budgetAmount,
             String budgetAmountOperator,
-            String mcc) {
-        
+            String purchaseMethod) {
+
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             int predicateCount = 0;
@@ -428,11 +427,11 @@ public class PurchaseService {
                         budgetAmount, budgetAmountOperator);
             }
             
-            // Фильтр по способу закупки (mcc) - частичное совпадение, case-insensitive
-            if (mcc != null && !mcc.trim().isEmpty()) {
-                predicates.add(cb.like(cb.lower(root.get("mcc")), "%" + mcc.toLowerCase() + "%"));
+            // Фильтр по способу закупки - частичное совпадение, case-insensitive
+            if (purchaseMethod != null && !purchaseMethod.trim().isEmpty()) {
+                predicates.add(cb.like(cb.lower(root.get("purchaseMethod")), "%" + purchaseMethod.toLowerCase() + "%"));
                 predicateCount++;
-                logger.info("Added mcc filter: '{}'", mcc);
+                logger.info("Added purchaseMethod filter: '{}'", purchaseMethod);
             }
             
             logger.info("Total predicates added: {}", predicateCount);

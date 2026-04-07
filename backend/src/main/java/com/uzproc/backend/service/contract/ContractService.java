@@ -57,14 +57,15 @@ public class ContractService {
             Long currentUserId,
             Boolean inWorkTab,
             Boolean signedTab,
+            Boolean hiddenTab,
             String purchaseRequestInnerId) {
 
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, innerId: '{}', cfo: {}, name: '{}', documentForm: '{}', costType: '{}', contractType: '{}', currentUserId: {}, inWorkTab: {}, signedTab: {}, purchaseRequestInnerId: '{}'",
-                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, purchaseRequestInnerId);
+        logger.info("Filter parameters - year: {}, innerId: '{}', cfo: {}, name: '{}', documentForm: '{}', costType: '{}', contractType: '{}', currentUserId: {}, inWorkTab: {}, signedTab: {}, hiddenTab: {}, purchaseRequestInnerId: '{}'",
+                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, hiddenTab, purchaseRequestInnerId);
 
         Specification<Contract> spec = buildSpecification(
-                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, purchaseRequestInnerId);
+                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, hiddenTab, purchaseRequestInnerId);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -209,7 +210,7 @@ public class ContractService {
         dto.setName(entity.getName());
         dto.setTitle(entity.getTitle());
         dto.setCfo(entity.getCfo() != null ? entity.getCfo().getName() : null);
-        dto.setMcc(entity.getMcc());
+        dto.setPurchaseMethod(entity.getPurchaseMethod());
         dto.setDocumentForm(entity.getDocumentForm());
         dto.setBudgetAmount(entity.getBudgetAmount());
         dto.setCurrency(entity.getCurrency());
@@ -290,6 +291,7 @@ public class ContractService {
             Long currentUserId,
             Boolean inWorkTab,
             Boolean signedTab,
+            Boolean hiddenTab,
             String purchaseRequestInnerId) {
 
         return (root, query, cb) -> {
@@ -379,6 +381,7 @@ public class ContractService {
             }
 
             // Фильтр для вкладки "В работе": подготовил = договорник, все статусы кроме "Подписан" (Проект, На согласовании, Не согласован, null)
+            // Договоры, исключённые из расчёта (excludedFromStatusCalculation = true), не показываем в этой вкладке
             if (inWorkTab != null && inWorkTab) {
                 jakarta.persistence.criteria.Join<Contract, com.uzproc.backend.entity.user.User> preparedByJoin = root.join("preparedBy", jakarta.persistence.criteria.JoinType.INNER);
                 predicates.add(cb.equal(preparedByJoin.get("isContractor"), true));
@@ -386,8 +389,13 @@ public class ContractService {
                     cb.isNull(root.get("status")),
                     cb.not(cb.equal(root.get("status"), ContractStatus.SIGNED))
                 ));
+                // Исключаем скрытые договоры
+                predicates.add(cb.or(
+                    cb.isNull(root.get("excludedFromStatusCalculation")),
+                    cb.equal(root.get("excludedFromStatusCalculation"), false)
+                ));
                 predicateCount++;
-                logger.info("Added inWorkTab filter: preparedBy.isContractor = true, all statuses except Подписан");
+                logger.info("Added inWorkTab filter: preparedBy.isContractor = true, all statuses except Подписан, excludedFromStatusCalculation = false/null");
             }
 
             // Фильтр для вкладки "Подписаны": статус "Подписан" и подготовил = договорник (isContractor = true)
@@ -397,6 +405,13 @@ public class ContractService {
                 predicates.add(cb.equal(preparedByJoin.get("isContractor"), true));
                 predicateCount++;
                 logger.info("Added signedTab filter: status = Подписан, preparedBy.isContractor = true");
+            }
+
+            // Фильтр для вкладки "Скрытые": только договоры с excludedFromStatusCalculation = true
+            if (hiddenTab != null && hiddenTab) {
+                predicates.add(cb.equal(root.get("excludedFromStatusCalculation"), true));
+                predicateCount++;
+                logger.info("Added hiddenTab filter: excludedFromStatusCalculation = true");
             }
 
             logger.info("Total predicates: {}", predicateCount);

@@ -305,21 +305,21 @@ export default function PurchaseRequestsTableColumnsHeader({
             );
           }
           
-          if (columnKey === 'mcc') {
+          if (columnKey === 'purchaseMethod') {
             return (
               <SortableHeader
                 key={columnKey}
-                field="mcc"
-                label="МЦК"
-                columnKey="mcc"
-                width={getColumnWidth('mcc')}
+                field="purchaseMethod"
+                label="Способ закупки"
+                columnKey="purchaseMethod"
+                width={getColumnWidth('purchaseMethod')}
                 sortField={sortField}
                 sortDirection={sortDirection}
                 onSort={onSort}
-                filterValue={localFilters.mcc || ''}
-                onFilterChange={(value) => handleFilterChangeForHeader('mcc', value)}
-                onFocus={() => handleFocusForHeader('mcc')}
-                onBlur={(e) => handleBlurForHeader(e, 'mcc')}
+                filterValue={localFilters.purchaseMethod || ''}
+                onFilterChange={(value) => handleFilterChangeForHeader('purchaseMethod', value)}
+                onFocus={() => handleFocusForHeader('purchaseMethod')}
+                onBlur={(e) => handleBlurForHeader(e, 'purchaseMethod')}
                 onDragStart={onDragStart}
                 onDragOver={onDragOver}
                 onDragLeave={onDragLeave}

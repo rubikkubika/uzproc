@@ -47,13 +47,20 @@ export default function PurchaseRequestsTableTabs({
           <button
             key={tab.key}
             onClick={handleClick}
-            className={`px-3 py-1 text-xs font-medium rounded-lg border transition-colors shadow-sm ${
+            className={`px-3 py-1 text-xs font-medium rounded-lg border transition-colors shadow-sm flex items-center gap-1 ${
               activeTab === tab.key
                 ? 'bg-blue-600 text-white border-blue-600'
                 : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
             }`}
           >
-            {tab.label} {count !== null ? `(${count})` : '(0)'}
+            {tab.label}
+            <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
+              activeTab === tab.key
+                ? 'bg-white/20 text-white'
+                : 'bg-gray-100 text-gray-600'
+            }`}>
+              {count !== null ? count : '0'}
+            </span>
           </button>
         );
       })}

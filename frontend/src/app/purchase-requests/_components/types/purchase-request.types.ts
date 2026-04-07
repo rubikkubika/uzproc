@@ -21,7 +21,7 @@ export interface PurchaseRequest {
   purchaseRequestPlanYear: number | null;
   company: string | null;
   cfo: string | null;
-  mcc: string | null;
+  purchaseMethod: string | null;
   purchaseRequestInitiator: string | null;
   purchaser: string | null;
   name: string | null;

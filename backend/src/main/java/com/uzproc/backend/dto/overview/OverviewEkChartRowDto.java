@@ -13,7 +13,7 @@ public class OverviewEkChartRowDto {
     private String currency;
     /** Всего заявок (тип закупка) в учёте за год назначения на закупщика. */
     private int totalCount;
-    /** Заявок, у которых связанная закупка имеет способ закупки (mcc) «Закупка у единственного источника». */
+    /** Заявок, у которых связанная закупка имеет способ закупки «Закупка у единственного источника». */
     private int singleSupplierCount;
     /** Сумма бюджетов всех учтённых заявок. */
     private BigDecimal totalAmount;

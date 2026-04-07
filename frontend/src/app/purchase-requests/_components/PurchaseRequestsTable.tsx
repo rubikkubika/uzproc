@@ -629,7 +629,7 @@ export default function PurchaseRequestsTable() {
       guid: '',
       purchaseRequestPlanYear: '',
       company: '',
-      mcc: '',
+      purchaseMethod: '',
       cfo: '',
       purchaseRequestInitiator: '',
       purchaser: '',

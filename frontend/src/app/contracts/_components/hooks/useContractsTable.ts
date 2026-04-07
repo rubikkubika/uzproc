@@ -5,6 +5,8 @@ import { useContractsFilters } from './useContractsFilters';
 import { useContractsData } from './useContractsData';
 import { useClickOutside } from './useClickOutside';
 import { useInfiniteScroll } from './useInfiniteScroll';
+import { useExcludeFromStatusCalculation } from './useExcludeFromStatusCalculation';
+import { useContractTabCounts } from './useContractTabCounts';
 
 export const useContractsTable = () => {
   const [data, setData] = useState<PageResponse | null>(null);
@@ -25,6 +27,16 @@ export const useContractsTable = () => {
 
   const filtersHook = useContractsFilters(setCurrentPage);
   const dataHook = useContractsData();
+  const { tabCounts, refreshTabCounts } = useContractTabCounts({
+    selectedYear,
+    filters: filtersHook.filters,
+    cfoFilter: filtersHook.cfoFilter,
+  });
+
+  const { updateExcludeFromStatusCalculation } = useExcludeFromStatusCalculation({
+    setAllItems,
+    onAfterUpdate: refreshTabCounts,
+  });
 
   useClickOutside({
     isOpen: filtersHook.isCfoFilterOpen,
@@ -173,6 +185,7 @@ export const useContractsTable = () => {
   return {
     data,
     allItems,
+    setAllItems,
     loading,
     loadingMore,
     error,
@@ -190,5 +203,8 @@ export const useContractsTable = () => {
     filters: filtersHook,
     hasMore,
     loadMoreRef,
+    updateExcludeFromStatusCalculation,
+    tabCounts,
+    refreshTabCounts,
   };
 };

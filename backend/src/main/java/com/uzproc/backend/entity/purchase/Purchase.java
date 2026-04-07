@@ -43,8 +43,8 @@ public class Purchase {
     @JoinColumn(name = "cfo_id")
     private Cfo cfo;
 
-    @Column(name = "mcc", length = 255)
-    private String mcc;
+    @Column(name = "purchase_method", length = 255)
+    private String purchaseMethod;
 
     @Column(name = "purchase_initiator", length = 255)
     private String purchaseInitiator;
@@ -210,12 +210,12 @@ public class Purchase {
         this.cfo = cfo;
     }
 
-    public String getMcc() {
-        return mcc;
+    public String getPurchaseMethod() {
+        return purchaseMethod;
     }
 
-    public void setMcc(String mcc) {
-        this.mcc = mcc;
+    public void setPurchaseMethod(String purchaseMethod) {
+        this.purchaseMethod = purchaseMethod;
     }
 
     public String getPurchaseInitiator() {

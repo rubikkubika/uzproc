@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { ArrowUp, ArrowDown, ArrowUpDown, Search, Settings } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpDown, Search, Settings, Eye, EyeOff } from 'lucide-react';
 import { useContractsTable } from './hooks/useContractsTable';
 import { SortField } from './types/contracts.types';
 import ContractsTableTabs from './ui/ContractsTableTabs';
@@ -31,10 +31,14 @@ export default function ContractsTable() {
     handleResetFilters,
     filters,
     loadMoreRef,
+    updateExcludeFromStatusCalculation,
+    tabCounts,
+    refreshTabCounts,
   } = useContractsTable();
 
   const isTabWithPreparedBy = filters.activeTab === 'in-work' || filters.activeTab === 'signed';
-  const totalColumns = isTabWithPreparedBy ? 10 : 9;
+  // +1 для колонки с глазиком
+  const totalColumns = isTabWithPreparedBy ? 11 : 10;
 
   const handleRowClick = (contractId: number, e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
@@ -186,6 +190,7 @@ export default function ContractsTable() {
         }}
         showRemarks={showRemarks}
         onRemarksToggle={() => setShowRemarks(v => !v)}
+        tabCounts={tabCounts}
       />
 
       {showRemarks ? (
@@ -195,6 +200,16 @@ export default function ContractsTable() {
         <table className="w-full max-w-full border-collapse table-fixed">
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
+              {/* Глазик - скрыть/показать */}
+              <th className="px-1 py-2 text-center text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '32px', minWidth: '32px', maxWidth: '32px' }}>
+                <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                  <div className="h-[24px] flex items-center justify-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}>
+                  </div>
+                  <div className="flex items-center justify-center min-h-[20px]">
+                    <Eye className="w-3 h-3 text-gray-400" />
+                  </div>
+                </div>
+              </th>
               {/* Внутренний номер */}
               <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: isTabWithPreparedBy ? '7%' : '8%' }}>
                 <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
@@ -404,13 +419,28 @@ export default function ContractsTable() {
                 </td>
               </tr>
             ) : allItems.length > 0 ? (
-              allItems.map((contract) => (
+              allItems.map((contract) => {
+                const isHidden = contract.excludedFromStatusCalculation === true;
+                return (
                 <tr
                   key={contract.id}
-                  className="hover:bg-gray-50 cursor-pointer leading-tight"
+                  className={`cursor-pointer leading-tight ${isHidden ? 'bg-gray-100 opacity-60 hover:opacity-80' : 'hover:bg-gray-50'}`}
                   onClick={(e) => handleRowClick(contract.id, e)}
                   onAuxClick={(e) => handleRowAuxClick(contract.id, e)}
                 >
+                  {/* Глазик */}
+                  <td className="px-1 py-2 text-center border-r border-gray-300" style={{ width: '32px', minWidth: '32px', maxWidth: '32px' }}>
+                    <button
+                      title={isHidden ? 'Показать в расчёте статусов' : 'Исключить из расчёта статусов'}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        updateExcludeFromStatusCalculation(contract.id, !isHidden);
+                      }}
+                      className={`flex items-center justify-center w-full h-full transition-colors ${isHidden ? 'text-gray-400 hover:text-gray-600' : 'text-gray-300 hover:text-gray-500'}`}
+                    >
+                      {isHidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 break-words">
                     {contract.innerId || '-'}
                   </td>
@@ -468,7 +498,8 @@ export default function ContractsTable() {
                     </td>
                   )}
                 </tr>
-              ))
+                );
+              })
             ) : (
               <tr>
                 <td colSpan={totalColumns} className="px-6 py-8 text-center text-gray-500">

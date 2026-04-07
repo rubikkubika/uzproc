@@ -6,7 +6,7 @@ export const ALL_COLUMNS = [
   { key: 'purchaseRequestPlanYear', label: 'Год плана' },
   { key: 'company', label: 'Компания' },
   { key: 'cfo', label: 'ЦФО' },
-  { key: 'mcc', label: 'МЦК' },
+  { key: 'purchaseMethod', label: 'Способ закупки' },
   { key: 'purchaseRequestInitiator', label: 'Инициатор' },
   { key: 'purchaser', label: 'Закупщик' },
   { key: 'name', label: 'Название' },

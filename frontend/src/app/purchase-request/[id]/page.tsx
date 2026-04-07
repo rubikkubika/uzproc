@@ -19,7 +19,7 @@ interface PurchaseRequest {
   purchaseRequestPlanYear: number | null;
   company: string | null;
   cfo: string | null;
-  mcc: string | null;
+  purchaseMethod: string | null;
   purchaseRequestInitiator: string | null;
   purchaser: string | null;
   name: string | null;
@@ -51,7 +51,7 @@ interface Purchase {
   cfo: string | null;
   purchaseRequestId: number | null;
   status: string | null;
-  purchaseMethod: string | null; // Способ закупки (mcc)
+  purchaseMethod: string | null;
   purchaseCreationDate: string | null;
   savings: number | null;
   savingsType: string | null;

@@ -22,7 +22,7 @@ interface ContractDetail {
   name: string | null;
   title: string | null;
   cfo: string | null;
-  mcc: string | null;
+  purchaseMethod: string | null;
   documentForm: string | null;
   budgetAmount: number | null;
   currency: string | null;
@@ -259,7 +259,7 @@ export default function ContractDetailPage() {
                     <InfoField label="Форма документа" value={contract.documentForm} />
                     <InfoField label="Тип затрат" value={contract.costType} />
                     <InfoField label="Тип договора" value={contract.contractType} />
-                    <InfoField label="МСС" value={contract.mcc} />
+                    <InfoField label="Способ закупки" value={contract.purchaseMethod} />
                     <InfoField label="Дата создания" value={formatDate(contract.contractCreationDate)} />
                     <InfoField label="Срок действия (мес.)" value={contract.contractDurationMonths != null ? String(contract.contractDurationMonths) : null} />
                     <InfoField label="Состояние" value={contract.state} />

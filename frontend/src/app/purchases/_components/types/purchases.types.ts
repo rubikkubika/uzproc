@@ -18,7 +18,7 @@ export interface Purchase {
   createdAt: string;
   updatedAt: string;
   // Новые поля
-  purchaseMethod: string | null; // Способ закупки (mcc)
+  purchaseMethod: string | null;
   purchaseRequestCreatedAt: string | null; // Дата создания заявки на закупку (связанной)
   approvalDate: string | null; // Дата утверждения (из блока согласования)
   purchaseRequestSubject: string | null; // Предмет заявки на закупку (наименование)

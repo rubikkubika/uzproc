@@ -108,7 +108,7 @@ export default function RemarksPanel() {
   const groups = groupByContract(allRemarks);
 
   return (
-    <div className="flex-1 min-w-0 overflow-auto p-3 custom-scrollbar">
+    <div className="flex-1 min-w-0 overflow-auto p-2 custom-scrollbar">
       {loading && (
         <div className="text-xs text-gray-500 text-center py-6">Загрузка...</div>
       )}
@@ -119,11 +119,11 @@ export default function RemarksPanel() {
         <div className="text-xs text-gray-400 text-center py-6">Замечаний нет</div>
       )}
 
-      <div className="space-y-3">
+      <div className="space-y-1.5">
         {groups.map((group) => (
           <div key={group.contractId} className="border border-gray-200 rounded bg-white overflow-hidden">
             {/* Заголовок договора */}
-            <div className="px-3 py-2 bg-gray-50 border-b border-gray-200 flex items-baseline gap-2 flex-wrap">
+            <div className="px-2 py-1 bg-gray-50 border-b border-gray-200 flex items-center gap-2 flex-wrap">
               <span className="text-xs font-semibold text-gray-800">
                 {group.contractInnerId || '—'}
                 {group.contractName ? ` — ${group.contractName}` : ''}
@@ -138,9 +138,9 @@ export default function RemarksPanel() {
             {/* Замечания группы */}
             <div className="divide-y divide-gray-100">
               {group.remarks.map((remark, idx) => (
-                <div key={idx} className="px-3 py-2 flex gap-4 items-start">
+                <div key={idx} className="px-2 py-1 flex gap-3 items-start">
                   {/* Мета-блок */}
-                  <div className="flex-shrink-0 w-48 space-y-0.5 text-[10px] text-gray-500 pt-0.5">
+                  <div className="flex-shrink-0 w-40 space-y-0 text-[10px] text-gray-500 leading-tight">
                     {remark.executorName && (
                       <div><span className="font-medium text-gray-700">{remark.executorName}</span></div>
                     )}
@@ -149,7 +149,7 @@ export default function RemarksPanel() {
                     <div className="text-gray-400">{fmtDate(remark.completionDate)}</div>
                   </div>
                   {/* Текст замечания */}
-                  <div className="flex-1 min-w-0 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 text-xs text-gray-800 whitespace-pre-wrap break-words">
+                  <div className="flex-1 min-w-0 bg-amber-50 border border-amber-200 rounded px-2 py-1 text-xs text-gray-800 whitespace-pre-wrap break-words leading-snug">
                     {remark.commentText}
                   </div>
                 </div>

@@ -174,15 +174,15 @@ export default function PurchaseRequestsTableRow({
           );
         }
         
-        if (columnKey === 'mcc') {
+        if (columnKey === 'purchaseMethod') {
           return (
-            <td 
+            <td
               key={columnKey}
-              className="pl-0.5 pr-0 py-0 text-xs text-gray-900 truncate border-r border-gray-200 overflow-hidden" 
-              style={{ width: `${getColumnWidth('mcc')}px`, minWidth: `${getColumnWidth('mcc')}px`, maxWidth: `${getColumnWidth('mcc')}px` }}
-              title={request.mcc || ''}
+              className="pl-0.5 pr-0 py-0 text-xs text-gray-900 truncate border-r border-gray-200 overflow-hidden"
+              style={{ width: `${getColumnWidth('purchaseMethod')}px`, minWidth: `${getColumnWidth('purchaseMethod')}px`, maxWidth: `${getColumnWidth('purchaseMethod')}px` }}
+              title={request.purchaseMethod || ''}
             >
-              {request.mcc || '-'}
+              {request.purchaseMethod || '-'}
             </td>
           );
         }

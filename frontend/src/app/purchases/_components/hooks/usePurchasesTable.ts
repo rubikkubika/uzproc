@@ -109,7 +109,7 @@ export const usePurchasesTable = () => {
 
       // Фильтр по способу закупки
       if (textFilters.purchaseMethod && textFilters.purchaseMethod.trim() !== '') {
-        params.append('mcc', textFilters.purchaseMethod.trim());
+        params.append('purchaseMethod', textFilters.purchaseMethod.trim());
       }
 
       const url = `${getBackendUrl()}/api/purchases?${params.toString()}`;

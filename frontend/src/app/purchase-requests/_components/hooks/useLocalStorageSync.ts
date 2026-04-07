@@ -204,7 +204,7 @@ export function useLocalStorageSync(params: UseLocalStorageSyncParams) {
           guid: '',
           purchaseRequestPlanYear: '',
           company: '',
-          mcc: '',
+          purchaseMethod: '',
           cfo: '',
           purchaseRequestInitiator: '',
           purchaser: '',

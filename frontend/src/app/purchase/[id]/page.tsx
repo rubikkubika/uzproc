@@ -13,7 +13,7 @@ interface PurchaseRequest {
   purchaseRequestPlanYear: number | null;
   company: string | null;
   cfo: string | null;
-  mcc: string | null;
+  purchaseMethod: string | null;
   purchaseRequestInitiator: string | null;
   purchaser: string | null;
   name: string | null;
@@ -43,7 +43,7 @@ interface Purchase {
   name: string | null;
   title: string | null;
   cfo: string | null;
-  mcc: string | null;
+  purchaseMethod: string | null;
   purchaseInitiator: string | null;
   purchaseSubject: string | null;
   budgetAmount: number | null;
@@ -1086,7 +1086,7 @@ export default function PurchaseDetailPage() {
                           МЦЦ
                         </label>
                         <p className="text-xs text-gray-900">
-                          {purchase.mcc || '-'}
+                          {purchase.purchaseMethod || '-'}
                         </p>
                       </div>
                       <div>
@@ -1873,7 +1873,7 @@ export default function PurchaseDetailPage() {
                       МЦЦ
                                   </label>
                                   <p className="text-xs text-gray-900">
-                      {purchaseRequest.mcc || '-'}
+                      {purchaseRequest.purchaseMethod || '-'}
                                   </p>
                                 </div>
                               <div>

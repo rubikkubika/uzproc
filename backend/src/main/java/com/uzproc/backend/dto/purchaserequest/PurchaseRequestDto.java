@@ -18,7 +18,7 @@ public class PurchaseRequestDto {
     private Integer purchaseRequestPlanYear;
     private String company;
     private String cfo;
-    private String mcc;
+    private String purchaseMethod;
     private String purchaseRequestInitiator;
     private String purchaser;
     private String purchaseRequestSubject;
@@ -156,12 +156,12 @@ public class PurchaseRequestDto {
         this.cfo = cfo;
     }
 
-    public String getMcc() {
-        return mcc;
+    public String getPurchaseMethod() {
+        return purchaseMethod;
     }
 
-    public void setMcc(String mcc) {
-        this.mcc = mcc;
+    public void setPurchaseMethod(String purchaseMethod) {
+        this.purchaseMethod = purchaseMethod;
     }
 
     public String getPurchaseRequestInitiator() {

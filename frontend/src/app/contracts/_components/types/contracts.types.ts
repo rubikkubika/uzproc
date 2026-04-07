@@ -14,7 +14,7 @@ export interface Contract {
   name: string | null;
   title: string | null;
   cfo: string | null;
-  mcc: string | null;
+  purchaseMethod: string | null;
   documentForm: string | null;
   budgetAmount: number | null;
   currency: string | null;
@@ -30,6 +30,8 @@ export interface Contract {
   preparedBy: string | null;  // ФИО пользователя (договорника), который подготовил договор
   purchaseRequestId: number | null;
   purchaseRequestInnerId: number | null;  // Внутренний номер связанной заявки
+  excludedFromStatusCalculation: boolean | null;
+  exclusionComment: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -46,4 +48,4 @@ export type SortField = keyof Contract | null;
 export type SortDirection = 'asc' | 'desc' | null;
 
 // Типы вкладок для таблицы договоров
-export type TabType = 'in-work' | 'signed' | 'all';
+export type TabType = 'in-work' | 'signed' | 'all' | 'hidden';

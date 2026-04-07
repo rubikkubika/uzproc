@@ -668,7 +668,7 @@ public class PurchaseRequestService {
         dto.setPurchaseRequestPlanYear(entity.getPurchaseRequestPlanYear());
         dto.setCompany(entity.getCompany());
         dto.setCfo(entity.getCfo() != null ? entity.getCfo().getName() : null);
-        dto.setMcc(entity.getMcc());
+        dto.setPurchaseMethod(entity.getPurchaseMethod());
         dto.setPurchaseRequestInitiator(entity.getPurchaseRequestInitiator());
         dto.setPurchaser(entity.getPurchaser());
         dto.setPurchaseRequestSubject(entity.getPurchaseRequestSubject());

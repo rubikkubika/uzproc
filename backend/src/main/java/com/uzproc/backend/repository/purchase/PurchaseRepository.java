@@ -17,9 +17,9 @@ import java.util.UUID;
 @Repository
 public interface PurchaseRepository extends JpaRepository<Purchase, Long>, JpaSpecificationExecutor<Purchase> {
 
-    /** ID заявок, у которых есть хотя бы одна связанная закупка с указанной подстрокой в способе закупки (mcc). */
-    @Query("SELECT DISTINCT p.purchaseRequestId FROM Purchase p WHERE p.mcc IS NOT NULL AND LOWER(p.mcc) LIKE LOWER(CONCAT(CONCAT('%', :mccSubstring), '%'))")
-    List<Long> findDistinctPurchaseRequestIdByMccContaining(@Param("mccSubstring") String mccSubstring);
+    /** ID заявок, у которых есть хотя бы одна связанная закупка с указанной подстрокой в способе закупки. */
+    @Query("SELECT DISTINCT p.purchaseRequestId FROM Purchase p WHERE p.purchaseMethod IS NOT NULL AND LOWER(p.purchaseMethod) LIKE LOWER(CONCAT(CONCAT('%', :purchaseMethodSubstring), '%'))")
+    List<Long> findDistinctPurchaseRequestIdByPurchaseMethodContaining(@Param("purchaseMethodSubstring") String purchaseMethodSubstring);
     Optional<Purchase> findByGuid(UUID guid);
     boolean existsByGuid(UUID guid);
     Optional<Purchase> findByPurchaseNumber(Long purchaseNumber);

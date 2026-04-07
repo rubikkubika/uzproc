@@ -73,13 +73,17 @@ export const useContractsData = () => {
         params.append('purchaseRequestInnerId', filters.purchaseRequestInnerId.trim());
       }
 
-      // Вкладка "В работе": подготовил = договорник, без договоров в статусе Подписан
+      // Вкладка "В работе": подготовил = договорник, без договоров в статусе Подписан, без скрытых
       if (activeTab === 'in-work') {
         params.append('inWorkTab', 'true');
       }
       // Вкладка "Подписаны": статус Подписан и подготовил = договорник
       if (activeTab === 'signed') {
         params.append('signedTab', 'true');
+      }
+      // Вкладка "Скрытые": только договоры с excludedFromStatusCalculation = true
+      if (activeTab === 'hidden') {
+        params.append('hiddenTab', 'true');
       }
 
       const fetchUrl = `${getBackendUrl()}/api/contracts?${params.toString()}`;

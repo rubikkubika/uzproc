@@ -15,7 +15,7 @@ const TEXT_FIELDS = [
   'guid',
   'purchaseRequestPlanYear',
   'company',
-  'mcc',
+  'purchaseMethod',
   'purchaseRequestInitiator',
   'purchaseRequestCreationDate',
   'createdAt',

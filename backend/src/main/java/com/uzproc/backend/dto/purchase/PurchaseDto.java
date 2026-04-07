@@ -16,7 +16,6 @@ public class PurchaseDto {
     private String name;
     private String title;
     private String cfo;
-    private String mcc;
     private String purchaseInitiator;
     private String purchaseSubject;
     private BigDecimal budgetAmount;
@@ -35,7 +34,7 @@ public class PurchaseDto {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     // Новые поля для таблицы закупок
-    private String purchaseMethod; // Способ закупки (mcc)
+    private String purchaseMethod;
     private LocalDateTime purchaseRequestCreatedAt; // Дата создания заявки на закупку (связанной)
     private LocalDateTime approvalDate; // Дата утверждения (из блока согласования)
     private String purchaseRequestSubject; // Предмет заявки на закупку (наименование)
@@ -113,13 +112,6 @@ public class PurchaseDto {
         this.cfo = cfo;
     }
 
-    public String getMcc() {
-        return mcc;
-    }
-
-    public void setMcc(String mcc) {
-        this.mcc = mcc;
-    }
 
     public String getPurchaseInitiator() {
         return purchaseInitiator;

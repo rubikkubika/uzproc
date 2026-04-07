@@ -15,7 +15,7 @@ public class ContractDto {
     private String name;
     private String title;
     private String cfo;
-    private String mcc;
+    private String purchaseMethod;
     private String documentForm;
     private BigDecimal budgetAmount;
     private String currency;
@@ -107,12 +107,12 @@ public class ContractDto {
         this.cfo = cfo;
     }
 
-    public String getMcc() {
-        return mcc;
+    public String getPurchaseMethod() {
+        return purchaseMethod;
     }
 
-    public void setMcc(String mcc) {
-        this.mcc = mcc;
+    public void setPurchaseMethod(String purchaseMethod) {
+        this.purchaseMethod = purchaseMethod;
     }
 
     public String getDocumentForm() {

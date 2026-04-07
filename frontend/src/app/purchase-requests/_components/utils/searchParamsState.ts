@@ -29,7 +29,7 @@ const DEFAULT_FILTERS: Record<string, string> = {
   guid: '',
   purchaseRequestPlanYear: '',
   company: '',
-  mcc: '',
+  purchaseMethod: '',
   cfo: '',
   purchaseRequestInitiator: '',
   purchaser: '',

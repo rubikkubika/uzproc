@@ -189,7 +189,7 @@ export function useTableColumns(activeTab?: TabType) {
       guid: 156,
       purchaseRequestPlanYear: 66,
       company: 96,
-      mcc: 66,
+      purchaseMethod: 66,
       currency: 56,
       createdAt: 124,
       updatedAt: 124,

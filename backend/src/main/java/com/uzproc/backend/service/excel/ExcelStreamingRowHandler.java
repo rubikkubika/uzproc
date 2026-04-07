@@ -967,18 +967,18 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             }
             
             // Способ закупки (опционально) - парсим из колонки "Способ закупки (Заявка на ЗП)"
-            Integer mccCol = columnIndices.get(MCC_COLUMN);
-            if (mccCol == null) {
-                mccCol = findColumnIndex(MCC_COLUMN);
+            Integer purchaseMethodCol = columnIndices.get(MCC_COLUMN);
+            if (purchaseMethodCol == null) {
+                purchaseMethodCol = findColumnIndex(MCC_COLUMN);
             }
-            if (mccCol != null) {
-                String mcc = currentRowData.get(mccCol);
-                if (mcc != null && !mcc.trim().isEmpty()) {
-                    purchase.setMcc(mcc.trim());
-                    logger.debug("Row {}: parsed mcc: '{}' for purchase {}", currentRowNum + 1, mcc.trim(), purchase.getInnerId());
+            if (purchaseMethodCol != null) {
+                String purchaseMethod = currentRowData.get(purchaseMethodCol);
+                if (purchaseMethod != null && !purchaseMethod.trim().isEmpty()) {
+                    purchase.setPurchaseMethod(purchaseMethod.trim());
+                    logger.debug("Row {}: parsed purchaseMethod: '{}' for purchase {}", currentRowNum + 1, purchaseMethod.trim(), purchase.getInnerId());
                 }
             } else {
-                logger.debug("Row {}: mccColumnIndex is null, skipping mcc field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
+                logger.debug("Row {}: purchaseMethodColumnIndex is null, skipping purchaseMethod field. Available columns: {}", currentRowNum + 1, columnIndices.keySet());
             }
             
             // Сохраняем или обновляем (добавляем в batch)
@@ -1965,12 +1965,12 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             }
         }
         
-        // Обновляем mcc (способ закупки)
-        if (newData.getMcc() != null && !newData.getMcc().trim().isEmpty()) {
-            if (existing.getMcc() == null || !existing.getMcc().equals(newData.getMcc())) {
-                existing.setMcc(newData.getMcc());
+        // Обновляем способ закупки
+        if (newData.getPurchaseMethod() != null && !newData.getPurchaseMethod().trim().isEmpty()) {
+            if (existing.getPurchaseMethod() == null || !existing.getPurchaseMethod().equals(newData.getPurchaseMethod())) {
+                existing.setPurchaseMethod(newData.getPurchaseMethod());
                 updated = true;
-                logger.debug("Updated mcc for purchase {}: {}", existing.getInnerId(), newData.getMcc());
+                logger.debug("Updated purchaseMethod for purchase {}: {}", existing.getInnerId(), newData.getPurchaseMethod());
             }
         }
 
