@@ -40,6 +40,10 @@ public class PurchaseDto {
     private LocalDateTime approvalDate; // Дата утверждения (из блока согласования)
     private String purchaseRequestSubject; // Предмет заявки на закупку (наименование)
 
+    /** Конкурентный лист в формате JSON (строка) */
+    private String competitiveSheet;
+    private java.time.LocalDateTime competitiveSheetUploadedAt;
+
     // Constructors
     public PurchaseDto() {
     }
@@ -307,6 +311,22 @@ public class PurchaseDto {
 
     public void setPurchaseRequestSubject(String purchaseRequestSubject) {
         this.purchaseRequestSubject = purchaseRequestSubject;
+    }
+
+    public String getCompetitiveSheet() {
+        return competitiveSheet;
+    }
+
+    public void setCompetitiveSheet(String competitiveSheet) {
+        this.competitiveSheet = competitiveSheet;
+    }
+
+    public java.time.LocalDateTime getCompetitiveSheetUploadedAt() {
+        return competitiveSheetUploadedAt;
+    }
+
+    public void setCompetitiveSheetUploadedAt(java.time.LocalDateTime competitiveSheetUploadedAt) {
+        this.competitiveSheetUploadedAt = competitiveSheetUploadedAt;
     }
 }
 

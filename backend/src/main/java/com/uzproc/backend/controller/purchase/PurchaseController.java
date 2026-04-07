@@ -1,11 +1,13 @@
 package com.uzproc.backend.controller.purchase;
 
 import com.uzproc.backend.dto.purchase.PurchaseDto;
+import com.uzproc.backend.service.purchase.CompetitiveSheetService;
 import com.uzproc.backend.service.purchase.PurchaseService;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -15,9 +17,11 @@ import java.util.Map;
 public class PurchaseController {
 
     private final PurchaseService purchaseService;
+    private final CompetitiveSheetService competitiveSheetService;
 
-    public PurchaseController(PurchaseService purchaseService) {
+    public PurchaseController(PurchaseService purchaseService, CompetitiveSheetService competitiveSheetService) {
         this.purchaseService = purchaseService;
+        this.competitiveSheetService = competitiveSheetService;
     }
 
     @GetMapping
@@ -75,6 +79,32 @@ public class PurchaseController {
             return ResponseEntity.ok(updated);
         }
         return ResponseEntity.notFound().build();
+    }
+
+    /** Загрузить конкурентный лист (Excel) для закупки */
+    @PostMapping("/{id}/competitive-sheet")
+    public ResponseEntity<PurchaseDto> uploadCompetitiveSheet(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file) {
+        try {
+            PurchaseDto updated = competitiveSheetService.uploadCompetitiveSheet(id, file);
+            return ResponseEntity.ok(updated);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).build();
+        }
+    }
+
+    /** Удалить конкурентный лист у закупки */
+    @DeleteMapping("/{id}/competitive-sheet")
+    public ResponseEntity<PurchaseDto> deleteCompetitiveSheet(@PathVariable Long id) {
+        try {
+            PurchaseDto updated = competitiveSheetService.deleteCompetitiveSheet(id);
+            return ResponseEntity.ok(updated);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     @GetMapping("/monthly-stats")

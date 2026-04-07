@@ -113,6 +113,13 @@ public class Purchase {
     @OneToMany(mappedBy = "purchase", fetch = FetchType.LAZY)
     private java.util.List<PurchaseApproval> approvals;
 
+    /** Конкурентный лист в формате JSON */
+    @Column(name = "competitive_sheet", columnDefinition = "jsonb")
+    private String competitiveSheet;
+
+    @Column(name = "competitive_sheet_uploaded_at")
+    private LocalDateTime competitiveSheetUploadedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -412,6 +419,22 @@ public class Purchase {
 
     public void setIsStrategicProduct(Boolean isStrategicProduct) {
         this.isStrategicProduct = isStrategicProduct;
+    }
+
+    public String getCompetitiveSheet() {
+        return competitiveSheet;
+    }
+
+    public void setCompetitiveSheet(String competitiveSheet) {
+        this.competitiveSheet = competitiveSheet;
+    }
+
+    public LocalDateTime getCompetitiveSheetUploadedAt() {
+        return competitiveSheetUploadedAt;
+    }
+
+    public void setCompetitiveSheetUploadedAt(LocalDateTime competitiveSheetUploadedAt) {
+        this.competitiveSheetUploadedAt = competitiveSheetUploadedAt;
     }
 }
 

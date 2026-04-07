@@ -177,7 +177,11 @@ public class PurchaseService {
                     .orElse(null);
             dto.setApprovalDate(latestApprovalDate);
         }
-        
+
+        // Конкурентный лист
+        dto.setCompetitiveSheet(entity.getCompetitiveSheet());
+        dto.setCompetitiveSheetUploadedAt(entity.getCompetitiveSheetUploadedAt());
+
         return dto;
     }
 
