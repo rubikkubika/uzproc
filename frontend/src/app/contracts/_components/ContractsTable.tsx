@@ -1,14 +1,17 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { ArrowUp, ArrowDown, ArrowUpDown, Search, Settings } from 'lucide-react';
 import { useContractsTable } from './hooks/useContractsTable';
 import { SortField } from './types/contracts.types';
 import ContractsTableTabs from './ui/ContractsTableTabs';
+import RemarksPanel from './RemarksPanel';
 
 export default function ContractsTable() {
   const router = useRouter();
   const currentPath = usePathname();
+  const [showRemarks, setShowRemarks] = useState(false);
   const {
     data,
     allItems,
@@ -179,9 +182,15 @@ export default function ContractsTable() {
         onTabChange={(tab) => {
           filters.setActiveTab(tab);
           setCurrentPage(0);
+          setShowRemarks(false);
         }}
+        showRemarks={showRemarks}
+        onRemarksToggle={() => setShowRemarks(v => !v)}
       />
 
+      {showRemarks ? (
+        <RemarksPanel />
+      ) : (
       <div className="flex-1 min-w-0 overflow-auto relative custom-scrollbar">
         <table className="w-full max-w-full border-collapse table-fixed">
           <thead className="bg-gray-50 sticky top-0 z-10">
@@ -476,6 +485,7 @@ export default function ContractsTable() {
         )}
         <div ref={loadMoreRef} className="h-4 flex items-center justify-center py-1" />
       </div>
+      )}
     </div>
   );
 }

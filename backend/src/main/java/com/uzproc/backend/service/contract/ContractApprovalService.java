@@ -1,10 +1,14 @@
 package com.uzproc.backend.service.contract;
 
 import com.uzproc.backend.dto.contract.ContractApprovalDto;
+import com.uzproc.backend.dto.contract.ContractRemarkDto;
+import com.uzproc.backend.entity.contract.Contract;
 import com.uzproc.backend.entity.contract.ContractApproval;
 import com.uzproc.backend.entity.user.User;
 import com.uzproc.backend.repository.contract.ContractApprovalRepository;
 import com.uzproc.backend.repository.user.UserRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -63,6 +67,38 @@ public class ContractApprovalService {
         if (name != null) return name;
         if (surname != null) return surname;
         return user.getEmail();
+    }
+
+    /**
+     * Получить замечания из согласований договоров, подготовленных исполнителями (isContractor=true).
+     * Отсортированы от новых к старым. Поддерживает пагинацию.
+     */
+    public Page<ContractRemarkDto> findAllRemarks(int page, int size) {
+        return contractApprovalRepository.findAllRemarksFromContractors(PageRequest.of(page, size))
+                .map(this::toRemarkDto);
+    }
+
+    private ContractRemarkDto toRemarkDto(ContractApproval entity) {
+        ContractRemarkDto dto = new ContractRemarkDto();
+        dto.setContractId(entity.getContractId());
+        Contract contract = entity.getContract();
+        if (contract != null) {
+            dto.setContractInnerId(contract.getInnerId());
+            dto.setContractName(contract.getName());
+            if (contract.getPreparedBy() != null) {
+                dto.setPreparedByName(formatExecutorName(contract.getPreparedBy()));
+            }
+        }
+        User executor = entity.getExecutor();
+        if (executor == null && entity.getExecutorId() != null) {
+            executor = userRepository.findById(entity.getExecutorId()).orElse(null);
+        }
+        dto.setExecutorName(formatExecutorName(executor));
+        dto.setStage(entity.getStage());
+        dto.setRole(entity.getRole());
+        dto.setCommentText(entity.getCommentText());
+        dto.setCompletionDate(entity.getCompletionDate());
+        return dto;
     }
 
     private ContractApprovalDto toDto(ContractApproval entity) {

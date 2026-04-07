@@ -1,6 +1,8 @@
 package com.uzproc.backend.repository.contract;
 
 import com.uzproc.backend.entity.contract.ContractApproval;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -128,6 +130,25 @@ public interface ContractApprovalRepository extends JpaRepository<ContractApprov
     List<Object[]> findContractDurationForSummary(
             @Param("year") Integer year,
             @Param("documentForms") String documentForms);
+
+    /**
+     * Все замечания (comment_text IS NOT NULL) из согласований договоров,
+     * подготовленных исполнителем с isContractor = true.
+     * Отсортированы по убыванию даты завершения.
+     */
+    @Query(value = "SELECT a FROM ContractApproval a " +
+           "JOIN FETCH a.contract c " +
+           "LEFT JOIN FETCH c.preparedBy pb " +
+           "LEFT JOIN FETCH a.executor e " +
+           "WHERE a.commentText IS NOT NULL AND a.commentText <> '' " +
+           "AND pb.isContractor = true " +
+           "ORDER BY a.completionDate DESC NULLS LAST",
+           countQuery = "SELECT COUNT(a) FROM ContractApproval a " +
+           "JOIN a.contract c " +
+           "LEFT JOIN c.preparedBy pb " +
+           "WHERE a.commentText IS NOT NULL AND a.commentText <> '' " +
+           "AND pb.isContractor = true")
+    Page<ContractApproval> findAllRemarksFromContractors(Pageable pageable);
 
     /**
      * Для вкладки «Сроки закупок»: данные согласования договоров по каждой заявке.
