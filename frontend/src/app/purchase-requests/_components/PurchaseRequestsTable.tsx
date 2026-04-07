@@ -957,6 +957,7 @@ export default function PurchaseRequestsTable() {
             setPurchaserFilter={setPurchaserFilter}
             setCurrentPage={setCurrentPage}
             setActiveTab={setActiveTab}
+            setStatusFilter={setStatusFilter}
           />
         </div>
         {/* Последние оценки CSI feedback - справа от сводной таблицы */}

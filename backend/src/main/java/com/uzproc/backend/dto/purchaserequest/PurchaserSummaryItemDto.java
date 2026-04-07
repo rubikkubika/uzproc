@@ -18,6 +18,15 @@ public class PurchaserSummaryItemDto {
     private Double averageRating;
     private Double averageSlaDays;
 
+    /** Кол-во заявок со статус-группой "Заявка у закупщика" */
+    private long atPurchaserCount;
+    /** Сумма по заявкам со статус-группой "Заявка у закупщика" */
+    private BigDecimal atPurchaserBudget;
+    /** Кол-во заявок со статус-группой "Договор в работе" или "Спецификация в работе" */
+    private long contractInWorkCount;
+    /** Сумма по заявкам со статус-группой "Договор в работе" или "Спецификация в работе" */
+    private BigDecimal contractInWorkBudget;
+
     public PurchaserSummaryItemDto() {
     }
 
@@ -33,6 +42,10 @@ public class PurchaserSummaryItemDto {
         this.purchasesComplexity = purchasesComplexity;
         this.savings = BigDecimal.ZERO;
         this.averageRating = null;
+        this.atPurchaserCount = 0L;
+        this.atPurchaserBudget = BigDecimal.ZERO;
+        this.contractInWorkCount = 0L;
+        this.contractInWorkBudget = BigDecimal.ZERO;
     }
 
     public String getPurchaser() {
@@ -113,5 +126,37 @@ public class PurchaserSummaryItemDto {
 
     public void setAverageSlaDays(Double averageSlaDays) {
         this.averageSlaDays = averageSlaDays;
+    }
+
+    public long getAtPurchaserCount() {
+        return atPurchaserCount;
+    }
+
+    public void setAtPurchaserCount(long atPurchaserCount) {
+        this.atPurchaserCount = atPurchaserCount;
+    }
+
+    public BigDecimal getAtPurchaserBudget() {
+        return atPurchaserBudget != null ? atPurchaserBudget : BigDecimal.ZERO;
+    }
+
+    public void setAtPurchaserBudget(BigDecimal atPurchaserBudget) {
+        this.atPurchaserBudget = atPurchaserBudget != null ? atPurchaserBudget : BigDecimal.ZERO;
+    }
+
+    public long getContractInWorkCount() {
+        return contractInWorkCount;
+    }
+
+    public void setContractInWorkCount(long contractInWorkCount) {
+        this.contractInWorkCount = contractInWorkCount;
+    }
+
+    public BigDecimal getContractInWorkBudget() {
+        return contractInWorkBudget != null ? contractInWorkBudget : BigDecimal.ZERO;
+    }
+
+    public void setContractInWorkBudget(BigDecimal contractInWorkBudget) {
+        this.contractInWorkBudget = contractInWorkBudget != null ? contractInWorkBudget : BigDecimal.ZERO;
     }
 }

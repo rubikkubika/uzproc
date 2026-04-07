@@ -38,6 +38,7 @@ interface PurchaseRequestsSummaryTableProps {
   setPurchaserFilter: (filter: Set<string>) => void;
   setCurrentPage: (page: number) => void;
   setActiveTab?: (tab: 'in-work') => void;
+  setStatusFilter?: (filter: Set<string>) => void;
 }
 
 export default function PurchaseRequestsSummaryTable({
@@ -48,8 +49,39 @@ export default function PurchaseRequestsSummaryTable({
   setPurchaserFilter,
   setCurrentPage,
   setActiveTab,
+  setStatusFilter,
 }: PurchaseRequestsSummaryTableProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [activeStatusGroup, setActiveStatusGroup] = useState<'atPurchaser' | 'contractInWork' | null>(null);
+
+  const handleSubcategoryClick = useCallback(
+    (purchaser: string, subcategory: 'atPurchaser' | 'contractInWork', e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (!setStatusFilter || !setActiveTab) return;
+
+      // Устанавливаем фильтр по закупщику
+      const isSamePurchaser = purchaserFilter.size === 1 && purchaserFilter.has(purchaser);
+      const isSameCategory = activeStatusGroup === subcategory && isSamePurchaser;
+
+      if (isSameCategory) {
+        // Сброс при повторном клике
+        setActiveStatusGroup(null);
+        setStatusFilter(new Set());
+        setPurchaserFilter(new Set());
+      } else {
+        setActiveStatusGroup(subcategory);
+        setPurchaserFilter(new Set([purchaser]));
+        if (subcategory === 'atPurchaser') {
+          setStatusFilter(new Set(['Заявка у закупщика']));
+        } else {
+          setStatusFilter(new Set(['Договор в работе', 'Спецификация в работе']));
+        }
+        setActiveTab('in-work');
+      }
+      setCurrentPage(0);
+    },
+    [purchaserFilter, activeStatusGroup, setStatusFilter, setPurchaserFilter, setActiveTab, setCurrentPage]
+  );
   const MAX_VISIBLE_ROWS = 10;
 
   const filteredSummary = purchaserSummary.filter((item) => (item.purchasesCount + item.ordersCount) > 0);
@@ -98,45 +130,60 @@ export default function PurchaseRequestsSummaryTable({
           <table className="border-separate table-auto" style={{ borderSpacing: 0 }}>
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-1 py-1 border-r border-gray-300 min-w-[120px]"></th>
-                <th colSpan={3} className="px-1 py-1 text-center text-[11px] font-semibold text-blue-900 border-r border-gray-300 whitespace-nowrap">
+                <th className="px-1 py-1 border-r border-gray-300 min-w-[120px]" rowSpan={2}></th>
+                <th colSpan={5} className="px-1 py-1 text-center text-[11px] font-semibold text-blue-900 border-r border-gray-300 border-l-2 border-t-2 border-gray-400 rounded-tl-lg whitespace-nowrap">
                   Заявки в работе
                 </th>
-                <th colSpan={6} className="px-1 py-1 text-center text-[11px] font-semibold text-green-900 whitespace-nowrap">
+                <th colSpan={6} className="px-1 py-1 text-center text-[11px] font-semibold text-green-900 border-l-2 border-t-2 border-r-2 border-gray-400 rounded-tr-lg whitespace-nowrap">
                   {`Завершенные заявки - ${currentYear}`}
                 </th>
               </tr>
               <tr>
-                <th className="px-1 py-1 text-left text-[11px] font-medium text-gray-500 tracking-wider border-r border-gray-300 whitespace-nowrap min-w-[120px]">
-                  ФИО закупщика
+                {/* Заявки в работе: Заявка у закупщика */}
+                <th className="px-1 py-0.5 text-center text-[10px] font-medium text-blue-700 border-l-2 border-r border-gray-400 whitespace-nowrap" colSpan={2}>
+                  У закупщика
                 </th>
-                <th className="px-1 py-1 text-right text-[11px] font-medium text-gray-500 tracking-wider border-l-2 border-t-2 border-r border-gray-400 rounded-tl-lg whitespace-nowrap min-w-[56px]">
-                  Кол-во
+                {/* Заявки в работе: Договоров в работе */}
+                <th className="px-1 py-0.5 text-center text-[10px] font-medium text-blue-700 border-r border-gray-400 whitespace-nowrap" colSpan={2}>
+                  Договоров в работе
                 </th>
-                <th className="px-1 py-1 text-right text-[11px] font-medium text-gray-500 tracking-wider border-r-2 border-t-2 border-gray-400 whitespace-nowrap min-w-[56px]">
-                  Сумма
-                </th>
-                <th className="px-1 py-1 text-right text-[11px] font-medium text-gray-500 tracking-wider border-r-2 border-t-2 border-gray-400 rounded-tr-lg whitespace-nowrap min-w-[56px]">
+                {/* Заявки в работе: Сложность */}
+                <th className="px-1 py-0.5 text-right text-[10px] font-medium text-blue-700 border-r-2 border-gray-400 whitespace-nowrap min-w-[48px]">
                   Сложность
                 </th>
-                <th className="px-1 py-1 text-right text-[11px] font-medium text-gray-500 tracking-wider border-l-2 border-t-2 border-r border-gray-400 rounded-tl-lg whitespace-nowrap min-w-[56px]">
+                {/* Завершённые */}
+                <th className="px-1 py-0.5 text-right text-[11px] font-medium text-gray-500 tracking-wider border-l-2 border-r border-gray-400 whitespace-nowrap min-w-[48px]">
                   Кол-во
                 </th>
-                <th className="px-1 py-1 text-right text-[11px] font-medium text-gray-500 tracking-wider border-r-2 border-t-2 border-gray-400 whitespace-nowrap min-w-[56px]">
+                <th className="px-1 py-0.5 text-right text-[11px] font-medium text-gray-500 tracking-wider border-r-2 border-gray-400 whitespace-nowrap min-w-[56px]">
                   Сумма
                 </th>
-                <th className="px-1 py-1 text-right text-[11px] font-medium text-gray-500 tracking-wider border-r border-t-2 border-gray-400 whitespace-nowrap min-w-[56px]">
+                <th className="px-1 py-0.5 text-right text-[11px] font-medium text-gray-500 tracking-wider border-r border-gray-400 whitespace-nowrap min-w-[48px]">
                   Сложность
                 </th>
-                <th className="px-1 py-1 text-right text-[11px] font-medium text-gray-500 tracking-wider border-r border-t-2 border-gray-400 whitespace-nowrap min-w-[56px]">
+                <th className="px-1 py-0.5 text-right text-[11px] font-medium text-gray-500 tracking-wider border-r border-gray-400 whitespace-nowrap min-w-[56px]">
                   Экономия
                 </th>
-                <th className="px-1 py-1 text-right text-[11px] font-medium text-gray-500 tracking-wider border-r border-t-2 border-gray-400 whitespace-nowrap min-w-[40px]">
+                <th className="px-1 py-0.5 text-right text-[11px] font-medium text-gray-500 tracking-wider border-r border-gray-400 whitespace-nowrap min-w-[36px]">
                   SLA
                 </th>
-                <th className="px-1 py-1 text-center text-[11px] font-medium text-gray-500 tracking-wider border-r-2 border-t-2 border-gray-400 rounded-tr-lg whitespace-nowrap min-w-[40px]">
+                <th className="px-1 py-0.5 text-center text-[11px] font-medium text-gray-500 tracking-wider border-r-2 border-gray-400 rounded-tr-lg whitespace-nowrap min-w-[40px]">
                   <Star className="w-3 h-3 fill-yellow-400 text-yellow-400 inline" />
                 </th>
+              </tr>
+              <tr className="bg-gray-100">
+                <th className="px-1 py-0.5 border-r border-gray-300 min-w-[120px] text-left text-[10px] font-medium text-gray-500">ФИО закупщика</th>
+                <th className="px-1 py-0.5 text-right text-[10px] font-medium text-gray-500 border-l-2 border-r border-gray-400 whitespace-nowrap min-w-[40px]">Кол-во</th>
+                <th className="px-1 py-0.5 text-right text-[10px] font-medium text-gray-500 border-r border-gray-400 whitespace-nowrap min-w-[56px]">Сумма</th>
+                <th className="px-1 py-0.5 text-right text-[10px] font-medium text-gray-500 border-r border-gray-400 whitespace-nowrap min-w-[40px]">Кол-во</th>
+                <th className="px-1 py-0.5 text-right text-[10px] font-medium text-gray-500 border-r border-gray-400 whitespace-nowrap min-w-[56px]">Сумма</th>
+                <th className="px-1 py-0.5 text-right text-[10px] font-medium text-gray-500 border-r-2 border-gray-400 whitespace-nowrap min-w-[40px]"></th>
+                <th className="px-1 py-0.5 border-l-2 border-r border-gray-400 whitespace-nowrap min-w-[40px]"></th>
+                <th className="px-1 py-0.5 border-r-2 border-gray-400 whitespace-nowrap min-w-[56px]"></th>
+                <th className="px-1 py-0.5 border-r border-gray-400 whitespace-nowrap min-w-[40px]"></th>
+                <th className="px-1 py-0.5 border-r border-gray-400 whitespace-nowrap min-w-[56px]"></th>
+                <th className="px-1 py-0.5 border-r border-gray-400 whitespace-nowrap min-w-[36px]"></th>
+                <th className="px-1 py-0.5 border-r-2 border-gray-400 whitespace-nowrap min-w-[40px]"></th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -163,9 +210,31 @@ export default function PurchaseRequestsSummaryTable({
                       <td className="px-1 py-1 text-[11px] text-gray-900 border-r border-gray-200 whitespace-nowrap">
                         {purchaserDisplayName(purchaser) === '—' ? 'Не назначен' : purchaserDisplayName(purchaser)}
                       </td>
-                      <td className="px-1 py-1 text-[11px] text-gray-900 text-right border-l-2 border-t border-b border-r border-gray-400 whitespace-nowrap">{inWorkCount}</td>
-                      <td className="px-1 py-1 text-[11px] text-gray-900 text-right border-r-2 border-t border-b border-gray-400 whitespace-nowrap">{formatCompactNumber(inWorkBudget)}</td>
+                      {/* У закупщика */}
+                      <td
+                        className={`px-1 py-1 text-[11px] text-right border-l-2 border-t border-b border-r border-gray-400 whitespace-nowrap cursor-pointer transition-colors ${activeStatusGroup === 'atPurchaser' && purchaserFilter.has(purchaser) ? 'bg-blue-200 text-blue-900 font-semibold' : 'text-gray-900 hover:bg-blue-50'}`}
+                        onClick={(e) => handleSubcategoryClick(purchaser, 'atPurchaser', e)}
+                        title="Фильтр: Заявка у закупщика"
+                      >{inWork?.atPurchaserCount ?? 0}</td>
+                      <td
+                        className={`px-1 py-1 text-[11px] text-right border-r border-t border-b border-gray-400 whitespace-nowrap cursor-pointer transition-colors ${activeStatusGroup === 'atPurchaser' && purchaserFilter.has(purchaser) ? 'bg-blue-200 text-blue-900 font-semibold' : 'text-gray-900 hover:bg-blue-50'}`}
+                        onClick={(e) => handleSubcategoryClick(purchaser, 'atPurchaser', e)}
+                        title="Фильтр: Заявка у закупщика"
+                      >{formatCompactNumber(inWork?.atPurchaserBudget ?? 0)}</td>
+                      {/* Договоров в работе */}
+                      <td
+                        className={`px-1 py-1 text-[11px] text-right border-r border-t border-b border-gray-400 whitespace-nowrap cursor-pointer transition-colors ${activeStatusGroup === 'contractInWork' && purchaserFilter.has(purchaser) ? 'bg-amber-200 text-amber-900 font-semibold' : 'text-gray-900 hover:bg-amber-50'}`}
+                        onClick={(e) => handleSubcategoryClick(purchaser, 'contractInWork', e)}
+                        title="Фильтр: Договор в работе / Спецификация в работе"
+                      >{inWork?.contractInWorkCount ?? 0}</td>
+                      <td
+                        className={`px-1 py-1 text-[11px] text-right border-r border-t border-b border-gray-400 whitespace-nowrap cursor-pointer transition-colors ${activeStatusGroup === 'contractInWork' && purchaserFilter.has(purchaser) ? 'bg-amber-200 text-amber-900 font-semibold' : 'text-gray-900 hover:bg-amber-50'}`}
+                        onClick={(e) => handleSubcategoryClick(purchaser, 'contractInWork', e)}
+                        title="Фильтр: Договор в работе / Спецификация в работе"
+                      >{formatCompactNumber(inWork?.contractInWorkBudget ?? 0)}</td>
+                      {/* Сложность (общая по всем в работе) */}
                       <td className="px-1 py-1 text-[11px] text-gray-900 text-right border-r-2 border-t border-b border-gray-400 whitespace-nowrap">{inWorkComplexity}</td>
+                      {/* Завершённые */}
                       <td className="px-1 py-1 text-[11px] text-gray-900 text-right border-l-2 border-t border-b border-r border-gray-400 whitespace-nowrap">{completedCount}</td>
                       <td className="px-1 py-1 text-[11px] text-gray-900 text-right border-r-2 border-t border-b border-gray-400 whitespace-nowrap">{formatCompactNumber(completedBudget)}</td>
                       <td className="px-1 py-1 text-[11px] text-gray-900 text-right border-r border-t border-b border-gray-400 whitespace-nowrap">{completedComplexity}</td>
@@ -177,7 +246,7 @@ export default function PurchaseRequestsSummaryTable({
                 })
               ) : (
                 <tr>
-                  <td colSpan={10} className="px-1 py-1 text-[11px] text-gray-500 text-center whitespace-nowrap">
+                  <td colSpan={13} className="px-1 py-1 text-[11px] text-gray-500 text-center whitespace-nowrap">
                     Нет данных
                   </td>
                 </tr>
@@ -192,16 +261,26 @@ export default function PurchaseRequestsSummaryTable({
                 }}
               >
                 <td className="px-1 py-1 text-[11px] font-semibold text-gray-700 border-r border-gray-200 whitespace-nowrap">Итого</td>
-                <td className="px-1 py-1 text-[11px] font-semibold text-gray-700 text-right border-l-2 border-t border-b-2 border-r border-gray-400 rounded-bl-lg whitespace-nowrap">
-                  {purchaserSummary.reduce((sum, item) => sum + item.purchasesCount + item.ordersCount, 0)}
+                {/* У закупщика итого */}
+                <td className="px-1 py-1 text-[11px] font-semibold text-gray-700 text-right border-l-2 border-t border-b-2 border-r border-gray-400 whitespace-nowrap">
+                  {purchaserSummary.reduce((sum, item) => sum + (item.atPurchaserCount || 0), 0)}
                 </td>
-                <td className="px-1 py-1 text-[11px] font-semibold text-gray-700 text-right border-r-2 border-t border-b-2 border-gray-400 rounded-br-lg whitespace-nowrap">
-                  {formatCompactNumber(purchaserSummary.reduce((sum, item) => sum + item.purchasesBudget + item.ordersBudget, 0))}
+                <td className="px-1 py-1 text-[11px] font-semibold text-gray-700 text-right border-r border-t border-b-2 border-gray-400 whitespace-nowrap">
+                  {formatCompactNumber(purchaserSummary.reduce((sum, item) => sum + (item.atPurchaserBudget || 0), 0))}
                 </td>
-                <td className="px-1 py-1 text-[11px] font-semibold text-gray-700 text-right border-r-2 border-t border-b-2 border-gray-400 rounded-br-lg whitespace-nowrap">
+                {/* Договоров в работе итого */}
+                <td className="px-1 py-1 text-[11px] font-semibold text-gray-700 text-right border-r border-t border-b-2 border-gray-400 whitespace-nowrap">
+                  {purchaserSummary.reduce((sum, item) => sum + (item.contractInWorkCount || 0), 0)}
+                </td>
+                <td className="px-1 py-1 text-[11px] font-semibold text-gray-700 text-right border-r border-t border-b-2 border-gray-400 whitespace-nowrap">
+                  {formatCompactNumber(purchaserSummary.reduce((sum, item) => sum + (item.contractInWorkBudget || 0), 0))}
+                </td>
+                {/* Сложность итого */}
+                <td className="px-1 py-1 text-[11px] font-semibold text-gray-700 text-right border-r-2 border-t border-b-2 border-gray-400 whitespace-nowrap">
                   {purchaserSummary.reduce((sum, item) => sum + item.purchasesComplexity + item.ordersComplexity, 0)}
                 </td>
-                <td className="px-1 py-1 text-[11px] font-semibold text-gray-700 text-right border-l-2 border-t border-b-2 border-r border-gray-400 rounded-bl-lg whitespace-nowrap">
+                {/* Завершённые итого */}
+                <td className="px-1 py-1 text-[11px] font-semibold text-gray-700 text-right border-l-2 border-t border-b-2 border-r border-gray-400 whitespace-nowrap">
                   {completedPurchaserSummary.reduce((sum, item) => sum + item.purchasesCount + item.ordersCount, 0)}
                 </td>
                 <td className="px-1 py-1 text-[11px] font-semibold text-gray-700 text-right border-r-2 border-t border-b-2 border-gray-400 whitespace-nowrap">

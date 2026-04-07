@@ -51,6 +51,10 @@ export function useSummary(params: UseSummaryParams) {
           savings: Number(item.savings || 0),
           averageRating: item.averageRating != null ? Number(item.averageRating) : null,
           averageSlaDays: item.averageSlaDays != null ? Number(item.averageSlaDays) : null,
+          atPurchaserCount: Number(item.atPurchaserCount || 0),
+          atPurchaserBudget: Number(item.atPurchaserBudget || 0),
+          contractInWorkCount: Number(item.contractInWorkCount || 0),
+          contractInWorkBudget: Number(item.contractInWorkBudget || 0),
         });
 
         setPurchaserSummary(inWorkResult.map(normalizeItem));

@@ -9,5 +9,9 @@ export interface PurchaserSummaryItem {
   savings: number;
   averageRating: number | null;
   averageSlaDays: number | null;
+  atPurchaserCount: number;
+  atPurchaserBudget: number;
+  contractInWorkCount: number;
+  contractInWorkBudget: number;
 }
 

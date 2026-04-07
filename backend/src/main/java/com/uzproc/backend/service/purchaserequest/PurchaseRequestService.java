@@ -366,6 +366,7 @@ public class PurchaseRequestService {
             boolean isPurchase = Boolean.TRUE.equals(pr.getRequiresPurchase());
             java.math.BigDecimal budget = pr.getBudgetAmount() != null ? pr.getBudgetAmount() : BigDecimal.ZERO;
             long complexityValue = parseComplexityValue(pr.getComplexity());
+            String statusGroup = pr.getStatus() != null ? pr.getStatus().getGroupDisplayName() : null;
 
             if (isPurchase) {
                 item.setPurchasesCount(item.getPurchasesCount() + 1);
@@ -375,6 +376,15 @@ public class PurchaseRequestService {
                 item.setOrdersCount(item.getOrdersCount() + 1);
                 item.setOrdersBudget(item.getOrdersBudget().add(budget));
                 item.setOrdersComplexity(item.getOrdersComplexity() + complexityValue);
+            }
+
+            // Подкатегории в рамках «в работе»
+            if ("Заявка у закупщика".equals(statusGroup)) {
+                item.setAtPurchaserCount(item.getAtPurchaserCount() + 1);
+                item.setAtPurchaserBudget(item.getAtPurchaserBudget().add(budget));
+            } else if ("Договор в работе".equals(statusGroup) || "Спецификация в работе".equals(statusGroup)) {
+                item.setContractInWorkCount(item.getContractInWorkCount() + 1);
+                item.setContractInWorkBudget(item.getContractInWorkBudget().add(budget));
             }
         }
 
