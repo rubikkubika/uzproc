@@ -42,6 +42,14 @@ interface CompetitiveSheetParticipant {
   procurementComment: string | null;
 }
 
+const CRITERIA_TABLE_ROWS: ReadonlyArray<{ key: keyof CompetitiveSheetCriteria; label: string }> = [
+  { key: 'agreesWithContract', label: 'Согласие с договором' },
+  { key: 'contractorStatus', label: 'Статус контрагента' },
+  { key: 'paymentTerms', label: 'Условия оплаты' },
+  { key: 'warrantyMonths', label: 'Гарантия (мес.)' },
+  { key: 'deliveryDays', label: 'Срок поставки (дн.)' },
+];
+
 interface CompetitiveSheetData {
   items: CompetitiveSheetItem[];
   participants: CompetitiveSheetParticipant[];
@@ -292,18 +300,12 @@ export default function CompetitiveSheetBlock({ purchaseId, competitiveSheet, co
                   </tr>
                 </thead>
                 <tbody>
-                  {[
-                    { key: 'agreesWithContract', label: 'Согласие с договором' },
-                    { key: 'contractorStatus', label: 'Статус контрагента' },
-                    { key: 'paymentTerms', label: 'Условия оплаты' },
-                    { key: 'warrantyMonths', label: 'Гарантия (мес.)' },
-                    { key: 'deliveryDays', label: 'Срок поставки (дн.)' },
-                  ].map(({ key, label }) => (
+                  {CRITERIA_TABLE_ROWS.map(({ key, label }) => (
                     <tr key={key} className="hover:bg-gray-50">
                       <td className="border border-gray-300 px-1 py-0.5 font-medium text-gray-600">{label}</td>
                       {participants.map((p, idx) => (
                         <td key={idx} className={`border border-gray-300 px-1 py-0.5 text-center text-gray-700 ${p.isWinner ? 'bg-green-50' : ''}`}>
-                          {(p.criteria as Record<string, string | null>)?.[key] || '—'}
+                          {p.criteria?.[key] ?? '—'}
                         </td>
                       ))}
                     </tr>
