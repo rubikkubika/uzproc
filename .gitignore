@@ -73,6 +73,9 @@ frontend/upload/approvals/*
 frontend/upload/arrivals/*
 !frontend/upload/arrivals/.gitkeep
 
+# Integration docs (internal, not for VCS)
+docs/1c-integration-purchase-requests.md
+
 # Data files
 frontend/images/*.csv
 frontend/images/*.xlsx
