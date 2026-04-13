@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -149,6 +150,38 @@ public interface ContractApprovalRepository extends JpaRepository<ContractApprov
            "WHERE a.commentText IS NOT NULL AND a.commentText <> '' " +
            "AND pb.isContractor = true")
     Page<ContractApproval> findAllRemarksFromContractors(Pageable pageable);
+
+    /**
+     * Все замечания для дашборда с фильтром по дате создания.
+     * Учитываются только договора, подготовленные пользователем с isContractor = true.
+     * Отсортированы по убыванию даты создания.
+     * Использует native query с CAST для корректной обработки NULL-параметров в PostgreSQL.
+     */
+    @Query(value = """
+        SELECT ca.id FROM contract_approvals ca
+        JOIN contracts c ON c.id = ca.contract_id
+        JOIN users pb ON pb.id = c.prepared_by_id
+        WHERE ca.comment_text IS NOT NULL AND ca.comment_text <> ''
+          AND pb.is_contractor = true
+          AND (CAST(:dateFrom AS TIMESTAMP) IS NULL OR ca.created_at >= CAST(:dateFrom AS TIMESTAMP))
+          AND (CAST(:dateTo AS TIMESTAMP) IS NULL OR ca.created_at <= CAST(:dateTo AS TIMESTAMP))
+        ORDER BY ca.created_at DESC NULLS LAST
+        """, nativeQuery = true)
+    List<Long> findRemarkIdsForDashboard(
+            @Param("dateFrom") String dateFrom,
+            @Param("dateTo") String dateTo);
+
+    /**
+     * Загружает сущности ContractApproval с join fetch по списку ID.
+     * Используется после findRemarkIdsForDashboard для получения полных объектов.
+     */
+    @Query("SELECT a FROM ContractApproval a " +
+           "JOIN FETCH a.contract c " +
+           "LEFT JOIN FETCH c.preparedBy pb " +
+           "LEFT JOIN FETCH a.executor e " +
+           "WHERE a.id IN :ids " +
+           "ORDER BY a.createdAt DESC NULLS LAST")
+    List<ContractApproval> findAllWithContractAndExecutorByIds(@Param("ids") List<Long> ids);
 
     /**
      * Для вкладки «Сроки закупок»: данные согласования договоров по каждой заявке.

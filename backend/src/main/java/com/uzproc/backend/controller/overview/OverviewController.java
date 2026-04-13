@@ -1,5 +1,7 @@
 package com.uzproc.backend.controller.overview;
 
+import com.uzproc.backend.dto.contract.ContractRemarkDashboardEntryDto;
+import com.uzproc.backend.dto.contract.ContractRemarksDashboardResponseDto;
 import com.uzproc.backend.dto.overview.ApprovalPresentationDto;
 import com.uzproc.backend.dto.overview.OverviewApprovalsSummaryResponseDto;
 import com.uzproc.backend.dto.overview.OverviewApprovalsGroupedResponseDto;
@@ -8,17 +10,20 @@ import com.uzproc.backend.dto.overview.OverviewEkChartResponseDto;
 import com.uzproc.backend.dto.overview.OverviewPurchasePlanMonthsResponseDto;
 import com.uzproc.backend.dto.overview.OverviewSlaResponseDto;
 import com.uzproc.backend.dto.overview.OverviewTimelinesResponseDto;
+import com.uzproc.backend.service.contract.ContractApprovalService;
 import com.uzproc.backend.service.overview.ApprovalPresentationService;
 import com.uzproc.backend.service.overview.OverviewService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.uzproc.backend.dto.overview.OverviewTimelinesRequestDto;
 import com.uzproc.backend.dto.purchaserequest.PurchaseRequestDto;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.uzproc.backend.dto.overview.OverviewSavingsResponseDto;
 import com.uzproc.backend.dto.overview.OverviewSavingsPurchaseDetailDto;
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -35,10 +40,14 @@ public class OverviewController {
 
     private final OverviewService overviewService;
     private final ApprovalPresentationService approvalPresentationService;
+    private final ContractApprovalService contractApprovalService;
 
-    public OverviewController(OverviewService overviewService, ApprovalPresentationService approvalPresentationService) {
+    public OverviewController(OverviewService overviewService,
+                              ApprovalPresentationService approvalPresentationService,
+                              ContractApprovalService contractApprovalService) {
         this.overviewService = overviewService;
         this.approvalPresentationService = approvalPresentationService;
+        this.contractApprovalService = contractApprovalService;
     }
 
     /**
@@ -207,5 +216,27 @@ public class OverviewController {
     @PutMapping("/approval-presentation")
     public ResponseEntity<ApprovalPresentationDto> saveApprovalPresentation(@RequestBody ApprovalPresentationDto dto) {
         return ResponseEntity.ok(approvalPresentationService.save(dto));
+    }
+
+    /**
+     * Дашборд замечаний по договорам: категории с количеством.
+     * Фильтр по дате создания замечания (dateFrom, dateTo).
+     */
+    @GetMapping("/contract-remarks-dashboard")
+    public ResponseEntity<ContractRemarksDashboardResponseDto> getContractRemarksDashboard(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
+        return ResponseEntity.ok(contractApprovalService.getRemarksDashboard(dateFrom, dateTo));
+    }
+
+    /**
+     * Замечания по конкретной категории для дашборда.
+     */
+    @GetMapping("/contract-remarks-dashboard/by-category")
+    public ResponseEntity<List<ContractRemarkDashboardEntryDto>> getContractRemarksByCategory(
+            @RequestParam String category,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
+        return ResponseEntity.ok(contractApprovalService.getRemarksByCategory(category, dateFrom, dateTo));
     }
 }

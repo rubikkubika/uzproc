@@ -24,6 +24,7 @@ const dashboardTabs: OverviewTabItem[] = [
   { id: 'approvals', label: 'Согласования' },
   { id: 'timelines', label: 'Сроки закупок' },
   { id: 'savings', label: 'Экономия' },
+  { id: 'contract-remarks', label: 'Замечания по договорам' },
 ];
 
 /**
