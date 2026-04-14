@@ -24,6 +24,7 @@ import {
   GraduationCap,
   BookOpen,
   CalendarDays,
+  Star,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -60,6 +61,7 @@ const menuItems: Array<{ id: string; label: string; icon: any }> = [];
     { id: 'users', label: 'Пользователи', icon: Users },
     { id: 'invoice-recognition', label: 'Распознавание', icon: ScanText },
     { id: 'training', label: 'Обучение', icon: GraduationCap },
+    { id: 'csi', label: 'Форма оценки (CSI)', icon: Star, isExternal: true },
   ];
 
   const backendItems: Array<{ id: string; label: string; icon: any }> = [];
@@ -461,7 +463,7 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                     <button
                       onClick={() => {
                         if (isExternal) {
-                          router.push('/portal');
+                          router.push(`/${item.id}`);
                           setIsMobileMenuOpen(false);
                         } else {
                           handleTabChange(item.id);
