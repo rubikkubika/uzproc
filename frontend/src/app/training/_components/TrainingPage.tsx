@@ -5,6 +5,7 @@ import SlideList from './ui/SlideList';
 import SlideViewer from './ui/SlideViewer';
 import VoiceoverPanel from './ui/VoiceoverPanel';
 import AudioPlayer from './ui/AudioPlayer';
+import VideoPlayer from './ui/VideoPlayer';
 
 export default function TrainingPage() {
   const {
@@ -18,22 +19,24 @@ export default function TrainingPage() {
     canGoNext,
     canGoPrev,
     audio,
+    video,
   } = useTraining();
 
   return (
     <div className="flex gap-6 h-full">
       {/* Left panel — slide list */}
-      <div className="w-64 flex-shrink-0">
+      <div className="w-64 flex-shrink-0 overflow-y-auto">
         <SlideList
           slides={slides}
           currentSlideIndex={currentSlideIndex}
           onSlideSelect={goToSlide}
           audioUrls={audio.audioUrls}
+          videoUrls={video.videoUrls}
         />
       </div>
 
-      {/* Right panel — slide viewer + audio + voiceover */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* Right panel — slide viewer + audio + video + voiceover */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         <SlideViewer
           slide={currentSlide}
           currentIndex={currentSlideIndex}
@@ -53,6 +56,18 @@ export default function TrainingPage() {
           onSeek={audio.seek}
           onUpload={audio.uploadAudio}
           onRemove={audio.removeAudio}
+        />
+        <VideoPlayer
+          slideIndex={currentSlideIndex}
+          videoRef={video.videoRef}
+          hasVideo={video.hasVideo}
+          isPlaying={video.videoState.isPlaying}
+          currentTime={video.videoState.currentTime}
+          duration={video.videoState.duration}
+          onTogglePlayPause={video.togglePlayPause}
+          onSeek={video.seek}
+          onUpload={video.uploadVideo}
+          onRemove={video.removeVideo}
         />
         <VoiceoverPanel
           text={currentSlide.voiceoverText}
