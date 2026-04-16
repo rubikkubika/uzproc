@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useRef, useEffect, useCallback } from 'react';
 
 interface SlideVideoState {
@@ -6,8 +8,21 @@ interface SlideVideoState {
   duration: number;
 }
 
+interface MediaItem {
+  slideId: number;
+  type: string;
+}
+
+const API_BASE = '/api/training/media';
+
+function getVideoUrl(slideId: number): string {
+  return `${API_BASE}/${slideId}/video`;
+}
+
 export function useSlideVideo(currentSlideIndex: number) {
-  const [videoUrls, setVideoUrls] = useState<Record<number, string>>({});
+  const slideId = currentSlideIndex + 1;
+
+  const [loadedSlides, setLoadedSlides] = useState<Set<number>>(new Set());
   const [videoState, setVideoState] = useState<SlideVideoState>({
     isPlaying: false,
     currentTime: 0,
@@ -15,7 +30,20 @@ export function useSlideVideo(currentSlideIndex: number) {
   });
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Stop and reset when slide changes
+  // При первом монтировании — загружаем список всех медиафайлов с сервера
+  useEffect(() => {
+    fetch(API_BASE)
+      .then(r => r.json())
+      .then((items: MediaItem[]) => {
+        const videoSlides = new Set(
+          items.filter(i => i.type === 'video').map(i => i.slideId)
+        );
+        setLoadedSlides(videoSlides);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Остановить и сбросить при смене слайда
   useEffect(() => {
     const video = videoRef.current;
     if (video) {
@@ -25,17 +53,17 @@ export function useSlideVideo(currentSlideIndex: number) {
     setVideoState({ isPlaying: false, currentTime: 0, duration: 0 });
   }, [currentSlideIndex]);
 
-  // Load video when slide changes
+  // Загрузить видео если есть для текущего слайда
   useEffect(() => {
-    const url = videoUrls[currentSlideIndex];
+    if (!loadedSlides.has(slideId)) return;
     const video = videoRef.current;
-    if (!url || !video) return;
+    if (!video) return;
 
-    video.src = url;
+    video.src = getVideoUrl(slideId);
     video.load();
-  }, [currentSlideIndex, videoUrls]);
+  }, [currentSlideIndex, loadedSlides, slideId]);
 
-  // Attach video element event listeners
+  // Слушатели событий video элемента
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -63,55 +91,74 @@ export function useSlideVideo(currentSlideIndex: number) {
 
   const togglePlayPause = useCallback(() => {
     const video = videoRef.current;
-    if (!video) return;
-
-    const url = videoUrls[currentSlideIndex];
-    if (!url) return;
+    if (!video || !loadedSlides.has(slideId)) return;
 
     if (video.paused) {
       video.play().catch(() => {});
     } else {
       video.pause();
     }
-  }, [videoUrls, currentSlideIndex]);
+  }, [loadedSlides, slideId]);
 
   const seek = useCallback((time: number) => {
     const video = videoRef.current;
-    if (video) {
-      video.currentTime = time;
-    }
+    if (video) video.currentTime = time;
   }, []);
 
-  const uploadVideo = useCallback((slideIndex: number, file: File) => {
-    const oldUrl = videoUrls[slideIndex];
-    if (oldUrl) {
-      URL.revokeObjectURL(oldUrl);
+  const uploadVideo = useCallback(async (slideIndex: number, file: File) => {
+    const id = slideIndex + 1;
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch(`${API_BASE}/${id}/video`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) throw new Error('Ошибка загрузки');
+
+      setLoadedSlides(prev => new Set([...prev, id]));
+
+      if (id === slideId) {
+        const video = videoRef.current;
+        if (video) {
+          video.src = getVideoUrl(id) + '?t=' + Date.now();
+          video.load();
+        }
+      }
+    } catch (e) {
+      console.error('Ошибка загрузки видео:', e);
     }
+  }, [slideId]);
 
-    const url = URL.createObjectURL(file);
-    setVideoUrls(prev => ({ ...prev, [slideIndex]: url }));
-  }, [videoUrls]);
+  const removeVideo = useCallback(async (slideIndex: number) => {
+    const id = slideIndex + 1;
+    try {
+      await fetch(`${API_BASE}/${id}/video`, { method: 'DELETE' });
+      setLoadedSlides(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
 
-  const removeVideo = useCallback((slideIndex: number) => {
-    const url = videoUrls[slideIndex];
-    if (url) {
-      URL.revokeObjectURL(url);
+      const video = videoRef.current;
+      if (video && id === slideId) {
+        video.pause();
+        video.src = '';
+        setVideoState({ isPlaying: false, currentTime: 0, duration: 0 });
+      }
+    } catch (e) {
+      console.error('Ошибка удаления видео:', e);
     }
-    setVideoUrls(prev => {
-      const next = { ...prev };
-      delete next[slideIndex];
-      return next;
-    });
+  }, [slideId]);
 
-    const video = videoRef.current;
-    if (video && slideIndex === currentSlideIndex) {
-      video.pause();
-      video.src = '';
-      setVideoState({ isPlaying: false, currentTime: 0, duration: 0 });
-    }
-  }, [videoUrls, currentSlideIndex]);
+  const hasVideo = loadedSlides.has(slideId);
 
-  const hasVideo = videoUrls[currentSlideIndex] !== undefined;
+  // videoUrls — для SlideList (показываем иконку если есть видео)
+  const videoUrls: Record<number, string> = {};
+  loadedSlides.forEach(id => {
+    videoUrls[id - 1] = getVideoUrl(id);
+  });
 
   return {
     videoRef,

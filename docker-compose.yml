@@ -52,6 +52,8 @@ services:
       # Монтируем CSV файл для загрузки данных
       - ./data/purchase-plan.csv:/app/data/purchase-plan.csv:ro
       # Excel файлы теперь внутри образа, volume mount не нужен
+      # Медиафайлы для курса обучения (аудио/видео к слайдам)
+      - training_media:/data/training/media
     depends_on:
       postgres:
         condition: service_healthy
@@ -109,3 +111,4 @@ services:
 
 volumes:
   postgres_data:
+  training_media:

@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useRef, useEffect, useCallback } from 'react';
 
 interface SlideAudioState {
@@ -6,17 +8,44 @@ interface SlideAudioState {
   duration: number;
 }
 
+interface MediaItem {
+  slideId: number;
+  type: string;
+}
+
+const API_BASE = '/api/training/media';
+
+function getAudioUrl(slideId: number): string {
+  return `${API_BASE}/${slideId}/audio`;
+}
+
 export function useSlideAudio(currentSlideIndex: number) {
-  const [audioUrls, setAudioUrls] = useState<Record<number, string>>({});
+  // slideId = index + 1 (слайды в БД хранятся по id, а не по индексу массива)
+  const slideId = currentSlideIndex + 1;
+
+  // Множество слайдов у которых есть загруженное аудио
+  const [loadedSlides, setLoadedSlides] = useState<Set<number>>(new Set());
   const [audioState, setAudioState] = useState<SlideAudioState>({
     isPlaying: false,
     currentTime: 0,
     duration: 0,
   });
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Stop and reset when slide changes
+  // При первом монтировании — загружаем список всех медиафайлов с сервера
+  useEffect(() => {
+    fetch(API_BASE)
+      .then(r => r.json())
+      .then((items: MediaItem[]) => {
+        const audioSlides = new Set(
+          items.filter(i => i.type === 'audio').map(i => i.slideId)
+        );
+        setLoadedSlides(audioSlides);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Остановить и сбросить при смене слайда
   useEffect(() => {
     const audio = audioRef.current;
     if (audio) {
@@ -26,30 +55,26 @@ export function useSlideAudio(currentSlideIndex: number) {
     setAudioState({ isPlaying: false, currentTime: 0, duration: 0 });
   }, [currentSlideIndex]);
 
-  // Auto-play when slide changes if audio exists
+  // Загрузить и начать воспроизведение, если аудио есть для текущего слайда
   useEffect(() => {
-    const url = audioUrls[currentSlideIndex];
-    if (!url) return;
-
+    if (!loadedSlides.has(slideId)) return;
     const audio = audioRef.current;
     if (!audio) return;
 
+    const url = getAudioUrl(slideId);
     audio.src = url;
     audio.load();
 
     const playAudio = () => {
-      audio.play().catch(() => {
-        // autoplay blocked by browser — user will press play manually
-      });
+      audio.play().catch(() => {});
     };
-
     audio.addEventListener('canplay', playAudio, { once: true });
     return () => {
       audio.removeEventListener('canplay', playAudio);
     };
-  }, [currentSlideIndex, audioUrls]);
+  }, [currentSlideIndex, loadedSlides, slideId]);
 
-  // Attach audio element event listeners
+  // Слушатели событий audio элемента
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -77,12 +102,10 @@ export function useSlideAudio(currentSlideIndex: number) {
 
   const togglePlayPause = useCallback(() => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || !loadedSlides.has(slideId)) return;
 
-    const url = audioUrls[currentSlideIndex];
-    if (!url) return;
-
-    if (audio.src !== url) {
+    const url = getAudioUrl(slideId);
+    if (!audio.src.includes(`/audio`)) {
       audio.src = url;
       audio.load();
     }
@@ -92,50 +115,71 @@ export function useSlideAudio(currentSlideIndex: number) {
     } else {
       audio.pause();
     }
-  }, [audioUrls, currentSlideIndex]);
+  }, [loadedSlides, slideId]);
 
   const seek = useCallback((time: number) => {
     const audio = audioRef.current;
-    if (audio) {
-      audio.currentTime = time;
-    }
+    if (audio) audio.currentTime = time;
   }, []);
 
-  const uploadAudio = useCallback((slideIndex: number, file: File) => {
-    // Revoke old URL to free memory
-    const oldUrl = audioUrls[slideIndex];
-    if (oldUrl) {
-      URL.revokeObjectURL(oldUrl);
+  const uploadAudio = useCallback(async (slideIndex: number, file: File) => {
+    const id = slideIndex + 1;
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch(`${API_BASE}/${id}/audio`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) throw new Error('Ошибка загрузки');
+
+      setLoadedSlides(prev => new Set([...prev, id]));
+
+      // Если загружаем для текущего слайда — сразу применяем
+      if (id === slideId) {
+        const audio = audioRef.current;
+        if (audio) {
+          audio.src = getAudioUrl(id) + '?t=' + Date.now(); // cache-bust
+          audio.load();
+        }
+      }
+    } catch (e) {
+      console.error('Ошибка загрузки аудио:', e);
     }
+  }, [slideId]);
 
-    const url = URL.createObjectURL(file);
-    setAudioUrls(prev => ({ ...prev, [slideIndex]: url }));
-  }, [audioUrls]);
+  const removeAudio = useCallback(async (slideIndex: number) => {
+    const id = slideIndex + 1;
+    try {
+      await fetch(`${API_BASE}/${id}/audio`, { method: 'DELETE' });
+      setLoadedSlides(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
 
-  const removeAudio = useCallback((slideIndex: number) => {
-    const url = audioUrls[slideIndex];
-    if (url) {
-      URL.revokeObjectURL(url);
+      const audio = audioRef.current;
+      if (audio && id === slideId) {
+        audio.pause();
+        audio.src = '';
+        setAudioState({ isPlaying: false, currentTime: 0, duration: 0 });
+      }
+    } catch (e) {
+      console.error('Ошибка удаления аудио:', e);
     }
-    setAudioUrls(prev => {
-      const next = { ...prev };
-      delete next[slideIndex];
-      return next;
-    });
+  }, [slideId]);
 
-    const audio = audioRef.current;
-    if (audio && slideIndex === currentSlideIndex) {
-      audio.pause();
-      audio.src = '';
-      setAudioState({ isPlaying: false, currentTime: 0, duration: 0 });
-    }
-  }, [audioUrls, currentSlideIndex]);
+  const hasAudio = loadedSlides.has(slideId);
 
-  const hasAudio = audioUrls[currentSlideIndex] !== undefined;
+  // audioUrls — для SlideList (показываем иконку если есть аудио)
+  const audioUrls: Record<number, string> = {};
+  loadedSlides.forEach(id => {
+    audioUrls[id - 1] = getAudioUrl(id);
+  });
 
   return {
     audioRef,
-    fileInputRef,
     audioState,
     hasAudio,
     audioUrls,

@@ -14,6 +14,7 @@ interface VideoPlayerProps {
   onSeek: (time: number) => void;
   onUpload: (slideIndex: number, file: File) => void;
   onRemove: (slideIndex: number) => void;
+  readOnly?: boolean;
 }
 
 function formatTime(seconds: number): string {
@@ -34,6 +35,7 @@ export default function VideoPlayer({
   onSeek,
   onUpload,
   onRemove,
+  readOnly = false,
 }: VideoPlayerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -107,25 +109,29 @@ export default function VideoPlayer({
               </span>
             </div>
 
-            <button
-              onClick={() => onRemove(slideIndex)}
-              className="flex items-center justify-center w-7 h-7 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"
-              title="Удалить видео"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+            {!readOnly && (
+              <button
+                onClick={() => onRemove(slideIndex)}
+                className="flex items-center justify-center w-7 h-7 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"
+                title="Удалить видео"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
           </>
         ) : (
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            Загрузить видео
-          </button>
+          !readOnly && (
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-gray-200 text-gray-600 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              Загрузить видео
+            </button>
+          )
         )}
 
-        {hasVideo && (
+        {hasVideo && !readOnly && (
           <button
             onClick={() => fileInputRef.current?.click()}
             className="flex items-center justify-center w-7 h-7 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors flex-shrink-0"

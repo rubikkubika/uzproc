@@ -9,11 +9,12 @@ export function middleware(request: NextRequest) {
   const isAuthenticated = authToken && authToken.value === `authenticated-${PASSWORD_VERSION}`;
   const isLoginPage = request.nextUrl.pathname === '/login';
   const isPublicPlanPage = request.nextUrl.pathname.startsWith('/public-plan');
+  const isPublicTrainingPage = request.nextUrl.pathname.startsWith('/training-public');
   const isPortalPage = request.nextUrl.pathname.startsWith('/portal');
   const isCSIFeedbackPage = request.nextUrl.pathname.startsWith('/csi/feedback');
 
   // Разрешаем доступ к публичным страницам без аутентификации
-  if (isPublicPlanPage || isPortalPage || isCSIFeedbackPage) {
+  if (isPublicPlanPage || isPublicTrainingPage || isPortalPage || isCSIFeedbackPage) {
     return NextResponse.next();
   }
 

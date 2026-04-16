@@ -9,48 +9,38 @@ export const COURSE_SLIDES: Slide[] = [
     block: 'intro',
     title: 'Добро пожаловать',
     voiceoverText:
-      'Добро пожаловать на курс по закупкам uzProc. Этот курс создан специально для инициаторов закупок — сотрудников, которые подают заявки. Всего 30 минут, и вы будете уверенно работать с системой. Мы разберём, как устроен процесс закупки, кто в нём участвует и как правильно подать заявку в 1С. Поехали!',
+      'Добро пожаловать на курс по корпоративным закупкам. Этот курс создан для всех сотрудников, участвующих в процессе закупок: инициаторов, руководителей и сотрудников смежных подразделений. Всего 30 минут, и вы будете уверенно ориентироваться в процессе. Мы разберём, как устроена закупка, кто в ней участвует и как правильно составлять заявки в 1С. Поехали!',
     htmlContent: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; height: 100%; min-height: 440px; display: flex; flex-direction: column; padding: 36px 44px; box-sizing: border-box;">
 
-        <!-- Шапка -->
         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 28px;">
           <div style="width: 6px; height: 6px; border-radius: 50%; background: #7C3AED;"></div>
           <span style="font-size: 11px; font-weight: 700; color: #7C3AED; letter-spacing: 1.5px; text-transform: uppercase;">Блок 1 · Введение</span>
         </div>
 
-        <!-- Заголовок -->
         <h1 style="margin: 0 0 32px; font-size: 34px; font-weight: 800; color: #111827; line-height: 1.15;">
-          Добро<br>пожаловать! 👋
+          Курс по процессу<br>закупок
         </h1>
 
-        <!-- Основная сетка: слева цели, справа статы -->
         <div style="display: flex; gap: 24px; flex: 1;">
 
-          <!-- Левая колонка: что узнаете -->
           <div style="flex: 1; background: #F5F3FF; border-radius: 16px; padding: 24px 28px;">
             <div style="font-size: 12px; font-weight: 700; color: #7C3AED; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 18px;">Что вы узнаете</div>
             <div style="display: flex; flex-direction: column; gap: 14px;">
-              <div style="display: flex; align-items: flex-start; gap: 12px;">
-                <div style="flex-shrink: 0; width: 28px; height: 28px; border-radius: 8px; background: #7C3AED; color: white; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700;">1</div>
-                <span style="font-size: 14px; color: #374151; line-height: 1.5; padding-top: 4px;">Кто участвует в закупке и за что отвечает</span>
-              </div>
-              <div style="display: flex; align-items: flex-start; gap: 12px;">
-                <div style="flex-shrink: 0; width: 28px; height: 28px; border-radius: 8px; background: #7C3AED; color: white; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700;">2</div>
-                <span style="font-size: 14px; color: #374151; line-height: 1.5; padding-top: 4px;">Полный road map — от заявки до договора</span>
-              </div>
-              <div style="display: flex; align-items: flex-start; gap: 12px;">
-                <div style="flex-shrink: 0; width: 28px; height: 28px; border-radius: 8px; background: #7C3AED; color: white; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700;">3</div>
-                <span style="font-size: 14px; color: #374151; line-height: 1.5; padding-top: 4px;">Ключевые сроки и от чего они зависят</span>
-              </div>
-              <div style="display: flex; align-items: flex-start; gap: 12px;">
-                <div style="flex-shrink: 0; width: 28px; height: 28px; border-radius: 8px; background: #7C3AED; color: white; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700;">4</div>
-                <span style="font-size: 14px; color: #374151; line-height: 1.5; padding-top: 4px;">Как правильно составить заявку и ТЗ в 1С</span>
-              </div>
+              ${[
+                'Кто участвует в закупке и за что отвечает',
+                'Полный road map — от заявки до договора',
+                'Ключевые сроки и от чего они зависят',
+                'Как правильно составить заявку и ТЗ в 1С',
+              ].map((text, i) => `
+                <div style="display: flex; align-items: flex-start; gap: 12px;">
+                  <div style="flex-shrink: 0; width: 28px; height: 28px; border-radius: 8px; background: #7C3AED; color: white; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700;">${i + 1}</div>
+                  <span style="font-size: 14px; color: #374151; line-height: 1.5; padding-top: 4px;">${text}</span>
+                </div>
+              `).join('')}
             </div>
           </div>
 
-          <!-- Правая колонка: статы -->
           <div style="width: 180px; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px;">
             <div style="flex: 1; background: #111827; border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
               <div style="font-size: 48px; font-weight: 900; color: #A78BFA;">3</div>
@@ -76,7 +66,7 @@ export const COURSE_SLIDES: Slide[] = [
     block: 'intro',
     title: 'Зачем это знать?',
     voiceoverText:
-      'Прежде чем переходить к деталям, давайте разберёмся — зачем инициатору вообще знать процесс закупки? Во-первых, закупка — это не просто "отправить заявку". Это совместная работа вас и отдела закупок. Чем лучше вы понимаете процесс, тем быстрее результат. Во-вторых, ошибки на старте — неполное ТЗ, неверные сроки в плане, нечёткие требования — это задержки в закупке и проблемы с поставщиком. В-третьих, зная этапы, вы можете реально планировать свои потребности и не оказываться в ситуации "нужно срочно".',
+      'Прежде чем переходить к деталям, давайте разберёмся — зачем знать процесс закупки? Во-первых, закупка — это не просто «отправить заявку». Это совместная работа нескольких сторон. Чем лучше каждый участник понимает процесс, тем быстрее результат. Во-вторых, ошибки на старте — неполное ТЗ, неверные сроки, нечёткие требования — это задержки и проблемы с поставщиком. В-третьих, зная этапы, можно реально планировать потребности и не оказываться в ситуации «нужно срочно».',
     htmlContent: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; height: 100%; min-height: 440px; display: flex; flex-direction: column; padding: 36px 44px; box-sizing: border-box;">
 
@@ -87,36 +77,28 @@ export const COURSE_SLIDES: Slide[] = [
 
         <h2 style="margin: 0 0 28px; font-size: 32px; font-weight: 800; color: #111827; line-height: 1.2;">Зачем это знать?</h2>
 
-        <!-- 3 карточки в ряд -->
         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; flex: 1; margin-bottom: 20px;">
 
-          <div style="background: #FFF7ED; border: 1.5px solid #FED7AA; border-radius: 16px; padding: 24px 20px; display: flex; flex-direction: column;">
-            <div style="font-size: 40px; margin-bottom: 14px;">⚡</div>
-            <div style="font-size: 15px; font-weight: 700; color: #92400E; margin-bottom: 8px; line-height: 1.3;">Закупка — это командная работа</div>
-            <div style="font-size: 13px; color: #78350F; line-height: 1.65; flex: 1;">Чем лучше вы понимаете процесс — тем быстрее и качественнее результат.</div>
+          <div style="background: #F5F3FF; border: 1.5px solid #DDD6FE; border-radius: 16px; padding: 24px 20px; display: flex; flex-direction: column;">
+            <div style="font-size: 15px; font-weight: 700; color: #5B21B6; margin-bottom: 8px; line-height: 1.3;">Закупка — это командная работа</div>
+            <div style="font-size: 13px; color: #4C1D95; line-height: 1.65; flex: 1;">Чем лучше вы понимаете процесс — тем быстрее и качественнее результат.</div>
           </div>
 
-          <div style="background: #FEF2F2; border: 1.5px solid #FECACA; border-radius: 16px; padding: 24px 20px; display: flex; flex-direction: column;">
-            <div style="font-size: 40px; margin-bottom: 14px;">⚠️</div>
-            <div style="font-size: 15px; font-weight: 700; color: #991B1B; margin-bottom: 8px; line-height: 1.3;">Ошибки на старте = задержки в конце</div>
-            <div style="font-size: 13px; color: #7F1D1D; line-height: 1.65; flex: 1;">Неполное ТЗ, нечёткие требования — всё это затягивает закупку на недели.</div>
+          <div style="background: #F5F3FF; border: 1.5px solid #DDD6FE; border-radius: 16px; padding: 24px 20px; display: flex; flex-direction: column;">
+            <div style="font-size: 15px; font-weight: 700; color: #5B21B6; margin-bottom: 8px; line-height: 1.3;">Ошибки на старте = задержки в конце</div>
+            <div style="font-size: 13px; color: #4C1D95; line-height: 1.65; flex: 1;">Неполное ТЗ, нечёткие требования — всё это затягивает закупку на недели.</div>
           </div>
 
-          <div style="background: #F0FDF4; border: 1.5px solid #BBF7D0; border-radius: 16px; padding: 24px 20px; display: flex; flex-direction: column;">
-            <div style="font-size: 40px; margin-bottom: 14px;">📅</div>
-            <div style="font-size: 15px; font-weight: 700; color: #14532D; margin-bottom: 8px; line-height: 1.3;">Планирование — ваш главный инструмент</div>
-            <div style="font-size: 13px; color: #166534; line-height: 1.65; flex: 1;">Зная сроки, вы не попадёте в ситуацию «нужно срочно, а займёт 2 недели».</div>
+          <div style="background: #F5F3FF; border: 1.5px solid #DDD6FE; border-radius: 16px; padding: 24px 20px; display: flex; flex-direction: column;">
+            <div style="font-size: 15px; font-weight: 700; color: #5B21B6; margin-bottom: 8px; line-height: 1.3;">Планирование — главный инструмент</div>
+            <div style="font-size: 13px; color: #4C1D95; line-height: 1.65; flex: 1;">Зная сроки, вы не попадёте в ситуацию «нужно срочно, а займёт 2 недели».</div>
           </div>
 
         </div>
 
-        <!-- Итоговая цитата -->
-        <div style="background: linear-gradient(135deg, #4C1D95, #6D28D9); border-radius: 14px; padding: 20px 28px; display: flex; align-items: center; gap: 16px;">
-          <div style="font-size: 32px; flex-shrink: 0;">🎯</div>
-          <div>
-            <div style="font-size: 13px; font-weight: 700; color: #DDD6FE; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">Цель курса</div>
-            <div style="font-size: 14px; color: white; line-height: 1.6;">После курса вы будете подавать качественные заявки с первого раза и знать, что происходит с ними на каждом этапе.</div>
-          </div>
+        <div style="background: #4C1D95; border-radius: 14px; padding: 20px 28px;">
+          <div style="font-size: 13px; font-weight: 700; color: #DDD6FE; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">Цель курса</div>
+          <div style="font-size: 14px; color: white; line-height: 1.6;">После курса вы будете понимать процесс закупки от начала до конца и знать, что происходит на каждом этапе.</div>
         </div>
 
       </div>
@@ -131,7 +113,7 @@ export const COURSE_SLIDES: Slide[] = [
     block: 'roadmap',
     title: 'Кто участвует в закупке',
     voiceoverText:
-      'В каждой закупке участвуют три стороны. Первая — это вы, инициатор. Вы формируете потребность, готовите заявку и техническое задание, согласовываете итоги. Вторая — отдел закупок. Закупщик проводит процедуру: ищет поставщиков, анализирует рынок, организует отбор. Третья — закупочный комитет. Это коллегиальный орган, который принимает финальное решение о выборе поставщика для крупных закупок. Важно: вы не просто "отправляете заявку" — вы полноценный участник процесса, и от качества вашей работы зависит результат.',
+      'В каждой закупке участвуют три стороны. Первая — инициатор. Он формирует потребность, готовит заявку и техническое задание, согласовывает итоги. Вторая — отдел закупок. Закупщик проводит процедуру: ищет поставщиков, анализирует рынок, организует отбор. Третья — закупочный комитет. Это коллегиальный орган, который принимает финальное решение о выборе поставщика для крупных закупок. Все три стороны — полноценные участники процесса, и от качества работы каждого зависит результат.',
     htmlContent: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; height: 100%; min-height: 440px; display: flex; flex-direction: column; padding: 36px 44px; box-sizing: border-box;">
 
@@ -142,48 +124,42 @@ export const COURSE_SLIDES: Slide[] = [
 
         <h2 style="margin: 0 0 28px; font-size: 32px; font-weight: 800; color: #111827; line-height: 1.2;">Кто участвует<br>в закупке</h2>
 
-        <!-- 3 карточки участников в ряд -->
         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; flex: 1;">
 
-          <div style="background: #EFF6FF; border: 1.5px solid #BFDBFE; border-radius: 16px; padding: 24px 20px; display: flex; flex-direction: column;">
-            <div style="font-size: 40px; margin-bottom: 14px;">🙋</div>
-            <div style="font-size: 15px; font-weight: 700; color: #1E40AF; margin-bottom: 10px;">Инициатор</div>
-            <div style="font-size: 12px; font-weight: 600; color: #93C5FD; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">Это вы</div>
+          <div style="background: #F0FDF4; border: 1.5px solid #BBF7D0; border-radius: 16px; padding: 24px 20px; display: flex; flex-direction: column;">
+            <div style="font-size: 15px; font-weight: 700; color: #14532D; margin-bottom: 10px;">Инициатор</div>
+            <div style="font-size: 12px; font-weight: 600; color: #059669; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">Подразделение</div>
             <div style="display: flex; flex-direction: column; gap: 7px; flex: 1;">
-              <div style="font-size: 13px; color: #1E3A8A; display: flex; gap: 7px;"><span style="color: #3B82F6; font-weight: 700; flex-shrink: 0;">→</span>Формируете потребность</div>
-              <div style="font-size: 13px; color: #1E3A8A; display: flex; gap: 7px;"><span style="color: #3B82F6; font-weight: 700; flex-shrink: 0;">→</span>Готовите заявку и ТЗ</div>
-              <div style="font-size: 13px; color: #1E3A8A; display: flex; gap: 7px;"><span style="color: #3B82F6; font-weight: 700; flex-shrink: 0;">→</span>Подписываете акты</div>
+              <div style="font-size: 13px; color: #166534; display: flex; gap: 7px;"><span style="color: #059669; font-weight: 700; flex-shrink: 0;">→</span>Формирует потребность</div>
+              <div style="font-size: 13px; color: #166534; display: flex; gap: 7px;"><span style="color: #059669; font-weight: 700; flex-shrink: 0;">→</span>Готовит заявку и ТЗ</div>
+              <div style="font-size: 13px; color: #166534; display: flex; gap: 7px;"><span style="color: #059669; font-weight: 700; flex-shrink: 0;">→</span>Подписывает акты</div>
             </div>
           </div>
 
           <div style="background: #F0FDF4; border: 1.5px solid #BBF7D0; border-radius: 16px; padding: 24px 20px; display: flex; flex-direction: column;">
-            <div style="font-size: 40px; margin-bottom: 14px;">🛒</div>
             <div style="font-size: 15px; font-weight: 700; color: #14532D; margin-bottom: 10px;">Отдел закупок</div>
-            <div style="font-size: 12px; font-weight: 600; color: #86EFAC; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">Закупщик</div>
+            <div style="font-size: 12px; font-weight: 600; color: #059669; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">Закупщик</div>
             <div style="display: flex; flex-direction: column; gap: 7px; flex: 1;">
-              <div style="font-size: 13px; color: #166534; display: flex; gap: 7px;"><span style="color: #22C55E; font-weight: 700; flex-shrink: 0;">→</span>Обрабатывает заявку</div>
-              <div style="font-size: 13px; color: #166534; display: flex; gap: 7px;"><span style="color: #22C55E; font-weight: 700; flex-shrink: 0;">→</span>Анализирует рынок</div>
-              <div style="font-size: 13px; color: #166534; display: flex; gap: 7px;"><span style="color: #22C55E; font-weight: 700; flex-shrink: 0;">→</span>Проводит процедуру</div>
+              <div style="font-size: 13px; color: #166534; display: flex; gap: 7px;"><span style="color: #059669; font-weight: 700; flex-shrink: 0;">→</span>Обрабатывает заявку</div>
+              <div style="font-size: 13px; color: #166534; display: flex; gap: 7px;"><span style="color: #059669; font-weight: 700; flex-shrink: 0;">→</span>Анализирует рынок</div>
+              <div style="font-size: 13px; color: #166534; display: flex; gap: 7px;"><span style="color: #059669; font-weight: 700; flex-shrink: 0;">→</span>Проводит процедуру</div>
             </div>
           </div>
 
-          <div style="background: #FFF7ED; border: 1.5px solid #FED7AA; border-radius: 16px; padding: 24px 20px; display: flex; flex-direction: column;">
-            <div style="font-size: 40px; margin-bottom: 14px;">🏛️</div>
-            <div style="font-size: 15px; font-weight: 700; color: #92400E; margin-bottom: 10px;">Комитет</div>
-            <div style="font-size: 12px; font-weight: 600; color: #FCD34D; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">От 20 млн UZS</div>
+          <div style="background: #F0FDF4; border: 1.5px solid #BBF7D0; border-radius: 16px; padding: 24px 20px; display: flex; flex-direction: column;">
+            <div style="font-size: 15px; font-weight: 700; color: #14532D; margin-bottom: 10px;">Комитет</div>
+            <div style="font-size: 12px; font-weight: 600; color: #059669; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">От 20 млн UZS</div>
             <div style="display: flex; flex-direction: column; gap: 7px; flex: 1;">
-              <div style="font-size: 13px; color: #78350F; display: flex; gap: 7px;"><span style="color: #F59E0B; font-weight: 700; flex-shrink: 0;">→</span>Коллегиальный орган</div>
-              <div style="font-size: 13px; color: #78350F; display: flex; gap: 7px;"><span style="color: #F59E0B; font-weight: 700; flex-shrink: 0;">→</span>Финальное решение</div>
-              <div style="font-size: 13px; color: #78350F; display: flex; gap: 7px;"><span style="color: #F59E0B; font-weight: 700; flex-shrink: 0;">→</span>Крупные закупки</div>
+              <div style="font-size: 13px; color: #166534; display: flex; gap: 7px;"><span style="color: #059669; font-weight: 700; flex-shrink: 0;">→</span>Коллегиальный орган</div>
+              <div style="font-size: 13px; color: #166534; display: flex; gap: 7px;"><span style="color: #059669; font-weight: 700; flex-shrink: 0;">→</span>Финальное решение</div>
+              <div style="font-size: 13px; color: #166534; display: flex; gap: 7px;"><span style="color: #059669; font-weight: 700; flex-shrink: 0;">→</span>Крупные закупки</div>
             </div>
           </div>
 
         </div>
 
-        <!-- Подсказка снизу -->
-        <div style="margin-top: 16px; background: #F9FAFB; border-radius: 10px; padding: 12px 18px; font-size: 13px; color: #6B7280; display: flex; align-items: center; gap: 10px;">
-          <span style="font-size: 18px;">💡</span>
-          Вы не просто «отправляете заявку» — вы полноценный участник, от которого зависит результат.
+        <div style="margin-top: 16px; background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 10px; padding: 12px 18px; font-size: 13px; color: #6B7280;">
+          Все участники несут ответственность за результат — качество работы каждого влияет на итог закупки.
         </div>
 
       </div>
@@ -206,23 +182,21 @@ export const COURSE_SLIDES: Slide[] = [
 
         <h2 style="margin: 0 0 24px; font-size: 32px; font-weight: 800; color: #111827;">8 этапов закупки</h2>
 
-        <!-- Сетка 4+4 -->
         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px; flex: 1;">
           ${[
-            { n: 1, emoji: '📋', label: 'Планирование', color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE', tc: '#5B21B6' },
-            { n: 2, emoji: '📝', label: 'Заявка и ТЗ', color: '#1D4ED8', bg: '#EFF6FF', border: '#BFDBFE', tc: '#1E3A8A' },
-            { n: 3, emoji: '🔍', label: 'Процедура', color: '#047857', bg: '#F0FDF4', border: '#BBF7D0', tc: '#166534' },
-            { n: 4, emoji: '🏆', label: 'Выбор поставщика', color: '#B45309', bg: '#FFFBEB', border: '#FDE68A', tc: '#78350F' },
-            { n: 5, emoji: '📄', label: 'Договор', color: '#0E7490', bg: '#ECFEFF', border: '#A5F3FC', tc: '#164E63' },
-            { n: 6, emoji: '⭐', label: 'Оценка (CSI)', color: '#BE185D', bg: '#FDF2F8', border: '#FBCFE8', tc: '#831843' },
-            { n: 7, emoji: '🚚', label: 'Исполнение', color: '#065F46', bg: '#ECFDF5', border: '#A7F3D0', tc: '#064E3B' },
-            { n: 8, emoji: '✅', label: 'Приёмка', color: '#1E3A8A', bg: '#EFF6FF', border: '#93C5FD', tc: '#1E40AF' },
-          ].map(({ n, emoji, label, color, bg, border, tc }) => `
-            <div style="background: ${bg}; border: 1.5px solid ${border}; border-radius: 14px; padding: 16px 14px; display: flex; flex-direction: column; align-items: flex-start; position: relative; overflow: hidden;">
-              <div style="position: absolute; top: -8px; right: -4px; font-size: 48px; opacity: 0.1; line-height: 1;">${n}</div>
-              <div style="font-size: 28px; margin-bottom: 10px;">${emoji}</div>
-              <div style="font-size: 11px; font-weight: 700; color: ${color}; margin-bottom: 4px;">Этап ${n}</div>
-              <div style="font-size: 13px; font-weight: 600; color: ${tc}; line-height: 1.3;">${label}</div>
+            { n: 1, label: 'Планирование' },
+            { n: 2, label: 'Заявка и ТЗ' },
+            { n: 3, label: 'Процедура' },
+            { n: 4, label: 'Выбор поставщика' },
+            { n: 5, label: 'Договор' },
+            { n: 6, label: 'Оценка (CSI)' },
+            { n: 7, label: 'Исполнение' },
+            { n: 8, label: 'Приёмка' },
+          ].map(({ n, label }) => `
+            <div style="background: #F9FAFB; border: 1.5px solid #E5E7EB; border-radius: 14px; padding: 16px 14px; display: flex; flex-direction: column; align-items: flex-start; position: relative; overflow: hidden;">
+              <div style="position: absolute; top: -8px; right: -4px; font-size: 48px; font-weight: 900; color: #E5E7EB; line-height: 1;">${n}</div>
+              <div style="font-size: 11px; font-weight: 700; color: #059669; margin-bottom: 4px;">Этап ${n}</div>
+              <div style="font-size: 13px; font-weight: 600; color: #374151; line-height: 1.3;">${label}</div>
             </div>
           `).join('')}
         </div>
@@ -249,28 +223,24 @@ export const COURSE_SLIDES: Slide[] = [
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; flex: 1;">
 
-          <div style="background: #EFF6FF; border: 1.5px solid #BFDBFE; border-radius: 16px; padding: 28px 24px; display: flex; flex-direction: column;">
-            <div style="font-size: 44px; margin-bottom: 16px;">🔍</div>
-            <div style="font-size: 18px; font-weight: 700; color: #1E40AF; margin-bottom: 8px;">Прозрачность</div>
-            <div style="font-size: 13px; color: #1E3A8A; line-height: 1.65; flex: 1;">Все действия документируются. Решения обоснованы и открыты для внутренней проверки.</div>
+          <div style="background: #F0FDF4; border: 1.5px solid #BBF7D0; border-radius: 16px; padding: 28px 24px; display: flex; flex-direction: column;">
+            <div style="font-size: 18px; font-weight: 700; color: #14532D; margin-bottom: 8px;">Прозрачность</div>
+            <div style="font-size: 13px; color: #166534; line-height: 1.65; flex: 1;">Все действия документируются. Решения обоснованы и открыты для внутренней проверки.</div>
           </div>
 
           <div style="background: #F0FDF4; border: 1.5px solid #BBF7D0; border-radius: 16px; padding: 28px 24px; display: flex; flex-direction: column;">
-            <div style="font-size: 44px; margin-bottom: 16px;">🏆</div>
             <div style="font-size: 18px; font-weight: 700; color: #14532D; margin-bottom: 8px;">Конкурентность</div>
             <div style="font-size: 13px; color: #166534; line-height: 1.65; flex: 1;">Всегда сравниваем нескольких поставщиков. Лучшие условия — через реальную конкуренцию.</div>
           </div>
 
-          <div style="background: #FFF7ED; border: 1.5px solid #FED7AA; border-radius: 16px; padding: 28px 24px; display: flex; flex-direction: column;">
-            <div style="font-size: 44px; margin-bottom: 16px;">🏛️</div>
-            <div style="font-size: 18px; font-weight: 700; color: #92400E; margin-bottom: 8px;">Коллегиальность</div>
-            <div style="font-size: 13px; color: #78350F; line-height: 1.65; flex: 1;">Решения по крупным закупкам принимает комитет, а не один человек.</div>
+          <div style="background: #F0FDF4; border: 1.5px solid #BBF7D0; border-radius: 16px; padding: 28px 24px; display: flex; flex-direction: column;">
+            <div style="font-size: 18px; font-weight: 700; color: #14532D; margin-bottom: 8px;">Коллегиальность</div>
+            <div style="font-size: 13px; color: #166534; line-height: 1.65; flex: 1;">Решения по крупным закупкам принимает комитет, а не один человек.</div>
           </div>
 
-          <div style="background: #F5F3FF; border: 1.5px solid #DDD6FE; border-radius: 16px; padding: 28px 24px; display: flex; flex-direction: column;">
-            <div style="font-size: 44px; margin-bottom: 16px;">🔒</div>
-            <div style="font-size: 18px; font-weight: 700; color: #5B21B6; margin-bottom: 8px;">Конфиденциальность</div>
-            <div style="font-size: 13px; color: #4C1D95; line-height: 1.65; flex: 1;">Информация об участниках не разглашается до подведения итогов.</div>
+          <div style="background: #F0FDF4; border: 1.5px solid #BBF7D0; border-radius: 16px; padding: 28px 24px; display: flex; flex-direction: column;">
+            <div style="font-size: 18px; font-weight: 700; color: #14532D; margin-bottom: 8px;">Конфиденциальность</div>
+            <div style="font-size: 13px; color: #166534; line-height: 1.65; flex: 1;">Информация об участниках не разглашается до подведения итогов.</div>
           </div>
 
         </div>
@@ -297,42 +267,39 @@ export const COURSE_SLIDES: Slide[] = [
 
         <div style="display: flex; gap: 16px; flex: 1;">
 
-          <!-- Левая: что делает инициатор -->
           <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
             <div style="font-size: 12px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px;">Что делает инициатор</div>
             ${[
-              ['📋', 'Анализирует потребности подразделения на год'],
-              ['📝', 'Формирует перечень нужных товаров и услуг'],
-              ['📤', 'Подаёт заявку на включение в годовой план'],
-              ['✔️', 'Согласовывает позиции с руководством'],
-            ].map(([icon, text]) => `
+              'Анализирует потребности подразделения на год',
+              'Формирует перечень нужных товаров и услуг',
+              'Подаёт заявку на включение в годовой план',
+              'Согласовывает позиции с руководством',
+            ].map(text => `
               <div style="background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 12px; padding: 14px 16px; display: flex; gap: 12px; align-items: center;">
-                <span style="font-size: 22px; flex-shrink: 0;">${icon}</span>
                 <span style="font-size: 13px; color: #166534; line-height: 1.5;">${text}</span>
               </div>
             `).join('')}
           </div>
 
-          <!-- Правая: план vs внеплан + предупреждение -->
           <div style="width: 220px; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px;">
             <div style="background: #111827; border-radius: 16px; padding: 20px 18px; flex: 1;">
-              <div style="font-size: 13px; font-weight: 700; color: #6EE7B7; margin-bottom: 10px;">✅ Плановая</div>
+              <div style="font-size: 13px; font-weight: 700; color: #6EE7B7; margin-bottom: 10px;">Плановая закупка</div>
               <div style="display: flex; flex-direction: column; gap: 6px;">
-                <div style="font-size: 12px; color: #D1FAE5;">• Приоритет обработки</div>
-                <div style="font-size: 12px; color: #D1FAE5;">• Гарантированные сроки</div>
-                <div style="font-size: 12px; color: #D1FAE5;">• Меньше бюрократии</div>
+                <div style="font-size: 12px; color: #D1FAE5;">· Приоритет обработки</div>
+                <div style="font-size: 12px; color: #D1FAE5;">· Гарантированные сроки</div>
+                <div style="font-size: 12px; color: #D1FAE5;">· Меньше бюрократии</div>
               </div>
             </div>
-            <div style="background: #7F1D1D; border-radius: 16px; padding: 20px 18px; flex: 1;">
-              <div style="font-size: 13px; font-weight: 700; color: #FCA5A5; margin-bottom: 10px;">⚠️ Внеплановая</div>
+            <div style="background: #F9FAFB; border: 1.5px solid #E5E7EB; border-radius: 16px; padding: 20px 18px; flex: 1;">
+              <div style="font-size: 13px; font-weight: 700; color: #374151; margin-bottom: 10px;">Внеплановая закупка</div>
               <div style="display: flex; flex-direction: column; gap: 6px;">
-                <div style="font-size: 12px; color: #FECACA;">• Нужно обоснование</div>
-                <div style="font-size: 12px; color: #FECACA;">• Сроки не гарантированы</div>
-                <div style="font-size: 12px; color: #FECACA;">• Доп. согласование</div>
+                <div style="font-size: 12px; color: #6B7280;">· Нужно обоснование</div>
+                <div style="font-size: 12px; color: #6B7280;">· Сроки не гарантированы</div>
+                <div style="font-size: 12px; color: #6B7280;">· Доп. согласование</div>
               </div>
             </div>
             <div style="background: #FFFBEB; border: 1.5px solid #FDE68A; border-radius: 12px; padding: 12px 14px;">
-              <div style="font-size: 12px; color: #78350F; line-height: 1.5;"><strong>💡 До 20 млн UZS</strong> — в план не включаются, оформляются напрямую.</div>
+              <div style="font-size: 12px; color: #78350F; line-height: 1.5;"><strong>До 20 млн UZS</strong> — в план не включаются, оформляются напрямую.</div>
             </div>
           </div>
 
@@ -347,7 +314,7 @@ export const COURSE_SLIDES: Slide[] = [
     block: 'roadmap',
     title: 'Как заполнять план закупок',
     voiceoverText:
-      'Давайте разберём, как правильно заполнять план закупок. В плане нужно указать: предмет закупки — что именно вы хотите купить, единицу измерения, количество, ориентировочную стоимость, ЦФО — ваш центр финансовой ответственности, и квартал, в котором планируется закупка. Несколько практических советов. Старайтесь планировать с запасом — лучше включить в план и не провести, чем не включить и опоздать. Формулируйте предмет закупки чётко — не "оборудование", а "серверное оборудование Dell PowerEdge". И ещё раз: суммы до 20 миллионов в план не вносятся.',
+      'Давайте разберём, как правильно заполнять план закупок. В плане нужно указать: предмет закупки — что именно вы хотите купить, единицу измерения, количество, ориентировочную стоимость, ЦФО — ваш центр финансовой ответственности, и квартал, в котором планируется закупка. Несколько практических советов. Старайтесь планировать с запасом — лучше включить в план и не провести, чем не включить и опоздать. Формулируйте предмет закупки чётко — не «оборудование», а «серверное оборудование Dell PowerEdge». И ещё раз: суммы до 20 миллионов в план не вносятся.',
     htmlContent: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; height: 100%; min-height: 440px; display: flex; flex-direction: column; padding: 36px 44px; box-sizing: border-box;">
 
@@ -360,7 +327,6 @@ export const COURSE_SLIDES: Slide[] = [
 
         <div style="display: flex; gap: 16px; flex: 1;">
 
-          <!-- Левая: таблица полей -->
           <div style="flex: 1; background: #F9FAFB; border: 1.5px solid #E5E7EB; border-radius: 16px; overflow: hidden;">
             <div style="background: #111827; padding: 14px 20px;">
               <div style="font-size: 12px; font-weight: 700; color: white; letter-spacing: 0.5px;">Обязательные поля</div>
@@ -380,19 +346,18 @@ export const COURSE_SLIDES: Slide[] = [
             `).join('')}
           </div>
 
-          <!-- Правая: советы -->
           <div style="width: 200px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px;">
             <div style="font-size: 12px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px;">Советы</div>
             <div style="background: #F0FDF4; border: 1.5px solid #BBF7D0; border-radius: 12px; padding: 14px 14px; flex: 1; display: flex; gap: 10px;">
-              <span style="font-size: 20px; flex-shrink: 0;">✓</span>
+              <span style="font-size: 13px; font-weight: 700; color: #059669; flex-shrink: 0;">+</span>
               <span style="font-size: 13px; color: #166534; line-height: 1.5;">Планируйте с запасом — лучше включить и не провести</span>
             </div>
             <div style="background: #F0FDF4; border: 1.5px solid #BBF7D0; border-radius: 12px; padding: 14px 14px; flex: 1; display: flex; gap: 10px;">
-              <span style="font-size: 20px; flex-shrink: 0;">✓</span>
+              <span style="font-size: 13px; font-weight: 700; color: #059669; flex-shrink: 0;">+</span>
               <span style="font-size: 13px; color: #166534; line-height: 1.5;">Конкретизируйте предмет как можно точнее</span>
             </div>
             <div style="background: #FEF2F2; border: 1.5px solid #FECACA; border-radius: 12px; padding: 14px 14px; flex: 1; display: flex; gap: 10px;">
-              <span style="font-size: 20px; flex-shrink: 0;">✗</span>
+              <span style="font-size: 13px; font-weight: 700; color: #DC2626; flex-shrink: 0;">—</span>
               <span style="font-size: 13px; color: #991B1B; line-height: 1.5;">До 20 млн UZS — в план не вносятся</span>
             </div>
           </div>
@@ -420,12 +385,11 @@ export const COURSE_SLIDES: Slide[] = [
         <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px;">
           <h2 style="margin: 0; font-size: 32px; font-weight: 800; color: #111827; line-height: 1.2;">Заявка<br>и техническое задание</h2>
           <div style="background: #FEF2F2; border: 1.5px solid #FECACA; border-radius: 12px; padding: 10px 16px; text-align: center; flex-shrink: 0; margin-left: 20px;">
-            <div style="font-size: 11px; font-weight: 700; color: #991B1B; text-transform: uppercase; letter-spacing: 0.5px;">Ваша</div>
-            <div style="font-size: 11px; font-weight: 700; color: #991B1B; text-transform: uppercase; letter-spacing: 0.5px;">ответственность</div>
+            <div style="font-size: 11px; font-weight: 700; color: #991B1B; text-transform: uppercase; letter-spacing: 0.5px;">Ответственность</div>
+            <div style="font-size: 11px; font-weight: 700; color: #991B1B; text-transform: uppercase; letter-spacing: 0.5px;">инициатора</div>
           </div>
         </div>
 
-        <!-- 5 пунктов ТЗ + типичные ошибки -->
         <div style="display: flex; gap: 16px; flex: 1;">
 
           <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
@@ -437,18 +401,17 @@ export const COURSE_SLIDES: Slide[] = [
               ['Критерии приёмки', 'Как проверите соответствие при получении.'],
               ['Гарантия', 'Срок и условия гарантийного обслуживания.'],
             ].map(([t, d], i) => `
-              <div style="background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 10px; padding: 11px 14px; display: flex; gap: 10px; align-items: flex-start;">
-                <div style="flex-shrink: 0; width: 22px; height: 22px; border-radius: 6px; background: #1D4ED8; color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;">${i + 1}</div>
+              <div style="background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 10px; padding: 11px 14px; display: flex; gap: 10px; align-items: flex-start;">
+                <div style="flex-shrink: 0; width: 22px; height: 22px; border-radius: 6px; background: #059669; color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;">${i + 1}</div>
                 <div>
-                  <div style="font-size: 13px; font-weight: 700; color: #1E3A8A;">${t}</div>
-                  <div style="font-size: 12px; color: #3B82F6; margin-top: 2px;">${d}</div>
+                  <div style="font-size: 13px; font-weight: 700; color: #14532D;">${t}</div>
+                  <div style="font-size: 12px; color: #166534; margin-top: 2px;">${d}</div>
                 </div>
               </div>
             `).join('')}
           </div>
 
           <div style="width: 200px; flex-shrink: 0; background: #FEF2F2; border: 1.5px solid #FECACA; border-radius: 16px; padding: 20px 18px; display: flex; flex-direction: column;">
-            <div style="font-size: 22px; margin-bottom: 10px;">⚠️</div>
             <div style="font-size: 13px; font-weight: 700; color: #991B1B; margin-bottom: 12px;">Типичные ошибки</div>
             <div style="display: flex; flex-direction: column; gap: 10px; flex: 1;">
               <div style="font-size: 12px; color: #7F1D1D; line-height: 1.5;">«Хорошее качество» вместо параметров</div>
@@ -485,26 +448,24 @@ export const COURSE_SLIDES: Slide[] = [
 
         <div style="display: flex; gap: 16px; flex: 1;">
 
-          <!-- Действия закупщика -->
           <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
             <div style="font-size: 12px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px;">Что делает закупщик</div>
             ${[
-              ['📥', 'Принимает заявку и проверяет полноту'],
-              ['🔍', 'Анализирует рынок — изучает поставщиков и цены'],
-              ['📩', 'Запрашивает коммерческие предложения (минимум 3)'],
-              ['📊', 'Сравнивает по цене, срокам и условиям'],
-              ['📋', 'Готовит протокол для принятия решения'],
-            ].map(([icon, text]) => `
+              'Принимает заявку и проверяет полноту',
+              'Анализирует рынок — изучает поставщиков и цены',
+              'Запрашивает коммерческие предложения (минимум 3)',
+              'Сравнивает по цене, срокам и условиям',
+              'Готовит протокол для принятия решения',
+            ].map((text, i) => `
               <div style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 10px; padding: 12px 16px; display: flex; gap: 12px; align-items: center;">
-                <span style="font-size: 22px; flex-shrink: 0;">${icon}</span>
+                <div style="flex-shrink: 0; width: 22px; height: 22px; border-radius: 6px; background: #059669; color: white; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700;">${i + 1}</div>
                 <span style="font-size: 13px; color: #374151; line-height: 1.5;">${text}</span>
               </div>
             `).join('')}
           </div>
 
-          <!-- Сроки -->
           <div style="width: 200px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px;">
-            <div style="font-size: 12px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px;">⏱️ Сроки (Регламент)</div>
+            <div style="font-size: 12px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px;">Сроки (Регламент)</div>
             <div style="background: #F0FDF4; border: 1.5px solid #BBF7D0; border-radius: 14px; padding: 20px 18px; flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 14px;">
               <div style="text-align: center;">
                 <div style="font-size: 11px; font-weight: 600; color: #6B7280; text-transform: uppercase; margin-bottom: 4px;">Сложность 2</div>
@@ -524,7 +485,7 @@ export const COURSE_SLIDES: Slide[] = [
               </div>
             </div>
             <div style="background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 10px; padding: 11px 14px; font-size: 12px; color: #78350F; line-height: 1.5;">
-              💡 Сроки гарантированы только для <strong>плановых закупок</strong> с качественным ТЗ
+              Сроки гарантированы только для <strong>плановых закупок</strong> с качественным ТЗ
             </div>
           </div>
 
@@ -550,13 +511,12 @@ export const COURSE_SLIDES: Slide[] = [
 
         <h2 style="margin: 0 0 24px; font-size: 32px; font-weight: 800; color: #111827; line-height: 1.2;">Выбор<br>поставщика</h2>
 
-        <!-- 3 уровня выбора + критерии -->
         <div style="display: flex; gap: 16px; flex: 1;">
 
           <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
             <div style="font-size: 12px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px;">Порядок зависит от суммы</div>
 
-            <div style="background: #F0FDF4; border: 1.5px solid #BBF7D0; border-radius: 14px; padding: 18px 20px; flex: 1; display: flex; gap: 14px; align-items: center;">
+            <div style="background: #F9FAFB; border: 1.5px solid #E5E7EB; border-radius: 14px; padding: 18px 20px; flex: 1; display: flex; gap: 14px; align-items: center;">
               <div style="font-size: 36px; font-weight: 900; color: #059669; flex-shrink: 0; width: 50px; text-align: center; line-height: 1;">1</div>
               <div>
                 <div style="font-size: 13px; color: #6B7280; margin-bottom: 4px;">До 20 млн UZS</div>
@@ -565,32 +525,31 @@ export const COURSE_SLIDES: Slide[] = [
               </div>
             </div>
 
-            <div style="background: #FFFBEB; border: 1.5px solid #FDE68A; border-radius: 14px; padding: 18px 20px; flex: 1; display: flex; gap: 14px; align-items: center;">
-              <div style="font-size: 36px; font-weight: 900; color: #D97706; flex-shrink: 0; width: 50px; text-align: center; line-height: 1;">2</div>
+            <div style="background: #F9FAFB; border: 1.5px solid #E5E7EB; border-radius: 14px; padding: 18px 20px; flex: 1; display: flex; gap: 14px; align-items: center;">
+              <div style="font-size: 36px; font-weight: 900; color: #374151; flex-shrink: 0; width: 50px; text-align: center; line-height: 1;">2</div>
               <div>
                 <div style="font-size: 13px; color: #6B7280; margin-bottom: 4px;">20–360 млн UZS</div>
-                <div style="font-size: 15px; font-weight: 700; color: #92400E;">Закупочный комитет</div>
-                <div style="font-size: 12px; color: #78350F; margin-top: 4px;">Коллегиальное решение</div>
+                <div style="font-size: 15px; font-weight: 700; color: #374151;">Закупочный комитет</div>
+                <div style="font-size: 12px; color: #6B7280; margin-top: 4px;">Коллегиальное решение</div>
               </div>
             </div>
 
-            <div style="background: #FEF2F2; border: 1.5px solid #FECACA; border-radius: 14px; padding: 18px 20px; flex: 1; display: flex; gap: 14px; align-items: center;">
-              <div style="font-size: 36px; font-weight: 900; color: #DC2626; flex-shrink: 0; width: 50px; text-align: center; line-height: 1;">3</div>
+            <div style="background: #F9FAFB; border: 1.5px solid #E5E7EB; border-radius: 14px; padding: 18px 20px; flex: 1; display: flex; gap: 14px; align-items: center;">
+              <div style="font-size: 36px; font-weight: 900; color: #374151; flex-shrink: 0; width: 50px; text-align: center; line-height: 1;">3</div>
               <div>
                 <div style="font-size: 13px; color: #6B7280; margin-bottom: 4px;">Свыше 360 млн UZS</div>
-                <div style="font-size: 15px; font-weight: 700; color: #991B1B;">Тендер + комитет</div>
-                <div style="font-size: 12px; color: #7F1D1D; margin-top: 4px;">Публичный конкурсный отбор</div>
+                <div style="font-size: 15px; font-weight: 700; color: #374151;">Тендер + комитет</div>
+                <div style="font-size: 12px; color: #6B7280; margin-top: 4px;">Публичный конкурсный отбор</div>
               </div>
             </div>
           </div>
 
-          <!-- Критерии выбора -->
           <div style="width: 200px; flex-shrink: 0; background: #111827; border-radius: 16px; padding: 22px 18px; display: flex; flex-direction: column;">
             <div style="font-size: 12px; font-weight: 700; color: #9CA3AF; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 16px;">Критерии выбора</div>
             <div style="display: flex; flex-direction: column; gap: 12px; flex: 1;">
-              ${[['💰','Цена'],['📦','Качество'],['⏱️','Сроки'],['🌟','Репутация'],['🛡️','Гарантия'],['📍','Доставка']].map(([icon, label]) => `
+              ${['Цена', 'Качество', 'Сроки', 'Репутация', 'Гарантия', 'Условия доставки'].map(label => `
                 <div style="display: flex; gap: 10px; align-items: center;">
-                  <span style="font-size: 18px;">${icon}</span>
+                  <div style="width: 6px; height: 6px; border-radius: 50%; background: #6EE7B7; flex-shrink: 0;"></div>
                   <span style="font-size: 13px; color: #E5E7EB;">${label}</span>
                 </div>
               `).join('')}
@@ -608,7 +567,7 @@ export const COURSE_SLIDES: Slide[] = [
     block: 'roadmap',
     title: 'Этапы 5–8: Финальная часть',
     voiceoverText:
-      'После выбора поставщика — финальная часть. Этап 5 — заключение договора. Этап 6 — вы оцениваете качество закупки через CSI-опрос. Этап 7 — поставщик исполняет заказ. Этап 8 — вы принимаете результат и подписываете акт.',
+      'После выбора поставщика — финальная часть. Этап 5 — заключение договора. Этап 6 — инициатор оценивает качество закупки через CSI-опрос. Этап 7 — поставщик исполняет заказ. Этап 8 — инициатор принимает результат и подписывает акт.',
     htmlContent: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; height: 100%; min-height: 440px; display: flex; flex-direction: column; padding: 36px 44px; box-sizing: border-box;">
 
@@ -619,37 +578,36 @@ export const COURSE_SLIDES: Slide[] = [
 
         <h2 style="margin: 0 0 24px; font-size: 32px; font-weight: 800; color: #111827; line-height: 1.2;">Финальная часть<br>закупки</h2>
 
-        <!-- 2x2 сетка этапов -->
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; flex: 1;">
 
-          <div style="background: #ECFEFF; border: 1.5px solid #A5F3FC; border-radius: 16px; padding: 22px 20px; display: flex; flex-direction: column;">
+          <div style="background: #F0FDF4; border: 1.5px solid #BBF7D0; border-radius: 16px; padding: 22px 20px; display: flex; flex-direction: column;">
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
-              <div style="width: 32px; height: 32px; border-radius: 8px; background: #0E7490; color: white; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; flex-shrink: 0;">5</div>
-              <div style="font-size: 16px; font-weight: 700; color: #0E7490;">Договор</div>
+              <div style="width: 32px; height: 32px; border-radius: 8px; background: #059669; color: white; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; flex-shrink: 0;">5</div>
+              <div style="font-size: 16px; font-weight: 700; color: #14532D;">Договор</div>
             </div>
-            <div style="font-size: 13px; color: #164E63; line-height: 1.65; flex: 1;">Отдел закупок готовит договор на основе ТЗ. Юридическая служба согласовывает. Подписание обеими сторонами.</div>
+            <div style="font-size: 13px; color: #166534; line-height: 1.65; flex: 1;">Отдел закупок готовит договор на основе ТЗ. Юридическая служба согласовывает. Подписание обеими сторонами.</div>
           </div>
 
-          <div style="background: #FDF2F8; border: 1.5px solid #FBCFE8; border-radius: 16px; padding: 22px 20px; display: flex; flex-direction: column;">
+          <div style="background: #F0FDF4; border: 1.5px solid #BBF7D0; border-radius: 16px; padding: 22px 20px; display: flex; flex-direction: column;">
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
-              <div style="width: 32px; height: 32px; border-radius: 8px; background: #BE185D; color: white; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; flex-shrink: 0;">6</div>
-              <div style="font-size: 16px; font-weight: 700; color: #BE185D;">Оценка (CSI)</div>
+              <div style="width: 32px; height: 32px; border-radius: 8px; background: #059669; color: white; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; flex-shrink: 0;">6</div>
+              <div style="font-size: 16px; font-weight: 700; color: #14532D;">Оценка (CSI)</div>
             </div>
-            <div style="font-size: 13px; color: #831843; line-height: 1.65; flex: 1;">Вам придёт письмо — оцените скорость, качество и работу закупщика. Ваш отзыв помогает улучшить сервис.</div>
+            <div style="font-size: 13px; color: #166534; line-height: 1.65; flex: 1;">Вам придёт письмо — оцените скорость, качество и работу закупщика. Ваш отзыв помогает улучшить сервис.</div>
           </div>
 
-          <div style="background: #ECFDF5; border: 1.5px solid #A7F3D0; border-radius: 16px; padding: 22px 20px; display: flex; flex-direction: column;">
+          <div style="background: #F0FDF4; border: 1.5px solid #BBF7D0; border-radius: 16px; padding: 22px 20px; display: flex; flex-direction: column;">
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
-              <div style="width: 32px; height: 32px; border-radius: 8px; background: #065F46; color: white; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; flex-shrink: 0;">7</div>
-              <div style="font-size: 16px; font-weight: 700; color: #065F46;">Исполнение</div>
+              <div style="width: 32px; height: 32px; border-radius: 8px; background: #059669; color: white; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; flex-shrink: 0;">7</div>
+              <div style="font-size: 16px; font-weight: 700; color: #14532D;">Исполнение</div>
             </div>
-            <div style="font-size: 13px; color: #064E3B; line-height: 1.65; flex: 1;">Поставщик выполняет работы или осуществляет поставку согласно договору.</div>
+            <div style="font-size: 13px; color: #166534; line-height: 1.65; flex: 1;">Поставщик выполняет работы или осуществляет поставку согласно договору.</div>
           </div>
 
           <div style="background: #111827; border-radius: 16px; padding: 22px 20px; display: flex; flex-direction: column;">
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
-              <div style="width: 32px; height: 32px; border-radius: 8px; background: #A78BFA; color: #111827; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; flex-shrink: 0;">8</div>
-              <div style="font-size: 16px; font-weight: 700; color: #A78BFA;">Приёмка</div>
+              <div style="width: 32px; height: 32px; border-radius: 8px; background: #6EE7B7; color: #111827; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; flex-shrink: 0;">8</div>
+              <div style="font-size: 16px; font-weight: 700; color: #6EE7B7;">Приёмка</div>
             </div>
             <div style="font-size: 13px; color: #D1D5DB; line-height: 1.65; flex: 1;">Вы принимаете товар, проверяете соответствие ТЗ и подписываете акт. <strong style="color: white;">Закупка завершена!</strong></div>
           </div>
@@ -678,33 +636,31 @@ export const COURSE_SLIDES: Slide[] = [
 
         <div style="display: flex; gap: 16px; flex: 1;">
 
-          <!-- Таймлайн -->
           <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
             ${[
-              { label: 'Подготовка ТЗ (инициатор)', time: '2', unit: 'р.д.', color: '#7C3AED', bg: '#F5F3FF', border: '#DDD6FE' },
-              { label: 'Анализ рынка (закупщик)', time: '3', unit: 'р.д.', color: '#1D4ED8', bg: '#EFF6FF', border: '#BFDBFE' },
-              { label: 'Процедура / выбор поставщика', time: '3', unit: 'р.д.', color: '#047857', bg: '#F0FDF4', border: '#BBF7D0' },
-              { label: 'Согласование договора', time: '5', unit: 'р.д.', color: '#B45309', bg: '#FFFBEB', border: '#FDE68A' },
-              { label: 'Подписание договора', time: '+2', unit: 'р.д.', color: '#0E7490', bg: '#ECFEFF', border: '#A5F3FC' },
-            ].map(({ label, time, unit, color, bg, border }) => `
-              <div style="background: ${bg}; border: 1.5px solid ${border}; border-radius: 12px; padding: 12px 18px; display: flex; justify-content: space-between; align-items: center;">
+              { label: 'Подготовка ТЗ (инициатор)', time: '2', unit: 'р.д.' },
+              { label: 'Анализ рынка (закупщик)', time: '3', unit: 'р.д.' },
+              { label: 'Процедура / выбор поставщика', time: '3', unit: 'р.д.' },
+              { label: 'Согласование договора', time: '5', unit: 'р.д.' },
+              { label: 'Подписание договора', time: '+2', unit: 'р.д.' },
+            ].map(({ label, time, unit }) => `
+              <div style="background: #F9FAFB; border: 1.5px solid #E5E7EB; border-radius: 12px; padding: 12px 18px; display: flex; justify-content: space-between; align-items: center;">
                 <span style="font-size: 13px; color: #374151;">${label}</span>
-                <span style="font-size: 20px; font-weight: 800; color: ${color}; flex-shrink: 0; margin-left: 12px;">${time} <span style="font-size: 12px; font-weight: 600;">${unit}</span></span>
+                <span style="font-size: 20px; font-weight: 800; color: #059669; flex-shrink: 0; margin-left: 12px;">${time} <span style="font-size: 12px; font-weight: 600;">${unit}</span></span>
               </div>
             `).join('')}
           </div>
 
-          <!-- Итого -->
           <div style="width: 170px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px;">
             <div style="background: #111827; border-radius: 16px; padding: 20px 16px; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;">
               <div style="font-size: 12px; font-weight: 700; color: #9CA3AF; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Сложность 2</div>
               <div style="font-size: 52px; font-weight: 900; color: #6EE7B7; line-height: 1;">7</div>
               <div style="font-size: 13px; color: #9CA3AF; margin-top: 4px;">рабочих дней</div>
             </div>
-            <div style="background: #78350F; border-radius: 16px; padding: 20px 16px; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-              <div style="font-size: 12px; font-weight: 700; color: #FCD34D; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Сложность 3</div>
+            <div style="background: #064E3B; border-radius: 16px; padding: 20px 16px; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+              <div style="font-size: 12px; font-weight: 700; color: #6EE7B7; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">Сложность 3</div>
               <div style="font-size: 52px; font-weight: 900; color: white; line-height: 1;">15</div>
-              <div style="font-size: 13px; color: #FDE68A; margin-top: 4px;">рабочих дней</div>
+              <div style="font-size: 13px; color: #A7F3D0; margin-top: 4px;">рабочих дней</div>
             </div>
           </div>
 
@@ -728,7 +684,7 @@ export const COURSE_SLIDES: Slide[] = [
           <span style="font-size: 11px; font-weight: 700; color: #059669; letter-spacing: 1.5px; text-transform: uppercase;">Блок 2 · Итог</span>
         </div>
 
-        <h2 style="margin: 0 0 6px; font-size: 32px; font-weight: 800; color: #111827;">Проверь себя 🎯</h2>
+        <h2 style="margin: 0 0 6px; font-size: 32px; font-weight: 800; color: #111827;">Проверь себя</h2>
         <p style="font-size: 14px; color: #6B7280; margin: 0 0 22px;">Три вопроса по Road Map — выберите правильный ответ</p>
 
         <div style="display: flex; flex-direction: column; gap: 14px; flex: 1;">
@@ -783,7 +739,7 @@ export const COURSE_SLIDES: Slide[] = [
             var result = document.getElementById(qId + '-result');
             result.style.display = 'block';
             result.style.color = isCorrect ? '#166534' : '#991B1B';
-            result.innerText = isCorrect ? '✓ Верно!' : '✗ Неверно. Правильный ответ выделен зелёным.';
+            result.innerText = isCorrect ? 'Верно!' : 'Неверно. Правильный ответ выделен зелёным.';
           }
         </script>
       </div>
@@ -798,7 +754,7 @@ export const COURSE_SLIDES: Slide[] = [
     block: '1c',
     title: 'Доступ к 1С и начало заявки',
     voiceoverText:
-      'Переходим к третьему блоку — как правильно подать заявку в 1С. Убедитесь, что у вас есть доступ. Если нет — обратитесь в IT-службу. Найдите раздел "Заявки на закупку" и создайте новую заявку. Не торопитесь — качественное заполнение сразу лучше, чем переделывать потом.',
+      'Переходим к третьему блоку — как правильно подать заявку в 1С. Убедитесь, что у вас есть доступ. Если нет — обратитесь в IT-службу. Найдите раздел «Заявки на закупку» и создайте новую заявку. Не торопитесь — качественное заполнение сразу лучше, чем переделывать потом.',
     htmlContent: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; height: 100%; min-height: 440px; display: flex; flex-direction: column; padding: 36px 44px; box-sizing: border-box;">
 
@@ -811,7 +767,6 @@ export const COURSE_SLIDES: Slide[] = [
 
         <div style="display: flex; gap: 16px; flex: 1;">
 
-          <!-- 3 шага -->
           <div style="flex: 1; display: flex; flex-direction: column; gap: 12px;">
             <div style="background: #F5F3FF; border: 1.5px solid #DDD6FE; border-radius: 14px; padding: 20px; flex: 1; display: flex; gap: 16px; align-items: flex-start;">
               <div style="flex-shrink: 0; width: 36px; height: 36px; border-radius: 10px; background: #7C3AED; color: white; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700;">1</div>
@@ -836,15 +791,13 @@ export const COURSE_SLIDES: Slide[] = [
             </div>
           </div>
 
-          <!-- Правая: инфо-блок -->
           <div style="width: 200px; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px;">
             <div style="background: #111827; border-radius: 16px; padding: 22px 18px; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
-              <div style="font-size: 44px; margin-bottom: 14px;">🖥️</div>
-              <div style="font-size: 13px; font-weight: 700; color: #A78BFA; margin-bottom: 8px;">uzProc + 1С</div>
-              <div style="font-size: 12px; color: #9CA3AF; line-height: 1.6;">Ваша заявка из 1С автоматически попадает закупщику в систему uzProc</div>
+              <div style="font-size: 13px; font-weight: 700; color: #A78BFA; margin-bottom: 8px;">1С → Система закупок</div>
+              <div style="font-size: 12px; color: #9CA3AF; line-height: 1.6;">Ваша заявка из 1С автоматически передаётся в систему управления закупками</div>
             </div>
             <div style="background: #FFFBEB; border: 1.5px solid #FDE68A; border-radius: 12px; padding: 14px;">
-              <div style="font-size: 12px; color: #78350F; line-height: 1.6;">💡 Качественное заполнение с первого раза = экономия недели вашего времени</div>
+              <div style="font-size: 12px; color: #78350F; line-height: 1.6;">Качественное заполнение с первого раза = экономия недели вашего времени</div>
             </div>
           </div>
 
@@ -872,32 +825,28 @@ export const COURSE_SLIDES: Slide[] = [
 
         <div style="display: flex; gap: 16px; flex: 1;">
 
-          <!-- Поля -->
           <div style="flex: 1; background: #F9FAFB; border: 1.5px solid #E5E7EB; border-radius: 16px; overflow: hidden;">
             <div style="background: #111827; padding: 14px 20px;">
               <div style="font-size: 12px; font-weight: 700; color: white; letter-spacing: 0.5px;">Обязательные поля заявки</div>
             </div>
             ${[
-              ['📦', 'Наименование', 'Конкретно: не «оборудование», а «ноутбук Dell Latitude 5540»'],
-              ['🔢', 'Количество + ед. изм.', '5 шт., 100 кг, 1 услуга — чётко и измеримо'],
-              ['🏢', 'ЦФО', 'Ваш центр финансовой ответственности — из справочника'],
-              ['📊', 'Бюджетная статья', 'Уточните у финансовой службы, если не знаете'],
-              ['📅', 'Желаемый срок', 'Конкретная дата, не раньше чем через 2 недели'],
-              ['📋', 'Позиция в плане', 'Номер строки в плане закупок (если плановая)'],
-            ].map(([icon, field, hint], i) => `
-              <div style="display: flex; gap: 0; border-top: ${i === 0 ? 'none' : '1px solid #E5E7EB'};">
-                <div style="width: 46px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 18px; border-right: 1px solid #E5E7EB;">${icon}</div>
-                <div style="width: 140px; flex-shrink: 0; padding: 11px 14px; font-size: 13px; font-weight: 600; color: #374151; border-right: 1px solid #E5E7EB;">${field}</div>
-                <div style="flex: 1; padding: 11px 14px; font-size: 12px; color: #6B7280; line-height: 1.5;">${hint}</div>
+              ['Наименование', 'Конкретно: не «оборудование», а «ноутбук Dell Latitude 5540»'],
+              ['Количество + ед. изм.', '5 шт., 100 кг, 1 услуга — чётко и измеримо'],
+              ['ЦФО', 'Ваш центр финансовой ответственности — из справочника'],
+              ['Бюджетная статья', 'Уточните у финансовой службы, если не знаете'],
+              ['Желаемый срок', 'Конкретная дата, не раньше чем через 2 недели'],
+              ['Позиция в плане', 'Номер строки в плане закупок (если плановая)'],
+            ].map(([field, hint], i) => `
+              <div style="display: flex; border-top: ${i === 0 ? 'none' : '1px solid #E5E7EB'};">
+                <div style="width: 160px; flex-shrink: 0; padding: 11px 16px; font-size: 13px; font-weight: 600; color: #374151; border-right: 1px solid #E5E7EB;">${field}</div>
+                <div style="flex: 1; padding: 11px 16px; font-size: 12px; color: #6B7280; line-height: 1.5;">${hint}</div>
               </div>
             `).join('')}
           </div>
 
-          <!-- Частая ошибка -->
-          <div style="width: 190px; flex-shrink: 0; background: #7F1D1D; border-radius: 16px; padding: 22px 18px; display: flex; flex-direction: column;">
-            <div style="font-size: 28px; margin-bottom: 12px;">⚠️</div>
-            <div style="font-size: 14px; font-weight: 700; color: #FCA5A5; margin-bottom: 12px;">Частая ошибка</div>
-            <div style="font-size: 13px; color: #FECACA; line-height: 1.65; flex: 1;">Указывать срок «как можно скорее» или «срочно». Всегда пишите <strong style="color: white;">конкретную дату</strong> — это помогает расставлять приоритеты.</div>
+          <div style="width: 190px; flex-shrink: 0; background: #FEF2F2; border: 1.5px solid #FECACA; border-radius: 16px; padding: 22px 18px; display: flex; flex-direction: column;">
+            <div style="font-size: 14px; font-weight: 700; color: #991B1B; margin-bottom: 12px;">Частая ошибка</div>
+            <div style="font-size: 13px; color: #FECACA; line-height: 1.65; flex: 1; color: #7F1D1D;">Указывать срок «как можно скорее» или «срочно». Всегда пишите <strong style="color: #991B1B;">конкретную дату</strong> — это помогает расставлять приоритеты.</div>
           </div>
 
         </div>
@@ -911,7 +860,7 @@ export const COURSE_SLIDES: Slide[] = [
     block: '1c',
     title: 'Техническая часть (ТЗ)',
     voiceoverText:
-      'Технический блок — сердце закупки. Описывайте функцию, а не бренд: вместо "хочу MacBook" — конкретные параметры. Указывайте измеримые характеристики, условия поставки, срок гарантии.',
+      'Технический блок — сердце закупки. Описывайте функцию, а не бренд: вместо «хочу MacBook» — конкретные параметры. Указывайте измеримые характеристики, условия поставки, срок гарантии.',
     htmlContent: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; height: 100%; min-height: 440px; display: flex; flex-direction: column; padding: 36px 44px; box-sizing: border-box;">
 
@@ -922,25 +871,24 @@ export const COURSE_SLIDES: Slide[] = [
 
         <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px;">
           <h2 style="margin: 0; font-size: 32px; font-weight: 800; color: #111827; line-height: 1.2;">Техническая<br>часть (ТЗ)</h2>
-          <div style="background: #1D4ED8; border-radius: 12px; padding: 10px 16px; text-align: center; flex-shrink: 0; margin-left: 20px;">
-            <div style="font-size: 11px; font-weight: 700; color: #BFDBFE; text-transform: uppercase; letter-spacing: 0.5px;">Главный</div>
-            <div style="font-size: 11px; font-weight: 700; color: #BFDBFE; text-transform: uppercase; letter-spacing: 0.5px;">раздел</div>
+          <div style="background: #7C3AED; border-radius: 12px; padding: 10px 16px; text-align: center; flex-shrink: 0; margin-left: 20px;">
+            <div style="font-size: 11px; font-weight: 700; color: #EDE9FE; text-transform: uppercase; letter-spacing: 0.5px;">Главный</div>
+            <div style="font-size: 11px; font-weight: 700; color: #EDE9FE; text-transform: uppercase; letter-spacing: 0.5px;">раздел</div>
           </div>
         </div>
 
         <div style="display: flex; gap: 14px; flex: 1;">
 
-          <!-- Плохо vs хорошо -->
           <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; flex: 1;">
               <div style="background: #FEF2F2; border: 1.5px solid #FECACA; border-radius: 14px; padding: 18px 16px; display: flex; flex-direction: column;">
-                <div style="font-size: 12px; font-weight: 700; color: #991B1B; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">❌ Плохо</div>
+                <div style="font-size: 12px; font-weight: 700; color: #991B1B; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">Плохо</div>
                 <div style="display: flex; flex-direction: column; gap: 8px; flex: 1;">
                   ${['Ноутбук хорошего качества', 'Мощный компьютер', 'Современное ПО', 'Быстрая доставка', 'Хорошая гарантия'].map(t => `<div style="font-size: 13px; color: #7F1D1D;">${t}</div>`).join('<div style="border-top: 1px solid #FECACA;"></div>')}
                 </div>
               </div>
               <div style="background: #F0FDF4; border: 1.5px solid #BBF7D0; border-radius: 14px; padding: 18px 16px; display: flex; flex-direction: column;">
-                <div style="font-size: 12px; font-weight: 700; color: #14532D; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">✅ Хорошо</div>
+                <div style="font-size: 12px; font-weight: 700; color: #14532D; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px;">Хорошо</div>
                 <div style="display: flex; flex-direction: column; gap: 8px; flex: 1;">
                   ${['CPU Intel i7 / AMD Ryzen 7', 'RAM 16 ГБ DDR5, SSD 512 ГБ', 'Windows 11 Pro, лицензия OEM', 'Доставка на склад, ул. Амира Темура', 'Гарантия 24 мес., выезд специалиста'].map(t => `<div style="font-size: 13px; color: #166534;">${t}</div>`).join('<div style="border-top: 1px solid #BBF7D0;"></div>')}
                 </div>
@@ -948,17 +896,15 @@ export const COURSE_SLIDES: Slide[] = [
             </div>
           </div>
 
-          <!-- Ключевые разделы ТЗ -->
           <div style="width: 190px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px;">
             <div style="font-size: 12px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px;">Разделы ТЗ</div>
             ${[
-              ['🔧', 'Технические характеристики'],
-              ['📦', 'Условия поставки'],
-              ['📋', 'Критерии приёмки'],
-              ['🛡️', 'Гарантия'],
-            ].map(([icon, label]) => `
+              'Технические характеристики',
+              'Условия поставки',
+              'Критерии приёмки',
+              'Гарантия',
+            ].map(label => `
               <div style="background: #F5F3FF; border: 1px solid #DDD6FE; border-radius: 10px; padding: 12px 14px; display: flex; gap: 10px; align-items: center; flex: 1;">
-                <span style="font-size: 20px; flex-shrink: 0;">${icon}</span>
                 <span style="font-size: 13px; color: #5B21B6; font-weight: 600; line-height: 1.3;">${label}</span>
               </div>
             `).join('')}
@@ -975,7 +921,7 @@ export const COURSE_SLIDES: Slide[] = [
     block: '1c',
     title: '4 принципа хорошей заявки',
     voiceoverText:
-      'Хорошая заявка строится на четырёх принципах. Конкретность — измеримые параметры вместо оценочных суждений. Полнота — все разделы заполнены. Реалистичность — сроки реальные, бюджет обоснованный. Функциональность — описываете функцию, а не бренд. Соблюдайте эти принципы и заявка пройдёт без возвратов.',
+      'Хорошая заявка строится на четырёх принципах. Конкретность — измеримые параметры вместо оценочных суждений. Полнота — все разделы заполнены. Реалистичность — сроки реальные, бюджет обоснованный. Функциональность — описывайте функцию, а не бренд. Соблюдайте эти принципы и заявка пройдёт без возвратов.',
     htmlContent: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; height: 100%; min-height: 440px; display: flex; flex-direction: column; padding: 36px 44px; box-sizing: border-box;">
 
@@ -988,26 +934,22 @@ export const COURSE_SLIDES: Slide[] = [
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; flex: 1;">
 
-          <div style="background: #EFF6FF; border: 1.5px solid #BFDBFE; border-radius: 16px; padding: 24px 22px; display: flex; flex-direction: column;">
-            <div style="font-size: 40px; margin-bottom: 14px;">🎯</div>
-            <div style="font-size: 17px; font-weight: 700; color: #1E40AF; margin-bottom: 8px;">Конкретность</div>
-            <div style="font-size: 13px; color: #1E3A8A; line-height: 1.65; flex: 1;">Измеримые параметры вместо оценочных суждений. «Не менее 16 ГБ» вместо «много памяти».</div>
-          </div>
-
-          <div style="background: #F0FDF4; border: 1.5px solid #BBF7D0; border-radius: 16px; padding: 24px 22px; display: flex; flex-direction: column;">
-            <div style="font-size: 40px; margin-bottom: 14px;">✅</div>
-            <div style="font-size: 17px; font-weight: 700; color: #14532D; margin-bottom: 8px;">Полнота</div>
-            <div style="font-size: 13px; color: #166534; line-height: 1.65; flex: 1;">Все обязательные поля заполнены. Нет пустых разделов, нет «уточните у закупщика».</div>
-          </div>
-
-          <div style="background: #FFFBEB; border: 1.5px solid #FDE68A; border-radius: 16px; padding: 24px 22px; display: flex; flex-direction: column;">
-            <div style="font-size: 40px; margin-bottom: 14px;">📅</div>
-            <div style="font-size: 17px; font-weight: 700; color: #92400E; margin-bottom: 8px;">Реалистичность</div>
-            <div style="font-size: 13px; color: #78350F; line-height: 1.65; flex: 1;">Срок с учётом времени на закупку. Бюджет на основе реального рыночного анализа.</div>
+          <div style="background: #F5F3FF; border: 1.5px solid #DDD6FE; border-radius: 16px; padding: 24px 22px; display: flex; flex-direction: column;">
+            <div style="font-size: 17px; font-weight: 700; color: #5B21B6; margin-bottom: 8px;">Конкретность</div>
+            <div style="font-size: 13px; color: #4C1D95; line-height: 1.65; flex: 1;">Измеримые параметры вместо оценочных суждений. «Не менее 16 ГБ» вместо «много памяти».</div>
           </div>
 
           <div style="background: #F5F3FF; border: 1.5px solid #DDD6FE; border-radius: 16px; padding: 24px 22px; display: flex; flex-direction: column;">
-            <div style="font-size: 40px; margin-bottom: 14px;">⚙️</div>
+            <div style="font-size: 17px; font-weight: 700; color: #5B21B6; margin-bottom: 8px;">Полнота</div>
+            <div style="font-size: 13px; color: #4C1D95; line-height: 1.65; flex: 1;">Все обязательные поля заполнены. Нет пустых разделов, нет «уточните у закупщика».</div>
+          </div>
+
+          <div style="background: #F5F3FF; border: 1.5px solid #DDD6FE; border-radius: 16px; padding: 24px 22px; display: flex; flex-direction: column;">
+            <div style="font-size: 17px; font-weight: 700; color: #5B21B6; margin-bottom: 8px;">Реалистичность</div>
+            <div style="font-size: 13px; color: #4C1D95; line-height: 1.65; flex: 1;">Срок с учётом времени на закупку. Бюджет на основе реального рыночного анализа.</div>
+          </div>
+
+          <div style="background: #F5F3FF; border: 1.5px solid #DDD6FE; border-radius: 16px; padding: 24px 22px; display: flex; flex-direction: column;">
             <div style="font-size: 17px; font-weight: 700; color: #5B21B6; margin-bottom: 8px;">Функциональность</div>
             <div style="font-size: 13px; color: #4C1D95; line-height: 1.65; flex: 1;">Описывайте функцию, а не бренд. Это обеспечивает конкуренцию и лучшую цену.</div>
           </div>
@@ -1023,52 +965,48 @@ export const COURSE_SLIDES: Slide[] = [
     block: '1c',
     title: 'Итог курса',
     voiceoverText:
-      'Поздравляем! Вы прошли курс по закупкам uzProc. Включайте потребности в план заблаговременно, составляйте конкретное ТЗ, знайте сроки и оценивайте закупки через CSI-опрос. Если возникнут вопросы — обращайтесь в отдел закупок. Спасибо за внимание!',
+      'Поздравляем! Вы прошли курс по корпоративным закупкам. Теперь вы знаете, как устроен процесс, кто в нём участвует и что нужно делать на каждом этапе. Включайте потребности в план заблаговременно, составляйте конкретное ТЗ, соблюдайте сроки и оценивайте качество закупок через CSI-опрос. Если возникнут вопросы — обращайтесь в отдел закупок. Спасибо за внимание!',
     htmlContent: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; height: 100%; min-height: 440px; display: flex; flex-direction: column; padding: 36px 44px; box-sizing: border-box;">
 
         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
           <div style="width: 6px; height: 6px; border-radius: 50%; background: #7C3AED;"></div>
-          <span style="font-size: 11px; font-weight: 700; color: #7C3AED; letter-spacing: 1.5px; text-transform: uppercase;">Курс завершён!</span>
+          <span style="font-size: 11px; font-weight: 700; color: #7C3AED; letter-spacing: 1.5px; text-transform: uppercase;">Курс завершён</span>
         </div>
 
         <div style="display: flex; align-items: flex-start; gap: 20px; margin-bottom: 24px;">
           <div>
-            <h2 style="margin: 0 0 6px; font-size: 34px; font-weight: 800; color: #111827; line-height: 1.15;">Вы справились! 🎉</h2>
+            <h2 style="margin: 0 0 6px; font-size: 34px; font-weight: 800; color: #111827; line-height: 1.15;">Курс завершён!</h2>
             <p style="font-size: 15px; color: #6B7280; margin: 0;">Теперь вы знаете, как работает процесс закупки</p>
           </div>
         </div>
 
         <div style="display: flex; gap: 16px; flex: 1;">
 
-          <!-- Чек-лист -->
           <div style="flex: 1; display: flex; flex-direction: column; gap: 8px;">
-            <div style="font-size: 12px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px;">Чек-лист инициатора</div>
+            <div style="font-size: 12px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px;">Что нужно знать и делать</div>
             ${[
-              'Включаю потребности в план закупок заблаговременно',
-              'Составляю конкретное и полное ТЗ',
-              'Указываю реалистичные сроки в заявке',
-              'Знаю: сложность 2 = 7 р.д., сложность 3 = 15 р.д.',
-              'Оцениваю качество закупки через CSI-опрос',
+              'Включать потребности в план закупок заблаговременно',
+              'Составлять конкретное и полное ТЗ',
+              'Указывать реалистичные сроки в заявке',
+              'Знать: сложность 2 = 7 р.д., сложность 3 = 15 р.д.',
+              'Оценивать качество закупки через CSI-опрос',
             ].map(text => `
-              <div style="background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 10px; padding: 12px 16px; display: flex; gap: 10px; align-items: center; flex: 1;">
-                <span style="font-size: 18px; color: #22C55E; flex-shrink: 0;">✓</span>
-                <span style="font-size: 13px; color: #166534; line-height: 1.4;">${text}</span>
+              <div style="background: #F5F3FF; border: 1px solid #DDD6FE; border-radius: 10px; padding: 12px 16px; display: flex; gap: 10px; align-items: center; flex: 1;">
+                <span style="font-size: 14px; font-weight: 700; color: #7C3AED; flex-shrink: 0;">·</span>
+                <span style="font-size: 13px; color: #4C1D95; line-height: 1.4;">${text}</span>
               </div>
             `).join('')}
           </div>
 
-          <!-- Правая: контакты -->
           <div style="width: 200px; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px;">
-            <div style="background: linear-gradient(135deg, #4C1D95, #6D28D9); border-radius: 16px; padding: 24px 20px; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
-              <div style="font-size: 40px; margin-bottom: 14px;">💬</div>
+            <div style="background: #4C1D95; border-radius: 16px; padding: 24px 20px; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
               <div style="font-size: 14px; font-weight: 700; color: #DDD6FE; margin-bottom: 8px;">Остались вопросы?</div>
               <div style="font-size: 13px; color: #C4B5FD; line-height: 1.6;">Обращайтесь в отдел закупок — мы всегда готовы помочь.</div>
             </div>
             <div style="background: #111827; border-radius: 14px; padding: 18px; text-align: center;">
-              <div style="font-size: 28px; margin-bottom: 8px;">🏆</div>
               <div style="font-size: 13px; font-weight: 700; color: #A78BFA; margin-bottom: 4px;">Курс пройден</div>
-              <div style="font-size: 12px; color: #6B7280;">uzProc · 2024</div>
+              <div style="font-size: 12px; color: #6B7280;">Отдел закупок</div>
             </div>
           </div>
 

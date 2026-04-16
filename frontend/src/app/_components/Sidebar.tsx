@@ -53,7 +53,8 @@ const menuItems: Array<{ id: string; label: string; icon: any }> = [];
 
   const initiatorItems = [
     { id: 'create-purchase', label: 'Создать закупку', icon: Package, disabled: true },
-    { id: 'public-plan', label: 'План закупок(п)', icon: FileText, isExternal: true },
+    { id: 'public-plan', label: 'План закупок (п)', icon: FileText, isExternal: true, route: '/public-plan' },
+    { id: 'training-public', label: 'Обучение (п)', icon: GraduationCap, isExternal: true, route: '/training-public' },
   ];
 
   const initiatorDevelopmentItems = [
@@ -337,14 +338,15 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                 const isActive = activeTab === item.id;
                 const isDisabled = item.disabled || false;
                 const isExternal = (item as any).isExternal || false;
-                
+                const route = (item as any).route || '/public-plan';
+
                 return (
                   <li key={item.id}>
                     <button
                       onClick={() => {
                         if (isDisabled) return;
                         if (isExternal) {
-                          router.push('/public-plan');
+                          router.push(route);
                           setIsMobileMenuOpen(false);
                         } else {
                           handleTabChange(item.id);
