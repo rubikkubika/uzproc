@@ -2,14 +2,10 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getBackendUrl } from '@/utils/api';
 
-// Версия пароля - при смене пароля нужно изменить это значение, чтобы все старые сессии стали недействительными
-const PASSWORD_VERSION = 'v2025';
-
 export async function POST(request: Request) {
   try {
     const { email, password } = await request.json();
 
-    // Нормализуем входные данные: убираем пробелы и приводим к строке
     const normalizedEmail = String(email || '').trim();
     const normalizedPassword = String(password || '').trim();
 
@@ -20,7 +16,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Отправляем запрос на бэкенд для аутентификации
     const backendUrl = getBackendUrl();
     const response = await fetch(`${backendUrl}/api/auth/login`, {
       method: 'POST',
@@ -35,36 +30,39 @@ export async function POST(request: Request) {
 
     const data = await response.json();
 
-    if (response.ok && data.success) {
-      // Создаем сессию с версией пароля и ролью
+    if (response.ok && data.success && data.token) {
       const cookieStore = await cookies();
-      cookieStore.set('auth-token', `authenticated-${PASSWORD_VERSION}`, {
+
+      // JWT-токен подписан бэкендом — сессия привязана к конкретному пользователю (T4 fix)
+      cookieStore.set('auth-token', data.token, {
         httpOnly: true,
-        secure: false, // Отключено для работы по HTTP
+        secure: false, // Включить true при переходе на HTTPS
         sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 365, // 1 год
+        maxAge: 60 * 60 * 24, // 24 часа (совпадает с expiration JWT на бэкенде)
         path: '/',
       });
       cookieStore.set('user-role', data.role || 'user', {
         httpOnly: true,
         secure: false,
         sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 365, // 1 год
+        maxAge: 60 * 60 * 24,
         path: '/',
       });
+      // user-email используется только для отображения (не для аутентификации)
       cookieStore.set('user-email', normalizedEmail, {
-        httpOnly: false, // Доступен из JavaScript для отображения
+        httpOnly: false,
         secure: false,
         sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 365, // 1 год
+        maxAge: 60 * 60 * 24,
         path: '/',
       });
 
-      return NextResponse.json({ 
-        success: true, 
+      return NextResponse.json({
+        success: true,
         role: data.role || 'user',
         email: data.email,
-        username: data.username 
+        username: data.username,
+        passwordChangeRequired: data.passwordChangeRequired === true,
       });
     } else {
       return NextResponse.json(

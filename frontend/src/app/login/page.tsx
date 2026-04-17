@@ -59,6 +59,12 @@ function LoginPageContent() {
         if (password) {
           sessionStorage.setItem('lastPasswordAttempt', 'true');
         }
+        // Если требуется смена пароля (временный пароль), перенаправляем на страницу смены
+        if (data.passwordChangeRequired) {
+          sessionStorage.setItem('changePasswordEmail', email);
+          window.location.href = '/change-password';
+          return;
+        }
         // Полная перезагрузка страницы, чтобы AuthContext подхватил cookies (в т.ч. user-role)
         // и отобразились права администратора
         window.location.href = '/';

@@ -5,6 +5,8 @@ import com.uzproc.backend.entity.user.User;
 import com.uzproc.backend.service.user.UserService;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -19,6 +21,10 @@ public class UserController {
         this.userService = userService;
     }
 
+    /**
+     * Список всех пользователей — только ADMIN.
+     * (T3: endpoint защищён; T5: обычный пользователь не получает чужие данные)
+     */
     @GetMapping
     public ResponseEntity<Page<UserDTO>> getAllUsers(
             @RequestParam(defaultValue = "0") int page,
@@ -30,27 +36,38 @@ public class UserController {
             @RequestParam(required = false) String name,
             @RequestParam(required = false) String department,
             @RequestParam(required = false) String position) {
-        
-        // Парсим параметр sort (формат: "field,direction")
+
         String sortBy = null;
         String sortDir = null;
         if (sort != null && !sort.trim().isEmpty()) {
             String[] sortParts = sort.split(",");
-            if (sortParts.length > 0) {
-                sortBy = sortParts[0].trim();
-            }
-            if (sortParts.length > 1) {
-                sortDir = sortParts[1].trim();
-            }
+            if (sortParts.length > 0) sortBy = sortParts[0].trim();
+            if (sortParts.length > 1) sortDir = sortParts[1].trim();
         }
-        
+
         Page<User> users = userService.findAll(page, size, sortBy, sortDir, username, email, surname, name, department, position);
-        Page<UserDTO> userDTOs = users.map(UserDTO::new);
-        return ResponseEntity.ok(userDTOs);
+        return ResponseEntity.ok(users.map(UserDTO::new));
     }
 
+    /**
+     * Профиль пользователя по ID.
+     * ADMIN видит любого; обычный пользователь — только себя (T5: IDOR fix).
+     */
     @GetMapping("/{id}")
     public ResponseEntity<UserDTO> getUserById(@PathVariable Long id) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean isAdmin = auth != null && auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        if (!isAdmin) {
+            // Проверяем, что запрашивается собственный профиль
+            String currentEmail = auth != null ? (String) auth.getPrincipal() : null;
+            User currentUser = currentEmail != null ? userService.findByEmail(currentEmail) : null;
+            if (currentUser == null || !currentUser.getId().equals(id)) {
+                return ResponseEntity.status(403).build();
+            }
+        }
+
         User user = userService.findById(id);
         if (user != null) {
             return ResponseEntity.ok(new UserDTO(user));
@@ -58,6 +75,9 @@ public class UserController {
         return ResponseEntity.notFound().build();
     }
 
+    /**
+     * Создание пользователя — только ADMIN.
+     */
     @PostMapping
     public ResponseEntity<?> createUser(@RequestBody Map<String, Object> requestBody) {
         try {
@@ -81,8 +101,25 @@ public class UserController {
         }
     }
 
+    /**
+     * Сброс пароля пользователя — только ADMIN.
+     * Генерирует временный пароль и возвращает его в ответе.
+     */
+    @PostMapping("/{id}/reset-password")
+    public ResponseEntity<?> resetPassword(@PathVariable Long id) {
+        try {
+            String tempPassword = userService.resetPassword(id);
+            return ResponseEntity.ok(Map.of("tempPassword", tempPassword, "success", true));
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    /**
+     * Обновление пользователя — только ADMIN.
+     */
     @PutMapping("/{id}")
-    public ResponseEntity<UserDTO> updateUser(
+    public ResponseEntity<?> updateUser(
             @PathVariable Long id,
             @RequestParam(required = false) String email,
             @RequestParam(required = false) String password,
@@ -92,10 +129,10 @@ public class UserController {
         try {
             User updatedUser = userService.updateUser(id, email, password, role, isPurchaser, isContractor);
             return ResponseEntity.ok(new UserDTO(updatedUser));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }
     }
 }
-
-

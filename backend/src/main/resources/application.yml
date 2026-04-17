@@ -92,6 +92,16 @@ server:
 # - В Docker/production - определяется автоматически (uzproc.uzum.io)
 # - Локально - используется localhost:3000
 # Ссылка CSI в письме (оценка) всегда ведёт на сервер деплоя (по умолчанию 10.123.48.62).
+security:
+  jwt:
+    # Секрет ОБЯЗАТЕЛЬНО менять через переменную окружения JWT_SECRET в production!
+    # Минимум 32 символа для HS256
+    secret: ${JWT_SECRET:uzproc-jwt-secret-key-CHANGE-IN-PROD-min32ch}
+    expiration: 86400  # 24 часа в секундах
+  auth:
+    # false только для local-профиля (локальная разработка)
+    enabled: true
+
 app:
   frontend:
     base-url: ${FRONTEND_BASE_URL:}

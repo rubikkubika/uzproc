@@ -20,6 +20,9 @@ public class User {
     @Column(name = "password", nullable = false)
     private String password;
 
+    @Column(name = "password_hash")
+    private String passwordHash;
+
     @Column(name = "email")
     private String email;
 
@@ -201,5 +204,35 @@ public class User {
 
     public void setIsContractor(Boolean isContractor) {
         this.isContractor = isContractor;
+    }
+
+    public String getPasswordHash() {
+        return passwordHash;
+    }
+
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
+
+    @Column(name = "temp_password")
+    private String tempPassword;
+
+    @Column(name = "password_change_required", nullable = false)
+    private Boolean passwordChangeRequired = false;
+
+    public String getTempPassword() {
+        return tempPassword;
+    }
+
+    public void setTempPassword(String tempPassword) {
+        this.tempPassword = tempPassword;
+    }
+
+    public Boolean getPasswordChangeRequired() {
+        return passwordChangeRequired != null && passwordChangeRequired;
+    }
+
+    public void setPasswordChangeRequired(Boolean passwordChangeRequired) {
+        this.passwordChangeRequired = passwordChangeRequired != null && passwordChangeRequired;
     }
 }

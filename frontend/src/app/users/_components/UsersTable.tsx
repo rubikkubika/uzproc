@@ -8,7 +8,6 @@ interface User {
   id: number;
   username: string;
   email: string | null;
-  password: string | null;
   surname: string | null;
   name: string | null;
   department: string | null;
@@ -16,6 +15,8 @@ interface User {
   role: string | null;
   isPurchaser: boolean | null;
   isContractor: boolean | null;
+  tempPassword: string | null;
+  passwordChangeRequired: boolean | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -88,12 +89,16 @@ export default function UsersTable() {
   const [newIsContractor, setNewIsContractor] = useState(false);
   const [creating, setCreating] = useState(false);
 
+  // Состояние для сброса пароля
+  const [resettingPasswordId, setResettingPasswordId] = useState<number | null>(null);
+  const [resetPasswordResult, setResetPasswordResult] = useState<{ userId: number; tempPassword: string } | null>(null);
+
   // Состояние для ширин колонок
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
     id: 80,
     username: 150,
     email: 200,
-    password: 150,
+    tempPassword: 160,
     role: 120,
     isPurchaser: 100,
     isContractor: 100,
@@ -110,7 +115,7 @@ export default function UsersTable() {
   };
 
   // Порядок колонок
-  const columnOrder = ['id', 'username', 'email', 'password', 'role', 'isPurchaser', 'isContractor', 'surname', 'name', 'department', 'position', 'createdAt', 'updatedAt'];
+  const columnOrder = ['id', 'username', 'email', 'tempPassword', 'role', 'isPurchaser', 'isContractor', 'surname', 'name', 'department', 'position', 'createdAt', 'updatedAt'];
 
   // Функция форматирования даты
   const formatDate = (dateString: string | null) => {
@@ -334,7 +339,9 @@ export default function UsersTable() {
       });
 
       if (!response.ok) {
-        throw new Error('Ошибка обновления пользователя');
+        const errorData = await response.json().catch(() => null);
+        const message = errorData?.error || 'Ошибка обновления пользователя';
+        throw new Error(message);
       }
 
       // Обновляем данные
@@ -342,7 +349,7 @@ export default function UsersTable() {
       handleCloseEdit();
     } catch (err) {
       console.error('Error updating user:', err);
-      alert('Ошибка обновления пользователя');
+      alert(err instanceof Error ? err.message : 'Ошибка обновления пользователя');
     } finally {
       setUpdating(false);
     }
@@ -419,6 +426,30 @@ export default function UsersTable() {
       alert(err.message || 'Ошибка создания пользователя');
     } finally {
       setCreating(false);
+    }
+  };
+
+  // Функция для сброса пароля пользователя
+  const handleResetPassword = async (userId: number) => {
+    setResettingPasswordId(userId);
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/users/${userId}/reset-password`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        throw new Error('Ошибка сброса пароля');
+      }
+
+      const result = await response.json();
+      setResetPasswordResult({ userId, tempPassword: result.tempPassword });
+      // Обновляем список, чтобы отразить новый tempPassword
+      await fetchData();
+    } catch (err) {
+      console.error('Error resetting password:', err);
+      alert(err instanceof Error ? err.message : 'Ошибка сброса пароля');
+    } finally {
+      setResettingPasswordId(null);
     }
   };
 
@@ -643,7 +674,7 @@ export default function UsersTable() {
                   id: 'ID',
                   username: 'Логин',
                   email: 'Email',
-                  password: 'Пароль',
+                  tempPassword: 'Врем. пароль',
                   role: 'Роль',
                   isPurchaser: 'Закупщик',
                   isContractor: 'Договорник',
@@ -663,12 +694,20 @@ export default function UsersTable() {
                   />
                 );
               })}
+              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300">
+                <div className="flex flex-col gap-1">
+                  <div className="h-[24px] flex-shrink-0" />
+                  <div className="flex items-center gap-1 min-h-[20px]">
+                    <span className="text-xs font-medium text-gray-500 tracking-wider">Действия</span>
+                  </div>
+                </div>
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {loading ? (
               <tr>
-                <td colSpan={columnOrder.length} className="px-6 py-8 text-center">
+                <td colSpan={columnOrder.length + 1} className="px-6 py-8 text-center">
                   <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                   <p className="mt-4 text-gray-500">Загрузка данных...</p>
                 </td>
@@ -694,8 +733,14 @@ export default function UsersTable() {
                       </button>
                     </div>
                   </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-200 whitespace-nowrap">
-                    {user.password ? '••••••••' : '-'}
+                  <td className="px-2 py-2 text-xs border-r border-gray-200 whitespace-nowrap">
+                    {user.tempPassword ? (
+                      <span className="font-mono text-amber-700 bg-amber-50 px-1 py-0.5 rounded">
+                        {user.tempPassword}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">-</span>
+                    )}
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-200 whitespace-nowrap">
                     {user.role === 'admin' ? 'Администратор' : user.role === 'user' ? 'Пользователь' : user.role || '-'}
@@ -740,11 +785,21 @@ export default function UsersTable() {
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-200 whitespace-nowrap">
                     {formatDate(user.updatedAt)}
                   </td>
+                  <td className="px-2 py-2 text-xs border-r border-gray-200 whitespace-nowrap">
+                    <button
+                      onClick={() => handleResetPassword(user.id)}
+                      disabled={resettingPasswordId === user.id}
+                      className="px-2 py-1 text-xs bg-orange-50 text-orange-700 border border-orange-300 rounded hover:bg-orange-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Сгенерировать временный пароль"
+                    >
+                      {resettingPasswordId === user.id ? '...' : 'Сбросить пароль'}
+                    </button>
+                  </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={columnOrder.length} className="px-6 py-8 text-center text-gray-500">
+                <td colSpan={columnOrder.length + 1} className="px-6 py-8 text-center text-gray-500">
                   Нет данных
                 </td>
               </tr>
@@ -985,6 +1040,32 @@ export default function UsersTable() {
                 Отмена
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Модальное окно результата сброса пароля */}
+      {resetPasswordResult && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Пароль сброшен</h2>
+            <p className="text-sm text-gray-600 mb-3">
+              Временный пароль для пользователя:
+            </p>
+            <div className="bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 mb-4">
+              <span className="font-mono text-lg font-bold text-amber-800 tracking-widest select-all">
+                {resetPasswordResult.tempPassword}
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 mb-4">
+              Сохраните этот пароль — после закрытия окна его нельзя будет восстановить. Пользователю потребуется сменить пароль при следующем входе.
+            </p>
+            <button
+              onClick={() => setResetPasswordResult(null)}
+              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Закрыть
+            </button>
           </div>
         </div>
       )}

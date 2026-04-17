@@ -9,7 +9,6 @@ public class UserDTO {
     private Long id;
     private String username;
     private String email;
-    private String password;
     private String surname;
     private String name;
     private String department;
@@ -17,6 +16,8 @@ public class UserDTO {
     private String role;
     private Boolean isPurchaser;
     private Boolean isContractor;
+    private String tempPassword;
+    private Boolean passwordChangeRequired;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -31,7 +32,6 @@ public class UserDTO {
             this.id = user.getId();
             this.username = user.getUsername();
             this.email = user.getEmail();
-            this.password = user.getPassword();
             this.surname = user.getSurname();
             this.name = user.getName();
             this.department = user.getDepartment();
@@ -52,6 +52,8 @@ public class UserDTO {
             
             this.isPurchaser = user.getIsPurchaser();
             this.isContractor = user.getIsContractor();
+            this.tempPassword = user.getTempPassword();
+            this.passwordChangeRequired = user.getPasswordChangeRequired();
             this.createdAt = user.getCreatedAt();
             this.updatedAt = user.getUpdatedAt();
         } catch (Exception e) {
@@ -85,14 +87,6 @@ public class UserDTO {
 
     public void setEmail(String email) {
         this.email = email;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
     }
 
     public String getSurname() {
@@ -149,6 +143,22 @@ public class UserDTO {
 
     public void setIsContractor(Boolean isContractor) {
         this.isContractor = isContractor;
+    }
+
+    public String getTempPassword() {
+        return tempPassword;
+    }
+
+    public void setTempPassword(String tempPassword) {
+        this.tempPassword = tempPassword;
+    }
+
+    public Boolean getPasswordChangeRequired() {
+        return passwordChangeRequired;
+    }
+
+    public void setPasswordChangeRequired(Boolean passwordChangeRequired) {
+        this.passwordChangeRequired = passwordChangeRequired;
     }
 
     public LocalDateTime getCreatedAt() {

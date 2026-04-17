@@ -46,6 +46,9 @@ COPY frontend/upload/approvals /app/approvals
 # Copy arrivals folder (поставки)
 COPY frontend/upload/arrivals /app/arrivals
 
+# Create training media storage directory with correct ownership
+RUN mkdir -p /data/training/media && chown -R spring:spring /data
+
 # Change ownership to spring user
 RUN chown -R spring:spring /app
 

@@ -1,20 +1,22 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-const PASSWORD_VERSION = 'v2025';
-
 export function middleware(request: NextRequest) {
   const authToken = request.cookies.get('auth-token');
-  // Проверяем, что cookie содержит актуальную версию пароля
-  const isAuthenticated = authToken && authToken.value === `authenticated-${PASSWORD_VERSION}`;
+  // JWT-токены начинаются с "eyJ" (base64 заголовка {"alg":...})
+  // Статический токен "authenticated-v2025" больше не принимается (T4 fix)
+  const isAuthenticated = authToken &&
+    authToken.value.startsWith('eyJ') &&
+    authToken.value.split('.').length === 3;
   const isLoginPage = request.nextUrl.pathname === '/login';
+  const isChangePasswordPage = request.nextUrl.pathname === '/change-password';
   const isPublicPlanPage = request.nextUrl.pathname.startsWith('/public-plan');
   const isPublicTrainingPage = request.nextUrl.pathname.startsWith('/training-public');
   const isPortalPage = request.nextUrl.pathname.startsWith('/portal');
   const isCSIFeedbackPage = request.nextUrl.pathname.startsWith('/csi/feedback');
 
   // Разрешаем доступ к публичным страницам без аутентификации
-  if (isPublicPlanPage || isPublicTrainingPage || isPortalPage || isCSIFeedbackPage) {
+  if (isPublicPlanPage || isPublicTrainingPage || isPortalPage || isCSIFeedbackPage || isChangePasswordPage) {
     return NextResponse.next();
   }
 

@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 
-const PASSWORD_VERSION = 'v2025';
-
 export async function GET() {
   try {
     const cookieStore = await cookies();
@@ -10,12 +8,16 @@ export async function GET() {
     const userRole = cookieStore.get('user-role');
     const userEmail = cookieStore.get('user-email');
 
-    // Проверяем, что cookie содержит актуальную версию пароля
-    if (authToken && authToken.value === `authenticated-${PASSWORD_VERSION}`) {
-      return NextResponse.json({ 
+    // Проверяем JWT-формат (три части, разделённые точкой, начинается с eyJ)
+    const isJwt = authToken &&
+      authToken.value.startsWith('eyJ') &&
+      authToken.value.split('.').length === 3;
+
+    if (isJwt) {
+      return NextResponse.json({
         authenticated: true,
         role: userRole?.value || null,
-        email: userEmail?.value || null
+        email: userEmail?.value || null,
       });
     }
 
@@ -24,4 +26,3 @@ export async function GET() {
     return NextResponse.json({ authenticated: false, role: null, email: null });
   }
 }
-

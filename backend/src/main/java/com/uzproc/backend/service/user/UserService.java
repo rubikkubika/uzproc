@@ -11,6 +11,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,9 +25,11 @@ public class UserService {
     private static final Logger logger = LoggerFactory.getLogger(UserService.class);
     
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     public Page<User> findAll(
@@ -67,13 +70,103 @@ public class UserService {
         return userRepository.findByEmail(email).orElse(null);
     }
 
+    /**
+     * Аутентификация пользователя.
+     * Возвращает: 0 — не аутентифицирован, 1 — обычный вход, 2 — временный пароль (нужна смена)
+     */
+    public int authenticateWithStatus(String email, String password) {
+        User user = findByEmail(email);
+        if (user == null || password == null) {
+            return 0;
+        }
+
+        // Проверяем временный пароль (plaintext)
+        if (user.getTempPassword() != null && user.getTempPassword().equals(password)) {
+            return 2; // вошёл по временному паролю — нужна смена
+        }
+
+        // Проверяем bcrypt-хэш (основной)
+        if (user.getPasswordHash() != null) {
+            return passwordEncoder.matches(password, user.getPasswordHash()) ? 1 : 0;
+        }
+
+        // Fallback: plaintext (legacy) + автоматическая миграция на bcrypt
+        if (password.equals(user.getPassword())) {
+            migratePasswordToBcrypt(user, password);
+            return 1;
+        }
+        return 0;
+    }
+
     public boolean authenticate(String email, String password) {
+        return authenticateWithStatus(email, password) > 0;
+    }
+
+    /**
+     * Сброс пароля — генерирует временный пароль, сохраняет в plaintext для отображения в админке.
+     * Возвращает сгенерированный временный пароль.
+     */
+    @Transactional
+    public String resetPassword(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+        String tempPassword = generateTempPassword();
+        user.setTempPassword(tempPassword);
+        user.setPasswordChangeRequired(true);
+        userRepository.save(user);
+        logger.info("Password reset for user: {}", user.getEmail());
+        return tempPassword;
+    }
+
+    /**
+     * Смена пароля пользователем — сбрасывает временный пароль и флаг смены.
+     */
+    @Transactional
+    public void changePassword(String email, String newPassword) {
         User user = findByEmail(email);
         if (user == null) {
-            return false;
+            throw new RuntimeException("User not found: " + email);
         }
-        // Простое сравнение паролей (в продакшене нужно использовать хеширование)
-        return password != null && password.equals(user.getPassword());
+        validatePasswordPolicy(newPassword, user.getEmail());
+        user.setPassword(newPassword);
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setTempPassword(null);
+        user.setPasswordChangeRequired(false);
+        userRepository.save(user);
+        logger.info("Password changed for user: {}", email);
+    }
+
+    private String generateTempPassword() {
+        String chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+        java.util.Random random = new java.security.SecureRandom();
+        StringBuilder sb = new StringBuilder(10);
+        for (int i = 0; i < 10; i++) {
+            sb.append(chars.charAt(random.nextInt(chars.length())));
+        }
+        return sb.toString();
+    }
+
+    @Transactional
+    protected void migratePasswordToBcrypt(User user, String plainPassword) {
+        try {
+            user.setPasswordHash(passwordEncoder.encode(plainPassword));
+            userRepository.save(user);
+            logger.info("Migrated password to bcrypt for user: {}", user.getEmail());
+        } catch (Exception e) {
+            logger.error("Failed to migrate password to bcrypt for user: {}", user.getEmail(), e);
+        }
+    }
+
+    /**
+     * Валидация: пароль не должен совпадать с email (CWE-521)
+     */
+    private void validatePasswordPolicy(String password, String email) {
+        if (email != null && email.equalsIgnoreCase(password)) {
+            throw new IllegalArgumentException("Пароль не может совпадать с email");
+        }
+        if (password.length() < 8) {
+            throw new IllegalArgumentException("Пароль должен быть не менее 8 символов");
+        }
     }
 
     @Transactional
@@ -93,15 +186,20 @@ public class UserService {
             throw new IllegalArgumentException("User with username '" + username.trim() + "' already exists");
         }
         
+        String resolvedEmail = email != null && !email.trim().isEmpty() ? email.trim() : null;
+        validatePasswordPolicy(password, resolvedEmail);
+
         User user = new User();
         user.setUsername(username.trim());
-        user.setPassword(password);
-        user.setEmail(email != null && !email.trim().isEmpty() ? email.trim() : null);
+        user.setPassword(password); // plaintext оставляем для обратной совместимости
+        user.setPasswordHash(passwordEncoder.encode(password)); // bcrypt-хэш
+        user.setEmail(resolvedEmail);
         user.setSurname(surname != null && !surname.trim().isEmpty() ? surname.trim() : null);
         user.setName(name != null && !name.trim().isEmpty() ? name.trim() : null);
         user.setDepartment(department != null && !department.trim().isEmpty() ? department.trim() : null);
         user.setPosition(position != null && !position.trim().isEmpty() ? position.trim() : null);
         user.setRole(role != null && !role.trim().isEmpty() ? UserRole.fromCode(role.trim()) : UserRole.USER);
+
         user.setIsPurchaser(isPurchaser != null ? isPurchaser : false);
         user.setIsContractor(isContractor != null ? isContractor : false);
 
@@ -119,7 +217,9 @@ public class UserService {
         }
         
         if (password != null && !password.trim().isEmpty()) {
+            validatePasswordPolicy(password, user.getEmail());
             user.setPassword(password);
+            user.setPasswordHash(passwordEncoder.encode(password));
         }
         
         if (role != null && !role.trim().isEmpty()) {
