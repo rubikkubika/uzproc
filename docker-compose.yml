@@ -34,6 +34,7 @@ services:
       - DB_NAME=uzproc
       - DB_USER=uzproc_user
       - DB_PASSWORD=uzproc_password
+      - JWT_SECRET=${JWT_SECRET}
       - SHOW_SQL=false
       - FORCE_RELOAD_CSV=false
       - LC_ALL=C.UTF-8
