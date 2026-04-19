@@ -112,6 +112,8 @@ public class UserService {
                 .orElseThrow(() -> new RuntimeException("User not found: " + userId));
         String tempPassword = generateTempPassword();
         user.setTempPassword(tempPassword);
+        user.setPasswordHash(null);
+        user.setPassword("");
         user.setPasswordChangeRequired(true);
         userRepository.save(user);
         logger.info("Password reset for user: {}", user.getEmail());

@@ -16,7 +16,6 @@ public class UserDTO {
     private String role;
     private Boolean isPurchaser;
     private Boolean isContractor;
-    private String tempPassword;
     private Boolean passwordChangeRequired;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -52,7 +51,6 @@ public class UserDTO {
             
             this.isPurchaser = user.getIsPurchaser();
             this.isContractor = user.getIsContractor();
-            this.tempPassword = user.getTempPassword();
             this.passwordChangeRequired = user.getPasswordChangeRequired();
             this.createdAt = user.getCreatedAt();
             this.updatedAt = user.getUpdatedAt();
@@ -143,14 +141,6 @@ public class UserDTO {
 
     public void setIsContractor(Boolean isContractor) {
         this.isContractor = isContractor;
-    }
-
-    public String getTempPassword() {
-        return tempPassword;
-    }
-
-    public void setTempPassword(String tempPassword) {
-        this.tempPassword = tempPassword;
     }
 
     public Boolean getPasswordChangeRequired() {
