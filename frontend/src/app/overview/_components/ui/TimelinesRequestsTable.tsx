@@ -21,9 +21,10 @@ const STAGE_COLUMNS: StageCol[] = [
   { key: 'Закупка', label: 'Закупка', isMain: true, isTotal: false, sumOf: ['Закупка Общий', 'Закупка Итоги'] },
   { key: 'Закупка Общий', label: 'Общий', isMain: false, isTotal: false },
   { key: 'Закупка Итоги', label: 'Итоги', isMain: false, isTotal: false },
-  { key: 'Договор', label: 'Договор', isMain: true, isTotal: false, sumOf: ['Подготовка договора', 'Согласование договора'] },
+  { key: 'Договор', label: 'Договор', isMain: true, isTotal: false, sumOf: ['Подготовка договора', 'Согласование договора', 'Регистрация договора'] },
   { key: 'Подготовка договора', label: 'Подг.', isMain: false, isTotal: false },
   { key: 'Согласование договора', label: 'Согл.', isMain: false, isTotal: false },
+  { key: 'Регистрация договора', label: 'Регист.', isMain: false, isTotal: false },
 ];
 
 const MAIN_TH = 'bg-blue-50 text-gray-700 font-semibold border-l-2 border-l-blue-400';

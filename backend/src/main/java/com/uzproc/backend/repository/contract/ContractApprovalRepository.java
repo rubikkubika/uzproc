@@ -185,27 +185,43 @@ public interface ContractApprovalRepository extends JpaRepository<ContractApprov
 
     /**
      * Для вкладки «Сроки закупок»: данные согласования договоров по каждой заявке.
-     * Возвращает (purchase_request_id, contract_id, first_assignment_date, registration_completion_date).
+     * Возвращает (purchase_request_id, contract_id, first_assignment_date,
+     *             last_approval_completion_date, reg_assignment_date, reg_completion_date).
      * first_assignment_date = MIN(assignment_date) по всем этапам договора.
-     * registration_completion_date = MAX(completion_date) по этапам «регистрация%».
+     * last_approval_completion_date = MAX(completion_date) по не-регистрационным этапам.
+     * reg_assignment_date = MIN(assignment_date) по этапам «регистрация%».
+     * reg_completion_date = MAX(completion_date) по этапам «регистрация%».
      * Исключены договоры с excluded_from_status_calculation = true.
      */
     @Query(value = """
         SELECT c.purchase_request_id,
                c.id AS contract_id,
                MIN(ca.assignment_date) AS first_assignment_date,
-               reg.registration_completion_date
+               appr.last_approval_completion_date,
+               reg.reg_assignment_date,
+               reg.reg_completion_date
         FROM contracts c
         JOIN contract_approvals ca ON ca.contract_id = c.id AND ca.assignment_date IS NOT NULL
         LEFT JOIN (
-            SELECT contract_id, MAX(completion_date) AS registration_completion_date
+            SELECT contract_id, MAX(completion_date) AS last_approval_completion_date
             FROM contract_approvals
-            WHERE LOWER(stage) LIKE 'регистрация%' AND completion_date IS NOT NULL
+            WHERE LOWER(stage) NOT LIKE 'регистрация%'
+              AND LOWER(stage) NOT LIKE 'принятие на хранение%'
+              AND LOWER(stage) NOT LIKE 'синхронизация%'
+              AND completion_date IS NOT NULL
+            GROUP BY contract_id
+        ) appr ON appr.contract_id = c.id
+        LEFT JOIN (
+            SELECT contract_id,
+                   MIN(assignment_date) AS reg_assignment_date,
+                   MAX(completion_date) AS reg_completion_date
+            FROM contract_approvals
+            WHERE LOWER(stage) LIKE 'регистрация%'
             GROUP BY contract_id
         ) reg ON reg.contract_id = c.id
         WHERE c.purchase_request_id IS NOT NULL
           AND (c.excluded_from_status_calculation IS NULL OR c.excluded_from_status_calculation = false)
-        GROUP BY c.purchase_request_id, c.id, reg.registration_completion_date
+        GROUP BY c.purchase_request_id, c.id, appr.last_approval_completion_date, reg.reg_assignment_date, reg.reg_completion_date
         """, nativeQuery = true)
     List<Object[]> findContractApprovalDatesForTimelines();
 }
