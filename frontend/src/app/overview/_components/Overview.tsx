@@ -13,7 +13,7 @@ import { useOverviewPurchasePlanMonthsData } from './hooks/useOverviewPurchasePl
 import { purchaserDisplayName } from '@/utils/purchaser';
 import { OverviewTabs } from './ui/OverviewTabs';
 import { usePurchasePlanMonths } from './hooks/usePurchasePlanMonths';
-import { PurchasePlanMonthBlockView } from './ui/PurchasePlanMonthBlock';
+import { PurchasePlanDashboardG } from './ui/PurchasePlanDashboardG';
 import { SlaStatusBlock } from './ui/SlaStatusBlock';
 import { SlaCombinedChart } from './ui/SlaCombinedChart';
 import { SlaAverageBlock } from './ui/SlaAverageBlock';
@@ -455,49 +455,21 @@ export default function Overview() {
           </div>
         )}
         {activeTopTab === 'dashboards' && activeTab === 'purchase-plan' && (
-          <div className="space-y-2 sm:space-y-3">
-            {/* Фильтр по году планирования */}
-            <div className="bg-white rounded-lg shadow-lg p-2 sm:p-3">
-              <div className="flex items-center gap-2">
-                <label htmlFor="year-filter" className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                  Год планирования:
-                </label>
-                <select
-                  id="year-filter"
-                  value={selectedYear}
-                  onChange={(e) => handleYearChange(Number(e.target.value))}
-                  className="px-2 py-1.5 text-sm border border-gray-300 rounded-lg bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  {availableYears.map((year) => (
-                    <option key={year} value={year}>
-                      {year}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Текущий месяц — кнопки переключения перед названием месяца на блоке */}
-            <PurchasePlanMonthBlockView
-              title={formatMonth(currentMonth)}
-              version={purchasePlanMonthsData.months[0]?.version ?? null}
-              positionsMarketCount={purchasePlanMonthsData.months[0]?.positionsMarketCount ?? 0}
-              positionsLinkedToRequestCount={purchasePlanMonthsData.months[0]?.positionsLinkedToRequestCount ?? 0}
-              positionsExcludedCount={purchasePlanMonthsData.months[0]?.positionsExcludedCount ?? 0}
-              requestsPurchaseCreatedInMonthCount={purchasePlanMonthsData.months[0]?.requestsPurchaseCreatedInMonthCount ?? 0}
-              requestsPurchasePlannedCount={purchasePlanMonthsData.months[0]?.requestsPurchasePlannedCount ?? 0}
-              requestsPurchaseNonPlannedCount={purchasePlanMonthsData.months[0]?.requestsPurchaseNonPlannedCount ?? 0}
-              requestsPurchaseUnapprovedCount={purchasePlanMonthsData.months[0]?.requestsPurchaseUnapprovedCount ?? 0}
-              requestsPurchaseExcludedCount={purchasePlanMonthsData.months[0]?.requestsPurchaseExcludedCount ?? 0}
-              summaryByCfo={purchasePlanMonthsData.months[0]?.summaryByCfo ?? []}
-              loading={purchasePlanMonthsData.loading}
-              error={purchasePlanMonthsData.error}
-              onPrevious={goToPreviousMonth}
-              onNext={goToNextMonth}
-              hasPrevious={hasPreviousMonth}
-              hasNext={hasNextMonth}
-            />
-          </div>
+          <PurchasePlanDashboardG
+            data={purchasePlanMonthsData.months[0] ?? null}
+            loading={purchasePlanMonthsData.loading}
+            error={purchasePlanMonthsData.error}
+            monthLabel={formatMonth(currentMonth)}
+            currentMonth={currentMonth.getMonth() + 1}
+            selectedYear={selectedYear}
+            availableYears={availableYears}
+            hasPrevious={hasPreviousMonth}
+            hasNext={hasNextMonth}
+            onPrevious={goToPreviousMonth}
+            onNext={goToNextMonth}
+            onYearChange={handleYearChange}
+            enabled={activeTab === 'purchase-plan'}
+          />
         )}
         {activeTopTab === 'dashboards' && activeTab === 'savings' && (
           <div className="w-full">
