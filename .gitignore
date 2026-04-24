@@ -2,6 +2,9 @@
 *.tar
 *.tar.gz
 
+# Локальный override для docker-compose (только для локальной разработки)
+docker-compose.override.yml
+
 # Node modules
 node_modules/
 frontend/node_modules/
