@@ -9,8 +9,6 @@ services:
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=ru_RU.UTF-8"
       LC_ALL: ru_RU.UTF-8
       LANG: ru_RU.UTF-8
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -36,7 +34,6 @@ services:
       - DB_NAME=uzproc
       - DB_USER=uzproc_user
       - DB_PASSWORD=uzproc_password
-      - JWT_SECRET=${JWT_SECRET}
       - SHOW_SQL=false
       - FORCE_RELOAD_CSV=false
       - LC_ALL=C.UTF-8
