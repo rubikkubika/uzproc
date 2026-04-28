@@ -37,8 +37,8 @@ export default function ContractsTable() {
   } = useContractsTable();
 
   const isTabWithPreparedBy = filters.activeTab === 'in-work' || filters.activeTab === 'signed';
-  // +1 для колонки с глазиком
-  const totalColumns = isTabWithPreparedBy ? 11 : 10;
+  // +1 для колонки с глазиком, +1 для типовой формы
+  const totalColumns = isTabWithPreparedBy ? 12 : 11;
 
   const handleRowClick = (contractId: number, e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
@@ -385,6 +385,27 @@ export default function ContractsTable() {
                   </div>
                 </div>
               </th>
+              {/* Типовая форма */}
+              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '6%' }}>
+                <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                  <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                    <select
+                      value={filters.isTypicalFormFilter}
+                      onChange={(e) => { e.stopPropagation(); filters.setIsTypicalFormFilter(e.target.value); }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      style={{ height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
+                    >
+                      <option value="">Все</option>
+                      <option value="true">Да</option>
+                      <option value="false">Нет</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-1 min-h-[20px]">
+                    <span className="text-xs font-medium text-gray-500 tracking-wider">Типовая форма</span>
+                  </div>
+                </div>
+              </th>
               {/* Поставщики */}
               <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: isTabWithPreparedBy ? '10%' : '12%' }}>
                 <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
@@ -486,6 +507,13 @@ export default function ContractsTable() {
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 break-words">
                     {contract.paymentTerms || '-'}
+                  </td>
+                  <td className="px-2 py-2 text-xs border-r border-gray-300 text-center">
+                    {contract.isTypicalForm === true ? (
+                      <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-green-100 text-green-800">Да</span>
+                    ) : contract.isTypicalForm === false ? (
+                      <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-gray-100 text-gray-600">Нет</span>
+                    ) : '-'}
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 break-words">
                     {contract.suppliers && contract.suppliers.length > 0

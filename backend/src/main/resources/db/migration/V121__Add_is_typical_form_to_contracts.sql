@@ -1,0 +1,1 @@
+ALTER TABLE contracts ADD COLUMN IF NOT EXISTS is_typical_form BOOLEAN;

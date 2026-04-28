@@ -82,6 +82,7 @@ export const useContractsTable = () => {
       paymentTerms: '',
     });
     filtersHook.setCfoFilter(new Set());
+    filtersHook.setIsTypicalFormFilter('');
     setSelectedYear(currentYear);
     setCurrentPage(0);
   }, [filtersHook, currentYear]);
@@ -95,7 +96,8 @@ export const useContractsTable = () => {
     filters: Record<string, string>,
     cfoFilter: Set<string>,
     activeTab: string,
-    append: boolean
+    append: boolean,
+    isTypicalFormFilter: string = ''
   ) => {
     if (append) {
       setLoadingMore(true);
@@ -113,7 +115,8 @@ export const useContractsTable = () => {
         sortDir,
         filters,
         cfoFilter,
-        activeTab as 'all' | 'in-work' | 'signed'
+        activeTab as 'all' | 'in-work' | 'signed',
+        isTypicalFormFilter
       );
       const items = result?.content ?? [];
       if (append) {
@@ -148,7 +151,8 @@ export const useContractsTable = () => {
       filtersHook.filters,
       filtersHook.cfoFilter,
       filtersHook.activeTab,
-      false
+      false,
+      filtersHook.isTypicalFormFilter
     );
   }, [
     selectedYear,
@@ -157,6 +161,7 @@ export const useContractsTable = () => {
     filtersStr,
     cfoFilterStr,
     filtersHook.activeTab,
+    filtersHook.isTypicalFormFilter,
     fetchData,
     pageSize,
   ]);
@@ -175,10 +180,11 @@ export const useContractsTable = () => {
           filtersHook.filters,
           filtersHook.cfoFilter,
           filtersHook.activeTab,
-          true
+          true,
+          filtersHook.isTypicalFormFilter
         );
       }
-    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, selectedYear, sortField, sortDirection, filtersHook.filters, filtersHook.cfoFilter, filtersHook.activeTab, fetchData]),
+    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, selectedYear, sortField, sortDirection, filtersHook.filters, filtersHook.cfoFilter, filtersHook.activeTab, filtersHook.isTypicalFormFilter, fetchData]),
     threshold: 0.1,
   });
 

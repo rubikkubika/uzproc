@@ -46,6 +46,9 @@ public class ContractDto {
     /** Поставщики (контрагенты) по договору. */
     private List<SupplierDto> suppliers;
 
+    /** Типовая форма (из колонки «Типовая форма (Договор)»). */
+    private Boolean isTypicalForm;
+
     // Constructors
     public ContractDto() {
     }
@@ -281,6 +284,14 @@ public class ContractDto {
 
     public void setSuppliers(List<SupplierDto> suppliers) {
         this.suppliers = suppliers;
+    }
+
+    public Boolean getIsTypicalForm() {
+        return isTypicalForm;
+    }
+
+    public void setIsTypicalForm(Boolean isTypicalForm) {
+        this.isTypicalForm = isTypicalForm;
     }
 }
 

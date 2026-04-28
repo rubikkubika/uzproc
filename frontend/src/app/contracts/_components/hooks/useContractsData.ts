@@ -26,7 +26,8 @@ export const useContractsData = () => {
     sortDirection: SortDirection = null,
     filters: Record<string, string> = {},
     cfoFilter: Set<string> = new Set(),
-    activeTab: TabType = 'all'
+    activeTab: TabType = 'all',
+    isTypicalFormFilter: string = ''
   ): Promise<PageResponse | null> => {
     try {
       const params = new URLSearchParams();
@@ -71,6 +72,12 @@ export const useContractsData = () => {
       }
       if (filters.purchaseRequestInnerId && filters.purchaseRequestInnerId.trim() !== '') {
         params.append('purchaseRequestInnerId', filters.purchaseRequestInnerId.trim());
+      }
+
+      if (isTypicalFormFilter === 'true') {
+        params.append('isTypicalForm', 'true');
+      } else if (isTypicalFormFilter === 'false') {
+        params.append('isTypicalForm', 'false');
       }
 
       // Вкладка "В работе": подготовил = договорник, без договоров в статусе Подписан, без скрытых

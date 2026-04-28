@@ -38,6 +38,9 @@ export const useContractsFilters = (setCurrentPage: (page: number) => void) => {
 
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
+  // Фильтр типовой формы: '' = все, 'true' = да, 'false' = нет
+  const [isTypicalFormFilter, setIsTypicalFormFilter] = useState<string>('');
+
   // Множественные фильтры (чекбоксы)
   const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
 
@@ -160,6 +163,8 @@ export const useContractsFilters = (setCurrentPage: (page: number) => void) => {
     handleCfoSelectAll,
     handleCfoDeselectAll,
     handleFilterChange,
+    isTypicalFormFilter,
+    setIsTypicalFormFilter,
     activeTab,
     setActiveTab,
     activeTabRef,

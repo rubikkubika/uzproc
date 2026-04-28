@@ -1,11 +1,32 @@
 'use client';
 
 import { Printer } from 'lucide-react';
-import { OverviewTab, OverviewTabItem, OverviewTopTab, OverviewTopTabItem } from '../types/overview.types';
+import {
+  OverviewTab,
+  OverviewTabItem,
+  OverviewTopTab,
+  OverviewTopTabItem,
+  OverviewDashboardCategory,
+  OverviewDashboardCategoryItem,
+  DASHBOARD_CATEGORY_TABS,
+} from '../types/overview.types';
+
+const DASHBOARD_SUB_TAB_LABELS: Record<OverviewTab, string> = {
+  sla: 'SLA',
+  'purchase-plan': 'План закупок',
+  csi: 'CSI',
+  ek: 'ЕК',
+  approvals: 'Согласования',
+  timelines: 'Сроки закупок',
+  savings: 'Экономия',
+  'contract-remarks': 'Замечания по договорам',
+};
 
 interface OverviewTabsProps {
   activeTopTab: OverviewTopTab;
   onTopTabChange: (tab: OverviewTopTab) => void;
+  activeDashboardCategory: OverviewDashboardCategory;
+  onDashboardCategoryChange: (category: OverviewDashboardCategory) => void;
   activeTab: OverviewTab;
   onTabChange: (tab: OverviewTab) => void;
   onExportPdf?: () => void;
@@ -16,21 +37,26 @@ const topTabs: OverviewTopTabItem[] = [
   { id: 'management-reporting', label: 'Управленческая отчетность' },
 ];
 
-const dashboardTabs: OverviewTabItem[] = [
-  { id: 'sla', label: 'SLA' },
-  { id: 'purchase-plan', label: 'План закупок' },
-  { id: 'csi', label: 'CSI' },
-  { id: 'ek', label: 'ЕК' },
-  { id: 'approvals', label: 'Согласования' },
-  { id: 'timelines', label: 'Сроки закупок' },
-  { id: 'savings', label: 'Экономия' },
-  { id: 'contract-remarks', label: 'Замечания по договорам' },
+const dashboardCategories: OverviewDashboardCategoryItem[] = [
+  { id: 'purchases', label: 'Дэшборды по закупкам' },
+  { id: 'contracts', label: 'Дэшборды по договорам' },
+  { id: 'other', label: 'Прочие' },
 ];
 
-/**
- * UI компонент для отображения вкладок страницы обзор
- */
-export function OverviewTabs({ activeTopTab, onTopTabChange, activeTab, onTabChange, onExportPdf }: OverviewTabsProps) {
+export function OverviewTabs({
+  activeTopTab,
+  onTopTabChange,
+  activeDashboardCategory,
+  onDashboardCategoryChange,
+  activeTab,
+  onTabChange,
+  onExportPdf,
+}: OverviewTabsProps) {
+  const categoryTabs: OverviewTabItem[] = DASHBOARD_CATEGORY_TABS[activeDashboardCategory].map((id) => ({
+    id,
+    label: DASHBOARD_SUB_TAB_LABELS[id],
+  }));
+
   return (
     <div className="bg-white rounded shadow">
       {/* Верхний уровень вкладок */}
@@ -58,10 +84,28 @@ export function OverviewTabs({ activeTopTab, onTopTabChange, activeTab, onTabCha
           </button>
         )}
       </div>
-      {/* Вложенные вкладки дэшбордов */}
+      {/* Категории дэшбордов */}
       {activeTopTab === 'dashboards' && (
         <div className="flex flex-wrap gap-0.5 border-b border-gray-200 px-1 pt-0.5 pb-0">
-          {dashboardTabs.map((tab) => (
+          {dashboardCategories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => onDashboardCategoryChange(cat.id)}
+              className={`px-3 py-1 text-xs font-semibold rounded-t transition-all ${
+                activeDashboardCategory === cat.id
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {/* Вложенные вкладки внутри категории */}
+      {activeTopTab === 'dashboards' && categoryTabs.length > 0 && (
+        <div className="flex flex-wrap gap-0.5 border-b border-gray-100 px-1 pt-0.5 pb-0">
+          {categoryTabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => onTabChange(tab.id)}

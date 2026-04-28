@@ -25,6 +25,8 @@ export interface Contract {
   state: string | null;
   /** Условия оплаты (из колонки «График оплаты (Договор)»). */
   paymentTerms: string | null;
+  /** Типовая форма (из колонки «Типовая форма (Договор)»). */
+  isTypicalForm: boolean | null;
   /** Поставщики (контрагенты). */
   suppliers: ContractSupplier[] | null;
   preparedBy: string | null;  // ФИО пользователя (договорника), который подготовил договор

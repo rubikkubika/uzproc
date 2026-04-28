@@ -33,7 +33,7 @@ import { useHolidayDateKeys } from '@/hooks/useHolidayDateKeys';
  * Интегрирует все вкладки и их содержимое
  */
 export default function Overview() {
-  const { activeTopTab, setActiveTopTab, activeTab, setActiveTab } = useOverview();
+  const { activeTopTab, setActiveTopTab, activeDashboardCategory, setActiveDashboardCategory, activeTab, setActiveTab } = useOverview();
   const currentYear = useMemo(() => new Date().getFullYear(), []);
   const [slaYear, setSlaYearState] = useState<number>(() => {
     if (typeof window === 'undefined') return currentYear;
@@ -331,7 +331,15 @@ export default function Overview() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0 gap-0">
-      <OverviewTabs activeTopTab={activeTopTab} onTopTabChange={setActiveTopTab} activeTab={activeTab} onTabChange={setActiveTab} onExportPdf={handleExportPdf} />
+      <OverviewTabs
+        activeTopTab={activeTopTab}
+        onTopTabChange={setActiveTopTab}
+        activeDashboardCategory={activeDashboardCategory}
+        onDashboardCategoryChange={setActiveDashboardCategory}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        onExportPdf={handleExportPdf}
+      />
       
       <div className="w-full flex-1 min-h-0 flex flex-col">
         {activeTopTab === 'management-reporting' && (

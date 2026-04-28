@@ -118,6 +118,8 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private static final String COMPLEXITY_COLUMN = "Сложность закупки (уровень) (Заявка на ЗП)";
     /** Колонка контрагентов в договоре. Формат: "Mega Poligraf Servise Mchj (303459905)" или несколько через запятую. */
     private static final String CONTRAGENTS_COLUMN = "Контрагенты";
+    /** Колонка типовой формы договора. Значения: "Да"/"Нет". */
+    private static final String TYPICAL_FORM_CONTRACT_COLUMN = "Типовая форма (Договор)";
     /** Экономия закупочной процедуры */
     private static final String SAVINGS_COLUMN = "Экономия (Закупочная процедура)";
     
@@ -1414,6 +1416,22 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 }
             }
 
+            // Типовая форма (опционально)
+            Integer typicalFormCol = columnIndices.get(TYPICAL_FORM_CONTRACT_COLUMN);
+            if (typicalFormCol == null) {
+                typicalFormCol = findColumnIndex(TYPICAL_FORM_CONTRACT_COLUMN);
+            }
+            if (typicalFormCol != null) {
+                String typicalFormValue = currentRowData.get(typicalFormCol);
+                if (typicalFormValue != null && !typicalFormValue.trim().isEmpty()) {
+                    Boolean typicalForm = parseBooleanString(typicalFormValue.trim());
+                    if (typicalForm != null) {
+                        contract.setIsTypicalForm(typicalForm);
+                        logger.debug("Row {}: parsed isTypicalForm: '{}' for contract {}", currentRowNum + 1, typicalForm, contract.getInnerId());
+                    }
+                }
+            }
+
             // Сохраняем или обновляем (добавляем в batch)
             // ВАЖНО: Проверяем, нет ли уже такого договора в batch'е, чтобы избежать дубликатов
             boolean alreadyInBatch = contractBatch.stream()
@@ -2298,6 +2316,15 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             existing.setSuppliers(new HashSet<>(newData.getSuppliers()));
             updated = true;
             logger.debug("Updated suppliers for contract {}: {} supplier(s)", existing.getInnerId(), newData.getSuppliers().size());
+        }
+
+        // Обновляем типовую форму
+        if (newData.getIsTypicalForm() != null) {
+            if (!newData.getIsTypicalForm().equals(existing.getIsTypicalForm())) {
+                existing.setIsTypicalForm(newData.getIsTypicalForm());
+                updated = true;
+                logger.debug("Updated isTypicalForm for contract {}: {}", existing.getInnerId(), newData.getIsTypicalForm());
+            }
         }
 
         return updated;

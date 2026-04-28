@@ -128,6 +128,10 @@ public class Contract {
     @Column(name = "payment_terms", length = 2000)
     private String paymentTerms;
 
+    /** Типовая форма. Парсинг из колонки "Типовая форма (Договор)" в Excel. */
+    @Column(name = "is_typical_form")
+    private Boolean isTypicalForm;
+
     /** Поставщики (контрагенты). Парсинг из колонки "Контрагенты" в Excel. */
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
@@ -401,6 +405,14 @@ public class Contract {
 
     public void setSuppliers(Set<Supplier> suppliers) {
         this.suppliers = suppliers != null ? suppliers : new HashSet<>();
+    }
+
+    public Boolean getIsTypicalForm() {
+        return isTypicalForm;
+    }
+
+    public void setIsTypicalForm(Boolean isTypicalForm) {
+        this.isTypicalForm = isTypicalForm;
     }
 }
 

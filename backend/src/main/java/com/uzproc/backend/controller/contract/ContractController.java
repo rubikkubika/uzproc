@@ -40,11 +40,12 @@ public class ContractController {
             @RequestParam(required = false) String purchaseRequestInnerId,
             @RequestParam(required = false) Boolean inWorkTab,
             @RequestParam(required = false) Boolean signedTab,
-            @RequestParam(required = false) Boolean hiddenTab) {
+            @RequestParam(required = false) Boolean hiddenTab,
+            @RequestParam(required = false) Boolean isTypicalForm) {
 
         Page<ContractDto> contracts = contractService.findAll(
                 page, size, year, sortBy, sortDir, innerId, cfo, name, documentForm, costType, contractType,
-                null, inWorkTab, signedTab, hiddenTab, purchaseRequestInnerId);
+                null, inWorkTab, signedTab, hiddenTab, purchaseRequestInnerId, isTypicalForm);
 
         return ResponseEntity.ok(contracts);
     }

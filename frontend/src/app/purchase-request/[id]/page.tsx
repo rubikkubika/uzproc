@@ -83,6 +83,7 @@ interface Contract {
   preparedBy: string | null;
   excludedFromStatusCalculation?: boolean | null;
   exclusionComment?: string | null;
+  isTypicalForm?: boolean | null;
   suppliers?: ContractSupplier[] | null;
 }
 
@@ -2167,6 +2168,18 @@ export default function PurchaseRequestDetailPage() {
                                 {contract.cfo || '-'}
                               </p>
                             </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-0">
+                                Типовая форма
+                              </label>
+                              <p className="text-xs text-gray-900">
+                                {contract.isTypicalForm === true ? (
+                                  <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-green-100 text-green-800">Да</span>
+                                ) : contract.isTypicalForm === false ? (
+                                  <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-gray-100 text-gray-600">Нет</span>
+                                ) : '-'}
+                              </p>
+                            </div>
                           </div>
                             </div>
                           </div>
@@ -2347,6 +2360,14 @@ export default function PurchaseRequestDetailPage() {
                                 <div className="flex items-baseline gap-2 min-w-0">
                                   <span className="text-xs font-semibold text-gray-600 flex-shrink-0">ЦФО:</span>
                                   <span className="text-xs text-gray-900 truncate" title={contract.cfo ?? undefined}>{contract.cfo || '—'}</span>
+                                </div>
+                                <div className="flex items-baseline gap-2 min-w-0">
+                                  <span className="text-xs font-semibold text-gray-600 flex-shrink-0">Типовая форма:</span>
+                                  {contract.isTypicalForm === true ? (
+                                    <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-green-100 text-green-800">Да</span>
+                                  ) : contract.isTypicalForm === false ? (
+                                    <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-gray-100 text-gray-600">Нет</span>
+                                  ) : <span className="text-xs text-gray-900">—</span>}
                                 </div>
                               </div>
                             </div>

@@ -58,14 +58,15 @@ public class ContractService {
             Boolean inWorkTab,
             Boolean signedTab,
             Boolean hiddenTab,
-            String purchaseRequestInnerId) {
+            String purchaseRequestInnerId,
+            Boolean isTypicalForm) {
 
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, innerId: '{}', cfo: {}, name: '{}', documentForm: '{}', costType: '{}', contractType: '{}', currentUserId: {}, inWorkTab: {}, signedTab: {}, hiddenTab: {}, purchaseRequestInnerId: '{}'",
-                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, hiddenTab, purchaseRequestInnerId);
+        logger.info("Filter parameters - year: {}, innerId: '{}', cfo: {}, name: '{}', documentForm: '{}', costType: '{}', contractType: '{}', currentUserId: {}, inWorkTab: {}, signedTab: {}, hiddenTab: {}, purchaseRequestInnerId: '{}', isTypicalForm: {}",
+                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, hiddenTab, purchaseRequestInnerId, isTypicalForm);
 
         Specification<Contract> spec = buildSpecification(
-                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, hiddenTab, purchaseRequestInnerId);
+                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, hiddenTab, purchaseRequestInnerId, isTypicalForm);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -254,6 +255,7 @@ public class ContractService {
         dto.setExcludedFromStatusCalculation(entity.getExcludedFromStatusCalculation());
         dto.setExclusionComment(entity.getExclusionComment());
         dto.setPaymentTerms(entity.getPaymentTerms());
+        dto.setIsTypicalForm(entity.getIsTypicalForm());
 
         // Поставщики (контрагенты)
         if (entity.getSuppliers() != null && !entity.getSuppliers().isEmpty()) {
@@ -292,7 +294,8 @@ public class ContractService {
             Boolean inWorkTab,
             Boolean signedTab,
             Boolean hiddenTab,
-            String purchaseRequestInnerId) {
+            String purchaseRequestInnerId,
+            Boolean isTypicalForm) {
 
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -378,6 +381,13 @@ public class ContractService {
                     predicateCount++;
                     logger.info("Added purchaseRequestInnerId partial filter: '{}'", purchaseRequestInnerId);
                 }
+            }
+
+            // Фильтр по типовой форме
+            if (isTypicalForm != null) {
+                predicates.add(cb.equal(root.get("isTypicalForm"), isTypicalForm));
+                predicateCount++;
+                logger.info("Added isTypicalForm filter: {}", isTypicalForm);
             }
 
             // Фильтр для вкладки "В работе": подготовил = договорник, все статусы кроме "Подписан" (Проект, На согласовании, Не согласован, null)
