@@ -124,6 +124,15 @@ public class Contract {
     @Column(name = "exclusion_comment", length = 2000)
     private String exclusionComment;
 
+    /** Исключить договор из вкладки "В работе" на странице договоров. */
+    @Column(name = "exclude_from_in_work")
+    private Boolean excludeFromInWork;
+
+    /** Организация заказчика (Uzum Market / Uzum (OOO) / Uzum Tezkor). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "customer_organization", length = 50)
+    private CustomerOrganization customerOrganization;
+
     /** Условия оплаты. Парсинг из колонки "График оплаты (Договор)" в Excel. */
     @Column(name = "payment_terms", length = 2000)
     private String paymentTerms;
@@ -389,6 +398,22 @@ public class Contract {
 
     public void setExclusionComment(String exclusionComment) {
         this.exclusionComment = exclusionComment;
+    }
+
+    public Boolean getExcludeFromInWork() {
+        return excludeFromInWork;
+    }
+
+    public void setExcludeFromInWork(Boolean excludeFromInWork) {
+        this.excludeFromInWork = excludeFromInWork;
+    }
+
+    public CustomerOrganization getCustomerOrganization() {
+        return customerOrganization;
+    }
+
+    public void setCustomerOrganization(CustomerOrganization customerOrganization) {
+        this.customerOrganization = customerOrganization;
     }
 
     public String getPaymentTerms() {

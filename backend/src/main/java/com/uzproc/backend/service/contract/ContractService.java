@@ -1,6 +1,7 @@
 package com.uzproc.backend.service.contract;
 
 import com.uzproc.backend.dto.contract.ContractDto;
+import com.uzproc.backend.dto.contract.ContractSummaryItemDto;
 import com.uzproc.backend.dto.supplier.SupplierDto;
 import com.uzproc.backend.entity.contract.Contract;
 import com.uzproc.backend.entity.contract.ContractStatus;
@@ -59,14 +60,17 @@ public class ContractService {
             Boolean signedTab,
             Boolean hiddenTab,
             String purchaseRequestInnerId,
-            Boolean isTypicalForm) {
+            Boolean isTypicalForm,
+            Boolean notCoordinatedTab,
+            String customerOrganization,
+            String preparedByName) {
 
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, innerId: '{}', cfo: {}, name: '{}', documentForm: '{}', costType: '{}', contractType: '{}', currentUserId: {}, inWorkTab: {}, signedTab: {}, hiddenTab: {}, purchaseRequestInnerId: '{}', isTypicalForm: {}",
-                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, hiddenTab, purchaseRequestInnerId, isTypicalForm);
+        logger.info("Filter parameters - year: {}, innerId: '{}', cfo: {}, name: '{}', documentForm: '{}', costType: '{}', contractType: '{}', currentUserId: {}, inWorkTab: {}, signedTab: {}, hiddenTab: {}, notCoordinatedTab: {}, purchaseRequestInnerId: '{}', isTypicalForm: {}, customerOrganization: {}, preparedByName: '{}'",
+                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, hiddenTab, notCoordinatedTab, purchaseRequestInnerId, isTypicalForm, customerOrganization, preparedByName);
 
         Specification<Contract> spec = buildSpecification(
-                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, hiddenTab, purchaseRequestInnerId, isTypicalForm);
+                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, hiddenTab, purchaseRequestInnerId, isTypicalForm, notCoordinatedTab, customerOrganization, preparedByName);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -131,6 +135,51 @@ public class ContractService {
         contract.setExclusionComment(exclusionComment != null && !exclusionComment.trim().isEmpty() ? exclusionComment.trim() : null);
         contract = contractRepository.save(contract);
         return toDto(contract);
+    }
+
+    /**
+     * Обновить флаг исключения договора из вкладки "В работе" на странице договоров.
+     * @param id id договора
+     * @param excludeFromInWork исключить из "В работе" (true) или показывать (false)
+     * @return обновлённый DTO или null, если договор не найден
+     */
+    @Transactional(readOnly = false)
+    public ContractDto updateExcludeFromInWork(Long id, Boolean excludeFromInWork) {
+        Contract contract = contractRepository.findById(id).orElse(null);
+        if (contract == null) {
+            return null;
+        }
+        contract.setExcludeFromInWork(Boolean.TRUE.equals(excludeFromInWork));
+        contract = contractRepository.save(contract);
+        return toDto(contract);
+    }
+
+    /**
+     * Сводка по исполнителям-договорникам: кол-во договоров из вкладки «В работе».
+     */
+    public List<ContractSummaryItemDto> getInWorkSummary() {
+        String sql =
+            "SELECT TRIM(CONCAT(COALESCE(u.surname,''), ' ', COALESCE(u.name,''))) AS prepared_by_name, " +
+            "COUNT(*) AS contract_count " +
+            "FROM contracts c " +
+            "INNER JOIN users u ON c.prepared_by_id = u.id " +
+            "WHERE u.is_contractor = true " +
+            "  AND (c.status IS NULL OR (c.status <> 'SIGNED' AND c.status <> 'NOT_COORDINATED')) " +
+            "  AND (c.exclude_from_in_work IS NULL OR c.exclude_from_in_work = false) " +
+            "GROUP BY u.id, u.surname, u.name " +
+            "ORDER BY contract_count DESC";
+
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = entityManager.createNativeQuery(sql).getResultList();
+
+        List<ContractSummaryItemDto> result = new ArrayList<>();
+        for (Object[] row : rows) {
+            String name = row[0] != null ? row[0].toString().trim() : "";
+            if (name.isEmpty()) name = "Не назначен";
+            long count = ((Number) row[1]).longValue();
+            result.add(new ContractSummaryItemDto(name, count));
+        }
+        return result;
     }
 
     /**
@@ -254,6 +303,8 @@ public class ContractService {
         dto.setUpdatedAt(entity.getUpdatedAt());
         dto.setExcludedFromStatusCalculation(entity.getExcludedFromStatusCalculation());
         dto.setExclusionComment(entity.getExclusionComment());
+        dto.setExcludeFromInWork(entity.getExcludeFromInWork());
+        dto.setCustomerOrganization(entity.getCustomerOrganization());
         dto.setPaymentTerms(entity.getPaymentTerms());
         dto.setIsTypicalForm(entity.getIsTypicalForm());
 
@@ -295,7 +346,10 @@ public class ContractService {
             Boolean signedTab,
             Boolean hiddenTab,
             String purchaseRequestInnerId,
-            Boolean isTypicalForm) {
+            Boolean isTypicalForm,
+            Boolean notCoordinatedTab,
+            String customerOrganization,
+            String preparedByName) {
 
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -390,22 +444,34 @@ public class ContractService {
                 logger.info("Added isTypicalForm filter: {}", isTypicalForm);
             }
 
-            // Фильтр для вкладки "В работе": подготовил = договорник, все статусы кроме "Подписан" (Проект, На согласовании, Не согласован, null)
-            // Договоры, исключённые из расчёта (excludedFromStatusCalculation = true), не показываем в этой вкладке
+            // Фильтр для вкладки "В работе": подготовил = договорник, статусы: null, Проект, На согласовании, На регистрации (без Подписан и Не согласован)
+            // Договоры, исключённые из вкладки "В работе" (excludeFromInWork = true), не показываем в этой вкладке
             if (inWorkTab != null && inWorkTab) {
                 jakarta.persistence.criteria.Join<Contract, com.uzproc.backend.entity.user.User> preparedByJoin = root.join("preparedBy", jakarta.persistence.criteria.JoinType.INNER);
                 predicates.add(cb.equal(preparedByJoin.get("isContractor"), true));
                 predicates.add(cb.or(
                     cb.isNull(root.get("status")),
-                    cb.not(cb.equal(root.get("status"), ContractStatus.SIGNED))
+                    cb.and(
+                        cb.not(cb.equal(root.get("status"), ContractStatus.SIGNED)),
+                        cb.not(cb.equal(root.get("status"), ContractStatus.NOT_COORDINATED))
+                    )
                 ));
                 // Исключаем скрытые договоры
                 predicates.add(cb.or(
-                    cb.isNull(root.get("excludedFromStatusCalculation")),
-                    cb.equal(root.get("excludedFromStatusCalculation"), false)
+                    cb.isNull(root.get("excludeFromInWork")),
+                    cb.equal(root.get("excludeFromInWork"), false)
                 ));
                 predicateCount++;
-                logger.info("Added inWorkTab filter: preparedBy.isContractor = true, all statuses except Подписан, excludedFromStatusCalculation = false/null");
+                logger.info("Added inWorkTab filter: preparedBy.isContractor = true, statuses: null/Проект/На согласовании/На регистрации, excludeFromInWork = false/null");
+            }
+
+            // Фильтр для вкладки "Не согласованы": статус "Не согласован" и подготовил = договорник
+            if (notCoordinatedTab != null && notCoordinatedTab) {
+                predicates.add(cb.equal(root.get("status"), ContractStatus.NOT_COORDINATED));
+                jakarta.persistence.criteria.Join<Contract, com.uzproc.backend.entity.user.User> preparedByJoin = root.join("preparedBy", jakarta.persistence.criteria.JoinType.INNER);
+                predicates.add(cb.equal(preparedByJoin.get("isContractor"), true));
+                predicateCount++;
+                logger.info("Added notCoordinatedTab filter: status = Не согласован, preparedBy.isContractor = true");
             }
 
             // Фильтр для вкладки "Подписаны": статус "Подписан" и подготовил = договорник (isContractor = true)
@@ -417,11 +483,40 @@ public class ContractService {
                 logger.info("Added signedTab filter: status = Подписан, preparedBy.isContractor = true");
             }
 
-            // Фильтр для вкладки "Скрытые": только договоры с excludedFromStatusCalculation = true
+            // Фильтр для вкладки "Скрытые": только договоры с excludeFromInWork = true
             if (hiddenTab != null && hiddenTab) {
-                predicates.add(cb.equal(root.get("excludedFromStatusCalculation"), true));
+                predicates.add(cb.equal(root.get("excludeFromInWork"), true));
                 predicateCount++;
-                logger.info("Added hiddenTab filter: excludedFromStatusCalculation = true");
+                logger.info("Added hiddenTab filter: excludeFromInWork = true");
+            }
+
+            // Фильтр по исполнителю (ФИО договорника)
+            if (preparedByName != null && !preparedByName.trim().isEmpty()) {
+                jakarta.persistence.criteria.Subquery<Long> subq = query.subquery(Long.class);
+                jakarta.persistence.criteria.Root<com.uzproc.backend.entity.user.User> userRoot =
+                    subq.from(com.uzproc.backend.entity.user.User.class);
+                subq.select(userRoot.get("id"));
+                jakarta.persistence.criteria.Expression<String> fullName = cb.trim(cb.concat(
+                    cb.concat(cb.coalesce(userRoot.get("surname"), ""), " "),
+                    cb.coalesce(userRoot.get("name"), "")
+                ));
+                subq.where(cb.equal(fullName, preparedByName.trim()));
+                predicates.add(root.get("preparedById").in(subq));
+                predicateCount++;
+                logger.info("Added preparedByName filter: '{}'", preparedByName);
+            }
+
+            // Фильтр по организации заказчика
+            if (customerOrganization != null && !customerOrganization.trim().isEmpty()) {
+                try {
+                    com.uzproc.backend.entity.contract.CustomerOrganization orgEnum =
+                        com.uzproc.backend.entity.contract.CustomerOrganization.valueOf(customerOrganization.trim());
+                    predicates.add(cb.equal(root.get("customerOrganization"), orgEnum));
+                    predicateCount++;
+                    logger.info("Added customerOrganization filter: {}", customerOrganization);
+                } catch (IllegalArgumentException e) {
+                    logger.warn("Invalid customerOrganization value ignored: {}", customerOrganization);
+                }
             }
 
             logger.info("Total predicates: {}", predicateCount);

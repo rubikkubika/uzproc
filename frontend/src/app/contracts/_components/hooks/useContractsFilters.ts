@@ -41,6 +41,12 @@ export const useContractsFilters = (setCurrentPage: (page: number) => void) => {
   // Фильтр типовой формы: '' = все, 'true' = да, 'false' = нет
   const [isTypicalFormFilter, setIsTypicalFormFilter] = useState<string>('');
 
+  // Фильтр организации заказчика: '' = все, 'UZUM_MARKET', 'UZUM_OOO', 'UZUM_TEZKOR'
+  const [organizationFilter, setOrganizationFilter] = useState<string>('');
+
+  // Фильтр по исполнителю (ФИО договорника): '' = все
+  const [preparedByFilter, setPreparedByFilter] = useState<string>('');
+
   // Множественные фильтры (чекбоксы)
   const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
 
@@ -165,6 +171,10 @@ export const useContractsFilters = (setCurrentPage: (page: number) => void) => {
     handleFilterChange,
     isTypicalFormFilter,
     setIsTypicalFormFilter,
+    organizationFilter,
+    setOrganizationFilter,
+    preparedByFilter,
+    setPreparedByFilter,
     activeTab,
     setActiveTab,
     activeTabRef,

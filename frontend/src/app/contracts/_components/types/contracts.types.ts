@@ -34,6 +34,8 @@ export interface Contract {
   purchaseRequestInnerId: number | null;  // Внутренний номер связанной заявки
   excludedFromStatusCalculation: boolean | null;
   exclusionComment: string | null;
+  excludeFromInWork: boolean | null;
+  customerOrganization: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -50,4 +52,4 @@ export type SortField = keyof Contract | null;
 export type SortDirection = 'asc' | 'desc' | null;
 
 // Типы вкладок для таблицы договоров
-export type TabType = 'in-work' | 'signed' | 'all' | 'hidden';
+export type TabType = 'in-work' | 'not-coordinated' | 'signed' | 'all' | 'hidden';

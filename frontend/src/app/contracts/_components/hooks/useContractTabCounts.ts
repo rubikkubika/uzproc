@@ -6,6 +6,7 @@ interface UseContractTabCountsOptions {
   selectedYear: number | null;
   filters: Record<string, string>;
   cfoFilter: Set<string>;
+  organizationFilter: string;
 }
 
 async function fetchCount(params: URLSearchParams, extra?: Record<string, string>): Promise<number> {
@@ -29,9 +30,11 @@ export function useContractTabCounts({
   selectedYear,
   filters,
   cfoFilter,
+  organizationFilter,
 }: UseContractTabCountsOptions) {
   const [tabCounts, setTabCounts] = useState<Record<TabType, number | null>>({
     'in-work': null,
+    'not-coordinated': null,
     'signed': null,
     'all': null,
     'hidden': null,
@@ -53,9 +56,11 @@ export function useContractTabCounts({
     if (filters.contractType?.trim()) params.append('contractType', filters.contractType.trim());
     if (filters.paymentTerms?.trim()) params.append('paymentTerms', filters.paymentTerms.trim());
     if (filters.purchaseRequestInnerId?.trim()) params.append('purchaseRequestInnerId', filters.purchaseRequestInnerId.trim());
+    if (organizationFilter && organizationFilter.trim() !== '') params.append('customerOrganization', organizationFilter.trim());
 
-    const [inWorkCount, signedCount, allCount, hiddenCount] = await Promise.all([
+    const [inWorkCount, notCoordinatedCount, signedCount, allCount, hiddenCount] = await Promise.all([
       fetchCount(params, { inWorkTab: 'true' }),
+      fetchCount(params, { notCoordinatedTab: 'true' }),
       fetchCount(params, { signedTab: 'true' }),
       fetchCount(params),
       fetchCount(params, { hiddenTab: 'true' }),
@@ -63,11 +68,12 @@ export function useContractTabCounts({
 
     setTabCounts({
       'in-work': inWorkCount,
+      'not-coordinated': notCoordinatedCount,
       'signed': signedCount,
       'all': allCount,
       'hidden': hiddenCount,
     });
-  }, [selectedYear, filters, cfoFilter]);
+  }, [selectedYear, filters, cfoFilter, organizationFilter]);
 
   useEffect(() => {
     fetchTabCounts();

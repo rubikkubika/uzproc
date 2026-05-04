@@ -27,7 +27,9 @@ export const useContractsData = () => {
     filters: Record<string, string> = {},
     cfoFilter: Set<string> = new Set(),
     activeTab: TabType = 'all',
-    isTypicalFormFilter: string = ''
+    isTypicalFormFilter: string = '',
+    organizationFilter: string = '',
+    preparedByFilter: string = ''
   ): Promise<PageResponse | null> => {
     try {
       const params = new URLSearchParams();
@@ -80,15 +82,27 @@ export const useContractsData = () => {
         params.append('isTypicalForm', 'false');
       }
 
-      // Вкладка "В работе": подготовил = договорник, без договоров в статусе Подписан, без скрытых
+      if (organizationFilter && organizationFilter.trim() !== '') {
+        params.append('customerOrganization', organizationFilter.trim());
+      }
+
+      if (preparedByFilter && preparedByFilter.trim() !== '') {
+        params.append('preparedByName', preparedByFilter.trim());
+      }
+
+      // Вкладка "В работе": подготовил = договорник, без Подписан и Не согласован, без скрытых
       if (activeTab === 'in-work') {
         params.append('inWorkTab', 'true');
+      }
+      // Вкладка "Не согласованы": статус Не согласован и подготовил = договорник
+      if (activeTab === 'not-coordinated') {
+        params.append('notCoordinatedTab', 'true');
       }
       // Вкладка "Подписаны": статус Подписан и подготовил = договорник
       if (activeTab === 'signed') {
         params.append('signedTab', 'true');
       }
-      // Вкладка "Скрытые": только договоры с excludedFromStatusCalculation = true
+      // Вкладка "Скрытые": только договоры с excludeFromInWork = true
       if (activeTab === 'hidden') {
         params.append('hiddenTab', 'true');
       }

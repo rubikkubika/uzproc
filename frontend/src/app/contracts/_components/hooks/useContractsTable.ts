@@ -6,7 +6,9 @@ import { useContractsData } from './useContractsData';
 import { useClickOutside } from './useClickOutside';
 import { useInfiniteScroll } from './useInfiniteScroll';
 import { useExcludeFromStatusCalculation } from './useExcludeFromStatusCalculation';
+import { useExcludeFromInWork } from './useExcludeFromInWork';
 import { useContractTabCounts } from './useContractTabCounts';
+import { useContractsSummary } from './useContractsSummary';
 
 export const useContractsTable = () => {
   const [data, setData] = useState<PageResponse | null>(null);
@@ -31,11 +33,19 @@ export const useContractsTable = () => {
     selectedYear,
     filters: filtersHook.filters,
     cfoFilter: filtersHook.cfoFilter,
+    organizationFilter: filtersHook.organizationFilter,
   });
+
+  const { summaryData, loading: summaryLoading, refreshSummary } = useContractsSummary();
 
   const { updateExcludeFromStatusCalculation } = useExcludeFromStatusCalculation({
     setAllItems,
-    onAfterUpdate: refreshTabCounts,
+    onAfterUpdate: () => { refreshTabCounts(); refreshSummary(); },
+  });
+
+  const { updateExcludeFromInWork } = useExcludeFromInWork({
+    setAllItems,
+    onAfterUpdate: () => { refreshTabCounts(); refreshSummary(); },
   });
 
   useClickOutside({
@@ -83,6 +93,8 @@ export const useContractsTable = () => {
     });
     filtersHook.setCfoFilter(new Set());
     filtersHook.setIsTypicalFormFilter('');
+    filtersHook.setOrganizationFilter('');
+    filtersHook.setPreparedByFilter('');
     setSelectedYear(currentYear);
     setCurrentPage(0);
   }, [filtersHook, currentYear]);
@@ -97,7 +109,9 @@ export const useContractsTable = () => {
     cfoFilter: Set<string>,
     activeTab: string,
     append: boolean,
-    isTypicalFormFilter: string = ''
+    isTypicalFormFilter: string = '',
+    organizationFilter: string = '',
+    preparedByFilter: string = ''
   ) => {
     if (append) {
       setLoadingMore(true);
@@ -115,8 +129,10 @@ export const useContractsTable = () => {
         sortDir,
         filters,
         cfoFilter,
-        activeTab as 'all' | 'in-work' | 'signed',
-        isTypicalFormFilter
+        activeTab as 'all' | 'in-work' | 'not-coordinated' | 'signed' | 'hidden',
+        isTypicalFormFilter,
+        organizationFilter,
+        preparedByFilter
       );
       const items = result?.content ?? [];
       if (append) {
@@ -152,7 +168,9 @@ export const useContractsTable = () => {
       filtersHook.cfoFilter,
       filtersHook.activeTab,
       false,
-      filtersHook.isTypicalFormFilter
+      filtersHook.isTypicalFormFilter,
+      filtersHook.organizationFilter,
+      filtersHook.preparedByFilter
     );
   }, [
     selectedYear,
@@ -162,6 +180,8 @@ export const useContractsTable = () => {
     cfoFilterStr,
     filtersHook.activeTab,
     filtersHook.isTypicalFormFilter,
+    filtersHook.organizationFilter,
+    filtersHook.preparedByFilter,
     fetchData,
     pageSize,
   ]);
@@ -181,10 +201,12 @@ export const useContractsTable = () => {
           filtersHook.cfoFilter,
           filtersHook.activeTab,
           true,
-          filtersHook.isTypicalFormFilter
+          filtersHook.isTypicalFormFilter,
+          filtersHook.organizationFilter,
+          filtersHook.preparedByFilter
         );
       }
-    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, selectedYear, sortField, sortDirection, filtersHook.filters, filtersHook.cfoFilter, filtersHook.activeTab, filtersHook.isTypicalFormFilter, fetchData]),
+    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, selectedYear, sortField, sortDirection, filtersHook.filters, filtersHook.cfoFilter, filtersHook.activeTab, filtersHook.isTypicalFormFilter, filtersHook.organizationFilter, filtersHook.preparedByFilter, fetchData]),
     threshold: 0.1,
   });
 
@@ -210,7 +232,10 @@ export const useContractsTable = () => {
     hasMore,
     loadMoreRef,
     updateExcludeFromStatusCalculation,
+    updateExcludeFromInWork,
     tabCounts,
     refreshTabCounts,
+    summaryData,
+    summaryLoading,
   };
 };

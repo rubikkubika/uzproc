@@ -1,0 +1,2 @@
+ALTER TABLE contracts
+    ADD COLUMN IF NOT EXISTS exclude_from_in_work BOOLEAN DEFAULT FALSE;

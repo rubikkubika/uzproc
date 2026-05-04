@@ -1,6 +1,7 @@
 package com.uzproc.backend.controller.contract;
 
 import com.uzproc.backend.dto.contract.ContractDto;
+import com.uzproc.backend.dto.contract.ContractSummaryItemDto;
 import com.uzproc.backend.service.contract.ContractService;
 import com.uzproc.backend.service.contract.ContractStatusUpdateService;
 import org.springframework.data.domain.Page;
@@ -41,11 +42,15 @@ public class ContractController {
             @RequestParam(required = false) Boolean inWorkTab,
             @RequestParam(required = false) Boolean signedTab,
             @RequestParam(required = false) Boolean hiddenTab,
-            @RequestParam(required = false) Boolean isTypicalForm) {
+            @RequestParam(required = false) Boolean isTypicalForm,
+            @RequestParam(required = false) Boolean notCoordinatedTab,
+            @RequestParam(required = false) String customerOrganization,
+            @RequestParam(required = false) String preparedByName) {
 
         Page<ContractDto> contracts = contractService.findAll(
                 page, size, year, sortBy, sortDir, innerId, cfo, name, documentForm, costType, contractType,
-                null, inWorkTab, signedTab, hiddenTab, purchaseRequestInnerId, isTypicalForm);
+                null, inWorkTab, signedTab, hiddenTab, purchaseRequestInnerId, isTypicalForm, notCoordinatedTab,
+                customerOrganization, preparedByName);
 
         return ResponseEntity.ok(contracts);
     }
@@ -57,6 +62,11 @@ public class ContractController {
             return ResponseEntity.ok(contract);
         }
         return ResponseEntity.notFound().build();
+    }
+
+    @GetMapping("/in-work-summary")
+    public ResponseEntity<List<ContractSummaryItemDto>> getInWorkSummary() {
+        return ResponseEntity.ok(contractService.getInWorkSummary());
     }
 
     @GetMapping("/years")
@@ -102,6 +112,25 @@ public class ContractController {
                 ? (body.get("exclusionComment") != null ? body.get("exclusionComment").toString() : null)
                 : null;
         ContractDto updated = contractService.updateExclusion(id, excluded, comment);
+        if (updated != null) {
+            return ResponseEntity.ok(updated);
+        }
+        return ResponseEntity.notFound().build();
+    }
+
+    /**
+     * Обновить флаг исключения договора из вкладки "В работе" на странице договоров.
+     * @param id id договора
+     * @param body excludeFromInWork (boolean)
+     */
+    @PatchMapping("/{id}/exclude-from-in-work")
+    public ResponseEntity<ContractDto> updateContractExcludeFromInWork(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> body) {
+        Boolean excludeFromInWork = body != null && body.containsKey("excludeFromInWork")
+                ? (Boolean) body.get("excludeFromInWork")
+                : null;
+        ContractDto updated = contractService.updateExcludeFromInWork(id, excludeFromInWork);
         if (updated != null) {
             return ResponseEntity.ok(updated);
         }

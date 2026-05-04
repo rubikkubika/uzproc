@@ -6,7 +6,15 @@ import { ArrowUp, ArrowDown, ArrowUpDown, Search, Settings, Eye, EyeOff } from '
 import { useContractsTable } from './hooks/useContractsTable';
 import { SortField } from './types/contracts.types';
 import ContractsTableTabs from './ui/ContractsTableTabs';
+import ContractsSummaryTable from './ui/ContractsSummaryTable';
 import RemarksPanel from './RemarksPanel';
+
+const ORGANIZATION_OPTIONS = [
+  { key: '', label: 'Все' },
+  { key: 'UZUM_MARKET', label: 'Uzum Market' },
+  { key: 'UZUM_OOO', label: 'Uzum (OOO)' },
+  { key: 'UZUM_TEZKOR', label: 'Uzum Tezkor' },
+];
 
 export default function ContractsTable() {
   const router = useRouter();
@@ -32,13 +40,16 @@ export default function ContractsTable() {
     filters,
     loadMoreRef,
     updateExcludeFromStatusCalculation,
+    updateExcludeFromInWork,
     tabCounts,
     refreshTabCounts,
+    summaryData,
+    summaryLoading,
   } = useContractsTable();
 
-  const isTabWithPreparedBy = filters.activeTab === 'in-work' || filters.activeTab === 'signed';
-  // +1 для колонки с глазиком, +1 для типовой формы
-  const totalColumns = isTabWithPreparedBy ? 12 : 11;
+  const isTabWithPreparedBy = filters.activeTab === 'in-work' || filters.activeTab === 'not-coordinated' || filters.activeTab === 'signed';
+  // +1 для колонки с глазиком, +1 для типовой формы, +1 для организации
+  const totalColumns = isTabWithPreparedBy ? 13 : 12;
 
   const handleRowClick = (contractId: number, e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
@@ -127,8 +138,28 @@ export default function ContractsTable() {
     <div className="flex-1" style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0 }}></div>
   );
 
+  const handlePreparedByClick = (name: string) => {
+    if (filters.preparedByFilter === name) {
+      filters.setPreparedByFilter('');
+    } else {
+      filters.setPreparedByFilter(name);
+      filters.setActiveTab('in-work');
+      setCurrentPage(0);
+    }
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
+      {/* Сводная таблица по исполнителям (данные из вкладки «В работе») */}
+      <div className="px-3 py-2 border-b border-gray-200 bg-white flex-shrink-0">
+        <ContractsSummaryTable
+          summaryData={summaryData}
+          loading={summaryLoading}
+          selectedPreparedBy={filters.preparedByFilter}
+          onPreparedByClick={handlePreparedByClick}
+        />
+      </div>
+
       {/* Header */}
       <div className="px-3 py-1 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
         <div className="flex items-center gap-2 flex-wrap">
@@ -181,6 +212,24 @@ export default function ContractsTable() {
         </div>
       </div>
 
+      {/* Фильтр по организации заказчика */}
+      <div className="px-3 py-1 border-b border-gray-200 flex items-center gap-2 bg-white flex-shrink-0">
+        <span className="text-xs text-gray-500 whitespace-nowrap">Организация:</span>
+        {ORGANIZATION_OPTIONS.map(opt => (
+          <button
+            key={opt.key}
+            onClick={() => { filters.setOrganizationFilter(opt.key); setCurrentPage(0); }}
+            className={`px-2 py-0.5 text-xs rounded-full border transition-colors whitespace-nowrap ${
+              filters.organizationFilter === opt.key
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
       <ContractsTableTabs
         activeTab={filters.activeTab}
         onTabChange={(tab) => {
@@ -219,6 +268,27 @@ export default function ContractsTable() {
                   <div className="flex items-center gap-1 min-h-[20px]">
                     {renderSortButton('innerId')}
                     <span className="text-xs font-medium text-gray-500 tracking-wider">Внутренний номер</span>
+                  </div>
+                </div>
+              </th>
+              {/* Организация заказчика */}
+              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '8%' }}>
+                <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                  <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                    <select
+                      value={filters.organizationFilter}
+                      onChange={(e) => { e.stopPropagation(); filters.setOrganizationFilter(e.target.value); setCurrentPage(0); }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      style={{ height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
+                    >
+                      {ORGANIZATION_OPTIONS.map(opt => (
+                        <option key={opt.key} value={opt.key}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-1 min-h-[20px]">
+                    <span className="text-xs font-medium text-gray-500 tracking-wider">Организация</span>
                   </div>
                 </div>
               </th>
@@ -407,7 +477,7 @@ export default function ContractsTable() {
                 </div>
               </th>
               {/* Поставщики */}
-              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: isTabWithPreparedBy ? '10%' : '12%' }}>
+              <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: isTabWithPreparedBy ? '9%' : '10%' }}>
                 <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                   <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                     {emptyFilterSlot}
@@ -441,7 +511,7 @@ export default function ContractsTable() {
               </tr>
             ) : allItems.length > 0 ? (
               allItems.map((contract) => {
-                const isHidden = contract.excludedFromStatusCalculation === true;
+                const isHidden = contract.excludeFromInWork === true;
                 return (
                 <tr
                   key={contract.id}
@@ -452,10 +522,10 @@ export default function ContractsTable() {
                   {/* Глазик */}
                   <td className="px-1 py-2 text-center border-r border-gray-300" style={{ width: '32px', minWidth: '32px', maxWidth: '32px' }}>
                     <button
-                      title={isHidden ? 'Показать в расчёте статусов' : 'Исключить из расчёта статусов'}
+                      title={isHidden ? 'Показать во вкладке «В работе»' : 'Скрыть из вкладки «В работе»'}
                       onClick={(e) => {
                         e.stopPropagation();
-                        updateExcludeFromStatusCalculation(contract.id, !isHidden);
+                        updateExcludeFromInWork(contract.id, !isHidden);
                       }}
                       className={`flex items-center justify-center w-full h-full transition-colors ${isHidden ? 'text-gray-400 hover:text-gray-600' : 'text-gray-300 hover:text-gray-500'}`}
                     >
@@ -464,6 +534,9 @@ export default function ContractsTable() {
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 break-words">
                     {contract.innerId || '-'}
+                  </td>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 break-words">
+                    {contract.customerOrganization || '-'}
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 break-words">
                     {contract.purchaseRequestInnerId != null ? contract.purchaseRequestInnerId : '-'}

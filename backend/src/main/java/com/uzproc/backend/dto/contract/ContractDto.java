@@ -2,6 +2,7 @@ package com.uzproc.backend.dto.contract;
 
 import com.uzproc.backend.dto.supplier.SupplierDto;
 import com.uzproc.backend.entity.contract.ContractStatus;
+import com.uzproc.backend.entity.contract.CustomerOrganization;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -36,6 +37,12 @@ public class ContractDto {
     private Boolean excludedFromStatusCalculation;
     /** Комментарий к исключению договора из расчёта статуса. */
     private String exclusionComment;
+
+    /** Исключить договор из вкладки "В работе" на странице договоров. */
+    private Boolean excludeFromInWork;
+
+    /** Организация заказчика. */
+    private CustomerOrganization customerOrganization;
 
     /** Внутренний номер связанной заявки (idPurchaseRequest). */
     private Long purchaseRequestInnerId;
@@ -260,6 +267,22 @@ public class ContractDto {
 
     public void setExclusionComment(String exclusionComment) {
         this.exclusionComment = exclusionComment;
+    }
+
+    public Boolean getExcludeFromInWork() {
+        return excludeFromInWork;
+    }
+
+    public void setExcludeFromInWork(Boolean excludeFromInWork) {
+        this.excludeFromInWork = excludeFromInWork;
+    }
+
+    public CustomerOrganization getCustomerOrganization() {
+        return customerOrganization;
+    }
+
+    public void setCustomerOrganization(CustomerOrganization customerOrganization) {
+        this.customerOrganization = customerOrganization;
     }
 
     public Long getPurchaseRequestInnerId() {

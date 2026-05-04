@@ -42,6 +42,7 @@ interface ContractDetail {
   plannedDeliveryEndDate: string | null;
   excludedFromStatusCalculation: boolean | null;
   exclusionComment: string | null;
+  customerOrganization: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -264,6 +265,7 @@ export default function ContractDetailPage() {
                     <InfoField label="Срок действия (мес.)" value={contract.contractDurationMonths != null ? String(contract.contractDurationMonths) : null} />
                     <InfoField label="Состояние" value={contract.state} />
                     <InfoField label="Подготовил" value={contract.preparedBy} />
+                    <InfoField label="Организация заказчика" value={contract.customerOrganization} />
                   </div>
                 </div>
 

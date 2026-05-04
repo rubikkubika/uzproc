@@ -25,6 +25,7 @@ export default function ContractsTableTabs({
 }: ContractsTableTabsProps) {
   const tabs: Array<{ key: TabType; label: string }> = [
     { key: 'in-work', label: 'В работе' },
+    { key: 'not-coordinated', label: 'Не согласованы' },
     { key: 'signed', label: 'Подписаны' },
     { key: 'all', label: 'Все' },
     { key: 'hidden', label: 'Скрытые' },

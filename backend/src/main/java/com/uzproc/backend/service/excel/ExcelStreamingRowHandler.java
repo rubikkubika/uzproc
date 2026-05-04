@@ -3,6 +3,7 @@ package com.uzproc.backend.service.excel;
 import com.uzproc.backend.entity.Cfo;
 import com.uzproc.backend.entity.contract.Contract;
 import com.uzproc.backend.entity.contract.ContractStatus;
+import com.uzproc.backend.entity.contract.CustomerOrganization;
 import com.uzproc.backend.entity.purchase.Purchase;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequestStatus;
@@ -122,6 +123,8 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private static final String TYPICAL_FORM_CONTRACT_COLUMN = "Типовая форма (Договор)";
     /** Экономия закупочной процедуры */
     private static final String SAVINGS_COLUMN = "Экономия (Закупочная процедура)";
+    /** Организация заказчика в договоре. */
+    private static final String ORGANIZATION_COLUMN = "Организация";
     
     // Оптимизация: статические DateTimeFormatter для парсинга дат (создаются один раз)
     private static final DateTimeFormatter[] DATE_TIME_FORMATTERS = {
@@ -1432,6 +1435,26 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 }
             }
 
+            // Организация заказчика (опционально) — парсится из колонки "Организация"
+            Integer organizationCol = columnIndices.get(ORGANIZATION_COLUMN);
+            if (organizationCol == null) {
+                organizationCol = findColumnIndex(ORGANIZATION_COLUMN);
+            }
+            if (organizationCol != null) {
+                String orgValue = currentRowData.get(organizationCol);
+                if (orgValue != null && !orgValue.trim().isEmpty()) {
+                    CustomerOrganization org = CustomerOrganization.fromExcelValue(orgValue.trim());
+                    if (org != null) {
+                        contract.setCustomerOrganization(org);
+                        logger.debug("Row {}: parsed customerOrganization '{}' from '{}' for contract {}",
+                            currentRowNum + 1, org, orgValue.trim(), contract.getInnerId());
+                    } else {
+                        logger.debug("Row {}: unknown organization value '{}' for contract {}, skipping",
+                            currentRowNum + 1, orgValue.trim(), contract.getInnerId());
+                    }
+                }
+            }
+
             // Сохраняем или обновляем (добавляем в batch)
             // ВАЖНО: Проверяем, нет ли уже такого договора в batch'е, чтобы избежать дубликатов
             boolean alreadyInBatch = contractBatch.stream()
@@ -2324,6 +2347,15 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 existing.setIsTypicalForm(newData.getIsTypicalForm());
                 updated = true;
                 logger.debug("Updated isTypicalForm for contract {}: {}", existing.getInnerId(), newData.getIsTypicalForm());
+            }
+        }
+
+        // Обновляем организацию заказчика
+        if (newData.getCustomerOrganization() != null) {
+            if (!newData.getCustomerOrganization().equals(existing.getCustomerOrganization())) {
+                existing.setCustomerOrganization(newData.getCustomerOrganization());
+                updated = true;
+                logger.debug("Updated customerOrganization for contract {}: {}", existing.getInnerId(), newData.getCustomerOrganization());
             }
         }
 
