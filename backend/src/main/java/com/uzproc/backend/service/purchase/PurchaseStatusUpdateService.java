@@ -12,7 +12,6 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Сервис для обновления статусов закупок
@@ -32,9 +31,6 @@ public class PurchaseStatusUpdateService {
         this.purchaseRepository = purchaseRepository;
         this.purchaseApprovalRepository = purchaseApprovalRepository;
     }
-
-    private static final String STAGE_COMMISSION_RESULT = "Проверка результата закупочной комиссии";
-    private static final String STAGE_COMMISSION = "Закупочная комиссия";
 
     /**
      * Обновляет статус закупки на основе согласований
@@ -67,28 +63,20 @@ public class PurchaseStatusUpdateService {
         // Определяем новый статус на основе согласований
         PurchaseStatus newStatus = null;
 
-        // Проверяем, есть ли согласования с "Не согласовано"
         boolean hasNotCoordinated = false;
-        // Проверяем, есть ли успешное согласование "Проверка результата закупочной комиссии" или "Закупочная комиссия"
-        boolean hasCompletedCommissionResultCheck = false;
-        // Проверяем, есть ли другие активные согласования (кроме "Проверка результата закупочной комиссии" и "Закупочная комиссия")
-        boolean hasOtherActiveApprovals = false;
+        boolean hasActiveApprovals = false;
 
         if (!approvals.isEmpty()) {
             logger.info("Checking {} approvals for purchaseRequestId: {}", approvals.size(), purchaseRequestId);
             for (PurchaseApproval approval : approvals) {
-                String stage = approval.getStage();
                 String completionResult = approval.getCompletionResult();
-                logger.info("Checking approval for purchaseRequestId {}: stage={}, role={}, completionResult={}",
-                    purchaseRequestId, stage, approval.getRole(),
-                    completionResult != null ? completionResult : "null");
+                logger.info("Checking approval for purchaseRequestId {}: stage={}, role={}, completionResult={}, completionDate={}",
+                    purchaseRequestId, approval.getStage(), approval.getRole(),
+                    completionResult != null ? completionResult : "null",
+                    approval.getCompletionDate() != null ? approval.getCompletionDate() : "null");
 
-                // Проверяем на "Не согласовано"
                 if (completionResult != null && !completionResult.trim().isEmpty()) {
                     String resultLower = completionResult.toLowerCase().trim();
-                    logger.debug("Checking completion result '{}' (lowercase: '{}') for 'не согласован' patterns",
-                        completionResult, resultLower);
-                    // Проверяем различные варианты "не согласован"
                     if (resultLower.contains("не согласован") ||
                         resultLower.contains("не согласована") ||
                         resultLower.contains("не согласовано") ||
@@ -97,73 +85,32 @@ public class PurchaseStatusUpdateService {
                         hasNotCoordinated = true;
                         logger.info("Found not coordinated approval for purchaseRequestId {}: stage={}, role={}, result='{}'",
                             purchaseRequestId, approval.getStage(), approval.getRole(), completionResult);
-                        break; // Достаточно одного "не согласовано"
+                        break;
                     }
-                } else {
-                    logger.debug("Approval has no completion result or it's empty");
                 }
 
-                // Согласования этапа "Закупочная комиссия" / "Проверка результата закупочной комиссии" проверяются после цикла — требуются все завершённые
-
-                // Проверяем, есть ли другие активные согласования (не завершенные)
-                // Незавершенные согласования "Проверка результата закупочной комиссии" и "Закупочная комиссия"
-                // тоже считаются активными и должны блокировать установку статуса "Завершена"
-                if (stage != null && approval.getCompletionDate() == null) {
-                    hasOtherActiveApprovals = true;
-                    logger.debug("Found active approval for purchaseRequestId {}: stage={}, role={}",
-                        purchaseRequestId, stage, approval.getRole());
+                if (approval.getCompletionDate() == null) {
+                    hasActiveApprovals = true;
+                    logger.debug("Found active approval (no completion date) for purchaseRequestId {}: stage={}, role={}",
+                        purchaseRequestId, approval.getStage(), approval.getRole());
                 }
             }
         } else {
             logger.info("No approvals found for purchaseRequestId: {}", purchaseRequestId);
         }
 
-        // Проверяем, что все согласования на этапе "Закупочная комиссия" / "Проверка результата закупочной комиссии" завершены с положительным результатом
-        List<PurchaseApproval> commissionStageApprovals = approvals.stream()
-                .filter(a -> a.getStage() != null && (a.getStage().equals(STAGE_COMMISSION_RESULT) || a.getStage().equals(STAGE_COMMISSION)))
-                .collect(Collectors.toList());
-        if (!commissionStageApprovals.isEmpty()) {
-            boolean allCommissionCompleted = commissionStageApprovals.stream().allMatch(a -> {
-                if (a.getCompletionDate() == null) {
-                    return false;
-                }
-                String result = a.getCompletionResult();
-                if (result == null || result.trim().isEmpty()) {
-                    return true;
-                }
-                String resultLower = result.toLowerCase().trim();
-                return !resultLower.contains("не согласован") && !resultLower.contains("не согласована")
-                        && !resultLower.contains("не согласовано") && !resultLower.contains("отклонен")
-                        && !resultLower.contains("отклонена");
-            });
-            if (allCommissionCompleted) {
-                hasCompletedCommissionResultCheck = true;
-                logger.info("All {} commission stage approval(s) completed for purchaseRequestId: {}",
-                        commissionStageApprovals.size(), purchaseRequestId);
-            } else {
-                long incompleteCount = commissionStageApprovals.stream().filter(a -> a.getCompletionDate() == null).count();
-                logger.info("Commission stage has {} incomplete approval(s) for purchaseRequestId: {}, not setting COMPLETED",
-                        incompleteCount, purchaseRequestId);
-            }
-        }
+        boolean allApprovalsCompleted = !approvals.isEmpty() && !hasActiveApprovals;
 
-        // Если есть "не согласовано", устанавливаем статус "Не согласовано" (высший приоритет)
         if (hasNotCoordinated) {
             newStatus = PurchaseStatus.NOT_COORDINATED;
             logger.info("Purchase {} has not coordinated approvals, setting status to NOT_COORDINATED", purchaseRequestId);
-        } else if (hasCompletedCommissionResultCheck && !hasOtherActiveApprovals) {
-            // Все согласования этапа "Закупочная комиссия" / "Проверка результата закупочной комиссии" завершены и нет других активных согласований
+        } else if (allApprovalsCompleted) {
             newStatus = PurchaseStatus.COMPLETED;
-            logger.info("Purchase {} (purchaseRequestId: {}) has all commission stage approvals completed and no other active approvals, setting status to COMPLETED",
+            logger.info("Purchase {} (purchaseRequestId: {}) all approvals completed, setting status to COMPLETED",
                     purchaseRequestId, purchaseRequestId);
-        } else if (hasCompletedCommissionResultCheck && hasOtherActiveApprovals) {
+        } else if (hasActiveApprovals) {
             newStatus = PurchaseStatus.ON_COORDINATION;
-            logger.info("Purchase {} (purchaseRequestId: {}) has completed commission stage but has other active approvals, setting status to ON_COORDINATION",
-                    purchaseRequestId, purchaseRequestId);
-        } else if (hasOtherActiveApprovals || (!commissionStageApprovals.isEmpty() && !hasCompletedCommissionResultCheck)) {
-            // Есть активные согласования или этап комиссии не полностью завершён — «На согласовании» (в т.ч. понижение с «Завершена»)
-            newStatus = PurchaseStatus.ON_COORDINATION;
-            logger.info("Purchase {} (purchaseRequestId: {}) has active or incomplete approvals, setting status to ON_COORDINATION",
+            logger.info("Purchase {} (purchaseRequestId: {}) has active approvals, setting status to ON_COORDINATION",
                     purchaseRequestId, purchaseRequestId);
         }
 
