@@ -37,6 +37,22 @@ interface CsiFeedbackDto {
   createdAt: string;
 }
 
+/* ─── Groups ───────────────────────────────────────────────────────────── */
+const CFO_GROUPS = [
+  { label: 'Operations', sub: 'Warehouse · Logistics · Construction · Maintenance · PVZ', keywords: ['Warehouse', 'Logistics', 'Construction', 'Maintenance', 'PVZ'] },
+  { label: 'Marketing', sub: null, keywords: ['Marketing', 'Маркет'] },
+  { label: 'HR', sub: 'Facilities · HR · Labor Safety', keywords: ['Facilities', 'HR', 'Labor Safety', 'Labor'] },
+  { label: 'IT', sub: null, keywords: ['IT'] },
+];
+
+function getGroup(cfo: string | undefined): string | null {
+  if (!cfo) return null;
+  for (const g of CFO_GROUPS) {
+    if (g.keywords.some(k => cfo.toLowerCase().includes(k.toLowerCase()))) return g.label;
+  }
+  return null;
+}
+
 /* ─── Helpers ──────────────────────────────────────────────────────────── */
 function avgRating(f: CsiFeedbackDto): number {
   const r = [f.speedRating, f.qualityRating, f.satisfactionRating];
@@ -92,7 +108,6 @@ function CsiCard({ card }: { card: CsiFeedbackDto }) {
       display: 'flex', flexDirection: 'column', gap: 10,
       fontFamily: font,
     }}>
-      {/* Header row */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
         <div>
           <div style={{ fontSize: 10, color: T.faint, fontFamily: mono, marginBottom: 3 }}>
@@ -105,7 +120,6 @@ function CsiCard({ card }: { card: CsiFeedbackDto }) {
         <RatingBar value={rating} />
       </div>
 
-      {/* Category + title */}
       <div>
         {card.cfo && (
           <div style={{
@@ -122,7 +136,6 @@ function CsiCard({ card }: { card: CsiFeedbackDto }) {
         </div>
       </div>
 
-      {/* Meta */}
       <div style={{ fontSize: 11, color: T.muted, lineHeight: 1.5 }}>
         {card.purchaser && (
           <div>Закупщик: <span style={{ color: T.text }}>{purchaserDisplayName(card.purchaser)}</span></div>
@@ -134,7 +147,6 @@ function CsiCard({ card }: { card: CsiFeedbackDto }) {
         )}
       </div>
 
-      {/* Comment */}
       {card.comment ? (
         <div style={{
           fontSize: 11, color: T.text, padding: '8px 10px',
@@ -147,7 +159,6 @@ function CsiCard({ card }: { card: CsiFeedbackDto }) {
         <div style={{ fontSize: 10, color: T.faint, fontStyle: 'italic' }}>без комментария</div>
       )}
 
-      {/* Detail breakdown */}
       <div style={{
         display: 'flex', gap: 12, flexWrap: 'wrap',
         paddingTop: 8, borderTop: `1px dashed ${T.line}`,
@@ -162,8 +173,25 @@ function CsiCard({ card }: { card: CsiFeedbackDto }) {
   );
 }
 
-/* ─── Filter pills ─────────────────────────────────────────────────────── */
-const FILTER_OPTIONS = [
+/* ─── Group section ────────────────────────────────────────────────────── */
+function GroupSection({ label, sub, cards }: { label: string; sub: string | null; cards: CsiFeedbackDto[] }) {
+  if (cards.length === 0) return null;
+  return (
+    <div style={{ borderTop: `1px solid ${T.line}` }}>
+      <div style={{ padding: '20px 40px 12px', display: 'flex', alignItems: 'baseline', gap: 12, fontFamily: font }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{label}</div>
+        {sub && <div style={{ fontSize: 10, color: T.faint, fontFamily: mono }}>{sub}</div>}
+        <div style={{ fontSize: 11, color: T.muted, fontFamily: mono, marginLeft: 'auto' }}>{cards.length}</div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
+        {cards.map((c, i) => <CsiCard key={c.id ?? i} card={c} />)}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Rating filter pills ──────────────────────────────────────────────── */
+const RATING_FILTER_OPTIONS = [
   { label: 'Все', value: 'all' },
   { label: '5★', value: '5' },
   { label: '4★', value: '4' },
@@ -233,6 +261,11 @@ export function ManagementReportingNewCsiGrid({ year }: Props) {
     return true;
   });
 
+  const grouped = CFO_GROUPS.map(g => ({
+    ...g,
+    cards: filtered.filter(f => getGroup(f.cfo) === g.label),
+  }));
+
   return (
     <div>
       {/* Section header */}
@@ -246,14 +279,14 @@ export function ManagementReportingNewCsiGrid({ year }: Props) {
             fontSize: 11, color: T.muted, letterSpacing: 0.8,
             textTransform: 'uppercase', marginBottom: 6,
           }}>
-            Последние оценки CSI
+            Последние оценки CSI — {year}
           </div>
           <div style={{ fontSize: 18, fontWeight: 500, color: T.text }}>
             {loading ? '…' : `${filtered.length} из ${totalElements}`}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
-          {FILTER_OPTIONS.map(opt => (
+          {RATING_FILTER_OPTIONS.map(opt => (
             <button
               key={opt.value}
               onClick={() => setRatingFilter(opt.value)}
@@ -271,22 +304,20 @@ export function ManagementReportingNewCsiGrid({ year }: Props) {
         </div>
       </div>
 
-      {/* Grid */}
-      <div style={{ borderTop: `1px solid ${T.line}` }}>
-        {loading ? (
-          <div style={{ padding: '32px 40px', fontSize: 13, color: T.muted, fontFamily: font }}>
-            Загрузка оценок…
-          </div>
-        ) : filtered.length === 0 ? (
-          <div style={{ padding: '32px 40px', fontSize: 13, color: T.faint, fontFamily: font }}>
-            Оценок за {year} год нет
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
-            {filtered.map((c, i) => <CsiCard key={c.id ?? i} card={c} />)}
-          </div>
-        )}
-      </div>
+      {/* Groups */}
+      {loading ? (
+        <div style={{ padding: '32px 40px', fontSize: 13, color: T.muted, fontFamily: font }}>
+          Загрузка оценок…
+        </div>
+      ) : filtered.length === 0 ? (
+        <div style={{ padding: '32px 40px', fontSize: 13, color: T.faint, fontFamily: font }}>
+          Оценок за {year} год нет
+        </div>
+      ) : (
+        grouped.map(g => (
+          <GroupSection key={g.label} label={g.label} sub={g.sub} cards={g.cards} />
+        ))
+      )}
 
       {hasMore && (
         <div ref={sentinelRef} style={{ padding: '12px 40px', textAlign: 'center' }}>

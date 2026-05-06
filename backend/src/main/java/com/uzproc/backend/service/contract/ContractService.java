@@ -6,7 +6,9 @@ import com.uzproc.backend.dto.supplier.SupplierDto;
 import com.uzproc.backend.entity.contract.Contract;
 import com.uzproc.backend.entity.contract.ContractStatus;
 import com.uzproc.backend.entity.supplier.Supplier;
+import com.uzproc.backend.entity.purchase.PurchaseApproval;
 import com.uzproc.backend.repository.contract.ContractRepository;
+import com.uzproc.backend.repository.purchase.PurchaseApprovalRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;
@@ -21,6 +23,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -38,9 +41,12 @@ public class ContractService {
     private EntityManager entityManager;
     
     private final ContractRepository contractRepository;
+    private final PurchaseApprovalRepository purchaseApprovalRepository;
 
-    public ContractService(ContractRepository contractRepository) {
+    public ContractService(ContractRepository contractRepository,
+                           PurchaseApprovalRepository purchaseApprovalRepository) {
         this.contractRepository = contractRepository;
+        this.purchaseApprovalRepository = purchaseApprovalRepository;
     }
 
     public Page<ContractDto> findAll(
@@ -63,27 +69,43 @@ public class ContractService {
             Boolean isTypicalForm,
             Boolean notCoordinatedTab,
             String customerOrganization,
-            String preparedByName) {
+            String preparedByName,
+            String status,
+            String supplier) {
 
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, innerId: '{}', cfo: {}, name: '{}', documentForm: '{}', costType: '{}', contractType: '{}', currentUserId: {}, inWorkTab: {}, signedTab: {}, hiddenTab: {}, notCoordinatedTab: {}, purchaseRequestInnerId: '{}', isTypicalForm: {}, customerOrganization: {}, preparedByName: '{}'",
-                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, hiddenTab, notCoordinatedTab, purchaseRequestInnerId, isTypicalForm, customerOrganization, preparedByName);
+        logger.info("Filter parameters - year: {}, innerId: '{}', cfo: {}, name: '{}', documentForm: '{}', costType: '{}', contractType: '{}', currentUserId: {}, inWorkTab: {}, signedTab: {}, hiddenTab: {}, notCoordinatedTab: {}, purchaseRequestInnerId: '{}', isTypicalForm: {}, customerOrganization: {}, preparedByName: '{}', status: '{}', supplier: '{}'",
+                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, hiddenTab, notCoordinatedTab, purchaseRequestInnerId, isTypicalForm, customerOrganization, preparedByName, status, supplier);
 
         Specification<Contract> spec = buildSpecification(
-                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, hiddenTab, purchaseRequestInnerId, isTypicalForm, notCoordinatedTab, customerOrganization, preparedByName);
+                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, hiddenTab, purchaseRequestInnerId, isTypicalForm, notCoordinatedTab, customerOrganization, preparedByName, status, supplier);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
         
         Page<Contract> contracts = contractRepository.findAll(spec, pageable);
-        
+
         logger.info("Query result - Found {} contracts on page {} (size {}), total elements: {}",
                 contracts.getContent().size(), page, size, contracts.getTotalElements());
         logger.info("=== END FILTER REQUEST ===\n");
-        
+
+        // Batch-расчёт purchaseCompletionDate для всех PR ID на странице
+        List<Long> prIds = contracts.getContent().stream()
+                .map(Contract::getPurchaseRequestId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .collect(java.util.stream.Collectors.toList());
+        Map<Long, LocalDateTime> completionDates = batchCalculatePurchaseCompletionDates(prIds);
+
         // Конвертируем entity в DTO
-        Page<ContractDto> dtoPage = contracts.map(this::toDto);
-        
+        Page<ContractDto> dtoPage = contracts.map(c -> {
+            ContractDto dto = toDto(c);
+            if (c.getPurchaseRequestId() != null) {
+                dto.setPurchaseCompletionDate(completionDates.get(c.getPurchaseRequestId()));
+            }
+            return dto;
+        });
+
         return dtoPage;
     }
 
@@ -155,31 +177,63 @@ public class ContractService {
     }
 
     /**
-     * Сводка по исполнителям-договорникам: кол-во договоров из вкладки «В работе».
+     * Сводка по исполнителям-договорникам: кол-во договоров из вкладки «В работе» с разбивкой по формам документа.
      */
     public List<ContractSummaryItemDto> getInWorkSummary() {
         String sql =
             "SELECT TRIM(CONCAT(COALESCE(u.surname,''), ' ', COALESCE(u.name,''))) AS prepared_by_name, " +
+            "COALESCE(c.document_form, '') AS document_form, " +
             "COUNT(*) AS contract_count " +
             "FROM contracts c " +
             "INNER JOIN users u ON c.prepared_by_id = u.id " +
             "WHERE u.is_contractor = true " +
             "  AND (c.status IS NULL OR (c.status <> 'SIGNED' AND c.status <> 'NOT_COORDINATED')) " +
             "  AND (c.exclude_from_in_work IS NULL OR c.exclude_from_in_work = false) " +
-            "GROUP BY u.id, u.surname, u.name " +
-            "ORDER BY contract_count DESC";
+            "GROUP BY u.id, u.surname, u.name, c.document_form " +
+            "ORDER BY u.surname, u.name, c.document_form";
 
         @SuppressWarnings("unchecked")
         List<Object[]> rows = entityManager.createNativeQuery(sql).getResultList();
 
-        List<ContractSummaryItemDto> result = new ArrayList<>();
+        Map<String, ContractSummaryItemDto> byName = new java.util.LinkedHashMap<>();
         for (Object[] row : rows) {
             String name = row[0] != null ? row[0].toString().trim() : "";
             if (name.isEmpty()) name = "Не назначен";
-            long count = ((Number) row[1]).longValue();
-            result.add(new ContractSummaryItemDto(name, count));
+            String documentForm = row[1] != null ? row[1].toString().trim() : "";
+            long count = ((Number) row[2]).longValue();
+
+            ContractSummaryItemDto dto = byName.computeIfAbsent(name, n -> new ContractSummaryItemDto(n, 0));
+            dto.setCount(dto.getCount() + count);
+            if (!documentForm.isEmpty()) {
+                dto.getCountByDocumentForm().merge(documentForm, count, Long::sum);
+            }
         }
+
+        List<ContractSummaryItemDto> result = new ArrayList<>(byName.values());
+        result.sort((a, b) -> Long.compare(b.getCount(), a.getCount()));
         return result;
+    }
+
+    /**
+     * Уникальные формы документа среди договоров из вкладки «В работе».
+     */
+    public List<String> getInWorkDocumentForms() {
+        String sql =
+            "SELECT DISTINCT c.document_form " +
+            "FROM contracts c " +
+            "INNER JOIN users u ON c.prepared_by_id = u.id " +
+            "WHERE u.is_contractor = true " +
+            "  AND (c.status IS NULL OR (c.status <> 'SIGNED' AND c.status <> 'NOT_COORDINATED')) " +
+            "  AND (c.exclude_from_in_work IS NULL OR c.exclude_from_in_work = false) " +
+            "  AND c.document_form IS NOT NULL AND c.document_form <> '' " +
+            "ORDER BY c.document_form";
+
+        @SuppressWarnings("unchecked")
+        List<Object> rows = entityManager.createNativeQuery(sql).getResultList();
+        return rows.stream()
+            .filter(r -> r != null)
+            .map(Object::toString)
+            .collect(java.util.stream.Collectors.toList());
     }
 
     /**
@@ -270,9 +324,10 @@ public class ContractService {
         dto.setStatus(entity.getStatus());
         dto.setState(entity.getState());
         dto.setPurchaseRequestId(entity.getPurchaseRequestId());
-        // Маппинг внутреннего номера заявки
+        // Маппинг внутреннего номера и системного id заявки
         if (entity.getPurchaseRequest() != null) {
             dto.setPurchaseRequestInnerId(entity.getPurchaseRequest().getIdPurchaseRequest());
+            dto.setPurchaseRequestSystemId(entity.getPurchaseRequest().getId());
         }
         dto.setParentContractId(entity.getParentContractId());
         
@@ -333,6 +388,43 @@ public class ContractService {
         return dto;
     }
 
+    private Map<Long, LocalDateTime> batchCalculatePurchaseCompletionDates(List<Long> prIds) {
+        if (prIds.isEmpty()) return new HashMap<>();
+        List<PurchaseApproval> approvals = purchaseApprovalRepository.findByPurchaseRequestIdIn(prIds)
+                .stream()
+                .filter(a -> "Закупочная комиссия".equals(a.getStage()) ||
+                             "Проверка результата закупочной комиссии".equals(a.getStage()))
+                .collect(java.util.stream.Collectors.toList());
+        Map<Long, List<PurchaseApproval>> byPrId = approvals.stream()
+                .collect(java.util.stream.Collectors.groupingBy(PurchaseApproval::getPurchaseRequestId));
+        Map<Long, LocalDateTime> result = new HashMap<>();
+        for (Long prId : prIds) {
+            result.put(prId, calcCompletionDate(byPrId.getOrDefault(prId, java.util.List.of())));
+        }
+        return result;
+    }
+
+    private LocalDateTime calcCompletionDate(List<PurchaseApproval> approvals) {
+        List<PurchaseApproval> commission = approvals.stream()
+                .filter(a -> "Закупочная комиссия".equals(a.getStage()))
+                .collect(java.util.stream.Collectors.toList());
+        if (commission.isEmpty() || commission.stream().anyMatch(a -> a.getCompletionDate() == null)) return null;
+        LocalDateTime commissionMax = commission.stream()
+                .map(PurchaseApproval::getCompletionDate)
+                .max(LocalDateTime::compareTo).orElse(null);
+        List<PurchaseApproval> verification = approvals.stream()
+                .filter(a -> "Проверка результата закупочной комиссии".equals(a.getStage()))
+                .collect(java.util.stream.Collectors.toList());
+        if (verification.isEmpty()) return commissionMax;
+        if (verification.stream().anyMatch(a -> a.getCompletionDate() == null)) return null;
+        LocalDateTime verMax = verification.stream()
+                .map(PurchaseApproval::getCompletionDate)
+                .max(LocalDateTime::compareTo).orElse(null);
+        if (commissionMax == null) return verMax;
+        if (verMax == null) return commissionMax;
+        return commissionMax.isAfter(verMax) ? commissionMax : verMax;
+    }
+
     private Specification<Contract> buildSpecification(
             Integer year,
             String innerId,
@@ -349,7 +441,9 @@ public class ContractService {
             Boolean isTypicalForm,
             Boolean notCoordinatedTab,
             String customerOrganization,
-            String preparedByName) {
+            String preparedByName,
+            String status,
+            String supplier) {
 
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -517,6 +611,29 @@ public class ContractService {
                 } catch (IllegalArgumentException e) {
                     logger.warn("Invalid customerOrganization value ignored: {}", customerOrganization);
                 }
+            }
+
+            // Фильтр по статусу (по отображаемому имени, LIKE)
+            if (status != null && !status.trim().isEmpty()) {
+                String statusLower = status.toLowerCase().trim();
+                List<ContractStatus> matched = java.util.Arrays.stream(ContractStatus.values())
+                    .filter(s -> s.getDisplayName().toLowerCase().contains(statusLower))
+                    .collect(java.util.stream.Collectors.toList());
+                if (!matched.isEmpty()) {
+                    predicates.add(root.get("status").in(matched));
+                    predicateCount++;
+                    logger.info("Added status filter: '{}', matched: {}", status, matched);
+                }
+            }
+
+            // Фильтр по поставщику (LIKE по имени, JOIN с suppliers)
+            if (supplier != null && !supplier.trim().isEmpty()) {
+                jakarta.persistence.criteria.Join<Contract, Supplier> supplierJoin =
+                    root.join("suppliers", jakarta.persistence.criteria.JoinType.LEFT);
+                predicates.add(cb.like(cb.lower(supplierJoin.get("name")), "%" + supplier.toLowerCase().trim() + "%"));
+                if (query != null) query.distinct(true);
+                predicateCount++;
+                logger.info("Added supplier filter: '{}'", supplier);
             }
 
             logger.info("Total predicates: {}", predicateCount);

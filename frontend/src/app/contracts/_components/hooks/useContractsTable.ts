@@ -36,7 +36,7 @@ export const useContractsTable = () => {
     organizationFilter: filtersHook.organizationFilter,
   });
 
-  const { summaryData, loading: summaryLoading, refreshSummary } = useContractsSummary();
+  const { summaryData, documentForms, loading: summaryLoading, refreshSummary } = useContractsSummary();
 
   const { updateExcludeFromStatusCalculation } = useExcludeFromStatusCalculation({
     setAllItems,
@@ -73,26 +73,16 @@ export const useContractsTable = () => {
   }, [dataHook.fetchYears]);
 
   const handleResetFilters = useCallback(() => {
-    filtersHook.setFilters({
-      innerId: '',
-      cfo: '',
-      name: '',
-      documentForm: '',
-      costType: '',
-      contractType: '',
-      paymentTerms: '',
-    });
-    filtersHook.setLocalFilters({
-      innerId: '',
-      cfo: '',
-      name: '',
-      documentForm: '',
-      costType: '',
-      contractType: '',
-      paymentTerms: '',
-    });
+    const emptyFilters = {
+      innerId: '', cfo: '', name: '', documentForm: '',
+      costType: '', contractType: '', paymentTerms: '',
+      purchaseRequestInnerId: '', supplier: '',
+    };
+    filtersHook.setFilters(emptyFilters);
+    filtersHook.setLocalFilters(emptyFilters);
     filtersHook.setCfoFilter(new Set());
     filtersHook.setIsTypicalFormFilter('');
+    filtersHook.setStatusFilter('');
     filtersHook.setOrganizationFilter('');
     filtersHook.setPreparedByFilter('');
     setSelectedYear(currentYear);
@@ -111,7 +101,8 @@ export const useContractsTable = () => {
     append: boolean,
     isTypicalFormFilter: string = '',
     organizationFilter: string = '',
-    preparedByFilter: string = ''
+    preparedByFilter: string = '',
+    statusFilter: string = ''
   ) => {
     if (append) {
       setLoadingMore(true);
@@ -132,7 +123,8 @@ export const useContractsTable = () => {
         activeTab as 'all' | 'in-work' | 'not-coordinated' | 'signed' | 'hidden',
         isTypicalFormFilter,
         organizationFilter,
-        preparedByFilter
+        preparedByFilter,
+        statusFilter
       );
       const items = result?.content ?? [];
       if (append) {
@@ -170,7 +162,8 @@ export const useContractsTable = () => {
       false,
       filtersHook.isTypicalFormFilter,
       filtersHook.organizationFilter,
-      filtersHook.preparedByFilter
+      filtersHook.preparedByFilter,
+      filtersHook.statusFilter
     );
   }, [
     selectedYear,
@@ -180,6 +173,7 @@ export const useContractsTable = () => {
     cfoFilterStr,
     filtersHook.activeTab,
     filtersHook.isTypicalFormFilter,
+    filtersHook.statusFilter,
     filtersHook.organizationFilter,
     filtersHook.preparedByFilter,
     fetchData,
@@ -203,10 +197,11 @@ export const useContractsTable = () => {
           true,
           filtersHook.isTypicalFormFilter,
           filtersHook.organizationFilter,
-          filtersHook.preparedByFilter
+          filtersHook.preparedByFilter,
+          filtersHook.statusFilter
         );
       }
-    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, selectedYear, sortField, sortDirection, filtersHook.filters, filtersHook.cfoFilter, filtersHook.activeTab, filtersHook.isTypicalFormFilter, filtersHook.organizationFilter, filtersHook.preparedByFilter, fetchData]),
+    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, selectedYear, sortField, sortDirection, filtersHook.filters, filtersHook.cfoFilter, filtersHook.activeTab, filtersHook.isTypicalFormFilter, filtersHook.statusFilter, filtersHook.organizationFilter, filtersHook.preparedByFilter, fetchData]),
     threshold: 0.1,
   });
 
@@ -236,6 +231,7 @@ export const useContractsTable = () => {
     tabCounts,
     refreshTabCounts,
     summaryData,
+    documentForms,
     summaryLoading,
   };
 };

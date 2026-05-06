@@ -26,6 +26,8 @@ public class ContractDto {
     private ContractStatus status;
     private String state;
     private Long purchaseRequestId;
+    /** Первичный ключ id связанной заявки (для построения ссылки на страницу заявки). */
+    private Long purchaseRequestSystemId;
     private Long parentContractId;
     private ContractDto parentContract;
     private LocalDateTime plannedDeliveryStartDate;
@@ -55,6 +57,9 @@ public class ContractDto {
 
     /** Типовая форма (из колонки «Типовая форма (Договор)»). */
     private Boolean isTypicalForm;
+
+    /** Дата утверждения ЗП (дата завершения закупки по этапам «Закупочная комиссия»). */
+    private LocalDateTime purchaseCompletionDate;
 
     // Constructors
     public ContractDto() {
@@ -213,6 +218,14 @@ public class ContractDto {
         this.purchaseRequestId = purchaseRequestId;
     }
 
+    public Long getPurchaseRequestSystemId() {
+        return purchaseRequestSystemId;
+    }
+
+    public void setPurchaseRequestSystemId(Long purchaseRequestSystemId) {
+        this.purchaseRequestSystemId = purchaseRequestSystemId;
+    }
+
     public Long getParentContractId() {
         return parentContractId;
     }
@@ -315,6 +328,14 @@ public class ContractDto {
 
     public void setIsTypicalForm(Boolean isTypicalForm) {
         this.isTypicalForm = isTypicalForm;
+    }
+
+    public LocalDateTime getPurchaseCompletionDate() {
+        return purchaseCompletionDate;
+    }
+
+    public void setPurchaseCompletionDate(LocalDateTime purchaseCompletionDate) {
+        this.purchaseCompletionDate = purchaseCompletionDate;
     }
 }
 

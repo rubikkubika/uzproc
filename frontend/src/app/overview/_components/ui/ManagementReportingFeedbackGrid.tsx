@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Star } from 'lucide-react';
 import { getBackendUrl } from '@/utils/api';
 import { purchaserDisplayName } from '@/utils/purchaser';
@@ -31,6 +31,23 @@ interface CsiFeedbackPage {
   totalElements: number;
   totalPages: number;
   number: number;
+}
+
+/* ─── Группы ──────────────────────────────────────────────────────────── */
+
+const CFO_GROUPS = [
+  { label: 'Operations', sub: 'Warehouse · Logistics · Construction · Maintenance · PVZ', keywords: ['Warehouse', 'Logistics', 'Construction', 'Maintenance', 'PVZ'] },
+  { label: 'Marketing', sub: null, keywords: ['Marketing', 'Маркет'] },
+  { label: 'HR', sub: 'Facilities · HR · Labor Safety', keywords: ['Facilities', 'HR', 'Labor Safety', 'Labor'] },
+  { label: 'IT', sub: null, keywords: ['IT'] },
+];
+
+function getGroup(cfo: string | undefined): string | null {
+  if (!cfo) return null;
+  for (const g of CFO_GROUPS) {
+    if (g.keywords.some(k => cfo.toLowerCase().includes(k.toLowerCase()))) return g.label;
+  }
+  return null;
 }
 
 /* ─── Утилиты ─────────────────────────────────────────────────────────── */
@@ -72,6 +89,111 @@ function renderStars(rating: number) {
   );
 }
 
+/* ─── Карточка ────────────────────────────────────────────────────────── */
+
+function FeedbackCard({ feedback }: { feedback: CsiFeedbackDto }) {
+  const [expanded, setExpanded] = useState(false);
+  const [truncated, setTruncated] = useState(false);
+  const commentRef = useRef<HTMLDivElement>(null);
+  const averageRating = getAverageRating(feedback);
+
+  useEffect(() => {
+    const el = commentRef.current;
+    if (el && !expanded) {
+      setTruncated(el.scrollHeight > el.clientHeight);
+    }
+  }, [feedback.comment, expanded]);
+
+  return (
+    <div className="mr-feedback-card border border-gray-200 rounded p-1 bg-gray-50 min-w-0">
+      <div className="flex items-start justify-between mb-0 gap-1">
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="text-xs font-medium text-gray-900">
+              {feedback.purchaseRequestInnerId || feedback.idPurchaseRequest || '-'}
+            </span>
+            <span className="text-xs text-gray-500">
+              {formatDate(feedback.createdAt)}
+            </span>
+          </div>
+          {feedback.cfo && (
+            <span className="inline-flex items-center px-1 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 mt-0">
+              {feedback.cfo}
+            </span>
+          )}
+          {feedback.purchaseRequestSubject && (
+            <div className="mt-0 text-xs text-gray-700 truncate" title={feedback.purchaseRequestSubject}>
+              {feedback.purchaseRequestSubject}
+            </div>
+          )}
+        </div>
+        <div className="flex-shrink-0">
+          {renderStars(averageRating)}
+        </div>
+      </div>
+
+      {(feedback.purchaser || feedback.recipient) && (
+        <div className="text-xs text-gray-500 mt-0">
+          {feedback.purchaser && <div>Закупщик: {purchaserDisplayName(feedback.purchaser)}</div>}
+          {feedback.recipient && <div>Оценил: {feedback.recipientName || feedback.recipient}</div>}
+        </div>
+      )}
+
+      <div className={`mt-0.5 rounded p-1 border border-gray-200 bg-white flex flex-col min-h-0 ${
+        feedback.comment && expanded ? 'min-h-[3.5rem]' : 'h-[3.5rem] overflow-hidden'
+      } mr-feedback-comment`}>
+        {feedback.comment ? (
+          expanded ? (
+            <div ref={commentRef} className="text-xs text-gray-700">{feedback.comment}</div>
+          ) : (
+            <div className="relative w-full h-full min-h-0 flex flex-col items-start">
+              <div ref={commentRef} className="text-xs text-gray-700 line-clamp-2 leading-normal w-full pr-20">
+                {feedback.comment}
+              </div>
+              {truncated && (
+                <button
+                  type="button"
+                  onClick={() => setExpanded(true)}
+                  className="absolute right-0 top-[1rem] text-xs text-blue-600 hover:text-blue-800 whitespace-nowrap print:hidden"
+                >
+                  Развернуть
+                </button>
+              )}
+            </div>
+          )
+        ) : (
+          <div className="text-xs text-gray-400 flex-1 flex items-center min-h-0">Комментария нет</div>
+        )}
+      </div>
+
+      <div className="mt-0.5 flex flex-wrap gap-1 text-xs text-gray-500">
+        <span>Скорость: {feedback.speedRating.toFixed(1)}</span>
+        <span>Качество: {feedback.qualityRating.toFixed(1)}</span>
+        <span>Закупщик: {feedback.satisfactionRating.toFixed(1)}</span>
+        {feedback.uzprocRating != null && <span>Узпрок: {feedback.uzprocRating.toFixed(1)}</span>}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Секция группы ───────────────────────────────────────────────────── */
+
+function GroupSection({ label, sub, cards }: { label: string; sub: string | null; cards: CsiFeedbackDto[] }) {
+  if (cards.length === 0) return null;
+  return (
+    <div className="mb-4">
+      <div className="flex items-baseline gap-2 mb-1.5 px-0.5">
+        <span className="text-xs font-semibold text-gray-700">{label}</span>
+        {sub && <span className="text-xs text-gray-400">{sub}</span>}
+        <span className="ml-auto text-xs text-gray-400">{cards.length}</span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5">
+        {cards.map(f => <FeedbackCard key={f.id} feedback={f} />)}
+      </div>
+    </div>
+  );
+}
+
 /* ─── Компонент ────────────────────────────────────────────────────────── */
 
 interface ManagementReportingFeedbackGridProps {
@@ -84,9 +206,10 @@ export function ManagementReportingFeedbackGrid({ year }: ManagementReportingFee
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [expandedComments, setExpandedComments] = useState<Set<number>>(new Set());
-  const [truncatedComments, setTruncatedComments] = useState<Set<number>>(new Set());
-  const commentRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const [totalElements, setTotalElements] = useState(0);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  const hasMore = page + 1 < totalPages;
 
   const fetchPage = async (pageNum: number, append: boolean) => {
     try {
@@ -105,6 +228,7 @@ export function ManagementReportingFeedbackGrid({ year }: ManagementReportingFee
       if (append) setFeedbacks(prev => [...prev, ...(data.content || [])]);
       else setFeedbacks(data.content || []);
       setTotalPages(data.totalPages);
+      setTotalElements(data.totalElements);
       setPage(data.number);
     } catch {
       if (!append) setFeedbacks([]);
@@ -119,43 +243,12 @@ export function ManagementReportingFeedbackGrid({ year }: ManagementReportingFee
     fetchPage(0, false);
   }, [year]);
 
-  // Проверка обрезки комментариев
-  useEffect(() => {
-    if (feedbacks.length === 0) return;
-    const timer = setTimeout(() => {
-      const truncated = new Set<number>();
-      commentRefs.current.forEach((el, id) => {
-        if (el && !expandedComments.has(id) && el.scrollHeight > el.clientHeight) {
-          truncated.add(id);
-        }
-      });
-      setTruncatedComments(truncated);
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [feedbacks, expandedComments]);
-
-  const toggleComment = (id: number) => {
-    setExpandedComments(prev => {
-      const s = new Set(prev);
-      if (s.has(id)) s.delete(id); else s.add(id);
-      return s;
-    });
-  };
-
-  const hasMore = page + 1 < totalPages;
-
-  // Автоподгрузка при скролле (IntersectionObserver)
-  const sentinelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!hasMore || loadingMore) return;
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
     const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && !loadingMore && hasMore) {
-          fetchPage(page + 1, true);
-        }
-      },
+      entries => { if (entries[0].isIntersecting) fetchPage(page + 1, true); },
       { rootMargin: '200px' }
     );
     observer.observe(sentinel);
@@ -174,107 +267,23 @@ export function ManagementReportingFeedbackGrid({ year }: ManagementReportingFee
     );
   }
 
+  const grouped = CFO_GROUPS.map(g => ({
+    ...g,
+    cards: feedbacks.filter(f => getGroup(f.cfo) === g.label),
+  }));
+
   return (
     <div className="flex-1 min-h-0 overflow-auto custom-scrollbar pr-1">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5">
-        {feedbacks.map((feedback, idx) => {
-          const averageRating = getAverageRating(feedback);
-          const isExpanded = expandedComments.has(feedback.id);
-          return (
-            <div
-              key={feedback.id}
-              className="mr-feedback-card border border-gray-200 rounded p-1 bg-gray-50 min-w-0"
-              data-feedback-idx={idx}
-            >
-              <div className="flex items-start justify-between mb-0 gap-1">
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-1">
-                    <span className="text-xs font-medium text-gray-900">
-                      {feedback.purchaseRequestInnerId || feedback.idPurchaseRequest || '-'}
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      {formatDate(feedback.createdAt)}
-                    </span>
-                  </div>
-                  {feedback.cfo && (
-                    <span className="inline-flex items-center px-1 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 mt-0">
-                      {feedback.cfo}
-                    </span>
-                  )}
-                  {feedback.purchaseRequestSubject && (
-                    <div className="mt-0 text-xs text-gray-700 truncate" title={feedback.purchaseRequestSubject}>
-                      {feedback.purchaseRequestSubject}
-                    </div>
-                  )}
-                </div>
-                <div className="flex-shrink-0">
-                  {renderStars(averageRating)}
-                </div>
-              </div>
-              {(feedback.purchaser || feedback.recipient) && (
-                <div className="text-xs text-gray-500 mt-0">
-                  {feedback.purchaser && (
-                    <div>Закупщик: {purchaserDisplayName(feedback.purchaser)}</div>
-                  )}
-                  {feedback.recipient && (
-                    <div>Оценил: {feedback.recipientName || feedback.recipient}</div>
-                  )}
-                </div>
-              )}
-
-              {/* Комментарий */}
-              <div
-                className={`mt-0.5 rounded p-1 border border-gray-200 bg-white flex flex-col min-h-0 ${
-                  feedback.comment && isExpanded ? 'min-h-[3.5rem]' : 'h-[3.5rem] overflow-hidden'
-                } mr-feedback-comment`}
-              >
-                {feedback.comment ? (
-                  isExpanded ? (
-                    <div
-                      ref={el => { if (el) commentRefs.current.set(feedback.id, el); }}
-                      className="text-xs text-gray-700"
-                    >
-                      {feedback.comment}
-                    </div>
-                  ) : (
-                    <div className="relative w-full h-full min-h-0 flex flex-col items-start">
-                      <div
-                        ref={el => { if (el) commentRefs.current.set(feedback.id, el); }}
-                        className="text-xs text-gray-700 line-clamp-2 leading-normal w-full pr-20"
-                      >
-                        {feedback.comment}
-                      </div>
-                      {truncatedComments.has(feedback.id) && (
-                        <button
-                          type="button"
-                          onClick={() => toggleComment(feedback.id)}
-                          className="absolute right-0 top-[1rem] text-xs text-blue-600 hover:text-blue-800 whitespace-nowrap print:hidden"
-                        >
-                          Развернуть
-                        </button>
-                      )}
-                    </div>
-                  )
-                ) : (
-                  <div className="text-xs text-gray-400 flex-1 flex items-center min-h-0">
-                    Комментария нет
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-0.5 flex flex-wrap gap-1 text-xs text-gray-500">
-                <span>Скорость: {feedback.speedRating.toFixed(1)}</span>
-                <span>Качество: {feedback.qualityRating.toFixed(1)}</span>
-                <span>Закупщик: {feedback.satisfactionRating.toFixed(1)}</span>
-                {feedback.uzprocRating != null && (
-                  <span>Узпрок: {feedback.uzprocRating.toFixed(1)}</span>
-                )}
-              </div>
-            </div>
-          );
-        })}
+      {/* Счётчик */}
+      <div className="flex items-baseline justify-between mb-3 px-0.5">
+        <span className="text-xs text-gray-400">{feedbacks.length} из {totalElements}</span>
       </div>
-      {/* Сентинел для автоподгрузки */}
+
+      {/* Группы */}
+      {grouped.map(g => (
+        <GroupSection key={g.label} label={g.label} sub={g.sub} cards={g.cards} />
+      ))}
+
       {hasMore && (
         <div ref={sentinelRef} className="py-3 text-center print:hidden">
           {loadingMore && <span className="text-xs text-gray-500">Загрузка…</span>}

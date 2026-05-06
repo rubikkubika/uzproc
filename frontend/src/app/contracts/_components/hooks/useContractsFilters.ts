@@ -23,6 +23,7 @@ export const useContractsFilters = (setCurrentPage: (page: number) => void) => {
     contractType: '',
     paymentTerms: '',
     purchaseRequestInnerId: '',
+    supplier: '',
   });
 
   const [filters, setFilters] = useState<Record<string, string>>({
@@ -34,9 +35,13 @@ export const useContractsFilters = (setCurrentPage: (page: number) => void) => {
     contractType: '',
     paymentTerms: '',
     purchaseRequestInnerId: '',
+    supplier: '',
   });
 
   const [focusedField, setFocusedField] = useState<string | null>(null);
+
+  // Фильтр по статусу: '' = все, иначе отображаемое имя статуса
+  const [statusFilter, setStatusFilter] = useState<string>('');
 
   // Фильтр типовой формы: '' = все, 'true' = да, 'false' = нет
   const [isTypicalFormFilter, setIsTypicalFormFilter] = useState<string>('');
@@ -171,6 +176,8 @@ export const useContractsFilters = (setCurrentPage: (page: number) => void) => {
     handleFilterChange,
     isTypicalFormFilter,
     setIsTypicalFormFilter,
+    statusFilter,
+    setStatusFilter,
     organizationFilter,
     setOrganizationFilter,
     preparedByFilter,

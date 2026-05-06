@@ -29,7 +29,8 @@ export const useContractsData = () => {
     activeTab: TabType = 'all',
     isTypicalFormFilter: string = '',
     organizationFilter: string = '',
-    preparedByFilter: string = ''
+    preparedByFilter: string = '',
+    statusFilter: string = ''
   ): Promise<PageResponse | null> => {
     try {
       const params = new URLSearchParams();
@@ -88,6 +89,14 @@ export const useContractsData = () => {
 
       if (preparedByFilter && preparedByFilter.trim() !== '') {
         params.append('preparedByName', preparedByFilter.trim());
+      }
+
+      if (statusFilter && statusFilter.trim() !== '') {
+        params.append('status', statusFilter.trim());
+      }
+
+      if (filters.supplier && filters.supplier.trim() !== '') {
+        params.append('supplier', filters.supplier.trim());
       }
 
       // Вкладка "В работе": подготовил = договорник, без Подписан и Не согласован, без скрытых

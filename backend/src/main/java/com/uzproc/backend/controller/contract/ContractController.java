@@ -45,12 +45,14 @@ public class ContractController {
             @RequestParam(required = false) Boolean isTypicalForm,
             @RequestParam(required = false) Boolean notCoordinatedTab,
             @RequestParam(required = false) String customerOrganization,
-            @RequestParam(required = false) String preparedByName) {
+            @RequestParam(required = false) String preparedByName,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String supplier) {
 
         Page<ContractDto> contracts = contractService.findAll(
                 page, size, year, sortBy, sortDir, innerId, cfo, name, documentForm, costType, contractType,
                 null, inWorkTab, signedTab, hiddenTab, purchaseRequestInnerId, isTypicalForm, notCoordinatedTab,
-                customerOrganization, preparedByName);
+                customerOrganization, preparedByName, status, supplier);
 
         return ResponseEntity.ok(contracts);
     }
@@ -67,6 +69,11 @@ public class ContractController {
     @GetMapping("/in-work-summary")
     public ResponseEntity<List<ContractSummaryItemDto>> getInWorkSummary() {
         return ResponseEntity.ok(contractService.getInWorkSummary());
+    }
+
+    @GetMapping("/in-work-document-forms")
+    public ResponseEntity<List<String>> getInWorkDocumentForms() {
+        return ResponseEntity.ok(contractService.getInWorkDocumentForms());
     }
 
     @GetMapping("/years")

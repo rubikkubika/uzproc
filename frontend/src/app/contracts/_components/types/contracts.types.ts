@@ -29,8 +29,11 @@ export interface Contract {
   isTypicalForm: boolean | null;
   /** Поставщики (контрагенты). */
   suppliers: ContractSupplier[] | null;
+  /** Дата утверждения ЗП (дата завершения закупки). */
+  purchaseCompletionDate: string | null;
   preparedBy: string | null;  // ФИО пользователя (договорника), который подготовил договор
   purchaseRequestId: number | null;
+  purchaseRequestSystemId: number | null;
   purchaseRequestInnerId: number | null;  // Внутренний номер связанной заявки
   excludedFromStatusCalculation: boolean | null;
   exclusionComment: string | null;
