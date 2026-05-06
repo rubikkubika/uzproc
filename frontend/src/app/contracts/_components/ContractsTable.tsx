@@ -62,11 +62,14 @@ export default function ContractsTable() {
     refreshTabCounts,
     summaryData,
     documentForms,
+    signedSummaryData,
+    signedDocumentForms,
+    summaryCurrentYear,
     summaryLoading,
   } = useContractsTable();
 
   const isTabWithPreparedBy = filters.activeTab === 'in-work' || filters.activeTab === 'not-coordinated' || filters.activeTab === 'signed';
-  const totalColumns = isTabWithPreparedBy ? 14 : 13;
+  const totalColumns = isTabWithPreparedBy ? 15 : 14;
 
   const handleRowClick = (contractId: number, e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
@@ -182,6 +185,9 @@ export default function ContractsTable() {
         <ContractsSummaryTable
           summaryData={summaryData}
           documentForms={documentForms}
+          signedSummaryData={signedSummaryData}
+          signedDocumentForms={signedDocumentForms}
+          currentYear={summaryCurrentYear}
           loading={summaryLoading}
           selectedPreparedBy={filters.preparedByFilter}
           selectedDocumentForm={selectedDocumentForm}
@@ -413,6 +419,13 @@ export default function ContractsTable() {
                   <>{renderSortButton('contractCreationDate')}<span>Дата создания</span></>
                 )}
               </th>
+              {/* Срок действия (план) */}
+              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '7%' }}>
+                {thInner(
+                  <div className="w-full" />,
+                  <>{renderSortButton('plannedDeliveryStartDate')}<span>Срок действия (план)</span></>
+                )}
+              </th>
               {/* Статус */}
               <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '9%' }}>
                 {thInner(
@@ -509,6 +522,9 @@ export default function ContractsTable() {
                     <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 break-words">{formatDocumentForm(contract.documentForm)}</td>
                     <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300">
                       {contract.contractCreationDate ? new Date(contract.contractCreationDate).toLocaleDateString('ru-RU') : '-'}
+                    </td>
+                    <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300">
+                      {contract.plannedDeliveryStartDate ? new Date(contract.plannedDeliveryStartDate).toLocaleDateString('ru-RU') : '-'}
                     </td>
                     <td className="px-2 py-2 text-xs border-r border-gray-300">
                       {contract.status ? (

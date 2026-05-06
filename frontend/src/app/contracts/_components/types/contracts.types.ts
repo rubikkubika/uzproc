@@ -35,6 +35,8 @@ export interface Contract {
   purchaseRequestId: number | null;
   purchaseRequestSystemId: number | null;
   purchaseRequestInnerId: number | null;  // Внутренний номер связанной заявки
+  /** Плановая дата начала поставки (из колонки «Плановая дата начала поставки (Заявка на ЗП)»). Отображается как «Срок действия (план)». */
+  plannedDeliveryStartDate: string | null;
   excludedFromStatusCalculation: boolean | null;
   exclusionComment: string | null;
   excludeFromInWork: boolean | null;

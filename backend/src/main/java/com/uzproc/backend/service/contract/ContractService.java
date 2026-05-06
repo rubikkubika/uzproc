@@ -236,6 +236,64 @@ public class ContractService {
             .collect(java.util.stream.Collectors.toList());
     }
 
+    public List<ContractSummaryItemDto> getSignedSummary(int year) {
+        String sql =
+            "SELECT TRIM(CONCAT(COALESCE(u.surname,''), ' ', COALESCE(u.name,''))) AS prepared_by_name, " +
+            "COALESCE(c.document_form, '') AS document_form, " +
+            "COUNT(*) AS contract_count " +
+            "FROM contracts c " +
+            "INNER JOIN users u ON c.prepared_by_id = u.id " +
+            "WHERE u.is_contractor = true " +
+            "  AND c.status = 'SIGNED' " +
+            "  AND EXTRACT(YEAR FROM c.contract_creation_date) = :year " +
+            "GROUP BY u.id, u.surname, u.name, c.document_form " +
+            "ORDER BY u.surname, u.name, c.document_form";
+
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = entityManager.createNativeQuery(sql)
+            .setParameter("year", year)
+            .getResultList();
+
+        Map<String, ContractSummaryItemDto> byName = new java.util.LinkedHashMap<>();
+        for (Object[] row : rows) {
+            String name = row[0] != null ? row[0].toString().trim() : "";
+            if (name.isEmpty()) name = "Не назначен";
+            String documentForm = row[1] != null ? row[1].toString().trim() : "";
+            long count = ((Number) row[2]).longValue();
+
+            ContractSummaryItemDto dto = byName.computeIfAbsent(name, n -> new ContractSummaryItemDto(n, 0));
+            dto.setCount(dto.getCount() + count);
+            if (!documentForm.isEmpty()) {
+                dto.getCountByDocumentForm().merge(documentForm, count, Long::sum);
+            }
+        }
+
+        List<ContractSummaryItemDto> result = new ArrayList<>(byName.values());
+        result.sort((a, b) -> Long.compare(b.getCount(), a.getCount()));
+        return result;
+    }
+
+    public List<String> getSignedDocumentForms(int year) {
+        String sql =
+            "SELECT DISTINCT c.document_form " +
+            "FROM contracts c " +
+            "INNER JOIN users u ON c.prepared_by_id = u.id " +
+            "WHERE u.is_contractor = true " +
+            "  AND c.status = 'SIGNED' " +
+            "  AND EXTRACT(YEAR FROM c.contract_creation_date) = :year " +
+            "  AND c.document_form IS NOT NULL AND c.document_form <> '' " +
+            "ORDER BY c.document_form";
+
+        @SuppressWarnings("unchecked")
+        List<Object> rows = entityManager.createNativeQuery(sql)
+            .setParameter("year", year)
+            .getResultList();
+        return rows.stream()
+            .filter(r -> r != null)
+            .map(Object::toString)
+            .collect(java.util.stream.Collectors.toList());
+    }
+
     /**
      * Получить список уникальных годов из дат создания договоров
      * @return список годов в порядке убывания

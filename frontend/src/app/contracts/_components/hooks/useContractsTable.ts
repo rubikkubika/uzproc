@@ -36,7 +36,7 @@ export const useContractsTable = () => {
     organizationFilter: filtersHook.organizationFilter,
   });
 
-  const { summaryData, documentForms, loading: summaryLoading, refreshSummary } = useContractsSummary();
+  const { summaryData, documentForms, signedSummaryData, signedDocumentForms, currentYear: summaryCurrentYear, loading: summaryLoading, refreshSummary } = useContractsSummary();
 
   const { updateExcludeFromStatusCalculation } = useExcludeFromStatusCalculation({
     setAllItems,
@@ -232,6 +232,9 @@ export const useContractsTable = () => {
     refreshTabCounts,
     summaryData,
     documentForms,
+    signedSummaryData,
+    signedDocumentForms,
+    summaryCurrentYear,
     summaryLoading,
   };
 };

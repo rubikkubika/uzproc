@@ -76,6 +76,20 @@ public class ContractController {
         return ResponseEntity.ok(contractService.getInWorkDocumentForms());
     }
 
+    @GetMapping("/signed-summary")
+    public ResponseEntity<List<ContractSummaryItemDto>> getSignedSummary(
+            @RequestParam(defaultValue = "0") int year) {
+        int y = year > 0 ? year : java.time.LocalDate.now().getYear();
+        return ResponseEntity.ok(contractService.getSignedSummary(y));
+    }
+
+    @GetMapping("/signed-document-forms")
+    public ResponseEntity<List<String>> getSignedDocumentForms(
+            @RequestParam(defaultValue = "0") int year) {
+        int y = year > 0 ? year : java.time.LocalDate.now().getYear();
+        return ResponseEntity.ok(contractService.getSignedDocumentForms(y));
+    }
+
     @GetMapping("/years")
     public ResponseEntity<List<Integer>> getDistinctYears() {
         List<Integer> years = contractService.getDistinctYears();
