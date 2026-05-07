@@ -20,6 +20,7 @@ const DASHBOARD_SUB_TAB_LABELS: Record<OverviewTab, string> = {
   timelines: 'Сроки закупок',
   savings: 'Экономия',
   'contract-remarks': 'Замечания по договорам',
+  'purchases-by-cfo': 'Закупки по ЦФО',
 };
 
 interface OverviewTabsProps {

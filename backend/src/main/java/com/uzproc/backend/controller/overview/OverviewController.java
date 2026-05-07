@@ -8,6 +8,7 @@ import com.uzproc.backend.dto.overview.OverviewApprovalsGroupedResponseDto;
 import com.uzproc.backend.dto.overview.OverviewContractDurationResponseDto;
 import com.uzproc.backend.dto.overview.OverviewEkChartResponseDto;
 import com.uzproc.backend.dto.overview.OverviewPurchasePlanMonthsResponseDto;
+import com.uzproc.backend.dto.overview.OverviewPurchasesByCfoItemDto;
 import com.uzproc.backend.dto.overview.OverviewSlaResponseDto;
 import com.uzproc.backend.dto.overview.OverviewTimelinesResponseDto;
 import com.uzproc.backend.service.contract.ContractApprovalService;
@@ -18,6 +19,9 @@ import org.slf4j.LoggerFactory;
 import com.uzproc.backend.dto.overview.OverviewTimelinesRequestDto;
 import com.uzproc.backend.dto.purchaserequest.PurchaseRequestDto;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -238,5 +242,31 @@ public class OverviewController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
         return ResponseEntity.ok(contractApprovalService.getRemarksByCategory(category, dateFrom, dateTo));
+    }
+
+    /**
+     * Дашборд «Закупки по ЦФО»: заявки с завершённой закупкой, фильтр по ЦФО и году завершения.
+     */
+    @GetMapping("/purchases-by-cfo")
+    public ResponseEntity<List<OverviewPurchasesByCfoItemDto>> getPurchasesByCfo(
+            @RequestParam(required = false) List<String> cfo,
+            @RequestParam(required = false) List<Integer> year) {
+        logger.debug("Overview purchases-by-cfo request (cfo={}, year={})", cfo, year);
+        return ResponseEntity.ok(overviewService.getPurchasesByCfo(cfo, year));
+    }
+
+    /**
+     * Выгрузка дашборда «Закупки по ЦФО» в Excel.
+     */
+    @GetMapping("/purchases-by-cfo/export")
+    public ResponseEntity<byte[]> exportPurchasesByCfo(
+            @RequestParam(required = false) List<String> cfo,
+            @RequestParam(required = false) List<Integer> year) {
+        logger.debug("Overview purchases-by-cfo export (cfo={}, year={})", cfo, year);
+        byte[] data = overviewService.exportPurchasesByCfoToExcel(cfo, year);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+        headers.setContentDisposition(ContentDisposition.attachment().filename("purchases-by-cfo.xlsx").build());
+        return ResponseEntity.ok().headers(headers).body(data);
     }
 }

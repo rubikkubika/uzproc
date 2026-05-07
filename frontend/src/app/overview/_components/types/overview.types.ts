@@ -6,7 +6,7 @@ export type OverviewTopTab = 'dashboards' | 'management-reporting';
 
 export type OverviewDashboardCategory = 'purchases' | 'contracts' | 'other';
 
-export type OverviewTab = 'sla' | 'purchase-plan' | 'csi' | 'ek' | 'approvals' | 'timelines' | 'savings' | 'contract-remarks';
+export type OverviewTab = 'sla' | 'purchase-plan' | 'csi' | 'ek' | 'approvals' | 'timelines' | 'savings' | 'contract-remarks' | 'purchases-by-cfo';
 
 export interface OverviewTabItem {
   id: OverviewTab;
@@ -26,5 +26,5 @@ export interface OverviewDashboardCategoryItem {
 export const DASHBOARD_CATEGORY_TABS: Record<OverviewDashboardCategory, OverviewTab[]> = {
   purchases: ['sla', 'purchase-plan', 'csi', 'ek', 'savings'],
   contracts: ['contract-remarks'],
-  other: ['approvals', 'timelines'],
+  other: ['approvals', 'timelines', 'purchases-by-cfo'],
 };

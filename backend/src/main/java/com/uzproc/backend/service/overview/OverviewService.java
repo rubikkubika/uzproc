@@ -5,6 +5,7 @@ import com.uzproc.backend.dto.overview.*;
 import com.uzproc.backend.dto.purchaserequest.PurchaseRequestDto;
 import com.uzproc.backend.dto.purchaseplan.PurchasePlanItemDto;
 import com.uzproc.backend.dto.purchaseplan.PurchasePlanVersionDto;
+import com.uzproc.backend.entity.contract.Contract;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequestCommentType;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequestStatus;
 import com.uzproc.backend.entity.user.User;
@@ -18,12 +19,16 @@ import com.uzproc.backend.service.calendar.WorkingDayService;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestCommentService;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestService;
 import com.uzproc.backend.service.purchaseplan.PurchasePlanVersionService;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -1574,5 +1579,124 @@ public class OverviewService {
                     return sb.compareTo(sa);
                 })
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Дашборд «Закупки по ЦФО»: все заявки (requiresPurchase), обогащённые данными связанного договора.
+     * Фильтр по ЦФО (опционально) и по году даты завершения закупки (опционально).
+     */
+    public List<OverviewPurchasesByCfoItemDto> getPurchasesByCfo(List<String> cfos, List<Integer> years) {
+        Page<PurchaseRequestDto> page = purchaseRequestService.findAll(
+                0, 10000,
+                null, null, null, null,
+                null, (cfos != null && !cfos.isEmpty() ? cfos : null),
+                null, null, null, null, null, null, null, null,
+                true, null, false,
+                null, null, null, null, null);
+        List<PurchaseRequestDto> allDtos = new ArrayList<>(page.getContent());
+
+        Set<Integer> yearSet = (years != null && !years.isEmpty()) ? new HashSet<>(years) : null;
+        List<PurchaseRequestDto> filtered = yearSet == null ? allDtos : allDtos.stream()
+                .filter(dto -> {
+                    if (dto.getPurchaseCompletionDate() == null) return false;
+                    return yearSet.contains(dto.getPurchaseCompletionDate().getYear());
+                })
+                .collect(Collectors.toList());
+
+        List<Long> idPurchaseRequests = filtered.stream()
+                .filter(dto -> dto.getIdPurchaseRequest() != null)
+                .map(PurchaseRequestDto::getIdPurchaseRequest)
+                .distinct()
+                .collect(Collectors.toList());
+
+        Map<Long, Contract> contractByPrId = new HashMap<>();
+        if (!idPurchaseRequests.isEmpty()) {
+            List<Contract> contracts = contractRepository.findWithSuppliersByPurchaseRequestIdIn(idPurchaseRequests);
+            for (Contract c : contracts) {
+                contractByPrId.putIfAbsent(c.getPurchaseRequestId(), c);
+            }
+        }
+
+        return filtered.stream().map(dto -> {
+            OverviewPurchasesByCfoItemDto item = new OverviewPurchasesByCfoItemDto();
+            item.setId(dto.getId());
+            String name = (dto.getTitle() != null && !dto.getTitle().trim().isEmpty())
+                    ? dto.getTitle().trim()
+                    : (dto.getName() != null ? dto.getName().trim() : "—");
+            item.setName(name);
+            item.setCfo(dto.getCfo());
+            item.setStatus(dto.getStatus() != null ? dto.getStatus().getDisplayName() : null);
+            item.setBudgetAmount(dto.getBudgetAmount());
+            item.setPurchaseCompletionDate(dto.getPurchaseCompletionDate() != null
+                    ? dto.getPurchaseCompletionDate().format(ISO_FORMAT) : null);
+            Contract c = (dto.getIdPurchaseRequest() != null) ? contractByPrId.get(dto.getIdPurchaseRequest()) : null;
+            if (c != null) {
+                item.setLinkedContractAmount(c.getBudgetAmount());
+                String counterparty = (c.getSuppliers() != null && !c.getSuppliers().isEmpty())
+                        ? c.getSuppliers().iterator().next().getName()
+                        : null;
+                item.setLinkedContractCounterparty(counterparty);
+            }
+            return item;
+        }).collect(Collectors.toList());
+    }
+
+    /**
+     * Выгрузка дашборда «Закупки по ЦФО» в Excel.
+     */
+    public byte[] exportPurchasesByCfoToExcel(List<String> cfos, List<Integer> years) {
+        List<OverviewPurchasesByCfoItemDto> items = getPurchasesByCfo(cfos, years);
+        try (XSSFWorkbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("Закупки по ЦФО");
+
+            CellStyle headerStyle = workbook.createCellStyle();
+            Font headerFont = workbook.createFont();
+            headerFont.setBold(true);
+            headerStyle.setFont(headerFont);
+            headerStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+            String[] headers = {"ЦФО", "Наименование", "Статус заявки", "Сумма заявки", "Сумма договора", "Дата завершения закупки", "Контрагент"};
+            Row headerRow = sheet.createRow(0);
+            for (int i = 0; i < headers.length; i++) {
+                Cell cell = headerRow.createCell(i);
+                cell.setCellValue(headers[i]);
+                cell.setCellStyle(headerStyle);
+            }
+
+            DateTimeFormatter dateFmt = DateTimeFormatter.ofPattern("dd.MM.yyyy");
+            int rowIdx = 1;
+            for (OverviewPurchasesByCfoItemDto item : items) {
+                Row row = sheet.createRow(rowIdx++);
+                row.createCell(0).setCellValue(item.getCfo() != null ? item.getCfo() : "");
+                row.createCell(1).setCellValue(item.getName() != null ? item.getName() : "");
+                row.createCell(2).setCellValue(item.getStatus() != null ? item.getStatus() : "");
+                if (item.getBudgetAmount() != null) {
+                    row.createCell(3).setCellValue(item.getBudgetAmount().doubleValue());
+                }
+                if (item.getLinkedContractAmount() != null) {
+                    row.createCell(4).setCellValue(item.getLinkedContractAmount().doubleValue());
+                }
+                if (item.getPurchaseCompletionDate() != null) {
+                    try {
+                        LocalDateTime dt = LocalDateTime.parse(item.getPurchaseCompletionDate(), ISO_FORMAT);
+                        row.createCell(5).setCellValue(dt.format(dateFmt));
+                    } catch (Exception e) {
+                        row.createCell(5).setCellValue(item.getPurchaseCompletionDate());
+                    }
+                }
+                row.createCell(6).setCellValue(item.getLinkedContractCounterparty() != null ? item.getLinkedContractCounterparty() : "");
+            }
+
+            for (int i = 0; i < headers.length; i++) {
+                sheet.autoSizeColumn(i);
+            }
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            workbook.write(out);
+            return out.toByteArray();
+        } catch (IOException e) {
+            throw new RuntimeException("Ошибка при формировании Excel: " + e.getMessage(), e);
+        }
     }
 }

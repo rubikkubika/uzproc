@@ -26,6 +26,7 @@ import { TimelinesTabContent } from './ui/TimelinesTabContent';
 import { SavingsTabContent } from './ui/SavingsTabContent';
 import { ManagementReportingContent } from './ui/ManagementReportingContent';
 import { ContractRemarksDashboardContent } from './ui/ContractRemarksDashboardContent';
+import { PurchasesByCfoTabContent } from './ui/PurchasesByCfoTabContent';
 import { useHolidayDateKeys } from '@/hooks/useHolidayDateKeys';
 
 /**
@@ -487,6 +488,11 @@ export default function Overview() {
         {activeTopTab === 'dashboards' && activeTab === 'contract-remarks' && (
           <div className="w-full">
             <ContractRemarksDashboardContent />
+          </div>
+        )}
+        {activeTopTab === 'dashboards' && activeTab === 'purchases-by-cfo' && (
+          <div className="w-full">
+            <PurchasesByCfoTabContent enabled={activeTab === 'purchases-by-cfo'} />
           </div>
         )}
       </div>

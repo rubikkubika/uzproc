@@ -40,5 +40,8 @@ public interface ContractRepository extends JpaRepository<Contract, Long>, JpaSp
      */
     @Query("SELECT DISTINCT c.documentForm FROM Contract c WHERE c.purchaseRequestId IS NOT NULL AND c.documentForm IS NOT NULL AND c.documentForm <> '' ORDER BY c.documentForm")
     List<String> findDistinctDocumentFormsByPurchaseRequestIdNotNull();
+
+    @Query("SELECT DISTINCT c FROM Contract c LEFT JOIN FETCH c.suppliers WHERE c.purchaseRequestId IN :ids")
+    List<Contract> findWithSuppliersByPurchaseRequestIdIn(@Param("ids") List<Long> ids);
 }
 
