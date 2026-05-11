@@ -7,6 +7,10 @@ interface UseContractTabCountsOptions {
   filters: Record<string, string>;
   cfoFilter: Set<string>;
   organizationFilter: string;
+  preparedByFilter: string;
+  segmentFilter: string;
+  isTypicalFormFilter: string;
+  statusFilter: string;
 }
 
 async function fetchCount(params: URLSearchParams, extra?: Record<string, string>): Promise<number> {
@@ -31,6 +35,10 @@ export function useContractTabCounts({
   filters,
   cfoFilter,
   organizationFilter,
+  preparedByFilter,
+  segmentFilter,
+  isTypicalFormFilter,
+  statusFilter,
 }: UseContractTabCountsOptions) {
   const [tabCounts, setTabCounts] = useState<Record<TabType, number | null>>({
     'in-work': null,
@@ -57,6 +65,11 @@ export function useContractTabCounts({
     if (filters.paymentTerms?.trim()) params.append('paymentTerms', filters.paymentTerms.trim());
     if (filters.purchaseRequestInnerId?.trim()) params.append('purchaseRequestInnerId', filters.purchaseRequestInnerId.trim());
     if (organizationFilter && organizationFilter.trim() !== '') params.append('customerOrganization', organizationFilter.trim());
+    if (preparedByFilter && preparedByFilter.trim() !== '') params.append('preparedByName', preparedByFilter.trim());
+    if (segmentFilter && segmentFilter.trim() !== '') params.append('segment', segmentFilter.trim());
+    if (isTypicalFormFilter === 'true') params.append('isTypicalForm', 'true');
+    else if (isTypicalFormFilter === 'false') params.append('isTypicalForm', 'false');
+    if (statusFilter && statusFilter.trim() !== '') params.append('status', statusFilter.trim());
 
     const [inWorkCount, notCoordinatedCount, signedCount, allCount, hiddenCount] = await Promise.all([
       fetchCount(params, { inWorkTab: 'true' }),
@@ -73,7 +86,7 @@ export function useContractTabCounts({
       'all': allCount,
       'hidden': hiddenCount,
     });
-  }, [selectedYear, filters, cfoFilter, organizationFilter]);
+  }, [selectedYear, filters, cfoFilter, organizationFilter, preparedByFilter, segmentFilter, isTypicalFormFilter, statusFilter]);
 
   useEffect(() => {
     fetchTabCounts();

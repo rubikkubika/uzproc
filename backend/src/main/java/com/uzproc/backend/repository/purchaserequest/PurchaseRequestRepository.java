@@ -40,6 +40,10 @@ public interface PurchaseRequestRepository extends JpaRepository<PurchaseRequest
     @Query("SELECT DISTINCT pr.status FROM PurchaseRequest pr WHERE pr.status IS NOT NULL AND pr.requiresPurchase = :requiresPurchase")
     List<PurchaseRequestStatus> findDistinctStatusByRequiresPurchase(Boolean requiresPurchase);
 
+    /** Batch: (idPurchaseRequest, requiresPurchase) по списку ID. */
+    @Query("SELECT pr.idPurchaseRequest, pr.requiresPurchase FROM PurchaseRequest pr WHERE pr.idPurchaseRequest IN :prIds")
+    List<Object[]> findIdAndRequiresPurchaseByIdPurchaseRequestIn(@org.springframework.data.repository.query.Param("prIds") List<Long> prIds);
+
     @Query("SELECT DISTINCT pr.costType FROM PurchaseRequest pr WHERE pr.costType IS NOT NULL")
     List<String> findDistinctCostType();
 

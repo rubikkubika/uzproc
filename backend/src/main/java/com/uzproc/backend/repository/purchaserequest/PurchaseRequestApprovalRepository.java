@@ -44,6 +44,13 @@ public interface PurchaseRequestApprovalRepository extends JpaRepository<Purchas
     void deleteByIdPurchaseRequest(Long idPurchaseRequest);
 
     /**
+     * Batch: (idPurchaseRequest, MIN(assignmentDate)) по этапам «Утверждение заявки на ЗП» для набора PR ID.
+     * Используется для расчёта даты начала подготовки договора по заявкам без закупки.
+     */
+    @Query(value = "SELECT id_purchase_request, MIN(assignment_date) FROM purchase_request_approvals WHERE id_purchase_request IN :prIds AND stage IN ('Утверждение заявки на ЗП', 'Утверждение заявки на ЗП (НЕ требуется ЗП)') GROUP BY id_purchase_request", nativeQuery = true)
+    List<Object[]> findMinApprovalAssignmentDatesByPrIds(@Param("prIds") List<Long> prIds);
+
+    /**
      * ID заявок на закупку, у которых дата назначения на закупщика (min assignment_date по этапу «Утверждение заявки на ЗП»)
      * попадает в указанный диапазон дат (включительно).
      */

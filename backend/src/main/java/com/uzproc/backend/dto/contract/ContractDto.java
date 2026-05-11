@@ -61,6 +61,15 @@ public class ContractDto {
     /** Дата утверждения ЗП (дата завершения закупки по этапам «Закупочная комиссия»). */
     private LocalDateTime purchaseCompletionDate;
 
+    /** Рабочие дни подготовки договора: от даты начала (не считая) до даты первого согласования включительно. */
+    private Integer preparationWorkingDays;
+    /** Дата первого назначения на согласование договора (MIN assignment_date по stage 'Согласование%'). */
+    private LocalDateTime firstApprovalAssignmentDate;
+    /** Дата начала отсчёта подготовки (contractCreationDate | approvalAssignmentDate ЗП | purchaseCompletionDate). */
+    private LocalDateTime preparationStartDate;
+    /** requiresPurchase из связанной заявки (null если заявки нет). */
+    private Boolean contractRequiresPurchase;
+
     // Constructors
     public ContractDto() {
     }
@@ -336,6 +345,38 @@ public class ContractDto {
 
     public void setPurchaseCompletionDate(LocalDateTime purchaseCompletionDate) {
         this.purchaseCompletionDate = purchaseCompletionDate;
+    }
+
+    public Integer getPreparationWorkingDays() {
+        return preparationWorkingDays;
+    }
+
+    public void setPreparationWorkingDays(Integer preparationWorkingDays) {
+        this.preparationWorkingDays = preparationWorkingDays;
+    }
+
+    public LocalDateTime getFirstApprovalAssignmentDate() {
+        return firstApprovalAssignmentDate;
+    }
+
+    public void setFirstApprovalAssignmentDate(LocalDateTime firstApprovalAssignmentDate) {
+        this.firstApprovalAssignmentDate = firstApprovalAssignmentDate;
+    }
+
+    public LocalDateTime getPreparationStartDate() {
+        return preparationStartDate;
+    }
+
+    public void setPreparationStartDate(LocalDateTime preparationStartDate) {
+        this.preparationStartDate = preparationStartDate;
+    }
+
+    public Boolean getContractRequiresPurchase() {
+        return contractRequiresPurchase;
+    }
+
+    public void setContractRequiresPurchase(Boolean contractRequiresPurchase) {
+        this.contractRequiresPurchase = contractRequiresPurchase;
     }
 }
 

@@ -47,12 +47,13 @@ public class ContractController {
             @RequestParam(required = false) String customerOrganization,
             @RequestParam(required = false) String preparedByName,
             @RequestParam(required = false) String status,
-            @RequestParam(required = false) String supplier) {
+            @RequestParam(required = false) String supplier,
+            @RequestParam(required = false, defaultValue = "") String segment) {
 
         Page<ContractDto> contracts = contractService.findAll(
                 page, size, year, sortBy, sortDir, innerId, cfo, name, documentForm, costType, contractType,
                 null, inWorkTab, signedTab, hiddenTab, purchaseRequestInnerId, isTypicalForm, notCoordinatedTab,
-                customerOrganization, preparedByName, status, supplier);
+                customerOrganization, preparedByName, status, supplier, segment);
 
         return ResponseEntity.ok(contracts);
     }
@@ -67,27 +68,31 @@ public class ContractController {
     }
 
     @GetMapping("/in-work-summary")
-    public ResponseEntity<List<ContractSummaryItemDto>> getInWorkSummary() {
-        return ResponseEntity.ok(contractService.getInWorkSummary());
+    public ResponseEntity<List<ContractSummaryItemDto>> getInWorkSummary(
+            @RequestParam(required = false, defaultValue = "") String segment) {
+        return ResponseEntity.ok(contractService.getInWorkSummary(segment));
     }
 
     @GetMapping("/in-work-document-forms")
-    public ResponseEntity<List<String>> getInWorkDocumentForms() {
-        return ResponseEntity.ok(contractService.getInWorkDocumentForms());
+    public ResponseEntity<List<String>> getInWorkDocumentForms(
+            @RequestParam(required = false, defaultValue = "") String segment) {
+        return ResponseEntity.ok(contractService.getInWorkDocumentForms(segment));
     }
 
     @GetMapping("/signed-summary")
     public ResponseEntity<List<ContractSummaryItemDto>> getSignedSummary(
-            @RequestParam(defaultValue = "0") int year) {
+            @RequestParam(defaultValue = "0") int year,
+            @RequestParam(required = false, defaultValue = "") String segment) {
         int y = year > 0 ? year : java.time.LocalDate.now().getYear();
-        return ResponseEntity.ok(contractService.getSignedSummary(y));
+        return ResponseEntity.ok(contractService.getSignedSummary(y, segment));
     }
 
     @GetMapping("/signed-document-forms")
     public ResponseEntity<List<String>> getSignedDocumentForms(
-            @RequestParam(defaultValue = "0") int year) {
+            @RequestParam(defaultValue = "0") int year,
+            @RequestParam(required = false, defaultValue = "") String segment) {
         int y = year > 0 ? year : java.time.LocalDate.now().getYear();
-        return ResponseEntity.ok(contractService.getSignedDocumentForms(y));
+        return ResponseEntity.ok(contractService.getSignedDocumentForms(y, segment));
     }
 
     @GetMapping("/years")

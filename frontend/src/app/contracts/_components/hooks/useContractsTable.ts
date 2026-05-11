@@ -34,9 +34,13 @@ export const useContractsTable = () => {
     filters: filtersHook.filters,
     cfoFilter: filtersHook.cfoFilter,
     organizationFilter: filtersHook.organizationFilter,
+    preparedByFilter: filtersHook.preparedByFilter,
+    segmentFilter: filtersHook.segmentFilter,
+    isTypicalFormFilter: filtersHook.isTypicalFormFilter,
+    statusFilter: filtersHook.statusFilter,
   });
 
-  const { summaryData, documentForms, signedSummaryData, signedDocumentForms, currentYear: summaryCurrentYear, loading: summaryLoading, refreshSummary } = useContractsSummary();
+  const { segmentsData, currentYear: summaryCurrentYear, loading: summaryLoading, refreshSummary } = useContractsSummary();
 
   const { updateExcludeFromStatusCalculation } = useExcludeFromStatusCalculation({
     setAllItems,
@@ -85,6 +89,7 @@ export const useContractsTable = () => {
     filtersHook.setStatusFilter('');
     filtersHook.setOrganizationFilter('');
     filtersHook.setPreparedByFilter('');
+    filtersHook.setSegmentFilter('');
     setSelectedYear(currentYear);
     setCurrentPage(0);
   }, [filtersHook, currentYear]);
@@ -102,7 +107,8 @@ export const useContractsTable = () => {
     isTypicalFormFilter: string = '',
     organizationFilter: string = '',
     preparedByFilter: string = '',
-    statusFilter: string = ''
+    statusFilter: string = '',
+    segmentFilter: string = ''
   ) => {
     if (append) {
       setLoadingMore(true);
@@ -124,7 +130,8 @@ export const useContractsTable = () => {
         isTypicalFormFilter,
         organizationFilter,
         preparedByFilter,
-        statusFilter
+        statusFilter,
+        segmentFilter
       );
       const items = result?.content ?? [];
       if (append) {
@@ -163,7 +170,8 @@ export const useContractsTable = () => {
       filtersHook.isTypicalFormFilter,
       filtersHook.organizationFilter,
       filtersHook.preparedByFilter,
-      filtersHook.statusFilter
+      filtersHook.statusFilter,
+      filtersHook.segmentFilter
     );
   }, [
     selectedYear,
@@ -176,6 +184,7 @@ export const useContractsTable = () => {
     filtersHook.statusFilter,
     filtersHook.organizationFilter,
     filtersHook.preparedByFilter,
+    filtersHook.segmentFilter,
     fetchData,
     pageSize,
   ]);
@@ -198,10 +207,11 @@ export const useContractsTable = () => {
           filtersHook.isTypicalFormFilter,
           filtersHook.organizationFilter,
           filtersHook.preparedByFilter,
-          filtersHook.statusFilter
+          filtersHook.statusFilter,
+          filtersHook.segmentFilter
         );
       }
-    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, selectedYear, sortField, sortDirection, filtersHook.filters, filtersHook.cfoFilter, filtersHook.activeTab, filtersHook.isTypicalFormFilter, filtersHook.statusFilter, filtersHook.organizationFilter, filtersHook.preparedByFilter, fetchData]),
+    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, selectedYear, sortField, sortDirection, filtersHook.filters, filtersHook.cfoFilter, filtersHook.activeTab, filtersHook.isTypicalFormFilter, filtersHook.statusFilter, filtersHook.organizationFilter, filtersHook.preparedByFilter, filtersHook.segmentFilter, fetchData]),
     threshold: 0.1,
   });
 
@@ -230,10 +240,7 @@ export const useContractsTable = () => {
     updateExcludeFromInWork,
     tabCounts,
     refreshTabCounts,
-    summaryData,
-    documentForms,
-    signedSummaryData,
-    signedDocumentForms,
+    segmentsData,
     summaryCurrentYear,
     summaryLoading,
   };

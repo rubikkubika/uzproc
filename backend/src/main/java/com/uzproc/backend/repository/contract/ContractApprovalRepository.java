@@ -21,6 +21,13 @@ public interface ContractApprovalRepository extends JpaRepository<ContractApprov
     Optional<ContractApproval> findByContractIdAndStageAndRole(Long contractId, String stage, String role);
 
     /**
+     * Для каждого договора из списка возвращает (contract_id, MIN(assignment_date)) по этапам «Согласование%».
+     * Используется для расчёта даты начала согласования и длительности этапа «Подготовка».
+     */
+    @Query(value = "SELECT contract_id, MIN(assignment_date) FROM contract_approvals WHERE contract_id IN :contractIds AND stage LIKE 'Согласование%' GROUP BY contract_id", nativeQuery = true)
+    List<Object[]> findFirstApprovalAssignmentDatesByContractIds(@Param("contractIds") List<Long> contractIds);
+
+    /**
      * Все согласования договоров, у которых есть связь с заявкой на закупку (contract.purchase_request_id IS NOT NULL).
      * Загружает contract для фильтрации.
      */

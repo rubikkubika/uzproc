@@ -7,8 +7,12 @@ import com.uzproc.backend.entity.contract.Contract;
 import com.uzproc.backend.entity.contract.ContractStatus;
 import com.uzproc.backend.entity.supplier.Supplier;
 import com.uzproc.backend.entity.purchase.PurchaseApproval;
+import com.uzproc.backend.repository.contract.ContractApprovalRepository;
 import com.uzproc.backend.repository.contract.ContractRepository;
 import com.uzproc.backend.repository.purchase.PurchaseApprovalRepository;
+import com.uzproc.backend.repository.purchaserequest.PurchaseRequestApprovalRepository;
+import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
+import com.uzproc.backend.service.calendar.WorkingDayService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.Query;
@@ -42,11 +46,23 @@ public class ContractService {
     
     private final ContractRepository contractRepository;
     private final PurchaseApprovalRepository purchaseApprovalRepository;
+    private final ContractApprovalRepository contractApprovalRepository;
+    private final PurchaseRequestRepository purchaseRequestRepository;
+    private final PurchaseRequestApprovalRepository purchaseRequestApprovalRepository;
+    private final WorkingDayService workingDayService;
 
     public ContractService(ContractRepository contractRepository,
-                           PurchaseApprovalRepository purchaseApprovalRepository) {
+                           PurchaseApprovalRepository purchaseApprovalRepository,
+                           ContractApprovalRepository contractApprovalRepository,
+                           PurchaseRequestRepository purchaseRequestRepository,
+                           PurchaseRequestApprovalRepository purchaseRequestApprovalRepository,
+                           WorkingDayService workingDayService) {
         this.contractRepository = contractRepository;
         this.purchaseApprovalRepository = purchaseApprovalRepository;
+        this.contractApprovalRepository = contractApprovalRepository;
+        this.purchaseRequestRepository = purchaseRequestRepository;
+        this.purchaseRequestApprovalRepository = purchaseRequestApprovalRepository;
+        this.workingDayService = workingDayService;
     }
 
     public Page<ContractDto> findAll(
@@ -71,14 +87,15 @@ public class ContractService {
             String customerOrganization,
             String preparedByName,
             String status,
-            String supplier) {
+            String supplier,
+            String segment) {
 
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, innerId: '{}', cfo: {}, name: '{}', documentForm: '{}', costType: '{}', contractType: '{}', currentUserId: {}, inWorkTab: {}, signedTab: {}, hiddenTab: {}, notCoordinatedTab: {}, purchaseRequestInnerId: '{}', isTypicalForm: {}, customerOrganization: {}, preparedByName: '{}', status: '{}', supplier: '{}'",
-                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, hiddenTab, notCoordinatedTab, purchaseRequestInnerId, isTypicalForm, customerOrganization, preparedByName, status, supplier);
+        logger.info("Filter parameters - year: {}, innerId: '{}', cfo: {}, name: '{}', documentForm: '{}', costType: '{}', contractType: '{}', currentUserId: {}, inWorkTab: {}, signedTab: {}, hiddenTab: {}, notCoordinatedTab: {}, purchaseRequestInnerId: '{}', isTypicalForm: {}, customerOrganization: {}, preparedByName: '{}', status: '{}', supplier: '{}', segment: '{}'",
+                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, hiddenTab, notCoordinatedTab, purchaseRequestInnerId, isTypicalForm, customerOrganization, preparedByName, status, supplier, segment);
 
         Specification<Contract> spec = buildSpecification(
-                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, hiddenTab, purchaseRequestInnerId, isTypicalForm, notCoordinatedTab, customerOrganization, preparedByName, status, supplier);
+                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, hiddenTab, purchaseRequestInnerId, isTypicalForm, notCoordinatedTab, customerOrganization, preparedByName, status, supplier, segment);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -89,6 +106,10 @@ public class ContractService {
                 contracts.getContent().size(), page, size, contracts.getTotalElements());
         logger.info("=== END FILTER REQUEST ===\n");
 
+        List<Long> contractIds = contracts.getContent().stream()
+                .map(Contract::getId)
+                .collect(java.util.stream.Collectors.toList());
+
         // Batch-расчёт purchaseCompletionDate для всех PR ID на странице
         List<Long> prIds = contracts.getContent().stream()
                 .map(Contract::getPurchaseRequestId)
@@ -97,12 +118,43 @@ public class ContractService {
                 .collect(java.util.stream.Collectors.toList());
         Map<Long, LocalDateTime> completionDates = batchCalculatePurchaseCompletionDates(prIds);
 
+        // Batch-данные для расчёта этапа «Подготовка»
+        Map<Long, LocalDateTime> firstApprovalDates = batchGetFirstApprovalAssignmentDates(contractIds);
+        Map<Long, Boolean> requiresPurchaseMap = batchGetRequiresPurchase(prIds);
+        Map<Long, LocalDateTime> prApprovalAssignmentDates = batchGetPrApprovalAssignmentDates(prIds);
+
         // Конвертируем entity в DTO
         Page<ContractDto> dtoPage = contracts.map(c -> {
             ContractDto dto = toDto(c);
-            if (c.getPurchaseRequestId() != null) {
-                dto.setPurchaseCompletionDate(completionDates.get(c.getPurchaseRequestId()));
+            LocalDateTime purchaseCompletionDate = c.getPurchaseRequestId() != null ? completionDates.get(c.getPurchaseRequestId()) : null;
+            if (purchaseCompletionDate != null) {
+                dto.setPurchaseCompletionDate(purchaseCompletionDate);
             }
+
+            // Расчёт данных этапа «Подготовка»
+            LocalDateTime firstApprovalDate = firstApprovalDates.get(c.getId());
+            dto.setFirstApprovalAssignmentDate(firstApprovalDate);
+
+            LocalDateTime startDate = null;
+            if (c.getPurchaseRequestId() == null) {
+                startDate = c.getContractCreationDate();
+            } else {
+                Boolean requiresPurchase = requiresPurchaseMap.get(c.getPurchaseRequestId());
+                if (Boolean.FALSE.equals(requiresPurchase)) {
+                    startDate = prApprovalAssignmentDates.get(c.getPurchaseRequestId());
+                } else {
+                    startDate = purchaseCompletionDate;
+                }
+                dto.setContractRequiresPurchase(requiresPurchase);
+            }
+            dto.setPreparationStartDate(startDate);
+
+            if (startDate != null) {
+                LocalDateTime endDate = firstApprovalDate != null ? firstApprovalDate : LocalDateTime.now();
+                long days = workingDayService.countFromDayAfterThroughInclusive(startDate, endDate);
+                dto.setPreparationWorkingDays((int) days);
+            }
+
             return dto;
         });
 
@@ -177,18 +229,37 @@ public class ContractService {
     }
 
     /**
+     * Возвращает дополнительное условие WHERE для фильтрации по сегменту организации/ЦФО.
+     * Требует LEFT JOIN cfo cf ON c.cfo_id = cf.id в запросе.
+     */
+    private static final String CFO_1P = "M - Commerce 1Р";
+
+    private String buildSegmentWhere(String segment) {
+        if (segment == null || segment.isBlank()) return "";
+        return switch (segment.toLowerCase()) {
+            case "market" -> "  AND c.customer_organization = 'UZUM_MARKET' AND (cf.name IS NULL OR cf.name <> '" + CFO_1P + "') ";
+            case "tezkor-ooo" -> "  AND c.customer_organization IN ('UZUM_TEZKOR', 'UZUM_OOO') ";
+            case "1p" -> "  AND c.customer_organization = 'UZUM_MARKET' AND cf.name = '" + CFO_1P + "' ";
+            default -> "";
+        };
+    }
+
+    /**
      * Сводка по исполнителям-договорникам: кол-во договоров из вкладки «В работе» с разбивкой по формам документа.
      */
-    public List<ContractSummaryItemDto> getInWorkSummary() {
+    public List<ContractSummaryItemDto> getInWorkSummary(String segment) {
+        String segmentWhere = buildSegmentWhere(segment);
         String sql =
             "SELECT TRIM(CONCAT(COALESCE(u.surname,''), ' ', COALESCE(u.name,''))) AS prepared_by_name, " +
             "COALESCE(c.document_form, '') AS document_form, " +
             "COUNT(*) AS contract_count " +
             "FROM contracts c " +
             "INNER JOIN users u ON c.prepared_by_id = u.id " +
+            "LEFT JOIN cfo cf ON c.cfo_id = cf.id " +
             "WHERE u.is_contractor = true " +
             "  AND (c.status IS NULL OR (c.status <> 'SIGNED' AND c.status <> 'NOT_COORDINATED')) " +
             "  AND (c.exclude_from_in_work IS NULL OR c.exclude_from_in_work = false) " +
+            segmentWhere +
             "GROUP BY u.id, u.surname, u.name, c.document_form " +
             "ORDER BY u.surname, u.name, c.document_form";
 
@@ -217,15 +288,18 @@ public class ContractService {
     /**
      * Уникальные формы документа среди договоров из вкладки «В работе».
      */
-    public List<String> getInWorkDocumentForms() {
+    public List<String> getInWorkDocumentForms(String segment) {
+        String segmentWhere = buildSegmentWhere(segment);
         String sql =
             "SELECT DISTINCT c.document_form " +
             "FROM contracts c " +
             "INNER JOIN users u ON c.prepared_by_id = u.id " +
+            "LEFT JOIN cfo cf ON c.cfo_id = cf.id " +
             "WHERE u.is_contractor = true " +
             "  AND (c.status IS NULL OR (c.status <> 'SIGNED' AND c.status <> 'NOT_COORDINATED')) " +
             "  AND (c.exclude_from_in_work IS NULL OR c.exclude_from_in_work = false) " +
             "  AND c.document_form IS NOT NULL AND c.document_form <> '' " +
+            segmentWhere +
             "ORDER BY c.document_form";
 
         @SuppressWarnings("unchecked")
@@ -236,16 +310,19 @@ public class ContractService {
             .collect(java.util.stream.Collectors.toList());
     }
 
-    public List<ContractSummaryItemDto> getSignedSummary(int year) {
+    public List<ContractSummaryItemDto> getSignedSummary(int year, String segment) {
+        String segmentWhere = buildSegmentWhere(segment);
         String sql =
             "SELECT TRIM(CONCAT(COALESCE(u.surname,''), ' ', COALESCE(u.name,''))) AS prepared_by_name, " +
             "COALESCE(c.document_form, '') AS document_form, " +
             "COUNT(*) AS contract_count " +
             "FROM contracts c " +
             "INNER JOIN users u ON c.prepared_by_id = u.id " +
+            "LEFT JOIN cfo cf ON c.cfo_id = cf.id " +
             "WHERE u.is_contractor = true " +
             "  AND c.status = 'SIGNED' " +
             "  AND EXTRACT(YEAR FROM c.contract_creation_date) = :year " +
+            segmentWhere +
             "GROUP BY u.id, u.surname, u.name, c.document_form " +
             "ORDER BY u.surname, u.name, c.document_form";
 
@@ -273,15 +350,18 @@ public class ContractService {
         return result;
     }
 
-    public List<String> getSignedDocumentForms(int year) {
+    public List<String> getSignedDocumentForms(int year, String segment) {
+        String segmentWhere = buildSegmentWhere(segment);
         String sql =
             "SELECT DISTINCT c.document_form " +
             "FROM contracts c " +
             "INNER JOIN users u ON c.prepared_by_id = u.id " +
+            "LEFT JOIN cfo cf ON c.cfo_id = cf.id " +
             "WHERE u.is_contractor = true " +
             "  AND c.status = 'SIGNED' " +
             "  AND EXTRACT(YEAR FROM c.contract_creation_date) = :year " +
             "  AND c.document_form IS NOT NULL AND c.document_form <> '' " +
+            segmentWhere +
             "ORDER BY c.document_form";
 
         @SuppressWarnings("unchecked")
@@ -483,6 +563,51 @@ public class ContractService {
         return commissionMax.isAfter(verMax) ? commissionMax : verMax;
     }
 
+    private Map<Long, LocalDateTime> batchGetFirstApprovalAssignmentDates(List<Long> contractIds) {
+        if (contractIds.isEmpty()) return new HashMap<>();
+        List<Object[]> rows = contractApprovalRepository.findFirstApprovalAssignmentDatesByContractIds(contractIds);
+        Map<Long, LocalDateTime> result = new HashMap<>();
+        for (Object[] row : rows) {
+            if (row[0] != null && row[1] != null) {
+                Long contractId = ((Number) row[0]).longValue();
+                LocalDateTime date = row[1] instanceof java.sql.Timestamp
+                        ? ((java.sql.Timestamp) row[1]).toLocalDateTime()
+                        : (LocalDateTime) row[1];
+                result.put(contractId, date);
+            }
+        }
+        return result;
+    }
+
+    private Map<Long, Boolean> batchGetRequiresPurchase(List<Long> prIds) {
+        if (prIds.isEmpty()) return new HashMap<>();
+        List<Object[]> rows = purchaseRequestRepository.findIdAndRequiresPurchaseByIdPurchaseRequestIn(prIds);
+        Map<Long, Boolean> result = new HashMap<>();
+        for (Object[] row : rows) {
+            if (row[0] != null) {
+                Long prId = ((Number) row[0]).longValue();
+                result.put(prId, row[1] != null ? (Boolean) row[1] : null);
+            }
+        }
+        return result;
+    }
+
+    private Map<Long, LocalDateTime> batchGetPrApprovalAssignmentDates(List<Long> prIds) {
+        if (prIds.isEmpty()) return new HashMap<>();
+        List<Object[]> rows = purchaseRequestApprovalRepository.findMinApprovalAssignmentDatesByPrIds(prIds);
+        Map<Long, LocalDateTime> result = new HashMap<>();
+        for (Object[] row : rows) {
+            if (row[0] != null && row[1] != null) {
+                Long prId = ((Number) row[0]).longValue();
+                LocalDateTime date = row[1] instanceof java.sql.Timestamp
+                        ? ((java.sql.Timestamp) row[1]).toLocalDateTime()
+                        : (LocalDateTime) row[1];
+                result.put(prId, date);
+            }
+        }
+        return result;
+    }
+
     private Specification<Contract> buildSpecification(
             Integer year,
             String innerId,
@@ -501,7 +626,8 @@ public class ContractService {
             String customerOrganization,
             String preparedByName,
             String status,
-            String supplier) {
+            String supplier,
+            String segment) {
 
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -692,6 +818,44 @@ public class ContractService {
                 if (query != null) query.distinct(true);
                 predicateCount++;
                 logger.info("Added supplier filter: '{}'", supplier);
+            }
+
+            // Фильтр по сегменту (market / tezkor-ooo / 1p)
+            if (segment != null && !segment.isBlank()) {
+                String segLower = segment.toLowerCase();
+                if ("market".equals(segLower)) {
+                    try {
+                        predicates.add(cb.equal(root.get("customerOrganization"),
+                            com.uzproc.backend.entity.contract.CustomerOrganization.valueOf("UZUM_MARKET")));
+                    } catch (IllegalArgumentException ignored) {}
+                    jakarta.persistence.criteria.Join<Contract, com.uzproc.backend.entity.Cfo> segCfoJoin =
+                        root.join("cfo", jakarta.persistence.criteria.JoinType.LEFT);
+                    predicates.add(cb.or(
+                        cb.isNull(segCfoJoin.get("id")),
+                        cb.notEqual(segCfoJoin.get("name"), CFO_1P)
+                    ));
+                    predicateCount++;
+                    logger.info("Added segment filter: market");
+                } else if ("tezkor-ooo".equals(segLower)) {
+                    try {
+                        predicates.add(root.get("customerOrganization").in(
+                            com.uzproc.backend.entity.contract.CustomerOrganization.valueOf("UZUM_TEZKOR"),
+                            com.uzproc.backend.entity.contract.CustomerOrganization.valueOf("UZUM_OOO")
+                        ));
+                    } catch (IllegalArgumentException ignored) {}
+                    predicateCount++;
+                    logger.info("Added segment filter: tezkor-ooo");
+                } else if ("1p".equals(segLower)) {
+                    try {
+                        predicates.add(cb.equal(root.get("customerOrganization"),
+                            com.uzproc.backend.entity.contract.CustomerOrganization.valueOf("UZUM_MARKET")));
+                    } catch (IllegalArgumentException ignored) {}
+                    jakarta.persistence.criteria.Join<Contract, com.uzproc.backend.entity.Cfo> segCfoJoin =
+                        root.join("cfo", jakarta.persistence.criteria.JoinType.LEFT);
+                    predicates.add(cb.equal(segCfoJoin.get("name"), CFO_1P));
+                    predicateCount++;
+                    logger.info("Added segment filter: 1p");
+                }
             }
 
             logger.info("Total predicates: {}", predicateCount);

@@ -52,6 +52,9 @@ export const useContractsFilters = (setCurrentPage: (page: number) => void) => {
   // Фильтр по исполнителю (ФИО договорника): '' = все
   const [preparedByFilter, setPreparedByFilter] = useState<string>('');
 
+  // Фильтр по сегменту из сводной таблицы: '' = все, 'market', 'tezkor-ooo', '1p'
+  const [segmentFilter, setSegmentFilter] = useState<string>('');
+
   // Множественные фильтры (чекбоксы)
   const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
 
@@ -182,6 +185,8 @@ export const useContractsFilters = (setCurrentPage: (page: number) => void) => {
     setOrganizationFilter,
     preparedByFilter,
     setPreparedByFilter,
+    segmentFilter,
+    setSegmentFilter,
     activeTab,
     setActiveTab,
     activeTabRef,

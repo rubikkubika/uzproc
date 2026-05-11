@@ -31,6 +31,14 @@ export interface Contract {
   suppliers: ContractSupplier[] | null;
   /** Дата утверждения ЗП (дата завершения закупки). */
   purchaseCompletionDate: string | null;
+  /** Рабочие дни этапа «Подготовка» договора. */
+  preparationWorkingDays: number | null;
+  /** Дата первого назначения на согласование договора. */
+  firstApprovalAssignmentDate: string | null;
+  /** Дата начала отсчёта подготовки. */
+  preparationStartDate: string | null;
+  /** requiresPurchase из связанной заявки (null если заявки нет). */
+  contractRequiresPurchase: boolean | null;
   preparedBy: string | null;  // ФИО пользователя (договорника), который подготовил договор
   purchaseRequestId: number | null;
   purchaseRequestSystemId: number | null;

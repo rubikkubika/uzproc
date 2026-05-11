@@ -30,7 +30,8 @@ export const useContractsData = () => {
     isTypicalFormFilter: string = '',
     organizationFilter: string = '',
     preparedByFilter: string = '',
-    statusFilter: string = ''
+    statusFilter: string = '',
+    segmentFilter: string = ''
   ): Promise<PageResponse | null> => {
     try {
       const params = new URLSearchParams();
@@ -93,6 +94,10 @@ export const useContractsData = () => {
 
       if (statusFilter && statusFilter.trim() !== '') {
         params.append('status', statusFilter.trim());
+      }
+
+      if (segmentFilter && segmentFilter.trim() !== '') {
+        params.append('segment', segmentFilter.trim());
       }
 
       if (filters.supplier && filters.supplier.trim() !== '') {

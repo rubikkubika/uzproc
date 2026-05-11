@@ -8,6 +8,7 @@ import { useContractsTable } from './hooks/useContractsTable';
 import { SortField } from './types/contracts.types';
 import ContractsTableTabs from './ui/ContractsTableTabs';
 import ContractsSummaryTable from './ui/ContractsSummaryTable';
+import ContractTrackCell from './ui/ContractTrackCell';
 import RemarksPanel from './RemarksPanel';
 
 const ORGANIZATION_OPTIONS = [
@@ -60,16 +61,13 @@ export default function ContractsTable() {
     updateExcludeFromInWork,
     tabCounts,
     refreshTabCounts,
-    summaryData,
-    documentForms,
-    signedSummaryData,
-    signedDocumentForms,
+    segmentsData,
     summaryCurrentYear,
     summaryLoading,
   } = useContractsTable();
 
   const isTabWithPreparedBy = filters.activeTab === 'in-work' || filters.activeTab === 'not-coordinated' || filters.activeTab === 'signed';
-  const totalColumns = isTabWithPreparedBy ? 15 : 14;
+  const totalColumns = isTabWithPreparedBy ? 16 : 15;
 
   const handleRowClick = (contractId: number, e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
@@ -156,11 +154,13 @@ export default function ContractsTable() {
   );
 
   const handlePreparedByClick = (name: string) => {
-    if (filters.preparedByFilter === name && !selectedDocumentForm) {
+    if (filters.preparedByFilter === name && !selectedDocumentForm && !filters.segmentFilter) {
       filters.setPreparedByFilter('');
+      filters.setSegmentFilter('');
       setSelectedDocumentForm('');
     } else {
       filters.setPreparedByFilter(name);
+      filters.setSegmentFilter('');
       filters.setLocalFilters(prev => ({ ...prev, documentForm: '' }));
       filters.setFilters(prev => ({ ...prev, documentForm: '' }));
       setSelectedDocumentForm('');
@@ -169,12 +169,51 @@ export default function ContractsTable() {
     }
   };
 
-  const handleCellClick = (name: string, documentForm: string) => {
+  const handleCellClick = (name: string, segment: string, documentForm: string) => {
     filters.setPreparedByFilter(name);
-    filters.setLocalFilters(prev => ({ ...prev, documentForm }));
-    filters.setFilters(prev => ({ ...prev, documentForm }));
-    setSelectedDocumentForm(documentForm);
+    filters.setSegmentFilter(segment);
+    if (documentForm) {
+      filters.setLocalFilters(prev => ({ ...prev, documentForm }));
+      filters.setFilters(prev => ({ ...prev, documentForm }));
+      setSelectedDocumentForm(documentForm);
+    } else {
+      filters.setLocalFilters(prev => ({ ...prev, documentForm: '' }));
+      filters.setFilters(prev => ({ ...prev, documentForm: '' }));
+      setSelectedDocumentForm('');
+    }
     filters.setActiveTab('in-work');
+    setCurrentPage(0);
+  };
+
+  const handleSignedPreparedByClick = (name: string) => {
+    if (filters.preparedByFilter === name && filters.activeTab === 'signed' && !selectedDocumentForm && !filters.segmentFilter) {
+      filters.setPreparedByFilter('');
+      filters.setSegmentFilter('');
+      setSelectedDocumentForm('');
+    } else {
+      filters.setPreparedByFilter(name);
+      filters.setSegmentFilter('');
+      filters.setLocalFilters(prev => ({ ...prev, documentForm: '' }));
+      filters.setFilters(prev => ({ ...prev, documentForm: '' }));
+      setSelectedDocumentForm('');
+      filters.setActiveTab('signed');
+      setCurrentPage(0);
+    }
+  };
+
+  const handleSignedCellClick = (name: string, segment: string, documentForm: string) => {
+    filters.setPreparedByFilter(name);
+    filters.setSegmentFilter(segment);
+    if (documentForm) {
+      filters.setLocalFilters(prev => ({ ...prev, documentForm }));
+      filters.setFilters(prev => ({ ...prev, documentForm }));
+      setSelectedDocumentForm(documentForm);
+    } else {
+      filters.setLocalFilters(prev => ({ ...prev, documentForm: '' }));
+      filters.setFilters(prev => ({ ...prev, documentForm: '' }));
+      setSelectedDocumentForm('');
+    }
+    filters.setActiveTab('signed');
     setCurrentPage(0);
   };
 
@@ -183,16 +222,17 @@ export default function ContractsTable() {
       {/* Сводная таблица */}
       <div className="px-3 py-2 border-b border-gray-200 bg-white flex-shrink-0">
         <ContractsSummaryTable
-          summaryData={summaryData}
-          documentForms={documentForms}
-          signedSummaryData={signedSummaryData}
-          signedDocumentForms={signedDocumentForms}
+          segmentsData={segmentsData}
           currentYear={summaryCurrentYear}
           loading={summaryLoading}
           selectedPreparedBy={filters.preparedByFilter}
+          selectedSegment={filters.segmentFilter}
           selectedDocumentForm={selectedDocumentForm}
+          mainActiveTab={filters.activeTab}
           onPreparedByClick={handlePreparedByClick}
           onCellClick={handleCellClick}
+          onSignedPreparedByClick={handleSignedPreparedByClick}
+          onSignedCellClick={handleSignedCellClick}
         />
       </div>
 
@@ -465,6 +505,13 @@ export default function ContractsTable() {
                   <span>Типовая форма</span>
                 )}
               </th>
+              {/* Трэк */}
+              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '200px', minWidth: '200px' }}>
+                {thInner(
+                  <div className="w-full" />,
+                  <span>Трэк</span>
+                )}
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -549,6 +596,9 @@ export default function ContractsTable() {
                       ) : contract.isTypicalForm === false ? (
                         <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-gray-100 text-gray-600">Нет</span>
                       ) : '-'}
+                    </td>
+                    <td className="pl-1 pr-0 py-1 border-r border-gray-300" style={{ width: '200px', minWidth: '200px' }}>
+                      <ContractTrackCell contract={contract} />
                     </td>
                   </tr>
                 );
