@@ -118,8 +118,9 @@ public class ContractService {
                 .collect(java.util.stream.Collectors.toList());
         Map<Long, LocalDateTime> completionDates = batchCalculatePurchaseCompletionDates(prIds);
 
-        // Batch-данные для расчёта этапа «Подготовка»
+        // Batch-данные для расчёта этапов «Подготовка» и «Согласование»
         Map<Long, LocalDateTime> firstApprovalDates = batchGetFirstApprovalAssignmentDates(contractIds);
+        Map<Long, LocalDateTime> lastApprovalCompletionDates = batchGetLastApprovalCompletionDates(contractIds);
         Map<Long, Boolean> requiresPurchaseMap = batchGetRequiresPurchase(prIds);
         Map<Long, LocalDateTime> prApprovalAssignmentDates = batchGetPrApprovalAssignmentDates(prIds);
 
@@ -153,6 +154,13 @@ public class ContractService {
                 LocalDateTime endDate = firstApprovalDate != null ? firstApprovalDate : LocalDateTime.now();
                 long days = workingDayService.countFromDayAfterThroughInclusive(startDate, endDate);
                 dto.setPreparationWorkingDays((int) days);
+            }
+
+            // Расчёт данных этапа «Согласование»
+            LocalDateTime lastCompletionDate = lastApprovalCompletionDates.get(c.getId());
+            if (firstApprovalDate != null && lastCompletionDate != null) {
+                long approvalDays = workingDayService.countFromDayAfterThroughInclusive(firstApprovalDate, lastCompletionDate);
+                dto.setApprovalWorkingDays((int) approvalDays);
             }
 
             return dto;
@@ -566,6 +574,22 @@ public class ContractService {
     private Map<Long, LocalDateTime> batchGetFirstApprovalAssignmentDates(List<Long> contractIds) {
         if (contractIds.isEmpty()) return new HashMap<>();
         List<Object[]> rows = contractApprovalRepository.findFirstApprovalAssignmentDatesByContractIds(contractIds);
+        Map<Long, LocalDateTime> result = new HashMap<>();
+        for (Object[] row : rows) {
+            if (row[0] != null && row[1] != null) {
+                Long contractId = ((Number) row[0]).longValue();
+                LocalDateTime date = row[1] instanceof java.sql.Timestamp
+                        ? ((java.sql.Timestamp) row[1]).toLocalDateTime()
+                        : (LocalDateTime) row[1];
+                result.put(contractId, date);
+            }
+        }
+        return result;
+    }
+
+    private Map<Long, LocalDateTime> batchGetLastApprovalCompletionDates(List<Long> contractIds) {
+        if (contractIds.isEmpty()) return new HashMap<>();
+        List<Object[]> rows = contractApprovalRepository.findLastApprovalCompletionDatesByContractIds(contractIds);
         Map<Long, LocalDateTime> result = new HashMap<>();
         for (Object[] row : rows) {
             if (row[0] != null && row[1] != null) {

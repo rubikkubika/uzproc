@@ -16,6 +16,7 @@ export default function ContractTrackCell({ contract }: Props) {
   const {
     status,
     preparationWorkingDays,
+    approvalWorkingDays,
     firstApprovalAssignmentDate,
     preparationStartDate,
     contractRequiresPurchase,
@@ -29,8 +30,8 @@ export default function ContractTrackCell({ contract }: Props) {
   const isSigned = status === 'Подписан';
   const isNotCoordinated = status === 'Не согласован';
 
-  // Подготовка завершена если есть первое согласование
-  const isPreparationDone = firstApprovalAssignmentDate != null;
+  // Подготовка завершена если есть первое согласование ИЛИ статус уже прошёл этап согласования
+  const isPreparationDone = firstApprovalAssignmentDate != null || isOnRegistration || isSigned || isNotCoordinated;
   const isPreparationStarted = preparationStartDate != null;
 
   // Tooltip для Подготовки
@@ -59,7 +60,7 @@ export default function ContractTrackCell({ contract }: Props) {
   })();
 
   return (
-    <div className="inline-flex items-start gap-0.5 overflow-hidden py-0.5">
+    <div className="inline-flex items-start gap-0.5 overflow-hidden py-0.5 max-w-full">
 
       {/* Блок: Подготовка */}
       <div
@@ -78,7 +79,7 @@ export default function ContractTrackCell({ contract }: Props) {
           </div>
         )}
         {preparationWorkingDays != null && (
-          <span className={`inline-flex items-center justify-center min-w-[1.5rem] h-4 rounded text-white text-[10px] font-bold tabular-nums px-0.5 ${isPreparationDone ? 'bg-green-600' : 'bg-yellow-500'}`}>
+          <span className="inline-flex items-center justify-center min-w-[1.5rem] h-4 rounded bg-gray-200 text-gray-700 text-[10px] font-bold tabular-nums px-0.5">
             {preparationWorkingDays}
           </span>
         )}
@@ -105,6 +106,11 @@ export default function ContractTrackCell({ contract }: Props) {
         ) : (
           <div className="w-4 h-4 rounded-full bg-gray-200 flex-shrink-0" />
         )}
+        {approvalWorkingDays != null && (
+          <span className="inline-flex items-center justify-center min-w-[1.5rem] h-4 rounded bg-gray-200 text-gray-700 text-[10px] font-bold tabular-nums px-0.5">
+            {approvalWorkingDays}
+          </span>
+        )}
         <span className="text-[9px] text-gray-500 whitespace-nowrap leading-none">Согласование</span>
       </div>
 
@@ -126,6 +132,28 @@ export default function ContractTrackCell({ contract }: Props) {
         )}
         <span className="text-[9px] text-gray-500 whitespace-nowrap leading-none">Подписание</span>
       </div>
+
+      {/* Блок: Срок (общий) */}
+      {(() => {
+        const prep = preparationWorkingDays ?? 0;
+        const appr = approvalWorkingDays ?? 0;
+        const total = prep + appr;
+        if (total === 0) return null;
+        const parts: string[] = [];
+        if (prep > 0) parts.push(`подготовка ${prep} дн.`);
+        if (appr > 0) parts.push(`согласование ${appr} дн.`);
+        return (
+          <div
+            className="inline-flex flex-col items-center gap-0.5 rounded border border-gray-400 px-1 py-0.5 min-w-0"
+            title={`Общий срок: ${parts.join(' + ')} = ${total} дн.`}
+          >
+            <span className="inline-flex items-center justify-center min-w-[1.75rem] w-[1.75rem] h-5 rounded bg-black text-white text-xs font-bold tabular-nums">
+              {total}
+            </span>
+            <span className="text-[10px] text-gray-500 whitespace-nowrap leading-none">Срок</span>
+          </div>
+        );
+      })()}
 
     </div>
   );

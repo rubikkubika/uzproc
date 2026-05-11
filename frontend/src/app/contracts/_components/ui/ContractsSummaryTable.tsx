@@ -286,13 +286,13 @@ export default function ContractsSummaryTable({
               </th>
               <th
                 colSpan={inWorkColSpan}
-                className="px-2 py-1 text-center text-[11px] font-semibold text-blue-600 bg-blue-50/60 border-b-2 border-blue-200"
+                className="px-2 py-1 text-center text-[11px] font-semibold text-gray-900 bg-gray-50 border-b-2 border-gray-300"
               >
                 В работе
               </th>
               <th
                 colSpan={signedColSpan}
-                className="px-2 py-1 text-center text-[11px] font-semibold text-emerald-600 bg-emerald-50/60 border-b-2 border-emerald-200 border-l-2 border-l-emerald-200"
+                className="px-2 py-1 text-center text-[11px] font-semibold text-gray-900 bg-gray-50 border-b-2 border-gray-300 border-l-2 border-l-gray-300"
               >
                 Подписано {currentYear}
               </th>
@@ -311,7 +311,7 @@ export default function ContractsSummaryTable({
               ))}
               <th
                 rowSpan={2}
-                className="px-2 py-1 text-center text-[10px] font-medium text-blue-600 border-b border-gray-200 border-l border-gray-200 align-bottom bg-blue-50/40 whitespace-nowrap"
+                className="px-2 py-1 text-center text-[10px] font-medium text-gray-900 border-b border-gray-200 border-l border-gray-200 align-bottom bg-gray-50 whitespace-nowrap"
               >
                 Итого
               </th>
@@ -319,7 +319,7 @@ export default function ContractsSummaryTable({
                 <th
                   key={`sg-${seg}`}
                   colSpan={signedSegForms[seg].length}
-                  className="px-2 py-1 text-center text-[11px] font-semibold bg-white whitespace-nowrap border-l-2 border-l-emerald-200 first-of-type:border-l-2"
+                  className="px-2 py-1 text-center text-[11px] font-semibold bg-white whitespace-nowrap border-l-2 border-l-gray-300 first-of-type:border-l-2"
                   style={{ borderBottom: `2px solid ${SEGMENT_ACCENT[seg]}`, color: SEGMENT_ACCENT[seg] }}
                 >
                   {SEGMENT_LABELS[seg]}
@@ -327,7 +327,7 @@ export default function ContractsSummaryTable({
               ))}
               <th
                 rowSpan={2}
-                className="px-2 py-1 text-center text-[10px] font-medium text-emerald-600 border-b border-gray-200 border-l border-emerald-200 align-bottom bg-emerald-50/40 whitespace-nowrap"
+                className="px-2 py-1 text-center text-[10px] font-medium text-gray-900 border-b border-gray-200 border-l border-gray-200 align-bottom bg-gray-50 whitespace-nowrap"
               >
                 Итого
               </th>
@@ -349,7 +349,7 @@ export default function ContractsSummaryTable({
                 signedSegForms[seg].map((form, fi) => (
                   <th
                     key={`sg-${seg}-${form}`}
-                    className={`px-1.5 py-1 text-center text-[10px] font-medium text-gray-500 border-b border-gray-200 whitespace-nowrap bg-emerald-50/30 ${si === 0 && fi === 0 ? 'border-l-2 border-l-emerald-200' : ''}`}
+                    className={`px-1.5 py-1 text-center text-[10px] font-medium text-gray-500 border-b border-gray-200 whitespace-nowrap bg-emerald-50/30 ${si === 0 && fi === 0 ? 'border-l-2 border-l-gray-300' : ''}`}
                     style={{ minWidth: 44 }}
                   >
                     {formatForm(form)}
@@ -416,7 +416,7 @@ export default function ContractsSummaryTable({
                     )}
                     {/* В работе: итого */}
                     <td
-                      className="px-2 py-1.5 text-center border-l border-gray-200 font-semibold text-blue-700 bg-blue-50/30"
+                      className="px-2 py-1.5 text-center border-l border-gray-200 font-semibold text-gray-900 bg-gray-50"
                       onClick={(e) => { e.stopPropagation(); onPreparedByClick(name); }}
                     >
                       {inWorkTotal > 0 ? inWorkTotal : <span className="text-gray-300">—</span>}
@@ -433,7 +433,7 @@ export default function ContractsSummaryTable({
                             onClick={val > 0 ? (e) => handleSignedCellClick(e, name, seg, form) : undefined}
                             style={style}
                             title={val > 0 ? `${name} · ${SEGMENT_LABELS[seg]} · ${form}: ${val}` : undefined}
-                            className={`py-1.5 text-center font-medium ${val > 0 ? 'cursor-pointer' : ''} ${si === 0 && fi === 0 ? 'border-l-2 border-l-emerald-200' : ''}`}
+                            className={`py-1.5 text-center font-medium ${val > 0 ? 'cursor-pointer' : ''} ${si === 0 && fi === 0 ? 'border-l-2 border-l-gray-300' : ''}`}
                           >
                             {val > 0 ? val : <span className="text-gray-200 text-[10px]">·</span>}
                           </td>
@@ -443,8 +443,8 @@ export default function ContractsSummaryTable({
                     {/* Подписано: итого */}
                     <td
                       onClick={signedTotal > 0 ? (e) => handleSignedRowClick(e, name) : undefined}
-                      className={`px-2 py-1.5 text-center border-l border-emerald-200 bg-emerald-50/30 font-semibold ${
-                        signedTotal > 0 ? 'text-emerald-700 cursor-pointer hover:bg-emerald-100/60' : 'text-gray-300'
+                      className={`px-2 py-1.5 text-center border-l border-gray-200 bg-gray-50 font-semibold ${
+                        signedTotal > 0 ? 'text-gray-900 cursor-pointer hover:bg-emerald-100/60' : 'text-gray-300'
                       }`}
                     >
                       {signedTotal > 0 ? signedTotal : '—'}
@@ -468,7 +468,7 @@ export default function ContractsSummaryTable({
                     );
                   })
                 )}
-                <td className="px-2 py-1.5 text-center text-xs font-bold text-blue-700 border-l border-gray-200 bg-blue-50/30">
+                <td className="px-2 py-1.5 text-center text-xs font-bold text-gray-900 border-l border-gray-200 bg-gray-50">
                   {inWorkGrandTotal || <span className="text-gray-300">—</span>}
                 </td>
                 {activeSignedSegments.map((seg, si) =>
@@ -477,14 +477,14 @@ export default function ContractsSummaryTable({
                     return (
                       <td
                         key={`sg-${seg}-${form}`}
-                        className={`py-1.5 text-center text-xs text-gray-700 bg-emerald-50/20 ${si === 0 && fi === 0 ? 'border-l-2 border-l-emerald-200' : ''}`}
+                        className={`py-1.5 text-center text-xs text-gray-700 bg-gray-50/40 ${si === 0 && fi === 0 ? 'border-l-2 border-l-gray-300' : ''}`}
                       >
                         {sum > 0 ? sum : <span className="text-gray-300">—</span>}
                       </td>
                     );
                   })
                 )}
-                <td className="px-2 py-1.5 text-center text-xs font-bold text-emerald-700 border-l border-emerald-200 bg-emerald-50/30">
+                <td className="px-2 py-1.5 text-center text-xs font-bold text-gray-900 border-l border-gray-200 bg-gray-50">
                   {signedGrandTotal || <span className="text-gray-300">—</span>}
                 </td>
               </tr>

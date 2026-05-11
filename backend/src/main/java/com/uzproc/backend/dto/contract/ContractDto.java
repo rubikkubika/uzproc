@@ -63,6 +63,8 @@ public class ContractDto {
 
     /** Рабочие дни подготовки договора: от даты начала (не считая) до даты первого согласования включительно. */
     private Integer preparationWorkingDays;
+    /** Рабочие дни согласования договора: от даты первого согласования (не считая) до завершения последнего включительно. */
+    private Integer approvalWorkingDays;
     /** Дата первого назначения на согласование договора (MIN assignment_date по stage 'Согласование%'). */
     private LocalDateTime firstApprovalAssignmentDate;
     /** Дата начала отсчёта подготовки (contractCreationDate | approvalAssignmentDate ЗП | purchaseCompletionDate). */
@@ -353,6 +355,14 @@ public class ContractDto {
 
     public void setPreparationWorkingDays(Integer preparationWorkingDays) {
         this.preparationWorkingDays = preparationWorkingDays;
+    }
+
+    public Integer getApprovalWorkingDays() {
+        return approvalWorkingDays;
+    }
+
+    public void setApprovalWorkingDays(Integer approvalWorkingDays) {
+        this.approvalWorkingDays = approvalWorkingDays;
     }
 
     public LocalDateTime getFirstApprovalAssignmentDate() {

@@ -33,6 +33,8 @@ export interface Contract {
   purchaseCompletionDate: string | null;
   /** Рабочие дни этапа «Подготовка» договора. */
   preparationWorkingDays: number | null;
+  /** Рабочие дни этапа «Согласование» договора. */
+  approvalWorkingDays: number | null;
   /** Дата первого назначения на согласование договора. */
   firstApprovalAssignmentDate: string | null;
   /** Дата начала отсчёта подготовки. */

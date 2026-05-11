@@ -28,6 +28,13 @@ public interface ContractApprovalRepository extends JpaRepository<ContractApprov
     List<Object[]> findFirstApprovalAssignmentDatesByContractIds(@Param("contractIds") List<Long> contractIds);
 
     /**
+     * Для каждого договора из списка возвращает (contract_id, MAX(completion_date)) по этапам «Согласование%».
+     * Используется для расчёта длительности этапа «Согласование».
+     */
+    @Query(value = "SELECT contract_id, MAX(completion_date) FROM contract_approvals WHERE contract_id IN :contractIds AND stage LIKE 'Согласование%' AND completion_date IS NOT NULL GROUP BY contract_id", nativeQuery = true)
+    List<Object[]> findLastApprovalCompletionDatesByContractIds(@Param("contractIds") List<Long> contractIds);
+
+    /**
      * Все согласования договоров, у которых есть связь с заявкой на закупку (contract.purchase_request_id IS NOT NULL).
      * Загружает contract для фильтрации.
      */

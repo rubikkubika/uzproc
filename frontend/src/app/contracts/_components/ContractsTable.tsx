@@ -597,7 +597,7 @@ export default function ContractsTable() {
                         <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-gray-100 text-gray-600">Нет</span>
                       ) : '-'}
                     </td>
-                    <td className="pl-1 pr-0 py-1 border-r border-gray-300" style={{ width: '200px', minWidth: '200px' }}>
+                    <td className="pl-1 pr-0 py-1 border-r border-gray-300 overflow-hidden" style={{ width: '200px', minWidth: '200px', maxWidth: '200px' }}>
                       <ContractTrackCell contract={contract} />
                     </td>
                   </tr>
