@@ -1,16 +1,43 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
-import { ChevronDown, ChevronUp, Star } from 'lucide-react';
+import React, { useState, useCallback, useMemo } from 'react';
+import type { CSSProperties } from 'react';
+import { Star, ChevronDown, ChevronUp } from 'lucide-react';
 import { purchaserDisplayName } from '@/utils/purchaser';
 import type { PurchaserSummaryItem } from '../types/purchase-requests-summary.types';
+
+const ACCENT_AT_PURCHASER = '#3b82f6';
+const ACCENT_CONTRACT_IN_WORK = '#3b82f6';
+const ACCENT_COMPLETED = '#10b981';
+
+const HUE_AT_PURCHASER = 220;
+const HUE_CONTRACT_IN_WORK = 220;
+const HUE_COMPLETED = 155;
+
+function heatmapCellStyle(value: number, colMax: number, hue: number): CSSProperties {
+  if (value === 0 || colMax === 0) return {};
+  const intensity = 0.12 + 0.88 * (value / colMax);
+  const L = (0.96 - intensity * 0.45).toFixed(3);
+  const C = (0.02 + intensity * 0.13).toFixed(3);
+  return {
+    backgroundColor: `oklch(${L} ${C} ${hue})`,
+    color: intensity > 0.55 ? '#ffffff' : '#1f2937',
+  };
+}
+
+const formatCompactNumber = (value: number): string =>
+  new Intl.NumberFormat('ru-RU', {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+    compactDisplay: 'short',
+  }).format(value);
 
 const renderStars = (rating: number) => {
   const fullStars = Math.floor(rating);
   const hasHalfStar = rating % 1 >= 0.5;
   const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
   return (
-    <div className="flex items-center gap-0">
+    <div className="flex items-center gap-0 justify-center">
       {Array.from({ length: fullStars }).map((_, i) => (
         <Star key={`f-${i}`} className="w-2.5 h-2.5 fill-yellow-400 text-yellow-400" />
       ))}
@@ -22,13 +49,6 @@ const renderStars = (rating: number) => {
     </div>
   );
 };
-
-const formatCompactNumber = (value: number): string =>
-  new Intl.NumberFormat('ru-RU', {
-    notation: 'compact',
-    maximumFractionDigits: 1,
-    compactDisplay: 'short',
-  }).format(value);
 
 interface PurchaseRequestsSummaryTableProps {
   purchaserSummary: PurchaserSummaryItem[];
@@ -54,59 +74,76 @@ export default function PurchaseRequestsSummaryTable({
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeStatusGroup, setActiveStatusGroup] = useState<'atPurchaser' | 'contractInWork' | null>(null);
 
+  const MAX_VISIBLE_ROWS = 10;
+
+  const filteredSummary = useMemo(
+    () => purchaserSummary.filter((item) => (item.purchasesCount + item.ordersCount) > 0),
+    [purchaserSummary]
+  );
+  const filteredCompleted = useMemo(
+    () => completedPurchaserSummary.filter((item) => (item.purchasesCount + item.ordersCount) > 0),
+    [completedPurchaserSummary]
+  );
+
+  const inWorkMap = useMemo(
+    () => new Map(filteredSummary.map((item) => [item.purchaser || 'Не назначен', item])),
+    [filteredSummary]
+  );
+  const completedMap = useMemo(
+    () => new Map(filteredCompleted.map((item) => [item.purchaser || 'Не назначен', item])),
+    [filteredCompleted]
+  );
+
+  const sortedPurchasers = useMemo(() => {
+    const all = Array.from(new Set([...inWorkMap.keys(), ...completedMap.keys()]));
+    return all.sort((a, b) => {
+      const aInWork = inWorkMap.get(a);
+      const bInWork = inWorkMap.get(b);
+      const aValue = (aInWork?.ordersBudget || 0) + (aInWork?.purchasesBudget || 0);
+      const bValue = (bInWork?.ordersBudget || 0) + (bInWork?.purchasesBudget || 0);
+      return bValue - aValue;
+    });
+  }, [inWorkMap, completedMap]);
+
+  const colMaxValues = useMemo(() => ({
+    atPurchaserCount: Math.max(0, ...sortedPurchasers.map(p => inWorkMap.get(p)?.atPurchaserCount ?? 0)),
+    contractInWorkCount: Math.max(0, ...sortedPurchasers.map(p => inWorkMap.get(p)?.contractInWorkCount ?? 0)),
+    completedCount: Math.max(0, ...sortedPurchasers.map(p => {
+      const c = completedMap.get(p);
+      return (c?.ordersCount ?? 0) + (c?.purchasesCount ?? 0);
+    })),
+  }), [sortedPurchasers, inWorkMap, completedMap]);
+
+  const displayPurchasers = isExpanded ? sortedPurchasers : sortedPurchasers.slice(0, MAX_VISIBLE_ROWS);
+  const hasMoreRows = sortedPurchasers.length > MAX_VISIBLE_ROWS;
+
   const handleSubcategoryClick = useCallback(
     (purchaser: string, subcategory: 'atPurchaser' | 'contractInWork', e: React.MouseEvent) => {
       e.stopPropagation();
       if (!setStatusFilter || !setActiveTab) return;
-
-      // Устанавливаем фильтр по закупщику
       const isSamePurchaser = purchaserFilter.size === 1 && purchaserFilter.has(purchaser);
       const isSameCategory = activeStatusGroup === subcategory && isSamePurchaser;
-
       if (isSameCategory) {
-        // Сброс при повторном клике
         setActiveStatusGroup(null);
         setStatusFilter(new Set());
         setPurchaserFilter(new Set());
       } else {
         setActiveStatusGroup(subcategory);
         setPurchaserFilter(new Set([purchaser]));
-        if (subcategory === 'atPurchaser') {
-          setStatusFilter(new Set(['Заявка у закупщика']));
-        } else {
-          setStatusFilter(new Set(['Договор в работе', 'Спецификация в работе']));
-        }
+        setStatusFilter(
+          subcategory === 'atPurchaser'
+            ? new Set(['Заявка у закупщика'])
+            : new Set(['Договор в работе', 'Спецификация в работе'])
+        );
         setActiveTab('in-work');
       }
       setCurrentPage(0);
     },
     [purchaserFilter, activeStatusGroup, setStatusFilter, setPurchaserFilter, setActiveTab, setCurrentPage]
   );
-  const MAX_VISIBLE_ROWS = 10;
-
-  const filteredSummary = purchaserSummary.filter((item) => (item.purchasesCount + item.ordersCount) > 0);
-  const filteredCompleted = completedPurchaserSummary.filter((item) => (item.purchasesCount + item.ordersCount) > 0);
-
-  const inWorkMap = new Map(filteredSummary.map((item) => [item.purchaser || 'Не назначен', item]));
-  const completedMap = new Map(filteredCompleted.map((item) => [item.purchaser || 'Не назначен', item]));
-  const allPurchasers = Array.from(new Set([...inWorkMap.keys(), ...completedMap.keys()]));
-
-  const sortedPurchasers = allPurchasers.sort((a, b) => {
-    const aInWork = inWorkMap.get(a);
-    const bInWork = inWorkMap.get(b);
-    const aValue = (aInWork?.ordersBudget || 0) + (aInWork?.purchasesBudget || 0);
-    const bValue = (bInWork?.ordersBudget || 0) + (bInWork?.purchasesBudget || 0);
-    return bValue - aValue;
-  });
-
-  const displayPurchasers = isExpanded ? sortedPurchasers : sortedPurchasers.slice(0, MAX_VISIBLE_ROWS);
-  const hasMoreRows = sortedPurchasers.length > MAX_VISIBLE_ROWS;
 
   const onSelectPurchaser = useCallback(
-    (purchaser: string, e: React.MouseEvent<HTMLTableRowElement>) => {
-      const isClearingOnlySelected =
-        !(e.ctrlKey || e.metaKey) && purchaserFilter.has(purchaser) && purchaserFilter.size === 1;
-
+    (purchaser: string, e: React.MouseEvent) => {
       if (e.ctrlKey || e.metaKey) {
         const next = new Set<string>(purchaserFilter);
         if (next.has(purchaser)) next.delete(purchaser);
@@ -117,221 +154,335 @@ export default function PurchaseRequestsSummaryTable({
       } else {
         setPurchaserFilter(new Set<string>([purchaser]));
       }
-
       setCurrentPage(0);
     },
-    [purchaserFilter, setPurchaserFilter, setCurrentPage, setActiveTab]
+    [purchaserFilter, setPurchaserFilter, setCurrentPage]
   );
+
+  // Totals
+  const totalAtPurchaserCount = purchaserSummary.reduce((s, i) => s + (i.atPurchaserCount || 0), 0);
+  const totalAtPurchaserBudget = purchaserSummary.reduce((s, i) => s + (i.atPurchaserBudget || 0), 0);
+  const totalContractInWorkCount = purchaserSummary.reduce((s, i) => s + (i.contractInWorkCount || 0), 0);
+  const totalContractInWorkBudget = purchaserSummary.reduce((s, i) => s + (i.contractInWorkBudget || 0), 0);
+  const totalInWorkComplexity = purchaserSummary.reduce((s, i) => s + i.purchasesComplexity + i.ordersComplexity, 0);
+  const totalInWorkGrand = totalAtPurchaserCount + totalContractInWorkCount;
+  const totalCompletedCount = completedPurchaserSummary.reduce((s, i) => s + i.purchasesCount + i.ordersCount, 0);
+  const totalCompletedBudget = completedPurchaserSummary.reduce((s, i) => s + i.purchasesBudget + i.ordersBudget, 0);
+  const totalCompletedComplexity = completedPurchaserSummary.reduce((s, i) => s + i.purchasesComplexity + i.ordersComplexity, 0);
+  const totalCompletedSavings = completedPurchaserSummary.reduce((s, i) => s + (i.savings || 0), 0);
+  const avgSlaDays = (() => {
+    const days = completedPurchaserSummary.filter(i => i.averageSlaDays != null).map(i => i.averageSlaDays!);
+    if (!days.length) return null;
+    return Math.round(days.reduce((s, d) => s + d, 0) / days.length * 10) / 10;
+  })();
+  const avgRating = (() => {
+    const ratings = completedPurchaserSummary.filter(i => i.averageRating != null).map(i => i.averageRating!);
+    if (!ratings.length) return null;
+    return Math.round(ratings.reduce((s, r) => s + r, 0) / ratings.length * 10) / 10;
+  })();
+
+  const totalColCount = 12;
 
   return (
     <div className="flex-shrink-0">
-      <div className="bg-white rounded shadow-sm border border-gray-200 overflow-hidden flex-shrink-0 relative">
-        <div className="overflow-x-auto">
-          <table className="border-separate table-auto" style={{ borderSpacing: 0 }}>
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-1 py-1 border-r border-gray-300 min-w-[120px]" rowSpan={2}></th>
-                <th colSpan={5} className="px-1 py-1 text-center text-[11px] font-semibold text-blue-900 border-r border-gray-300 border-l-2 border-t-2 border-gray-400 rounded-tl-lg whitespace-nowrap">
-                  Заявки в работе
-                </th>
-                <th colSpan={6} className="px-1 py-1 text-center text-[11px] font-semibold text-green-900 border-l-2 border-t-2 border-r-2 border-gray-400 rounded-tr-lg whitespace-nowrap">
-                  {`Завершенные заявки - ${currentYear}`}
-                </th>
-              </tr>
-              <tr>
-                {/* Заявки в работе: Заявка у закупщика */}
-                <th className="px-1 py-0.5 text-center text-[10px] font-medium text-blue-700 border-l-2 border-r border-gray-400 whitespace-nowrap" colSpan={2}>
-                  У закупщика
-                </th>
-                {/* Заявки в работе: Договоров в работе */}
-                <th className="px-1 py-0.5 text-center text-[10px] font-medium text-blue-700 border-r border-gray-400 whitespace-nowrap" colSpan={2}>
-                  Договоров в работе
-                </th>
-                {/* Заявки в работе: Сложность */}
-                <th className="px-1 py-0.5 text-right text-[10px] font-medium text-blue-700 border-r-2 border-gray-400 whitespace-nowrap min-w-[48px]">
-                  Сложность
-                </th>
-                {/* Завершённые */}
-                <th className="px-1 py-0.5 text-right text-[11px] font-medium text-gray-500 tracking-wider border-l-2 border-r border-gray-400 whitespace-nowrap min-w-[48px]">
-                  Кол-во
-                </th>
-                <th className="px-1 py-0.5 text-right text-[11px] font-medium text-gray-500 tracking-wider border-r-2 border-gray-400 whitespace-nowrap min-w-[56px]">
-                  Сумма
-                </th>
-                <th className="px-1 py-0.5 text-right text-[11px] font-medium text-gray-500 tracking-wider border-r border-gray-400 whitespace-nowrap min-w-[48px]">
-                  Сложность
-                </th>
-                <th className="px-1 py-0.5 text-right text-[11px] font-medium text-gray-500 tracking-wider border-r border-gray-400 whitespace-nowrap min-w-[56px]">
-                  Экономия
-                </th>
-                <th className="px-1 py-0.5 text-right text-[11px] font-medium text-gray-500 tracking-wider border-r border-gray-400 whitespace-nowrap min-w-[36px]">
-                  SLA
-                </th>
-                <th className="px-1 py-0.5 text-center text-[11px] font-medium text-gray-500 tracking-wider border-r-2 border-gray-400 rounded-tr-lg whitespace-nowrap min-w-[40px]">
-                  <Star className="w-3 h-3 fill-yellow-400 text-yellow-400 inline" />
-                </th>
-              </tr>
-              <tr className="bg-gray-100">
-                <th className="px-1 py-0.5 border-r border-gray-300 min-w-[120px] text-left text-[10px] font-medium text-gray-500">ФИО закупщика</th>
-                <th className="px-1 py-0.5 text-right text-[10px] font-medium text-gray-500 border-l-2 border-r border-gray-400 whitespace-nowrap min-w-[40px]">Кол-во</th>
-                <th className="px-1 py-0.5 text-right text-[10px] font-medium text-gray-500 border-r border-gray-400 whitespace-nowrap min-w-[56px]">Сумма</th>
-                <th className="px-1 py-0.5 text-right text-[10px] font-medium text-gray-500 border-r border-gray-400 whitespace-nowrap min-w-[40px]">Кол-во</th>
-                <th className="px-1 py-0.5 text-right text-[10px] font-medium text-gray-500 border-r border-gray-400 whitespace-nowrap min-w-[56px]">Сумма</th>
-                <th className="px-1 py-0.5 text-right text-[10px] font-medium text-gray-500 border-r-2 border-gray-400 whitespace-nowrap min-w-[40px]"></th>
-                <th className="px-1 py-0.5 border-l-2 border-r border-gray-400 whitespace-nowrap min-w-[40px]"></th>
-                <th className="px-1 py-0.5 border-r-2 border-gray-400 whitespace-nowrap min-w-[56px]"></th>
-                <th className="px-1 py-0.5 border-r border-gray-400 whitespace-nowrap min-w-[40px]"></th>
-                <th className="px-1 py-0.5 border-r border-gray-400 whitespace-nowrap min-w-[56px]"></th>
-                <th className="px-1 py-0.5 border-r border-gray-400 whitespace-nowrap min-w-[36px]"></th>
-                <th className="px-1 py-0.5 border-r-2 border-gray-400 whitespace-nowrap min-w-[40px]"></th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {displayPurchasers.length > 0 ? (
-                displayPurchasers.map((purchaser) => {
-                  const inWork = inWorkMap.get(purchaser);
-                  const completed = completedMap.get(purchaser);
-                  const inWorkCount = (inWork?.ordersCount || 0) + (inWork?.purchasesCount || 0);
-                  const inWorkBudget = (inWork?.ordersBudget || 0) + (inWork?.purchasesBudget || 0);
-                  const inWorkComplexity = (inWork?.ordersComplexity || 0) + (inWork?.purchasesComplexity || 0);
-                  const completedCount = (completed?.ordersCount || 0) + (completed?.purchasesCount || 0);
-                  const completedBudget = (completed?.ordersBudget || 0) + (completed?.purchasesBudget || 0);
-                  const completedComplexity = (completed?.ordersComplexity || 0) + (completed?.purchasesComplexity || 0);
-                  const completedSavings = completed?.savings || 0;
-                  const completedRating = completed?.averageRating;
-                  const completedSlaDays = completed?.averageSlaDays;
-
-                  return (
-                    <tr
-                      key={purchaser}
-                      className={`${purchaserFilter.has(purchaser) ? 'bg-blue-100 hover:bg-blue-200' : 'hover:bg-gray-50'} cursor-pointer transition-colors`}
-                      onClick={(e) => onSelectPurchaser(purchaser, e as unknown as React.MouseEvent<HTMLTableRowElement>)}
-                    >
-                      <td className="px-1 py-1 text-[11px] text-gray-900 border-r border-gray-200 whitespace-nowrap">
-                        {purchaserDisplayName(purchaser) === '—' ? 'Не назначен' : purchaserDisplayName(purchaser)}
-                      </td>
-                      {/* У закупщика */}
-                      <td
-                        className={`px-1 py-1 text-[11px] text-right border-l-2 border-t border-b border-r border-gray-400 whitespace-nowrap cursor-pointer transition-colors ${activeStatusGroup === 'atPurchaser' && purchaserFilter.has(purchaser) ? 'bg-blue-200 text-blue-900 font-semibold' : 'text-gray-900 hover:bg-blue-50'}`}
-                        onClick={(e) => handleSubcategoryClick(purchaser, 'atPurchaser', e)}
-                        title="Фильтр: Заявка у закупщика"
-                      >{inWork?.atPurchaserCount ?? 0}</td>
-                      <td
-                        className={`px-1 py-1 text-[11px] text-right border-r border-t border-b border-gray-400 whitespace-nowrap cursor-pointer transition-colors ${activeStatusGroup === 'atPurchaser' && purchaserFilter.has(purchaser) ? 'bg-blue-200 text-blue-900 font-semibold' : 'text-gray-900 hover:bg-blue-50'}`}
-                        onClick={(e) => handleSubcategoryClick(purchaser, 'atPurchaser', e)}
-                        title="Фильтр: Заявка у закупщика"
-                      >{formatCompactNumber(inWork?.atPurchaserBudget ?? 0)}</td>
-                      {/* Договоров в работе */}
-                      <td
-                        className={`px-1 py-1 text-[11px] text-right border-r border-t border-b border-gray-400 whitespace-nowrap cursor-pointer transition-colors ${activeStatusGroup === 'contractInWork' && purchaserFilter.has(purchaser) ? 'bg-amber-200 text-amber-900 font-semibold' : 'text-gray-900 hover:bg-amber-50'}`}
-                        onClick={(e) => handleSubcategoryClick(purchaser, 'contractInWork', e)}
-                        title="Фильтр: Договор в работе / Спецификация в работе"
-                      >{inWork?.contractInWorkCount ?? 0}</td>
-                      <td
-                        className={`px-1 py-1 text-[11px] text-right border-r border-t border-b border-gray-400 whitespace-nowrap cursor-pointer transition-colors ${activeStatusGroup === 'contractInWork' && purchaserFilter.has(purchaser) ? 'bg-amber-200 text-amber-900 font-semibold' : 'text-gray-900 hover:bg-amber-50'}`}
-                        onClick={(e) => handleSubcategoryClick(purchaser, 'contractInWork', e)}
-                        title="Фильтр: Договор в работе / Спецификация в работе"
-                      >{formatCompactNumber(inWork?.contractInWorkBudget ?? 0)}</td>
-                      {/* Сложность (общая по всем в работе) */}
-                      <td className="px-1 py-1 text-[11px] text-gray-900 text-right border-r-2 border-t border-b border-gray-400 whitespace-nowrap">{inWorkComplexity}</td>
-                      {/* Завершённые */}
-                      <td className="px-1 py-1 text-[11px] text-gray-900 text-right border-l-2 border-t border-b border-r border-gray-400 whitespace-nowrap">{completedCount}</td>
-                      <td className="px-1 py-1 text-[11px] text-gray-900 text-right border-r-2 border-t border-b border-gray-400 whitespace-nowrap">{formatCompactNumber(completedBudget)}</td>
-                      <td className="px-1 py-1 text-[11px] text-gray-900 text-right border-r border-t border-b border-gray-400 whitespace-nowrap">{completedComplexity}</td>
-                      <td className={`px-1 py-1 text-[11px] text-right border-r border-t border-b border-gray-400 whitespace-nowrap ${completedSavings > 0 ? 'text-green-700' : completedSavings < 0 ? 'text-red-600' : 'text-gray-900'}`}>{formatCompactNumber(completedSavings)}</td>
-                      <td className="px-1 py-1 text-[11px] text-gray-900 text-right border-r border-t border-b border-gray-400 whitespace-nowrap">{completedSlaDays != null ? completedSlaDays : '—'}</td>
-                      <td className="px-1 py-1 text-[11px] text-gray-900 text-center border-r-2 border-t border-b border-gray-400 whitespace-nowrap">{completedRating != null ? renderStars(completedRating) : '—'}</td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan={13} className="px-1 py-1 text-[11px] text-gray-500 text-center whitespace-nowrap">
-                    Нет данных
-                  </td>
-                </tr>
-              )}
-            </tbody>
-            <tfoot className="bg-gray-50 border-t border-gray-300">
-              <tr
-                className="cursor-pointer transition-colors hover:bg-gray-100"
-                onClick={() => {
-                  setPurchaserFilter(new Set());
-                  setCurrentPage(0);
-                }}
+      <div className="border border-gray-200 rounded-lg overflow-hidden overflow-x-auto relative">
+        <table className="border-collapse text-xs">
+          <thead>
+            {/* Row 1: super-headers */}
+            <tr className="bg-white">
+              <th
+                rowSpan={3}
+                className="px-2 py-1.5 text-left text-[11px] font-medium text-gray-500 border-b border-gray-200 border-r border-gray-200 align-middle bg-gray-50"
+                style={{ minWidth: 140 }}
               >
-                <td className="px-1 py-1 text-[11px] font-semibold text-gray-700 border-r border-gray-200 whitespace-nowrap">Итого</td>
-                {/* У закупщика итого */}
-                <td className="px-1 py-1 text-[11px] font-semibold text-gray-700 text-right border-l-2 border-t border-b-2 border-r border-gray-400 whitespace-nowrap">
-                  {purchaserSummary.reduce((sum, item) => sum + (item.atPurchaserCount || 0), 0)}
+                Закупщик
+              </th>
+              <th
+                colSpan={5}
+                className="px-2 py-1 text-center text-[11px] font-semibold text-gray-900 bg-gray-50 border-b-2 border-gray-300"
+              >
+                В работе
+              </th>
+              <th
+                colSpan={6}
+                className="px-2 py-1 text-center text-[11px] font-semibold text-gray-900 bg-gray-50 border-b-2 border-gray-300 border-l-2 border-l-gray-300"
+              >
+                Завершено {currentYear}
+              </th>
+            </tr>
+            {/* Row 2: sub-group headers */}
+            <tr className="bg-white">
+              <th
+                colSpan={2}
+                className="px-2 py-1 text-center text-[11px] font-semibold bg-white whitespace-nowrap"
+                style={{ borderBottom: `2px solid ${ACCENT_AT_PURCHASER}`, color: ACCENT_AT_PURCHASER }}
+              >
+                У закупщика
+              </th>
+              <th
+                colSpan={2}
+                className="px-2 py-1 text-center text-[11px] font-semibold bg-white whitespace-nowrap"
+                style={{ borderBottom: `2px solid ${ACCENT_CONTRACT_IN_WORK}`, color: ACCENT_CONTRACT_IN_WORK }}
+              >
+                Дог. в работе
+              </th>
+              <th
+                rowSpan={2}
+                className="px-2 py-1 text-center text-[10px] font-medium text-gray-500 border-b border-gray-200 border-l border-gray-200 align-bottom bg-gray-50 whitespace-nowrap"
+              >
+                Итого
+              </th>
+              {/* Completed — all with rowspan=2 */}
+              <th
+                rowSpan={2}
+                className="px-2 py-1 text-center text-[10px] font-medium text-gray-500 border-b border-gray-200 border-l-2 border-l-gray-300 align-bottom bg-gray-50 whitespace-nowrap"
+              >
+                Кол-во
+              </th>
+              <th
+                rowSpan={2}
+                className="px-2 py-1 text-center text-[10px] font-medium text-gray-500 border-b border-gray-200 border-l border-gray-200 align-bottom bg-gray-50 whitespace-nowrap"
+              >
+                Сумма
+              </th>
+              <th
+                rowSpan={2}
+                className="px-2 py-1 text-center text-[10px] font-medium text-gray-500 border-b border-gray-200 border-l border-gray-200 align-bottom bg-gray-50 whitespace-nowrap"
+              >
+                Сложн.
+              </th>
+              <th
+                rowSpan={2}
+                className="px-2 py-1 text-center text-[10px] font-medium text-gray-500 border-b border-gray-200 border-l border-gray-200 align-bottom bg-gray-50 whitespace-nowrap"
+              >
+                Экон.
+              </th>
+              <th
+                rowSpan={2}
+                className="px-2 py-1 text-center text-[10px] font-medium text-gray-500 border-b border-gray-200 border-l border-gray-200 align-bottom bg-gray-50 whitespace-nowrap"
+              >
+                SLA
+              </th>
+              <th
+                rowSpan={2}
+                className="px-2 py-1 text-center text-[10px] font-medium text-gray-500 border-b border-gray-200 border-l border-gray-200 align-bottom bg-gray-50 whitespace-nowrap"
+              >
+                <Star className="w-3 h-3 fill-yellow-400 text-yellow-400 inline" />
+              </th>
+            </tr>
+            {/* Row 3: column labels for sub-groups */}
+            <tr className="bg-gray-50">
+              <th className="px-1.5 py-1 text-center text-[10px] font-medium text-gray-500 border-b border-gray-200 whitespace-nowrap" style={{ minWidth: 36 }}>
+                Кол.
+              </th>
+              <th className="px-1.5 py-1 text-center text-[10px] font-medium text-gray-500 border-b border-gray-200 whitespace-nowrap" style={{ minWidth: 52 }}>
+                Сумма
+              </th>
+              <th className="px-1.5 py-1 text-center text-[10px] font-medium text-gray-500 border-b border-gray-200 whitespace-nowrap" style={{ minWidth: 36 }}>
+                Кол.
+              </th>
+              <th className="px-1.5 py-1 text-center text-[10px] font-medium text-gray-500 border-b border-gray-200 whitespace-nowrap" style={{ minWidth: 52 }}>
+                Сумма
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {displayPurchasers.length === 0 ? (
+              <tr>
+                <td colSpan={totalColCount} className="px-4 py-8 text-center text-gray-400">
+                  Нет данных
                 </td>
-                <td className="px-1 py-1 text-[11px] font-semibold text-gray-700 text-right border-r border-t border-b-2 border-gray-400 whitespace-nowrap">
-                  {formatCompactNumber(purchaserSummary.reduce((sum, item) => sum + (item.atPurchaserBudget || 0), 0))}
+              </tr>
+            ) : (
+              displayPurchasers.map((purchaser, idx) => {
+                const inWork = inWorkMap.get(purchaser);
+                const completed = completedMap.get(purchaser);
+                const isSelected = purchaserFilter.has(purchaser);
+
+                const atPurchaserCount = inWork?.atPurchaserCount ?? 0;
+                const atPurchaserBudget = inWork?.atPurchaserBudget ?? 0;
+                const contractInWorkCount = inWork?.contractInWorkCount ?? 0;
+                const contractInWorkBudget = inWork?.contractInWorkBudget ?? 0;
+                const inWorkComplexity = (inWork?.ordersComplexity || 0) + (inWork?.purchasesComplexity || 0);
+                const inWorkGrand = atPurchaserCount + contractInWorkCount;
+
+                const completedCount = (completed?.ordersCount || 0) + (completed?.purchasesCount || 0);
+                const completedBudget = (completed?.ordersBudget || 0) + (completed?.purchasesBudget || 0);
+                const completedComplexity = (completed?.ordersComplexity || 0) + (completed?.purchasesComplexity || 0);
+                const completedSavings = completed?.savings || 0;
+                const completedRating = completed?.averageRating;
+                const completedSlaDays = completed?.averageSlaDays;
+
+                const atPurchaserStyle = heatmapCellStyle(atPurchaserCount, colMaxValues.atPurchaserCount, HUE_AT_PURCHASER);
+                const contractInWorkStyle = heatmapCellStyle(contractInWorkCount, colMaxValues.contractInWorkCount, HUE_CONTRACT_IN_WORK);
+                const completedCountStyle = heatmapCellStyle(completedCount, colMaxValues.completedCount, HUE_COMPLETED);
+
+                const isAtPurchaserActive = activeStatusGroup === 'atPurchaser' && isSelected;
+                const isContractInWorkActive = activeStatusGroup === 'contractInWork' && isSelected;
+
+                return (
+                  <tr
+                    key={purchaser}
+                    className={`border-b border-gray-100 transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'bg-blue-50/40'
+                        : idx % 2 === 0
+                          ? 'bg-white hover:bg-gray-50/60'
+                          : 'bg-gray-50/30 hover:bg-gray-50/60'
+                    }`}
+                    onClick={(e) => onSelectPurchaser(purchaser, e)}
+                  >
+                    {/* Закупщик */}
+                    <td className={`px-2 py-1.5 border-r border-gray-200 whitespace-nowrap ${isSelected ? 'bg-blue-50' : ''}`}>
+                      <span className={`font-medium ${isSelected ? 'text-blue-700' : 'text-gray-800'}`}>
+                        {purchaserDisplayName(purchaser) === '—' ? 'Не назначен' : purchaserDisplayName(purchaser)}
+                      </span>
+                    </td>
+
+                    {/* У закупщика: кол-во */}
+                    <td
+                      onClick={(e) => handleSubcategoryClick(purchaser, 'atPurchaser', e)}
+                      style={isAtPurchaserActive ? {} : atPurchaserStyle}
+                      className={`py-1.5 text-center font-medium cursor-pointer transition-colors ${
+                        isAtPurchaserActive ? 'bg-blue-200 text-blue-900 ring-1 ring-blue-400 ring-inset' : ''
+                      }`}
+                      title="Фильтр: Заявка у закупщика"
+                    >
+                      {atPurchaserCount > 0 ? atPurchaserCount : <span className="text-gray-200 text-[10px]">·</span>}
+                    </td>
+                    {/* У закупщика: сумма */}
+                    <td
+                      onClick={(e) => handleSubcategoryClick(purchaser, 'atPurchaser', e)}
+                      className={`px-1.5 py-1.5 text-center text-[10px] cursor-pointer transition-colors ${
+                        isAtPurchaserActive ? 'bg-blue-200 text-blue-900' : 'text-gray-600 hover:bg-blue-50/40'
+                      }`}
+                      title="Фильтр: Заявка у закупщика"
+                    >
+                      {atPurchaserBudget > 0 ? formatCompactNumber(atPurchaserBudget) : <span className="text-gray-200 text-[10px]">·</span>}
+                    </td>
+
+                    {/* Договоров в работе: кол-во */}
+                    <td
+                      onClick={(e) => handleSubcategoryClick(purchaser, 'contractInWork', e)}
+                      style={isContractInWorkActive ? {} : contractInWorkStyle}
+                      className={`py-1.5 text-center font-medium cursor-pointer transition-colors ${
+                        isContractInWorkActive ? 'bg-blue-200 text-blue-900 ring-1 ring-blue-400 ring-inset' : ''
+                      }`}
+                      title="Фильтр: Договор в работе / Спецификация в работе"
+                    >
+                      {contractInWorkCount > 0 ? contractInWorkCount : <span className="text-gray-200 text-[10px]">·</span>}
+                    </td>
+                    {/* Договоров в работе: сумма */}
+                    <td
+                      onClick={(e) => handleSubcategoryClick(purchaser, 'contractInWork', e)}
+                      className={`px-1.5 py-1.5 text-center text-[10px] cursor-pointer transition-colors ${
+                        isContractInWorkActive ? 'bg-blue-200 text-blue-900' : 'text-gray-600 hover:bg-blue-50/40'
+                      }`}
+                      title="Фильтр: Договор в работе / Спецификация в работе"
+                    >
+                      {contractInWorkBudget > 0 ? formatCompactNumber(contractInWorkBudget) : <span className="text-gray-200 text-[10px]">·</span>}
+                    </td>
+
+                    {/* Итого в работе */}
+                    <td className="px-2 py-1.5 text-center border-l border-gray-200 font-semibold text-gray-900 bg-gray-50">
+                      {inWorkGrand > 0 ? inWorkGrand : <span className="text-gray-300">—</span>}
+                    </td>
+
+                    {/* Завершено: кол-во */}
+                    <td
+                      style={completedCountStyle}
+                      className="py-1.5 text-center font-medium border-l-2 border-l-gray-300"
+                    >
+                      {completedCount > 0 ? completedCount : <span className="text-gray-200 text-[10px]">·</span>}
+                    </td>
+                    {/* Завершено: сумма */}
+                    <td className="px-1.5 py-1.5 text-center text-[10px] text-gray-600 border-l border-gray-200">
+                      {completedBudget > 0 ? formatCompactNumber(completedBudget) : <span className="text-gray-200 text-[10px]">·</span>}
+                    </td>
+                    {/* Завершено: сложность */}
+                    <td className="px-1.5 py-1.5 text-center text-[10px] text-gray-600 border-l border-gray-200">
+                      {completedComplexity > 0 ? completedComplexity : <span className="text-gray-200 text-[10px]">·</span>}
+                    </td>
+                    {/* Завершено: экономия */}
+                    <td className={`px-1.5 py-1.5 text-center text-[10px] border-l border-gray-200 font-medium ${
+                      completedSavings > 0 ? 'text-emerald-700' : completedSavings < 0 ? 'text-red-600' : 'text-gray-200'
+                    }`}>
+                      {completedSavings !== 0 ? formatCompactNumber(completedSavings) : '·'}
+                    </td>
+                    {/* Завершено: SLA */}
+                    <td className="px-1.5 py-1.5 text-center text-[10px] text-gray-600 border-l border-gray-200">
+                      {completedSlaDays != null ? completedSlaDays : <span className="text-gray-200 text-[10px]">·</span>}
+                    </td>
+                    {/* Завершено: рейтинг */}
+                    <td className="px-1.5 py-1.5 text-center border-l border-gray-200">
+                      {completedRating != null ? renderStars(completedRating) : <span className="text-gray-200 text-[10px]">·</span>}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+          {sortedPurchasers.length > 0 && (
+            <tfoot>
+              <tr
+                className="border-t-2 border-gray-200 bg-gray-50 font-semibold cursor-pointer hover:bg-gray-100 transition-colors"
+                onClick={() => { setPurchaserFilter(new Set()); setCurrentPage(0); }}
+              >
+                <td className="px-2 py-1.5 text-xs text-gray-600 border-r border-gray-200">Итого</td>
+                <td className="py-1.5 text-center text-xs text-gray-700">
+                  {totalAtPurchaserCount > 0 ? totalAtPurchaserCount : <span className="text-gray-300">—</span>}
                 </td>
-                {/* Договоров в работе итого */}
-                <td className="px-1 py-1 text-[11px] font-semibold text-gray-700 text-right border-r border-t border-b-2 border-gray-400 whitespace-nowrap">
-                  {purchaserSummary.reduce((sum, item) => sum + (item.contractInWorkCount || 0), 0)}
+                <td className="px-1.5 py-1.5 text-center text-xs text-gray-700">
+                  {totalAtPurchaserBudget > 0 ? formatCompactNumber(totalAtPurchaserBudget) : <span className="text-gray-300">—</span>}
                 </td>
-                <td className="px-1 py-1 text-[11px] font-semibold text-gray-700 text-right border-r border-t border-b-2 border-gray-400 whitespace-nowrap">
-                  {formatCompactNumber(purchaserSummary.reduce((sum, item) => sum + (item.contractInWorkBudget || 0), 0))}
+                <td className="py-1.5 text-center text-xs text-gray-700">
+                  {totalContractInWorkCount > 0 ? totalContractInWorkCount : <span className="text-gray-300">—</span>}
                 </td>
-                {/* Сложность итого */}
-                <td className="px-1 py-1 text-[11px] font-semibold text-gray-700 text-right border-r-2 border-t border-b-2 border-gray-400 whitespace-nowrap">
-                  {purchaserSummary.reduce((sum, item) => sum + item.purchasesComplexity + item.ordersComplexity, 0)}
+                <td className="px-1.5 py-1.5 text-center text-xs text-gray-700">
+                  {totalContractInWorkBudget > 0 ? formatCompactNumber(totalContractInWorkBudget) : <span className="text-gray-300">—</span>}
                 </td>
-                {/* Завершённые итого */}
-                <td className="px-1 py-1 text-[11px] font-semibold text-gray-700 text-right border-l-2 border-t border-b-2 border-r border-gray-400 whitespace-nowrap">
-                  {completedPurchaserSummary.reduce((sum, item) => sum + item.purchasesCount + item.ordersCount, 0)}
+                <td className="px-2 py-1.5 text-center text-xs font-bold text-gray-900 border-l border-gray-200">
+                  {totalInWorkGrand || <span className="text-gray-300">—</span>}
                 </td>
-                <td className="px-1 py-1 text-[11px] font-semibold text-gray-700 text-right border-r-2 border-t border-b-2 border-gray-400 whitespace-nowrap">
-                  {formatCompactNumber(completedPurchaserSummary.reduce((sum, item) => sum + item.purchasesBudget + item.ordersBudget, 0))}
+                <td className="py-1.5 text-center text-xs text-gray-700 border-l-2 border-l-gray-300">
+                  {totalCompletedCount > 0 ? totalCompletedCount : <span className="text-gray-300">—</span>}
                 </td>
-                <td className="px-1 py-1 text-[11px] font-semibold text-gray-700 text-right border-r border-t border-b-2 border-gray-400 whitespace-nowrap">
-                  {completedPurchaserSummary.reduce((sum, item) => sum + item.purchasesComplexity + item.ordersComplexity, 0)}
+                <td className="px-1.5 py-1.5 text-center text-xs text-gray-700 border-l border-gray-200">
+                  {totalCompletedBudget > 0 ? formatCompactNumber(totalCompletedBudget) : <span className="text-gray-300">—</span>}
                 </td>
-                <td className={`px-1 py-1 text-[11px] font-semibold text-right border-r border-t border-b-2 border-gray-400 whitespace-nowrap ${completedPurchaserSummary.reduce((sum, item) => sum + (item.savings || 0), 0) > 0 ? 'text-green-700' : completedPurchaserSummary.reduce((sum, item) => sum + (item.savings || 0), 0) < 0 ? 'text-red-600' : 'text-gray-700'}`}>
-                  {formatCompactNumber(completedPurchaserSummary.reduce((sum, item) => sum + (item.savings || 0), 0))}
+                <td className="px-1.5 py-1.5 text-center text-xs text-gray-700 border-l border-gray-200">
+                  {totalCompletedComplexity > 0 ? totalCompletedComplexity : <span className="text-gray-300">—</span>}
                 </td>
-                <td className="px-1 py-1 text-[11px] font-semibold text-gray-700 text-right border-r border-t border-b-2 border-gray-400 whitespace-nowrap">
-                  {(() => {
-                    const slaDays = completedPurchaserSummary.filter(item => item.averageSlaDays != null).map(item => item.averageSlaDays!);
-                    if (slaDays.length === 0) return '—';
-                    const avg = slaDays.reduce((sum, d) => sum + d, 0) / slaDays.length;
-                    return Math.round(avg * 10) / 10;
-                  })()}
+                <td className={`px-1.5 py-1.5 text-center text-xs font-semibold border-l border-gray-200 ${
+                  totalCompletedSavings > 0 ? 'text-emerald-700' : totalCompletedSavings < 0 ? 'text-red-600' : 'text-gray-300'
+                }`}>
+                  {totalCompletedSavings !== 0 ? formatCompactNumber(totalCompletedSavings) : '—'}
                 </td>
-                <td className="px-1 py-1 text-[11px] font-semibold text-gray-700 text-center border-r-2 border-t border-b-2 border-gray-400 rounded-br-lg whitespace-nowrap">
-                  {(() => {
-                    const ratings = completedPurchaserSummary.filter(item => item.averageRating != null).map(item => item.averageRating!);
-                    if (ratings.length === 0) return '—';
-                    const avg = ratings.reduce((sum, r) => sum + r, 0) / ratings.length;
-                    return renderStars(Math.round(avg * 10) / 10);
-                  })()}
+                <td className="px-1.5 py-1.5 text-center text-xs text-gray-700 border-l border-gray-200">
+                  {avgSlaDays != null ? avgSlaDays : <span className="text-gray-300">—</span>}
+                </td>
+                <td className="px-1.5 py-1.5 text-center border-l border-gray-200">
+                  {avgRating != null ? renderStars(avgRating) : <span className="text-gray-300 text-xs">—</span>}
                 </td>
               </tr>
             </tfoot>
-          </table>
-        </div>
-        {hasMoreRows && (
+          )}
+        </table>
+      </div>
+      {hasMoreRows && (
+        <div className="flex justify-end mt-1">
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsExpanded(!isExpanded);
-            }}
-            className="absolute bottom-2 right-2 p-1 hover:bg-gray-200 rounded transition-colors bg-white border border-gray-300 shadow-sm flex items-center gap-1 z-10"
-            title={isExpanded ? 'Свернуть' : 'Развернуть все'}
+            onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }}
+            className="flex items-center gap-1 px-2 py-0.5 text-[11px] text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
           >
-            <span className="text-[11px] text-gray-700">
-              {isExpanded ? 'Свернуть' : 'Развернуть'}
-            </span>
             {isExpanded ? (
-              <ChevronUp className="w-3.5 h-3.5 text-gray-600" />
+              <>Свернуть <ChevronUp className="w-3 h-3" /></>
             ) : (
-              <ChevronDown className="w-3.5 h-3.5 text-gray-600" />
+              <>Ещё {sortedPurchasers.length - MAX_VISIBLE_ROWS} <ChevronDown className="w-3 h-3" /></>
             )}
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
