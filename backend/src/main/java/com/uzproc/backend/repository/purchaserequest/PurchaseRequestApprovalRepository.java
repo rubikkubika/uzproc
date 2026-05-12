@@ -128,6 +128,13 @@ public interface PurchaseRequestApprovalRepository extends JpaRepository<Purchas
     List<Object[]> findCreationAndFirstAssignmentDates();
 
     /**
+     * Batch: (idPurchaseRequest, MAX(completion_date)) по всем согласованиям для набора PR ID.
+     * Используется как фолбэк даты начала подготовки договора когда дата назначения на утверждение отсутствует.
+     */
+    @Query(value = "SELECT id_purchase_request, MAX(completion_date) FROM purchase_request_approvals WHERE id_purchase_request IN :prIds AND completion_date IS NOT NULL GROUP BY id_purchase_request", nativeQuery = true)
+    List<Object[]> findMaxApprovalCompletionDatesByPrIds(@Param("prIds") List<Long> prIds);
+
+    /**
      * Возвращает (role, assignment_date, completion_date, days_in_work) для завершённых согласований заявок
      * с фильтром по году назначения. Параметр :year = null → без фильтра по году.
      */

@@ -86,6 +86,7 @@ export const useContractsTable = () => {
     filtersHook.setLocalFilters(emptyFilters);
     filtersHook.setCfoFilter(new Set());
     filtersHook.setIsTypicalFormFilter('');
+    filtersHook.setExpiryStatusFilter('');
     filtersHook.setStatusFilter('');
     filtersHook.setOrganizationFilter('');
     filtersHook.setPreparedByFilter('');

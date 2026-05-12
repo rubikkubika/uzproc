@@ -123,6 +123,7 @@ public class ContractService {
         Map<Long, LocalDateTime> lastApprovalCompletionDates = batchGetLastApprovalCompletionDates(contractIds);
         Map<Long, Boolean> requiresPurchaseMap = batchGetRequiresPurchase(prIds);
         Map<Long, LocalDateTime> prApprovalAssignmentDates = batchGetPrApprovalAssignmentDates(prIds);
+        Map<Long, LocalDateTime> prLastApprovalCompletionDates = batchGetPrLastApprovalCompletionDates(prIds);
 
         // Конвертируем entity в DTO
         Page<ContractDto> dtoPage = contracts.map(c -> {
@@ -143,6 +144,12 @@ public class ContractService {
                 Boolean requiresPurchase = requiresPurchaseMap.get(c.getPurchaseRequestId());
                 if (Boolean.FALSE.equals(requiresPurchase)) {
                     startDate = prApprovalAssignmentDates.get(c.getPurchaseRequestId());
+                    if (startDate == null) {
+                        LocalDateTime lastCompletion = prLastApprovalCompletionDates.get(c.getPurchaseRequestId());
+                        if (lastCompletion != null) {
+                            startDate = lastCompletion.plusDays(1).toLocalDate().atStartOfDay();
+                        }
+                    }
                 } else {
                     startDate = purchaseCompletionDate;
                 }
@@ -619,6 +626,22 @@ public class ContractService {
     private Map<Long, LocalDateTime> batchGetPrApprovalAssignmentDates(List<Long> prIds) {
         if (prIds.isEmpty()) return new HashMap<>();
         List<Object[]> rows = purchaseRequestApprovalRepository.findMinApprovalAssignmentDatesByPrIds(prIds);
+        Map<Long, LocalDateTime> result = new HashMap<>();
+        for (Object[] row : rows) {
+            if (row[0] != null && row[1] != null) {
+                Long prId = ((Number) row[0]).longValue();
+                LocalDateTime date = row[1] instanceof java.sql.Timestamp
+                        ? ((java.sql.Timestamp) row[1]).toLocalDateTime()
+                        : (LocalDateTime) row[1];
+                result.put(prId, date);
+            }
+        }
+        return result;
+    }
+
+    private Map<Long, LocalDateTime> batchGetPrLastApprovalCompletionDates(List<Long> prIds) {
+        if (prIds.isEmpty()) return new HashMap<>();
+        List<Object[]> rows = purchaseRequestApprovalRepository.findMaxApprovalCompletionDatesByPrIds(prIds);
         Map<Long, LocalDateTime> result = new HashMap<>();
         for (Object[] row : rows) {
             if (row[0] != null && row[1] != null) {

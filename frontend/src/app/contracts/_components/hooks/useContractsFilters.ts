@@ -46,6 +46,9 @@ export const useContractsFilters = (setCurrentPage: (page: number) => void) => {
   // Фильтр типовой формы: '' = все, 'true' = да, 'false' = нет
   const [isTypicalFormFilter, setIsTypicalFormFilter] = useState<string>('');
 
+  // Фильтр по статусу срока действия: '' = все, 'expired' = Истёк, 'expiring' = Истекает, 'active' = Действует
+  const [expiryStatusFilter, setExpiryStatusFilter] = useState<string>('');
+
   // Фильтр организации заказчика: '' = все, 'UZUM_MARKET', 'UZUM_OOO', 'UZUM_TEZKOR'
   const [organizationFilter, setOrganizationFilter] = useState<string>('');
 
@@ -179,6 +182,8 @@ export const useContractsFilters = (setCurrentPage: (page: number) => void) => {
     handleFilterChange,
     isTypicalFormFilter,
     setIsTypicalFormFilter,
+    expiryStatusFilter,
+    setExpiryStatusFilter,
     statusFilter,
     setStatusFilter,
     organizationFilter,

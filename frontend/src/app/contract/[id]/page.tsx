@@ -3,9 +3,22 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Check, Clock, X } from 'lucide-react';
 import Sidebar from '../../_components/Sidebar';
 import type { Invoice } from '../../invoice-recognition/_components/types/invoice.types';
+
+interface ContractApprovalItem {
+  id: number;
+  contractId: number;
+  documentForm?: string | null;
+  stage: string;
+  role: string;
+  executorName?: string | null;
+  assignmentDate: string | null;
+  completionDate: string | null;
+  completionResult: string | null;
+  commentText?: string | null;
+}
 
 interface ContractSupplier {
   id: number;
@@ -96,6 +109,8 @@ export default function ContractDetailPage() {
   const [contract, setContract] = useState<ContractDetail | null>(null);
   const [childContracts, setChildContracts] = useState<ChildContract[]>([]);
   const [payments, setPayments] = useState<PaymentItem[]>([]);
+  const [contractApprovals, setContractApprovals] = useState<ContractApprovalItem[]>([]);
+  const [approvalsLoading, setApprovalsLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -145,6 +160,18 @@ export default function ContractDetailPage() {
           // ignore
         }
 
+        // Загрузим согласования по contractId
+        try {
+          const approvalRes = await fetch(`${getBackendUrl()}/api/contract-approvals/by-contract/${data.id}`);
+          if (approvalRes.ok) {
+            setContractApprovals(await approvalRes.json() || []);
+          }
+        } catch {
+          // ignore
+        } finally {
+          setApprovalsLoading(false);
+        }
+
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Неизвестная ошибка');
       } finally {
@@ -185,6 +212,47 @@ export default function ContractDetailPage() {
       status === 'Оплата возвращена' ? 'bg-red-100 text-red-800' :
       'bg-gray-100 text-gray-800';
     return <span className={`px-1.5 py-0.5 text-xs font-medium rounded ${colorClass}`}>{status}</span>;
+  };
+
+  const isWorkingDay = (d: Date): boolean => {
+    const w = d.getDay();
+    return w !== 0 && w !== 6;
+  };
+
+  const calculateApprovalWorkingDays = (assignmentDate: string | null, completionDate: string | null): string => {
+    if (!assignmentDate || String(assignmentDate).trim() === '') return '-';
+    try {
+      const hasCompletion = completionDate && String(completionDate).trim() !== '';
+      const start = new Date(assignmentDate);
+      start.setDate(start.getDate() + 1);
+      const end = hasCompletion
+        ? new Date(completionDate)
+        : new Date(new Date().setHours(23, 59, 59, 999));
+      if (start > end) return isWorkingDay(end) ? '1' : '0';
+      let count = 0;
+      const d = new Date(start);
+      while (d <= end) {
+        if (isWorkingDay(d)) count++;
+        d.setDate(d.getDate() + 1);
+      }
+      return count.toString();
+    } catch {
+      return '-';
+    }
+  };
+
+  const getApprovalStatusColor = (approval: ContractApprovalItem): 'green' | 'yellow' | 'red' | 'orange' => {
+    if (!approval.completionResult) {
+      return approval.assignmentDate ? 'yellow' : 'yellow';
+    }
+    const result = approval.completionResult.toLowerCase().trim();
+    if (result.includes('замечан')) return 'orange';
+    if (result === 'согласовано' || result === 'утверждено') return 'green';
+    if (result === 'в процессе' || result.includes('процесс')) return 'yellow';
+    if (result === 'не согласовано' || result === 'не утверждено' ||
+        result.includes('не согласован') || result.includes('не утвержден') ||
+        result.includes('не утверждена')) return 'red';
+    return approval.completionDate ? 'green' : 'yellow';
   };
 
   const getRequestStatusBadge = (status: string | null) => {
@@ -308,7 +376,21 @@ export default function ContractDetailPage() {
                     <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Плановые сроки поставки</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
                       <InfoField label="Срок действия (план)" value={formatDate(contract.plannedDeliveryStartDate)} />
-                      <InfoField label="Окончание" value={formatDate(contract.plannedDeliveryEndDate)} />
+                      <div>
+                        <dt className="text-xs text-gray-500">Окончание</dt>
+                        <dd className="text-sm text-gray-900 mt-0.5">{formatDate(contract.plannedDeliveryEndDate)}</dd>
+                        {contract.plannedDeliveryEndDate && (() => {
+                          const endDate = new Date(contract.plannedDeliveryEndDate);
+                          const isExpired = endDate < new Date();
+                          return (
+                            <span className={`inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded-full ${
+                              isExpired ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                            }`}>
+                              {isExpired ? 'Истёк' : 'Действует'}
+                            </span>
+                          );
+                        })()}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -377,7 +459,92 @@ export default function ContractDetailPage() {
 
               {/* Правая колонка — Оплаты и Поступления */}
               <div className="w-[420px] flex-shrink-0 space-y-4">
-                {/* Блок Оплаты */}
+                {/* Блок Согласований */}
+                {(approvalsLoading || contractApprovals.length > 0) && (
+                  <div className="bg-white rounded-lg shadow-sm p-4">
+                    <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">
+                      Согласования {contractApprovals.length > 0 && <span className="text-gray-400 font-normal">({contractApprovals.length})</span>}
+                    </h2>
+                    {approvalsLoading ? (
+                      <p className="text-xs text-gray-400">Загрузка...</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {[...new Set(contractApprovals.map(a => a.stage || 'Без этапа'))].map(stage => {
+                          const stageItems = contractApprovals.filter(a => (a.stage || 'Без этапа') === stage);
+                          return (
+                            <div key={stage}>
+                              <div className="text-[11px] font-semibold text-gray-600 mb-1">{stage}</div>
+                              <table className="w-full border-collapse table-fixed">
+                                <colgroup>
+                                  <col style={{ width: '32%' }} />
+                                  <col style={{ width: '26%' }} />
+                                  <col style={{ width: '18%' }} />
+                                  <col style={{ width: '18%' }} />
+                                  <col style={{ width: '6%' }} />
+                                </colgroup>
+                                <thead>
+                                  <tr className="border-b border-gray-200">
+                                    <th className="py-1 pr-1 text-left text-[9px] font-semibold text-gray-500 uppercase">Роль</th>
+                                    <th className="py-1 px-1 text-left text-[9px] font-semibold text-gray-500 uppercase">ФИО</th>
+                                    <th className="py-1 px-1 text-left text-[9px] font-semibold text-gray-500 uppercase">Назначено</th>
+                                    <th className="py-1 px-1 text-left text-[9px] font-semibold text-gray-500 uppercase">Выполнено</th>
+                                    <th className="py-1 text-center text-[9px] font-semibold text-gray-500 uppercase">Дн</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {stageItems.map(approval => {
+                                    const statusColor = getApprovalStatusColor(approval);
+                                    const hasAssignment = approval.assignmentDate != null && String(approval.assignmentDate).trim() !== '';
+                                    return (
+                                      <tr key={approval.id} className="border-b border-gray-100 last:border-b-0">
+                                        <td className="py-1 pr-1 align-middle max-w-0 overflow-hidden">
+                                          <div className="flex items-center gap-1 overflow-hidden">
+                                            {!hasAssignment ? (
+                                              <div className="w-3 h-3 flex-shrink-0 rounded-full bg-gray-300" title="Не назначено" />
+                                            ) : statusColor === 'green' ? (
+                                              <div className="w-3 h-3 flex-shrink-0 rounded-full bg-green-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано'}>
+                                                <Check className="w-2 h-2 text-white" />
+                                              </div>
+                                            ) : statusColor === 'orange' ? (
+                                              <div className="w-3 h-3 flex-shrink-0 rounded-full bg-orange-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано с замечаниями'}>
+                                                <Check className="w-2 h-2 text-white" />
+                                              </div>
+                                            ) : statusColor === 'red' ? (
+                                              <div className="w-3 h-3 flex-shrink-0 rounded-full bg-red-500 flex items-center justify-center" title={approval.completionResult || 'Не согласовано'}>
+                                                <X className="w-2 h-2 text-white" />
+                                              </div>
+                                            ) : (
+                                              <div className="w-3 h-3 flex-shrink-0 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}>
+                                                <Clock className="w-2 h-2 text-white" />
+                                              </div>
+                                            )}
+                                            <span className="text-[10px] text-gray-900 truncate" title={approval.role}>{approval.role || '-'}</span>
+                                          </div>
+                                        </td>
+                                        <td className="py-1 px-1 max-w-0 overflow-hidden">
+                                          <span className="block text-[10px] text-gray-900 truncate" title={approval.executorName ?? ''}>{approval.executorName || '-'}</span>
+                                        </td>
+                                        <td className="py-1 px-1 text-[10px] text-gray-900 whitespace-nowrap">{formatDate(approval.assignmentDate)}</td>
+                                        <td className="py-1 px-1 text-[10px] text-gray-900 whitespace-nowrap">{formatDate(approval.completionDate)}</td>
+                                        <td className="py-1 text-center">
+                                          <span className="inline-block w-full text-center px-0.5 py-px text-[10px] text-gray-700 rounded bg-gray-200 font-medium">
+                                            {calculateApprovalWorkingDays(approval.assignmentDate, approval.completionDate)}
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+              {/* Блок Оплаты */}
                 <div className="bg-white rounded-lg shadow-sm p-4">
                   <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">
                     Оплаты {payments.length > 0 && <span className="text-gray-400 font-normal">({payments.length})</span>}

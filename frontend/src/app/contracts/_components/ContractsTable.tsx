@@ -27,6 +27,24 @@ const STATUS_OPTIONS = [
   { key: 'Не согласован', label: 'Не согласован' },
 ];
 
+const EXPIRY_STATUS_OPTIONS = [
+  { key: '', label: 'Все' },
+  { key: 'expired', label: 'Истёк' },
+  { key: 'expiring', label: 'Истекает' },
+  { key: 'active', label: 'Действует' },
+];
+
+const getExpiryStatus = (date: string | null, status: string | null): 'expired' | 'expiring' | 'active' | null => {
+  if (!date) return null;
+  const end = new Date(date);
+  const now = new Date();
+  if (end < now) return 'expired';
+  if (status !== 'Подписан') return null;
+  const diffDays = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays < 30) return 'expiring';
+  return 'active';
+};
+
 const formatDocumentForm = (form: string | null) => {
   if (!form) return '-';
   return form === 'Дополнительное соглашение' ? 'ДС' : form;
@@ -65,6 +83,10 @@ export default function ContractsTable() {
     summaryCurrentYear,
     summaryLoading,
   } = useContractsTable();
+
+  const filteredItems = filters.expiryStatusFilter
+    ? allItems.filter(c => getExpiryStatus(c.plannedDeliveryStartDate, c.status) === filters.expiryStatusFilter)
+    : allItems;
 
   const isTabWithPreparedBy = filters.activeTab === 'in-work' || filters.activeTab === 'not-coordinated' || filters.activeTab === 'signed';
   const totalColumns = isTabWithPreparedBy ? 16 : 15;
@@ -462,7 +484,15 @@ export default function ContractsTable() {
               {/* Срок действия (план) */}
               <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '7%' }}>
                 {thInner(
-                  <div className="w-full" />,
+                  <select
+                    value={filters.expiryStatusFilter}
+                    onChange={(e) => { e.stopPropagation(); filters.setExpiryStatusFilter(e.target.value); }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    style={{ height: '22px', boxSizing: 'border-box' }}
+                  >
+                    {EXPIRY_STATUS_OPTIONS.map(opt => <option key={opt.key} value={opt.key}>{opt.label}</option>)}
+                  </select>,
                   <>{renderSortButton('plannedDeliveryStartDate')}<span>Срок действия (план)</span></>
                 )}
               </th>
@@ -519,8 +549,8 @@ export default function ContractsTable() {
               <tr>
                 <td colSpan={totalColumns} className="px-6 py-8 text-center text-gray-500">Загрузка...</td>
               </tr>
-            ) : allItems.length > 0 ? (
-              allItems.map((contract) => {
+            ) : filteredItems.length > 0 ? (
+              filteredItems.map((contract) => {
                 const isHidden = contract.excludeFromInWork === true;
                 return (
                   <tr
@@ -571,7 +601,18 @@ export default function ContractsTable() {
                       {contract.contractCreationDate ? new Date(contract.contractCreationDate).toLocaleDateString('ru-RU') : '-'}
                     </td>
                     <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300">
-                      {contract.plannedDeliveryStartDate ? new Date(contract.plannedDeliveryStartDate).toLocaleDateString('ru-RU') : '-'}
+                      {contract.plannedDeliveryStartDate ? (
+                        <div className="flex flex-col gap-0.5">
+                          <span>{new Date(contract.plannedDeliveryStartDate).toLocaleDateString('ru-RU')}</span>
+                          {(() => {
+                            const s = getExpiryStatus(contract.plannedDeliveryStartDate, contract.status);
+                            if (s === 'expired') return <span className="inline-block px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-red-100 text-red-700">Истёк</span>;
+                            if (s === 'expiring') return <span className="inline-block px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-yellow-100 text-yellow-700">Истекает</span>;
+                            if (s === 'active') return <span className="inline-block px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-green-100 text-green-700">Действует</span>;
+                            return null;
+                          })()}
+                        </div>
+                      ) : '-'}
                     </td>
                     <td className="px-2 py-2 text-xs border-r border-gray-300">
                       {contract.status ? (
