@@ -758,37 +758,17 @@ public class PurchaseRequestService {
                     .orElse(null);
             dto.setApprovalAssignmentDate(approvalAssignmentDate);
 
-            // Дата завершения закупки — MAX из последних дат этапов «Закупочная комиссия»
-            // и «Проверка результата закупочной комиссии» (если такой этап есть).
-            // Условие: все записи «Закупочная комиссия» завершены;
-            //          если этап «Проверка...» существует — он тоже должен быть полностью завершён.
-            List<com.uzproc.backend.entity.purchase.PurchaseApproval> commissionApprovals = purchaseApprovalRepository.findByPurchaseRequestIdAndStage(entity.getIdPurchaseRequest(), "Закупочная комиссия");
-            boolean allCommissionApprovalsCompleted = !commissionApprovals.isEmpty()
-                    && commissionApprovals.stream().allMatch(a -> a.getCompletionDate() != null);
+            // Дата завершения закупки — MAX completionDate из всех согласований,
+            // если все согласования завершены (нет ни одного с completionDate = null).
+            List<com.uzproc.backend.entity.purchase.PurchaseApproval> allPurchaseApprovals =
+                    purchaseApprovalRepository.findByPurchaseRequestId(entity.getIdPurchaseRequest());
             LocalDateTime purchaseCompletionDate = null;
-            if (allCommissionApprovalsCompleted) {
-                LocalDateTime commissionMaxDate = commissionApprovals.stream()
+            if (!allPurchaseApprovals.isEmpty()
+                    && allPurchaseApprovals.stream().allMatch(a -> a.getCompletionDate() != null)) {
+                purchaseCompletionDate = allPurchaseApprovals.stream()
                         .map(com.uzproc.backend.entity.purchase.PurchaseApproval::getCompletionDate)
-                        .filter(java.util.Objects::nonNull)
                         .max(LocalDateTime::compareTo)
                         .orElse(null);
-                List<com.uzproc.backend.entity.purchase.PurchaseApproval> verificationApprovals =
-                        purchaseApprovalRepository.findByPurchaseRequestIdAndStage(entity.getIdPurchaseRequest(), "Проверка результата закупочной комиссии");
-                if (verificationApprovals.isEmpty()) {
-                    purchaseCompletionDate = commissionMaxDate;
-                } else if (verificationApprovals.stream().allMatch(a -> a.getCompletionDate() != null)) {
-                    LocalDateTime verificationMaxDate = verificationApprovals.stream()
-                            .map(com.uzproc.backend.entity.purchase.PurchaseApproval::getCompletionDate)
-                            .filter(java.util.Objects::nonNull)
-                            .max(LocalDateTime::compareTo)
-                            .orElse(null);
-                    if (commissionMaxDate != null && verificationMaxDate != null) {
-                        purchaseCompletionDate = commissionMaxDate.isAfter(verificationMaxDate) ? commissionMaxDate : verificationMaxDate;
-                    } else {
-                        purchaseCompletionDate = commissionMaxDate != null ? commissionMaxDate : verificationMaxDate;
-                    }
-                }
-                // Если «Проверка...» существует, но не завершена — purchaseCompletionDate остаётся null
             }
             dto.setPurchaseCompletionDate(purchaseCompletionDate);
 
