@@ -19,8 +19,8 @@ export function KpiMonthSelector({ year, month, onPrev, onNext }: KpiMonthSelect
       >
         <ChevronLeft className="w-4 h-4" />
       </button>
-      <span className="text-sm font-semibold text-gray-800 min-w-[130px] text-center">
-        {MONTH_NAMES[month - 1]} {year}
+      <span className="text-sm font-semibold text-gray-800 min-w-[200px] text-center">
+        Январь – {MONTH_NAMES[month - 1]} {year}
       </span>
       <button
         onClick={onNext}

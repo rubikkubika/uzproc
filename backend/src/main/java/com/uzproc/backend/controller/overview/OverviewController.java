@@ -209,14 +209,15 @@ public class OverviewController {
     }
 
     /**
-     * Детали закупок с экономией для конкретного закупщика за год.
+     * Детали закупок с экономией для конкретного закупщика за год (опционально — за месяц).
      */
     @GetMapping("/savings/purchases")
     public ResponseEntity<List<OverviewSavingsPurchaseDetailDto>> getSavingsPurchaseDetails(
             @RequestParam int year,
-            @RequestParam String purchaser) {
-        logger.debug("Overview savings/purchases request for year={}, purchaser={}", year, purchaser);
-        return ResponseEntity.ok(overviewService.getSavingsPurchaseDetails(year, purchaser));
+            @RequestParam String purchaser,
+            @RequestParam(required = false) Integer month) {
+        logger.debug("Overview savings/purchases request for year={}, month={}, purchaser={}", year, month, purchaser);
+        return ResponseEntity.ok(overviewService.getSavingsPurchaseDetails(year, month, purchaser));
     }
 
     /**

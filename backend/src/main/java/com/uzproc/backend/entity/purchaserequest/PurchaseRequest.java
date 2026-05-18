@@ -114,6 +114,13 @@ public class PurchaseRequest {
     @Column(name = "csi_invitation_sent")
     private Boolean csiInvitationSent;
 
+    // Исключение из расчёта KPI (вручную)
+    @Column(name = "exclude_from_kpi", nullable = false)
+    private Boolean excludeFromKpi = false;
+
+    @Column(name = "exclude_from_kpi_comment", length = 1000)
+    private String excludeFromKpiComment;
+
     // Обратная связь с Purchase (одна заявка может иметь много закупок)
     @OneToMany(mappedBy = "purchaseRequest", fetch = FetchType.LAZY)
     private java.util.List<com.uzproc.backend.entity.purchase.Purchase> purchases;
@@ -428,6 +435,22 @@ public class PurchaseRequest {
 
     public void setCsiInvitationSent(Boolean csiInvitationSent) {
         this.csiInvitationSent = csiInvitationSent;
+    }
+
+    public Boolean getExcludeFromKpi() {
+        return excludeFromKpi != null && excludeFromKpi;
+    }
+
+    public void setExcludeFromKpi(Boolean excludeFromKpi) {
+        this.excludeFromKpi = excludeFromKpi != null && excludeFromKpi;
+    }
+
+    public String getExcludeFromKpiComment() {
+        return excludeFromKpiComment;
+    }
+
+    public void setExcludeFromKpiComment(String excludeFromKpiComment) {
+        this.excludeFromKpiComment = excludeFromKpiComment;
     }
 
     public java.util.List<PurchaseRequestComment> getComments() {

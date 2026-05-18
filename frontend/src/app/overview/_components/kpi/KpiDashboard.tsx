@@ -27,6 +27,8 @@ export function KpiDashboard() {
         onSettingsReset={resetSettings}
         loading={loading}
         error={error}
+        year={year}
+        month={month}
       />
 
       {/* Заглушки для SLA и CSI — будут добавлены позже */}

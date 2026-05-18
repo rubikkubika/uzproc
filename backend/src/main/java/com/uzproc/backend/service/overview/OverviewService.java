@@ -1538,21 +1538,33 @@ public class OverviewService {
             }
         }
 
-        // Фильтруем по конкретному году и месяцу (по дате завершения комиссии)
+        // Фильтруем нарастающим итогом: год + месяц <= выбранного (январь–месяц)
         List<com.uzproc.backend.entity.purchase.Purchase> monthPurchases = allCompleted.stream()
             .filter(p -> {
                 Long prId = p.getPurchaseRequestId();
                 if (prId == null) return false;
                 LocalDateTime cd = completionDateByPrId.get(prId);
-                return cd != null && cd.getYear() == year && cd.getMonthValue() == month;
+                return cd != null && cd.getYear() == year && cd.getMonthValue() <= month;
             })
             .toList();
 
-        // Группируем по закупщику: бюджет и экономия
+        // Группируем по закупщику: бюджет и экономия (без исключённых из KPI)
         Map<String, BigDecimal[]> purchaserMap = new LinkedHashMap<>(); // [savings, budget]
         Map<String, Integer> purchaserCountMap = new LinkedHashMap<>();
 
         for (var purchase : monthPurchases) {
+            // Ручное исключение из KPI
+            boolean manualExcluded = purchase.getPurchaseRequest() != null
+                && Boolean.TRUE.equals(purchase.getPurchaseRequest().getExcludeFromKpi());
+            // Скрыта из работы
+            boolean hiddenFromWork = purchase.getPurchaseRequest() != null
+                && Boolean.TRUE.equals(purchase.getPurchaseRequest().getExcludeFromInWork());
+            // Авто-исключение: ЕК (единственный источник) без экономии
+            boolean autoExcluded = purchase.getSavings() == null
+                && purchase.getPurchaseMethod() != null
+                && purchase.getPurchaseMethod().toLowerCase().contains(SINGLE_SOURCE_MCC_SUBSTRING);
+            if (manualExcluded || hiddenFromWork || autoExcluded) continue;
+
             String purchaserName = "Не указан";
             if (purchase.getPurchaseRequest() != null && purchase.getPurchaseRequest().getPurchaser() != null
                     && !purchase.getPurchaseRequest().getPurchaser().isBlank()) {
@@ -1588,10 +1600,14 @@ public class OverviewService {
     }
 
     /**
-     * Детали закупок с экономией для конкретного закупщика за год.
+     * Детали закупок с экономией для конкретного закупщика за год (и опционально за месяц).
      */
     public List<OverviewSavingsPurchaseDetailDto> getSavingsPurchaseDetails(int year, String purchaser) {
-        logger.info("getSavingsPurchaseDetails: year={}, purchaser={}", year, purchaser);
+        return getSavingsPurchaseDetails(year, null, purchaser);
+    }
+
+    public List<OverviewSavingsPurchaseDetailDto> getSavingsPurchaseDetails(int year, Integer month, String purchaser) {
+        logger.info("getSavingsPurchaseDetails: year={}, month={}, purchaser={}", year, month, purchaser);
 
         var spec = (org.springframework.data.jpa.domain.Specification<com.uzproc.backend.entity.purchase.Purchase>) (root, query, cb) -> {
             if (query.getResultType() == com.uzproc.backend.entity.purchase.Purchase.class) {
@@ -1599,7 +1615,6 @@ public class OverviewService {
                 root.fetch("purchaseRequest", jakarta.persistence.criteria.JoinType.LEFT);
             }
             var predicates = new ArrayList<jakarta.persistence.criteria.Predicate>();
-            predicates.add(cb.isNotNull(root.get("savings")));
             predicates.add(cb.equal(root.get("status"), com.uzproc.backend.entity.purchase.PurchaseStatus.COMPLETED));
             return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
         };
@@ -1634,18 +1649,24 @@ public class OverviewService {
             }
         }
 
-        // Фильтруем по году завершения комиссии
+        // Фильтруем по году (и месяцу) завершения комиссии
         List<com.uzproc.backend.entity.purchase.Purchase> purchases = allPurchases.stream()
             .filter(p -> {
                 Long prId = p.getPurchaseRequestId();
                 if (prId == null) return false;
                 LocalDateTime cd = completionDateByPrId.get(prId);
-                return cd != null && cd.getYear() == year;
+                if (cd == null || cd.getYear() != year) return false;
+                return month == null || cd.getMonthValue() <= month;
             })
             .toList();
 
         return purchases.stream()
                 .filter(p -> {
+                    // Исключаем скрытые из работы
+                    if (p.getPurchaseRequest() != null
+                            && Boolean.TRUE.equals(p.getPurchaseRequest().getExcludeFromInWork())) {
+                        return false;
+                    }
                     String pName = "Не указан";
                     if (p.getPurchaseRequest() != null && p.getPurchaseRequest().getPurchaser() != null
                             && !p.getPurchaseRequest().getPurchaser().isBlank()) {
@@ -1662,11 +1683,24 @@ public class OverviewService {
                     dto.setName(pr != null ? pr.getName() : p.getName());
                     dto.setPurchaseCreationDate(p.getPurchaseCreationDate() != null
                             ? p.getPurchaseCreationDate().format(ISO_FORMAT) : null);
+                    LocalDateTime commDate = completionDateByPrId.get(p.getPurchaseRequestId());
+                    dto.setCommissionCompletionDate(commDate != null ? commDate.format(ISO_FORMAT) : null);
                     dto.setBudgetAmount(p.getBudgetAmount());
                     dto.setSavings(p.getSavings());
                     dto.setSavingsType(p.getSavingsType() != null ? p.getSavingsType().name() : null);
                     dto.setStatus(p.getStatus() != null ? p.getStatus().name() : null);
                     dto.setComplexity(pr != null ? pr.getComplexity() : null);
+                    // Исключение из KPI
+                    dto.setExcludeFromKpi(pr != null && Boolean.TRUE.equals(pr.getExcludeFromKpi()));
+                    dto.setExcludeFromKpiComment(pr != null ? pr.getExcludeFromKpiComment() : null);
+                    boolean autoExcluded = p.getSavings() == null
+                        && p.getPurchaseMethod() != null
+                        && p.getPurchaseMethod().toLowerCase().contains(SINGLE_SOURCE_MCC_SUBSTRING);
+                    dto.setAutoExcludedFromKpi(autoExcluded);
+                    // Тип закупочной процедуры (из закупки) и группа статуса заявки
+                    dto.setPurchaseMethod(p.getPurchaseMethod());
+                    dto.setStatusGroup(pr != null && pr.getStatus() != null
+                        ? pr.getStatus().getGroup().getDisplayName() : null);
                     return dto;
                 })
                 .sorted((a, b) -> {

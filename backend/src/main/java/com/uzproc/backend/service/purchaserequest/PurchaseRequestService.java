@@ -2233,5 +2233,15 @@ public class PurchaseRequestService {
         // Для локальной разработки
         return "http://localhost:3000";
     }
+
+    @org.springframework.transaction.annotation.Transactional
+    public void setKpiExclusion(Long idPurchaseRequest, boolean exclude, String comment) {
+        com.uzproc.backend.entity.purchaserequest.PurchaseRequest pr =
+            purchaseRequestRepository.findByIdPurchaseRequest(idPurchaseRequest)
+                .orElseThrow(() -> new RuntimeException("Purchase request not found: " + idPurchaseRequest));
+        pr.setExcludeFromKpi(exclude);
+        pr.setExcludeFromKpiComment(exclude ? comment : null);
+        purchaseRequestRepository.save(pr);
+    }
 }
 

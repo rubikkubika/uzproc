@@ -11,6 +11,12 @@ public class OverviewSavingsPurchaseDetailDto {
     private String purchaser;
     private String name;
     private String purchaseCreationDate;
+    private String commissionCompletionDate;
+    private boolean excludeFromKpi;
+    private String excludeFromKpiComment;
+    private boolean autoExcludedFromKpi;
+    private String purchaseMethod;
+    private String statusGroup;
     private BigDecimal budgetAmount;
     private BigDecimal savings;
     private String savingsType;
@@ -46,4 +52,22 @@ public class OverviewSavingsPurchaseDetailDto {
 
     public String getComplexity() { return complexity; }
     public void setComplexity(String complexity) { this.complexity = complexity; }
+
+    public String getCommissionCompletionDate() { return commissionCompletionDate; }
+    public void setCommissionCompletionDate(String commissionCompletionDate) { this.commissionCompletionDate = commissionCompletionDate; }
+
+    public boolean isExcludeFromKpi() { return excludeFromKpi; }
+    public void setExcludeFromKpi(boolean excludeFromKpi) { this.excludeFromKpi = excludeFromKpi; }
+
+    public String getExcludeFromKpiComment() { return excludeFromKpiComment; }
+    public void setExcludeFromKpiComment(String excludeFromKpiComment) { this.excludeFromKpiComment = excludeFromKpiComment; }
+
+    public boolean isAutoExcludedFromKpi() { return autoExcludedFromKpi; }
+    public void setAutoExcludedFromKpi(boolean autoExcludedFromKpi) { this.autoExcludedFromKpi = autoExcludedFromKpi; }
+
+    public String getPurchaseMethod() { return purchaseMethod; }
+    public void setPurchaseMethod(String purchaseMethod) { this.purchaseMethod = purchaseMethod; }
+
+    public String getStatusGroup() { return statusGroup; }
+    public void setStatusGroup(String statusGroup) { this.statusGroup = statusGroup; }
 }

@@ -370,6 +370,24 @@ public class PurchaseRequestController {
         }
     }
 
+    @PatchMapping("/{idPurchaseRequest}/kpi-exclude")
+    public ResponseEntity<?> updateKpiExclusion(
+            @PathVariable Long idPurchaseRequest,
+            @RequestBody Map<String, Object> body) {
+        try {
+            Boolean excluded = (Boolean) body.get("excluded");
+            String comment = body.get("comment") instanceof String s ? s : null;
+            if (excluded == null) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Поле excluded обязательно"));
+            }
+            purchaseRequestService.setKpiExclusion(idPurchaseRequest, excluded, comment);
+            return ResponseEntity.ok(Map.of("success", true));
+        } catch (Exception e) {
+            logger.error("Error updating kpiExclusion for {}", idPurchaseRequest, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
     @PatchMapping("/{idPurchaseRequest}/purchaser")
     public ResponseEntity<?> updatePurchaser(
             @PathVariable Long idPurchaseRequest,
