@@ -25,6 +25,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.uzproc.backend.dto.overview.KpiSavingsResponseDto;
 import com.uzproc.backend.dto.overview.OverviewSavingsResponseDto;
 import com.uzproc.backend.dto.overview.OverviewSavingsPurchaseDetailDto;
 import java.time.LocalDate;
@@ -62,6 +63,18 @@ public class OverviewController {
             @RequestParam Integer year) {
         logger.debug("Overview Savings request for year {}", year);
         OverviewSavingsResponseDto data = overviewService.getSavingsData(year);
+        return ResponseEntity.ok(data);
+    }
+
+    /**
+     * KPI экономии: экономия и бюджет по закупщикам за конкретный месяц года.
+     */
+    @GetMapping("/kpi/savings")
+    public ResponseEntity<KpiSavingsResponseDto> getKpiSavingsData(
+            @RequestParam int year,
+            @RequestParam int month) {
+        logger.debug("KPI savings request for year={}, month={}", year, month);
+        KpiSavingsResponseDto data = overviewService.getKpiSavingsData(year, month);
         return ResponseEntity.ok(data);
     }
 

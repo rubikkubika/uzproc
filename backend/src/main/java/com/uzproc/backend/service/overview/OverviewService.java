@@ -1492,6 +1492,102 @@ public class OverviewService {
     }
 
     /**
+     * KPI экономии: экономия и бюджет по каждому закупщику за конкретный месяц года.
+     */
+    public KpiSavingsResponseDto getKpiSavingsData(int year, int month) {
+        logger.info("getKpiSavingsData: year={}, month={}", year, month);
+
+        var spec = (org.springframework.data.jpa.domain.Specification<com.uzproc.backend.entity.purchase.Purchase>) (root, query, cb) -> {
+            if (query.getResultType() == com.uzproc.backend.entity.purchase.Purchase.class) {
+                root.fetch("cfo", jakarta.persistence.criteria.JoinType.LEFT);
+                root.fetch("purchaseRequest", jakarta.persistence.criteria.JoinType.LEFT);
+            }
+            var predicates = new ArrayList<jakarta.persistence.criteria.Predicate>();
+            predicates.add(cb.equal(root.get("status"), com.uzproc.backend.entity.purchase.PurchaseStatus.COMPLETED));
+            return cb.and(predicates.toArray(new jakarta.persistence.criteria.Predicate[0]));
+        };
+
+        List<com.uzproc.backend.entity.purchase.Purchase> allCompleted = purchaseRepository.findAll(spec);
+
+        List<Long> allPrIds = allCompleted.stream()
+            .map(com.uzproc.backend.entity.purchase.Purchase::getPurchaseRequestId)
+            .filter(java.util.Objects::nonNull)
+            .distinct()
+            .toList();
+
+        Map<Long, LocalDateTime> completionDateByPrId = new java.util.HashMap<>();
+        if (!allPrIds.isEmpty()) {
+            List<com.uzproc.backend.entity.purchase.PurchaseApproval> approvals = purchaseApprovalRepository.findByPurchaseRequestIdIn(allPrIds);
+            Map<Long, List<com.uzproc.backend.entity.purchase.PurchaseApproval>> byPr = approvals.stream()
+                .filter(a -> "Закупочная комиссия".equals(a.getStage()))
+                .collect(java.util.stream.Collectors.groupingBy(com.uzproc.backend.entity.purchase.PurchaseApproval::getPurchaseRequestId));
+            for (var entry : byPr.entrySet()) {
+                var commissionApprovals = entry.getValue();
+                boolean allDone = !commissionApprovals.isEmpty()
+                    && commissionApprovals.stream().allMatch(a -> a.getCompletionDate() != null);
+                if (allDone) {
+                    LocalDateTime completionDate = commissionApprovals.stream()
+                        .map(com.uzproc.backend.entity.purchase.PurchaseApproval::getCompletionDate)
+                        .filter(java.util.Objects::nonNull)
+                        .max(LocalDateTime::compareTo)
+                        .orElse(null);
+                    if (completionDate != null) {
+                        completionDateByPrId.put(entry.getKey(), completionDate);
+                    }
+                }
+            }
+        }
+
+        // Фильтруем по конкретному году и месяцу (по дате завершения комиссии)
+        List<com.uzproc.backend.entity.purchase.Purchase> monthPurchases = allCompleted.stream()
+            .filter(p -> {
+                Long prId = p.getPurchaseRequestId();
+                if (prId == null) return false;
+                LocalDateTime cd = completionDateByPrId.get(prId);
+                return cd != null && cd.getYear() == year && cd.getMonthValue() == month;
+            })
+            .toList();
+
+        // Группируем по закупщику: бюджет и экономия
+        Map<String, BigDecimal[]> purchaserMap = new LinkedHashMap<>(); // [savings, budget]
+        Map<String, Integer> purchaserCountMap = new LinkedHashMap<>();
+
+        for (var purchase : monthPurchases) {
+            String purchaserName = "Не указан";
+            if (purchase.getPurchaseRequest() != null && purchase.getPurchaseRequest().getPurchaser() != null
+                    && !purchase.getPurchaseRequest().getPurchaser().isBlank()) {
+                purchaserName = purchase.getPurchaseRequest().getPurchaser();
+            }
+            purchaserMap.computeIfAbsent(purchaserName, k -> new BigDecimal[]{BigDecimal.ZERO, BigDecimal.ZERO});
+            purchaserCountMap.merge(purchaserName, 1, Integer::sum);
+
+            if (purchase.getSavings() != null) {
+                purchaserMap.get(purchaserName)[0] = purchaserMap.get(purchaserName)[0].add(purchase.getSavings());
+            }
+            if (purchase.getBudgetAmount() != null) {
+                purchaserMap.get(purchaserName)[1] = purchaserMap.get(purchaserName)[1].add(purchase.getBudgetAmount());
+            }
+        }
+
+        List<KpiSavingsByPurchaserDto> byPurchaser = new ArrayList<>();
+        for (var entry : purchaserMap.entrySet()) {
+            KpiSavingsByPurchaserDto dto = new KpiSavingsByPurchaserDto();
+            dto.setPurchaser(entry.getKey());
+            dto.setTotalSavings(entry.getValue()[0]);
+            dto.setTotalBudget(entry.getValue()[1]);
+            dto.setCount(purchaserCountMap.getOrDefault(entry.getKey(), 0));
+            byPurchaser.add(dto);
+        }
+        byPurchaser.sort((a, b) -> b.getTotalSavings().compareTo(a.getTotalSavings()));
+
+        KpiSavingsResponseDto response = new KpiSavingsResponseDto();
+        response.setYear(year);
+        response.setMonth(month);
+        response.setByPurchaser(byPurchaser);
+        return response;
+    }
+
+    /**
      * Детали закупок с экономией для конкретного закупщика за год.
      */
     public List<OverviewSavingsPurchaseDetailDto> getSavingsPurchaseDetails(int year, String purchaser) {

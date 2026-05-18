@@ -21,6 +21,7 @@ const DASHBOARD_SUB_TAB_LABELS: Record<OverviewTab, string> = {
   savings: 'Экономия',
   'contract-remarks': 'Замечания по договорам',
   'purchases-by-cfo': 'Закупки по ЦФО',
+  kpi: 'KPI премии',
 };
 
 interface OverviewTabsProps {
