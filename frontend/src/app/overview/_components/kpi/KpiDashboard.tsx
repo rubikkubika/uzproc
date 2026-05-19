@@ -2,14 +2,23 @@
 
 import { useKpiMonth } from './hooks/useKpiMonth';
 import { useKpiSavingsData } from './hooks/useKpiSavingsData';
-import { useKpiSettings } from './hooks/useKpiSettings';
+import { useKpiSlaData } from './hooks/useKpiSlaData';
+import { useKpiCsiData } from './hooks/useKpiCsiData';
+import { useKpiSettings, useKpiSlaSettings, useKpiCsiSettings } from './hooks/useKpiSettings';
 import { KpiMonthSelector } from './ui/KpiMonthSelector';
+import { KpiSummaryBlock } from './ui/KpiSummaryBlock';
 import { KpiSavingsBlock } from './ui/KpiSavingsBlock';
+import { KpiSlaBlock } from './ui/KpiSlaBlock';
+import { KpiCsiBlock } from './ui/KpiCsiBlock';
 
 export function KpiDashboard() {
   const { year, month, goPrev, goNext } = useKpiMonth();
-  const { settings, updateSettings, resetSettings } = useKpiSettings();
-  const { data, loading, error } = useKpiSavingsData(year, month);
+  const savingsSettings = useKpiSettings();
+  const slaSettings = useKpiSlaSettings();
+  const csiSettings = useKpiCsiSettings();
+  const savings = useKpiSavingsData(year, month);
+  const sla = useKpiSlaData(year, month);
+  const csi = useKpiCsiData(year, month);
 
   return (
     <div className="space-y-2">
@@ -19,25 +28,51 @@ export function KpiDashboard() {
         <KpiMonthSelector year={year} month={month} onPrev={goPrev} onNext={goNext} />
       </div>
 
+      {/* Сводный блок премии */}
+      <KpiSummaryBlock
+        savings={savings.data?.byPurchaser ?? []}
+        sla={sla.data?.byPurchaser ?? []}
+        csi={csi.data?.byPurchaser ?? []}
+        savingsSettings={savingsSettings.settings}
+        slaSettings={slaSettings.settings}
+        csiSettings={csiSettings.settings}
+      />
+
       {/* Блок экономии */}
       <KpiSavingsBlock
-        data={data?.byPurchaser ?? []}
-        settings={settings}
-        onSettingsChange={updateSettings}
-        onSettingsReset={resetSettings}
-        loading={loading}
-        error={error}
+        data={savings.data?.byPurchaser ?? []}
+        settings={savingsSettings.settings}
+        onSettingsChange={savingsSettings.updateSettings}
+        onSettingsReset={savingsSettings.resetSettings}
+        loading={savings.loading}
+        error={savings.error}
         year={year}
         month={month}
       />
 
-      {/* Заглушки для SLA и CSI — будут добавлены позже */}
-      <div className="bg-white rounded-lg shadow px-3 py-4 text-center text-xs text-gray-400">
-        SLA — в разработке
-      </div>
-      <div className="bg-white rounded-lg shadow px-3 py-4 text-center text-xs text-gray-400">
-        CSI — в разработке
-      </div>
+      {/* Блок SLA */}
+      <KpiSlaBlock
+        data={sla.data?.byPurchaser ?? []}
+        settings={slaSettings.settings}
+        onSettingsChange={slaSettings.updateSettings}
+        onSettingsReset={slaSettings.resetSettings}
+        loading={sla.loading}
+        error={sla.error}
+        year={year}
+        month={month}
+      />
+
+      {/* Блок CSI */}
+      <KpiCsiBlock
+        data={csi.data?.byPurchaser ?? []}
+        settings={csiSettings.settings}
+        onSettingsChange={csiSettings.updateSettings}
+        onSettingsReset={csiSettings.resetSettings}
+        loading={csi.loading}
+        error={csi.error}
+        year={year}
+        month={month}
+      />
     </div>
   );
 }

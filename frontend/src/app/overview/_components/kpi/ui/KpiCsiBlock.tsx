@@ -2,58 +2,42 @@
 
 import { useState } from 'react';
 import { Settings } from 'lucide-react';
-import type { KpiSavingsByPurchaser, KpiSavingsSettings } from '../types/kpi.types';
+import type { KpiCsiByPurchaser, KpiCsiSettings } from '../types/kpi.types';
 import { purchaserDisplayName } from '@/utils/purchaser';
-import { useKpiPurchaseDetails } from '../hooks/useKpiPurchaseDetails';
-import { KpiPurchasesPanel } from './KpiPurchasesPanel';
+import { useKpiCsiDetails } from '../hooks/useKpiCsiDetails';
+import { KpiCsiPanel } from './KpiCsiPanel';
 
-const USD_TO_UZS = 12000;
-
-function formatAmount(value: number, currency: 'UZS' | 'USD'): string {
-  const v = currency === 'USD' ? value / USD_TO_UZS : value;
-  const suffix = currency === 'USD' ? ' $' : '';
-  if (v === 0) return '0' + suffix;
-  if (Math.abs(v) >= 1_000_000_000) return (v / 1_000_000_000).toFixed(1) + ' млрд' + suffix;
-  if (Math.abs(v) >= 1_000_000) return (v / 1_000_000).toFixed(1) + ' млн' + suffix;
-  if (Math.abs(v) >= 1_000) return (v / 1_000).toFixed(0) + ' тыс' + suffix;
-  return v.toFixed(0) + suffix;
+function calcScore(actual: number | null, target: number, maxScorePercent: number): number {
+  if (actual === null) return 0;
+  if (target <= 0) return 0;
+  return Math.min(maxScorePercent, (actual / target) * 100);
 }
 
-function calcSavingsPercent(savings: number, budget: number): number | null {
-  if (budget <= 0) return null;
-  return (savings / budget) * 100;
-}
-
-function calcScore(actualPercent: number | null, targetPercent: number, maxScorePercent: number): number {
-  if (actualPercent === null) return 0;
-  return Math.min(maxScorePercent, (actualPercent / targetPercent) * 100);
-}
-
-interface KpiSavingsSettingsEditorProps {
-  settings: KpiSavingsSettings;
-  onChange: (patch: Partial<KpiSavingsSettings>) => void;
+interface KpiCsiSettingsEditorProps {
+  settings: KpiCsiSettings;
+  onChange: (patch: Partial<KpiCsiSettings>) => void;
   onReset: () => void;
   onClose: () => void;
 }
 
-function KpiSavingsSettingsEditor({ settings, onChange, onReset, onClose }: KpiSavingsSettingsEditorProps) {
+function KpiCsiSettingsEditor({ settings, onChange, onReset, onClose }: KpiCsiSettingsEditorProps) {
   return (
     <div className="absolute right-0 top-8 z-20 bg-white border border-gray-200 rounded-lg shadow-lg p-3 min-w-[240px]">
-      <div className="text-xs font-semibold text-gray-700 mb-2">Настройки KPI «Экономия»</div>
+      <div className="text-xs font-semibold text-gray-700 mb-2">Настройки KPI «CSI»</div>
       <div className="flex flex-col gap-2">
         <label className="flex flex-col gap-0.5">
-          <span className="text-xs text-gray-600">Цель: % экономии</span>
+          <span className="text-xs text-gray-600">Цель: средняя оценка</span>
           <div className="flex items-center gap-1">
             <input
               type="number"
               min={0}
-              max={100}
-              step={0.5}
+              max={5}
+              step={0.1}
               value={settings.target}
               onChange={(e) => onChange({ target: Number(e.target.value) })}
               className="w-16 text-xs border border-gray-300 rounded px-1.5 py-1 text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
-            <span className="text-xs text-gray-500">%</span>
+            <span className="text-xs text-gray-500">/ 5</span>
           </div>
         </label>
         <label className="flex flex-col gap-0.5">
@@ -99,10 +83,10 @@ function KpiSavingsSettingsEditor({ settings, onChange, onReset, onClose }: KpiS
   );
 }
 
-interface KpiSavingsBlockProps {
-  data: KpiSavingsByPurchaser[];
-  settings: KpiSavingsSettings;
-  onSettingsChange: (patch: Partial<KpiSavingsSettings>) => void;
+interface KpiCsiBlockProps {
+  data: KpiCsiByPurchaser[];
+  settings: KpiCsiSettings;
+  onSettingsChange: (patch: Partial<KpiCsiSettings>) => void;
   onSettingsReset: () => void;
   loading: boolean;
   error: string | null;
@@ -110,12 +94,11 @@ interface KpiSavingsBlockProps {
   month: number;
 }
 
-export function KpiSavingsBlock({ data, settings, onSettingsChange, onSettingsReset, loading, error, year, month }: KpiSavingsBlockProps) {
-  const [currency, setCurrency] = useState<'UZS' | 'USD'>('UZS');
+export function KpiCsiBlock({ data, settings, onSettingsChange, onSettingsReset, loading, error, year, month }: KpiCsiBlockProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [selectedPurchaser, setSelectedPurchaser] = useState<string | null>(null);
-
-  const details = useKpiPurchaseDetails(year, month, selectedPurchaser);
+  const maxScorePercent = settings.allowBoost ? 130 : 100;
+  const details = useKpiCsiDetails(year, month, selectedPurchaser);
 
   const handleRowClick = (purchaser: string) => {
     setSelectedPurchaser((prev) => (prev === purchaser ? null : purchaser));
@@ -123,36 +106,16 @@ export function KpiSavingsBlock({ data, settings, onSettingsChange, onSettingsRe
 
   return (
     <div className="flex gap-2 items-start">
-      {/* Основная таблица */}
       <div className={`bg-white rounded-lg shadow min-w-0 ${selectedPurchaser ? 'flex-shrink-0 w-auto max-w-fit' : 'w-full max-w-[900px]'}`}>
-        {/* Заголовок блока */}
         <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-gray-800 uppercase tracking-wide">Экономия</span>
+            <span className="text-xs font-semibold text-gray-800 uppercase tracking-wide">CSI</span>
             <span className="text-[10px] text-gray-500 bg-gray-100 rounded px-1.5 py-0.5">
-              Цель: {settings.target}% · Вес: {settings.weight}%
+              Цель: {settings.target.toFixed(1)}/5 · Вес: {settings.weight}%
               {settings.allowBoost && <span className="ml-1 text-blue-700 font-medium">· до 130%</span>}
             </span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="flex items-center gap-0.5">
-              <button
-                onClick={() => setCurrency('UZS')}
-                className={`px-1.5 py-0.5 text-[10px] border rounded transition-colors ${
-                  currency === 'UZS' ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                UZS
-              </button>
-              <button
-                onClick={() => setCurrency('USD')}
-                className={`px-1.5 py-0.5 text-[10px] border rounded transition-colors ${
-                  currency === 'USD' ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                USD
-              </button>
-            </div>
             <div className="relative">
               <button
                 onClick={() => setShowSettings((v) => !v)}
@@ -162,7 +125,7 @@ export function KpiSavingsBlock({ data, settings, onSettingsChange, onSettingsRe
                 <Settings className="w-3.5 h-3.5" />
               </button>
               {showSettings && (
-                <KpiSavingsSettingsEditor
+                <KpiCsiSettingsEditor
                   settings={settings}
                   onChange={onSettingsChange}
                   onReset={onSettingsReset}
@@ -173,7 +136,6 @@ export function KpiSavingsBlock({ data, settings, onSettingsChange, onSettingsRe
           </div>
         </div>
 
-        {/* Тело */}
         {loading && (
           <div className="px-3 py-4 text-center text-xs text-gray-400">Загрузка...</div>
         )}
@@ -189,9 +151,8 @@ export function KpiSavingsBlock({ data, settings, onSettingsChange, onSettingsRe
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
                   <th className="px-2 py-1.5 text-left font-medium text-gray-500 whitespace-nowrap">Закупщик</th>
-                  <th className="px-2 py-1.5 text-right font-medium text-gray-500 whitespace-nowrap">Бюджет</th>
-                  <th className="px-2 py-1.5 text-right font-medium text-gray-500 whitespace-nowrap">Экономия</th>
-                  <th className="px-2 py-1.5 text-right font-medium text-gray-500 whitespace-nowrap">% эк.</th>
+                  <th className="px-2 py-1.5 text-right font-medium text-gray-500 whitespace-nowrap">Отзывов</th>
+                  <th className="px-2 py-1.5 text-right font-medium text-gray-500 whitespace-nowrap">Ср. оценка</th>
                   <th className="px-2 py-1.5 text-left font-medium text-gray-500 whitespace-nowrap min-w-[120px]">
                     Выполнение KPI
                   </th>
@@ -199,11 +160,8 @@ export function KpiSavingsBlock({ data, settings, onSettingsChange, onSettingsRe
                 </tr>
               </thead>
               <tbody>
-                {(() => {
-                  const maxScorePercent = settings.allowBoost ? 130 : 100;
-                  return data.map((row) => {
-                  const savPct = calcSavingsPercent(row.totalSavings, row.totalBudget);
-                  const score = calcScore(savPct, settings.target, maxScorePercent);
+                {data.map((row) => {
+                  const score = calcScore(row.avgRating, settings.target, maxScorePercent);
                   const barColor = score >= 100 ? 'bg-green-500' : score >= 70 ? 'bg-yellow-400' : 'bg-red-400';
                   const isSelected = selectedPurchaser === row.purchaser;
                   return (
@@ -220,15 +178,12 @@ export function KpiSavingsBlock({ data, settings, onSettingsChange, onSettingsRe
                         </span>
                       </td>
                       <td className="px-2 py-1.5 text-right text-gray-600 whitespace-nowrap">
-                        {formatAmount(row.totalBudget, currency)}
-                      </td>
-                      <td className="px-2 py-1.5 text-right text-gray-800 font-medium whitespace-nowrap">
-                        {formatAmount(row.totalSavings, currency)}
+                        {row.count}
                       </td>
                       <td className={`px-2 py-1.5 text-right font-semibold whitespace-nowrap ${
-                        savPct === null ? 'text-gray-400' : savPct >= settings.target ? 'text-green-600' : 'text-red-500'
+                        row.avgRating === null ? 'text-gray-400' : row.avgRating >= settings.target ? 'text-green-600' : 'text-red-500'
                       }`}>
-                        {savPct === null ? '—' : savPct.toFixed(1) + '%'}
+                        {row.avgRating === null ? '—' : row.avgRating.toFixed(2)}
                       </td>
                       <td className="px-2 py-1.5">
                         <div className="flex items-center gap-1.5">
@@ -256,21 +211,21 @@ export function KpiSavingsBlock({ data, settings, onSettingsChange, onSettingsRe
                       </td>
                     </tr>
                   );
-                });
-                })()}
+                })}
               </tbody>
               <tfoot>
                 {(() => {
-                  const totalBudget = data.reduce((s, r) => s + r.totalBudget, 0);
-                  const totalSavings = data.reduce((s, r) => s + r.totalSavings, 0);
-                  const totalPct = totalBudget > 0 ? (totalSavings / totalBudget) * 100 : null;
+                  const validRows = data.filter((r) => r.avgRating !== null);
+                  const totalCount = data.reduce((s, r) => s + r.count, 0);
+                  const avgOverall = validRows.length > 0
+                    ? validRows.reduce((s, r) => s + (r.avgRating ?? 0), 0) / validRows.length
+                    : null;
                   return (
                     <tr className="bg-gray-50 border-t-2 border-gray-200 font-semibold">
                       <td className="px-2 py-1.5 text-gray-700 text-xs">Итого</td>
-                      <td className="px-2 py-1.5 text-right text-gray-800 whitespace-nowrap">{formatAmount(totalBudget, currency)}</td>
-                      <td className="px-2 py-1.5 text-right text-gray-800 whitespace-nowrap">{formatAmount(totalSavings, currency)}</td>
-                      <td className={`px-2 py-1.5 text-right font-semibold whitespace-nowrap ${totalPct === null ? 'text-gray-400' : totalPct >= settings.target ? 'text-green-600' : 'text-red-500'}`}>
-                        {totalPct === null ? '—' : totalPct.toFixed(1) + '%'}
+                      <td className="px-2 py-1.5 text-right text-gray-800 whitespace-nowrap">{totalCount}</td>
+                      <td className={`px-2 py-1.5 text-right font-semibold whitespace-nowrap ${avgOverall === null ? 'text-gray-400' : avgOverall >= settings.target ? 'text-green-600' : 'text-red-500'}`}>
+                        {avgOverall === null ? '—' : avgOverall.toFixed(2)}
                       </td>
                       <td colSpan={2} />
                     </tr>
@@ -282,17 +237,14 @@ export function KpiSavingsBlock({ data, settings, onSettingsChange, onSettingsRe
         )}
       </div>
 
-      {/* Панель деталей закупок */}
       {selectedPurchaser && (
         <div className="flex-1 min-w-0">
-          <KpiPurchasesPanel
+          <KpiCsiPanel
             purchaser={selectedPurchaser}
             data={details.data}
             loading={details.loading}
             error={details.error}
-            currency={currency}
             onClose={() => setSelectedPurchaser(null)}
-            onRefresh={() => details.refresh?.()}
           />
         </div>
       )}

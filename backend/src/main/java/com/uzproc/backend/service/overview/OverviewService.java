@@ -16,6 +16,8 @@ import com.uzproc.backend.repository.purchase.PurchaseRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestApprovalRepository;
 import com.uzproc.backend.repository.user.UserRepository;
 import com.uzproc.backend.service.calendar.WorkingDayService;
+import com.uzproc.backend.service.csifeedback.CsiFeedbackService;
+import com.uzproc.backend.dto.csifeedback.CsiFeedbackStatsByPurchaserDto;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestCommentService;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestService;
 import com.uzproc.backend.service.purchaseplan.PurchasePlanVersionService;
@@ -74,6 +76,7 @@ public class OverviewService {
     private final UserRepository userRepository;
     private final OverviewEkProperties overviewEkProperties;
     private final WorkingDayService workingDayService;
+    private final CsiFeedbackService csiFeedbackService;
 
     /** Подстрока способа закупки у связанной закупки для признака «Закупка у единственного источника». */
     private static final String SINGLE_SOURCE_MCC_SUBSTRING = "единственного источника";
@@ -89,7 +92,8 @@ public class OverviewService {
             PurchaseApprovalRepository purchaseApprovalRepository,
             UserRepository userRepository,
             OverviewEkProperties overviewEkProperties,
-            WorkingDayService workingDayService) {
+            WorkingDayService workingDayService,
+            CsiFeedbackService csiFeedbackService) {
         this.purchaseRequestService = purchaseRequestService;
         this.purchasePlanVersionService = purchasePlanVersionService;
         this.purchaseRequestCommentService = purchaseRequestCommentService;
@@ -101,6 +105,7 @@ public class OverviewService {
         this.userRepository = userRepository;
         this.overviewEkProperties = overviewEkProperties;
         this.workingDayService = workingDayService;
+        this.csiFeedbackService = csiFeedbackService;
     }
 
     /**
@@ -1597,6 +1602,210 @@ public class OverviewService {
         response.setMonth(month);
         response.setByPurchaser(byPurchaser);
         return response;
+    }
+
+    /**
+     * KPI SLA по закупщикам за конкретный месяц года (нарастающим итогом: январь–месяц).
+     * Учитываются завершённые закупки (purchaseCompletionDate в этом году/диапазоне месяцев),
+     * назначение на закупщика не ранее SLA_ASSIGNMENT_CUTOFF.
+     * Плановый срок SLA: 1→3, 2→7, 3→15, 4→30 рабочих дней (или явное plannedSlaDays).
+     */
+    public KpiSlaResponseDto getKpiSlaData(int year, int month) {
+        logger.info("getKpiSlaData: year={}, month={}", year, month);
+        List<OverviewSlaBlockDto> blocks = new ArrayList<>();
+        for (String statusGroup : SLA_STATUS_GROUPS) {
+            Page<PurchaseRequestDto> page = purchaseRequestService.findAll(
+                    0, 2000,
+                    null, null, null, null,
+                    null, null, null, null, null, null, null, null,
+                    null, null, true, List.of(statusGroup), false,
+                    null, null, false, year, null);
+            List<OverviewSlaRequestDto> requests = page.getContent().stream()
+                    .map(this::toOverviewSlaRequest)
+                    .collect(Collectors.toList());
+            blocks.add(new OverviewSlaBlockDto(statusGroup, requests));
+        }
+        List<OverviewSlaRequestDto> allRequests = blocks.stream()
+                .flatMap(b -> (b.getRequests() != null ? b.getRequests().stream() : java.util.stream.Stream.<OverviewSlaRequestDto>empty()))
+                .collect(Collectors.toList());
+
+        Map<String, int[]> byPurchaserAgg = new LinkedHashMap<>(); // [totalCompleted, metSla]
+        for (OverviewSlaRequestDto r : allRequests) {
+            if (r.getPurchaseCompletionDate() == null || r.getApprovalAssignmentDate() == null) continue;
+            LocalDateTime assignment = parseIsoDateTime(r.getApprovalAssignmentDate());
+            LocalDateTime completion = parseIsoDateTime(r.getPurchaseCompletionDate());
+            if (assignment == null || completion == null) continue;
+            if (assignment.isBefore(SLA_ASSIGNMENT_CUTOFF)) continue;
+            if (completion.getYear() != year) continue;
+            if (completion.getMonthValue() > month) continue;
+            String purchaser = r.getPurchaser();
+            if (purchaser == null || purchaser.trim().isEmpty()) purchaser = "Не назначен";
+            else purchaser = purchaser.trim();
+            int[] counts = byPurchaserAgg.computeIfAbsent(purchaser, k -> new int[2]);
+            counts[0]++;
+            Integer planned = r.getPlannedSlaDays();
+            if (planned == null) planned = getPlannedSlaDays(r.getComplexity());
+            if (planned != null) {
+                long factual = countWorkingDaysBetween(assignment, completion);
+                if (factual <= planned) counts[1]++;
+            }
+        }
+
+        List<KpiSlaByPurchaserDto> byPurchaser = new ArrayList<>();
+        for (Map.Entry<String, int[]> e : byPurchaserAgg.entrySet()) {
+            KpiSlaByPurchaserDto dto = new KpiSlaByPurchaserDto();
+            dto.setPurchaser(e.getKey());
+            int total = e.getValue()[0];
+            int met = e.getValue()[1];
+            dto.setTotalCompleted(total);
+            dto.setMetSla(met);
+            dto.setPercentage(total > 0 ? (met * 100.0 / total) : null);
+            byPurchaser.add(dto);
+        }
+        byPurchaser.sort((a, b) -> {
+            Double pa = a.getPercentage() != null ? a.getPercentage() : -1.0;
+            Double pb = b.getPercentage() != null ? b.getPercentage() : -1.0;
+            return pb.compareTo(pa);
+        });
+
+        KpiSlaResponseDto response = new KpiSlaResponseDto();
+        response.setYear(year);
+        response.setMonth(month);
+        response.setByPurchaser(byPurchaser);
+        return response;
+    }
+
+    /**
+     * Детали KPI SLA для конкретного закупщика за период (нарастающим итогом январь–месяц):
+     * список заявок, чьи завершения попадают в этот период, с плановым и фактическим SLA.
+     */
+    public List<KpiSlaDetailDto> getKpiSlaDetails(int year, int month, String purchaser) {
+        logger.info("getKpiSlaDetails: year={}, month={}, purchaser={}", year, month, purchaser);
+        if (purchaser == null || purchaser.isBlank()) return List.of();
+        String purchaserKey = purchaser.trim();
+
+        List<OverviewSlaBlockDto> blocks = new ArrayList<>();
+        for (String statusGroup : SLA_STATUS_GROUPS) {
+            Page<PurchaseRequestDto> page = purchaseRequestService.findAll(
+                    0, 2000,
+                    null, null, null, null,
+                    null, null, null, List.of(purchaserKey), null, null, null, null,
+                    null, null, true, List.of(statusGroup), false,
+                    null, null, false, year, null);
+            List<OverviewSlaRequestDto> requests = page.getContent().stream()
+                    .map(this::toOverviewSlaRequest)
+                    .collect(Collectors.toList());
+            blocks.add(new OverviewSlaBlockDto(statusGroup, requests));
+        }
+
+        List<KpiSlaDetailDto> result = new ArrayList<>();
+        for (OverviewSlaBlockDto block : blocks) {
+            for (OverviewSlaRequestDto r : block.getRequests()) {
+                if (r.getPurchaseCompletionDate() == null || r.getApprovalAssignmentDate() == null) continue;
+                LocalDateTime assignment = parseIsoDateTime(r.getApprovalAssignmentDate());
+                LocalDateTime completion = parseIsoDateTime(r.getPurchaseCompletionDate());
+                if (assignment == null || completion == null) continue;
+                if (assignment.isBefore(SLA_ASSIGNMENT_CUTOFF)) continue;
+                if (completion.getYear() != year) continue;
+                if (completion.getMonthValue() > month) continue;
+
+                KpiSlaDetailDto dto = new KpiSlaDetailDto();
+                dto.setId(r.getId());
+                dto.setIdPurchaseRequest(r.getIdPurchaseRequest());
+                dto.setName(r.getName());
+                dto.setStatus(r.getStatus());
+                dto.setComplexity(r.getComplexity());
+                dto.setBudgetAmount(r.getBudgetAmount());
+                Integer planned = r.getPlannedSlaDays();
+                if (planned == null) planned = getPlannedSlaDays(r.getComplexity());
+                dto.setPlannedSlaDays(planned);
+                long factual = countWorkingDaysBetween(assignment, completion);
+                dto.setFactualSlaDays((int) factual);
+                if (planned != null) {
+                    dto.setDiffDays(planned - (int) factual);
+                    dto.setMetSla(factual <= planned);
+                } else {
+                    dto.setMetSla(null);
+                }
+                dto.setApprovalAssignmentDate(r.getApprovalAssignmentDate());
+                dto.setPurchaseCompletionDate(r.getPurchaseCompletionDate());
+                result.add(dto);
+            }
+        }
+        result.sort((a, b) -> {
+            String ad = a.getPurchaseCompletionDate();
+            String bd = b.getPurchaseCompletionDate();
+            if (ad == null && bd == null) return 0;
+            if (ad == null) return 1;
+            if (bd == null) return -1;
+            return bd.compareTo(ad);
+        });
+        return result;
+    }
+
+    /**
+     * KPI CSI по закупщикам за конкретный месяц года (нарастающим итогом: январь–месяц).
+     */
+    public KpiCsiResponseDto getKpiCsiData(int year, int month) {
+        logger.info("getKpiCsiData: year={}, month={}", year, month);
+        List<CsiFeedbackStatsByPurchaserDto> stats = csiFeedbackService.getKpiStatsByPurchaserCumulative(year, month);
+        List<KpiCsiByPurchaserDto> byPurchaser = new ArrayList<>();
+        for (CsiFeedbackStatsByPurchaserDto s : stats) {
+            KpiCsiByPurchaserDto dto = new KpiCsiByPurchaserDto();
+            dto.setPurchaser(s.getPurchaser());
+            dto.setCount(s.getCount());
+            dto.setAvgRating(s.getAvgRating());
+            byPurchaser.add(dto);
+        }
+        byPurchaser.sort((a, b) -> {
+            Double ra = a.getAvgRating() != null ? a.getAvgRating() : -1.0;
+            Double rb = b.getAvgRating() != null ? b.getAvgRating() : -1.0;
+            return rb.compareTo(ra);
+        });
+        KpiCsiResponseDto response = new KpiCsiResponseDto();
+        response.setYear(year);
+        response.setMonth(month);
+        response.setByPurchaser(byPurchaser);
+        return response;
+    }
+
+    /**
+     * Детали отзывов CSI для конкретного закупщика за период (нарастающим итогом январь–месяц).
+     */
+    public List<KpiCsiDetailDto> getKpiCsiDetails(int year, int month, String purchaser) {
+        logger.info("getKpiCsiDetails: year={}, month={}, purchaser={}", year, month, purchaser);
+        List<com.uzproc.backend.entity.csifeedback.CsiFeedback> feedbacks =
+                csiFeedbackService.getKpiDetailsForPurchaser(year, month, purchaser);
+        List<KpiCsiDetailDto> result = new ArrayList<>();
+        for (com.uzproc.backend.entity.csifeedback.CsiFeedback f : feedbacks) {
+            KpiCsiDetailDto dto = new KpiCsiDetailDto();
+            dto.setId(f.getId());
+            var pr = f.getPurchaseRequest();
+            if (pr != null) {
+                dto.setPurchaseRequestId(pr.getId());
+                dto.setIdPurchaseRequest(pr.getIdPurchaseRequest());
+                String subject = pr.getPurchaseRequestSubject();
+                if (subject == null || subject.isBlank()) subject = pr.getName();
+                if (subject == null || subject.isBlank()) subject = pr.getTitle();
+                dto.setPurchaseRequestName(subject);
+            }
+            dto.setRecipient(f.getRecipient());
+            dto.setSpeedRating(f.getSpeedRating());
+            dto.setQualityRating(f.getQualityRating());
+            dto.setSatisfactionRating(f.getSatisfactionRating());
+            dto.setUzprocRating(f.getUzprocRating());
+            int n = 0;
+            double s = 0;
+            if (f.getSpeedRating() != null) { s += f.getSpeedRating(); n++; }
+            if (f.getQualityRating() != null) { s += f.getQualityRating(); n++; }
+            if (f.getSatisfactionRating() != null) { s += f.getSatisfactionRating(); n++; }
+            if (f.getUzprocRating() != null) { s += f.getUzprocRating(); n++; }
+            dto.setAvgRating(n > 0 ? s / n : null);
+            dto.setComment(f.getComment());
+            dto.setCreatedAt(f.getCreatedAt() != null ? f.getCreatedAt().format(ISO_FORMAT) : null);
+            result.add(dto);
+        }
+        return result;
     }
 
     /**

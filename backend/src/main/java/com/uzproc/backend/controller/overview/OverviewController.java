@@ -2,6 +2,10 @@ package com.uzproc.backend.controller.overview;
 
 import com.uzproc.backend.dto.contract.ContractRemarkDashboardEntryDto;
 import com.uzproc.backend.dto.contract.ContractRemarksDashboardResponseDto;
+import com.uzproc.backend.dto.overview.KpiCsiDetailDto;
+import com.uzproc.backend.dto.overview.KpiCsiResponseDto;
+import com.uzproc.backend.dto.overview.KpiSlaDetailDto;
+import com.uzproc.backend.dto.overview.KpiSlaResponseDto;
 import com.uzproc.backend.dto.overview.ApprovalPresentationDto;
 import com.uzproc.backend.dto.overview.OverviewApprovalsSummaryResponseDto;
 import com.uzproc.backend.dto.overview.OverviewApprovalsGroupedResponseDto;
@@ -76,6 +80,54 @@ public class OverviewController {
         logger.debug("KPI savings request for year={}, month={}", year, month);
         KpiSavingsResponseDto data = overviewService.getKpiSavingsData(year, month);
         return ResponseEntity.ok(data);
+    }
+
+    /**
+     * KPI SLA: % уложившихся в плановый SLA по закупщикам за месяц (нарастающим итогом январь–месяц).
+     */
+    @GetMapping("/kpi/sla")
+    public ResponseEntity<KpiSlaResponseDto> getKpiSlaData(
+            @RequestParam int year,
+            @RequestParam int month) {
+        logger.debug("KPI SLA request for year={}, month={}", year, month);
+        KpiSlaResponseDto data = overviewService.getKpiSlaData(year, month);
+        return ResponseEntity.ok(data);
+    }
+
+    /**
+     * KPI CSI: средняя оценка и количество отзывов по закупщикам за месяц (нарастающим итогом январь–месяц).
+     */
+    @GetMapping("/kpi/csi")
+    public ResponseEntity<KpiCsiResponseDto> getKpiCsiData(
+            @RequestParam int year,
+            @RequestParam int month) {
+        logger.debug("KPI CSI request for year={}, month={}", year, month);
+        KpiCsiResponseDto data = overviewService.getKpiCsiData(year, month);
+        return ResponseEntity.ok(data);
+    }
+
+    /**
+     * Детали KPI SLA для конкретного закупщика за период (нарастающим итогом январь–месяц).
+     */
+    @GetMapping("/kpi/sla/requests")
+    public ResponseEntity<List<KpiSlaDetailDto>> getKpiSlaDetails(
+            @RequestParam int year,
+            @RequestParam int month,
+            @RequestParam String purchaser) {
+        logger.debug("KPI SLA details request for year={}, month={}, purchaser={}", year, month, purchaser);
+        return ResponseEntity.ok(overviewService.getKpiSlaDetails(year, month, purchaser));
+    }
+
+    /**
+     * Детали KPI CSI для конкретного закупщика за период (нарастающим итогом январь–месяц).
+     */
+    @GetMapping("/kpi/csi/feedbacks")
+    public ResponseEntity<List<KpiCsiDetailDto>> getKpiCsiDetails(
+            @RequestParam int year,
+            @RequestParam int month,
+            @RequestParam String purchaser) {
+        logger.debug("KPI CSI details request for year={}, month={}, purchaser={}", year, month, purchaser);
+        return ResponseEntity.ok(overviewService.getKpiCsiDetails(year, month, purchaser));
     }
 
     /**

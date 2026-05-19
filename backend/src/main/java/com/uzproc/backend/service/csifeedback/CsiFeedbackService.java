@@ -282,6 +282,79 @@ public class CsiFeedbackService {
         return result;
     }
 
+    /**
+     * KPI оценки CSI по закупщикам за конкретный месяц года (нарастающим итогом: январь–месяц).
+     * Считаем средний overall rating и количество отзывов.
+     */
+    public List<CsiFeedbackStatsByPurchaserDto> getKpiStatsByPurchaserCumulative(int year, int month) {
+        LocalDateTime startOfYear = LocalDateTime.of(year, 1, 1, 0, 0);
+        // Конец указанного месяца включительно
+        int safeMonth = Math.max(1, Math.min(12, month));
+        java.time.LocalDate lastDayOfMonth = java.time.LocalDate.of(year, safeMonth, 1)
+                .withDayOfMonth(java.time.LocalDate.of(year, safeMonth, 1).lengthOfMonth());
+        LocalDateTime endOfMonth = lastDayOfMonth.atTime(23, 59, 59, 999_999_999);
+
+        Specification<CsiFeedback> spec = (root, query, cb) -> cb.between(root.get("createdAt"), startOfYear, endOfMonth);
+        List<CsiFeedback> all = csiFeedbackRepository.findAll(spec);
+        if (all.isEmpty()) {
+            return List.of();
+        }
+        Map<String, List<CsiFeedback>> byPurchaser = all.stream()
+                .collect(Collectors.groupingBy(f -> {
+                    String p = f.getPurchaseRequest().getPurchaser();
+                    return (p != null && !p.trim().isEmpty()) ? p.trim() : "—";
+                }));
+        List<CsiFeedbackStatsByPurchaserDto> result = new ArrayList<>();
+        for (Map.Entry<String, List<CsiFeedback>> e : byPurchaser.entrySet()) {
+            List<CsiFeedback> list = e.getValue();
+            int n = list.size();
+            double sum = 0;
+            int div = 0;
+            for (CsiFeedback f : list) {
+                int cnt = 0;
+                double s = 0;
+                if (f.getSpeedRating() != null) { s += f.getSpeedRating(); cnt++; }
+                if (f.getQualityRating() != null) { s += f.getQualityRating(); cnt++; }
+                if (f.getSatisfactionRating() != null) { s += f.getSatisfactionRating(); cnt++; }
+                if (f.getUzprocRating() != null) { s += f.getUzprocRating(); cnt++; }
+                if (cnt > 0) {
+                    sum += s / cnt;
+                    div++;
+                }
+            }
+            Double avgRating = div > 0 ? sum / div : null;
+            result.add(new CsiFeedbackStatsByPurchaserDto(e.getKey(), n, avgRating));
+        }
+        result.sort(Comparator.comparing(CsiFeedbackStatsByPurchaserDto::getPurchaser, Comparator.nullsLast(String::compareTo)));
+        return result;
+    }
+
+    /**
+     * Список отзывов CSI для конкретного закупщика за период (нарастающим итогом январь–месяц).
+     */
+    public List<CsiFeedback> getKpiDetailsForPurchaser(int year, int month, String purchaser) {
+        if (purchaser == null || purchaser.isBlank()) return List.of();
+        LocalDateTime startOfYear = LocalDateTime.of(year, 1, 1, 0, 0);
+        int safeMonth = Math.max(1, Math.min(12, month));
+        java.time.LocalDate lastDayOfMonth = java.time.LocalDate.of(year, safeMonth, 1)
+                .withDayOfMonth(java.time.LocalDate.of(year, safeMonth, 1).lengthOfMonth());
+        LocalDateTime endOfMonth = lastDayOfMonth.atTime(23, 59, 59, 999_999_999);
+        String purchaserKey = purchaser.trim();
+
+        Specification<CsiFeedback> spec = (root, query, cb) -> cb.and(
+                cb.between(root.get("createdAt"), startOfYear, endOfMonth),
+                cb.equal(root.get("purchaseRequest").get("purchaser"), purchaserKey)
+        );
+        List<CsiFeedback> all = csiFeedbackRepository.findAll(spec);
+        all.sort((a, b) -> {
+            if (a.getCreatedAt() == null && b.getCreatedAt() == null) return 0;
+            if (a.getCreatedAt() == null) return 1;
+            if (b.getCreatedAt() == null) return -1;
+            return b.getCreatedAt().compareTo(a.getCreatedAt());
+        });
+        return all;
+    }
+
     public CsiFeedbackDto findById(Long id) {
         CsiFeedback feedback = csiFeedbackRepository.findById(id)
                 .orElse(null);
