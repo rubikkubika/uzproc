@@ -413,8 +413,8 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             }
             
             // Создаем новый объект для парсинга данных из Excel
-            // Это позволяет не изменять существующий объект напрямую
-            PurchaseRequest pr = existingOpt.isPresent() ? new PurchaseRequest() : new PurchaseRequest();
+            // Это позволяет не изменять существующий объект напрямую (паттерн А)
+            PurchaseRequest pr = new PurchaseRequest();
             pr.setIdPurchaseRequest(requestNumber);
             
             // Парсим дату создания
@@ -721,10 +721,13 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             }
             
             String innerId = innerIdStr.trim();
-            
-            // Создаем или получаем существующую закупку
+
+            // Загружаем существующую закупку (для дальнейшего сравнения в updatePurchaseFields).
+            // Все поля из Excel парсим в ОТДЕЛЬНЫЙ новый объект `purchase`, чтобы не мутировать `existing`
+            // напрямую — иначе сравнение existing vs newData в updatePurchaseFields даст false
+            // и изменения не попадут в batch (паттерн А, как в processPurchaseRequestRow).
             Optional<Purchase> existingOpt = purchaseRepository.findByInnerId(innerId);
-            Purchase purchase = existingOpt.orElse(new Purchase());
+            Purchase purchase = new Purchase();
             purchase.setInnerId(innerId);
             
             // Дата создания (опционально)
@@ -1000,25 +1003,22 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             
             if (existingOpt.isPresent()) {
                 Purchase existing = existingOpt.get();
-                boolean updated = false;
+                boolean updated;
                 try {
                     updated = updatePurchaseFields(existing, purchase);
                 } catch (Exception e) {
-                    // Логируем ошибку, но продолжаем обработку
+                    // Логируем ошибку, но продолжаем обработку. Помечаем как обновленную,
+                    // чтобы гарантировать сохранение (часть полей могла успеть примениться).
                     logger.warn("Error updating purchase fields for {}: {}", existing.getInnerId(), e.getMessage());
-                    // Помечаем как обновленную, чтобы гарантировать сохранение
                     updated = true;
                 }
-                // ВАЖНО: Всегда добавляем существующие закупки в batch, даже если изменений нет
-                // Это гарантирует, что все обработанные закупки будут сохранены в БД
-                purchaseBatch.add(existing);
                 if (updated) {
+                    purchaseBatch.add(existing);
                     purchasesUpdated++;
-                }
-                
-                // Сохраняем batch если он заполнен
-                if (purchaseBatch.size() >= BATCH_SIZE) {
-                    flushPurchaseBatch();
+
+                    if (purchaseBatch.size() >= BATCH_SIZE) {
+                        flushPurchaseBatch();
+                    }
                 }
             } else {
                 purchaseBatch.add(purchase);
@@ -1055,10 +1055,13 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             }
             
             String innerId = innerIdStr.trim();
-            
-            // Создаем или получаем существующий договор
+
+            // Загружаем существующий договор (для дальнейшего сравнения в updateContractFields).
+            // Все поля из Excel парсим в ОТДЕЛЬНЫЙ новый объект `contract`, чтобы не мутировать `existing`
+            // напрямую — иначе сравнение existing vs newData в updateContractFields даст false
+            // и изменения никогда не попадут в batch (см. паттерн А processPurchaseRequestRow).
             Optional<Contract> existingOpt = contractRepository.findByInnerId(innerId);
-            Contract contract = existingOpt.orElse(new Contract());
+            Contract contract = new Contract();
             contract.setInnerId(innerId);
             
             // Дата создания (опционально)
