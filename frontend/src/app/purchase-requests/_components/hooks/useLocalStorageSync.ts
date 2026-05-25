@@ -318,8 +318,10 @@ export function useLocalStorageSync(params: UseLocalStorageSyncParams) {
           setPurchaserSearchQuery(savedFilters.purchaserSearchQuery);
         }
 
-        // По умолчанию всегда открываем вкладку «В работе», если она доступна (не восстанавливаем сохранённую вкладку из localStorage)
-        setActiveTab('in-work');
+        // Восстанавливаем активную вкладку из localStorage (если сохранена)
+        if (savedFilters.activeTab) {
+          setActiveTab(savedFilters.activeTab);
+        }
 
         console.log('Filters loaded from localStorage:', {
           filters: savedFilters.filters || savedFilters.localFilters || savedFilters.filtersFromHook,
