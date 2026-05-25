@@ -262,7 +262,7 @@ public class PurchaseRequestController {
             return ResponseEntity.badRequest().build();
         }
         PurchaseRequestCommentDto created = purchaseRequestCommentService.createComment(
-                id, request.getType(), request.getText(), request.getCreatedByUserId());
+                id, request.getType(), request.getText());
         if (created == null) {
             return ResponseEntity.notFound().build();
         }

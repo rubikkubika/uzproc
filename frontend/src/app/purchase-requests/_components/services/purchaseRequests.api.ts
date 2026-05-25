@@ -240,18 +240,13 @@ export async function fetchPurchaseRequestComments(
 export async function createPurchaseRequestComment(
   purchaseRequestId: number,
   type: string,
-  text: string,
-  createdByUserId?: number | null
+  text: string
 ): Promise<PurchaseRequestCommentDto> {
   const url = `${getBackendUrl()}/api/purchase-requests/${purchaseRequestId}/comments`;
-  const body: { type: string; text: string; createdByUserId?: number } = { type, text };
-  if (createdByUserId != null) {
-    body.createdByUserId = createdByUserId;
-  }
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ type, text }),
   });
   if (!response.ok) {
     throw new Error('Ошибка добавления комментария');

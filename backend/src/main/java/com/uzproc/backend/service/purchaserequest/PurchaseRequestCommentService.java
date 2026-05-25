@@ -8,6 +8,8 @@ import com.uzproc.backend.entity.user.User;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestCommentRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
 import com.uzproc.backend.repository.user.UserRepository;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -87,7 +89,7 @@ public class PurchaseRequestCommentService {
     }
 
     @Transactional
-    public PurchaseRequestCommentDto createComment(Long purchaseRequestId, PurchaseRequestCommentType type, String text, Long createdByUserId) {
+    public PurchaseRequestCommentDto createComment(Long purchaseRequestId, PurchaseRequestCommentType type, String text) {
         if (purchaseRequestId == null || type == null || text == null || text.trim().isEmpty()) {
             return null;
         }
@@ -99,11 +101,25 @@ public class PurchaseRequestCommentService {
         comment.setPurchaseRequest(request);
         comment.setType(type);
         comment.setText(text.trim());
-        if (createdByUserId != null) {
-            userRepository.findById(createdByUserId).ifPresent(comment::setCreatedBy);
-        }
+        resolveCurrentUser().ifPresent(comment::setCreatedBy);
         comment = commentRepository.save(comment);
         return toDto(comment);
+    }
+
+    private java.util.Optional<User> resolveCurrentUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getPrincipal() == null) {
+            return java.util.Optional.empty();
+        }
+        Object principal = auth.getPrincipal();
+        if (!(principal instanceof String)) {
+            return java.util.Optional.empty();
+        }
+        String email = (String) principal;
+        if (email.isBlank()) {
+            return java.util.Optional.empty();
+        }
+        return userRepository.findByEmail(email);
     }
 
     private String userDisplayName(User u) {
