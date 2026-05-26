@@ -59,8 +59,7 @@ export default function CommentsModal({
       await createPurchaseRequestComment(
         request.id,
         'MAIN',
-        newText.trim(),
-        currentUserId ?? undefined
+        newText.trim()
       );
       setNewText('');
       await loadComments();
