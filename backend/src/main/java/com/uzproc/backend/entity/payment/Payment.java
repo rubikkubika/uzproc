@@ -50,6 +50,10 @@ public class Payment {
     @Column(name = "request_status", length = 50)
     private PaymentRequestStatus requestStatus;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_type", length = 20)
+    private PaymentType paymentType;
+
     @Column(name = "planned_expense_date")
     private LocalDate plannedExpenseDate;
 
@@ -161,6 +165,14 @@ public class Payment {
 
     public void setRequestStatus(PaymentRequestStatus requestStatus) {
         this.requestStatus = requestStatus;
+    }
+
+    public PaymentType getPaymentType() {
+        return paymentType;
+    }
+
+    public void setPaymentType(PaymentType paymentType) {
+        this.paymentType = paymentType;
     }
 
     public LocalDate getPlannedExpenseDate() {

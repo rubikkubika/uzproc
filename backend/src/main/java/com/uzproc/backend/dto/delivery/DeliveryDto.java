@@ -10,6 +10,7 @@ public class DeliveryDto {
     private Long id;
     private String innerId;
     private LocalDate date;
+    private LocalDate deliveryDeadline;
     private Long contractId;
     private String contractInnerId;
     private String contractName;
@@ -19,6 +20,7 @@ public class DeliveryDto {
     private BigDecimal amount;
     private String currency;
     private String status;
+    private String statusColor;
     private String paymentScheme;
     private List<Long> paymentIds = new ArrayList<>();
     private String comment;
@@ -35,6 +37,9 @@ public class DeliveryDto {
 
     public LocalDate getDate() { return date; }
     public void setDate(LocalDate date) { this.date = date; }
+
+    public LocalDate getDeliveryDeadline() { return deliveryDeadline; }
+    public void setDeliveryDeadline(LocalDate deliveryDeadline) { this.deliveryDeadline = deliveryDeadline; }
 
     public Long getContractId() { return contractId; }
     public void setContractId(Long contractId) { this.contractId = contractId; }
@@ -62,6 +67,9 @@ public class DeliveryDto {
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+
+    public String getStatusColor() { return statusColor; }
+    public void setStatusColor(String statusColor) { this.statusColor = statusColor; }
 
     public String getPaymentScheme() { return paymentScheme; }
     public void setPaymentScheme(String paymentScheme) { this.paymentScheme = paymentScheme; }

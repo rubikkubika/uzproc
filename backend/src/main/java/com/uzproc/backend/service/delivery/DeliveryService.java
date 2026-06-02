@@ -7,8 +7,10 @@ import com.uzproc.backend.dto.payment.PaymentDto;
 import com.uzproc.backend.entity.contract.Contract;
 import com.uzproc.backend.entity.contract.ContractStatus;
 import com.uzproc.backend.entity.delivery.Delivery;
+import com.uzproc.backend.entity.delivery.DeliveryStatus;
 import com.uzproc.backend.entity.delivery.PaymentScheme;
 import com.uzproc.backend.entity.payment.Payment;
+import com.uzproc.backend.entity.payment.PaymentType;
 import com.uzproc.backend.entity.user.User;
 import com.uzproc.backend.repository.contract.ContractRepository;
 import com.uzproc.backend.repository.delivery.DeliveryRepository;
@@ -62,11 +64,12 @@ public class DeliveryService {
             String comment,
             String responsibleName,
             Integer dateYear,
-            Boolean dateNull) {
+            Boolean dateNull,
+            String paymentScheme) {
 
         Specification<Delivery> spec = buildSpecification(
                 innerId, contractInnerId, supplierName, status, currency,
-                comment, responsibleName, dateYear, dateNull);
+                comment, responsibleName, dateYear, dateNull, paymentScheme);
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
 
@@ -105,6 +108,9 @@ public class DeliveryService {
                 .orElseThrow(() -> new IllegalArgumentException("Договор не найден: id=" + request.getContractId()));
 
         Delivery delivery = new Delivery();
+        Integer maxInnerId = deliveryRepository.findMaxNumericInnerId();
+        int nextInnerId = (maxInnerId != null ? maxInnerId : 0) + 1;
+        delivery.setInnerId(String.valueOf(nextInnerId));
         delivery.setContract(contract);
         delivery.setPaymentScheme(scheme);
         if (contract.getCurrency() != null) delivery.setCurrency(contract.getCurrency());
@@ -112,23 +118,83 @@ public class DeliveryService {
         if (contract.getSuppliers() != null && !contract.getSuppliers().isEmpty()) {
             delivery.setSupplier(contract.getSuppliers().iterator().next());
         }
-
-        if (request.getPaymentIds() != null && !request.getPaymentIds().isEmpty()) {
-            List<Payment> linkedPayments = paymentRepository.findAllById(request.getPaymentIds());
-            Set<Payment> filtered = new HashSet<>();
-            for (Payment p : linkedPayments) {
-                if (p.getContract() != null && p.getContract().getId().equals(contract.getId())) {
-                    filtered.add(p);
-                }
-            }
-            delivery.setPayments(filtered);
+        if (contract.getPlannedDeliveryEndDate() != null) {
+            delivery.setDeliveryDeadline(contract.getPlannedDeliveryEndDate().toLocalDate());
         }
+
+        Set<Payment> linked = new HashSet<>();
+        applyPaymentType(request.getAdvancePaymentIds(), contract, PaymentType.ADVANCE, linked);
+        applyPaymentType(request.getFactPaymentIds(), contract, PaymentType.FACT, linked);
+        if (!linked.isEmpty()) {
+            delivery.setPayments(linked);
+        }
+
+        delivery.setStatus(resolveInitialStatus(scheme, linked));
 
         Delivery saved = deliveryRepository.save(delivery);
         logger.info("Created delivery id={} contractId={} paymentScheme={} payments={}",
                 saved.getId(), contract.getId(), scheme,
                 saved.getPayments() != null ? saved.getPayments().size() : 0);
         return toDto(saved);
+    }
+
+    /**
+     * Определяет первоначальный статус поставки.
+     * Аванс + есть авансовая оплата с paymentDate ⇒ ADVANCE_PAID.
+     * Аванс + есть авансовая оплата без paymentDate ⇒ ADVANCE_PREPARED.
+     * Иначе ⇒ PROJECT.
+     */
+    private DeliveryStatus resolveInitialStatus(PaymentScheme scheme, Set<Payment> linked) {
+        if (scheme == PaymentScheme.PREPAYMENT && linked != null && !linked.isEmpty()) {
+            boolean hasAdvance = false;
+            boolean hasPaidAdvance = false;
+            for (Payment p : linked) {
+                if (p.getPaymentType() != PaymentType.ADVANCE) continue;
+                hasAdvance = true;
+                if (p.getPaymentDate() != null) {
+                    hasPaidAdvance = true;
+                    break;
+                }
+            }
+            if (hasPaidAdvance) return DeliveryStatus.ADVANCE_PAID;
+            if (hasAdvance) return DeliveryStatus.ADVANCE_PREPARED;
+        }
+        return DeliveryStatus.PROJECT;
+    }
+
+    /**
+     * Inline-обновление поля «Срок поставки». Принимает ISO-дату или null (сброс).
+     */
+    @Transactional
+    public DeliveryDto updateDeliveryDeadline(Long id, String isoDate) {
+        Delivery delivery = deliveryRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Поставка не найдена: id=" + id));
+        if (isoDate == null || isoDate.trim().isEmpty()) {
+            delivery.setDeliveryDeadline(null);
+        } else {
+            try {
+                delivery.setDeliveryDeadline(LocalDate.parse(isoDate.trim()));
+            } catch (Exception ex) {
+                throw new IllegalArgumentException("Некорректная дата: " + isoDate);
+            }
+        }
+        Delivery saved = deliveryRepository.save(delivery);
+        logger.info("Updated delivery id={} deliveryDeadline={}", saved.getId(), saved.getDeliveryDeadline());
+        return toDto(saved);
+    }
+
+    /**
+     * Загружает указанные оплаты, проверяет принадлежность к договору, присваивает им тип и добавляет в общий набор для привязки.
+     */
+    private void applyPaymentType(List<Long> paymentIds, Contract contract, PaymentType type, Set<Payment> linkSink) {
+        if (paymentIds == null || paymentIds.isEmpty()) return;
+        List<Payment> payments = paymentRepository.findAllById(paymentIds);
+        for (Payment p : payments) {
+            if (p.getContract() == null || !contract.getId().equals(p.getContract().getId())) continue;
+            p.setPaymentType(type);
+            paymentRepository.save(p);
+            linkSink.add(p);
+        }
     }
 
     /**
@@ -167,6 +233,7 @@ public class DeliveryService {
                     }
                     dto.setBudgetAmount(c.getBudgetAmount());
                     dto.setCurrency(c.getCurrency());
+                    dto.setPaymentTerms(c.getPaymentTerms());
                     return dto;
                 })
                 .collect(Collectors.toList());
@@ -194,6 +261,7 @@ public class DeliveryService {
         }
         dto.setPaymentStatus(p.getPaymentStatus() != null ? p.getPaymentStatus().getDisplayName() : null);
         dto.setRequestStatus(p.getRequestStatus() != null ? p.getRequestStatus().getDisplayName() : null);
+        dto.setPaymentType(p.getPaymentType() != null ? p.getPaymentType().getDisplayName() : null);
         dto.setPlannedExpenseDate(p.getPlannedExpenseDate());
         dto.setPaymentDate(p.getPaymentDate());
         if (p.getExecutor() != null) {
@@ -212,7 +280,7 @@ public class DeliveryService {
     private Specification<Delivery> buildSpecification(
             String innerId, String contractInnerId, String supplierName, String status,
             String currency, String comment, String responsibleName,
-            Integer dateYear, Boolean dateNull) {
+            Integer dateYear, Boolean dateNull, String paymentScheme) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -231,7 +299,13 @@ public class DeliveryService {
             }
 
             if (status != null && !status.trim().isEmpty()) {
-                predicates.add(cb.like(cb.lower(root.get("status")), "%" + status.trim().toLowerCase() + "%"));
+                DeliveryStatus parsed = DeliveryStatus.fromDisplayName(status.trim());
+                if (parsed != null) {
+                    predicates.add(cb.equal(root.get("status"), parsed));
+                } else {
+                    // нет совпадения по displayName/name — гарантированно пустой результат
+                    predicates.add(cb.disjunction());
+                }
             }
 
             if (currency != null && !currency.trim().isEmpty()) {
@@ -259,13 +333,22 @@ public class DeliveryService {
                 predicates.add(cb.between(root.get("date"), yearStart, yearEnd));
             }
 
+            if (paymentScheme != null && !paymentScheme.trim().isEmpty()) {
+                try {
+                    PaymentScheme scheme = PaymentScheme.valueOf(paymentScheme.trim().toUpperCase());
+                    predicates.add(cb.equal(root.get("paymentScheme"), scheme));
+                } catch (IllegalArgumentException ignored) {
+                    // некорректное значение — фильтр пропускаем
+                }
+            }
+
             return cb.and(predicates.toArray(new Predicate[0]));
         };
     }
 
     private Sort buildSort(String sortBy, String sortDir) {
         if (sortBy == null || sortBy.trim().isEmpty()) {
-            sortBy = "date";
+            sortBy = "id";
         }
         if (sortDir == null || !sortDir.equalsIgnoreCase("asc")) {
             sortDir = "desc";
@@ -274,11 +357,12 @@ public class DeliveryService {
         return Sort.by(direction, sortBy);
     }
 
-    private DeliveryDto toDto(Delivery entity) {
+    public DeliveryDto toDto(Delivery entity) {
         DeliveryDto dto = new DeliveryDto();
         dto.setId(entity.getId());
         dto.setInnerId(entity.getInnerId());
         dto.setDate(entity.getDate());
+        dto.setDeliveryDeadline(entity.getDeliveryDeadline());
         if (entity.getContract() != null) {
             dto.setContractId(entity.getContract().getId());
             dto.setContractInnerId(entity.getContract().getInnerId());
@@ -291,7 +375,8 @@ public class DeliveryService {
         }
         dto.setAmount(entity.getAmount());
         dto.setCurrency(entity.getCurrency());
-        dto.setStatus(entity.getStatus());
+        dto.setStatus(entity.getStatus() != null ? entity.getStatus().getDisplayName() : null);
+        dto.setStatusColor(entity.getStatus() != null ? entity.getStatus().getColor() : null);
         dto.setPaymentScheme(entity.getPaymentScheme() != null ? entity.getPaymentScheme().name() : null);
         if (entity.getPayments() != null) {
             dto.setPaymentIds(entity.getPayments().stream().map(Payment::getId).collect(Collectors.toList()));

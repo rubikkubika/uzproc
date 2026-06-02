@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/deliveries")
@@ -35,11 +36,12 @@ public class DeliveryController {
             @RequestParam(required = false) String comment,
             @RequestParam(required = false) String responsibleName,
             @RequestParam(required = false) Integer dateYear,
-            @RequestParam(required = false) Boolean dateNull) {
+            @RequestParam(required = false) Boolean dateNull,
+            @RequestParam(required = false) String paymentScheme) {
 
         Page<DeliveryDto> deliveries = deliveryService.findAll(page, size, sortBy, sortDir,
                 innerId, contractInnerId, supplierName, status, currency, comment,
-                responsibleName, dateYear, dateNull);
+                responsibleName, dateYear, dateNull, paymentScheme);
         return ResponseEntity.ok(deliveries);
     }
 
@@ -71,5 +73,13 @@ public class DeliveryController {
     @GetMapping("/contracts/{contractId}/payments")
     public ResponseEntity<List<PaymentDto>> getPaymentsByContract(@PathVariable Long contractId) {
         return ResponseEntity.ok(deliveryService.findPaymentsByContract(contractId));
+    }
+
+    /** Inline-обновление срока поставки (ISO date или null/пусто для сброса). */
+    @PatchMapping("/{id}/delivery-deadline")
+    public ResponseEntity<DeliveryDto> updateDeliveryDeadline(@PathVariable Long id,
+                                                              @RequestBody Map<String, String> body) {
+        String date = body != null ? body.get("deliveryDeadline") : null;
+        return ResponseEntity.ok(deliveryService.updateDeliveryDeadline(id, date));
     }
 }

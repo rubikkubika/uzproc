@@ -11,6 +11,7 @@ export const useDeliveryData = () => {
     filters: Record<string, string> = {},
     dateYear: number | null = null,
     dateNull: boolean = false,
+    paymentScheme: string = '',
   ): Promise<PageResponse | null> => {
     try {
       const params = new URLSearchParams();
@@ -35,6 +36,10 @@ export const useDeliveryData = () => {
         params.append('dateNull', 'true');
       } else if (dateYear !== null) {
         params.append('dateYear', String(dateYear));
+      }
+
+      if (paymentScheme && paymentScheme.trim() !== '') {
+        params.append('paymentScheme', paymentScheme.trim());
       }
 
       const url = `${getBackendUrl()}/api/deliveries?${params.toString()}`;

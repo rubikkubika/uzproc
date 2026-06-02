@@ -13,6 +13,7 @@ interface ContractSearchResult {
   supplierName: string | null;
   budgetAmount: number | null;
   currency: string | null;
+  paymentTerms: string | null;
 }
 
 interface ContractPayment {
@@ -23,6 +24,7 @@ interface ContractPayment {
   plannedExpenseDate: string | null;
   paymentDate: string | null;
   comment: string | null;
+  paymentType: string | null;
 }
 
 type PaymentScheme = 'POSTPAYMENT' | 'PREPAYMENT';
@@ -42,6 +44,9 @@ function useDebounce<T>(value: T, delay: number): T {
   return debounced;
 }
 
+const ADVANCE_LABEL = 'Аванс';
+const FACT_LABEL = 'По факту';
+
 export default function CreateDeliveryModal({ open, onClose, onCreated }: Props) {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 400);
@@ -51,7 +56,8 @@ export default function CreateDeliveryModal({ open, onClose, onCreated }: Props)
   const [paymentScheme, setPaymentScheme] = useState<PaymentScheme | null>(null);
   const [contractPayments, setContractPayments] = useState<ContractPayment[]>([]);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
-  const [selectedPaymentIds, setSelectedPaymentIds] = useState<Set<number>>(new Set());
+  const [advancePaymentIds, setAdvancePaymentIds] = useState<Set<number>>(new Set());
+  const [factPaymentIds, setFactPaymentIds] = useState<Set<number>>(new Set());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,7 +67,8 @@ export default function CreateDeliveryModal({ open, onClose, onCreated }: Props)
     setSelectedContract(null);
     setPaymentScheme(null);
     setContractPayments([]);
-    setSelectedPaymentIds(new Set());
+    setAdvancePaymentIds(new Set());
+    setFactPaymentIds(new Set());
     setSubmitting(false);
     setError(null);
   }, []);
@@ -96,14 +103,47 @@ export default function CreateDeliveryModal({ open, onClose, onCreated }: Props)
       .finally(() => setPaymentsLoading(false));
   }, [selectedContract]);
 
-  const togglePayment = useCallback((id: number) => {
-    setSelectedPaymentIds((prev) => {
+  const toggleAdvance = useCallback((id: number) => {
+    setAdvancePaymentIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
+    setFactPaymentIds((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
   }, []);
+
+  const toggleFact = useCallback((id: number) => {
+    setFactPaymentIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    setAdvancePaymentIds((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+
+  /** Кандидаты для блока «Аванс»: всё, что не помечено как «По факту» и не выбрано в блоке «Оплаты». */
+  const advanceCandidates = useMemo(
+    () => contractPayments.filter((p) => p.paymentType !== FACT_LABEL && !factPaymentIds.has(p.id)),
+    [contractPayments, factPaymentIds]
+  );
+
+  /** Кандидаты для блока «Оплаты» (По факту): всё, что не помечено как «Аванс» и не выбрано в блоке «Аванс». */
+  const factCandidates = useMemo(
+    () => contractPayments.filter((p) => p.paymentType !== ADVANCE_LABEL && !advancePaymentIds.has(p.id)),
+    [contractPayments, advancePaymentIds]
+  );
 
   const canSubmit = useMemo(
     () => !!selectedContract && !!paymentScheme && !submitting,
@@ -121,7 +161,8 @@ export default function CreateDeliveryModal({ open, onClose, onCreated }: Props)
         body: JSON.stringify({
           contractId: selectedContract.id,
           paymentScheme,
-          paymentIds: Array.from(selectedPaymentIds),
+          advancePaymentIds: Array.from(advancePaymentIds),
+          factPaymentIds: Array.from(factPaymentIds),
         }),
       });
       if (!res.ok) {
@@ -138,6 +179,77 @@ export default function CreateDeliveryModal({ open, onClose, onCreated }: Props)
   };
 
   if (!open) return null;
+
+  const renderPaymentsTable = (
+    items: ContractPayment[],
+    selectedIds: Set<number>,
+    onToggle: (id: number) => void,
+    emptyText: string,
+  ) => {
+    if (paymentsLoading) {
+      return (
+        <div className="text-xs text-gray-400 px-3 py-3 text-center border border-gray-200 rounded">
+          Загрузка...
+        </div>
+      );
+    }
+    if (items.length === 0) {
+      return (
+        <div className="text-xs text-gray-400 px-3 py-3 text-center border border-gray-200 rounded">
+          {emptyText}
+        </div>
+      );
+    }
+    return (
+      <div className="border border-gray-200 rounded max-h-56 overflow-auto">
+        <table className="w-full text-xs">
+          <thead className="bg-gray-50 sticky top-0">
+            <tr>
+              <th className="px-2 py-1.5 w-8" />
+              <th className="px-2 py-1.5 text-left font-medium text-gray-500">№</th>
+              <th className="px-2 py-1.5 text-right font-medium text-gray-500">Сумма</th>
+              <th className="px-2 py-1.5 text-left font-medium text-gray-500">Тип</th>
+              <th className="px-2 py-1.5 text-left font-medium text-gray-500">Статус оплаты</th>
+              <th className="px-2 py-1.5 text-left font-medium text-gray-500">Дата оплаты</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((p) => {
+              const checked = selectedIds.has(p.id);
+              return (
+                <tr
+                  key={p.id}
+                  className={`border-t border-gray-100 cursor-pointer ${checked ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                  onClick={() => onToggle(p.id)}
+                >
+                  <td className="px-2 py-1 text-center">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => onToggle(p.id)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </td>
+                  <td className="px-2 py-1 text-gray-800">{p.mainId ?? '—'}</td>
+                  <td className="px-2 py-1 text-right text-gray-800 tabular-nums">
+                    {p.amount != null
+                      ? Number(p.amount).toLocaleString('ru-RU', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })
+                      : '—'}
+                  </td>
+                  <td className="px-2 py-1 text-gray-700">{p.paymentType ?? '—'}</td>
+                  <td className="px-2 py-1 text-gray-700">{p.paymentStatus ?? '—'}</td>
+                  <td className="px-2 py-1 text-gray-700">{p.paymentDate ?? '—'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
 
   return (
     <div
@@ -181,7 +293,8 @@ export default function CreateDeliveryModal({ open, onClose, onCreated }: Props)
                 <button
                   onClick={() => {
                     setSelectedContract(null);
-                    setSelectedPaymentIds(new Set());
+                    setAdvancePaymentIds(new Set());
+                    setFactPaymentIds(new Set());
                   }}
                   className="px-2 py-1 text-xs text-blue-700 hover:bg-blue-100 rounded"
                 >
@@ -251,72 +364,53 @@ export default function CreateDeliveryModal({ open, onClose, onCreated }: Props)
                       : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                   }`}
                 >
-                  {scheme === 'POSTPAYMENT' ? 'Постоплата' : 'Предоплата'}
+                  {scheme === 'POSTPAYMENT' ? FACT_LABEL : ADVANCE_LABEL}
                 </button>
               ))}
             </div>
           </section>
 
-          {/* Шаг 3: оплаты */}
+          {/* Условия оплаты из договора */}
+          {selectedContract && paymentScheme && (
+            <section>
+              <h3 className="text-xs font-semibold text-gray-700 mb-1.5">
+                Условия оплаты из договора
+              </h3>
+              <div className="text-xs text-gray-800 bg-gray-50 border border-gray-200 rounded p-2 whitespace-pre-wrap break-words">
+                {selectedContract.paymentTerms?.trim()
+                  ? selectedContract.paymentTerms
+                  : <span className="text-gray-400">Условия оплаты в договоре не указаны</span>}
+              </div>
+            </section>
+          )}
+
+          {/* Шаг 3a: Аванс (только при выборе «Аванс») */}
+          {selectedContract && paymentScheme === 'PREPAYMENT' && (
+            <section>
+              <h3 className="text-xs font-semibold text-gray-700 mb-1.5">
+                3. Аванс <span className="text-gray-400 font-normal">(присвоить тип «Аванс»)</span>
+              </h3>
+              {renderPaymentsTable(
+                advanceCandidates,
+                advancePaymentIds,
+                toggleAdvance,
+                'Нет доступных оплат для типа «Аванс»',
+              )}
+            </section>
+          )}
+
+          {/* Шаг 3b: Оплаты (По факту) */}
           {selectedContract && (
             <section>
               <h3 className="text-xs font-semibold text-gray-700 mb-1.5">
-                3. Привязать оплаты <span className="text-gray-400 font-normal">(опционально)</span>
+                {paymentScheme === 'PREPAYMENT' ? '4. Оплаты' : '3. Оплаты'}{' '}
+                <span className="text-gray-400 font-normal">(присвоить тип «По факту»)</span>
               </h3>
-              {paymentsLoading ? (
-                <div className="text-xs text-gray-400 px-3 py-3 text-center border border-gray-200 rounded">
-                  Загрузка...
-                </div>
-              ) : contractPayments.length === 0 ? (
-                <div className="text-xs text-gray-400 px-3 py-3 text-center border border-gray-200 rounded">
-                  К выбранному договору не привязано оплат
-                </div>
-              ) : (
-                <div className="border border-gray-200 rounded max-h-56 overflow-auto">
-                  <table className="w-full text-xs">
-                    <thead className="bg-gray-50 sticky top-0">
-                      <tr>
-                        <th className="px-2 py-1.5 w-8" />
-                        <th className="px-2 py-1.5 text-left font-medium text-gray-500">№</th>
-                        <th className="px-2 py-1.5 text-right font-medium text-gray-500">Сумма</th>
-                        <th className="px-2 py-1.5 text-left font-medium text-gray-500">Статус оплаты</th>
-                        <th className="px-2 py-1.5 text-left font-medium text-gray-500">Дата оплаты</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {contractPayments.map((p) => {
-                        const checked = selectedPaymentIds.has(p.id);
-                        return (
-                          <tr
-                            key={p.id}
-                            className={`border-t border-gray-100 cursor-pointer ${checked ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
-                            onClick={() => togglePayment(p.id)}
-                          >
-                            <td className="px-2 py-1 text-center">
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => togglePayment(p.id)}
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            </td>
-                            <td className="px-2 py-1 text-gray-800">{p.mainId ?? '—'}</td>
-                            <td className="px-2 py-1 text-right text-gray-800 tabular-nums">
-                              {p.amount != null
-                                ? Number(p.amount).toLocaleString('ru-RU', {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2,
-                                  })
-                                : '—'}
-                            </td>
-                            <td className="px-2 py-1 text-gray-700">{p.paymentStatus ?? '—'}</td>
-                            <td className="px-2 py-1 text-gray-700">{p.paymentDate ?? '—'}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+              {renderPaymentsTable(
+                factCandidates,
+                factPaymentIds,
+                toggleFact,
+                'Нет доступных оплат для типа «По факту»',
               )}
             </section>
           )}

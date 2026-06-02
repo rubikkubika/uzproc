@@ -16,6 +16,8 @@ export interface Payment {
   paymentStatus: string | null;
   /** Статус заявки: На согласовании, Отклонен, Утвержден, Черновик */
   requestStatus: string | null;
+  /** Тип оплаты: Аванс / По факту */
+  paymentType: string | null;
   /** Дата расхода (план) */
   plannedExpenseDate: string | null;
   /** Дата оплаты */
@@ -33,6 +35,9 @@ export const PAYMENT_STATUS_OPTIONS = ['К оплате', 'Оплата возв
 
 /** Значения для фильтра «Статус заявки» */
 export const REQUEST_STATUS_OPTIONS = ['На согласовании', 'Отклонен', 'Утвержден', 'Черновик'] as const;
+
+/** Значения для столбца «Тип оплаты» */
+export const PAYMENT_TYPE_OPTIONS = ['Аванс', 'По факту'] as const;
 
 export interface PageResponse {
   content: Payment[];

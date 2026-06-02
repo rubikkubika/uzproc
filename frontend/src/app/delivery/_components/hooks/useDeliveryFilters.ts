@@ -12,10 +12,18 @@ const INITIAL_FILTERS: Record<string, string> = {
   responsibleName: '',
 };
 
+export type PaymentSchemeFilterValue = '' | 'POSTPAYMENT' | 'PREPAYMENT';
+
 export const useDeliveryFilters = (setCurrentPage: (page: number) => void) => {
   const [localFilters, setLocalFilters] = useState<Record<string, string>>({ ...INITIAL_FILTERS });
   const [filters, setFilters] = useState<Record<string, string>>({ ...INITIAL_FILTERS });
   const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [paymentSchemeFilter, setPaymentSchemeFilterState] = useState<PaymentSchemeFilterValue>('');
+
+  const setPaymentSchemeFilter = useCallback((value: PaymentSchemeFilterValue) => {
+    setPaymentSchemeFilterState(value);
+    setCurrentPage(0);
+  }, [setCurrentPage]);
 
   const handleFilterChange = useCallback((field: string, value: string) => {
     setLocalFilters(prev => ({ ...prev, [field]: value }));
@@ -39,5 +47,7 @@ export const useDeliveryFilters = (setCurrentPage: (page: number) => void) => {
     focusedField,
     setFocusedField,
     handleFilterChange,
+    paymentSchemeFilter,
+    setPaymentSchemeFilter,
   };
 };

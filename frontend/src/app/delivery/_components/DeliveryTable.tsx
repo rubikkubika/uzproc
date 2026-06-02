@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { ArrowUp, ArrowDown, ArrowUpDown, Plus } from 'lucide-react';
 import { useDeliveryTable } from './hooks/useDeliveryTable';
 import type { SortField } from './types/delivery.types';
+import { PAYMENT_SCHEME_LABELS, STATUS_BADGE_CLASSES } from './types/delivery.types';
+import type { PaymentSchemeFilterValue } from './hooks/useDeliveryFilters';
 import CreateDeliveryModal from './ui/CreateDeliveryModal';
 
 export default function DeliveryTable() {
@@ -27,6 +29,7 @@ export default function DeliveryTable() {
     handleShowNoDate,
     handleShowAll,
     reload,
+    updateDeliveryDeadline,
   } = useDeliveryTable();
 
   if (error) {
@@ -36,13 +39,6 @@ export default function DeliveryTable() {
       </div>
     );
   }
-
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return '-';
-    const d = new Date(dateStr + 'T00:00:00');
-    if (Number.isNaN(d.getTime())) return dateStr;
-    return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  };
 
   const renderFilterInput = (field: string, placeholder: string = 'Фильтр') => (
     <input
@@ -88,17 +84,39 @@ export default function DeliveryTable() {
     </button>
   );
 
-  const columns = [
-    { field: 'innerId', label: '№', width: '7%', hasFilter: true, hasSort: true },
-    { field: 'date', label: 'Дата', width: '8%', hasFilter: false, hasSort: true },
-    { field: 'contractInnerId', label: 'Договор', width: '10%', hasFilter: true, hasSort: false },
-    { field: 'supplierName', label: 'Поставщик', width: '14%', hasFilter: true, hasSort: false },
-    { field: 'amount', label: 'Сумма', width: '10%', hasFilter: false, hasSort: true },
-    { field: 'currency', label: 'Валюта', width: '6%', hasFilter: true, hasSort: false },
-    { field: 'status', label: 'Статус', width: '10%', hasFilter: true, hasSort: false },
-    { field: 'comment', label: 'Комментарий', width: '15%', hasFilter: true, hasSort: false },
-    { field: 'responsibleName', label: 'Ответственный', width: '10%', hasFilter: true, hasSort: false },
+  const columns: Array<{
+    field: string;
+    label: string;
+    width: string;
+    hasFilter: boolean;
+    hasSort: boolean;
+    filterKind?: 'text' | 'paymentScheme';
+  }> = [
+    { field: 'innerId', label: '№', width: '5%', hasFilter: true, hasSort: true, filterKind: 'text' },
+    { field: 'deliveryDeadline', label: 'Срок поставки', width: '9%', hasFilter: false, hasSort: true },
+    { field: 'contractInnerId', label: 'Договор', width: '10%', hasFilter: true, hasSort: false, filterKind: 'text' },
+    { field: 'supplierName', label: 'Поставщик', width: '13%', hasFilter: true, hasSort: false, filterKind: 'text' },
+    { field: 'amount', label: 'Сумма', width: '9%', hasFilter: false, hasSort: true },
+    { field: 'currency', label: 'Валюта', width: '5%', hasFilter: true, hasSort: false, filterKind: 'text' },
+    { field: 'paymentScheme', label: 'Схема оплаты', width: '9%', hasFilter: true, hasSort: false, filterKind: 'paymentScheme' },
+    { field: 'status', label: 'Статус', width: '9%', hasFilter: true, hasSort: false, filterKind: 'text' },
+    { field: 'comment', label: 'Комментарий', width: '13%', hasFilter: true, hasSort: false, filterKind: 'text' },
+    { field: 'responsibleName', label: 'Ответственный', width: '9%', hasFilter: true, hasSort: false, filterKind: 'text' },
   ];
+
+  const renderPaymentSchemeFilter = () => (
+    <select
+      value={filters.paymentSchemeFilter}
+      onChange={(e) => filters.setPaymentSchemeFilter(e.target.value as PaymentSchemeFilterValue)}
+      onClick={(e) => e.stopPropagation()}
+      className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 w-full"
+      style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+    >
+      <option value="">Все</option>
+      <option value="PREPAYMENT">Аванс</option>
+      <option value="POSTPAYMENT">По факту</option>
+    </select>
+  );
 
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
@@ -172,7 +190,11 @@ export default function DeliveryTable() {
                 >
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
-                      {col.hasFilter ? renderFilterInput(col.field) : null}
+                      {col.hasFilter
+                        ? col.filterKind === 'paymentScheme'
+                          ? renderPaymentSchemeFilter()
+                          : renderFilterInput(col.field)
+                        : null}
                     </div>
                     <div className="flex items-center gap-1 min-h-[20px]">
                       {col.hasSort && renderSortButton(col.field)}
@@ -203,7 +225,13 @@ export default function DeliveryTable() {
                     <span className="truncate block" title={item.innerId ?? undefined}>{item.innerId ?? '-'}</span>
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
-                    <span className="truncate block">{formatDate(item.date)}</span>
+                    <input
+                      type="date"
+                      value={item.deliveryDeadline ?? ''}
+                      onChange={(e) => updateDeliveryDeadline(item.id, e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-full text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
                     <span className="truncate block" title={item.contractInnerId ?? undefined}>
@@ -222,7 +250,21 @@ export default function DeliveryTable() {
                     <span className="truncate block">{item.currency ?? '-'}</span>
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
-                    <span className="truncate block" title={item.status ?? undefined}>{item.status ?? '-'}</span>
+                    <span className="truncate block">
+                      {item.paymentScheme ? PAYMENT_SCHEME_LABELS[item.paymentScheme] : '-'}
+                    </span>
+                  </td>
+                  <td className="px-2 py-2 text-xs border-r border-gray-300 overflow-hidden min-w-0">
+                    {item.status ? (
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${STATUS_BADGE_CLASSES[item.statusColor ?? 'gray'] ?? STATUS_BADGE_CLASSES.gray}`}
+                        title={item.status}
+                      >
+                        {item.status}
+                      </span>
+                    ) : (
+                      <span className="text-gray-500">-</span>
+                    )}
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
                     <span className="line-clamp-2 block min-w-0" title={item.comment ?? undefined}>{item.comment ?? '-'}</span>

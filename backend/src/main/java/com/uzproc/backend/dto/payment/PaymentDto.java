@@ -22,6 +22,8 @@ public class PaymentDto {
     private String paymentStatus;
     /** Статус заявки: На согласовании, Отклонен, Утвержден, Черновик */
     private String requestStatus;
+    /** Тип оплаты: Аванс, По факту */
+    private String paymentType;
     private LocalDate plannedExpenseDate;
     private LocalDate paymentDate;
     private Long executorId;
@@ -128,6 +130,14 @@ public class PaymentDto {
 
     public void setRequestStatus(String requestStatus) {
         this.requestStatus = requestStatus;
+    }
+
+    public String getPaymentType() {
+        return paymentType;
+    }
+
+    public void setPaymentType(String paymentType) {
+        this.paymentType = paymentType;
     }
 
     public LocalDate getPlannedExpenseDate() {

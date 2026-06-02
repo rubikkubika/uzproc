@@ -28,6 +28,9 @@ public class Delivery {
     @Column(name = "date")
     private LocalDate date;
 
+    @Column(name = "delivery_deadline")
+    private LocalDate deliveryDeadline;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "contract_id")
     private Contract contract;
@@ -42,8 +45,9 @@ public class Delivery {
     @Column(name = "currency", length = 10)
     private String currency;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "status", length = 50)
-    private String status;
+    private DeliveryStatus status;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_scheme", length = 20)
@@ -83,6 +87,9 @@ public class Delivery {
     public LocalDate getDate() { return date; }
     public void setDate(LocalDate date) { this.date = date; }
 
+    public LocalDate getDeliveryDeadline() { return deliveryDeadline; }
+    public void setDeliveryDeadline(LocalDate deliveryDeadline) { this.deliveryDeadline = deliveryDeadline; }
+
     public Contract getContract() { return contract; }
     public void setContract(Contract contract) { this.contract = contract; }
 
@@ -95,8 +102,8 @@ public class Delivery {
     public String getCurrency() { return currency; }
     public void setCurrency(String currency) { this.currency = currency; }
 
-    public String getStatus() { return status; }
-    public void setStatus(String status) { this.status = status; }
+    public DeliveryStatus getStatus() { return status; }
+    public void setStatus(DeliveryStatus status) { this.status = status; }
 
     public PaymentScheme getPaymentScheme() { return paymentScheme; }
     public void setPaymentScheme(PaymentScheme paymentScheme) { this.paymentScheme = paymentScheme; }

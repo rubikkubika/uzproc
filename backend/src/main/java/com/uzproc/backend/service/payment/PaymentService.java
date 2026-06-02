@@ -4,6 +4,7 @@ import com.uzproc.backend.dto.payment.PaymentDto;
 import com.uzproc.backend.entity.payment.Payment;
 import com.uzproc.backend.entity.payment.PaymentRequestStatus;
 import com.uzproc.backend.entity.payment.PaymentStatus;
+import com.uzproc.backend.entity.payment.PaymentType;
 import com.uzproc.backend.entity.user.User;
 import com.uzproc.backend.repository.payment.PaymentRepository;
 import jakarta.persistence.criteria.Predicate;
@@ -66,6 +67,28 @@ public class PaymentService {
         return paymentRepository.findByContractId(contractId).stream()
                 .map(this::toDto)
                 .toList();
+    }
+
+    /**
+     * Обновляет тип оплаты у конкретной записи Payment.
+     * paymentType может быть null (сбросить), значением enum (ADVANCE/FACT) или его displayName (Аванс/По факту).
+     */
+    @Transactional
+    public PaymentDto updatePaymentType(Long id, String paymentType) {
+        Payment payment = paymentRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Оплата не найдена: id=" + id));
+        if (paymentType == null || paymentType.trim().isEmpty()) {
+            payment.setPaymentType(null);
+        } else {
+            PaymentType type = PaymentType.fromDisplayName(paymentType);
+            if (type == null) {
+                throw new IllegalArgumentException("Некорректное значение paymentType: " + paymentType);
+            }
+            payment.setPaymentType(type);
+        }
+        Payment saved = paymentRepository.save(payment);
+        logger.info("Updated payment id={} paymentType={}", saved.getId(), saved.getPaymentType());
+        return toDto(saved);
     }
 
     private Specification<Payment> buildSpecification(List<String> cfo, String mainId, String comment, Boolean linkedOnly,
@@ -158,6 +181,7 @@ public class PaymentService {
         }
         dto.setPaymentStatus(entity.getPaymentStatus() != null ? entity.getPaymentStatus().getDisplayName() : null);
         dto.setRequestStatus(entity.getRequestStatus() != null ? entity.getRequestStatus().getDisplayName() : null);
+        dto.setPaymentType(entity.getPaymentType() != null ? entity.getPaymentType().getDisplayName() : null);
         dto.setPlannedExpenseDate(entity.getPlannedExpenseDate());
         dto.setPaymentDate(entity.getPaymentDate());
         if (entity.getExecutor() != null) {

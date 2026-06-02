@@ -4,6 +4,7 @@ import { PAGE_SIZE } from '../constants/delivery.constants';
 import { useDeliveryFilters } from './useDeliveryFilters';
 import { useDeliveryData } from './useDeliveryData';
 import { useInfiniteScroll } from './useInfiniteScroll';
+import { getBackendUrl } from '@/utils/api';
 
 export const useDeliveryTable = () => {
   const [data, setData] = useState<PageResponse | null>(null);
@@ -14,13 +15,13 @@ export const useDeliveryTable = () => {
   const [currentPage, setCurrentPage] = useState(0);
   const [reloadKey, setReloadKey] = useState(0);
   const pageSize = PAGE_SIZE;
-  const [sortField, setSortField] = useState<SortField>('date');
+  const [sortField, setSortField] = useState<SortField>('id');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [hasMore, setHasMore] = useState(true);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const currentYear = new Date().getFullYear();
-  const [selectedYear, setSelectedYear] = useState<number | null>(currentYear);
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [showNoDate, setShowNoDate] = useState(false);
 
   const availableYears = useMemo(() => {
@@ -36,7 +37,7 @@ export const useDeliveryTable = () => {
     if (sortField === field) {
       setSortDirection(d => (d === 'asc' ? 'desc' : 'asc'));
     } else {
-      setSortField(field ?? 'date');
+      setSortField(field ?? 'id');
       setSortDirection('asc');
     }
     setCurrentPage(0);
@@ -67,10 +68,11 @@ export const useDeliveryTable = () => {
     };
     filtersHook.setFilters(empty);
     filtersHook.setLocalFilters(empty);
-    setSelectedYear(currentYear);
+    filtersHook.setPaymentSchemeFilter('');
+    setSelectedYear(null);
     setShowNoDate(false);
     setCurrentPage(0);
-  }, [filtersHook, currentYear]);
+  }, [filtersHook]);
 
   const fetchData = useCallback(async (
     page: number,
@@ -81,6 +83,7 @@ export const useDeliveryTable = () => {
     append: boolean,
     year: number | null,
     noDate: boolean,
+    paymentScheme: string,
   ) => {
     if (append) {
       setLoadingMore(true);
@@ -90,7 +93,7 @@ export const useDeliveryTable = () => {
     }
     setError(null);
     try {
-      const result = await dataHook.fetchData(page, size, sortF, sortDir, filters, year, noDate);
+      const result = await dataHook.fetchData(page, size, sortF, sortDir, filters, year, noDate, paymentScheme);
       const items = result?.content ?? [];
       if (append) {
         setAllItems(prev => [...prev, ...items]);
@@ -110,22 +113,39 @@ export const useDeliveryTable = () => {
   }, [dataHook.fetchData]);
 
   const filtersStr = useMemo(() => JSON.stringify(filtersHook.filters), [filtersHook.filters]);
+  const paymentSchemeFilter = filtersHook.paymentSchemeFilter;
 
   useEffect(() => {
     setCurrentPage(0);
-    fetchData(0, pageSize, sortField, sortDirection, filtersHook.filters, false, selectedYear, showNoDate);
-  }, [sortField, sortDirection, filtersStr, fetchData, pageSize, selectedYear, showNoDate, reloadKey]); // eslint-disable-line react-hooks/exhaustive-deps
+    fetchData(0, pageSize, sortField, sortDirection, filtersHook.filters, false, selectedYear, showNoDate, paymentSchemeFilter);
+  }, [sortField, sortDirection, filtersStr, fetchData, pageSize, selectedYear, showNoDate, paymentSchemeFilter, reloadKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const reload = useCallback(() => setReloadKey((k) => k + 1), []);
+
+  const updateDeliveryDeadline = useCallback(async (id: number, newDate: string) => {
+    const prev = allItems;
+    setAllItems(items => items.map(it => (it.id === id ? { ...it, deliveryDeadline: newDate || null } : it)));
+    try {
+      const res = await fetch(`${getBackendUrl()}/api/deliveries/${id}/delivery-deadline`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deliveryDeadline: newDate }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (err) {
+      console.error('Не удалось обновить срок поставки:', err);
+      setAllItems(prev);
+    }
+  }, [allItems]);
 
   useInfiniteScroll(loadMoreRef, {
     enabled: !loading && !loadingMore && hasMore && allItems.length > 0,
     onLoadMore: useCallback(() => {
       if (hasMore && !loadingMore && allItems.length > 0) {
         const nextPage = currentPage + 1;
-        fetchData(nextPage, pageSize, sortField, sortDirection, filtersHook.filters, true, selectedYear, showNoDate);
+        fetchData(nextPage, pageSize, sortField, sortDirection, filtersHook.filters, true, selectedYear, showNoDate, paymentSchemeFilter);
       }
-    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, sortField, sortDirection, filtersHook.filters, fetchData, selectedYear, showNoDate]),
+    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, sortField, sortDirection, filtersHook.filters, fetchData, selectedYear, showNoDate, paymentSchemeFilter]),
     threshold: 0.1,
   });
 
@@ -151,5 +171,6 @@ export const useDeliveryTable = () => {
     handleShowNoDate,
     handleShowAll,
     reload,
+    updateDeliveryDeadline,
   };
 };

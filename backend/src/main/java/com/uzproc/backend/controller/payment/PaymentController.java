@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/payments")
@@ -48,5 +49,14 @@ public class PaymentController {
     public ResponseEntity<List<PaymentDto>> getByContractId(@PathVariable Long contractId) {
         List<PaymentDto> payments = paymentService.findByContractId(contractId);
         return ResponseEntity.ok(payments);
+    }
+
+    /** Inline-обновление поля Тип оплаты (Аванс / По факту / null). */
+    @PatchMapping("/{id}/payment-type")
+    public ResponseEntity<PaymentDto> updatePaymentType(@PathVariable Long id,
+                                                        @RequestBody Map<String, String> body) {
+        String paymentType = body != null ? body.get("paymentType") : null;
+        PaymentDto updated = paymentService.updatePaymentType(id, paymentType);
+        return ResponseEntity.ok(updated);
     }
 }

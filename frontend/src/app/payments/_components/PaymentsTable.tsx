@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { ArrowUp, ArrowDown, ArrowUpDown, Search, Settings } from 'lucide-react';
 import { usePaymentsTable } from './hooks/usePaymentsTable';
-import { PAYMENT_STATUS_OPTIONS, REQUEST_STATUS_OPTIONS } from './types/payments.types';
+import { PAYMENT_STATUS_OPTIONS, REQUEST_STATUS_OPTIONS, PAYMENT_TYPE_OPTIONS } from './types/payments.types';
 
 export default function PaymentsTable() {
   const {
@@ -19,6 +19,7 @@ export default function PaymentsTable() {
     handleResetFilters,
     filters,
     loadMoreRef,
+    updatePaymentType,
   } = usePaymentsTable();
 
   if (error) {
@@ -246,6 +247,14 @@ export default function PaymentsTable() {
                     </div>
                   </div>
                 </th>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '9%' }}>
+                  <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                    <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }} />
+                    <div className="flex items-center gap-1 min-h-[20px]">
+                      <span className="text-xs font-medium text-gray-500 tracking-wider">Тип оплаты</span>
+                    </div>
+                  </div>
+                </th>
                 <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '18%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
@@ -388,7 +397,7 @@ export default function PaymentsTable() {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={12} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={13} className="px-6 py-8 text-center text-gray-500">
                     Загрузка...
                   </td>
                 </tr>
@@ -443,6 +452,19 @@ export default function PaymentsTable() {
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 min-w-0 w-[12%]" title={payment.amount != null ? new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(payment.amount) : undefined}>
                     <span className="block">{formatAmount(payment.amount)}</span>
+                  </td>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 min-w-0 w-[9%]">
+                    <select
+                      value={payment.paymentType ?? ''}
+                      onChange={(e) => updatePaymentType(payment.id, e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-full text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value="">—</option>
+                      {PAYMENT_TYPE_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 min-w-0 w-[18%]">
                     <span className="block" title={payment.cfo ?? undefined}>

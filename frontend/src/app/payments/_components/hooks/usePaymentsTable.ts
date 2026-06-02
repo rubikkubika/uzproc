@@ -5,6 +5,7 @@ import { usePaymentsFilters } from './usePaymentsFilters';
 import { usePaymentsData } from './usePaymentsData';
 import { useClickOutside } from './useClickOutside';
 import { useInfiniteScroll } from './useInfiniteScroll';
+import { getBackendUrl } from '@/utils/api';
 
 export const usePaymentsTable = () => {
   const [data, setData] = useState<PageResponse | null>(null);
@@ -125,6 +126,22 @@ export const usePaymentsTable = () => {
     pageSize,
   ]);
 
+  const updatePaymentType = useCallback(async (id: number, newType: string) => {
+    const prevItems = allItems;
+    setAllItems(items => items.map(it => (it.id === id ? { ...it, paymentType: newType || null } : it)));
+    try {
+      const res = await fetch(`${getBackendUrl()}/api/payments/${id}/payment-type`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paymentType: newType }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (err) {
+      console.error('Не удалось обновить тип оплаты:', err);
+      setAllItems(prevItems);
+    }
+  }, [allItems]);
+
   useInfiniteScroll(loadMoreRef, {
     enabled: !loading && !loadingMore && hasMore && allItems.length > 0,
     onLoadMore: useCallback(() => {
@@ -162,5 +179,6 @@ export const usePaymentsTable = () => {
     handleResetFilters,
     filters: filtersHook,
     loadMoreRef,
+    updatePaymentType,
   };
 };
