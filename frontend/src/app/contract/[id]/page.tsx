@@ -375,9 +375,9 @@ export default function ContractDetailPage() {
                   <div className="bg-white rounded-lg shadow-sm p-4">
                     <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Плановые сроки поставки</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
-                      <InfoField label="Срок действия (план)" value={formatDate(contract.plannedDeliveryStartDate)} />
+                      <InfoField label="Начало поставки (план)" value={formatDate(contract.plannedDeliveryStartDate)} />
                       <div>
-                        <dt className="text-xs text-gray-500">Окончание</dt>
+                        <dt className="text-xs text-gray-500">Срок поставки (план)</dt>
                         <dd className="text-sm text-gray-900 mt-0.5">{formatDate(contract.plannedDeliveryEndDate)}</dd>
                         {contract.plannedDeliveryEndDate && (() => {
                           const endDate = new Date(contract.plannedDeliveryEndDate);

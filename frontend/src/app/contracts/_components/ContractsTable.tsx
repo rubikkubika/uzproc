@@ -85,7 +85,7 @@ export default function ContractsTable() {
   } = useContractsTable();
 
   const filteredItems = filters.expiryStatusFilter
-    ? allItems.filter(c => getExpiryStatus(c.plannedDeliveryStartDate, c.status) === filters.expiryStatusFilter)
+    ? allItems.filter(c => getExpiryStatus(c.plannedDeliveryEndDate, c.status) === filters.expiryStatusFilter)
     : allItems;
 
   const isTabWithPreparedBy = filters.activeTab === 'in-work' || filters.activeTab === 'not-coordinated' || filters.activeTab === 'signed';
@@ -481,7 +481,7 @@ export default function ContractsTable() {
                   <>{renderSortButton('contractCreationDate')}<span>Дата создания</span></>
                 )}
               </th>
-              {/* Срок действия (план) */}
+              {/* Срок поставки (план) */}
               <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '7%' }}>
                 {thInner(
                   <select
@@ -493,7 +493,7 @@ export default function ContractsTable() {
                   >
                     {EXPIRY_STATUS_OPTIONS.map(opt => <option key={opt.key} value={opt.key}>{opt.label}</option>)}
                   </select>,
-                  <>{renderSortButton('plannedDeliveryStartDate')}<span>Срок действия (план)</span></>
+                  <>{renderSortButton('plannedDeliveryEndDate')}<span>Срок поставки (план)</span></>
                 )}
               </th>
               {/* Статус */}
@@ -601,11 +601,11 @@ export default function ContractsTable() {
                       {contract.contractCreationDate ? new Date(contract.contractCreationDate).toLocaleDateString('ru-RU') : '-'}
                     </td>
                     <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300">
-                      {contract.plannedDeliveryStartDate ? (
+                      {contract.plannedDeliveryEndDate ? (
                         <div className="flex flex-col gap-0.5">
-                          <span>{new Date(contract.plannedDeliveryStartDate).toLocaleDateString('ru-RU')}</span>
+                          <span>{new Date(contract.plannedDeliveryEndDate).toLocaleDateString('ru-RU')}</span>
                           {(() => {
-                            const s = getExpiryStatus(contract.plannedDeliveryStartDate, contract.status);
+                            const s = getExpiryStatus(contract.plannedDeliveryEndDate, contract.status);
                             if (s === 'expired') return <span className="inline-block px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-red-100 text-red-700">Истёк</span>;
                             if (s === 'expiring') return <span className="inline-block px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-yellow-100 text-yellow-700">Истекает</span>;
                             if (s === 'active') return <span className="inline-block px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-green-100 text-green-700">Действует</span>;
