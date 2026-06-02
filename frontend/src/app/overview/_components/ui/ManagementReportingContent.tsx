@@ -5,10 +5,12 @@ import { Star } from 'lucide-react';
 import { getBackendUrl } from '@/utils/api';
 import { SlaCombinedChart } from './SlaCombinedChart';
 import { ManagementReportingFeedbackGrid } from './ManagementReportingFeedbackGrid';
-import { ManagementReportingNew } from './ManagementReportingNew';
 import { useOverviewSavingsData } from '../hooks/useOverviewSavingsData';
 import { useManagementReportingPdf } from '../hooks/useManagementReportingPdf';
 import type { OverviewSlaPercentageByMonth } from '../hooks/useOverviewSlaData';
+
+type ManagementReportingTab = 'purchases' | 'contracts';
+const MR_INNER_TAB_KEY = 'mr_inner_tab';
 
 /* ─── Типы CSI ─────────────────────────────────────────────────────────── */
 
@@ -119,20 +121,15 @@ export function ManagementReportingContent({
 }: ManagementReportingContentProps) {
   const currentYear = useMemo(() => new Date().getFullYear(), []);
 
-  /* Переключатель дизайна */
-  const [useNewDesign, setUseNewDesign] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('mr_new_design') === '1';
-    }
-    return false;
+  /* Внутренние вкладки: Закупки / Договора */
+  const [innerTab, setInnerTabState] = useState<ManagementReportingTab>(() => {
+    if (typeof window === 'undefined') return 'purchases';
+    const saved = localStorage.getItem(MR_INNER_TAB_KEY);
+    return saved === 'contracts' ? 'contracts' : 'purchases';
   });
-
-  const toggleDesign = () => {
-    setUseNewDesign(prev => {
-      const next = !prev;
-      if (typeof window !== 'undefined') localStorage.setItem('mr_new_design', next ? '1' : '0');
-      return next;
-    });
+  const setInnerTab = (tab: ManagementReportingTab) => {
+    setInnerTabState(tab);
+    if (typeof window !== 'undefined') localStorage.setItem(MR_INNER_TAB_KEY, tab);
   };
 
   /* CSI статистика */
@@ -172,46 +169,39 @@ export function ManagementReportingContent({
   /* PDF экспорт */
   const { page1Ref, page2Ref } = useManagementReportingPdf();
 
-  if (useNewDesign) {
-    return (
-      <div style={{ position: 'relative' }}>
-        {/* Переключатель в правом верхнем углу */}
-        <button
-          onClick={toggleDesign}
-          style={{
-            position: 'absolute', top: 16, right: 40, zIndex: 10,
-            padding: '5px 12px', fontSize: 11, fontWeight: 500,
-            background: 'oklch(0.18 0.005 80)', color: '#fff',
-            border: 'none', borderRadius: 999, cursor: 'pointer',
-            fontFamily: `'Inter Tight', 'Inter', system-ui, sans-serif`,
-            letterSpacing: 0.2,
-          }}
-        >
-          ← Старый дизайн
-        </button>
-        <ManagementReportingNew
-          slaYear={slaYear}
-          averageSlaPercentage={averageSlaPercentage}
-          slaCompletedByMonth={slaCompletedByMonth}
-          slaPercentageByMonth={slaPercentageByMonth}
-          slaLoading={slaLoading}
-          slaError={slaError}
-        />
-      </div>
-    );
-  }
-
   return (
     <div id="mr-print-root" className="p-1 flex flex-col gap-1.5">
-      {/* Переключатель дизайна */}
-      <div className="flex justify-end mb-1">
+      {/* Вкладки: Закупки / Договора */}
+      <div className="flex items-center gap-0.5 border-b border-gray-300 px-1 pt-0.5 pb-0">
         <button
-          onClick={toggleDesign}
-          className="px-3 py-1 text-xs font-medium rounded-full border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+          onClick={() => setInnerTab('purchases')}
+          className={`px-3 py-1.5 text-xs font-semibold rounded-t transition-all ${
+            innerTab === 'purchases'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+          }`}
         >
-          Новый дизайн →
+          Закупки
+        </button>
+        <button
+          onClick={() => setInnerTab('contracts')}
+          className={`px-3 py-1.5 text-xs font-semibold rounded-t transition-all ${
+            innerTab === 'contracts'
+              ? 'bg-blue-600 text-white shadow-sm'
+              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+          }`}
+        >
+          Договора
         </button>
       </div>
+
+      {innerTab === 'contracts' && (
+        <div className="bg-white rounded border-2 border-gray-300 shadow px-4 py-8 text-center text-sm text-gray-400">
+          Раздел в разработке
+        </div>
+      )}
+
+      {innerTab === 'purchases' && <>
       {/* ═══ Страница 1 PDF: показатели ═══ */}
       <div ref={page1Ref} className="bg-slate-50 rounded-lg mr-print-page1">
         <div className="mr-page1-layout">
@@ -443,6 +433,7 @@ export function ManagementReportingContent({
         </div>
         <ManagementReportingFeedbackGrid year={currentYear} />
       </div>
+      </>}
     </div>
   );
 }

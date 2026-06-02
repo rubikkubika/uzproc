@@ -22,7 +22,8 @@ import {
   CheckSquare,
   Star,
   Map,
-  Building2
+  Building2,
+  Truck
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -45,7 +46,7 @@ const menuItems: Array<{ id: string; label: string; icon: any }> = [];
     { id: 'purchases', label: 'Закупки', icon: Package },
     { id: 'contracts', label: 'Договоры', icon: Package },
     { id: 'specifications', label: 'Спецификации', icon: Package },
-    { id: 'delivery-plan', label: 'План поставок', icon: Calendar },
+    { id: 'delivery', label: 'Поставка', icon: Truck },
     { id: 'suppliers', label: 'Поставщики', icon: Building2 },
   ];
 
@@ -262,9 +263,6 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                         if (isDisabled) return;
                         if (isExternal) {
                           router.push('/public-plan');
-                          setIsMobileMenuOpen(false);
-                        } else if (item.id === 'delivery-plan') {
-                          router.push('/delivery-plan');
                           setIsMobileMenuOpen(false);
                         } else if (item.id === 'suppliers') {
                           router.push('/?tab=suppliers');

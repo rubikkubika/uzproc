@@ -17,8 +17,8 @@ import PurchasePlanItemsTable from './purchase-plan/_components/PurchasePlanItem
 import ContractsTable from './contracts/_components/ContractsTable';
 import PaymentsTable from './payments/_components/PaymentsTable';
 import ArrivalsTable from './arrivals/_components/ArrivalsTable';
+import DeliveryTable from './delivery/_components/DeliveryTable';
 import SpecificationsTable from './specifications/_components/SpecificationsTable';
-import DeliveryPlan from './delivery-plan/_components/DeliveryPlan';
 import SuppliersTable from './suppliers/_components/SuppliersTable';
 import UploadCSV from './upload/_components/UploadCSV';
 import { getBackendUrl } from '@/utils/api';
@@ -422,6 +422,13 @@ function DashboardContent() {
           </div>
         );
 
+      case 'delivery':
+        return (
+          <div className="space-y-6 h-full flex flex-col">
+            <DeliveryTable />
+          </div>
+        );
+
       case 'arrivals':
         return (
           <div className="space-y-6 h-full flex flex-col">
@@ -444,9 +451,6 @@ function DashboardContent() {
             <SpecificationsTable />
           </div>
         );
-
-      case 'delivery-plan':
-        return <DeliveryPlan />;
 
       case 'suppliers':
         return (

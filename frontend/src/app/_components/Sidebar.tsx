@@ -20,6 +20,7 @@ import {
   FileText,
   Banknote,
   Building2,
+  Truck,
   ScanText,
   GraduationCap,
   BookOpen,
@@ -46,8 +47,8 @@ const menuItems: Array<{ id: string; label: string; icon: any }> = [];
     { id: 'purchase-requests', label: 'Заявки на закупку', icon: Package },
     { id: 'contracts', label: 'Договоры', icon: FileText },
     { id: 'payments', label: 'Оплаты', icon: Banknote },
+    { id: 'delivery', label: 'Поставка', icon: Truck },
     { id: 'arrivals', label: 'Поступления', icon: Package },
-    { id: 'delivery-plan', label: 'План поставок', icon: Calendar },
     { id: 'suppliers', label: 'Поставщики', icon: Building2 },
   ];
 

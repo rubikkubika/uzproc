@@ -26,6 +26,8 @@ import { TimelinesTabContent } from './ui/TimelinesTabContent';
 import { SavingsTabContent } from './ui/SavingsTabContent';
 import { ManagementReportingContent } from './ui/ManagementReportingContent';
 import { ContractRemarksDashboardContent } from './ui/ContractRemarksDashboardContent';
+import { ContractDocumentsCountDashboardContent } from './ui/ContractDocumentsCountDashboardContent';
+import { ContractApprovalsDashboardContent } from './ui/ContractApprovalsDashboardContent';
 import { PurchasesByCfoTabContent } from './ui/PurchasesByCfoTabContent';
 import { KpiDashboard } from './kpi/KpiDashboard';
 import { useHolidayDateKeys } from '@/hooks/useHolidayDateKeys';
@@ -489,6 +491,16 @@ export default function Overview() {
         {activeTopTab === 'dashboards' && activeTab === 'contract-remarks' && (
           <div className="w-full">
             <ContractRemarksDashboardContent />
+          </div>
+        )}
+        {activeTopTab === 'dashboards' && activeTab === 'contract-documents-count' && (
+          <div className="w-full">
+            <ContractDocumentsCountDashboardContent enabled={activeTab === 'contract-documents-count'} />
+          </div>
+        )}
+        {activeTopTab === 'dashboards' && activeTab === 'contract-approvals' && (
+          <div className="w-full">
+            <ContractApprovalsDashboardContent enabled={activeTab === 'contract-approvals'} />
           </div>
         )}
         {activeTopTab === 'dashboards' && activeTab === 'purchases-by-cfo' && (

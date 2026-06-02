@@ -20,6 +20,8 @@ const DASHBOARD_SUB_TAB_LABELS: Record<OverviewTab, string> = {
   timelines: 'Сроки закупок',
   savings: 'Экономия',
   'contract-remarks': 'Замечания по договорам',
+  'contract-documents-count': 'Кол-во документов',
+  'contract-approvals': 'Согласования договорных документов',
   'purchases-by-cfo': 'Закупки по ЦФО',
   kpi: 'KPI премии',
 };

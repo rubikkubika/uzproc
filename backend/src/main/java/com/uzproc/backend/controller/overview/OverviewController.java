@@ -1,5 +1,7 @@
 package com.uzproc.backend.controller.overview;
 
+import com.uzproc.backend.dto.contract.ContractApprovalsDashboardResponseDto;
+import com.uzproc.backend.dto.contract.ContractDocumentCountByPersonMonthResponseDto;
 import com.uzproc.backend.dto.contract.ContractRemarkDashboardEntryDto;
 import com.uzproc.backend.dto.contract.ContractRemarksDashboardResponseDto;
 import com.uzproc.backend.dto.overview.KpiCsiDetailDto;
@@ -16,6 +18,7 @@ import com.uzproc.backend.dto.overview.OverviewPurchasesByCfoItemDto;
 import com.uzproc.backend.dto.overview.OverviewSlaResponseDto;
 import com.uzproc.backend.dto.overview.OverviewTimelinesResponseDto;
 import com.uzproc.backend.service.contract.ContractApprovalService;
+import com.uzproc.backend.service.contract.ContractService;
 import com.uzproc.backend.service.overview.ApprovalPresentationService;
 import com.uzproc.backend.service.overview.OverviewService;
 import org.slf4j.Logger;
@@ -50,13 +53,16 @@ public class OverviewController {
     private final OverviewService overviewService;
     private final ApprovalPresentationService approvalPresentationService;
     private final ContractApprovalService contractApprovalService;
+    private final ContractService contractService;
 
     public OverviewController(OverviewService overviewService,
                               ApprovalPresentationService approvalPresentationService,
-                              ContractApprovalService contractApprovalService) {
+                              ContractApprovalService contractApprovalService,
+                              ContractService contractService) {
         this.overviewService = overviewService;
         this.approvalPresentationService = approvalPresentationService;
         this.contractApprovalService = contractApprovalService;
+        this.contractService = contractService;
     }
 
     /**
@@ -308,6 +314,34 @@ public class OverviewController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
         return ResponseEntity.ok(contractApprovalService.getRemarksByCategory(category, dateFrom, dateTo));
+    }
+
+    /**
+     * Дашборд «Кол-во документов» по договорам: разрез договорник × месяц года
+     * по дате создания договора. Учитываются только договорники
+     * (preparedBy.isContractor = true), скрытые из «В работе» исключаются.
+     */
+    @GetMapping("/contract-documents-by-person-month")
+    public ResponseEntity<ContractDocumentCountByPersonMonthResponseDto> getContractDocumentsByPersonMonth(
+            @RequestParam int year,
+            @RequestParam(required = false) String segment) {
+        logger.debug("Overview contract-documents-by-person-month request (year={}, segment={})", year, segment);
+        return ResponseEntity.ok(contractService.getDocumentCountByPersonMonth(year, segment));
+    }
+
+    /**
+     * Дашборд «Согласования договорных документов»: разрез сегмент × тип документа × типовая,
+     * кол-во документов и средний срок согласования (от первого до последнего этапа).
+     * Множество договоров совпадает со сводкой реестра (вкладка «Подписаны»):
+     * статус=SIGNED, договорник, год по contract_creation_date.
+     * Опциональный фильтр preparedBy — фильтр по конкретному ФИО договорника.
+     */
+    @GetMapping("/contract-approvals-dashboard")
+    public ResponseEntity<ContractApprovalsDashboardResponseDto> getContractApprovalsDashboard(
+            @RequestParam int year,
+            @RequestParam(required = false) String preparedBy) {
+        logger.debug("Overview contract-approvals-dashboard request (year={}, preparedBy={})", year, preparedBy);
+        return ResponseEntity.ok(contractService.getApprovalsDashboard(year, preparedBy));
     }
 
     /**

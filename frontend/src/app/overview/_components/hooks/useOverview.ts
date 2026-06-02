@@ -10,7 +10,7 @@ const DEFAULT_TAB: OverviewTab = 'purchase-plan';
 const DEFAULT_TOP_TAB: OverviewTopTab = 'dashboards';
 const DEFAULT_CATEGORY: OverviewDashboardCategory = 'purchases';
 
-const VALID_TABS: OverviewTab[] = ['sla', 'purchase-plan', 'csi', 'ek', 'approvals', 'timelines', 'savings', 'contract-remarks'];
+const VALID_TABS: OverviewTab[] = ['sla', 'purchase-plan', 'csi', 'ek', 'approvals', 'timelines', 'savings', 'contract-remarks', 'contract-documents-count', 'contract-approvals', 'purchases-by-cfo', 'kpi'];
 const VALID_TOP_TABS: OverviewTopTab[] = ['dashboards', 'management-reporting'];
 const VALID_CATEGORIES: OverviewDashboardCategory[] = ['purchases', 'contracts', 'other'];
 

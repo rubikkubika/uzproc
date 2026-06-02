@@ -81,6 +81,13 @@ public class OverviewService {
     /** Подстрока способа закупки у связанной закупки для признака «Закупка у единственного источника». */
     private static final String SINGLE_SOURCE_MCC_SUBSTRING = "единственного источника";
 
+    /** Закупка считается «у единственного контрагента» по способу закупки (regardless of savings). Исключается из расчёта экономии везде. */
+    private static boolean isSingleSourcePurchase(com.uzproc.backend.entity.purchase.Purchase p) {
+        return p != null
+            && p.getPurchaseMethod() != null
+            && p.getPurchaseMethod().toLowerCase().contains(SINGLE_SOURCE_MCC_SUBSTRING);
+    }
+
     public OverviewService(
             PurchaseRequestService purchaseRequestService,
             PurchasePlanVersionService purchasePlanVersionService,
@@ -1293,9 +1300,10 @@ public class OverviewService {
             }
         }
 
-        // Фильтруем по дате завершения комиссии в году
+        // Фильтруем по дате завершения комиссии в году; «Единственный контрагент» исключаем из экономии везде
         List<com.uzproc.backend.entity.purchase.Purchase> purchases = allPurchasesWithSavings.stream()
             .filter(p -> {
+                if (isSingleSourcePurchase(p)) return false;
                 Long prId = p.getPurchaseRequestId();
                 if (prId == null) return false;
                 LocalDateTime cd = completionDateByPrId.get(prId);
@@ -1303,7 +1311,7 @@ public class OverviewService {
             })
             .toList();
 
-        logger.info("getSavingsData: found {} purchases with savings in year {} (by commission completion date)", purchases.size(), year);
+        logger.info("getSavingsData: found {} purchases with savings in year {} (by commission completion date, excluding single-source)", purchases.size(), year);
 
         // Бюджет всех завершённых закупок за год (по дате завершения комиссии, независимо от наличия экономии)
         var budgetSpec = (org.springframework.data.jpa.domain.Specification<com.uzproc.backend.entity.purchase.Purchase>) (root, query, cb) -> {
@@ -1341,6 +1349,7 @@ public class OverviewService {
 
         List<com.uzproc.backend.entity.purchase.Purchase> completedPurchases = allCompleted.stream()
             .filter(p -> {
+                if (isSingleSourcePurchase(p)) return false;
                 Long prId = p.getPurchaseRequestId();
                 if (prId == null) return false;
                 LocalDateTime cd = completionDateByPrId.get(prId);
@@ -1355,7 +1364,7 @@ public class OverviewService {
             }
             totalBudgetCount++;
         }
-        logger.info("getSavingsData: found {} completed purchases with total budget in year {}", totalBudgetCount, year);
+        logger.info("getSavingsData: found {} completed purchases with total budget in year {} (excluding single-source)", totalBudgetCount, year);
         BigDecimal totalSavings = BigDecimal.ZERO;
         BigDecimal fromMedian = BigDecimal.ZERO;
         BigDecimal fromExistingContract = BigDecimal.ZERO;
@@ -1564,10 +1573,8 @@ public class OverviewService {
             // Скрыта из работы
             boolean hiddenFromWork = purchase.getPurchaseRequest() != null
                 && Boolean.TRUE.equals(purchase.getPurchaseRequest().getExcludeFromInWork());
-            // Авто-исключение: ЕК (единственный источник) без экономии
-            boolean autoExcluded = purchase.getSavings() == null
-                && purchase.getPurchaseMethod() != null
-                && purchase.getPurchaseMethod().toLowerCase().contains(SINGLE_SOURCE_MCC_SUBSTRING);
+            // Авто-исключение: ЕК (единственный источник) — исключаем всегда, независимо от наличия экономии
+            boolean autoExcluded = isSingleSourcePurchase(purchase);
             if (manualExcluded || hiddenFromWork || autoExcluded) continue;
 
             String purchaserName = "Не указан";
@@ -1902,9 +1909,7 @@ public class OverviewService {
                     // Исключение из KPI
                     dto.setExcludeFromKpi(pr != null && Boolean.TRUE.equals(pr.getExcludeFromKpi()));
                     dto.setExcludeFromKpiComment(pr != null ? pr.getExcludeFromKpiComment() : null);
-                    boolean autoExcluded = p.getSavings() == null
-                        && p.getPurchaseMethod() != null
-                        && p.getPurchaseMethod().toLowerCase().contains(SINGLE_SOURCE_MCC_SUBSTRING);
+                    boolean autoExcluded = isSingleSourcePurchase(p);
                     dto.setAutoExcludedFromKpi(autoExcluded);
                     // Тип закупочной процедуры (из закупки) и группа статуса заявки
                     dto.setPurchaseMethod(p.getPurchaseMethod());
