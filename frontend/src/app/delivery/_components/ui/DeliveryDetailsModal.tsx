@@ -35,16 +35,16 @@ const FACT_LABEL = 'По факту';
 
 function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="flex flex-col gap-0.5 min-w-0">
       <span className="text-[11px] uppercase tracking-wide text-gray-400">{label}</span>
-      <span className="text-sm text-gray-900 break-words">{value ?? '—'}</span>
+      <span className="block min-w-0 text-sm text-gray-900 [overflow-wrap:anywhere] break-words">{value ?? '—'}</span>
     </div>
   );
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+    <section className="bg-gray-50 border border-gray-200 rounded-lg p-3 min-w-0">
       <h3 className="text-xs font-semibold text-gray-700 mb-3 border-b border-gray-200 pb-1.5">{title}</h3>
       {children}
     </section>
@@ -300,7 +300,7 @@ export default function DeliveryDetailsModal({ delivery, onClose, onSaved }: Del
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div
-        className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col"
+        className="bg-white rounded-lg shadow-xl w-full max-w-7xl max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
@@ -317,9 +317,11 @@ export default function DeliveryDetailsModal({ delivery, onClose, onSaved }: Del
         </div>
 
         <div className="flex-1 overflow-auto p-4 flex flex-col gap-4">
+          {/* Блоки договора, поставки и оплат — слева направо */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
           {/* Информация по договору */}
           <Section title="Информация по договору">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 min-w-0">
               <InfoRow label="Договор №" value={delivery.contractInnerId ?? '—'} />
               <InfoRow label="Наименование договора" value={delivery.contractName ?? '—'} />
               <InfoRow label="Поставщик" value={delivery.supplierName ?? '—'} />
@@ -334,7 +336,7 @@ export default function DeliveryDetailsModal({ delivery, onClose, onSaved }: Del
                     : <span className="text-gray-400">Не указана</span>
                 }
               />
-              <div className="sm:col-span-2">
+              <div className="min-w-0">
                 <InfoRow
                   label="Условия оплаты (договор)"
                   value={
@@ -344,7 +346,7 @@ export default function DeliveryDetailsModal({ delivery, onClose, onSaved }: Del
                   }
                 />
               </div>
-              <div className="sm:col-span-2">
+              <div className="min-w-0">
                 <InfoRow
                   label="Срок поставки (договор)"
                   value={
@@ -359,7 +361,7 @@ export default function DeliveryDetailsModal({ delivery, onClose, onSaved }: Del
 
           {/* Информация по поставке */}
           <Section title="Информация по поставке">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 min-w-0">
               <InfoRow label="№ поставки" value={delivery.innerId ?? delivery.id} />
               <InfoRow
                 label="Статус оплаты"
@@ -412,13 +414,16 @@ export default function DeliveryDetailsModal({ delivery, onClose, onSaved }: Del
                   </span>
                 }
               />
-              <div className="sm:col-span-2">
+              <div className="min-w-0">
                 <InfoRow label="Комментарий" value={delivery.comment ?? '—'} />
               </div>
             </div>
+          </Section>
 
+          {/* Оплаты: схема и распределение */}
+          <Section title="Оплаты">
             {/* Схема оплаты — выбор */}
-            <div className="mt-4">
+            <div>
               <h4 className="text-xs font-semibold text-gray-700 mb-1.5">
                 Схема оплаты <span className="text-red-500">*</span>
               </h4>
@@ -462,6 +467,7 @@ export default function DeliveryDetailsModal({ delivery, onClose, onSaved }: Del
               {renderPaymentsTable(factCandidates, factPaymentIds, toggleFact, 'Нет доступных оплат для типа «По факту»')}
             </div>
           </Section>
+          </div>
 
           {error && (
             <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1.5">

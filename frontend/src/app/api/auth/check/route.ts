@@ -1,23 +1,21 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { verifyJwt } from '@/utils/jwt';
 
 export async function GET() {
   try {
     const cookieStore = await cookies();
     const authToken = cookieStore.get('auth-token');
-    const userRole = cookieStore.get('user-role');
-    const userEmail = cookieStore.get('user-email');
 
-    // Проверяем JWT-формат (три части, разделённые точкой, начинается с eyJ)
-    const isJwt = authToken &&
-      authToken.value.startsWith('eyJ') &&
-      authToken.value.split('.').length === 3;
+    // Криптографическая проверка подписи/алгоритма/срока JWT (T2 fix).
+    // Роль и email берём из подписанного токена, а не из отдельных (подделываемых) cookie.
+    const payload = await verifyJwt(authToken?.value);
 
-    if (isJwt) {
+    if (payload) {
       return NextResponse.json({
         authenticated: true,
-        role: userRole?.value || null,
-        email: userEmail?.value || null,
+        role: (payload.role as string) || null,
+        email: (payload.sub as string) || null,
       });
     }
 

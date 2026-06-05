@@ -43,21 +43,37 @@ public class ArrivalBatchSaver {
     }
 
     /**
-     * Сохраняет батч распаршенных строк в отдельной транзакции.
+     * Быстрый путь: сохраняет весь батч в одной транзакции.
+     * При любой ошибке исключение пробрасывается, транзакция (REQUIRES_NEW) откатывается целиком,
+     * а вызывающий код повторяет батч построчно через {@link #saveRowIsolated}.
+     * Здесь НЕТ построчного try/catch — иначе первая же ошибка портит Hibernate-сессию
+     * и все последующие строки в батче падают с "don't flush the Session".
      * @return количество сохранённых/обновлённых записей
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public int saveBatch(List<ArrivalRowData> batch) {
         int saved = 0;
         for (ArrivalRowData data : batch) {
-            try {
-                if (saveRow(data)) {
-                    saved++;
-                }
-            } catch (Exception e) {
-                logger.warn("Error saving arrival number={}: {}", data.number, e.getMessage());
+            if (saveRow(data)) {
+                saved++;
             }
         }
+        entityManager.flush();
+        entityManager.clear();
+        return saved;
+    }
+
+    /**
+     * Медленный путь (fallback): сохраняет одну строку в собственной транзакции.
+     * Вызывается из {@link com.uzproc.backend.service.arrival.ArrivalExcelLoadService}
+     * (через прокси, поэтому REQUIRES_NEW честно открывает новую транзакцию),
+     * когда быстрый батч упал. Ошибка одной строки откатывает только её,
+     * остальные строки батча сохраняются.
+     * @return 1 если строка сохранена/обновлена, иначе 0
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public int saveRowIsolated(ArrivalRowData data) {
+        int saved = saveRow(data) ? 1 : 0;
         entityManager.flush();
         entityManager.clear();
         return saved;
@@ -83,15 +99,7 @@ public class ArrivalBatchSaver {
 
         // Поставщик по ИНН
         if (data.inn != null && !data.inn.isEmpty()) {
-            Supplier supplier = supplierRepository.findFirstByInn(data.inn).orElse(null);
-            if (supplier == null) {
-                supplier = new Supplier(data.inn);
-                supplier.setInn(data.inn);
-                supplier.setName(data.inn);
-                supplier = supplierRepository.save(supplier);
-                logger.debug("Created supplier with INN={}", data.inn);
-            }
-            arrival.setSupplier(supplier);
+            arrival.setSupplier(findOrCreateSupplier(data.inn));
         }
 
         // Ответственный
@@ -114,6 +122,29 @@ public class ArrivalBatchSaver {
             arrivalRepository.save(arrival);
             return true;
         }
+    }
+
+    /**
+     * Находит существующего поставщика или создаёт нового.
+     * Ищем сначала по ИНН, затем по {@code code} — у поставщика на колонке {@code code}
+     * висит УНИКАЛЬНЫЙ индекс (idx_suppliers_code), а новый поставщик создаётся с {@code code = inn}.
+     * Раньше поиск шёл только по {@code inn}: если поставщик с таким {@code code} уже существовал,
+     * но с другим/пустым {@code inn}, вставлялся дубликат {@code code} → duplicate key,
+     * что портило весь батч. Поиск по {@code code} устраняет причину в корне.
+     */
+    private Supplier findOrCreateSupplier(String inn) {
+        Supplier supplier = supplierRepository.findFirstByInn(inn).orElse(null);
+        if (supplier == null) {
+            supplier = supplierRepository.findByCode(inn).orElse(null);
+        }
+        if (supplier == null) {
+            supplier = new Supplier(inn); // code = inn
+            supplier.setInn(inn);
+            supplier.setName(inn);
+            supplier = supplierRepository.save(supplier);
+            logger.debug("Created supplier with INN/code={}", inn);
+        }
+        return supplier;
     }
 
     private boolean updateArrivalFields(Arrival existing, Arrival newData) {

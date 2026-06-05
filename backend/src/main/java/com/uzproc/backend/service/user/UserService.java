@@ -23,7 +23,14 @@ import java.util.List;
 public class UserService {
 
     private static final Logger logger = LoggerFactory.getLogger(UserService.class);
-    
+
+    /**
+     * Валидный bcrypt-хэш для выравнивания времени ответа, когда пользователь не найден
+     * или у него нет хэша (T5 fix, CWE-208 — защита от тайминг-оракула энумерации).
+     */
+    private static final String DUMMY_BCRYPT_HASH =
+            "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
+
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
@@ -77,6 +84,8 @@ public class UserService {
     public int authenticateWithStatus(String email, String password) {
         User user = findByEmail(email);
         if (user == null || password == null) {
+            // Защита от тайминг-оракула: всегда выполняем bcrypt, даже если пользователя нет (T5 fix)
+            passwordEncoder.matches(password == null ? "" : password, DUMMY_BCRYPT_HASH);
             return 0;
         }
 
@@ -95,6 +104,8 @@ public class UserService {
             migratePasswordToBcrypt(user, password);
             return 1;
         }
+        // Выравниваем время ответа и для существующего пользователя без bcrypt-хэша (T5 fix)
+        passwordEncoder.matches(password, DUMMY_BCRYPT_HASH);
         return 0;
     }
 

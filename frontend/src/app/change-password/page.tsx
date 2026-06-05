@@ -3,16 +3,17 @@
 import { useState, useEffect } from 'react';
 
 export default function ChangePasswordPage() {
-  const [email, setEmail] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Читаем email из sessionStorage (сохранён при логине с временным паролём)
-    const storedEmail = sessionStorage.getItem('changePasswordEmail') || '';
-    setEmail(storedEmail);
+    // Текущий (временный) пароль сохранён при логине — подставляем для проверки на бэкенде.
+    // Пользователь определяется по JWT cookie, отдельный email больше не нужен (T1).
+    const storedCurrent = sessionStorage.getItem('changePasswordCurrent') || '';
+    setCurrentPassword(storedCurrent);
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -34,13 +35,14 @@ export default function ChangePasswordPage() {
       const response = await fetch('/api/auth/change-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, newPassword }),
+        body: JSON.stringify({ currentPassword, newPassword }),
       });
 
       const data = await response.json();
 
       if (response.ok && data.success) {
         sessionStorage.removeItem('changePasswordEmail');
+        sessionStorage.removeItem('changePasswordCurrent');
         window.location.href = '/';
       } else {
         setError(data.error || 'Ошибка смены пароля');

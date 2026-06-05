@@ -148,9 +148,8 @@ public class ArrivalExcelLoadService {
 
                     if (batch.size() >= BATCH_SIZE) {
                         batchNumber++;
-                        loadedCount += batchSaver.saveBatch(batch);
+                        loadedCount += flushBatch(batch);
                         logger.debug("Arrivals: batch {} saved ({} rows so far)", batchNumber, loadedCount);
-                        batch = new ArrayList<>(BATCH_SIZE);
                     }
                 } catch (Exception e) {
                     logger.warn("Error parsing arrival row {}: {}", row.getRowNum() + 1, e.getMessage());
@@ -160,7 +159,7 @@ public class ArrivalExcelLoadService {
             // Последний неполный батч
             if (!batch.isEmpty()) {
                 batchNumber++;
-                loadedCount += batchSaver.saveBatch(batch);
+                loadedCount += flushBatch(batch);
                 logger.debug("Arrivals: final batch {} saved ({} rows total)", batchNumber, loadedCount);
             }
 
@@ -169,6 +168,34 @@ public class ArrivalExcelLoadService {
             return loadedCount;
         } finally {
             workbook.close();
+        }
+    }
+
+    /**
+     * Сохраняет батч и ВСЕГДА очищает список (в finally), чтобы сбой одного батча
+     * не приводил к бесконечному повтору растущего батча.
+     * Быстрый путь — {@link ArrivalBatchSaver#saveBatch}; если он упал (например, из-за
+     * одной проблемной строки, испортившей сессию), батч сохраняется построчно через
+     * {@link ArrivalBatchSaver#saveRowIsolated} — теряется только плохая строка, а не весь батч.
+     */
+    private int flushBatch(List<ArrivalRowData> batch) {
+        if (batch.isEmpty()) return 0;
+        try {
+            return batchSaver.saveBatch(batch);
+        } catch (Exception e) {
+            logger.warn("Arrivals: batch save failed ({}), retrying row-by-row for {} rows",
+                    e.getMessage(), batch.size());
+            int saved = 0;
+            for (ArrivalRowData data : batch) {
+                try {
+                    saved += batchSaver.saveRowIsolated(data);
+                } catch (Exception ex) {
+                    logger.warn("Arrivals: skipping row number={}: {}", data.number, ex.getMessage());
+                }
+            }
+            return saved;
+        } finally {
+            batch.clear();
         }
     }
 

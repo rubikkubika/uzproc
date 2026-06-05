@@ -120,10 +120,13 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        # Наружу публикуем только health. info/metrics раскрывали версию JVM,
+        # внутренние хосты и топологию для прицельных атак (T3 fix, CWE-200)
+        include: health
   endpoint:
     health:
-      show-details: always
+      # Детали health (БД, диск, mail-хост) — только аутентифицированным; анонимам — статус (T3 fix)
+      show-details: when-authorized
 
 logging:
   level:

@@ -4,6 +4,7 @@ import com.uzproc.backend.security.JwtAuthFilter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -39,20 +40,32 @@ public class SecurityConfig {
             // Production: JWT-аутентификация для всех endpoint'ов
             http
                 .authorizeHttpRequests(auth -> auth
-                    // Аутентификация
-                    .requestMatchers("/auth/**").permitAll()
+                    // Аутентификация: открыт только вход. /auth/change-password требует
+                    // валидного JWT (смена только своего пароля) — см. AuthController (T1 fix)
+                    .requestMatchers("/auth/login").permitAll()
                     // Здоровье и мониторинг
                     .requestMatchers("/health").permitAll()
-                    .requestMatchers("/actuator/**").permitAll()
-                    // Публичные данные (страница public-plan, CSI, обучение)
-                    .requestMatchers("/purchase-plan-versions/**").permitAll()
-                    .requestMatchers("/purchase-plan-items/**").permitAll()
-                    .requestMatchers("/csi-feedback/**").permitAll()
-                    .requestMatchers("/training/**").permitAll()
-                    .requestMatchers("/cfos/names").permitAll()
+                    // Actuator: наружу открыт только health (без деталей, см. application.yml).
+                    // Остальные endpoint'ы — только ADMIN (T3 fix)
+                    .requestMatchers("/actuator/health").permitAll()
+                    .requestMatchers("/actuator/**").hasRole("ADMIN")
+                    // --- Публичные данные: ТОЛЬКО чтение и только то, что нужно публичным
+                    // страницам. Раньше широкие "/**" открывали анонимам и мутации, и
+                    // выгрузку чувствительных данных (CWE-862 Missing Authorization).
+
+                    // public-plan: только GET позиций плана (страница read-only, disabled=true)
+                    .requestMatchers(HttpMethod.GET, "/purchase-plan-items/**").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/cfos/names").permitAll()
+                    // Публичный курс обучения: только просмотр медиа (GET). Загрузка/удаление — auth
+                    .requestMatchers(HttpMethod.GET, "/training/**").permitAll()
+                    // Публичная форма CSI: загрузка формы по токену (GET) и отправка отзыва (POST).
+                    // Список/статистика/приглашения CSI — только для аутентифицированных
+                    .requestMatchers(HttpMethod.GET, "/csi-feedback/form/**").permitAll()
+                    .requestMatchers(HttpMethod.POST, "/csi-feedback").permitAll()
                     // Управление пользователями — только ADMIN
                     .requestMatchers("/users/**").hasRole("ADMIN")
-                    // Всё остальное — любой аутентифицированный пользователь
+                    // Всё остальное (включая мутации плана, версии плана, change-password,
+                    // CSI-список/статистику, загрузку медиа) — только аутентифицированные
                     .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);

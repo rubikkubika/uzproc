@@ -59,9 +59,11 @@ function LoginPageContent() {
         if (password) {
           sessionStorage.setItem('lastPasswordAttempt', 'true');
         }
-        // Если требуется смена пароля (временный пароль), перенаправляем на страницу смены
+        // Если требуется смена пароля (временный пароль), перенаправляем на страницу смены.
+        // Текущий (временный) пароль передаём на страницу смены — бэкенд проверит его как currentPassword (T1).
         if (data.passwordChangeRequired) {
           sessionStorage.setItem('changePasswordEmail', email);
+          sessionStorage.setItem('changePasswordCurrent', password);
           window.location.href = '/change-password';
           return;
         }

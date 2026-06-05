@@ -1,13 +1,12 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { verifyJwt } from '@/utils/jwt';
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const authToken = request.cookies.get('auth-token');
-  // JWT-токены начинаются с "eyJ" (base64 заголовка {"alg":...})
-  // Статический токен "authenticated-v2025" больше не принимается (T4 fix)
-  const isAuthenticated = authToken &&
-    authToken.value.startsWith('eyJ') &&
-    authToken.value.split('.').length === 3;
+  // Криптографическая проверка подписи/алгоритма/срока JWT (T2 fix).
+  // Раньше проверялся только формат токена — принимались поддельные (alg:none и т.п.).
+  const isAuthenticated = !!(await verifyJwt(authToken?.value));
   const isLoginPage = request.nextUrl.pathname === '/login';
   const isChangePasswordPage = request.nextUrl.pathname === '/change-password';
   const isPublicPlanPage = request.nextUrl.pathname.startsWith('/public-plan');
