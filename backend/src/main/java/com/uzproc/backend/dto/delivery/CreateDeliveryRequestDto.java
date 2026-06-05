@@ -14,9 +14,14 @@ public class CreateDeliveryRequestDto {
     private String paymentScheme;
     private List<Long> advancePaymentIds;
     private List<Long> factPaymentIds;
+    /** Срок поставки в рабочих днях. Если null — берётся из договора. */
+    private Integer deliveryTermWorkingDays;
 
     public Long getContractId() { return contractId; }
     public void setContractId(Long contractId) { this.contractId = contractId; }
+
+    public Integer getDeliveryTermWorkingDays() { return deliveryTermWorkingDays; }
+    public void setDeliveryTermWorkingDays(Integer deliveryTermWorkingDays) { this.deliveryTermWorkingDays = deliveryTermWorkingDays; }
 
     public String getPaymentScheme() { return paymentScheme; }
     public void setPaymentScheme(String paymentScheme) { this.paymentScheme = paymentScheme; }

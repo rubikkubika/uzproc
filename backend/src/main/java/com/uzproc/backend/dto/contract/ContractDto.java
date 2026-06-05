@@ -52,6 +52,12 @@ public class ContractDto {
     /** Условия оплаты (парсинг из «График оплаты (Договор)»). */
     private String paymentTerms;
 
+    /** Схема оплаты (парсинг из «Схема оплаты (Договор)»). */
+    private String paymentScheme;
+
+    /** Срок поставки (парсинг из «Срок поставки (Договор)»). */
+    private String deliveryTerm;
+
     /** Поставщики (контрагенты) по договору. */
     private List<SupplierDto> suppliers;
 
@@ -323,6 +329,22 @@ public class ContractDto {
 
     public void setPaymentTerms(String paymentTerms) {
         this.paymentTerms = paymentTerms;
+    }
+
+    public String getPaymentScheme() {
+        return paymentScheme;
+    }
+
+    public void setPaymentScheme(String paymentScheme) {
+        this.paymentScheme = paymentScheme;
+    }
+
+    public String getDeliveryTerm() {
+        return deliveryTerm;
+    }
+
+    public void setDeliveryTerm(String deliveryTerm) {
+        this.deliveryTerm = deliveryTerm;
     }
 
     public List<SupplierDto> getSuppliers() {

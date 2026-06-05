@@ -28,8 +28,13 @@ public class Delivery {
     @Column(name = "date")
     private LocalDate date;
 
+    /** Дата поставки. Вычисляется автоматически: дата оплаты + срок поставки (рабочие дни). */
     @Column(name = "delivery_deadline")
     private LocalDate deliveryDeadline;
+
+    /** Срок поставки в рабочих днях. По умолчанию — из договора (Contract.deliveryTerm). */
+    @Column(name = "delivery_term_working_days")
+    private Integer deliveryTermWorkingDays;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "contract_id")
@@ -48,6 +53,11 @@ public class Delivery {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", length = 50)
     private DeliveryStatus status;
+
+    /** Статус поставки (фактическая отгрузка), задаётся вручную. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "shipment_status", length = 50)
+    private ShipmentStatus shipmentStatus = ShipmentStatus.EXPECTED;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_scheme", length = 20)
@@ -90,6 +100,9 @@ public class Delivery {
     public LocalDate getDeliveryDeadline() { return deliveryDeadline; }
     public void setDeliveryDeadline(LocalDate deliveryDeadline) { this.deliveryDeadline = deliveryDeadline; }
 
+    public Integer getDeliveryTermWorkingDays() { return deliveryTermWorkingDays; }
+    public void setDeliveryTermWorkingDays(Integer deliveryTermWorkingDays) { this.deliveryTermWorkingDays = deliveryTermWorkingDays; }
+
     public Contract getContract() { return contract; }
     public void setContract(Contract contract) { this.contract = contract; }
 
@@ -104,6 +117,9 @@ public class Delivery {
 
     public DeliveryStatus getStatus() { return status; }
     public void setStatus(DeliveryStatus status) { this.status = status; }
+
+    public ShipmentStatus getShipmentStatus() { return shipmentStatus; }
+    public void setShipmentStatus(ShipmentStatus shipmentStatus) { this.shipmentStatus = shipmentStatus; }
 
     public PaymentScheme getPaymentScheme() { return paymentScheme; }
     public void setPaymentScheme(PaymentScheme paymentScheme) { this.paymentScheme = paymentScheme; }

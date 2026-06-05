@@ -13,15 +13,22 @@ const INITIAL_FILTERS: Record<string, string> = {
 };
 
 export type PaymentSchemeFilterValue = '' | 'POSTPAYMENT' | 'PREPAYMENT';
+export type ShipmentStatusFilterValue = '' | 'EXPECTED' | 'DELIVERED' | 'OVERDUE';
 
 export const useDeliveryFilters = (setCurrentPage: (page: number) => void) => {
   const [localFilters, setLocalFilters] = useState<Record<string, string>>({ ...INITIAL_FILTERS });
   const [filters, setFilters] = useState<Record<string, string>>({ ...INITIAL_FILTERS });
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [paymentSchemeFilter, setPaymentSchemeFilterState] = useState<PaymentSchemeFilterValue>('');
+  const [shipmentStatusFilter, setShipmentStatusFilterState] = useState<ShipmentStatusFilterValue>('');
 
   const setPaymentSchemeFilter = useCallback((value: PaymentSchemeFilterValue) => {
     setPaymentSchemeFilterState(value);
+    setCurrentPage(0);
+  }, [setCurrentPage]);
+
+  const setShipmentStatusFilter = useCallback((value: ShipmentStatusFilterValue) => {
+    setShipmentStatusFilterState(value);
     setCurrentPage(0);
   }, [setCurrentPage]);
 
@@ -49,5 +56,7 @@ export const useDeliveryFilters = (setCurrentPage: (page: number) => void) => {
     handleFilterChange,
     paymentSchemeFilter,
     setPaymentSchemeFilter,
+    shipmentStatusFilter,
+    setShipmentStatusFilter,
   };
 };

@@ -15,6 +15,8 @@ public class DeliveryContractSearchResultDto {
     private BigDecimal budgetAmount;
     private String currency;
     private String paymentTerms;
+    private String paymentScheme;
+    private String deliveryTerm;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -42,4 +44,10 @@ public class DeliveryContractSearchResultDto {
 
     public String getPaymentTerms() { return paymentTerms; }
     public void setPaymentTerms(String paymentTerms) { this.paymentTerms = paymentTerms; }
+
+    public String getPaymentScheme() { return paymentScheme; }
+    public void setPaymentScheme(String paymentScheme) { this.paymentScheme = paymentScheme; }
+
+    public String getDeliveryTerm() { return deliveryTerm; }
+    public void setDeliveryTerm(String deliveryTerm) { this.deliveryTerm = deliveryTerm; }
 }

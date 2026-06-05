@@ -10,19 +10,36 @@ public class DeliveryDto {
     private Long id;
     private String innerId;
     private LocalDate date;
+    /** Дата поставки. Вычисляется автоматически (read-only). */
     private LocalDate deliveryDeadline;
+    /** Срок поставки в рабочих днях. */
+    private Integer deliveryTermWorkingDays;
     private Long contractId;
     private String contractInnerId;
     private String contractName;
+    /** Схема оплаты из договора (Contract.paymentScheme). */
+    private String contractPaymentScheme;
+    /** Условия оплаты из договора (Contract.paymentTerms). */
+    private String contractPaymentTerms;
+    /** Срок поставки из договора (Contract.deliveryTerm). */
+    private String contractDeliveryTerm;
     private Long supplierId;
     private String supplierName;
     private String supplierInn;
     private BigDecimal amount;
     private String currency;
+    /** Статус оплаты (бывший «Статус»): Проект / Аванс подготовлен / Аванс оплачен. */
     private String status;
     private String statusColor;
+    /** Статус поставки (фактическая отгрузка): Ожидается / Поставлено / Просрочено. */
+    private String shipmentStatus;
+    private String shipmentStatusColor;
     private String paymentScheme;
     private List<Long> paymentIds = new ArrayList<>();
+    /** Кол-во привязанных оплат. */
+    private int paymentsCount;
+    /** Все привязанные оплаты имеют тип (Аванс/По факту). Имеет смысл только при paymentsCount > 0. */
+    private boolean paymentsDistributed;
     private String comment;
     private Long responsibleId;
     private String responsibleDisplayName;
@@ -41,6 +58,9 @@ public class DeliveryDto {
     public LocalDate getDeliveryDeadline() { return deliveryDeadline; }
     public void setDeliveryDeadline(LocalDate deliveryDeadline) { this.deliveryDeadline = deliveryDeadline; }
 
+    public Integer getDeliveryTermWorkingDays() { return deliveryTermWorkingDays; }
+    public void setDeliveryTermWorkingDays(Integer deliveryTermWorkingDays) { this.deliveryTermWorkingDays = deliveryTermWorkingDays; }
+
     public Long getContractId() { return contractId; }
     public void setContractId(Long contractId) { this.contractId = contractId; }
 
@@ -49,6 +69,15 @@ public class DeliveryDto {
 
     public String getContractName() { return contractName; }
     public void setContractName(String contractName) { this.contractName = contractName; }
+
+    public String getContractPaymentScheme() { return contractPaymentScheme; }
+    public void setContractPaymentScheme(String contractPaymentScheme) { this.contractPaymentScheme = contractPaymentScheme; }
+
+    public String getContractPaymentTerms() { return contractPaymentTerms; }
+    public void setContractPaymentTerms(String contractPaymentTerms) { this.contractPaymentTerms = contractPaymentTerms; }
+
+    public String getContractDeliveryTerm() { return contractDeliveryTerm; }
+    public void setContractDeliveryTerm(String contractDeliveryTerm) { this.contractDeliveryTerm = contractDeliveryTerm; }
 
     public Long getSupplierId() { return supplierId; }
     public void setSupplierId(Long supplierId) { this.supplierId = supplierId; }
@@ -71,11 +100,23 @@ public class DeliveryDto {
     public String getStatusColor() { return statusColor; }
     public void setStatusColor(String statusColor) { this.statusColor = statusColor; }
 
+    public String getShipmentStatus() { return shipmentStatus; }
+    public void setShipmentStatus(String shipmentStatus) { this.shipmentStatus = shipmentStatus; }
+
+    public String getShipmentStatusColor() { return shipmentStatusColor; }
+    public void setShipmentStatusColor(String shipmentStatusColor) { this.shipmentStatusColor = shipmentStatusColor; }
+
     public String getPaymentScheme() { return paymentScheme; }
     public void setPaymentScheme(String paymentScheme) { this.paymentScheme = paymentScheme; }
 
     public List<Long> getPaymentIds() { return paymentIds; }
     public void setPaymentIds(List<Long> paymentIds) { this.paymentIds = paymentIds; }
+
+    public int getPaymentsCount() { return paymentsCount; }
+    public void setPaymentsCount(int paymentsCount) { this.paymentsCount = paymentsCount; }
+
+    public boolean isPaymentsDistributed() { return paymentsDistributed; }
+    public void setPaymentsDistributed(boolean paymentsDistributed) { this.paymentsDistributed = paymentsDistributed; }
 
     public String getComment() { return comment; }
     public void setComment(String comment) { this.comment = comment; }

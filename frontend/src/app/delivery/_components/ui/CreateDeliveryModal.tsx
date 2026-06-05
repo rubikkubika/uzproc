@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { X } from 'lucide-react';
 import { getBackendUrl } from '@/utils/api';
+import { parseFirstNumber } from '../types/delivery.types';
 
 interface ContractSearchResult {
   id: number;
@@ -14,6 +15,8 @@ interface ContractSearchResult {
   budgetAmount: number | null;
   currency: string | null;
   paymentTerms: string | null;
+  paymentScheme: string | null;
+  deliveryTerm: string | null;
 }
 
 interface ContractPayment {
@@ -58,6 +61,7 @@ export default function CreateDeliveryModal({ open, onClose, onCreated }: Props)
   const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [advancePaymentIds, setAdvancePaymentIds] = useState<Set<number>>(new Set());
   const [factPaymentIds, setFactPaymentIds] = useState<Set<number>>(new Set());
+  const [deliveryTermDays, setDeliveryTermDays] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,6 +73,7 @@ export default function CreateDeliveryModal({ open, onClose, onCreated }: Props)
     setContractPayments([]);
     setAdvancePaymentIds(new Set());
     setFactPaymentIds(new Set());
+    setDeliveryTermDays('');
     setSubmitting(false);
     setError(null);
   }, []);
@@ -89,6 +94,12 @@ export default function CreateDeliveryModal({ open, onClose, onCreated }: Props)
       .catch(() => setContracts([]))
       .finally(() => setContractsLoading(false));
   }, [open, debouncedSearch, selectedContract]);
+
+  // При выборе договора подставляем срок поставки (первое число из текста договора).
+  useEffect(() => {
+    const parsed = parseFirstNumber(selectedContract?.deliveryTerm);
+    setDeliveryTermDays(parsed != null ? String(parsed) : '');
+  }, [selectedContract]);
 
   useEffect(() => {
     if (!selectedContract) {
@@ -163,6 +174,7 @@ export default function CreateDeliveryModal({ open, onClose, onCreated }: Props)
           paymentScheme,
           advancePaymentIds: Array.from(advancePaymentIds),
           factPaymentIds: Array.from(factPaymentIds),
+          deliveryTermWorkingDays: deliveryTermDays.trim() !== '' ? Number(deliveryTermDays) : null,
         }),
       });
       if (!res.ok) {
@@ -381,6 +393,54 @@ export default function CreateDeliveryModal({ open, onClose, onCreated }: Props)
                   ? selectedContract.paymentTerms
                   : <span className="text-gray-400">Условия оплаты в договоре не указаны</span>}
               </div>
+            </section>
+          )}
+
+          {/* Схема оплаты из договора */}
+          {selectedContract && paymentScheme && (
+            <section>
+              <h3 className="text-xs font-semibold text-gray-700 mb-1.5">
+                Схема оплаты из договора
+              </h3>
+              <div className="text-xs text-gray-800 bg-gray-50 border border-gray-200 rounded p-2 whitespace-pre-wrap break-words">
+                {selectedContract.paymentScheme?.trim()
+                  ? selectedContract.paymentScheme
+                  : <span className="text-gray-400">Схема оплаты в договоре не указана</span>}
+              </div>
+            </section>
+          )}
+
+          {/* Срок поставки из договора */}
+          {selectedContract && paymentScheme && (
+            <section>
+              <h3 className="text-xs font-semibold text-gray-700 mb-1.5">
+                Срок поставки из договора
+              </h3>
+              <div className="text-xs text-gray-800 bg-gray-50 border border-gray-200 rounded p-2 whitespace-pre-wrap break-words">
+                {selectedContract.deliveryTerm?.trim()
+                  ? selectedContract.deliveryTerm
+                  : <span className="text-gray-400">Срок поставки в договоре не указан</span>}
+              </div>
+            </section>
+          )}
+
+          {/* Срок поставки в рабочих днях (по умолчанию из договора) */}
+          {selectedContract && paymentScheme && (
+            <section>
+              <h3 className="text-xs font-semibold text-gray-700 mb-1.5">
+                Срок поставки (рабочих дней)
+              </h3>
+              <input
+                type="number"
+                min={0}
+                value={deliveryTermDays}
+                onChange={(e) => setDeliveryTermDays(e.target.value)}
+                placeholder="Напр. 30"
+                className="w-40 text-xs border border-gray-300 rounded px-2 py-1 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+              <p className="text-[11px] text-gray-400 mt-1">
+                Дата поставки вычисляется автоматически: дата оплаты {paymentScheme === 'PREPAYMENT' ? 'аванса' : 'последнего платежа'} + срок (рабочие дни).
+              </p>
             </section>
           )}
 

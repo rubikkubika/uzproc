@@ -1,15 +1,23 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowUp, ArrowDown, ArrowUpDown, Plus } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpDown, Plus, CalendarPlus } from 'lucide-react';
 import { useDeliveryTable } from './hooks/useDeliveryTable';
-import type { SortField } from './types/delivery.types';
-import { PAYMENT_SCHEME_LABELS, STATUS_BADGE_CLASSES } from './types/delivery.types';
-import type { PaymentSchemeFilterValue } from './hooks/useDeliveryFilters';
+import type { Delivery, SortField } from './types/delivery.types';
+import {
+  STATUS_BADGE_CLASSES,
+  SHIPMENT_STATUS_OPTIONS,
+  getPaymentSchemeLabel,
+  getPaymentsStatus,
+} from './types/delivery.types';
+import type { PaymentSchemeFilterValue, ShipmentStatusFilterValue } from './hooks/useDeliveryFilters';
 import CreateDeliveryModal from './ui/CreateDeliveryModal';
+import DeliveryDetailsModal from './ui/DeliveryDetailsModal';
 
 export default function DeliveryTable() {
   const [createOpen, setCreateOpen] = useState(false);
+  const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null);
+  const [mayMessage, setMayMessage] = useState<string | null>(null);
   const {
     data,
     allItems,
@@ -29,8 +37,15 @@ export default function DeliveryTable() {
     handleShowNoDate,
     handleShowAll,
     reload,
-    updateDeliveryDeadline,
+    createMayDeliveries,
+    creatingMay,
   } = useDeliveryTable();
+
+  const handleCreateMay = async () => {
+    setMayMessage(null);
+    const message = await createMayDeliveries();
+    setMayMessage(message);
+  };
 
   if (error) {
     return (
@@ -90,18 +105,20 @@ export default function DeliveryTable() {
     width: string;
     hasFilter: boolean;
     hasSort: boolean;
-    filterKind?: 'text' | 'paymentScheme';
+    filterKind?: 'text' | 'paymentScheme' | 'shipmentStatus';
   }> = [
     { field: 'innerId', label: '№', width: '5%', hasFilter: true, hasSort: true, filterKind: 'text' },
-    { field: 'deliveryDeadline', label: 'Срок поставки', width: '9%', hasFilter: false, hasSort: true },
-    { field: 'contractInnerId', label: 'Договор', width: '10%', hasFilter: true, hasSort: false, filterKind: 'text' },
-    { field: 'supplierName', label: 'Поставщик', width: '13%', hasFilter: true, hasSort: false, filterKind: 'text' },
-    { field: 'amount', label: 'Сумма', width: '9%', hasFilter: false, hasSort: true },
+    { field: 'deliveryDeadline', label: 'Дата поставки', width: '9%', hasFilter: false, hasSort: true },
+    { field: 'contractInnerId', label: 'Договор', width: '9%', hasFilter: true, hasSort: false, filterKind: 'text' },
+    { field: 'supplierName', label: 'Поставщик', width: '12%', hasFilter: true, hasSort: false, filterKind: 'text' },
+    { field: 'amount', label: 'Сумма', width: '8%', hasFilter: false, hasSort: true },
     { field: 'currency', label: 'Валюта', width: '5%', hasFilter: true, hasSort: false, filterKind: 'text' },
-    { field: 'paymentScheme', label: 'Схема оплаты', width: '9%', hasFilter: true, hasSort: false, filterKind: 'paymentScheme' },
-    { field: 'status', label: 'Статус', width: '9%', hasFilter: true, hasSort: false, filterKind: 'text' },
-    { field: 'comment', label: 'Комментарий', width: '13%', hasFilter: true, hasSort: false, filterKind: 'text' },
-    { field: 'responsibleName', label: 'Ответственный', width: '9%', hasFilter: true, hasSort: false, filterKind: 'text' },
+    { field: 'paymentScheme', label: 'Схема оплаты', width: '8%', hasFilter: true, hasSort: false, filterKind: 'paymentScheme' },
+    { field: 'payments', label: 'Оплаты', width: '9%', hasFilter: false, hasSort: false },
+    { field: 'status', label: 'Статус оплаты', width: '8%', hasFilter: true, hasSort: false, filterKind: 'text' },
+    { field: 'shipmentStatus', label: 'Статус поставки', width: '8%', hasFilter: true, hasSort: false, filterKind: 'shipmentStatus' },
+    { field: 'comment', label: 'Комментарий', width: '9%', hasFilter: true, hasSort: false, filterKind: 'text' },
+    { field: 'responsibleName', label: 'Ответственный', width: '7%', hasFilter: true, hasSort: false, filterKind: 'text' },
   ];
 
   const renderPaymentSchemeFilter = () => (
@@ -115,6 +132,21 @@ export default function DeliveryTable() {
       <option value="">Все</option>
       <option value="PREPAYMENT">Аванс</option>
       <option value="POSTPAYMENT">По факту</option>
+    </select>
+  );
+
+  const renderShipmentStatusFilter = () => (
+    <select
+      value={filters.shipmentStatusFilter}
+      onChange={(e) => filters.setShipmentStatusFilter(e.target.value as ShipmentStatusFilterValue)}
+      onClick={(e) => e.stopPropagation()}
+      className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 w-full"
+      style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+    >
+      <option value="">Все</option>
+      {SHIPMENT_STATUS_OPTIONS.map((o) => (
+        <option key={o.value} value={o.value}>{o.label}</option>
+      ))}
     </select>
   );
 
@@ -172,6 +204,22 @@ export default function DeliveryTable() {
               Без даты
             </button>
           </div>
+
+          <button
+            onClick={handleCreateMay}
+            disabled={creatingMay}
+            className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium bg-emerald-600 text-white rounded-lg border border-emerald-600 hover:bg-emerald-700 transition-colors whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
+            title="Создать поставки по всем подписанным спецификациям за май текущего года"
+          >
+            <CalendarPlus className="w-3.5 h-3.5" />
+            {creatingMay ? 'Создание...' : 'Создать поставки за май'}
+          </button>
+
+          {mayMessage && (
+            <span className="text-xs text-gray-700 bg-gray-100 border border-gray-200 rounded px-2 py-0.5">
+              {mayMessage}
+            </span>
+          )}
         </div>
         <div className="text-xs text-gray-700 flex-shrink-0">
           Показано {allItems.length} из {data?.totalElements ?? 0} записей
@@ -193,7 +241,9 @@ export default function DeliveryTable() {
                       {col.hasFilter
                         ? col.filterKind === 'paymentScheme'
                           ? renderPaymentSchemeFilter()
-                          : renderFilterInput(col.field)
+                          : col.filterKind === 'shipmentStatus'
+                            ? renderShipmentStatusFilter()
+                            : renderFilterInput(col.field)
                         : null}
                     </div>
                     <div className="flex items-center gap-1 min-h-[20px]">
@@ -220,18 +270,21 @@ export default function DeliveryTable() {
               </tr>
             ) : (
               allItems.map((item, index) => (
-                <tr key={`${item.id}-${index}`} className="hover:bg-gray-50">
+                <tr
+                  key={`${item.id}-${index}`}
+                  className="hover:bg-gray-50 cursor-pointer"
+                  onClick={() => setSelectedDelivery(item)}
+                >
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
                     <span className="truncate block" title={item.innerId ?? undefined}>{item.innerId ?? '-'}</span>
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
-                    <input
-                      type="date"
-                      value={item.deliveryDeadline ?? ''}
-                      onChange={(e) => updateDeliveryDeadline(item.id, e.target.value)}
-                      onClick={(e) => e.stopPropagation()}
-                      className="w-full text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    />
+                    <span
+                      className={`truncate block ${item.deliveryDeadline ? 'text-gray-900' : 'text-gray-400'}`}
+                      title={item.deliveryDeadline ?? 'Вычисляется автоматически'}
+                    >
+                      {item.deliveryDeadline ?? '—'}
+                    </span>
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
                     <span className="truncate block" title={item.contractInnerId ?? undefined}>
@@ -249,10 +302,26 @@ export default function DeliveryTable() {
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
                     <span className="truncate block">{item.currency ?? '-'}</span>
                   </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
-                    <span className="truncate block">
-                      {item.paymentScheme ? PAYMENT_SCHEME_LABELS[item.paymentScheme] : '-'}
+                  <td className="px-2 py-2 text-xs border-r border-gray-300 overflow-hidden min-w-0">
+                    <span
+                      className={`truncate block ${item.paymentScheme ? 'text-gray-900' : 'text-gray-400'}`}
+                      title={getPaymentSchemeLabel(item.paymentScheme)}
+                    >
+                      {getPaymentSchemeLabel(item.paymentScheme)}
                     </span>
+                  </td>
+                  <td className="px-2 py-2 text-xs border-r border-gray-300 overflow-hidden min-w-0">
+                    {(() => {
+                      const ps = getPaymentsStatus(item.paymentsCount, item.paymentsDistributed);
+                      return (
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${ps.badgeClass}`}
+                          title={ps.label}
+                        >
+                          {ps.label}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="px-2 py-2 text-xs border-r border-gray-300 overflow-hidden min-w-0">
                     {item.status ? (
@@ -261,6 +330,18 @@ export default function DeliveryTable() {
                         title={item.status}
                       >
                         {item.status}
+                      </span>
+                    ) : (
+                      <span className="text-gray-500">-</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-2 text-xs border-r border-gray-300 overflow-hidden min-w-0">
+                    {item.shipmentStatus ? (
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${STATUS_BADGE_CLASSES[item.shipmentStatusColor ?? 'gray'] ?? STATUS_BADGE_CLASSES.gray}`}
+                        title={item.shipmentStatus}
+                      >
+                        {item.shipmentStatus}
                       </span>
                     ) : (
                       <span className="text-gray-500">-</span>
@@ -289,6 +370,12 @@ export default function DeliveryTable() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onCreated={reload}
+      />
+
+      <DeliveryDetailsModal
+        delivery={selectedDelivery}
+        onClose={() => setSelectedDelivery(null)}
+        onSaved={reload}
       />
     </div>
   );

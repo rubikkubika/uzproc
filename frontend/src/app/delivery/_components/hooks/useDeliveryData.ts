@@ -12,6 +12,7 @@ export const useDeliveryData = () => {
     dateYear: number | null = null,
     dateNull: boolean = false,
     paymentScheme: string = '',
+    shipmentStatus: string = '',
   ): Promise<PageResponse | null> => {
     try {
       const params = new URLSearchParams();
@@ -40,6 +41,10 @@ export const useDeliveryData = () => {
 
       if (paymentScheme && paymentScheme.trim() !== '') {
         params.append('paymentScheme', paymentScheme.trim());
+      }
+
+      if (shipmentStatus && shipmentStatus.trim() !== '') {
+        params.append('shipmentStatus', shipmentStatus.trim());
       }
 
       const url = `${getBackendUrl()}/api/deliveries?${params.toString()}`;

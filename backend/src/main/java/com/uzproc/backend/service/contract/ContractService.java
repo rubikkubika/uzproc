@@ -726,6 +726,8 @@ public class ContractService {
         dto.setExcludeFromInWork(entity.getExcludeFromInWork());
         dto.setCustomerOrganization(entity.getCustomerOrganization());
         dto.setPaymentTerms(entity.getPaymentTerms());
+        dto.setPaymentScheme(entity.getPaymentScheme());
+        dto.setDeliveryTerm(entity.getDeliveryTerm());
         dto.setIsTypicalForm(entity.getIsTypicalForm());
 
         // Поставщики (контрагенты)

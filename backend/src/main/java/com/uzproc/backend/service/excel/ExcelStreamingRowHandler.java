@@ -108,6 +108,10 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private static final String CURRENCY_COLUMN = "Валюта";
     /** Колонка графика оплаты в договоре → поле «Условия оплаты». */
     private static final String PAYMENT_SCHEDULE_COLUMN = "График оплаты (Договор)";
+    /** Колонка схемы оплаты в договоре → поле «Схема оплаты». */
+    private static final String PAYMENT_SCHEME_COLUMN = "Схема оплаты (Договор)";
+    /** Колонка срока поставки в договоре → поле «Срок поставки». */
+    private static final String DELIVERY_TERM_COLUMN = "Срок поставки (Договор)";
     private static final String MAIN_CONTRACT_COLUMN = "Основной договор";
     private static final String SPECIFICATION_FORM = "Спецификация";
     private static final String EXPENSE_ITEM_COLUMN = "Статья бюджета (PL) (Заявка на ЗП)";
@@ -1356,6 +1360,34 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 }
             }
 
+            // Схема оплаты (опционально) — парсинг из колонки "Схема оплаты (Договор)"
+            Integer paymentSchemeCol = columnIndices.get(PAYMENT_SCHEME_COLUMN);
+            if (paymentSchemeCol == null) {
+                paymentSchemeCol = findColumnIndex(PAYMENT_SCHEME_COLUMN);
+            }
+            if (paymentSchemeCol != null) {
+                String paymentScheme = currentRowData.get(paymentSchemeCol);
+                if (paymentScheme != null && !paymentScheme.trim().isEmpty()) {
+                    contract.setPaymentScheme(paymentScheme.trim());
+                    logger.debug("Row {}: parsed paymentScheme from 'Схема оплаты (Договор)' for contract {}",
+                        currentRowNum + 1, contract.getInnerId());
+                }
+            }
+
+            // Срок поставки (опционально) — парсинг из колонки "Срок поставки (Договор)"
+            Integer deliveryTermCol = columnIndices.get(DELIVERY_TERM_COLUMN);
+            if (deliveryTermCol == null) {
+                deliveryTermCol = findColumnIndex(DELIVERY_TERM_COLUMN);
+            }
+            if (deliveryTermCol != null) {
+                String deliveryTerm = currentRowData.get(deliveryTermCol);
+                if (deliveryTerm != null && !deliveryTerm.trim().isEmpty()) {
+                    contract.setDeliveryTerm(deliveryTerm.trim());
+                    logger.debug("Row {}: parsed deliveryTerm from 'Срок поставки (Договор)' for contract {}",
+                        currentRowNum + 1, contract.getInnerId());
+                }
+            }
+
             // Подготовил (опционально) - устанавливаем связь с пользователем
             Integer preparedByCol = columnIndices.get(PREPARED_BY_COLUMN);
             if (preparedByCol == null) {
@@ -2265,6 +2297,24 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 existing.setPaymentTerms(newData.getPaymentTerms());
                 updated = true;
                 logger.debug("Updated paymentTerms for contract {}", existing.getInnerId());
+            }
+        }
+
+        // Обновляем схему оплаты (paymentScheme)
+        if (newData.getPaymentScheme() != null && !newData.getPaymentScheme().trim().isEmpty()) {
+            if (existing.getPaymentScheme() == null || !existing.getPaymentScheme().equals(newData.getPaymentScheme())) {
+                existing.setPaymentScheme(newData.getPaymentScheme());
+                updated = true;
+                logger.debug("Updated paymentScheme for contract {}", existing.getInnerId());
+            }
+        }
+
+        // Обновляем срок поставки (deliveryTerm)
+        if (newData.getDeliveryTerm() != null && !newData.getDeliveryTerm().trim().isEmpty()) {
+            if (existing.getDeliveryTerm() == null || !existing.getDeliveryTerm().equals(newData.getDeliveryTerm())) {
+                existing.setDeliveryTerm(newData.getDeliveryTerm());
+                updated = true;
+                logger.debug("Updated deliveryTerm for contract {}", existing.getInnerId());
             }
         }
         

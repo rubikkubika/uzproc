@@ -45,6 +45,8 @@ interface ContractDetail {
   status: string | null;
   state: string | null;
   paymentTerms: string | null;
+  paymentScheme: string | null;
+  deliveryTerm: string | null;
   suppliers: ContractSupplier[] | null;
   preparedBy: string | null;
   purchaseRequestId: number | null;
@@ -351,6 +353,22 @@ export default function ContractDetailPage() {
                   <div className="bg-white rounded-lg shadow-sm p-4">
                     <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Условия оплаты</h2>
                     <p className="text-sm text-gray-900 whitespace-pre-wrap">{contract.paymentTerms}</p>
+                  </div>
+                )}
+
+                {/* Схема оплаты */}
+                {contract.paymentScheme && (
+                  <div className="bg-white rounded-lg shadow-sm p-4">
+                    <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Схема оплаты</h2>
+                    <p className="text-sm text-gray-900 whitespace-pre-wrap">{contract.paymentScheme}</p>
+                  </div>
+                )}
+
+                {/* Срок поставки */}
+                {contract.deliveryTerm && (
+                  <div className="bg-white rounded-lg shadow-sm p-4">
+                    <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Срок поставки</h2>
+                    <p className="text-sm text-gray-900 whitespace-pre-wrap">{contract.deliveryTerm}</p>
                   </div>
                 )}
 

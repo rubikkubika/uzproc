@@ -12,4 +12,7 @@ public interface DeliveryRepository extends JpaRepository<Delivery, Long>, JpaSp
     @Query(value = "SELECT COALESCE(MAX(CAST(inner_id AS INTEGER)), 0) " +
             "FROM deliveries WHERE inner_id ~ '^[0-9]+$'", nativeQuery = true)
     Integer findMaxNumericInnerId();
+
+    /** Существует ли уже хотя бы одна поставка по указанному договору (для защиты от дублей). */
+    boolean existsByContractId(Long contractId);
 }

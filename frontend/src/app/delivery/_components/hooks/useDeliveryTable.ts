@@ -69,6 +69,7 @@ export const useDeliveryTable = () => {
     filtersHook.setFilters(empty);
     filtersHook.setLocalFilters(empty);
     filtersHook.setPaymentSchemeFilter('');
+    filtersHook.setShipmentStatusFilter('');
     setSelectedYear(null);
     setShowNoDate(false);
     setCurrentPage(0);
@@ -84,6 +85,7 @@ export const useDeliveryTable = () => {
     year: number | null,
     noDate: boolean,
     paymentScheme: string,
+    shipmentStatus: string,
   ) => {
     if (append) {
       setLoadingMore(true);
@@ -93,7 +95,7 @@ export const useDeliveryTable = () => {
     }
     setError(null);
     try {
-      const result = await dataHook.fetchData(page, size, sortF, sortDir, filters, year, noDate, paymentScheme);
+      const result = await dataHook.fetchData(page, size, sortF, sortDir, filters, year, noDate, paymentScheme, shipmentStatus);
       const items = result?.content ?? [];
       if (append) {
         setAllItems(prev => [...prev, ...items]);
@@ -114,13 +116,35 @@ export const useDeliveryTable = () => {
 
   const filtersStr = useMemo(() => JSON.stringify(filtersHook.filters), [filtersHook.filters]);
   const paymentSchemeFilter = filtersHook.paymentSchemeFilter;
+  const shipmentStatusFilter = filtersHook.shipmentStatusFilter;
 
   useEffect(() => {
     setCurrentPage(0);
-    fetchData(0, pageSize, sortField, sortDirection, filtersHook.filters, false, selectedYear, showNoDate, paymentSchemeFilter);
-  }, [sortField, sortDirection, filtersStr, fetchData, pageSize, selectedYear, showNoDate, paymentSchemeFilter, reloadKey]); // eslint-disable-line react-hooks/exhaustive-deps
+    fetchData(0, pageSize, sortField, sortDirection, filtersHook.filters, false, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter);
+  }, [sortField, sortDirection, filtersStr, fetchData, pageSize, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, reloadKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const reload = useCallback(() => setReloadKey((k) => k + 1), []);
+
+  const [creatingMay, setCreatingMay] = useState(false);
+
+  const createMayDeliveries = useCallback(async (): Promise<string> => {
+    setCreatingMay(true);
+    try {
+      const res = await fetch(`${getBackendUrl()}/api/deliveries/from-specifications?month=5`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const result = await res.json() as { created: number; skipped: number; totalSpecifications: number };
+      reload();
+      return `Создано поставок: ${result.created}. Пропущено (уже есть): ${result.skipped}. Всего спецификаций: ${result.totalSpecifications}.`;
+    } catch (err) {
+      console.error('Не удалось создать поставки за май:', err);
+      return 'Не удалось создать поставки за май';
+    } finally {
+      setCreatingMay(false);
+    }
+  }, [reload]);
 
   const updateDeliveryDeadline = useCallback(async (id: number, newDate: string) => {
     const prev = allItems;
@@ -143,9 +167,9 @@ export const useDeliveryTable = () => {
     onLoadMore: useCallback(() => {
       if (hasMore && !loadingMore && allItems.length > 0) {
         const nextPage = currentPage + 1;
-        fetchData(nextPage, pageSize, sortField, sortDirection, filtersHook.filters, true, selectedYear, showNoDate, paymentSchemeFilter);
+        fetchData(nextPage, pageSize, sortField, sortDirection, filtersHook.filters, true, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter);
       }
-    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, sortField, sortDirection, filtersHook.filters, fetchData, selectedYear, showNoDate, paymentSchemeFilter]),
+    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, sortField, sortDirection, filtersHook.filters, fetchData, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter]),
     threshold: 0.1,
   });
 
@@ -172,5 +196,7 @@ export const useDeliveryTable = () => {
     handleShowAll,
     reload,
     updateDeliveryDeadline,
+    createMayDeliveries,
+    creatingMay,
   };
 };

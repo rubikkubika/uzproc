@@ -137,6 +137,14 @@ public class Contract {
     @Column(name = "payment_terms", length = 2000)
     private String paymentTerms;
 
+    /** Схема оплаты. Парсинг из колонки "Схема оплаты (Договор)" в Excel. */
+    @Column(name = "payment_scheme", length = 2000)
+    private String paymentScheme;
+
+    /** Срок поставки. Парсинг из колонки "Срок поставки (Договор)" в Excel. */
+    @Column(name = "delivery_term", length = 2000)
+    private String deliveryTerm;
+
     /** Типовая форма. Парсинг из колонки "Типовая форма (Договор)" в Excel. */
     @Column(name = "is_typical_form")
     private Boolean isTypicalForm;
@@ -422,6 +430,22 @@ public class Contract {
 
     public void setPaymentTerms(String paymentTerms) {
         this.paymentTerms = paymentTerms;
+    }
+
+    public String getPaymentScheme() {
+        return paymentScheme;
+    }
+
+    public void setPaymentScheme(String paymentScheme) {
+        this.paymentScheme = paymentScheme;
+    }
+
+    public String getDeliveryTerm() {
+        return deliveryTerm;
+    }
+
+    public void setDeliveryTerm(String deliveryTerm) {
+        this.deliveryTerm = deliveryTerm;
     }
 
     public Set<Supplier> getSuppliers() {
