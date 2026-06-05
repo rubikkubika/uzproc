@@ -66,8 +66,16 @@ export async function verifyJwt(token: string | undefined | null): Promise<JwtPa
     return null;
   }
 
-  // Запрещаем alg:none и любые алгоритмы кроме HS256 (бэкенд подписывает HS256)
-  if (header.alg !== 'HS256') return null;
+  // Разрешаем только семейство HMAC-SHA (HS256/HS384/HS512), запрещаем alg:none и
+  // асимметричные алгоритмы. Бэкенд (jjwt) выбирает алгоритм по длине ключа:
+  // 64-байтный секрет из JWT_SECRET даёт HS512, поэтому жёсткий HS256 отвергал валидные токены.
+  const HMAC_HASH: Record<string, string> = {
+    HS256: 'SHA-256',
+    HS384: 'SHA-384',
+    HS512: 'SHA-512',
+  };
+  const hashName = header.alg ? HMAC_HASH[header.alg] : undefined;
+  if (!hashName) return null;
 
   // Проверка срока действия
   if (typeof payload.exp === 'number') {
@@ -81,7 +89,7 @@ export async function verifyJwt(token: string | undefined | null): Promise<JwtPa
     const key = await crypto.subtle.importKey(
       'raw',
       enc.encode(getSecret()),
-      { name: 'HMAC', hash: 'SHA-256' },
+      { name: 'HMAC', hash: hashName },
       false,
       ['verify']
     );
