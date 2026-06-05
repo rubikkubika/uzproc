@@ -842,6 +842,7 @@ public class PurchaseRequestService {
                     })
                     .map(contract -> contractService.toDto(contract))
                     .collect(Collectors.toList());
+            contractService.enrichRegistrationDates(contractDtos);
             dto.setContracts(contractDtos);
         } else {
             dto.setPurchaseIds(new ArrayList<>());

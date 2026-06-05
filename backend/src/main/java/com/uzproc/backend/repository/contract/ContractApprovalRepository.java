@@ -35,6 +35,20 @@ public interface ContractApprovalRepository extends JpaRepository<ContractApprov
     List<Object[]> findLastApprovalCompletionDatesByContractIds(@Param("contractIds") List<Long> contractIds);
 
     /**
+     * Для каждого договора из списка возвращает (contract_id, MAX(completion_date)) по этапам «регистрация%».
+     * Используется для отображения даты регистрации договора (дата выполнения согласования «Регистрация»).
+     */
+    @Query(value = "SELECT contract_id, MAX(completion_date) FROM contract_approvals WHERE contract_id IN :contractIds AND LOWER(stage) LIKE 'регистрация%' AND completion_date IS NOT NULL GROUP BY contract_id", nativeQuery = true)
+    List<Object[]> findRegistrationCompletionDatesByContractIds(@Param("contractIds") List<Long> contractIds);
+
+    /**
+     * Для каждого договора из списка возвращает (contract_id, MAX(completion_date)) по этапам «синхронизация%».
+     * Используется для отображения даты синхронизации договора (дата выполнения согласования «Синхронизация»).
+     */
+    @Query(value = "SELECT contract_id, MAX(completion_date) FROM contract_approvals WHERE contract_id IN :contractIds AND LOWER(stage) LIKE 'синхронизация%' AND completion_date IS NOT NULL GROUP BY contract_id", nativeQuery = true)
+    List<Object[]> findSynchronizationCompletionDatesByContractIds(@Param("contractIds") List<Long> contractIds);
+
+    /**
      * Все согласования договоров, у которых есть связь с заявкой на закупку (contract.purchase_request_id IS NOT NULL).
      * Загружает contract для фильтрации.
      */

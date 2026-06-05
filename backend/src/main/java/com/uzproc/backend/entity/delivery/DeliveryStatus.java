@@ -6,8 +6,10 @@ package com.uzproc.backend.entity.delivery;
  */
 public enum DeliveryStatus {
     PROJECT("Проект", "gray"),
-    ADVANCE_PREPARED("Аванс подготовлен", "blue"),
-    ADVANCE_PAID("Аванс оплачен", "green");
+    ADVANCE_PREPARED("Оплата аванса", "yellow"),
+    ADVANCE_PAID("Аванс оплачен", "green"),
+    NOT_PAID("Не оплачено", "gray"),
+    PAID("Оплачено", "green");
 
     private final String displayName;
     private final String color;

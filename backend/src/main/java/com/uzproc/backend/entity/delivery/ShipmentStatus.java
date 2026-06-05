@@ -6,7 +6,8 @@ package com.uzproc.backend.entity.delivery;
  * Хранится в БД через @Enumerated(STRING) — поле name().
  */
 public enum ShipmentStatus {
-    EXPECTED("Ожидается", "blue"),
+    EXPECTED("Ожидает поставку", "blue"),
+    AWAITING_ADVANCE_PAYMENT("Ожидает оплаты аванса", "yellow"),
     DELIVERED("Поставлено", "green"),
     OVERDUE("Просрочено", "red");
 

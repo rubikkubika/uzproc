@@ -28,9 +28,13 @@ public class Delivery {
     @Column(name = "date")
     private LocalDate date;
 
-    /** Дата поставки. Вычисляется автоматически: дата оплаты + срок поставки (рабочие дни). */
+    /** Дедлайн поставки. Вычисляется автоматически: базовая дата + срок поставки (рабочие дни). */
     @Column(name = "delivery_deadline")
     private LocalDate deliveryDeadline;
+
+    /** Фактическая дата поставки. Задаётся при переводе статуса поставки в «Поставлено». */
+    @Column(name = "actual_delivery_date")
+    private LocalDate actualDeliveryDate;
 
     /** Срок поставки в рабочих днях. По умолчанию — из договора (Contract.deliveryTerm). */
     @Column(name = "delivery_term_working_days")
@@ -99,6 +103,9 @@ public class Delivery {
 
     public LocalDate getDeliveryDeadline() { return deliveryDeadline; }
     public void setDeliveryDeadline(LocalDate deliveryDeadline) { this.deliveryDeadline = deliveryDeadline; }
+
+    public LocalDate getActualDeliveryDate() { return actualDeliveryDate; }
+    public void setActualDeliveryDate(LocalDate actualDeliveryDate) { this.actualDeliveryDate = actualDeliveryDate; }
 
     public Integer getDeliveryTermWorkingDays() { return deliveryTermWorkingDays; }
     public void setDeliveryTermWorkingDays(Integer deliveryTermWorkingDays) { this.deliveryTermWorkingDays = deliveryTermWorkingDays; }

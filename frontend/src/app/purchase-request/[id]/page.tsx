@@ -80,6 +80,8 @@ interface Contract {
   parentContract: Contract | null;
   status: string | null;
   state: string | null;
+  /** Дата регистрации договора (дата выполнения согласования «Регистрация»). */
+  registrationDate?: string | null;
   preparedBy: string | null;
   excludedFromStatusCalculation?: boolean | null;
   exclusionComment?: string | null;
@@ -2200,6 +2202,10 @@ export default function PurchaseRequestDetailPage() {
                                   </span>
                                 ) : '-'}
                               </div>
+                              <div className="flex items-center gap-1 text-xs flex-wrap">
+                                <span className="font-semibold text-gray-600 flex-shrink-0">Дата регистрации:</span>
+                                <span className="text-gray-900">{contract.registrationDate ? formatDate(contract.registrationDate) : '-'}</span>
+                              </div>
                               <div className="flex items-baseline gap-1 text-xs whitespace-nowrap min-w-0 overflow-hidden">
                                 <span className="font-semibold text-gray-600 flex-shrink-0">Сумма:</span>
                                 <span className="text-gray-900 truncate">
@@ -2383,6 +2389,10 @@ export default function PurchaseRequestDetailPage() {
                                       </span>
                                     ) : '-'}
                                   </span>
+                                </div>
+                                <div className="flex items-baseline gap-1 text-xs whitespace-nowrap min-w-0">
+                                  <span className="font-semibold text-gray-600 flex-shrink-0">Дата регистрации:</span>
+                                  <span className="text-gray-900">{contract.registrationDate ? formatDate(contract.registrationDate) : '-'}</span>
                                 </div>
                                 <div className="flex items-baseline gap-1 text-xs whitespace-nowrap min-w-0">
                                   <span className="font-semibold text-gray-600 flex-shrink-0">Сумма:</span>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowUp, ArrowDown, ArrowUpDown, Plus, CalendarPlus } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpDown, Plus, CalendarPlus, MessageCircle } from 'lucide-react';
 import { useDeliveryTable } from './hooks/useDeliveryTable';
 import type { Delivery, SortField } from './types/delivery.types';
 import {
@@ -101,23 +101,34 @@ export default function DeliveryTable() {
 
   const columns: Array<{
     field: string;
-    label: string;
+    label: React.ReactNode;
     width: string;
     hasFilter: boolean;
     hasSort: boolean;
     filterKind?: 'text' | 'paymentScheme' | 'shipmentStatus';
   }> = [
     { field: 'innerId', label: '№', width: '5%', hasFilter: true, hasSort: true, filterKind: 'text' },
-    { field: 'deliveryDeadline', label: 'Дата поставки', width: '9%', hasFilter: false, hasSort: true },
+    { field: 'deliveryDeadline', label: 'Дедлайн', width: '11%', hasFilter: false, hasSort: true },
+    { field: 'shipmentStatus', label: 'Статус поставки', width: '8%', hasFilter: true, hasSort: false, filterKind: 'shipmentStatus' },
+    { field: 'paymentScheme', label: 'Схема оплаты', width: '8%', hasFilter: true, hasSort: false, filterKind: 'paymentScheme' },
+    { field: 'payments', label: 'Оплаты', width: '9%', hasFilter: false, hasSort: false },
+    { field: 'status', label: 'Статус оплаты', width: '8%', hasFilter: true, hasSort: false, filterKind: 'text' },
     { field: 'contractInnerId', label: 'Договор', width: '9%', hasFilter: true, hasSort: false, filterKind: 'text' },
     { field: 'supplierName', label: 'Поставщик', width: '12%', hasFilter: true, hasSort: false, filterKind: 'text' },
     { field: 'amount', label: 'Сумма', width: '8%', hasFilter: false, hasSort: true },
     { field: 'currency', label: 'Валюта', width: '5%', hasFilter: true, hasSort: false, filterKind: 'text' },
-    { field: 'paymentScheme', label: 'Схема оплаты', width: '8%', hasFilter: true, hasSort: false, filterKind: 'paymentScheme' },
-    { field: 'payments', label: 'Оплаты', width: '9%', hasFilter: false, hasSort: false },
-    { field: 'status', label: 'Статус оплаты', width: '8%', hasFilter: true, hasSort: false, filterKind: 'text' },
-    { field: 'shipmentStatus', label: 'Статус поставки', width: '8%', hasFilter: true, hasSort: false, filterKind: 'shipmentStatus' },
-    { field: 'comment', label: 'Комментарий', width: '9%', hasFilter: true, hasSort: false, filterKind: 'text' },
+    {
+      field: 'comment',
+      label: (
+        <span className="inline-flex items-center justify-center" title="Комментарий">
+          <MessageCircle className="w-4 h-4 text-gray-500" aria-hidden />
+        </span>
+      ),
+      width: '9%',
+      hasFilter: true,
+      hasSort: false,
+      filterKind: 'text',
+    },
     { field: 'responsibleName', label: 'Ответственный', width: '7%', hasFilter: true, hasSort: false, filterKind: 'text' },
   ];
 
@@ -279,28 +290,36 @@ export default function DeliveryTable() {
                     <span className="truncate block" title={item.innerId ?? undefined}>{item.innerId ?? '-'}</span>
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
-                    <span
-                      className={`truncate block ${item.deliveryDeadline ? 'text-gray-900' : 'text-gray-400'}`}
-                      title={item.deliveryDeadline ?? 'Вычисляется автоматически'}
-                    >
-                      {item.deliveryDeadline ?? '—'}
-                    </span>
+                    <div className="flex flex-col gap-0.5 leading-tight">
+                      <span className="flex items-baseline gap-1" title="Дедлайн (вычисляется автоматически)">
+                        <span className="text-[10px] uppercase tracking-wide text-gray-400 w-10 flex-shrink-0">Дедл.</span>
+                        <span className={item.deliveryDeadline ? 'text-gray-900' : 'text-gray-400'}>{item.deliveryDeadline ?? '—'}</span>
+                      </span>
+                      <span className="flex items-baseline gap-1" title="План — начало поставки из договора">
+                        <span className="text-[10px] uppercase tracking-wide text-gray-400 w-10 flex-shrink-0">План</span>
+                        <span className={item.contractPlannedDeliveryStartDate ? 'text-gray-900' : 'text-gray-400'}>
+                          {item.contractPlannedDeliveryStartDate ? new Date(item.contractPlannedDeliveryStartDate).toLocaleDateString('ru-RU') : '—'}
+                        </span>
+                      </span>
+                      <span className="flex items-baseline gap-1" title="Факт — фактическая дата поставки">
+                        <span className="text-[10px] uppercase tracking-wide text-gray-400 w-10 flex-shrink-0">Факт</span>
+                        <span className={item.actualDeliveryDate ? 'text-gray-900' : 'text-gray-400'}>
+                          {item.actualDeliveryDate ? new Date(item.actualDeliveryDate).toLocaleDateString('ru-RU') : '—'}
+                        </span>
+                      </span>
+                    </div>
                   </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
-                    <span className="truncate block" title={item.contractInnerId ?? undefined}>
-                      {item.contractInnerId ?? '-'}
-                    </span>
-                  </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
-                    <span className="truncate block" title={item.supplierName ?? undefined}>{item.supplierName ?? '-'}</span>
-                  </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
-                    <span className="truncate block" title={item.amount != null ? String(item.amount) : undefined}>
-                      {item.amount != null ? Number(item.amount).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'}
-                    </span>
-                  </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
-                    <span className="truncate block">{item.currency ?? '-'}</span>
+                  <td className="px-2 py-2 text-xs border-r border-gray-300 overflow-hidden min-w-0">
+                    {item.shipmentStatus ? (
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${STATUS_BADGE_CLASSES[item.shipmentStatusColor ?? 'gray'] ?? STATUS_BADGE_CLASSES.gray}`}
+                        title={item.shipmentStatus}
+                      >
+                        {item.shipmentStatus}
+                      </span>
+                    ) : (
+                      <span className="text-gray-500">-</span>
+                    )}
                   </td>
                   <td className="px-2 py-2 text-xs border-r border-gray-300 overflow-hidden min-w-0">
                     <span
@@ -335,17 +354,21 @@ export default function DeliveryTable() {
                       <span className="text-gray-500">-</span>
                     )}
                   </td>
-                  <td className="px-2 py-2 text-xs border-r border-gray-300 overflow-hidden min-w-0">
-                    {item.shipmentStatus ? (
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${STATUS_BADGE_CLASSES[item.shipmentStatusColor ?? 'gray'] ?? STATUS_BADGE_CLASSES.gray}`}
-                        title={item.shipmentStatus}
-                      >
-                        {item.shipmentStatus}
-                      </span>
-                    ) : (
-                      <span className="text-gray-500">-</span>
-                    )}
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
+                    <span className="truncate block" title={item.contractInnerId ?? undefined}>
+                      {item.contractInnerId ?? '-'}
+                    </span>
+                  </td>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
+                    <span className="truncate block" title={item.supplierName ?? undefined}>{item.supplierName ?? '-'}</span>
+                  </td>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
+                    <span className="truncate block" title={item.amount != null ? String(item.amount) : undefined}>
+                      {item.amount != null ? Number(item.amount).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'}
+                    </span>
+                  </td>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
+                    <span className="truncate block">{item.currency ?? '-'}</span>
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
                     <span className="line-clamp-2 block min-w-0" title={item.comment ?? undefined}>{item.comment ?? '-'}</span>

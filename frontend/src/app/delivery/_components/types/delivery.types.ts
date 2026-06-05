@@ -2,8 +2,12 @@ export interface Delivery {
   id: number;
   innerId: string | null;
   date: string | null;
-  /** Дата поставки — вычисляется автоматически (read-only). */
+  /** Дедлайн поставки — вычисляется автоматически (read-only). */
   deliveryDeadline: string | null;
+  /** Фактическая дата поставки (Факт). Задаётся при статусе «Поставлено». */
+  actualDeliveryDate: string | null;
+  /** Плановая дата начала поставки из договора (План). */
+  contractPlannedDeliveryStartDate: string | null;
   /** Срок поставки в рабочих днях. */
   deliveryTermWorkingDays: number | null;
   contractId: number | null;
@@ -12,6 +16,10 @@ export interface Delivery {
   contractPaymentScheme: string | null;
   contractPaymentTerms: string | null;
   contractDeliveryTerm: string | null;
+  /** Дата регистрации договора (дата выполнения согласования «Регистрация»). */
+  contractRegistrationDate: string | null;
+  /** Дата синхронизации договора (дата выполнения согласования «Синхронизация»). */
+  contractSynchronizationDate: string | null;
   supplierId: number | null;
   supplierName: string | null;
   supplierInn: string | null;
@@ -71,11 +79,13 @@ export const STATUS_BADGE_CLASSES: Record<string, string> = {
   blue: 'bg-blue-100 text-blue-800',
   green: 'bg-green-100 text-green-800',
   red: 'bg-red-100 text-red-800',
+  yellow: 'bg-yellow-100 text-yellow-800',
 };
 
 /** Статус поставки (фактическая отгрузка), задаётся вручную. value — name() enum на бэкенде. */
 export const SHIPMENT_STATUS_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: 'EXPECTED', label: 'Ожидается' },
+  { value: 'EXPECTED', label: 'Ожидает поставку' },
+  { value: 'AWAITING_ADVANCE_PAYMENT', label: 'Ожидает оплаты аванса' },
   { value: 'DELIVERED', label: 'Поставлено' },
   { value: 'OVERDUE', label: 'Просрочено' },
 ];

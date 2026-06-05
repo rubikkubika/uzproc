@@ -12,6 +12,10 @@ public class DeliveryDto {
     private LocalDate date;
     /** Дата поставки. Вычисляется автоматически (read-only). */
     private LocalDate deliveryDeadline;
+    /** Фактическая дата поставки (Факт). Задаётся при статусе «Поставлено». */
+    private LocalDate actualDeliveryDate;
+    /** Плановая дата начала поставки из договора (План). */
+    private LocalDate contractPlannedDeliveryStartDate;
     /** Срок поставки в рабочих днях. */
     private Integer deliveryTermWorkingDays;
     private Long contractId;
@@ -23,15 +27,19 @@ public class DeliveryDto {
     private String contractPaymentTerms;
     /** Срок поставки из договора (Contract.deliveryTerm). */
     private String contractDeliveryTerm;
+    /** Дата регистрации договора (дата выполнения согласования «Регистрация»). */
+    private LocalDate contractRegistrationDate;
+    /** Дата синхронизации договора (дата выполнения согласования «Синхронизация»). */
+    private LocalDate contractSynchronizationDate;
     private Long supplierId;
     private String supplierName;
     private String supplierInn;
     private BigDecimal amount;
     private String currency;
-    /** Статус оплаты (бывший «Статус»): Проект / Аванс подготовлен / Аванс оплачен. */
+    /** Статус оплаты: Проект / Оплата аванса / Аванс оплачен / Не оплачено / Оплачено. */
     private String status;
     private String statusColor;
-    /** Статус поставки (фактическая отгрузка): Ожидается / Поставлено / Просрочено. */
+    /** Статус поставки (фактическая отгрузка): Ожидает поставку / Поставлено / Просрочено. */
     private String shipmentStatus;
     private String shipmentStatusColor;
     private String paymentScheme;
@@ -58,6 +66,12 @@ public class DeliveryDto {
     public LocalDate getDeliveryDeadline() { return deliveryDeadline; }
     public void setDeliveryDeadline(LocalDate deliveryDeadline) { this.deliveryDeadline = deliveryDeadline; }
 
+    public LocalDate getActualDeliveryDate() { return actualDeliveryDate; }
+    public void setActualDeliveryDate(LocalDate actualDeliveryDate) { this.actualDeliveryDate = actualDeliveryDate; }
+
+    public LocalDate getContractPlannedDeliveryStartDate() { return contractPlannedDeliveryStartDate; }
+    public void setContractPlannedDeliveryStartDate(LocalDate contractPlannedDeliveryStartDate) { this.contractPlannedDeliveryStartDate = contractPlannedDeliveryStartDate; }
+
     public Integer getDeliveryTermWorkingDays() { return deliveryTermWorkingDays; }
     public void setDeliveryTermWorkingDays(Integer deliveryTermWorkingDays) { this.deliveryTermWorkingDays = deliveryTermWorkingDays; }
 
@@ -78,6 +92,12 @@ public class DeliveryDto {
 
     public String getContractDeliveryTerm() { return contractDeliveryTerm; }
     public void setContractDeliveryTerm(String contractDeliveryTerm) { this.contractDeliveryTerm = contractDeliveryTerm; }
+
+    public LocalDate getContractRegistrationDate() { return contractRegistrationDate; }
+    public void setContractRegistrationDate(LocalDate contractRegistrationDate) { this.contractRegistrationDate = contractRegistrationDate; }
+
+    public LocalDate getContractSynchronizationDate() { return contractSynchronizationDate; }
+    public void setContractSynchronizationDate(LocalDate contractSynchronizationDate) { this.contractSynchronizationDate = contractSynchronizationDate; }
 
     public Long getSupplierId() { return supplierId; }
     public void setSupplierId(Long supplierId) { this.supplierId = supplierId; }

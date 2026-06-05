@@ -77,6 +77,10 @@ public class ContractDto {
     private LocalDateTime preparationStartDate;
     /** requiresPurchase из связанной заявки (null если заявки нет). */
     private Boolean contractRequiresPurchase;
+    /** Дата регистрации договора: дата выполнения согласования этапа «Регистрация» (MAX completion_date по stage 'регистрация%'). */
+    private LocalDateTime registrationDate;
+    /** Дата синхронизации договора: дата выполнения согласования этапа «Синхронизация» (MAX completion_date по stage 'синхронизация%'). */
+    private LocalDateTime synchronizationDate;
 
     // Constructors
     public ContractDto() {
@@ -409,6 +413,22 @@ public class ContractDto {
 
     public void setContractRequiresPurchase(Boolean contractRequiresPurchase) {
         this.contractRequiresPurchase = contractRequiresPurchase;
+    }
+
+    public LocalDateTime getRegistrationDate() {
+        return registrationDate;
+    }
+
+    public void setRegistrationDate(LocalDateTime registrationDate) {
+        this.registrationDate = registrationDate;
+    }
+
+    public LocalDateTime getSynchronizationDate() {
+        return synchronizationDate;
+    }
+
+    public void setSynchronizationDate(LocalDateTime synchronizationDate) {
+        this.synchronizationDate = synchronizationDate;
     }
 }
 

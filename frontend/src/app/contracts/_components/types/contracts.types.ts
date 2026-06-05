@@ -37,6 +37,8 @@ export interface Contract {
   approvalWorkingDays: number | null;
   /** Дата первого назначения на согласование договора. */
   firstApprovalAssignmentDate: string | null;
+  /** Дата регистрации договора (дата выполнения согласования «Регистрация»). */
+  registrationDate: string | null;
   /** Дата начала отсчёта подготовки. */
   preparationStartDate: string | null;
   /** requiresPurchase из связанной заявки (null если заявки нет). */

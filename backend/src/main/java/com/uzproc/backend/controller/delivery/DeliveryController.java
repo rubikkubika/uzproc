@@ -110,11 +110,13 @@ public class DeliveryController {
         return ResponseEntity.ok(deliveryService.updateDeliveryDeadline(id, date));
     }
 
-    /** Inline-обновление статуса поставки (Ожидается / Поставлено / Просрочено). */
+    /** Inline-обновление статуса поставки (Ожидает поставку / Поставлено / Просрочено).
+     *  При «Поставлено» в теле обязателен actualDeliveryDate (ISO-дата). */
     @PatchMapping("/{id}/shipment-status")
     public ResponseEntity<DeliveryDto> updateShipmentStatus(@PathVariable Long id,
                                                             @RequestBody Map<String, String> body) {
         String value = body != null ? body.get("shipmentStatus") : null;
-        return ResponseEntity.ok(deliveryService.updateShipmentStatus(id, value));
+        String actualDeliveryDate = body != null ? body.get("actualDeliveryDate") : null;
+        return ResponseEntity.ok(deliveryService.updateShipmentStatus(id, value, actualDeliveryDate));
     }
 }

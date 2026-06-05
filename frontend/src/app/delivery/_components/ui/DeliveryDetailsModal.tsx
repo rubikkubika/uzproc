@@ -67,6 +67,9 @@ export default function DeliveryDetailsModal({ delivery, onClose, onSaved }: Del
   const [resetting, setResetting] = useState(false);
   const [shipmentStatus, setShipmentStatus] = useState<string | null>(null);
   const [shipmentStatusSaving, setShipmentStatusSaving] = useState(false);
+  // Запрос фактической даты поставки при переводе статуса в «Поставлено»
+  const [awaitingDeliveredDate, setAwaitingDeliveredDate] = useState(false);
+  const [deliveredDate, setDeliveredDate] = useState<string>('');
   const [deliveryTermDays, setDeliveryTermDays] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
 
@@ -77,8 +80,10 @@ export default function DeliveryDetailsModal({ delivery, onClose, onSaved }: Del
     if (!delivery) return;
     setPaymentScheme(delivery.paymentScheme ?? null);
     const matched = SHIPMENT_STATUS_OPTIONS.find((o) => o.label === delivery.shipmentStatus);
-    setShipmentStatus(matched?.value ?? 'EXPECTED');
+    setShipmentStatus(matched?.value ?? null);
     setShipmentStatusSaving(false);
+    setAwaitingDeliveredDate(false);
+    setDeliveredDate(delivery.actualDeliveryDate ?? new Date().toISOString().slice(0, 10));
     setDeliveryTermDays(delivery.deliveryTermWorkingDays != null ? String(delivery.deliveryTermWorkingDays) : '');
     setError(null);
     setSubmitting(false);
@@ -200,7 +205,7 @@ export default function DeliveryDetailsModal({ delivery, onClose, onSaved }: Del
     }
   };
 
-  const handleShipmentStatusChange = async (value: string) => {
+  const sendShipmentStatus = async (value: string, actualDeliveryDate: string | null) => {
     if (!delivery) return;
     const prev = shipmentStatus;
     setShipmentStatus(value);
@@ -210,12 +215,13 @@ export default function DeliveryDetailsModal({ delivery, onClose, onSaved }: Del
       const res = await fetch(`${getBackendUrl()}/api/deliveries/${delivery.id}/shipment-status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shipmentStatus: value }),
+        body: JSON.stringify({ shipmentStatus: value, actualDeliveryDate }),
       });
       if (!res.ok) {
         const text = await res.text();
         throw new Error(text || `HTTP ${res.status}`);
       }
+      setAwaitingDeliveredDate(false);
       onSaved();
     } catch (e) {
       setShipmentStatus(prev);
@@ -223,6 +229,27 @@ export default function DeliveryDetailsModal({ delivery, onClose, onSaved }: Del
     } finally {
       setShipmentStatusSaving(false);
     }
+  };
+
+  const handleShipmentStatusChange = async (value: string) => {
+    if (!delivery) return;
+    // При переводе в «Поставлено» сначала запрашиваем фактическую дату поставки.
+    if (value === 'DELIVERED') {
+      setShipmentStatus('DELIVERED');
+      setDeliveredDate(delivery.actualDeliveryDate ?? new Date().toISOString().slice(0, 10));
+      setAwaitingDeliveredDate(true);
+      return;
+    }
+    setAwaitingDeliveredDate(false);
+    await sendShipmentStatus(value, null);
+  };
+
+  const confirmDeliveredDate = async () => {
+    if (!deliveredDate) {
+      setError('Укажите фактическую дату поставки');
+      return;
+    }
+    await sendShipmentStatus('DELIVERED', deliveredDate);
   };
 
   const renderPaymentsTable = (
@@ -321,38 +348,69 @@ export default function DeliveryDetailsModal({ delivery, onClose, onSaved }: Del
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
           {/* Информация по договору */}
           <Section title="Информация по договору">
-            <div className="grid grid-cols-1 gap-3 min-w-0">
-              <InfoRow label="Договор №" value={delivery.contractInnerId ?? '—'} />
-              <InfoRow label="Наименование договора" value={delivery.contractName ?? '—'} />
-              <InfoRow label="Поставщик" value={delivery.supplierName ?? '—'} />
-              <InfoRow label="ИНН поставщика" value={delivery.supplierInn ?? '—'} />
-              <InfoRow label="Сумма" value={formatAmount(delivery.amount, delivery.currency)} />
-              <InfoRow label="Валюта" value={delivery.currency ?? '—'} />
-              <InfoRow
-                label="Схема оплаты (договор)"
-                value={
-                  delivery.contractPaymentScheme?.trim()
-                    ? delivery.contractPaymentScheme
-                    : <span className="text-gray-400">Не указана</span>
-                }
-              />
-              <div className="min-w-0">
+            <div className="flex flex-col gap-2.5">
+              {/* Блок 1: договор */}
+              <div className="grid grid-cols-1 gap-2 min-w-0 rounded-md border border-gray-200 bg-white p-2.5 shadow-sm">
+                <InfoRow label="Номер" value={delivery.contractInnerId ?? '—'} />
+                <InfoRow label="Наименование" value={delivery.contractName ?? '—'} />
+              </div>
+              {/* Блок 2: поставщик */}
+              <div className="grid grid-cols-1 gap-2 min-w-0 rounded-md border border-gray-200 bg-white p-2.5 shadow-sm">
+                <InfoRow label="Поставщик" value={delivery.supplierName ?? '—'} />
+                <InfoRow label="ИНН поставщика" value={delivery.supplierInn ?? '—'} />
+              </div>
+              {/* Блок 3: оплата */}
+              <div className="grid grid-cols-1 gap-2 min-w-0 rounded-md border border-gray-200 bg-white p-2.5 shadow-sm">
+                <InfoRow label="Сумма" value={formatAmount(delivery.amount, delivery.currency)} />
+                <InfoRow label="Валюта" value={delivery.currency ?? '—'} />
                 <InfoRow
-                  label="Условия оплаты (договор)"
+                  label="Схема оплаты (договор)"
                   value={
-                    delivery.contractPaymentTerms?.trim()
-                      ? <span className="whitespace-pre-wrap">{delivery.contractPaymentTerms}</span>
-                      : <span className="text-gray-400">Не указаны</span>
+                    delivery.contractPaymentScheme?.trim()
+                      ? delivery.contractPaymentScheme
+                      : <span className="text-gray-400">Не указана</span>
                   }
                 />
+                <div className="min-w-0">
+                  <InfoRow
+                    label="Условия оплаты (договор)"
+                    value={
+                      delivery.contractPaymentTerms?.trim()
+                        ? <span className="whitespace-pre-wrap">{delivery.contractPaymentTerms}</span>
+                        : <span className="text-gray-400">Не указаны</span>
+                    }
+                  />
+                </div>
               </div>
-              <div className="min-w-0">
+              {/* Блок 4: срок поставки */}
+              <div className="grid grid-cols-1 gap-2 min-w-0 rounded-md border border-gray-200 bg-white p-2.5 shadow-sm">
+                <div className="min-w-0">
+                  <InfoRow
+                    label="Срок поставки (договор)"
+                    value={
+                      delivery.contractDeliveryTerm?.trim()
+                        ? <span className="whitespace-pre-wrap">{delivery.contractDeliveryTerm}</span>
+                        : <span className="text-gray-400">Не указан</span>
+                    }
+                  />
+                </div>
+              </div>
+              {/* Блок 5: даты согласований */}
+              <div className="grid grid-cols-1 gap-2 min-w-0 rounded-md border border-gray-200 bg-white p-2.5 shadow-sm">
                 <InfoRow
-                  label="Срок поставки (договор)"
+                  label="Дата регистрации (договор)"
                   value={
-                    delivery.contractDeliveryTerm?.trim()
-                      ? <span className="whitespace-pre-wrap">{delivery.contractDeliveryTerm}</span>
-                      : <span className="text-gray-400">Не указан</span>
+                    delivery.contractRegistrationDate
+                      ? new Date(delivery.contractRegistrationDate).toLocaleDateString('ru-RU')
+                      : <span className="text-gray-400">—</span>
+                  }
+                />
+                <InfoRow
+                  label="Дата синхронизации (договор)"
+                  value={
+                    delivery.contractSynchronizationDate
+                      ? new Date(delivery.contractSynchronizationDate).toLocaleDateString('ru-RU')
+                      : <span className="text-gray-400">—</span>
                   }
                 />
               </div>
@@ -380,17 +438,73 @@ export default function DeliveryDetailsModal({ delivery, onClose, onSaved }: Del
               <div className="flex flex-col gap-0.5">
                 <span className="text-[11px] uppercase tracking-wide text-gray-400">Статус поставки</span>
                 <select
-                  value={shipmentStatus ?? 'EXPECTED'}
+                  value={shipmentStatus ?? ''}
                   onChange={(e) => handleShipmentStatusChange(e.target.value)}
                   disabled={shipmentStatusSaving}
                   className="text-sm border border-gray-300 rounded px-2 py-1 text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
                 >
+                  <option value="" disabled>—</option>
                   {SHIPMENT_STATUS_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
                 </select>
+                {awaitingDeliveredDate && (
+                  <div className="mt-1 flex flex-col gap-1 rounded border border-yellow-300 bg-yellow-50 p-2">
+                    <span className="text-[11px] text-gray-600">Укажите фактическую дату поставки</span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="date"
+                        value={deliveredDate}
+                        onChange={(e) => setDeliveredDate(e.target.value)}
+                        className="text-sm border border-gray-300 rounded px-2 py-1 text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={confirmDeliveredDate}
+                        disabled={shipmentStatusSaving || !deliveredDate}
+                        className="px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60"
+                      >
+                        Сохранить
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAwaitingDeliveredDate(false);
+                          const matched = SHIPMENT_STATUS_OPTIONS.find((o) => o.label === delivery.shipmentStatus);
+                          setShipmentStatus(matched?.value ?? null);
+                        }}
+                        disabled={shipmentStatusSaving}
+                        className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-60"
+                      >
+                        Отмена
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
-              <InfoRow label="Дата поставки" value={delivery.deliveryDeadline ?? '—'} />
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[11px] uppercase tracking-wide text-gray-400">Даты поставки</span>
+                <div className="flex flex-col gap-0.5 text-sm">
+                  <span className="flex items-baseline gap-1">
+                    <span className="text-[11px] uppercase tracking-wide text-gray-400 w-12 flex-shrink-0">Дедлайн</span>
+                    <span className={delivery.deliveryDeadline ? 'text-gray-900' : 'text-gray-400'}>
+                      {delivery.deliveryDeadline ? new Date(delivery.deliveryDeadline).toLocaleDateString('ru-RU') : '—'}
+                    </span>
+                  </span>
+                  <span className="flex items-baseline gap-1">
+                    <span className="text-[11px] uppercase tracking-wide text-gray-400 w-12 flex-shrink-0">План</span>
+                    <span className={delivery.contractPlannedDeliveryStartDate ? 'text-gray-900' : 'text-gray-400'}>
+                      {delivery.contractPlannedDeliveryStartDate ? new Date(delivery.contractPlannedDeliveryStartDate).toLocaleDateString('ru-RU') : '—'}
+                    </span>
+                  </span>
+                  <span className="flex items-baseline gap-1">
+                    <span className="text-[11px] uppercase tracking-wide text-gray-400 w-12 flex-shrink-0">Факт</span>
+                    <span className={delivery.actualDeliveryDate ? 'text-gray-900' : 'text-gray-400'}>
+                      {delivery.actualDeliveryDate ? new Date(delivery.actualDeliveryDate).toLocaleDateString('ru-RU') : '—'}
+                    </span>
+                  </span>
+                </div>
+              </div>
               <div className="flex flex-col gap-0.5">
                 <span className="text-[11px] uppercase tracking-wide text-gray-400">Срок поставки (рабочих дней)</span>
                 <input
@@ -402,7 +516,7 @@ export default function DeliveryDetailsModal({ delivery, onClose, onSaved }: Del
                   className="text-sm border border-gray-300 rounded px-2 py-1 text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
                 <span className="text-[11px] text-gray-400">
-                  Дата поставки = дата оплаты {paymentScheme === 'PREPAYMENT' ? 'аванса' : paymentScheme === 'POSTPAYMENT' ? 'последнего платежа' : 'оплаты'} + срок. Сохраните, чтобы пересчитать.
+                  Дедлайн = {paymentScheme === 'PREPAYMENT' ? 'дата оплаты аванса' : paymentScheme === 'POSTPAYMENT' ? 'дата регистрации (или синхронизации) договора' : 'базовая дата'} + срок. Сохраните, чтобы пересчитать.
                 </span>
               </div>
               <InfoRow label="Ответственный" value={delivery.responsibleDisplayName ?? '—'} />

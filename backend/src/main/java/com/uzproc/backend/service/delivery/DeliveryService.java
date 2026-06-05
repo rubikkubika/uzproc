@@ -17,6 +17,7 @@ import com.uzproc.backend.entity.payment.PaymentType;
 import com.uzproc.backend.entity.user.User;
 import com.uzproc.backend.entity.calendar.Holiday;
 import com.uzproc.backend.repository.calendar.HolidayRepository;
+import com.uzproc.backend.repository.contract.ContractApprovalRepository;
 import com.uzproc.backend.repository.contract.ContractRepository;
 import com.uzproc.backend.repository.delivery.DeliveryRepository;
 import com.uzproc.backend.repository.payment.PaymentRepository;
@@ -48,15 +49,18 @@ public class DeliveryService {
     private final ContractRepository contractRepository;
     private final PaymentRepository paymentRepository;
     private final HolidayRepository holidayRepository;
+    private final ContractApprovalRepository contractApprovalRepository;
 
     public DeliveryService(DeliveryRepository deliveryRepository,
                            ContractRepository contractRepository,
                            PaymentRepository paymentRepository,
-                           HolidayRepository holidayRepository) {
+                           HolidayRepository holidayRepository,
+                           ContractApprovalRepository contractApprovalRepository) {
         this.deliveryRepository = deliveryRepository;
         this.contractRepository = contractRepository;
         this.paymentRepository = paymentRepository;
         this.holidayRepository = holidayRepository;
+        this.contractApprovalRepository = contractApprovalRepository;
     }
 
     public Page<DeliveryDto> findAll(
@@ -141,6 +145,7 @@ public class DeliveryService {
         }
 
         delivery.setStatus(resolveInitialStatus(scheme, linked));
+        applyDerivedShipmentStatus(delivery);
         recomputeDeliveryDeadline(delivery);
 
         Delivery saved = deliveryRepository.save(delivery);
@@ -203,7 +208,8 @@ public class DeliveryService {
             if (!contractPayments.isEmpty()) {
                 delivery.setPayments(new HashSet<>(contractPayments));
             }
-            delivery.setStatus(DeliveryStatus.PROJECT);
+            delivery.setStatus(resolveInitialStatus(null, delivery.getPayments()));
+            applyDerivedShipmentStatus(delivery);
             recomputeDeliveryDeadline(delivery);
             deliveryRepository.save(delivery);
             created++;
@@ -213,27 +219,50 @@ public class DeliveryService {
     }
 
     /**
-     * Определяет первоначальный статус поставки.
-     * Аванс + есть авансовая оплата с paymentDate ⇒ ADVANCE_PAID.
-     * Аванс + есть авансовая оплата без paymentDate ⇒ ADVANCE_PREPARED.
-     * Иначе ⇒ PROJECT.
+     * Определяет статус оплаты поставки.
+     * Схема «Аванс» (PREPAYMENT):
+     *   есть оплаченный аванс (paymentDate) ⇒ ADVANCE_PAID («Аванс оплачен», зелёный);
+     *   иначе (аванс не оплачен) ⇒ ADVANCE_PREPARED («Оплата аванса», жёлтый).
+     * Схема «По факту» (POSTPAYMENT):
+     *   есть оплаченный платёж (paymentDate) ⇒ PAID («Оплачено», зелёный);
+     *   оплат нет / не распределены ⇒ NOT_PAID («Не оплачено»).
+     * Схема не выбрана ⇒ null (статус пустой).
      */
     private DeliveryStatus resolveInitialStatus(PaymentScheme scheme, Set<Payment> linked) {
-        if (scheme == PaymentScheme.PREPAYMENT && linked != null && !linked.isEmpty()) {
-            boolean hasAdvance = false;
-            boolean hasPaidAdvance = false;
-            for (Payment p : linked) {
-                if (p.getPaymentType() != PaymentType.ADVANCE) continue;
-                hasAdvance = true;
-                if (p.getPaymentDate() != null) {
-                    hasPaidAdvance = true;
-                    break;
-                }
-            }
-            if (hasPaidAdvance) return DeliveryStatus.ADVANCE_PAID;
-            if (hasAdvance) return DeliveryStatus.ADVANCE_PREPARED;
+        if (scheme == PaymentScheme.PREPAYMENT) {
+            boolean hasPaidAdvance = linked != null && linked.stream()
+                    .anyMatch(p -> p.getPaymentType() == PaymentType.ADVANCE && p.getPaymentDate() != null);
+            return hasPaidAdvance ? DeliveryStatus.ADVANCE_PAID : DeliveryStatus.ADVANCE_PREPARED;
         }
-        return DeliveryStatus.PROJECT;
+        if (scheme == PaymentScheme.POSTPAYMENT) {
+            boolean hasPaid = linked != null && linked.stream()
+                    .anyMatch(p -> p.getPaymentDate() != null);
+            return hasPaid ? DeliveryStatus.PAID : DeliveryStatus.NOT_PAID;
+        }
+        return null;
+    }
+
+    /**
+     * Авто-расчёт статуса поставки (отгрузки) на основе статуса оплаты.
+     * Схема не выбрана ⇒ статус пустой (null).
+     * Схема «Аванс» + статус оплаты «Оплата аванса» (аванс не оплачен)
+     * ⇒ «Ожидает оплаты аванса» (жёлтый). Иначе ⇒ «Ожидает поставку».
+     * Вручную выставленные статусы «Поставлено»/«Просрочено» не перетираются.
+     */
+    private void applyDerivedShipmentStatus(Delivery delivery) {
+        ShipmentStatus current = delivery.getShipmentStatus();
+        if (current == ShipmentStatus.DELIVERED || current == ShipmentStatus.OVERDUE) {
+            return;
+        }
+        if (delivery.getPaymentScheme() == null) {
+            delivery.setShipmentStatus(null);
+            return;
+        }
+        boolean awaitingAdvance = delivery.getPaymentScheme() == PaymentScheme.PREPAYMENT
+                && delivery.getStatus() == DeliveryStatus.ADVANCE_PREPARED;
+        delivery.setShipmentStatus(awaitingAdvance
+                ? ShipmentStatus.AWAITING_ADVANCE_PAYMENT
+                : ShipmentStatus.EXPECTED);
     }
 
     /**
@@ -268,6 +297,7 @@ public class DeliveryService {
         }
         delivery.setPayments(linked);
         delivery.setStatus(resolveInitialStatus(scheme, linked));
+        applyDerivedShipmentStatus(delivery);
         recomputeDeliveryDeadline(delivery);
 
         Delivery saved = deliveryRepository.save(delivery);
@@ -300,7 +330,8 @@ public class DeliveryService {
             }
         }
         delivery.setPayments(linked);
-        delivery.setStatus(DeliveryStatus.PROJECT);
+        delivery.setStatus(resolveInitialStatus(null, linked));
+        applyDerivedShipmentStatus(delivery);
         recomputeDeliveryDeadline(delivery);
 
         Delivery saved = deliveryRepository.save(delivery);
@@ -330,11 +361,12 @@ public class DeliveryService {
     }
 
     /**
-     * Inline-обновление статуса поставки (Ожидается / Поставлено / Просрочено).
-     * Принимает name() или displayName.
+     * Inline-обновление статуса поставки (Ожидает поставку / Поставлено / Просрочено).
+     * Принимает name() или displayName. При статусе «Поставлено» сохраняет фактическую дату
+     * поставки (actualDeliveryDateIso), при остальных статусах фактическая дата очищается.
      */
     @Transactional
-    public DeliveryDto updateShipmentStatus(Long id, String value) {
+    public DeliveryDto updateShipmentStatus(Long id, String value, String actualDeliveryDateIso) {
         Delivery delivery = deliveryRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Поставка не найдена: id=" + id));
         ShipmentStatus parsed = ShipmentStatus.fromDisplayName(value);
@@ -342,8 +374,21 @@ public class DeliveryService {
             throw new IllegalArgumentException("Некорректный статус поставки: " + value);
         }
         delivery.setShipmentStatus(parsed);
+        if (parsed == ShipmentStatus.DELIVERED) {
+            if (actualDeliveryDateIso == null || actualDeliveryDateIso.trim().isEmpty()) {
+                throw new IllegalArgumentException("Для статуса «Поставлено» требуется фактическая дата поставки");
+            }
+            try {
+                delivery.setActualDeliveryDate(LocalDate.parse(actualDeliveryDateIso.trim()));
+            } catch (Exception ex) {
+                throw new IllegalArgumentException("Некорректная фактическая дата поставки: " + actualDeliveryDateIso);
+            }
+        } else {
+            delivery.setActualDeliveryDate(null);
+        }
         Delivery saved = deliveryRepository.save(delivery);
-        logger.info("Updated delivery id={} shipmentStatus={}", saved.getId(), parsed);
+        logger.info("Updated delivery id={} shipmentStatus={} actualDeliveryDate={}",
+                saved.getId(), parsed, saved.getActualDeliveryDate());
         return toDto(saved);
     }
 
@@ -376,32 +421,67 @@ public class DeliveryService {
     }
 
     /**
-     * Пересчитывает «Дату поставки» = дата оплаты + срок поставки (рабочие дни).
-     * Аванс: дата оплаты аванса (самая ранняя оплаченная авансовая оплата).
-     * По факту: дата последнего оплаченного платежа (самая поздняя дата оплаты).
-     * Если срока нет, схема не выбрана или нет фактической даты оплаты — дата поставки сбрасывается в null.
+     * Пересчитывает «Дату поставки» = базовая дата + срок поставки (рабочие дни).
+     * Аванс (PREPAYMENT): база — дата оплаты аванса (самая ранняя оплаченная авансовая оплата).
+     * По факту (POSTPAYMENT): база — дата регистрации договора (дата выполнения согласования «Регистрация»).
+     * Если срока нет, схема не выбрана или нет базовой даты — дата поставки сбрасывается в null.
      */
     private void recomputeDeliveryDeadline(Delivery delivery) {
         Integer term = delivery.getDeliveryTermWorkingDays();
         PaymentScheme scheme = delivery.getPaymentScheme();
         Set<Payment> payments = delivery.getPayments();
         LocalDate base = null;
-        if (term != null && term > 0 && scheme != null && payments != null && !payments.isEmpty()) {
+        if (term != null && term > 0 && scheme != null) {
             if (scheme == PaymentScheme.PREPAYMENT) {
-                base = payments.stream()
-                        .filter(p -> p.getPaymentType() == PaymentType.ADVANCE && p.getPaymentDate() != null)
-                        .map(Payment::getPaymentDate)
-                        .min(LocalDate::compareTo)
-                        .orElse(null);
+                if (payments != null && !payments.isEmpty()) {
+                    base = payments.stream()
+                            .filter(p -> p.getPaymentType() == PaymentType.ADVANCE && p.getPaymentDate() != null)
+                            .map(Payment::getPaymentDate)
+                            .min(LocalDate::compareTo)
+                            .orElse(null);
+                }
             } else if (scheme == PaymentScheme.POSTPAYMENT) {
-                base = payments.stream()
-                        .filter(p -> p.getPaymentDate() != null)
-                        .map(Payment::getPaymentDate)
-                        .max(LocalDate::compareTo)
-                        .orElse(null);
+                if (delivery.getContract() != null) {
+                    Long contractId = delivery.getContract().getId();
+                    // База — дата регистрации; если её нет, используем дату синхронизации.
+                    base = getContractRegistrationDate(contractId);
+                    if (base == null) {
+                        base = getContractSynchronizationDate(contractId);
+                    }
+                }
             }
         }
         delivery.setDeliveryDeadline(base != null ? addWorkingDays(base, term) : null);
+    }
+
+    /**
+     * Дата регистрации договора: дата выполнения согласования этапа «Регистрация»
+     * (MAX completion_date по stage 'регистрация%'). Возвращает LocalDate или null.
+     */
+    private LocalDate getContractRegistrationDate(Long contractId) {
+        if (contractId == null) return null;
+        return firstDate(contractApprovalRepository.findRegistrationCompletionDatesByContractIds(List.of(contractId)));
+    }
+
+    /**
+     * Дата синхронизации договора: дата выполнения согласования этапа «Синхронизация»
+     * (MAX completion_date по stage 'синхронизация%'). Возвращает LocalDate или null.
+     */
+    private LocalDate getContractSynchronizationDate(Long contractId) {
+        if (contractId == null) return null;
+        return firstDate(contractApprovalRepository.findSynchronizationCompletionDatesByContractIds(List.of(contractId)));
+    }
+
+    /** Извлекает дату из первой строки результата (contract_id, completion_date). */
+    private LocalDate firstDate(List<Object[]> rows) {
+        for (Object[] row : rows) {
+            if (row[1] != null) {
+                return row[1] instanceof java.sql.Timestamp
+                        ? ((java.sql.Timestamp) row[1]).toLocalDateTime().toLocalDate()
+                        : ((java.time.LocalDateTime) row[1]).toLocalDate();
+            }
+        }
+        return null;
     }
 
     /** Прибавляет n рабочих дней к дате, пропуская сб/вс и праздники из справочника. */
@@ -601,6 +681,7 @@ public class DeliveryService {
         dto.setInnerId(entity.getInnerId());
         dto.setDate(entity.getDate());
         dto.setDeliveryDeadline(entity.getDeliveryDeadline());
+        dto.setActualDeliveryDate(entity.getActualDeliveryDate());
         dto.setDeliveryTermWorkingDays(entity.getDeliveryTermWorkingDays());
         if (entity.getContract() != null) {
             dto.setContractId(entity.getContract().getId());
@@ -609,6 +690,10 @@ public class DeliveryService {
             dto.setContractPaymentScheme(entity.getContract().getPaymentScheme());
             dto.setContractPaymentTerms(entity.getContract().getPaymentTerms());
             dto.setContractDeliveryTerm(entity.getContract().getDeliveryTerm());
+            dto.setContractRegistrationDate(getContractRegistrationDate(entity.getContract().getId()));
+            dto.setContractSynchronizationDate(getContractSynchronizationDate(entity.getContract().getId()));
+            dto.setContractPlannedDeliveryStartDate(entity.getContract().getPlannedDeliveryStartDate() != null
+                    ? entity.getContract().getPlannedDeliveryStartDate().toLocalDate() : null);
         }
         if (entity.getSupplier() != null) {
             dto.setSupplierId(entity.getSupplier().getId());

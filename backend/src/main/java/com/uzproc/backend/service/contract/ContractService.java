@@ -125,6 +125,8 @@ public class ContractService {
         // Batch-данные для расчёта этапов «Подготовка» и «Согласование»
         Map<Long, LocalDateTime> firstApprovalDates = batchGetFirstApprovalAssignmentDates(contractIds);
         Map<Long, LocalDateTime> lastApprovalCompletionDates = batchGetLastApprovalCompletionDates(contractIds);
+        Map<Long, LocalDateTime> registrationDates = batchGetRegistrationCompletionDates(contractIds);
+        Map<Long, LocalDateTime> synchronizationDates = batchGetSynchronizationCompletionDates(contractIds);
         Map<Long, Boolean> requiresPurchaseMap = batchGetRequiresPurchase(prIds);
         Map<Long, LocalDateTime> prApprovalAssignmentDates = batchGetPrApprovalAssignmentDates(prIds);
         Map<Long, LocalDateTime> prLastApprovalCompletionDates = batchGetPrLastApprovalCompletionDates(prIds);
@@ -140,6 +142,11 @@ public class ContractService {
             // Расчёт данных этапа «Подготовка»
             LocalDateTime firstApprovalDate = firstApprovalDates.get(c.getId());
             dto.setFirstApprovalAssignmentDate(firstApprovalDate);
+
+            // Дата регистрации договора (дата выполнения согласования «Регистрация»)
+            dto.setRegistrationDate(registrationDates.get(c.getId()));
+            // Дата синхронизации договора (дата выполнения согласования «Синхронизация»)
+            dto.setSynchronizationDate(synchronizationDates.get(c.getId()));
 
             LocalDateTime startDate = null;
             if (c.getPurchaseRequestId() == null) {
@@ -186,7 +193,9 @@ public class ContractService {
         if (contract == null) {
             return null;
         }
-        return toDto(contract);
+        ContractDto dto = toDto(contract);
+        enrichRegistrationDates(java.util.List.of(dto));
+        return dto;
     }
 
     public ContractDto findByInnerId(String innerId) {
@@ -199,16 +208,41 @@ public class ContractService {
 
     public List<ContractDto> findByParentContractId(Long parentContractId) {
         List<Contract> contracts = contractRepository.findByParentContractId(parentContractId);
-        return contracts.stream()
+        List<ContractDto> dtos = contracts.stream()
                 .map(this::toDto)
                 .collect(java.util.stream.Collectors.toList());
+        enrichRegistrationDates(dtos);
+        return dtos;
     }
 
     public List<ContractDto> findByPurchaseRequestId(Long purchaseRequestId) {
         List<Contract> contracts = contractRepository.findByPurchaseRequestId(purchaseRequestId);
-        return contracts.stream()
+        List<ContractDto> dtos = contracts.stream()
                 .map(this::toDto)
                 .collect(Collectors.toList());
+        enrichRegistrationDates(dtos);
+        return dtos;
+    }
+
+    /**
+     * Проставляет в DTO даты регистрации и синхронизации (даты выполнения согласований
+     * «Регистрация» и «Синхронизация») по id договоров.
+     * Используется там, где договоры конвертируются через {@link #toDto(Contract)} вне списочного метода.
+     */
+    public void enrichRegistrationDates(List<ContractDto> dtos) {
+        if (dtos == null || dtos.isEmpty()) return;
+        List<Long> ids = dtos.stream()
+                .map(ContractDto::getId)
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toList());
+        Map<Long, LocalDateTime> registrationDates = batchGetRegistrationCompletionDates(ids);
+        Map<Long, LocalDateTime> synchronizationDates = batchGetSynchronizationCompletionDates(ids);
+        for (ContractDto dto : dtos) {
+            if (dto.getId() != null) {
+                dto.setRegistrationDate(registrationDates.get(dto.getId()));
+                dto.setSynchronizationDate(synchronizationDates.get(dto.getId()));
+            }
+        }
     }
 
     /**
@@ -811,6 +845,38 @@ public class ContractService {
     private Map<Long, LocalDateTime> batchGetLastApprovalCompletionDates(List<Long> contractIds) {
         if (contractIds.isEmpty()) return new HashMap<>();
         List<Object[]> rows = contractApprovalRepository.findLastApprovalCompletionDatesByContractIds(contractIds);
+        Map<Long, LocalDateTime> result = new HashMap<>();
+        for (Object[] row : rows) {
+            if (row[0] != null && row[1] != null) {
+                Long contractId = ((Number) row[0]).longValue();
+                LocalDateTime date = row[1] instanceof java.sql.Timestamp
+                        ? ((java.sql.Timestamp) row[1]).toLocalDateTime()
+                        : (LocalDateTime) row[1];
+                result.put(contractId, date);
+            }
+        }
+        return result;
+    }
+
+    private Map<Long, LocalDateTime> batchGetRegistrationCompletionDates(List<Long> contractIds) {
+        if (contractIds.isEmpty()) return new HashMap<>();
+        List<Object[]> rows = contractApprovalRepository.findRegistrationCompletionDatesByContractIds(contractIds);
+        Map<Long, LocalDateTime> result = new HashMap<>();
+        for (Object[] row : rows) {
+            if (row[0] != null && row[1] != null) {
+                Long contractId = ((Number) row[0]).longValue();
+                LocalDateTime date = row[1] instanceof java.sql.Timestamp
+                        ? ((java.sql.Timestamp) row[1]).toLocalDateTime()
+                        : (LocalDateTime) row[1];
+                result.put(contractId, date);
+            }
+        }
+        return result;
+    }
+
+    private Map<Long, LocalDateTime> batchGetSynchronizationCompletionDates(List<Long> contractIds) {
+        if (contractIds.isEmpty()) return new HashMap<>();
+        List<Object[]> rows = contractApprovalRepository.findSynchronizationCompletionDatesByContractIds(contractIds);
         Map<Long, LocalDateTime> result = new HashMap<>();
         for (Object[] row : rows) {
             if (row[0] != null && row[1] != null) {

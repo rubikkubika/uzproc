@@ -44,6 +44,10 @@ interface ContractDetail {
   contractDurationMonths: number | null;
   status: string | null;
   state: string | null;
+  /** Дата регистрации договора (дата выполнения согласования «Регистрация»). */
+  registrationDate: string | null;
+  /** Дата синхронизации договора (дата выполнения согласования «Синхронизация»). */
+  synchronizationDate: string | null;
   paymentTerms: string | null;
   paymentScheme: string | null;
   deliveryTerm: string | null;
@@ -332,6 +336,8 @@ export default function ContractDetailPage() {
                     <InfoField label="Тип договора" value={contract.contractType} />
                     <InfoField label="Способ закупки" value={contract.purchaseMethod} />
                     <InfoField label="Дата создания" value={formatDate(contract.contractCreationDate)} />
+                    <InfoField label="Дата регистрации" value={formatDate(contract.registrationDate)} />
+                    <InfoField label="Дата синхронизации" value={formatDate(contract.synchronizationDate)} />
                     <InfoField label="Срок действия (мес.)" value={contract.contractDurationMonths != null ? String(contract.contractDurationMonths) : null} />
                     <InfoField label="Состояние" value={contract.state} />
                     <InfoField label="Подготовил" value={contract.preparedBy} />

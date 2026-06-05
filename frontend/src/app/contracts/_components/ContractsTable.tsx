@@ -89,7 +89,7 @@ export default function ContractsTable() {
     : allItems;
 
   const isTabWithPreparedBy = filters.activeTab === 'in-work' || filters.activeTab === 'not-coordinated' || filters.activeTab === 'signed';
-  const totalColumns = isTabWithPreparedBy ? 16 : 15;
+  const totalColumns = isTabWithPreparedBy ? 17 : 16;
 
   const handleRowClick = (contractId: number, e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
@@ -511,6 +511,13 @@ export default function ContractsTable() {
                   <>{renderSortButton('status')}<span>Статус</span></>
                 )}
               </th>
+              {/* Дата регистрации */}
+              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '7%' }}>
+                {thInner(
+                  <div className="w-full" />,
+                  <span>Дата регистрации</span>
+                )}
+              </th>
               {/* Условия оплаты */}
               <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '9%' }}>
                 {thInner(
@@ -629,6 +636,9 @@ export default function ContractsTable() {
                       ) : (
                         <span className="px-1.5 py-0.5 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">-</span>
                       )}
+                    </td>
+                    <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300">
+                      {contract.registrationDate ? new Date(contract.registrationDate).toLocaleDateString('ru-RU') : '-'}
                     </td>
                     <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 break-words">{contract.paymentTerms || '-'}</td>
                     <td className="px-2 py-2 text-xs border-r border-gray-300 text-center">
