@@ -76,6 +76,10 @@ frontend/upload/approvals/*
 frontend/upload/arrivals/*
 !frontend/upload/arrivals/.gitkeep
 
+# Handreport folder (track folder, ignore contents except .gitkeep)
+frontend/upload/handreport/*
+!frontend/upload/handreport/.gitkeep
+
 # Integration docs (internal, not for VCS)
 docs/1c-integration-purchase-requests.md
 

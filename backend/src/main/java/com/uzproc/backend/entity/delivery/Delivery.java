@@ -67,6 +67,11 @@ public class Delivery {
     @Column(name = "payment_scheme", length = 20)
     private PaymentScheme paymentScheme;
 
+    /** Конкретная схема оплаты из справочника (напр. «20/80/20 б.д.»). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "payment_scheme_id")
+    private DeliveryPaymentScheme paymentSchemeRef;
+
     @Column(name = "comment", columnDefinition = "TEXT")
     private String comment;
 
@@ -130,6 +135,9 @@ public class Delivery {
 
     public PaymentScheme getPaymentScheme() { return paymentScheme; }
     public void setPaymentScheme(PaymentScheme paymentScheme) { this.paymentScheme = paymentScheme; }
+
+    public DeliveryPaymentScheme getPaymentSchemeRef() { return paymentSchemeRef; }
+    public void setPaymentSchemeRef(DeliveryPaymentScheme paymentSchemeRef) { this.paymentSchemeRef = paymentSchemeRef; }
 
     public String getComment() { return comment; }
     public void setComment(String comment) { this.comment = comment; }

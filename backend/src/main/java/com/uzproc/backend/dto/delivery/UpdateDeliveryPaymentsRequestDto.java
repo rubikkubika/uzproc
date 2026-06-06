@@ -10,6 +10,8 @@ import java.util.List;
  */
 public class UpdateDeliveryPaymentsRequestDto {
     private String paymentScheme;
+    /** Конкретная схема оплаты из справочника (id). Тип (Аванс/По факту) берётся из неё. */
+    private Long paymentSchemeId;
     private List<Long> advancePaymentIds;
     private List<Long> factPaymentIds;
     /** Срок поставки в рабочих днях. */
@@ -17,6 +19,9 @@ public class UpdateDeliveryPaymentsRequestDto {
 
     public String getPaymentScheme() { return paymentScheme; }
     public void setPaymentScheme(String paymentScheme) { this.paymentScheme = paymentScheme; }
+
+    public Long getPaymentSchemeId() { return paymentSchemeId; }
+    public void setPaymentSchemeId(Long paymentSchemeId) { this.paymentSchemeId = paymentSchemeId; }
 
     public Integer getDeliveryTermWorkingDays() { return deliveryTermWorkingDays; }
     public void setDeliveryTermWorkingDays(Integer deliveryTermWorkingDays) { this.deliveryTermWorkingDays = deliveryTermWorkingDays; }

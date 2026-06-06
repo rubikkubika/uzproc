@@ -4,6 +4,7 @@ import com.uzproc.backend.dto.delivery.BulkCreateDeliveriesResultDto;
 import com.uzproc.backend.dto.delivery.CreateDeliveryRequestDto;
 import com.uzproc.backend.dto.delivery.DeliveryContractSearchResultDto;
 import com.uzproc.backend.dto.delivery.DeliveryDto;
+import com.uzproc.backend.dto.delivery.DeliveryPaymentSchemeDto;
 import com.uzproc.backend.dto.delivery.UpdateDeliveryPaymentsRequestDto;
 import com.uzproc.backend.dto.payment.PaymentDto;
 import com.uzproc.backend.service.delivery.DeliveryService;
@@ -65,14 +66,21 @@ public class DeliveryController {
     }
 
     /**
-     * Массовое создание поставок по подписанным спецификациям за месяц/год.
-     * По умолчанию — май текущего года. Спецификации с уже существующей поставкой пропускаются.
+     * Массовое создание поставок по подписанным спецификациям, подготовленным договорником,
+     * у которых дата регистрации (= дата подписания) попадает в указанный месяц/год.
+     * По умолчанию — апрель текущего года. Спецификации с уже существующей поставкой пропускаются.
      */
     @PostMapping("/from-specifications")
     public ResponseEntity<BulkCreateDeliveriesResultDto> createFromSpecifications(
             @RequestParam(required = false) Integer year,
-            @RequestParam(required = false, defaultValue = "5") Integer month) {
+            @RequestParam(required = false, defaultValue = "4") Integer month) {
         return ResponseEntity.ok(deliveryService.createDeliveriesFromSignedSpecifications(year, month));
+    }
+
+    /** Справочник схем оплаты поставок (для выпадающего списка в карточке поставки). */
+    @GetMapping("/payment-schemes")
+    public ResponseEntity<List<DeliveryPaymentSchemeDto>> getPaymentSchemes() {
+        return ResponseEntity.ok(deliveryService.listPaymentSchemes());
     }
 
     /** Поиск договоров для модального окна создания поставки: статус=Подписан, подготовил договорник. */

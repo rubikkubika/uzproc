@@ -12,6 +12,8 @@ import java.util.List;
 public class CreateDeliveryRequestDto {
     private Long contractId;
     private String paymentScheme;
+    /** Конкретная схема оплаты из справочника (id). Тип (Аванс/По факту) берётся из неё. */
+    private Long paymentSchemeId;
     private List<Long> advancePaymentIds;
     private List<Long> factPaymentIds;
     /** Срок поставки в рабочих днях. Если null — берётся из договора. */
@@ -19,6 +21,9 @@ public class CreateDeliveryRequestDto {
 
     public Long getContractId() { return contractId; }
     public void setContractId(Long contractId) { this.contractId = contractId; }
+
+    public Long getPaymentSchemeId() { return paymentSchemeId; }
+    public void setPaymentSchemeId(Long paymentSchemeId) { this.paymentSchemeId = paymentSchemeId; }
 
     public Integer getDeliveryTermWorkingDays() { return deliveryTermWorkingDays; }
     public void setDeliveryTermWorkingDays(Integer deliveryTermWorkingDays) { this.deliveryTermWorkingDays = deliveryTermWorkingDays; }

@@ -43,6 +43,9 @@ public class DeliveryDto {
     private String shipmentStatus;
     private String shipmentStatusColor;
     private String paymentScheme;
+    /** Конкретная схема оплаты из справочника. */
+    private Long paymentSchemeId;
+    private String paymentSchemeLabel;
     private List<Long> paymentIds = new ArrayList<>();
     /** Кол-во привязанных оплат. */
     private int paymentsCount;
@@ -128,6 +131,12 @@ public class DeliveryDto {
 
     public String getPaymentScheme() { return paymentScheme; }
     public void setPaymentScheme(String paymentScheme) { this.paymentScheme = paymentScheme; }
+
+    public Long getPaymentSchemeId() { return paymentSchemeId; }
+    public void setPaymentSchemeId(Long paymentSchemeId) { this.paymentSchemeId = paymentSchemeId; }
+
+    public String getPaymentSchemeLabel() { return paymentSchemeLabel; }
+    public void setPaymentSchemeLabel(String paymentSchemeLabel) { this.paymentSchemeLabel = paymentSchemeLabel; }
 
     public List<Long> getPaymentIds() { return paymentIds; }
     public void setPaymentIds(List<Long> paymentIds) { this.paymentIds = paymentIds; }

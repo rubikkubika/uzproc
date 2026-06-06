@@ -5,11 +5,11 @@ import { X } from 'lucide-react';
 import { getBackendUrl } from '@/utils/api';
 import type { Delivery } from '../types/delivery.types';
 import {
-  getPaymentSchemeLabel,
   getPaymentsStatus,
   SHIPMENT_STATUS_OPTIONS,
   STATUS_BADGE_CLASSES,
 } from '../types/delivery.types';
+import type { PaymentSchemeOption } from '../types/delivery.types';
 
 interface DeliveryDetailsModalProps {
   delivery: Delivery | null;
@@ -59,6 +59,9 @@ function formatAmount(amount: number | null, currency: string | null): string {
 
 export default function DeliveryDetailsModal({ delivery, onClose, onSaved }: DeliveryDetailsModalProps) {
   const [paymentScheme, setPaymentScheme] = useState<PaymentScheme | null>(null);
+  // Справочник схем оплаты и выбранная конкретная схема
+  const [schemes, setSchemes] = useState<PaymentSchemeOption[]>([]);
+  const [selectedSchemeId, setSelectedSchemeId] = useState<number | null>(null);
   const [contractPayments, setContractPayments] = useState<ContractPayment[]>([]);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [advancePaymentIds, setAdvancePaymentIds] = useState<Set<number>>(new Set());
@@ -75,10 +78,19 @@ export default function DeliveryDetailsModal({ delivery, onClose, onSaved }: Del
 
   const contractId = delivery?.contractId ?? null;
 
+  // Загрузка справочника схем оплаты (один раз)
+  useEffect(() => {
+    fetch(`${getBackendUrl()}/api/deliveries/payment-schemes`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((json: PaymentSchemeOption[]) => setSchemes(json))
+      .catch(() => setSchemes([]));
+  }, []);
+
   // Инициализация схемы оплаты при открытии карточки
   useEffect(() => {
     if (!delivery) return;
     setPaymentScheme(delivery.paymentScheme ?? null);
+    setSelectedSchemeId(delivery.paymentSchemeId ?? null);
     const matched = SHIPMENT_STATUS_OPTIONS.find((o) => o.label === delivery.shipmentStatus);
     setShipmentStatus(matched?.value ?? null);
     setShipmentStatusSaving(false);
@@ -154,10 +166,13 @@ export default function DeliveryDetailsModal({ delivery, onClose, onSaved }: Del
     [contractPayments, advancePaymentIds]
   );
 
-  const canSubmit = useMemo(() => !!paymentScheme && !submitting && !resetting, [paymentScheme, submitting, resetting]);
+  const canSubmit = useMemo(
+    () => selectedSchemeId != null && !submitting && !resetting,
+    [selectedSchemeId, submitting, resetting]
+  );
 
   const handleSubmit = async () => {
-    if (!delivery || !paymentScheme) return;
+    if (!delivery || selectedSchemeId == null) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -166,6 +181,7 @@ export default function DeliveryDetailsModal({ delivery, onClose, onSaved }: Del
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           paymentScheme,
+          paymentSchemeId: selectedSchemeId,
           advancePaymentIds: Array.from(advancePaymentIds),
           factPaymentIds: Array.from(factPaymentIds),
           deliveryTermWorkingDays: deliveryTermDays.trim() !== '' ? Number(deliveryTermDays) : null,
@@ -419,153 +435,186 @@ export default function DeliveryDetailsModal({ delivery, onClose, onSaved }: Del
 
           {/* Информация по поставке */}
           <Section title="Информация по поставке">
-            <div className="grid grid-cols-1 gap-3 min-w-0">
-              <InfoRow label="№ поставки" value={delivery.innerId ?? delivery.id} />
-              <InfoRow
-                label="Статус оплаты"
-                value={
-                  delivery.status ? (
-                    <span
-                      className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                        STATUS_BADGE_CLASSES[delivery.statusColor ?? 'gray'] ?? STATUS_BADGE_CLASSES.gray
-                      }`}
-                    >
-                      {delivery.status}
-                    </span>
-                  ) : '—'
-                }
-              />
-              <div className="flex flex-col gap-0.5">
-                <span className="text-[11px] uppercase tracking-wide text-gray-400">Статус поставки</span>
-                <select
-                  value={shipmentStatus ?? ''}
-                  onChange={(e) => handleShipmentStatusChange(e.target.value)}
-                  disabled={shipmentStatusSaving}
-                  className="text-sm border border-gray-300 rounded px-2 py-1 text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
-                >
-                  <option value="" disabled>—</option>
-                  {SHIPMENT_STATUS_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
-                {awaitingDeliveredDate && (
-                  <div className="mt-1 flex flex-col gap-1 rounded border border-yellow-300 bg-yellow-50 p-2">
-                    <span className="text-[11px] text-gray-600">Укажите фактическую дату поставки</span>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="date"
-                        value={deliveredDate}
-                        onChange={(e) => setDeliveredDate(e.target.value)}
-                        className="text-sm border border-gray-300 rounded px-2 py-1 text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      />
-                      <button
-                        type="button"
-                        onClick={confirmDeliveredDate}
-                        disabled={shipmentStatusSaving || !deliveredDate}
-                        className="px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60"
-                      >
-                        Сохранить
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAwaitingDeliveredDate(false);
-                          const matched = SHIPMENT_STATUS_OPTIONS.find((o) => o.label === delivery.shipmentStatus);
-                          setShipmentStatus(matched?.value ?? null);
-                        }}
-                        disabled={shipmentStatusSaving}
-                        className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-60"
-                      >
-                        Отмена
-                      </button>
-                    </div>
-                  </div>
-                )}
+            <div className="flex flex-col gap-2.5">
+              {/* Блок 1: основное */}
+              <div className="grid grid-cols-1 gap-2 min-w-0 rounded-md border border-gray-200 bg-white p-2.5 shadow-sm">
+                <InfoRow label="№ поставки" value={delivery.innerId ?? delivery.id} />
+                <InfoRow label="Ответственный" value={delivery.responsibleDisplayName ?? '—'} />
               </div>
-              <div className="flex flex-col gap-0.5">
-                <span className="text-[11px] uppercase tracking-wide text-gray-400">Даты поставки</span>
-                <div className="flex flex-col gap-0.5 text-sm">
-                  <span className="flex items-baseline gap-1">
-                    <span className="text-[11px] uppercase tracking-wide text-gray-400 w-12 flex-shrink-0">Дедлайн</span>
-                    <span className={delivery.deliveryDeadline ? 'text-gray-900' : 'text-gray-400'}>
-                      {delivery.deliveryDeadline ? new Date(delivery.deliveryDeadline).toLocaleDateString('ru-RU') : '—'}
-                    </span>
+
+              {/* Блок 2: оплата */}
+              <div className="grid grid-cols-1 gap-2.5 min-w-0 rounded-md border border-gray-200 bg-white p-2.5 shadow-sm">
+                <div className="flex flex-col gap-1">
+                  <span className="text-[11px] uppercase tracking-wide text-gray-400">
+                    Схема оплаты <span className="text-red-500">*</span>
                   </span>
-                  <span className="flex items-baseline gap-1">
-                    <span className="text-[11px] uppercase tracking-wide text-gray-400 w-12 flex-shrink-0">План</span>
-                    <span className={delivery.contractPlannedDeliveryStartDate ? 'text-gray-900' : 'text-gray-400'}>
-                      {delivery.contractPlannedDeliveryStartDate ? new Date(delivery.contractPlannedDeliveryStartDate).toLocaleDateString('ru-RU') : '—'}
+                  {/* Шаг 1: выбор типа — Аванс / По факту */}
+                  <div className="flex flex-wrap gap-2">
+                    {(['PREPAYMENT', 'POSTPAYMENT'] as PaymentScheme[]).map((scheme) => (
+                      <button
+                        key={scheme}
+                        onClick={() => {
+                          setPaymentScheme(scheme);
+                          // Сбрасываем выбранную схему, если она другого типа
+                          const sel = schemes.find((s) => s.id === selectedSchemeId);
+                          if (sel && sel.paymentType !== scheme) setSelectedSchemeId(null);
+                        }}
+                        className={`px-3 py-1.5 text-xs font-medium rounded border transition-colors ${
+                          paymentScheme === scheme
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {scheme === 'POSTPAYMENT' ? FACT_LABEL : ADVANCE_LABEL}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Шаг 2: выбор конкретной схемы выбранного типа */}
+                  {paymentScheme && (
+                    <select
+                      value={selectedSchemeId ?? ''}
+                      onChange={(e) => setSelectedSchemeId(e.target.value ? Number(e.target.value) : null)}
+                      className="mt-1 text-sm border border-gray-300 rounded px-2 py-1 text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value="">— выберите схему —</option>
+                      {schemes
+                        .filter((s) => s.paymentType === paymentScheme)
+                        .map((s) => (
+                          <option key={s.id} value={s.id}>{s.label}</option>
+                        ))}
+                    </select>
+                  )}
+                  {!paymentScheme && (
+                    <p className="text-[11px] text-gray-400">Выберите тип, затем схему — чтобы сохранить.</p>
+                  )}
+                  {paymentScheme && selectedSchemeId == null && (
+                    <p className="text-[11px] text-gray-400">Выберите конкретную схему из списка.</p>
+                  )}
+                </div>
+                <InfoRow
+                  label="Статус оплаты"
+                  value={
+                    delivery.status ? (
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                          STATUS_BADGE_CLASSES[delivery.statusColor ?? 'gray'] ?? STATUS_BADGE_CLASSES.gray
+                        }`}
+                      >
+                        {delivery.status}
+                      </span>
+                    ) : '—'
+                  }
+                />
+                <InfoRow
+                  label="Оплаты (текущее)"
+                  value={
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${payments.badgeClass}`}>
+                      {payments.label}
                     </span>
-                  </span>
-                  <span className="flex items-baseline gap-1">
-                    <span className="text-[11px] uppercase tracking-wide text-gray-400 w-12 flex-shrink-0">Факт</span>
-                    <span className={delivery.actualDeliveryDate ? 'text-gray-900' : 'text-gray-400'}>
-                      {delivery.actualDeliveryDate ? new Date(delivery.actualDeliveryDate).toLocaleDateString('ru-RU') : '—'}
+                  }
+                />
+              </div>
+
+              {/* Блок 3: поставка */}
+              <div className="grid grid-cols-1 gap-2.5 min-w-0 rounded-md border border-gray-200 bg-white p-2.5 shadow-sm">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[11px] uppercase tracking-wide text-gray-400">Статус поставки</span>
+                  <select
+                    value={shipmentStatus ?? ''}
+                    onChange={(e) => handleShipmentStatusChange(e.target.value)}
+                    disabled={shipmentStatusSaving}
+                    className="text-sm border border-gray-300 rounded px-2 py-1 text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-60"
+                  >
+                    <option value="" disabled>—</option>
+                    {SHIPMENT_STATUS_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </select>
+                  {awaitingDeliveredDate && (
+                    <div className="mt-1 flex flex-col gap-1 rounded border border-yellow-300 bg-yellow-50 p-2">
+                      <span className="text-[11px] text-gray-600">Укажите фактическую дату поставки</span>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="date"
+                          value={deliveredDate}
+                          onChange={(e) => setDeliveredDate(e.target.value)}
+                          className="text-sm border border-gray-300 rounded px-2 py-1 text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={confirmDeliveredDate}
+                          disabled={shipmentStatusSaving || !deliveredDate}
+                          className="px-2 py-1 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60"
+                        >
+                          Сохранить
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAwaitingDeliveredDate(false);
+                            const matched = SHIPMENT_STATUS_OPTIONS.find((o) => o.label === delivery.shipmentStatus);
+                            setShipmentStatus(matched?.value ?? null);
+                          }}
+                          disabled={shipmentStatusSaving}
+                          className="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded hover:bg-gray-200 disabled:opacity-60"
+                        >
+                          Отмена
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[11px] uppercase tracking-wide text-gray-400">Даты поставки</span>
+                  <div className="flex flex-col gap-0.5 text-sm">
+                    <span className="flex items-baseline gap-1">
+                      <span className="text-[11px] uppercase tracking-wide text-gray-400 w-12 flex-shrink-0">Дедлайн</span>
+                      <span className={delivery.deliveryDeadline ? 'text-gray-900' : 'text-gray-400'}>
+                        {delivery.deliveryDeadline ? new Date(delivery.deliveryDeadline).toLocaleDateString('ru-RU') : '—'}
+                      </span>
                     </span>
+                    <span className="flex items-baseline gap-1">
+                      <span className="text-[11px] uppercase tracking-wide text-gray-400 w-12 flex-shrink-0">План</span>
+                      <span className={delivery.contractPlannedDeliveryStartDate ? 'text-gray-900' : 'text-gray-400'}>
+                        {delivery.contractPlannedDeliveryStartDate ? new Date(delivery.contractPlannedDeliveryStartDate).toLocaleDateString('ru-RU') : '—'}
+                      </span>
+                    </span>
+                    <span className="flex items-baseline gap-1">
+                      <span className="text-[11px] uppercase tracking-wide text-gray-400 w-12 flex-shrink-0">Факт</span>
+                      <span className={delivery.actualDeliveryDate ? 'text-gray-900' : 'text-gray-400'}>
+                        {delivery.actualDeliveryDate ? new Date(delivery.actualDeliveryDate).toLocaleDateString('ru-RU') : '—'}
+                      </span>
+                    </span>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[11px] uppercase tracking-wide text-gray-400">Срок поставки (рабочих дней)</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={deliveryTermDays}
+                    onChange={(e) => setDeliveryTermDays(e.target.value)}
+                    placeholder="Напр. 30"
+                    className="text-sm border border-gray-300 rounded px-2 py-1 text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                  <span className="text-[11px] text-gray-400">
+                    Дедлайн = {paymentScheme === 'PREPAYMENT' ? 'дата оплаты аванса' : paymentScheme === 'POSTPAYMENT' ? 'дата регистрации (или синхронизации) договора' : 'базовая дата'} + срок. Сохраните, чтобы пересчитать.
                   </span>
                 </div>
               </div>
-              <div className="flex flex-col gap-0.5">
-                <span className="text-[11px] uppercase tracking-wide text-gray-400">Срок поставки (рабочих дней)</span>
-                <input
-                  type="number"
-                  min={0}
-                  value={deliveryTermDays}
-                  onChange={(e) => setDeliveryTermDays(e.target.value)}
-                  placeholder="Напр. 30"
-                  className="text-sm border border-gray-300 rounded px-2 py-1 text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-                <span className="text-[11px] text-gray-400">
-                  Дедлайн = {paymentScheme === 'PREPAYMENT' ? 'дата оплаты аванса' : paymentScheme === 'POSTPAYMENT' ? 'дата регистрации (или синхронизации) договора' : 'базовая дата'} + срок. Сохраните, чтобы пересчитать.
-                </span>
-              </div>
-              <InfoRow label="Ответственный" value={delivery.responsibleDisplayName ?? '—'} />
-              <InfoRow
-                label="Оплаты (текущее)"
-                value={
-                  <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${payments.badgeClass}`}>
-                    {payments.label}
-                  </span>
-                }
-              />
-              <div className="min-w-0">
+
+              {/* Блок 4: комментарий */}
+              <div className="grid grid-cols-1 gap-2 min-w-0 rounded-md border border-gray-200 bg-white p-2.5 shadow-sm">
                 <InfoRow label="Комментарий" value={delivery.comment ?? '—'} />
               </div>
             </div>
           </Section>
 
-          {/* Оплаты: схема и распределение */}
+          {/* Оплаты: распределение */}
           <Section title="Оплаты">
-            {/* Схема оплаты — выбор */}
-            <div>
-              <h4 className="text-xs font-semibold text-gray-700 mb-1.5">
-                Схема оплаты <span className="text-red-500">*</span>
-              </h4>
-              <div className="flex flex-wrap gap-2">
-                {(['POSTPAYMENT', 'PREPAYMENT'] as PaymentScheme[]).map((scheme) => (
-                  <button
-                    key={scheme}
-                    onClick={() => setPaymentScheme(scheme)}
-                    className={`px-3 py-1.5 text-xs font-medium rounded border transition-colors ${
-                      paymentScheme === scheme
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    {scheme === 'POSTPAYMENT' ? FACT_LABEL : ADVANCE_LABEL}
-                  </button>
-                ))}
-              </div>
-              {!paymentScheme && (
-                <p className="text-[11px] text-gray-400 mt-1">
-                  {getPaymentSchemeLabel(null)} — выберите схему, чтобы сохранить.
-                </p>
-              )}
-            </div>
-
             {/* Распределение: Аванс (только при выборе «Аванс») */}
             {paymentScheme === 'PREPAYMENT' && (
-              <div className="mt-4">
+              <div>
                 <h4 className="text-xs font-semibold text-gray-700 mb-1.5">
                   Аванс <span className="text-gray-400 font-normal">(присвоить тип «Аванс»)</span>
                 </h4>
@@ -574,7 +623,7 @@ export default function DeliveryDetailsModal({ delivery, onClose, onSaved }: Del
             )}
 
             {/* Распределение: Оплаты (По факту) */}
-            <div className="mt-4">
+            <div className={paymentScheme === 'PREPAYMENT' ? 'mt-4' : ''}>
               <h4 className="text-xs font-semibold text-gray-700 mb-1.5">
                 Оплаты <span className="text-gray-400 font-normal">(присвоить тип «По факту»)</span>
               </h4>

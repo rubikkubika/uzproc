@@ -108,7 +108,7 @@ export default function DeliveryTable() {
     filterKind?: 'text' | 'paymentScheme' | 'shipmentStatus';
   }> = [
     { field: 'innerId', label: '№', width: '5%', hasFilter: true, hasSort: true, filterKind: 'text' },
-    { field: 'deliveryDeadline', label: 'Дедлайн', width: '11%', hasFilter: false, hasSort: true },
+    { field: 'deliveryDeadline', label: 'Даты поставки', width: '11%', hasFilter: false, hasSort: true },
     { field: 'shipmentStatus', label: 'Статус поставки', width: '8%', hasFilter: true, hasSort: false, filterKind: 'shipmentStatus' },
     { field: 'paymentScheme', label: 'Схема оплаты', width: '8%', hasFilter: true, hasSort: false, filterKind: 'paymentScheme' },
     { field: 'payments', label: 'Оплаты', width: '9%', hasFilter: false, hasSort: false },
@@ -220,10 +220,10 @@ export default function DeliveryTable() {
             onClick={handleCreateMay}
             disabled={creatingMay}
             className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium bg-emerald-600 text-white rounded-lg border border-emerald-600 hover:bg-emerald-700 transition-colors whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
-            title="Создать поставки по всем подписанным спецификациям за май текущего года"
+            title="Создать поставки по подписанным спецификациям договорников с датой регистрации (подписания) в апреле текущего года"
           >
             <CalendarPlus className="w-3.5 h-3.5" />
-            {creatingMay ? 'Создание...' : 'Создать поставки за май'}
+            {creatingMay ? 'Создание...' : 'Создать поставки за апрель'}
           </button>
 
           {mayMessage && (
@@ -293,7 +293,9 @@ export default function DeliveryTable() {
                     <div className="flex flex-col gap-0.5 leading-tight">
                       <span className="flex items-baseline gap-1" title="Дедлайн (вычисляется автоматически)">
                         <span className="text-[10px] uppercase tracking-wide text-gray-400 w-10 flex-shrink-0">Дедл.</span>
-                        <span className={item.deliveryDeadline ? 'text-gray-900' : 'text-gray-400'}>{item.deliveryDeadline ?? '—'}</span>
+                        <span className={item.deliveryDeadline ? 'text-gray-900' : 'text-gray-400'}>
+                          {item.deliveryDeadline ? new Date(item.deliveryDeadline).toLocaleDateString('ru-RU') : '—'}
+                        </span>
                       </span>
                       <span className="flex items-baseline gap-1" title="План — начало поставки из договора">
                         <span className="text-[10px] uppercase tracking-wide text-gray-400 w-10 flex-shrink-0">План</span>
@@ -323,10 +325,10 @@ export default function DeliveryTable() {
                   </td>
                   <td className="px-2 py-2 text-xs border-r border-gray-300 overflow-hidden min-w-0">
                     <span
-                      className={`truncate block ${item.paymentScheme ? 'text-gray-900' : 'text-gray-400'}`}
-                      title={getPaymentSchemeLabel(item.paymentScheme)}
+                      className={`truncate block ${item.paymentSchemeLabel || item.paymentScheme ? 'text-gray-900' : 'text-gray-400'}`}
+                      title={item.paymentSchemeLabel ?? getPaymentSchemeLabel(item.paymentScheme)}
                     >
-                      {getPaymentSchemeLabel(item.paymentScheme)}
+                      {item.paymentSchemeLabel ?? getPaymentSchemeLabel(item.paymentScheme)}
                     </span>
                   </td>
                   <td className="px-2 py-2 text-xs border-r border-gray-300 overflow-hidden min-w-0">

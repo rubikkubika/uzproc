@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { X } from 'lucide-react';
 import { getBackendUrl } from '@/utils/api';
 import { parseFirstNumber } from '../types/delivery.types';
+import type { PaymentSchemeOption } from '../types/delivery.types';
 
 interface ContractSearchResult {
   id: number;
@@ -57,6 +58,9 @@ export default function CreateDeliveryModal({ open, onClose, onCreated }: Props)
   const [contractsLoading, setContractsLoading] = useState(false);
   const [selectedContract, setSelectedContract] = useState<ContractSearchResult | null>(null);
   const [paymentScheme, setPaymentScheme] = useState<PaymentScheme | null>(null);
+  // Справочник схем оплаты и выбранная конкретная схема
+  const [schemes, setSchemes] = useState<PaymentSchemeOption[]>([]);
+  const [selectedSchemeId, setSelectedSchemeId] = useState<number | null>(null);
   const [contractPayments, setContractPayments] = useState<ContractPayment[]>([]);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
   const [advancePaymentIds, setAdvancePaymentIds] = useState<Set<number>>(new Set());
@@ -70,6 +74,7 @@ export default function CreateDeliveryModal({ open, onClose, onCreated }: Props)
     setContracts([]);
     setSelectedContract(null);
     setPaymentScheme(null);
+    setSelectedSchemeId(null);
     setContractPayments([]);
     setAdvancePaymentIds(new Set());
     setFactPaymentIds(new Set());
@@ -81,6 +86,15 @@ export default function CreateDeliveryModal({ open, onClose, onCreated }: Props)
   useEffect(() => {
     if (open) resetState();
   }, [open, resetState]);
+
+  // Загрузка справочника схем оплаты при открытии
+  useEffect(() => {
+    if (!open) return;
+    fetch(`${getBackendUrl()}/api/deliveries/payment-schemes`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((json: PaymentSchemeOption[]) => setSchemes(json))
+      .catch(() => setSchemes([]));
+  }, [open]);
 
   useEffect(() => {
     if (!open || selectedContract) return;
@@ -157,12 +171,12 @@ export default function CreateDeliveryModal({ open, onClose, onCreated }: Props)
   );
 
   const canSubmit = useMemo(
-    () => !!selectedContract && !!paymentScheme && !submitting,
-    [selectedContract, paymentScheme, submitting]
+    () => !!selectedContract && selectedSchemeId != null && !submitting,
+    [selectedContract, selectedSchemeId, submitting]
   );
 
   const handleSubmit = async () => {
-    if (!selectedContract || !paymentScheme) return;
+    if (!selectedContract || selectedSchemeId == null) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -172,6 +186,7 @@ export default function CreateDeliveryModal({ open, onClose, onCreated }: Props)
         body: JSON.stringify({
           contractId: selectedContract.id,
           paymentScheme,
+          paymentSchemeId: selectedSchemeId,
           advancePaymentIds: Array.from(advancePaymentIds),
           factPaymentIds: Array.from(factPaymentIds),
           deliveryTermWorkingDays: deliveryTermDays.trim() !== '' ? Number(deliveryTermDays) : null,
@@ -360,16 +375,20 @@ export default function CreateDeliveryModal({ open, onClose, onCreated }: Props)
             )}
           </section>
 
-          {/* Шаг 2: схема оплаты */}
+          {/* Шаг 2: схема оплаты — сначала тип, затем конкретная схема */}
           <section>
             <h3 className="text-xs font-semibold text-gray-700 mb-1.5">
               2. Схема оплаты <span className="text-red-500">*</span>
             </h3>
             <div className="flex flex-wrap gap-2">
-              {(['POSTPAYMENT', 'PREPAYMENT'] as PaymentScheme[]).map((scheme) => (
+              {(['PREPAYMENT', 'POSTPAYMENT'] as PaymentScheme[]).map((scheme) => (
                 <button
                   key={scheme}
-                  onClick={() => setPaymentScheme(scheme)}
+                  onClick={() => {
+                    setPaymentScheme(scheme);
+                    const sel = schemes.find((s) => s.id === selectedSchemeId);
+                    if (sel && sel.paymentType !== scheme) setSelectedSchemeId(null);
+                  }}
                   className={`px-3 py-1.5 text-xs font-medium rounded border transition-colors ${
                     paymentScheme === scheme
                       ? 'bg-blue-600 text-white border-blue-600'
@@ -380,6 +399,20 @@ export default function CreateDeliveryModal({ open, onClose, onCreated }: Props)
                 </button>
               ))}
             </div>
+            {paymentScheme && (
+              <select
+                value={selectedSchemeId ?? ''}
+                onChange={(e) => setSelectedSchemeId(e.target.value ? Number(e.target.value) : null)}
+                className="mt-2 text-sm border border-gray-300 rounded px-2 py-1 text-gray-900 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="">— выберите схему —</option>
+                {schemes
+                  .filter((s) => s.paymentType === paymentScheme)
+                  .map((s) => (
+                    <option key={s.id} value={s.id}>{s.label}</option>
+                  ))}
+              </select>
+            )}
           </section>
 
           {/* Условия оплаты из договора */}

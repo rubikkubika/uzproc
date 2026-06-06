@@ -4,6 +4,8 @@ import com.uzproc.backend.dto.delivery.BulkCreateDeliveriesResultDto;
 import com.uzproc.backend.dto.delivery.CreateDeliveryRequestDto;
 import com.uzproc.backend.dto.delivery.DeliveryContractSearchResultDto;
 import com.uzproc.backend.dto.delivery.DeliveryDto;
+import com.uzproc.backend.dto.delivery.DeliveryPaymentSchemeDto;
+import com.uzproc.backend.entity.delivery.DeliveryPaymentScheme;
 import com.uzproc.backend.dto.delivery.UpdateDeliveryPaymentsRequestDto;
 import com.uzproc.backend.dto.payment.PaymentDto;
 import com.uzproc.backend.entity.contract.Contract;
@@ -50,17 +52,63 @@ public class DeliveryService {
     private final PaymentRepository paymentRepository;
     private final HolidayRepository holidayRepository;
     private final ContractApprovalRepository contractApprovalRepository;
+    private final com.uzproc.backend.repository.delivery.DeliveryPaymentSchemeRepository paymentSchemeRepository;
 
     public DeliveryService(DeliveryRepository deliveryRepository,
                            ContractRepository contractRepository,
                            PaymentRepository paymentRepository,
                            HolidayRepository holidayRepository,
-                           ContractApprovalRepository contractApprovalRepository) {
+                           ContractApprovalRepository contractApprovalRepository,
+                           com.uzproc.backend.repository.delivery.DeliveryPaymentSchemeRepository paymentSchemeRepository) {
         this.deliveryRepository = deliveryRepository;
         this.contractRepository = contractRepository;
         this.paymentRepository = paymentRepository;
         this.holidayRepository = holidayRepository;
         this.contractApprovalRepository = contractApprovalRepository;
+        this.paymentSchemeRepository = paymentSchemeRepository;
+    }
+
+    /** Список активных схем оплаты (справочник) для выпадающего списка в карточке поставки. */
+    public List<DeliveryPaymentSchemeDto> listPaymentSchemes() {
+        return paymentSchemeRepository.findByActiveTrueOrderBySortOrderAsc().stream()
+                .map(this::toSchemeDto)
+                .collect(Collectors.toList());
+    }
+
+    private com.uzproc.backend.dto.delivery.DeliveryPaymentSchemeDto toSchemeDto(
+            com.uzproc.backend.entity.delivery.DeliveryPaymentScheme s) {
+        var dto = new com.uzproc.backend.dto.delivery.DeliveryPaymentSchemeDto();
+        dto.setId(s.getId());
+        dto.setLabel(s.getLabel());
+        dto.setAdvancePercent(s.getAdvancePercent());
+        dto.setFinalPercent(s.getFinalPercent());
+        dto.setTermDays(s.getTermDays());
+        dto.setDayType(s.getDayType());
+        dto.setPaymentType(s.getPaymentType());
+        dto.setSortOrder(s.getSortOrder());
+        return dto;
+    }
+
+    /**
+     * Разрешает выбранную схему оплаты: по id из справочника (приоритет) или по строковому коду схемы.
+     * Возвращает массив [DeliveryPaymentScheme ref (или null), PaymentScheme enum (или null)].
+     * Легаси-enum (Аванс/По факту) выводится из payment_type справочной схемы.
+     */
+    private Object[] resolvePaymentScheme(Long schemeId, String schemeCode) {
+        if (schemeId != null) {
+            com.uzproc.backend.entity.delivery.DeliveryPaymentScheme ref = paymentSchemeRepository.findById(schemeId)
+                    .orElseThrow(() -> new IllegalArgumentException("Схема оплаты не найдена: id=" + schemeId));
+            PaymentScheme legacy = PaymentScheme.valueOf(ref.getPaymentType().trim().toUpperCase());
+            return new Object[]{ref, legacy};
+        }
+        if (schemeCode != null && !schemeCode.isBlank()) {
+            try {
+                return new Object[]{null, PaymentScheme.valueOf(schemeCode.trim().toUpperCase())};
+            } catch (IllegalArgumentException ex) {
+                throw new IllegalArgumentException("Некорректное значение paymentScheme: " + schemeCode);
+            }
+        }
+        return new Object[]{null, null};
     }
 
     public Page<DeliveryDto> findAll(
@@ -107,14 +155,12 @@ public class DeliveryService {
         if (request == null || request.getContractId() == null) {
             throw new IllegalArgumentException("contractId обязателен");
         }
-        if (request.getPaymentScheme() == null || request.getPaymentScheme().isBlank()) {
-            throw new IllegalArgumentException("paymentScheme обязателен");
-        }
-        PaymentScheme scheme;
-        try {
-            scheme = PaymentScheme.valueOf(request.getPaymentScheme().trim().toUpperCase());
-        } catch (IllegalArgumentException ex) {
-            throw new IllegalArgumentException("Некорректное значение paymentScheme: " + request.getPaymentScheme());
+        // Схема оплаты: по id из справочника (приоритет) или по строковому коду. Обязательна.
+        Object[] resolved = resolvePaymentScheme(request.getPaymentSchemeId(), request.getPaymentScheme());
+        DeliveryPaymentScheme schemeRef = (DeliveryPaymentScheme) resolved[0];
+        PaymentScheme scheme = (PaymentScheme) resolved[1];
+        if (scheme == null) {
+            throw new IllegalArgumentException("Схема оплаты обязательна (paymentSchemeId или paymentScheme)");
         }
 
         Contract contract = contractRepository.findById(request.getContractId())
@@ -126,11 +172,14 @@ public class DeliveryService {
         delivery.setInnerId(String.valueOf(nextInnerId));
         delivery.setContract(contract);
         delivery.setPaymentScheme(scheme);
+        delivery.setPaymentSchemeRef(schemeRef);
         if (contract.getCurrency() != null) delivery.setCurrency(contract.getCurrency());
         if (contract.getBudgetAmount() != null) delivery.setAmount(contract.getBudgetAmount());
         if (contract.getSuppliers() != null && !contract.getSuppliers().isEmpty()) {
             delivery.setSupplier(contract.getSuppliers().iterator().next());
         }
+        // Ответственный = тот, кто подготовил договор.
+        delivery.setResponsible(contract.getPreparedBy());
 
         // Срок поставки в рабочих днях: из запроса, иначе — первое число из договора.
         Integer term = request.getDeliveryTermWorkingDays();
@@ -156,28 +205,43 @@ public class DeliveryService {
     }
 
     /**
-     * Массово создаёт поставки по всем подписанным спецификациям
+     * Массово создаёт поставки по подписанным спецификациям
      * (договоры с documentForm = «Спецификация» и status = SIGNED),
-     * у которых дата создания договора попадает в указанный месяц/год.
+     * подготовленным договорником (preparedBy.isContractor = true),
+     * у которых дата регистрации (а при её отсутствии — дата синхронизации) договора
+     * попадает в указанный месяц/год.
      * Спецификации, по которым поставка уже существует, пропускаются.
      * Схема оплаты у создаваемых поставок не задаётся (выбирается пользователем позже).
      */
     @Transactional
     public BulkCreateDeliveriesResultDto createDeliveriesFromSignedSpecifications(Integer year, Integer month) {
         int y = (year != null) ? year : LocalDate.now().getYear();
-        int m = (month != null) ? month : 5; // по умолчанию — май
+        int m = (month != null) ? month : 4; // по умолчанию — апрель
         LocalDate monthStart = LocalDate.of(y, m, 1);
         LocalDate monthEnd = monthStart.plusMonths(1).minusDays(1);
-        java.time.LocalDateTime from = monthStart.atStartOfDay();
-        java.time.LocalDateTime to = monthEnd.atTime(23, 59, 59);
 
-        Specification<Contract> spec = (root, query, cb) -> cb.and(
-                cb.equal(root.get("documentForm"), "Спецификация"),
-                cb.equal(root.get("status"), ContractStatus.SIGNED),
-                cb.between(root.get("contractCreationDate"), from, to)
-        );
-        List<Contract> specifications = contractRepository.findAll(spec);
-        logger.info("Bulk create deliveries: found {} signed specifications for {}-{}", specifications.size(), y, m);
+        // Лёгкая projection-выборка id подписанных спецификаций договорников (без гидрации сущностей).
+        List<Long> contractIds = contractRepository.findSignedContractorSpecificationIds(ContractStatus.SIGNED);
+
+        // Даты регистрации и синхронизации по каждому договору — пакетными запросами.
+        java.util.Map<Long, LocalDate> registrationDates = toDateMap(
+                contractIds.isEmpty() ? List.of()
+                        : contractApprovalRepository.findRegistrationCompletionDatesByContractIds(contractIds));
+        java.util.Map<Long, LocalDate> synchronizationDates = toDateMap(
+                contractIds.isEmpty() ? List.of()
+                        : contractApprovalRepository.findSynchronizationCompletionDatesByContractIds(contractIds));
+
+        // Отбираем только id с датой регистрации (или, если её нет, синхронизации) в нужном месяце,
+        // и поднимаем полные сущности ТОЛЬКО для них (а не для всех договорных спецификаций).
+        List<Long> monthContractIds = contractIds.stream().filter(id -> {
+            LocalDate d = registrationDates.get(id);
+            if (d == null) d = synchronizationDates.get(id);
+            return d != null && !d.isBefore(monthStart) && !d.isAfter(monthEnd);
+        }).collect(Collectors.toList());
+        List<Contract> specifications = monthContractIds.isEmpty()
+                ? List.of() : contractRepository.findAllById(monthContractIds);
+        logger.info("Bulk create deliveries: {} signed contractor specifications, {} in {}-{}",
+                contractIds.size(), specifications.size(), y, m);
 
         Integer maxInnerId = deliveryRepository.findMaxNumericInnerId();
         int nextInnerId = (maxInnerId != null ? maxInnerId : 0);
@@ -200,6 +264,8 @@ public class DeliveryService {
             if (contract.getSuppliers() != null && !contract.getSuppliers().isEmpty()) {
                 delivery.setSupplier(contract.getSuppliers().iterator().next());
             }
+            // Ответственный = тот, кто подготовил договор.
+            delivery.setResponsible(contract.getPreparedBy());
             // Срок поставки в рабочих днях — первое число из договора.
             delivery.setDeliveryTermWorkingDays(parseFirstNumber(contract.getDeliveryTerm()));
             // Подтягиваем все оплаты договора. Тип (Аванс/По факту) у них ещё не задан —
@@ -214,8 +280,9 @@ public class DeliveryService {
             deliveryRepository.save(delivery);
             created++;
         }
-        logger.info("Bulk create deliveries done: created={}, skipped={}, total={}", created, skipped, specifications.size());
-        return new BulkCreateDeliveriesResultDto(created, skipped, specifications.size());
+        int total = created + skipped;
+        logger.info("Bulk create deliveries done: created={}, skipped={}, total={}", created, skipped, total);
+        return new BulkCreateDeliveriesResultDto(created, skipped, total);
     }
 
     /**
@@ -275,15 +342,14 @@ public class DeliveryService {
         Delivery delivery = deliveryRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Поставка не найдена: id=" + id));
 
-        PaymentScheme scheme = null;
-        if (request != null && request.getPaymentScheme() != null && !request.getPaymentScheme().isBlank()) {
-            try {
-                scheme = PaymentScheme.valueOf(request.getPaymentScheme().trim().toUpperCase());
-            } catch (IllegalArgumentException ex) {
-                throw new IllegalArgumentException("Некорректное значение paymentScheme: " + request.getPaymentScheme());
-            }
-        }
+        // Схема оплаты: по id из справочника (приоритет) или по строковому коду. Может быть пустой (сброс).
+        Object[] resolved = resolvePaymentScheme(
+                request != null ? request.getPaymentSchemeId() : null,
+                request != null ? request.getPaymentScheme() : null);
+        DeliveryPaymentScheme schemeRef = (DeliveryPaymentScheme) resolved[0];
+        PaymentScheme scheme = (PaymentScheme) resolved[1];
         delivery.setPaymentScheme(scheme);
+        delivery.setPaymentSchemeRef(schemeRef);
 
         if (request != null && request.getDeliveryTermWorkingDays() != null) {
             delivery.setDeliveryTermWorkingDays(request.getDeliveryTermWorkingDays());
@@ -318,6 +384,7 @@ public class DeliveryService {
                 .orElseThrow(() -> new IllegalArgumentException("Поставка не найдена: id=" + id));
 
         delivery.setPaymentScheme(null);
+        delivery.setPaymentSchemeRef(null);
 
         Contract contract = delivery.getContract();
         Set<Payment> linked = new HashSet<>();
@@ -476,10 +543,37 @@ public class DeliveryService {
     private LocalDate firstDate(List<Object[]> rows) {
         for (Object[] row : rows) {
             if (row[1] != null) {
-                return row[1] instanceof java.sql.Timestamp
-                        ? ((java.sql.Timestamp) row[1]).toLocalDateTime().toLocalDate()
-                        : ((java.time.LocalDateTime) row[1]).toLocalDate();
+                return toLocalDate(row[1]);
             }
+        }
+        return null;
+    }
+
+    /** Преобразует строки (contract_id, completion_date) в map contractId -> LocalDate. */
+    private static java.util.Map<Long, LocalDate> toDateMap(List<Object[]> rows) {
+        java.util.Map<Long, LocalDate> map = new java.util.HashMap<>();
+        for (Object[] row : rows) {
+            if (row[0] == null || row[1] == null) continue;
+            LocalDate d = toLocalDate(row[1]);
+            if (d != null) map.put(((Number) row[0]).longValue(), d);
+        }
+        return map;
+    }
+
+    /** Преобразует значение completion_date (Timestamp/LocalDateTime/Date) в LocalDate. */
+    private static LocalDate toLocalDate(Object value) {
+        if (value == null) return null;
+        if (value instanceof java.sql.Timestamp) {
+            return ((java.sql.Timestamp) value).toLocalDateTime().toLocalDate();
+        }
+        if (value instanceof java.time.LocalDateTime) {
+            return ((java.time.LocalDateTime) value).toLocalDate();
+        }
+        if (value instanceof java.sql.Date) {
+            return ((java.sql.Date) value).toLocalDate();
+        }
+        if (value instanceof LocalDate) {
+            return (LocalDate) value;
         }
         return null;
     }
@@ -707,6 +801,10 @@ public class DeliveryService {
         dto.setShipmentStatus(entity.getShipmentStatus() != null ? entity.getShipmentStatus().getDisplayName() : null);
         dto.setShipmentStatusColor(entity.getShipmentStatus() != null ? entity.getShipmentStatus().getColor() : null);
         dto.setPaymentScheme(entity.getPaymentScheme() != null ? entity.getPaymentScheme().name() : null);
+        if (entity.getPaymentSchemeRef() != null) {
+            dto.setPaymentSchemeId(entity.getPaymentSchemeRef().getId());
+            dto.setPaymentSchemeLabel(entity.getPaymentSchemeRef().getLabel());
+        }
         if (entity.getPayments() != null) {
             dto.setPaymentIds(entity.getPayments().stream().map(Payment::getId).collect(Collectors.toList()));
             int count = entity.getPayments().size();

@@ -130,7 +130,7 @@ export const useDeliveryTable = () => {
   const createMayDeliveries = useCallback(async (): Promise<string> => {
     setCreatingMay(true);
     try {
-      const res = await fetch(`${getBackendUrl()}/api/deliveries/from-specifications?month=5`, {
+      const res = await fetch(`${getBackendUrl()}/api/deliveries/from-specifications?month=4`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -139,8 +139,8 @@ export const useDeliveryTable = () => {
       reload();
       return `Создано поставок: ${result.created}. Пропущено (уже есть): ${result.skipped}. Всего спецификаций: ${result.totalSpecifications}.`;
     } catch (err) {
-      console.error('Не удалось создать поставки за май:', err);
-      return 'Не удалось создать поставки за май';
+      console.error('Не удалось создать поставки за апрель:', err);
+      return 'Не удалось создать поставки за апрель';
     } finally {
       setCreatingMay(false);
     }

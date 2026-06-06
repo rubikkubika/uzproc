@@ -30,6 +30,9 @@ export interface Delivery {
   shipmentStatus: string | null;
   shipmentStatusColor: 'gray' | 'blue' | 'green' | 'red' | string | null;
   paymentScheme: 'POSTPAYMENT' | 'PREPAYMENT' | null;
+  /** Конкретная схема оплаты из справочника. */
+  paymentSchemeId: number | null;
+  paymentSchemeLabel: string | null;
   paymentsCount: number;
   paymentsDistributed: boolean;
   comment: string | null;
@@ -43,6 +46,20 @@ export const PAYMENT_SCHEME_LABELS: Record<'POSTPAYMENT' | 'PREPAYMENT', string>
   POSTPAYMENT: 'По факту',
   PREPAYMENT: 'Аванс',
 };
+
+/** Схема оплаты из справочника (для выпадающего списка в карточке поставки). */
+export interface PaymentSchemeOption {
+  id: number;
+  label: string;
+  advancePercent: number | null;
+  finalPercent: number | null;
+  termDays: number | null;
+  /** WORKING — рабочие (банковские) дни; CALENDAR — обычные. */
+  dayType: 'WORKING' | 'CALENDAR' | null;
+  /** PREPAYMENT — есть аванс; POSTPAYMENT — аванса нет. */
+  paymentType: 'POSTPAYMENT' | 'PREPAYMENT';
+  sortOrder: number | null;
+}
 
 /** Текст для колонки «Схема оплаты»: если схема не выбрана — «Схема оплаты не выбрана». */
 export function getPaymentSchemeLabel(scheme: Delivery['paymentScheme']): string {
