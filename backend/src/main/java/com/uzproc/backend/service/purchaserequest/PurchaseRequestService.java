@@ -12,6 +12,7 @@ import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequestApproval;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequestStatus;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequestStatusGroup;
+import com.uzproc.backend.repository.contract.ContractApprovalRepository;
 import com.uzproc.backend.repository.contract.ContractRepository;
 import com.uzproc.backend.repository.csifeedback.CsiFeedbackRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestApprovalRepository;
@@ -67,6 +68,7 @@ public class PurchaseRequestService {
     private final PurchasePlanItemRepository purchasePlanItemRepository;
     private final PurchaseRequestChangeService purchaseRequestChangeService;
     private final WorkingDayService workingDayService;
+    private final ContractApprovalRepository contractApprovalRepository;
 
     @Value("${app.frontend.base-url:}")
     private String frontendBaseUrl;
@@ -87,7 +89,8 @@ public class PurchaseRequestService {
             PurchasePlanPurchaserSyncService purchasePlanPurchaserSyncService,
             PurchasePlanItemRepository purchasePlanItemRepository,
             PurchaseRequestChangeService purchaseRequestChangeService,
-            WorkingDayService workingDayService) {
+            WorkingDayService workingDayService,
+            ContractApprovalRepository contractApprovalRepository) {
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.approvalRepository = approvalRepository;
         this.purchaseApprovalRepository = purchaseApprovalRepository;
@@ -100,6 +103,7 @@ public class PurchaseRequestService {
         this.purchasePlanItemRepository = purchasePlanItemRepository;
         this.purchaseRequestChangeService = purchaseRequestChangeService;
         this.workingDayService = workingDayService;
+        this.contractApprovalRepository = contractApprovalRepository;
     }
 
     public Page<PurchaseRequestDto> findAll(
@@ -844,6 +848,23 @@ public class PurchaseRequestService {
                     .collect(Collectors.toList());
             contractService.enrichRegistrationDates(contractDtos);
             dto.setContracts(contractDtos);
+
+            // «Сколько договор был в работе» (для вкладки «Все»): рабочие дни от дня после
+            // завершения закупки до даты стоп — MAX(completion_date) этапов «Регистрация»/«Синхронизация»,
+            // либо последнего согласования. Среди нескольких договоров берём максимальную дату стоп.
+            if (purchaseCompletionDate != null && !addedContractIds.isEmpty()) {
+                LocalDateTime contractStopDate = contractApprovalRepository
+                        .findContractStopDatesByContractIds(new ArrayList<>(addedContractIds)).stream()
+                        .map(row -> toLocalDateTime(row[1]))
+                        .filter(java.util.Objects::nonNull)
+                        .max(LocalDateTime::compareTo)
+                        .orElse(null);
+                if (contractStopDate != null) {
+                    long contractDaysTotal = workingDayService.countFromDayAfterThroughInclusive(
+                            purchaseCompletionDate, contractStopDate);
+                    dto.setContractWorkingDaysTotal((int) contractDaysTotal);
+                }
+            }
         } else {
             dto.setPurchaseIds(new ArrayList<>());
             dto.setContracts(new ArrayList<>());
@@ -1419,6 +1440,15 @@ public class PurchaseRequestService {
             return Sort.by(direction, sortBy);
         }
         return Sort.unsorted();
+    }
+
+    /** Приведение значения из native-запроса (java.sql.Timestamp/Date) к LocalDateTime. */
+    private static LocalDateTime toLocalDateTime(Object value) {
+        if (value == null) return null;
+        if (value instanceof LocalDateTime ldt) return ldt;
+        if (value instanceof java.sql.Timestamp ts) return ts.toLocalDateTime();
+        if (value instanceof java.sql.Date d) return d.toLocalDate().atStartOfDay();
+        return null;
     }
 
     /** Плановый срок SLA (рабочих дней) по сложности: 1→3, 2→7, 3→15, 4→30. Та же логика, что на вкладке SLA в обзоре. */

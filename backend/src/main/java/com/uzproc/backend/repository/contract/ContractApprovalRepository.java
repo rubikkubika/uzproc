@@ -49,6 +49,31 @@ public interface ContractApprovalRepository extends JpaRepository<ContractApprov
     List<Object[]> findSynchronizationCompletionDatesByContractIds(@Param("contractIds") List<Long> contractIds);
 
     /**
+     * Для каждого договора из списка возвращает (contract_id, stop_date) — дату стоп «договор в работе».
+     * Дата стоп = MAX(completion_date) по этапам «регистрация%»/«синхронизация%»;
+     * если таких этапов нет → MAX(completion_date) по последнему согласованию
+     * (все не-технические этапы, исключая регистрацию/синхронизацию/принятие на хранение).
+     * Используется для расчёта «сколько договор был в работе» на вкладке «Все».
+     */
+    @Query(value = """
+        SELECT ca.contract_id,
+               COALESCE(
+                 MAX(CASE WHEN LOWER(ca.stage) LIKE 'регистрация%'
+                           OR LOWER(ca.stage) LIKE 'синхронизация%'
+                          THEN ca.completion_date END),
+                 MAX(CASE WHEN LOWER(ca.stage) NOT LIKE 'регистрация%'
+                           AND LOWER(ca.stage) NOT LIKE 'синхронизация%'
+                           AND LOWER(ca.stage) NOT LIKE 'принятие на хранение%'
+                          THEN ca.completion_date END)
+               ) AS stop_date
+        FROM contract_approvals ca
+        WHERE ca.contract_id IN :contractIds
+          AND ca.completion_date IS NOT NULL
+        GROUP BY ca.contract_id
+        """, nativeQuery = true)
+    List<Object[]> findContractStopDatesByContractIds(@Param("contractIds") List<Long> contractIds);
+
+    /**
      * Все согласования договоров, у которых есть связь с заявкой на закупку (contract.purchase_request_id IS NOT NULL).
      * Загружает contract для фильтрации.
      */

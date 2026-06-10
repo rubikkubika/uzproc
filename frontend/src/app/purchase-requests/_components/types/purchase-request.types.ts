@@ -61,6 +61,8 @@ export interface PurchaseRequest {
   slaDelta: number | null;
   /** Рабочие дни «договор в работе»: от даты завершения закупки до сегодня (только при статусе «Договор в работе») */
   contractWorkingDaysInProgress: number | null;
+  /** Рабочие дни «договор был в работе»: от даты завершения закупки до даты стоп (регистрация/синхронизация/последнее согласование) — для вкладки «Все» */
+  contractWorkingDaysTotal: number | null;
 }
 
 export interface PageResponse {

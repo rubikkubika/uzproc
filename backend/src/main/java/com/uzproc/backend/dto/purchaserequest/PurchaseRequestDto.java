@@ -70,6 +70,8 @@ public class PurchaseRequestDto {
     private Integer slaDelta;
     /** Рабочие дни «договор в работе»: от даты завершения закупки до сегодня (только при статусе «Договор в работе») */
     private Integer contractWorkingDaysInProgress;
+    /** Рабочие дни «договор был в работе»: от даты завершения закупки до даты стоп (регистрация/синхронизация/последнее согласование) — для вкладки «Все» */
+    private Integer contractWorkingDaysTotal;
 
     // Constructors
     public PurchaseRequestDto() {
@@ -434,6 +436,14 @@ public class PurchaseRequestDto {
 
     public void setContractWorkingDaysInProgress(Integer contractWorkingDaysInProgress) {
         this.contractWorkingDaysInProgress = contractWorkingDaysInProgress;
+    }
+
+    public Integer getContractWorkingDaysTotal() {
+        return contractWorkingDaysTotal;
+    }
+
+    public void setContractWorkingDaysTotal(Integer contractWorkingDaysTotal) {
+        this.contractWorkingDaysTotal = contractWorkingDaysTotal;
     }
 }
 

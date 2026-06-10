@@ -538,7 +538,14 @@ export default function PurchaseRequestsTableRow({
           const isAtBuyer = request.statusGroup === 'Заявка у закупщика';
           const isSpecificationInProgress = request.statusGroup === 'Спецификация в работе';
           const isContractInProgress = request.statusGroup === 'Договор в работе';
-          
+
+          // Дни «договор в работе» для отображения: на вкладке «В работе» — текущий счётчик до сегодня,
+          // на вкладке «Все» для завершённых договоров — зафиксированное значение до даты стоп.
+          const isAllTab = activeTab === 'all';
+          const contractDaysDisplay = isContractInProgress
+            ? request.contractWorkingDaysInProgress
+            : (isAllTab ? request.contractWorkingDaysTotal : null);
+
           const factual = request.factualSlaDays;
           const delta = request.slaDelta;
           const planned = request.plannedSlaDays;
@@ -703,9 +710,9 @@ export default function PurchaseRequestsTableRow({
                             <div className="relative w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center flex-shrink-0" title={isSpecificationInProgress ? "Договор: Спецификация в работе" : "Договор: Договор в работе"}>
                               <Clock className="w-3 h-3 text-white" />
                             </div>
-                            {isContractInProgress && request.contractWorkingDaysInProgress != null ? (
-                              <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-200 text-gray-700 text-xs font-bold tabular-nums flex-shrink-0" title="Рабочих дней в работе (от даты завершения закупки)">
-                                {request.contractWorkingDaysInProgress}
+                            {contractDaysDisplay != null ? (
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-200 text-gray-700 text-xs font-bold tabular-nums flex-shrink-0" title="Рабочих дней договор в работе (от даты завершения закупки)">
+                                {contractDaysDisplay}
                               </span>
                             ) : (
                               <span className="w-5 h-5 flex-shrink-0" aria-hidden />
@@ -724,10 +731,17 @@ export default function PurchaseRequestsTableRow({
                       );
                       if (request.status === 'Договор подписан' || hasSignedContract) {
                         return (
-                          <div className={`flex items-center justify-center gap-1 ${contentMinW}`}>
+                          <div className={`flex items-center gap-1 ${contentMinW}`}>
                             <div className="relative w-5 h-5 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0" title="Договор: Договор подписан">
                               <Check className="w-3 h-3 text-white" />
                             </div>
+                            {contractDaysDisplay != null ? (
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-200 text-gray-700 text-xs font-bold tabular-nums flex-shrink-0" title="Рабочих дней договор был в работе (до даты регистрации/синхронизации/последнего согласования)">
+                                {contractDaysDisplay}
+                              </span>
+                            ) : (
+                              <span className="w-5 h-5 flex-shrink-0" aria-hidden />
+                            )}
                           </div>
                         );
                       }
@@ -737,9 +751,9 @@ export default function PurchaseRequestsTableRow({
                             <div className="relative w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center flex-shrink-0" title="Договор: Договор в статусе Проект">
                               <Clock className="w-3 h-3 text-white" />
                             </div>
-                            {isContractInProgress && request.contractWorkingDaysInProgress != null ? (
-                              <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-200 text-gray-700 text-xs font-bold tabular-nums flex-shrink-0" title="Рабочих дней в работе (от даты завершения закупки)">
-                                {request.contractWorkingDaysInProgress}
+                            {contractDaysDisplay != null ? (
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-200 text-gray-700 text-xs font-bold tabular-nums flex-shrink-0" title="Рабочих дней договор в работе (от даты завершения закупки)">
+                                {contractDaysDisplay}
                               </span>
                             ) : (
                               <span className="w-5 h-5 flex-shrink-0" aria-hidden />
@@ -753,9 +767,9 @@ export default function PurchaseRequestsTableRow({
                             <div className="relative w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center flex-shrink-0" title="Договор: Закупка завершена">
                               <Clock className="w-3 h-3 text-white" />
                             </div>
-                            {isContractInProgress && request.contractWorkingDaysInProgress != null ? (
-                              <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-200 text-gray-700 text-xs font-bold tabular-nums flex-shrink-0" title="Рабочих дней в работе (от даты завершения закупки)">
-                                {request.contractWorkingDaysInProgress}
+                            {contractDaysDisplay != null ? (
+                              <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-gray-200 text-gray-700 text-xs font-bold tabular-nums flex-shrink-0" title="Рабочих дней договор в работе (от даты завершения закупки)">
+                                {contractDaysDisplay}
                               </span>
                             ) : (
                               <span className="w-5 h-5 flex-shrink-0" aria-hidden />
@@ -801,7 +815,7 @@ export default function PurchaseRequestsTableRow({
                 {/* Рамка: Срок (факт СЛА + срок на договоре) — узкий бейдж */}
                 {(() => {
                   const factSla = request.factualSlaDays ?? 0;
-                  const contractDays = request.contractWorkingDaysInProgress ?? 0;
+                  const contractDays = contractDaysDisplay ?? 0;
                   const totalDays = factSla + contractDays;
                   return (
                     <div
