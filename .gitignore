@@ -112,3 +112,6 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 .playwright-mcp/
+
+# Presentation (local only, not in git/docker)
+/presentation/

@@ -6,12 +6,7 @@ import type { KpiSlaByPurchaser, KpiSlaSettings } from '../types/kpi.types';
 import { purchaserDisplayName } from '@/utils/purchaser';
 import { useKpiSlaDetails } from '../hooks/useKpiSlaDetails';
 import { KpiSlaPanel } from './KpiSlaPanel';
-
-function calcScore(actualPercent: number | null, targetPercent: number, maxScorePercent: number): number {
-  if (actualPercent === null) return 0;
-  if (targetPercent <= 0) return 0;
-  return Math.min(maxScorePercent, (actualPercent / targetPercent) * 100);
-}
+import { calcSlaScore } from '../utils/kpiScore';
 
 interface KpiSlaSettingsEditorProps {
   settings: KpiSlaSettings;
@@ -163,7 +158,7 @@ export function KpiSlaBlock({ data, settings, onSettingsChange, onSettingsReset,
               <tbody>
                 {data.map((row) => {
                   const pct = row.percentage;
-                  const score = calcScore(pct, settings.target, maxScorePercent);
+                  const score = calcSlaScore(pct, settings.target, maxScorePercent);
                   const barColor = score >= 100 ? 'bg-green-500' : score >= 70 ? 'bg-yellow-400' : 'bg-red-400';
                   const isSelected = selectedPurchaser === row.purchaser;
                   return (

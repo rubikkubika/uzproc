@@ -30,3 +30,6 @@ backend/uploads
 
 
 .playwright-mcp/
+
+# Presentation folder
+presentation

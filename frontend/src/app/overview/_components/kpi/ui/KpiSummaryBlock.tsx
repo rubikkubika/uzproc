@@ -9,16 +9,11 @@ import type {
   KpiCsiSettings,
 } from '../types/kpi.types';
 import { purchaserDisplayName } from '@/utils/purchaser';
+import { calcScore, calcSlaScore } from '../utils/kpiScore';
 
 function calcSavingsPercent(savings: number, budget: number): number | null {
   if (budget <= 0) return null;
   return (savings / budget) * 100;
-}
-
-function calcScore(actual: number | null, target: number, maxScorePercent: number): number {
-  if (actual === null || actual === undefined) return 0;
-  if (target <= 0) return 0;
-  return Math.min(maxScorePercent, (actual / target) * 100);
 }
 
 interface KpiSummaryBlockProps {
@@ -78,7 +73,7 @@ export function KpiSummaryBlock({
 
     const sl = slaByPurchaser.get(purchaser);
     const slaPct = sl ? sl.percentage : null;
-    const slaScore = calcScore(slaPct, slaSettings.target, slaMax);
+    const slaScore = calcSlaScore(slaPct, slaSettings.target, slaMax);
     const slaPoints = (slaScore / 100) * slaSettings.weight;
 
     const c = csiByPurchaser.get(purchaser);
