@@ -2,7 +2,75 @@ import { useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import html2canvas from 'html2canvas';
 import { copyToClipboard } from '@/utils/clipboard';
+import { purchaserDisplayName } from '@/utils/purchaser';
 import type { PurchaseRequest } from '../types/purchase-request.types';
+
+/** Дата в формате ru-RU или пустая строка. */
+function formatDate(value: string | null | undefined): string {
+  return value ? new Date(value).toLocaleDateString('ru-RU') : '';
+}
+
+/**
+ * Срок на договоре в рабочих днях — как считается в реестре (колонка «Трэк»):
+ * для «Договор в работе» — текущий счётчик, иначе зафиксированное значение.
+ */
+function contractWorkingDays(r: PurchaseRequest): number | null {
+  return r.contractWorkingDaysInProgress ?? r.contractWorkingDaysTotal ?? null;
+}
+
+/**
+ * Колонки экспорта (Excel и TSV используют один источник).
+ * Сроки — в рабочих днях, как в реестре: срок закупки = factualSlaDays,
+ * срок договора = contractWorkingDays, общий срок = их сумма.
+ */
+const EXPORT_COLUMNS: ReadonlyArray<{
+  header: string;
+  width: number;
+  value: (r: PurchaseRequest) => string | number;
+}> = [
+  { header: 'Номер заявки', width: 15, value: (r) => r.idPurchaseRequest ?? '' },
+  { header: 'ЦФО', width: 20, value: (r) => r.cfo ?? '' },
+  { header: 'Наименование', width: 30, value: (r) => r.name ?? '' },
+  { header: 'Инициатор', width: 25, value: (r) => r.purchaseRequestInitiator ?? '' },
+  {
+    header: 'Закупщик',
+    width: 25,
+    value: (r) => {
+      const name = purchaserDisplayName(r.purchaser);
+      return name !== '—' ? name : '';
+    },
+  },
+  { header: 'Бюджет', width: 15, value: (r) => r.budgetAmount ?? '' },
+  { header: 'Тип договора', width: 15, value: (r) => r.contractType ?? '' },
+  {
+    header: 'План',
+    width: 10,
+    value: (r) => (r.isPlanned ? 'Плановая' : r.isPlanned === false ? 'Внеплановая' : ''),
+  },
+  { header: 'Дата назначения на закупщика', width: 22, value: (r) => formatDate(r.approvalAssignmentDate) },
+  { header: 'Дата завершения закупки', width: 22, value: (r) => formatDate(r.purchaseCompletionDate) },
+  { header: 'Срок закупки (раб. дн.)', width: 18, value: (r) => r.factualSlaDays ?? '' },
+  {
+    header: 'Срок договора (раб. дн.)',
+    width: 18,
+    value: (r) => contractWorkingDays(r) ?? '',
+  },
+  {
+    header: 'Общий срок (раб. дн.)',
+    width: 18,
+    value: (r) => {
+      const total = (r.factualSlaDays ?? 0) + (contractWorkingDays(r) ?? 0);
+      return total > 0 ? total : '';
+    },
+  },
+  { header: 'Получатель оценки', width: 25, value: (r) => r.feedbackRecipient ?? '' },
+  {
+    header: 'Оценка',
+    width: 10,
+    value: (r) => (r.hasFeedback && r.averageRating != null ? r.averageRating.toFixed(1) : ''),
+  },
+  { header: 'Комментарий оценки', width: 40, value: (r) => r.feedbackComment ?? '' },
+];
 
 interface UseTableExportOptions {
   allItems: PurchaseRequest[];
@@ -18,44 +86,19 @@ export function useTableExport({ allItems, data, tableSelector }: UseTableExport
     }
 
     try {
-      // Подготавливаем данные для экспорта
-      const exportData = allItems.map((request) => ({
-        'Номер заявки': request.idPurchaseRequest || '',
-        'Дата создания': request.purchaseRequestCreationDate 
-          ? new Date(request.purchaseRequestCreationDate).toLocaleDateString('ru-RU')
-          : '',
-        'ЦФО': request.cfo || '',
-        'Наименование': request.name || '',
-        'Инициатор': request.purchaseRequestInitiator || '',
-        'Год плана': request.purchaseRequestPlanYear || '',
-        'Бюджет': request.budgetAmount || '',
-        'Тип затрат': request.costType || '',
-        'Тип договора': request.contractType || '',
-        'Длительность (мес)': request.contractDurationMonths || '',
-        'План': request.isPlanned ? 'Плановая' : (request.isPlanned === false ? 'Внеплановая' : ''),
-        'Требуется закупка': request.requiresPurchase ? 'Закупка' : (request.requiresPurchase === false ? 'Заказ' : ''),
-      }));
+      // Подготавливаем данные для экспорта (единый источник колонок)
+      const exportData = allItems.map((request) =>
+        Object.fromEntries(EXPORT_COLUMNS.map((col) => [col.header, col.value(request)]))
+      );
 
       // Создаем рабочую книгу
       const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(exportData);
+      const ws = XLSX.utils.json_to_sheet(exportData, {
+        header: EXPORT_COLUMNS.map((col) => col.header),
+      });
 
       // Устанавливаем ширину колонок
-      const colWidths = [
-        { wch: 15 }, // Номер заявки
-        { wch: 15 }, // Дата создания
-        { wch: 20 }, // ЦФО
-        { wch: 30 }, // Наименование
-        { wch: 25 }, // Инициатор
-        { wch: 12 }, // Год плана
-        { wch: 15 }, // Бюджет
-        { wch: 15 }, // Тип затрат
-        { wch: 15 }, // Тип договора
-        { wch: 18 }, // Длительность
-        { wch: 10 }, // План
-        { wch: 18 }, // Требуется закупка
-      ];
-      ws['!cols'] = colWidths;
+      ws['!cols'] = EXPORT_COLUMNS.map((col) => ({ wch: col.width }));
 
       // Добавляем лист в книгу
       XLSX.utils.book_append_sheet(wb, ws, 'Заявки на закупку');
@@ -78,39 +121,9 @@ export function useTableExport({ allItems, data, tableSelector }: UseTableExport
     }
 
     try {
-      // Создаем заголовки
-      const headers = [
-        'Номер заявки',
-        'Дата создания',
-        'ЦФО',
-        'Наименование',
-        'Инициатор',
-        'Год плана',
-        'Бюджет',
-        'Тип затрат',
-        'Тип договора',
-        'Длительность (мес)',
-        'План',
-        'Требуется закупка',
-      ];
-
-      // Создаем строки данных
-      const rows = allItems.map((request) => [
-        request.idPurchaseRequest || '',
-        request.purchaseRequestCreationDate 
-          ? new Date(request.purchaseRequestCreationDate).toLocaleDateString('ru-RU')
-          : '',
-        request.cfo || '',
-        request.name || '',
-        request.purchaseRequestInitiator || '',
-        request.purchaseRequestPlanYear || '',
-        request.budgetAmount || '',
-        request.costType || '',
-        request.contractType || '',
-        request.contractDurationMonths || '',
-        request.isPlanned ? 'Плановая' : (request.isPlanned === false ? 'Внеплановая' : ''),
-        request.requiresPurchase ? 'Закупка' : (request.requiresPurchase === false ? 'Заказ' : ''),
-      ]);
+      // Заголовки и строки из единого источника колонок
+      const headers = EXPORT_COLUMNS.map((col) => col.header);
+      const rows = allItems.map((request) => EXPORT_COLUMNS.map((col) => col.value(request)));
 
       // Объединяем заголовки и данные
       const allRows = [headers, ...rows];

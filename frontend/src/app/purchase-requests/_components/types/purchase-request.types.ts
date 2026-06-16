@@ -28,6 +28,8 @@ export interface PurchaseRequest {
   purchaseRequestCreationDate: string | null;
   /** Дата назначения на утверждение (минимальная assignmentDate по этапу «Утверждение заявки на ЗП») */
   approvalAssignmentDate: string | null;
+  /** Дата завершения закупки (макс. completionDate по согласованиям закупки) */
+  purchaseCompletionDate: string | null;
   budgetAmount: number | null;
   currency: string | null;
   costType: string | null;
@@ -50,6 +52,10 @@ export interface PurchaseRequest {
   csiInvitationSent: boolean | null;
   hasFeedback: boolean | null;
   averageRating: number | null;
+  /** Объединённые непустые комментарии из отзывов CSI */
+  feedbackComment: string | null;
+  /** Объединённые непустые получатели оценки из отзывов CSI */
+  feedbackRecipient: string | null;
   hasLinkedPlanItem: boolean | null;
   /** Сложность заявки (из alldocuments) */
   complexity: string | null;

@@ -54,6 +54,10 @@ public class PurchaseRequestDto {
     private Boolean hasFeedback;
     // Средняя оценка по всем вопросам (кроме узпрок)
     private Double averageRating;
+    // Комментарий из отзыва CSI (объединённые непустые комментарии по заявке)
+    private String feedbackComment;
+    // Получатель оценки CSI (объединённые непустые получатели по заявке)
+    private String feedbackRecipient;
     // Флаг, указывающий связана ли заявка с позицией плана закупок
     private Boolean hasLinkedPlanItem;
     /** Сложность (из связанной позиции плана закупок) */
@@ -372,6 +376,22 @@ public class PurchaseRequestDto {
 
     public void setAverageRating(Double averageRating) {
         this.averageRating = averageRating;
+    }
+
+    public String getFeedbackComment() {
+        return feedbackComment;
+    }
+
+    public void setFeedbackComment(String feedbackComment) {
+        this.feedbackComment = feedbackComment;
+    }
+
+    public String getFeedbackRecipient() {
+        return feedbackRecipient;
+    }
+
+    public void setFeedbackRecipient(String feedbackRecipient) {
+        this.feedbackRecipient = feedbackRecipient;
     }
 
     public Boolean getHasLinkedPlanItem() {

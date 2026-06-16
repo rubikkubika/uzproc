@@ -892,6 +892,8 @@ public class PurchaseRequestService {
             // Вычисляем среднюю оценку по всем вопросам кроме uzprocRating
             double sum = 0.0;
             int count = 0;
+            List<String> comments = new ArrayList<>();
+            java.util.LinkedHashSet<String> recipients = new java.util.LinkedHashSet<>();
             for (CsiFeedback feedback : feedbacks) {
                 if (feedback.getSpeedRating() != null) {
                     sum += feedback.getSpeedRating();
@@ -905,15 +907,25 @@ public class PurchaseRequestService {
                     sum += feedback.getSatisfactionRating();
                     count++;
                 }
+                if (feedback.getComment() != null && !feedback.getComment().trim().isEmpty()) {
+                    comments.add(feedback.getComment().trim());
+                }
+                if (feedback.getRecipient() != null && !feedback.getRecipient().trim().isEmpty()) {
+                    recipients.add(feedback.getRecipient().trim());
+                }
             }
             if (count > 0) {
                 dto.setAverageRating(sum / count);
             } else {
                 dto.setAverageRating(null);
             }
+            dto.setFeedbackComment(comments.isEmpty() ? null : String.join("; ", comments));
+            dto.setFeedbackRecipient(recipients.isEmpty() ? null : String.join("; ", recipients));
         } else {
             dto.setHasFeedback(false);
             dto.setAverageRating(null);
+            dto.setFeedbackComment(null);
+            dto.setFeedbackRecipient(null);
         }
 
         // Проверяем связь с планом закупок
