@@ -43,9 +43,23 @@ public class PaymentService {
             String comment,
             Boolean linkedOnly,
             List<String> paymentStatus,
-            List<String> requestStatus) {
+            List<String> requestStatus,
+            String purchaseRequestNumber,
+            String contractTitle,
+            java.math.BigDecimal amount,
+            String amountOperator,
+            Integer plannedExpenseMonth,
+            Integer plannedExpenseYear,
+            Integer paymentMonth,
+            Integer paymentYear,
+            String paymentType,
+            String executor,
+            String responsible) {
 
-        Specification<Payment> spec = buildSpecification(cfo, mainId, comment, linkedOnly, paymentStatus, requestStatus);
+        Specification<Payment> spec = buildSpecification(cfo, mainId, comment, linkedOnly, paymentStatus, requestStatus,
+                purchaseRequestNumber, contractTitle, amount, amountOperator,
+                plannedExpenseMonth, plannedExpenseYear, paymentMonth, paymentYear,
+                paymentType, executor, responsible);
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
 
@@ -92,7 +106,12 @@ public class PaymentService {
     }
 
     private Specification<Payment> buildSpecification(List<String> cfo, String mainId, String comment, Boolean linkedOnly,
-                                                      List<String> paymentStatus, List<String> requestStatus) {
+                                                      List<String> paymentStatus, List<String> requestStatus,
+                                                      String purchaseRequestNumber, String contractTitle,
+                                                      java.math.BigDecimal amount, String amountOperator,
+                                                      Integer plannedExpenseMonth, Integer plannedExpenseYear,
+                                                      Integer paymentMonth, Integer paymentYear,
+                                                      String paymentType, String executor, String responsible) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -142,6 +161,87 @@ public class PaymentService {
                 if (!statuses.isEmpty()) {
                     predicates.add(root.get("requestStatus").in(statuses));
                 }
+            }
+
+            // Номер заявки (id_purchase_request) — поиск по вхождению
+            if (purchaseRequestNumber != null && !purchaseRequestNumber.trim().isEmpty()) {
+                var prJoin = root.join("purchaseRequest", jakarta.persistence.criteria.JoinType.LEFT);
+                predicates.add(cb.like(
+                        prJoin.get("idPurchaseRequest").as(String.class),
+                        "%" + purchaseRequestNumber.trim() + "%"));
+            }
+
+            // Договор — поиск по вхождению в title или name
+            if (contractTitle != null && !contractTitle.trim().isEmpty()) {
+                var contractJoin = root.join("contract", jakarta.persistence.criteria.JoinType.LEFT);
+                String pattern = "%" + contractTitle.trim().toLowerCase() + "%";
+                predicates.add(cb.or(
+                        cb.like(cb.lower(contractJoin.get("title")), pattern),
+                        cb.like(cb.lower(contractJoin.get("name")), pattern)));
+            }
+
+            // Сумма — оператор сравнения (gt/gte/lt/lte), исключая null
+            if (amount != null && amountOperator != null && !amountOperator.trim().isEmpty()) {
+                String operator = amountOperator.trim().toLowerCase();
+                predicates.add(cb.isNotNull(root.get("amount")));
+                switch (operator) {
+                    case "gt" -> predicates.add(cb.greaterThan(root.get("amount"), amount));
+                    case "lt" -> predicates.add(cb.lessThan(root.get("amount"), amount));
+                    case "lte" -> predicates.add(cb.lessThanOrEqualTo(root.get("amount"), amount));
+                    default -> predicates.add(cb.greaterThanOrEqualTo(root.get("amount"), amount));
+                }
+            }
+
+            // Дата расхода (план) — месяц и/или год
+            if (plannedExpenseYear != null) {
+                predicates.add(cb.equal(
+                        cb.function("date_part", Double.class, cb.literal("year"), root.get("plannedExpenseDate")),
+                        plannedExpenseYear.doubleValue()));
+            }
+            if (plannedExpenseMonth != null) {
+                predicates.add(cb.equal(
+                        cb.function("date_part", Double.class, cb.literal("month"), root.get("plannedExpenseDate")),
+                        plannedExpenseMonth.doubleValue()));
+            }
+
+            // Дата оплаты — месяц и/или год
+            if (paymentYear != null) {
+                predicates.add(cb.equal(
+                        cb.function("date_part", Double.class, cb.literal("year"), root.get("paymentDate")),
+                        paymentYear.doubleValue()));
+            }
+            if (paymentMonth != null) {
+                predicates.add(cb.equal(
+                        cb.function("date_part", Double.class, cb.literal("month"), root.get("paymentDate")),
+                        paymentMonth.doubleValue()));
+            }
+
+            // Тип оплаты (Аванс / По факту)
+            if (paymentType != null && !paymentType.trim().isEmpty()) {
+                PaymentType type = PaymentType.fromDisplayName(paymentType.trim());
+                if (type != null) {
+                    predicates.add(cb.equal(root.get("paymentType"), type));
+                }
+            }
+
+            // Исполнитель — поиск по фамилии/имени/логину
+            if (executor != null && !executor.trim().isEmpty()) {
+                var executorJoin = root.join("executor", jakarta.persistence.criteria.JoinType.LEFT);
+                String pattern = "%" + executor.trim().toLowerCase() + "%";
+                predicates.add(cb.or(
+                        cb.like(cb.lower(executorJoin.get("surname")), pattern),
+                        cb.like(cb.lower(executorJoin.get("name")), pattern),
+                        cb.like(cb.lower(executorJoin.get("username")), pattern)));
+            }
+
+            // Ответственный — поиск по фамилии/имени/логину
+            if (responsible != null && !responsible.trim().isEmpty()) {
+                var responsibleJoin = root.join("responsible", jakarta.persistence.criteria.JoinType.LEFT);
+                String pattern = "%" + responsible.trim().toLowerCase() + "%";
+                predicates.add(cb.or(
+                        cb.like(cb.lower(responsibleJoin.get("surname")), pattern),
+                        cb.like(cb.lower(responsibleJoin.get("name")), pattern),
+                        cb.like(cb.lower(responsibleJoin.get("username")), pattern)));
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));

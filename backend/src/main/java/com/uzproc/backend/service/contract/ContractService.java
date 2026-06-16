@@ -1,5 +1,6 @@
 package com.uzproc.backend.service.contract;
 
+import com.uzproc.backend.dto.contract.ContractApprovalDurationByMonthResponseDto;
 import com.uzproc.backend.dto.contract.ContractApprovalsDashboardResponseDto;
 import com.uzproc.backend.dto.contract.ContractApprovalsDashboardRowDto;
 import com.uzproc.backend.dto.contract.ContractDocumentCountByPersonMonthResponseDto;
@@ -604,6 +605,96 @@ public class ContractService {
         response.setTotalAvgDurationDays(totalWithApprovals > 0 ? (double) totalDays / totalWithApprovals : null);
         response.setAvailablePreparedBy(getDashboardPreparedByList(year));
         return response;
+    }
+
+    /**
+     * Дашборд «Средний срок согласования по месяцам» в разрезе сегментов (Маркет / Тезкор ООО / 1П).
+     * Договоры группируются по месяцу даты создания (contract_creation_date) за указанный год.
+     * Множество договоров и расчёт срока совпадают с дашбордом «Согласования договорных документов».
+     */
+    public ContractApprovalDurationByMonthResponseDto getApprovalDurationByMonth(int year, String preparedByName) {
+        boolean hasPreparedByFilter = preparedByName != null && !preparedByName.trim().isEmpty();
+        String preparedByFilter = hasPreparedByFilter
+            ? " AND TRIM(CONCAT(COALESCE(u.surname,''), ' ', COALESCE(u.name,''))) = :preparedByName "
+            : "";
+
+        String sql =
+            "WITH per_contract AS ( " +
+            "  SELECT c.id, " +
+            "         c.customer_organization, " +
+            "         COALESCE(cf.name, '') AS cfo_name, " +
+            "         EXTRACT(MONTH FROM c.contract_creation_date) AS creation_month, " +
+            "         ( SELECT MIN(a.assignment_date) FROM contract_approvals a " +
+            "             WHERE a.contract_id = c.id " +
+            "               AND a.assignment_date IS NOT NULL " +
+            "               AND a.stage IS NOT NULL AND a.stage <> '' " +
+            "               AND LOWER(a.stage) NOT LIKE 'синхронизация%' " +
+            "               AND LOWER(a.stage) NOT LIKE 'принятие на хранение%' " +
+            "               AND LOWER(a.stage) NOT LIKE 'регистрация%' " +
+            "         ) AS first_assignment, " +
+            "         ( SELECT MAX(a.completion_date) FROM contract_approvals a " +
+            "             WHERE a.contract_id = c.id " +
+            "               AND a.completion_date IS NOT NULL " +
+            "               AND a.stage IS NOT NULL AND a.stage <> '' " +
+            "               AND LOWER(a.stage) NOT LIKE 'синхронизация%' " +
+            "               AND LOWER(a.stage) NOT LIKE 'принятие на хранение%' " +
+            "               AND LOWER(a.stage) NOT LIKE 'регистрация%' " +
+            "         ) AS last_completion " +
+            "  FROM contracts c " +
+            "  INNER JOIN users u ON c.prepared_by_id = u.id " +
+            "  LEFT JOIN cfo cf ON c.cfo_id = cf.id " +
+            "  WHERE c.status = 'SIGNED' " +
+            "    AND u.is_contractor = true " +
+            "    AND c.contract_creation_date IS NOT NULL " +
+            "    AND EXTRACT(YEAR FROM c.contract_creation_date) = :year " +
+            preparedByFilter +
+            ") " +
+            "SELECT customer_organization, cfo_name, creation_month, first_assignment, last_completion " +
+            "FROM per_contract";
+
+        var query = entityManager.createNativeQuery(sql).setParameter("year", year);
+        if (hasPreparedByFilter) query.setParameter("preparedByName", preparedByName.trim());
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = query.getResultList();
+
+        // Для каждого месяца и сегмента: [0] = сумма дней, [1] = кол-во договоров с согласованиями
+        Map<String, long[][]> stats = new java.util.HashMap<>();
+        stats.put("Market", new long[13][2]);
+        stats.put("Tezkor-OOO", new long[13][2]);
+        stats.put("1P", new long[13][2]);
+
+        for (Object[] row : rows) {
+            String customerOrg = row[0] != null ? row[0].toString().trim() : "";
+            String cfoName = row[1] != null ? row[1].toString().trim() : "";
+            int month = row[2] != null ? ((Number) row[2]).intValue() : 0;
+            java.time.LocalDateTime firstAssignment = toLocalDateTime(row[3]);
+            java.time.LocalDateTime lastCompletion = toLocalDateTime(row[4]);
+            if (month < 1 || month > 12) continue;
+            String segment = resolveSegment(customerOrg, cfoName);
+            if (!stats.containsKey(segment)) continue; // "—" исключаем
+            if (firstAssignment != null && lastCompletion != null) {
+                long days = countWorkingDaysBetween(firstAssignment, lastCompletion);
+                stats.get(segment)[month][0] += days;
+                stats.get(segment)[month][1] += 1;
+            }
+        }
+
+        List<ContractApprovalDurationByMonthResponseDto.MonthRow> months = new ArrayList<>();
+        for (int m = 1; m <= 12; m++) {
+            ContractApprovalDurationByMonthResponseDto.MonthRow mr = new ContractApprovalDurationByMonthResponseDto.MonthRow(m);
+            long[] market = stats.get("Market")[m];
+            long[] tezkor = stats.get("Tezkor-OOO")[m];
+            long[] p1 = stats.get("1P")[m];
+            mr.setMarketCount(market[1]);
+            mr.setMarketAvgDays(market[1] > 0 ? (double) market[0] / market[1] : null);
+            mr.setTezkorOooCount(tezkor[1]);
+            mr.setTezkorOooAvgDays(tezkor[1] > 0 ? (double) tezkor[0] / tezkor[1] : null);
+            mr.setP1Count(p1[1]);
+            mr.setP1AvgDays(p1[1] > 0 ? (double) p1[0] / p1[1] : null);
+            months.add(mr);
+        }
+
+        return new ContractApprovalDurationByMonthResponseDto(year, months);
     }
 
     /** Возвращает список ФИО договорников у договоров SIGNED за выбранный год. */

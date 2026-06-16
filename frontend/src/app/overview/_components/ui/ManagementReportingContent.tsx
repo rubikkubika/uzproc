@@ -5,6 +5,7 @@ import { Star } from 'lucide-react';
 import { getBackendUrl } from '@/utils/api';
 import { SlaCombinedChart } from './SlaCombinedChart';
 import { ManagementReportingFeedbackGrid } from './ManagementReportingFeedbackGrid';
+import { ManagementReportingContractsContent } from './ManagementReportingContractsContent';
 import { useOverviewSavingsData } from '../hooks/useOverviewSavingsData';
 import { useManagementReportingPdf } from '../hooks/useManagementReportingPdf';
 import type { OverviewSlaPercentageByMonth } from '../hooks/useOverviewSlaData';
@@ -196,9 +197,7 @@ export function ManagementReportingContent({
       </div>
 
       {innerTab === 'contracts' && (
-        <div className="bg-white rounded border-2 border-gray-300 shadow px-4 py-8 text-center text-sm text-gray-400">
-          Раздел в разработке
-        </div>
+        <ManagementReportingContractsContent enabled={innerTab === 'contracts'} />
       )}
 
       {innerTab === 'purchases' && <>

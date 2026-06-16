@@ -2,6 +2,7 @@ package com.uzproc.backend.service.csifeedback;
 
 import com.uzproc.backend.dto.csifeedback.CsiFeedbackCreateDto;
 import com.uzproc.backend.dto.csifeedback.CsiFeedbackDto;
+import com.uzproc.backend.dto.csifeedback.CsiFeedbackStatsByCfoDto;
 import com.uzproc.backend.dto.csifeedback.CsiFeedbackStatsByPurchaserDto;
 import com.uzproc.backend.dto.purchaserequest.PurchaseRequestInfoDto;
 import com.uzproc.backend.entity.csifeedback.CsiFeedback;
@@ -175,11 +176,12 @@ public class CsiFeedbackService {
             String sortDir,
             Long purchaseRequestId,
             Integer year,
-            String purchaser) {
+            String purchaser,
+            String cfo) {
 
-        logger.info("Finding CSI feedback - page: {}, size: {}, purchaseRequestId: {}, year: {}, purchaser: {}", page, size, purchaseRequestId, year, purchaser);
+        logger.info("Finding CSI feedback - page: {}, size: {}, purchaseRequestId: {}, year: {}, purchaser: {}, cfo: {}", page, size, purchaseRequestId, year, purchaser, cfo);
 
-        Specification<CsiFeedback> spec = buildSpecification(purchaseRequestId, year, purchaser);
+        Specification<CsiFeedback> spec = buildSpecification(purchaseRequestId, year, purchaser, cfo);
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
 
@@ -194,8 +196,8 @@ public class CsiFeedbackService {
     /**
      * Средние показатели оценок CSI за год (опционально по закупщику).
      */
-    public Map<String, Object> getStatsByYear(int year, String purchaser) {
-        Specification<CsiFeedback> spec = buildSpecification(null, year, purchaser);
+    public Map<String, Object> getStatsByYear(int year, String purchaser, String cfo) {
+        Specification<CsiFeedback> spec = buildSpecification(null, year, purchaser, cfo);
         List<CsiFeedback> all = csiFeedbackRepository.findAll(spec);
         int count = all.size();
         Map<String, Object> result = new HashMap<>();
@@ -246,7 +248,7 @@ public class CsiFeedbackService {
      * Статистика оценок CSI по закупщикам за год (опционально только по одному закупщику).
      */
     public List<CsiFeedbackStatsByPurchaserDto> getStatsByPurchaserByYear(int year, String purchaser) {
-        Specification<CsiFeedback> spec = buildSpecification(null, year, purchaser);
+        Specification<CsiFeedback> spec = buildSpecification(null, year, purchaser, null);
         List<CsiFeedback> all = csiFeedbackRepository.findAll(spec);
         if (all.isEmpty()) {
             return List.of();
@@ -279,6 +281,54 @@ public class CsiFeedbackService {
             result.add(new CsiFeedbackStatsByPurchaserDto(e.getKey(), n, avgRating));
         }
         result.sort(Comparator.comparing(CsiFeedbackStatsByPurchaserDto::getPurchaser, Comparator.nullsLast(String::compareTo)));
+        return result;
+    }
+
+    /**
+     * Статистика оценок CSI по ЦФО за год. Отсортирована по убыванию средней оценки,
+     * затем по убыванию количества оценок.
+     */
+    public List<CsiFeedbackStatsByCfoDto> getStatsByCfoByYear(int year, String purchaser) {
+        Specification<CsiFeedback> spec = buildSpecification(null, year, purchaser, null);
+        List<CsiFeedback> all = csiFeedbackRepository.findAll(spec);
+        if (all.isEmpty()) {
+            return List.of();
+        }
+        // Группируем по ЦФО (из заявки). cfo может быть null — считаем как "—"
+        Map<String, List<CsiFeedback>> byCfo = all.stream()
+                .collect(Collectors.groupingBy(f -> {
+                    String c = f.getPurchaseRequest().getCfo() != null
+                            ? f.getPurchaseRequest().getCfo().getName() : null;
+                    return (c != null && !c.trim().isEmpty()) ? c.trim() : "—";
+                }));
+        List<CsiFeedbackStatsByCfoDto> result = new ArrayList<>();
+        for (Map.Entry<String, List<CsiFeedback>> e : byCfo.entrySet()) {
+            List<CsiFeedback> list = e.getValue();
+            int n = list.size();
+            double sum = 0;
+            int div = 0;
+            for (CsiFeedback f : list) {
+                int cnt = 0;
+                double s = 0;
+                if (f.getSpeedRating() != null) { s += f.getSpeedRating(); cnt++; }
+                if (f.getQualityRating() != null) { s += f.getQualityRating(); cnt++; }
+                if (f.getSatisfactionRating() != null) { s += f.getSatisfactionRating(); cnt++; }
+                if (f.getUzprocRating() != null) { s += f.getUzprocRating(); cnt++; }
+                if (cnt > 0) {
+                    sum += s / cnt;
+                    div++;
+                }
+            }
+            Double avgRating = div > 0 ? sum / div : null;
+            result.add(new CsiFeedbackStatsByCfoDto(e.getKey(), n, avgRating));
+        }
+        // Сортировка по убыванию оценки, затем по убыванию количества
+        result.sort((a, b) -> {
+            double ra = a.getAvgRating() != null ? a.getAvgRating() : 0;
+            double rb = b.getAvgRating() != null ? b.getAvgRating() : 0;
+            if (Double.compare(rb, ra) != 0) return Double.compare(rb, ra);
+            return Integer.compare(b.getCount(), a.getCount());
+        });
         return result;
     }
 
@@ -371,7 +421,7 @@ public class CsiFeedbackService {
                 .toList();
     }
 
-    private Specification<CsiFeedback> buildSpecification(Long purchaseRequestId, Integer year, String purchaser) {
+    private Specification<CsiFeedback> buildSpecification(Long purchaseRequestId, Integer year, String purchaser, String cfo) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -385,6 +435,9 @@ public class CsiFeedbackService {
             }
             if (purchaser != null && !purchaser.isBlank()) {
                 predicates.add(cb.equal(root.get("purchaseRequest").get("purchaser"), purchaser.trim()));
+            }
+            if (cfo != null && !cfo.isBlank()) {
+                predicates.add(cb.equal(root.get("purchaseRequest").get("cfo").get("name"), cfo.trim()));
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));

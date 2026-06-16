@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ArrowUp, ArrowDown, ArrowUpDown, Search, Settings } from 'lucide-react';
 import { usePaymentsTable } from './hooks/usePaymentsTable';
 import { PAYMENT_STATUS_OPTIONS, REQUEST_STATUS_OPTIONS, PAYMENT_TYPE_OPTIONS } from './types/payments.types';
+import { MONTH_OPTIONS } from './constants/payments.constants';
 
 export default function PaymentsTable() {
   const {
@@ -81,6 +82,83 @@ export default function PaymentsTable() {
     return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(amount);
   };
 
+  /** Список лет для фильтров по датам (текущий ±) */
+  const currentYear = new Date().getFullYear();
+  const yearOptions: number[] = [];
+  for (let y = currentYear + 1; y >= currentYear - 4; y--) yearOptions.push(y);
+
+  /** Текстовый фильтр-инпут в шапке (с debounce и восстановлением фокуса) */
+  const renderTextFilter = (field: string, placeholder = 'Фильтр') => (
+    <input
+      key={`filter-${field}`}
+      type="text"
+      data-filter-field={field}
+      value={filters.localFilters[field] ?? ''}
+      onChange={(e) => {
+        const newValue = e.target.value;
+        const cursorPos = e.target.selectionStart ?? 0;
+        filters.handleFilterChange(field, newValue);
+        requestAnimationFrame(() => {
+          const input = e.target as HTMLInputElement;
+          if (input && document.activeElement === input) {
+            input.setSelectionRange(Math.min(cursorPos, newValue.length), Math.min(cursorPos, newValue.length));
+          }
+        });
+      }}
+      onFocus={(e) => { e.stopPropagation(); filters.setFocusedField(field); }}
+      onBlur={(e) => {
+        setTimeout(() => {
+          const active = document.activeElement as HTMLElement;
+          if (active && active !== e.target && !active.closest('input[data-filter-field]') && !active.closest('select')) {
+            filters.setFocusedField(null);
+          }
+        }, 200);
+      }}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => { if (e.key === 'ArrowUp' || e.key === 'ArrowDown') e.stopPropagation(); }}
+      className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+      placeholder={placeholder}
+      style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+    />
+  );
+
+  /** Фильтр по дате: месяц + год (два select) */
+  const renderDateFilter = (
+    monthValue: string,
+    setMonth: (v: string) => void,
+    yearValue: string,
+    setYear: (v: string) => void,
+  ) => (
+    <div className="flex items-center gap-1 w-full" style={{ minWidth: 0 }}>
+      <select
+        value={monthValue}
+        onChange={(e) => { setMonth(e.target.value); setCurrentPage(0); }}
+        onClick={(e) => e.stopPropagation()}
+        className="flex-1 min-w-0 text-xs border border-gray-300 rounded px-0.5 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        style={{ height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
+        title="Месяц"
+      >
+        <option value="">Мес.</option>
+        {MONTH_OPTIONS.map((m) => (
+          <option key={m.value} value={m.value}>{m.label}</option>
+        ))}
+      </select>
+      <select
+        value={yearValue}
+        onChange={(e) => { setYear(e.target.value); setCurrentPage(0); }}
+        onClick={(e) => e.stopPropagation()}
+        className="text-xs border border-gray-300 rounded px-0.5 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        style={{ height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box', width: '52px', minWidth: '52px' }}
+        title="Год"
+      >
+        <option value="">Год</option>
+        {yearOptions.map((y) => (
+          <option key={y} value={String(y)}>{y}</option>
+        ))}
+      </select>
+    </div>
+  );
+
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
       {/* Заголовок: Сбросить фильтры и счётчик — как на странице заявок */}
@@ -111,7 +189,7 @@ export default function PaymentsTable() {
         <table className="w-full max-w-full border-collapse table-fixed">
           <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '8%' }}>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '8%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       <input
@@ -151,25 +229,29 @@ export default function PaymentsTable() {
                     </div>
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '10%' }}>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '10%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
-                    <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }} />
+                    <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                      {renderTextFilter('purchaseRequestNumber')}
+                    </div>
                     <div className="flex items-center gap-1 min-h-[20px]">
                       <span className="text-xs font-medium text-gray-500 tracking-wider">Номер заявки</span>
                     </div>
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '18%' }}>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '18%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
-                    <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }} />
+                    <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                      {renderTextFilter('contractTitle')}
+                    </div>
                     <div className="flex items-center gap-1 min-h-[20px]">
                       <span className="text-xs font-medium text-gray-500 tracking-wider">Договор</span>
                     </div>
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '12%' }}>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '11%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
-                    <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}>
+                    <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       <select
                         value={filters.paymentStatusFilter}
                         onChange={(e) => { filters.setPaymentStatusFilter(e.target.value); setCurrentPage(0); }}
@@ -188,9 +270,9 @@ export default function PaymentsTable() {
                     </div>
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '12%' }}>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '11%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
-                    <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }}>
+                    <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       <select
                         value={filters.requestStatusFilter}
                         onChange={(e) => { filters.setRequestStatusFilter(e.target.value); setCurrentPage(0); }}
@@ -209,9 +291,11 @@ export default function PaymentsTable() {
                     </div>
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '10%' }}>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '13%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
-                    <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }} />
+                    <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                      {renderDateFilter(filters.plannedExpenseMonth, filters.setPlannedExpenseMonth, filters.plannedExpenseYear, filters.setPlannedExpenseYear)}
+                    </div>
                     <div className="flex items-center gap-1 min-h-[20px]">
                       <button
                         onClick={() => handleSort('plannedExpenseDate')}
@@ -224,17 +308,75 @@ export default function PaymentsTable() {
                     </div>
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '10%' }}>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '13%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
-                    <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }} />
+                    <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                      {renderDateFilter(filters.paymentMonth, filters.setPaymentMonth, filters.paymentYear, filters.setPaymentYear)}
+                    </div>
                     <div className="flex items-center gap-1 min-h-[20px]">
                       <span className="text-xs font-medium text-gray-500 tracking-wider">Дата оплаты</span>
                     </div>
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '12%' }}>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '12%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
-                    <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }} />
+                    <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                      <div className="relative flex-1" style={{ minWidth: 0 }}>
+                        <select
+                          value={filters.localFilters.amountOperator || 'gte'}
+                          onChange={(e) => { e.stopPropagation(); filters.handleFilterChange('amountOperator', e.target.value); }}
+                          onClick={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          className={`absolute left-0 top-0 h-full text-xs border-0 border-r border-gray-300 rounded-l px-1 py-0 focus:outline-none focus:ring-0 appearance-none cursor-pointer z-10 transition-colors ${
+                            (filters.localFilters.amount && filters.localFilters.amount.trim() !== '')
+                              ? 'bg-blue-500 text-white font-semibold'
+                              : 'bg-gray-50 text-gray-700'
+                          }`}
+                          style={{ width: '42px', minWidth: '42px', paddingRight: '4px', height: '24px', minHeight: '24px', maxHeight: '24px', boxSizing: 'border-box' }}
+                        >
+                          <option value="gt">&gt;</option>
+                          <option value="gte">&gt;=</option>
+                          <option value="lt">&lt;</option>
+                          <option value="lte">&lt;=</option>
+                        </select>
+                        <input
+                          type="text"
+                          data-filter-field="amount"
+                          value={(() => {
+                            const value = filters.localFilters.amount || '';
+                            if (!value) return '';
+                            const numValue = value.toString().replace(/\s/g, '').replace(/,/g, '');
+                            const num = parseFloat(numValue);
+                            if (isNaN(num)) return value;
+                            return new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(num);
+                          })()}
+                          onChange={(e) => {
+                            const newValue = e.target.value.replace(/\s/g, '').replace(/,/g, '');
+                            filters.handleFilterChange('amount', newValue);
+                            requestAnimationFrame(() => {
+                              const input = e.target as HTMLInputElement;
+                              if (input && document.activeElement === input) {
+                                const length = input.value.length;
+                                input.setSelectionRange(length, length);
+                              }
+                            });
+                          }}
+                          onFocus={(e) => { e.stopPropagation(); filters.setFocusedField('amount'); }}
+                          onBlur={(e) => {
+                            setTimeout(() => {
+                              const active = document.activeElement as HTMLElement;
+                              if (active && active !== e.target && !active.closest('input[data-filter-field]') && !active.closest('select')) {
+                                filters.setFocusedField(null);
+                              }
+                            }, 200);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          placeholder="Число"
+                          className="w-full text-xs border border-gray-300 rounded px-1 py-0.5 pl-11 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+                        />
+                      </div>
+                    </div>
                     <div className="flex items-center gap-1 min-h-[20px]">
                       <button
                         onClick={() => handleSort('amount')}
@@ -247,15 +389,28 @@ export default function PaymentsTable() {
                     </div>
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '9%' }}>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '9%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
-                    <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }} />
+                    <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                      <select
+                        value={filters.paymentTypeFilter}
+                        onChange={(e) => { filters.setPaymentTypeFilter(e.target.value); setCurrentPage(0); }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 w-full"
+                        style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+                      >
+                        <option value="">Все</option>
+                        {PAYMENT_TYPE_OPTIONS.map((opt) => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    </div>
                     <div className="flex items-center gap-1 min-h-[20px]">
                       <span className="text-xs font-medium text-gray-500 tracking-wider">Тип оплаты</span>
                     </div>
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '18%' }}>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '18%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       <div ref={filters.cfoFilterContainerRef} className="relative w-full h-full">
@@ -329,23 +484,17 @@ export default function PaymentsTable() {
                     </div>
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative whitespace-nowrap" style={{ width: '14%', minWidth: '100px' }}>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative whitespace-nowrap align-top" style={{ width: '14%', minWidth: '100px' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
-                    <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }} />
+                    <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                      {renderTextFilter('executor')}
+                    </div>
                     <div className="flex items-center gap-1 min-h-[20px]">
                       <span className="text-xs font-medium text-gray-500 tracking-wider">Исполнитель</span>
                     </div>
                   </div>
                 </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative whitespace-nowrap" style={{ width: '14%', minWidth: '100px' }}>
-                  <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
-                    <div className="h-[24px] flex items-center flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px' }} />
-                    <div className="flex items-center gap-1 min-h-[20px]">
-                      <span className="text-xs font-medium text-gray-500 tracking-wider">Ответственный</span>
-                    </div>
-                  </div>
-                </th>
-                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative" style={{ width: '60%' }}>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '22%' }}>
                   <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
                     <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
                       <input
@@ -397,7 +546,7 @@ export default function PaymentsTable() {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={13} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={12} className="px-6 py-8 text-center text-gray-500">
                     Загрузка...
                   </td>
                 </tr>
@@ -434,20 +583,20 @@ export default function PaymentsTable() {
                       <span className="block min-w-0">{payment.contractTitle ?? '-'}</span>
                     )}
                   </td>
-                  <td className="px-2 py-2 text-xs border-r border-gray-300 min-w-0 w-[12%]" title={payment.paymentStatus ?? undefined}>
-                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${paymentStatusBadgeClass(payment.paymentStatus)}`}>
+                  <td className="px-1 py-2 text-xs border-r border-gray-300 min-w-0 w-[11%] overflow-hidden" title={payment.paymentStatus ?? undefined}>
+                    <span className={`inline-block px-1.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${paymentStatusBadgeClass(payment.paymentStatus)}`}>
                       {payment.paymentStatus ?? '-'}
                     </span>
                   </td>
-                  <td className="px-2 py-2 text-xs border-r border-gray-300 min-w-0 w-[12%]" title={payment.requestStatus ?? undefined}>
-                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${requestStatusBadgeClass(payment.requestStatus)}`}>
+                  <td className="px-1 py-2 text-xs border-r border-gray-300 min-w-0 w-[11%] overflow-hidden" title={payment.requestStatus ?? undefined}>
+                    <span className={`inline-block px-1.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${requestStatusBadgeClass(payment.requestStatus)}`}>
                       {payment.requestStatus ?? '-'}
                     </span>
                   </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 min-w-0 w-[10%]" title={payment.plannedExpenseDate ?? undefined}>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 min-w-0 w-[13%]" title={payment.plannedExpenseDate ?? undefined}>
                     <span className="block">{payment.plannedExpenseDate ? formatDate(payment.plannedExpenseDate) : '-'}</span>
                   </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 min-w-0 w-[10%]" title={payment.paymentDate ?? undefined}>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 min-w-0 w-[13%]" title={payment.paymentDate ?? undefined}>
                     <span className="block">{payment.paymentDate ? formatDate(payment.paymentDate) : '-'}</span>
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 min-w-0 w-[12%]" title={payment.amount != null ? new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(payment.amount) : undefined}>
@@ -476,12 +625,7 @@ export default function PaymentsTable() {
                       {payment.executorDisplayName ?? '-'}
                     </span>
                   </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 min-w-0 w-[14%]">
-                    <span className="block" title={payment.responsibleDisplayName ?? undefined}>
-                      {payment.responsibleDisplayName ?? '-'}
-                    </span>
-                  </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 min-w-0" title={payment.comment ?? undefined}>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 min-w-0 w-[22%]" title={payment.comment ?? undefined}>
                     <span className="line-clamp-2 block min-w-0">{payment.comment ?? '-'}</span>
                   </td>
                 </tr>

@@ -40,11 +40,20 @@ export const usePaymentsTable = () => {
   }, [sortField]);
 
   const handleResetFilters = useCallback(() => {
-    filtersHook.setFilters({ mainId: '', comment: '' });
-    filtersHook.setLocalFilters({ mainId: '', comment: '' });
+    const empty = {
+      mainId: '', comment: '', purchaseRequestNumber: '', contractTitle: '',
+      amount: '', amountOperator: 'gte', executor: '', responsible: '',
+    };
+    filtersHook.setFilters({ ...empty });
+    filtersHook.setLocalFilters({ ...empty });
     filtersHook.setCfoFilter(new Set());
     filtersHook.setPaymentStatusFilter('');
     filtersHook.setRequestStatusFilter('');
+    filtersHook.setPaymentTypeFilter('');
+    filtersHook.setPlannedExpenseMonth('');
+    filtersHook.setPlannedExpenseYear('');
+    filtersHook.setPaymentMonth('');
+    filtersHook.setPaymentYear('');
     setCurrentPage(0);
   }, [filtersHook]);
 
@@ -58,6 +67,11 @@ export const usePaymentsTable = () => {
     linkedOnlyFlag: boolean,
     paymentStatus: string,
     requestStatus: string,
+    paymentType: string,
+    plannedExpenseMonth: string,
+    plannedExpenseYear: string,
+    paymentMonth: string,
+    paymentYear: string,
     append: boolean
   ) => {
     if (append) {
@@ -77,7 +91,12 @@ export const usePaymentsTable = () => {
         cfoFilter,
         linkedOnlyFlag,
         paymentStatus,
-        requestStatus
+        requestStatus,
+        paymentType,
+        plannedExpenseMonth,
+        plannedExpenseYear,
+        paymentMonth,
+        paymentYear
       );
       const items = result?.content ?? [];
       if (append) {
@@ -112,6 +131,11 @@ export const usePaymentsTable = () => {
       linkedOnly,
       filtersHook.paymentStatusFilter,
       filtersHook.requestStatusFilter,
+      filtersHook.paymentTypeFilter,
+      filtersHook.plannedExpenseMonth,
+      filtersHook.plannedExpenseYear,
+      filtersHook.paymentMonth,
+      filtersHook.paymentYear,
       false
     );
   }, [
@@ -121,6 +145,11 @@ export const usePaymentsTable = () => {
     cfoFilterStr,
     filtersHook.paymentStatusFilter,
     filtersHook.requestStatusFilter,
+    filtersHook.paymentTypeFilter,
+    filtersHook.plannedExpenseMonth,
+    filtersHook.plannedExpenseYear,
+    filtersHook.paymentMonth,
+    filtersHook.paymentYear,
     linkedOnly,
     fetchData,
     pageSize,
@@ -157,10 +186,15 @@ export const usePaymentsTable = () => {
           linkedOnly,
           filtersHook.paymentStatusFilter,
           filtersHook.requestStatusFilter,
+          filtersHook.paymentTypeFilter,
+          filtersHook.plannedExpenseMonth,
+          filtersHook.plannedExpenseYear,
+          filtersHook.paymentMonth,
+          filtersHook.paymentYear,
           true
         );
       }
-    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, sortField, sortDirection, filtersHook.filters, filtersHook.cfoFilter, filtersHook.paymentStatusFilter, filtersHook.requestStatusFilter, linkedOnly, fetchData]),
+    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, sortField, sortDirection, filtersHook.filters, filtersHook.cfoFilter, filtersHook.paymentStatusFilter, filtersHook.requestStatusFilter, filtersHook.paymentTypeFilter, filtersHook.plannedExpenseMonth, filtersHook.plannedExpenseYear, filtersHook.paymentMonth, filtersHook.paymentYear, linkedOnly, fetchData]),
     threshold: 0.1,
   });
 

@@ -865,6 +865,8 @@ export default function PurchaseRequestsTableRow({
                   >
                     Отправлена
                   </button>
+                ) : request.excludeFromInWork ? (
+                  <span className="text-gray-400" title="Заявка скрыта из «В работе»">-</span>
                 ) : (
                   <button
                     onClick={(e) => {

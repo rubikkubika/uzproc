@@ -49,6 +49,12 @@ interface CsiStatsByPurchaser {
   avgRating: number | null;
 }
 
+interface CsiStatsByCfo {
+  cfo: string;
+  count: number;
+  avgRating: number | null;
+}
+
 const PAGE_SIZE = 100;
 
 /**
@@ -64,11 +70,14 @@ export default function AllCsiFeedback() {
 
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [purchaserFilter, setPurchaserFilter] = useState<string | null>(null);
+  const [cfoFilter, setCfoFilter] = useState<string | null>(null);
   const [feedbacks, setFeedbacks] = useState<CsiFeedbackDto[]>([]);
   const [stats, setStats] = useState<CsiStats | null>(null);
   const [statsByPurchaser, setStatsByPurchaser] = useState<CsiStatsByPurchaser[]>([]);
+  const [statsByCfo, setStatsByCfo] = useState<CsiStatsByCfo[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsByPurchaserLoading, setStatsByPurchaserLoading] = useState(true);
+  const [statsByCfoLoading, setStatsByCfoLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,12 +88,13 @@ export default function AllCsiFeedback() {
   const [truncatedComments, setTruncatedComments] = useState<Set<number>>(new Set());
   const commentRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
-  const fetchStats = async (year: number, purchaser: string | null) => {
+  const fetchStats = async (year: number, purchaser: string | null, cfo: string | null) => {
     try {
       setStatsLoading(true);
       const backendUrl = getBackendUrl();
       const params = new URLSearchParams({ year: String(year) });
       if (purchaser != null && purchaser.trim() !== '') params.set('purchaser', purchaser.trim());
+      if (cfo != null && cfo.trim() !== '') params.set('cfo', cfo.trim());
       const res = await fetch(`${backendUrl}/api/csi-feedback/stats?${params}`);
       if (!res.ok) throw new Error('Ошибка загрузки показателей');
       const data = await res.json();
@@ -128,7 +138,33 @@ export default function AllCsiFeedback() {
     }
   };
 
-  const fetchPage = async (pageNum: number, append: boolean, year: number, purchaser: string | null) => {
+  const fetchStatsByCfo = async (year: number, purchaser: string | null) => {
+    try {
+      setStatsByCfoLoading(true);
+      const backendUrl = getBackendUrl();
+      const params = new URLSearchParams({ year: String(year) });
+      if (purchaser != null && purchaser.trim() !== '') params.set('purchaser', purchaser.trim());
+      const res = await fetch(`${backendUrl}/api/csi-feedback/stats-by-cfo?${params}`);
+      if (!res.ok) throw new Error('Ошибка загрузки данных по ЦФО');
+      const data: CsiStatsByCfo[] = await res.json();
+      // Бэкенд уже сортирует по убыванию оценки, на всякий случай подстрахуемся
+      const sorted = Array.isArray(data) ? [...data] : [];
+      sorted.sort((a, b) => {
+        const ra = a.avgRating ?? 0;
+        const rb = b.avgRating ?? 0;
+        if (rb !== ra) return rb - ra;
+        return (b.count ?? 0) - (a.count ?? 0);
+      });
+      setStatsByCfo(sorted);
+    } catch (err) {
+      console.error('Error fetching CSI stats by cfo:', err);
+      setStatsByCfo([]);
+    } finally {
+      setStatsByCfoLoading(false);
+    }
+  };
+
+  const fetchPage = async (pageNum: number, append: boolean, year: number, purchaser: string | null, cfo: string | null) => {
     try {
       if (pageNum === 0) {
         setLoading(true);
@@ -146,6 +182,7 @@ export default function AllCsiFeedback() {
         year: String(year),
       });
       if (purchaser != null && purchaser.trim() !== '') params.set('purchaser', purchaser.trim());
+      if (cfo != null && cfo.trim() !== '') params.set('cfo', cfo.trim());
       const response = await fetch(`${backendUrl}/api/csi-feedback?${params}`);
 
       if (!response.ok) {
@@ -178,23 +215,33 @@ export default function AllCsiFeedback() {
   };
 
   useEffect(() => {
-    fetchStats(selectedYear, purchaserFilter);
-    fetchStatsByPurchaser(selectedYear); // таблица по закупщикам всегда со всеми закупщиками (как сводная на странице заявок)
+    fetchStats(selectedYear, purchaserFilter, cfoFilter);
+  }, [selectedYear, purchaserFilter, cfoFilter]);
+
+  useEffect(() => {
+    // Список по закупщикам всегда со всеми закупщиками (как сводная на странице заявок)
+    fetchStatsByPurchaser(selectedYear);
+  }, [selectedYear]);
+
+  useEffect(() => {
+    // Список по ЦФО учитывает выбранный фильтр по закупщику (кол-во и средняя оценка)
+    fetchStatsByCfo(selectedYear, purchaserFilter);
   }, [selectedYear, purchaserFilter]);
 
   useEffect(() => {
     setPage(0);
-    fetchPage(0, false, selectedYear, purchaserFilter);
-  }, [selectedYear, purchaserFilter]);
+    fetchPage(0, false, selectedYear, purchaserFilter, cfoFilter);
+  }, [selectedYear, purchaserFilter, cfoFilter]);
 
   const loadMore = () => {
     if (page + 1 < totalPages && !loadingMore) {
-      fetchPage(page + 1, true, selectedYear, purchaserFilter);
+      fetchPage(page + 1, true, selectedYear, purchaserFilter, cfoFilter);
     }
   };
 
   const handleResetFilters = () => {
     setPurchaserFilter(null);
+    setCfoFilter(null);
   };
 
   useEffect(() => {
@@ -347,8 +394,29 @@ export default function AllCsiFeedback() {
           Сбросить фильтры
         </button>
         {purchaserFilter != null && purchaserFilter.trim() !== '' && (
-          <span className="text-xs text-gray-500">
-            Фильтр по закупщику: {purchaserDisplayName(purchaserFilter) || purchaserFilter}
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+            Закупщик: {purchaserDisplayName(purchaserFilter) || purchaserFilter}
+            <button
+              type="button"
+              onClick={() => setPurchaserFilter(null)}
+              className="text-blue-500 hover:text-blue-700"
+              title="Снять фильтр по закупщику"
+            >
+              ×
+            </button>
+          </span>
+        )}
+        {cfoFilter != null && cfoFilter.trim() !== '' && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 border border-emerald-200">
+            ЦФО: {cfoFilter}
+            <button
+              type="button"
+              onClick={() => setCfoFilter(null)}
+              className="text-emerald-500 hover:text-emerald-700"
+              title="Снять фильтр по ЦФО"
+            >
+              ×
+            </button>
           </span>
         )}
       </div>
@@ -474,6 +542,57 @@ export default function AllCsiFeedback() {
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+        </div>
+
+        {/* Список ЦФО по полученным оценкам (по убыванию), бейджики горизонтально — занимают область справа */}
+        <div className="flex-1 min-w-0 rounded-xl border border-emerald-200/80 bg-white shadow-sm flex flex-col overflow-hidden">
+          <div className="px-2 py-1 text-xs font-medium text-gray-500 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+            ЦФО по оценкам
+          </div>
+          {statsByCfoLoading ? (
+            <div className="px-2 py-2 text-xs text-gray-500 text-center">Загрузка…</div>
+          ) : statsByCfo.length === 0 ? (
+            <div className="px-2 py-2 text-xs text-gray-500 text-center">Нет данных</div>
+          ) : (
+            <div className="flex-1 min-h-0 max-h-[180px] overflow-y-auto p-1.5">
+              <div className="flex flex-wrap content-start gap-1.5">
+                {statsByCfo.map((row) => {
+                  const cfoKey = row.cfo ?? '';
+                  const isSelected = cfoFilter != null && cfoFilter.trim() !== '' && cfoKey.trim() === cfoFilter.trim();
+                  const isEmpty = cfoKey === '' || cfoKey === '—';
+                  const handleCfoClick = () => {
+                    if (isEmpty) return;
+                    setCfoFilter(cfoFilter === cfoKey ? null : cfoKey);
+                  };
+                  return (
+                    <button
+                      key={cfoKey || 'empty'}
+                      type="button"
+                      onClick={handleCfoClick}
+                      disabled={isEmpty}
+                      title={isEmpty ? 'ЦФО не указан' : (isSelected ? 'Снять фильтр по ЦФО' : 'Показать только оценки этого ЦФО')}
+                      className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs transition-colors ${
+                        isSelected
+                          ? 'bg-emerald-100 border-emerald-400 text-emerald-800'
+                          : isEmpty
+                            ? 'bg-gray-50 border-gray-200 text-gray-400 cursor-default'
+                            : 'bg-white border-gray-200 text-gray-800 hover:bg-emerald-50 hover:border-emerald-300 cursor-pointer'
+                      }`}
+                    >
+                      <span className="font-medium whitespace-nowrap max-w-[180px] truncate" title={cfoKey || '—'}>
+                        {cfoKey || '—'}
+                      </span>
+                      <span className="flex items-center gap-0.5">
+                        <Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0" />
+                        <span className="tabular-nums">{row.avgRating != null ? row.avgRating.toFixed(1) : '—'}</span>
+                      </span>
+                      <span className="text-gray-500 tabular-nums">({row.count})</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>

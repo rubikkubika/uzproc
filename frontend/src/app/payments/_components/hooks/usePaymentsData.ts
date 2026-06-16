@@ -12,7 +12,12 @@ export const usePaymentsData = () => {
     cfoFilter: Set<string> = new Set(),
     linkedOnly: boolean = false,
     paymentStatus: string = '',
-    requestStatus: string = ''
+    requestStatus: string = '',
+    paymentType: string = '',
+    plannedExpenseMonth: string = '',
+    plannedExpenseYear: string = '',
+    paymentMonth: string = '',
+    paymentYear: string = ''
   ): Promise<PageResponse | null> => {
     try {
       const params = new URLSearchParams();
@@ -42,6 +47,47 @@ export const usePaymentsData = () => {
 
       if (requestStatus && requestStatus.trim() !== '') {
         params.append('requestStatus', requestStatus.trim());
+      }
+
+      if (filters.purchaseRequestNumber && filters.purchaseRequestNumber.trim() !== '') {
+        params.append('purchaseRequestNumber', filters.purchaseRequestNumber.trim());
+      }
+
+      if (filters.contractTitle && filters.contractTitle.trim() !== '') {
+        params.append('contractTitle', filters.contractTitle.trim());
+      }
+
+      if (filters.amount && filters.amount.trim() !== '') {
+        const amountValue = parseFloat(filters.amount.replace(/\s/g, '').replace(/,/g, ''));
+        if (!isNaN(amountValue) && amountValue >= 0) {
+          params.append('amount', String(amountValue));
+          params.append('amountOperator', (filters.amountOperator && filters.amountOperator.trim() !== '') ? filters.amountOperator.trim() : 'gte');
+        }
+      }
+
+      if (filters.executor && filters.executor.trim() !== '') {
+        params.append('executor', filters.executor.trim());
+      }
+
+      if (filters.responsible && filters.responsible.trim() !== '') {
+        params.append('responsible', filters.responsible.trim());
+      }
+
+      if (paymentType && paymentType.trim() !== '') {
+        params.append('paymentType', paymentType.trim());
+      }
+
+      if (plannedExpenseMonth && plannedExpenseMonth.trim() !== '') {
+        params.append('plannedExpenseMonth', plannedExpenseMonth.trim());
+      }
+      if (plannedExpenseYear && plannedExpenseYear.trim() !== '') {
+        params.append('plannedExpenseYear', plannedExpenseYear.trim());
+      }
+      if (paymentMonth && paymentMonth.trim() !== '') {
+        params.append('paymentMonth', paymentMonth.trim());
+      }
+      if (paymentYear && paymentYear.trim() !== '') {
+        params.append('paymentYear', paymentYear.trim());
       }
 
       if (linkedOnly) {

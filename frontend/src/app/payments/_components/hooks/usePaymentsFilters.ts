@@ -7,15 +7,32 @@ export const usePaymentsFilters = (setCurrentPage: (page: number) => void) => {
   const [localFilters, setLocalFilters] = useState<Record<string, string>>({
     mainId: '',
     comment: '',
+    purchaseRequestNumber: '',
+    contractTitle: '',
+    amount: '',
+    amountOperator: 'gte',
+    executor: '',
+    responsible: '',
   });
   const [filters, setFilters] = useState<Record<string, string>>({
     mainId: '',
     comment: '',
+    purchaseRequestNumber: '',
+    contractTitle: '',
+    amount: '',
+    amountOperator: 'gte',
+    executor: '',
+    responsible: '',
   });
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('');
   const [requestStatusFilter, setRequestStatusFilter] = useState<string>('');
+  const [paymentTypeFilter, setPaymentTypeFilter] = useState<string>('');
+  const [plannedExpenseMonth, setPlannedExpenseMonth] = useState<string>('');
+  const [plannedExpenseYear, setPlannedExpenseYear] = useState<string>('');
+  const [paymentMonth, setPaymentMonth] = useState<string>('');
+  const [paymentYear, setPaymentYear] = useState<string>('');
   const [isCfoFilterOpen, setIsCfoFilterOpen] = useState(false);
   const [cfoSearchQuery, setCfoSearchQuery] = useState('');
   const [cfoFilterPosition, setCfoFilterPosition] = useState<{ top: number; left: number } | null>(null);
@@ -105,6 +122,16 @@ export const usePaymentsFilters = (setCurrentPage: (page: number) => void) => {
     setPaymentStatusFilter,
     requestStatusFilter,
     setRequestStatusFilter,
+    paymentTypeFilter,
+    setPaymentTypeFilter,
+    plannedExpenseMonth,
+    setPlannedExpenseMonth,
+    plannedExpenseYear,
+    setPlannedExpenseYear,
+    paymentMonth,
+    setPaymentMonth,
+    paymentYear,
+    setPaymentYear,
     isCfoFilterOpen,
     setIsCfoFilterOpen,
     cfoSearchQuery,

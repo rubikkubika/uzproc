@@ -2,6 +2,7 @@ package com.uzproc.backend.controller.csifeedback;
 
 import com.uzproc.backend.dto.csifeedback.CsiFeedbackCreateDto;
 import com.uzproc.backend.dto.csifeedback.CsiFeedbackDto;
+import com.uzproc.backend.dto.csifeedback.CsiFeedbackStatsByCfoDto;
 import com.uzproc.backend.dto.csifeedback.CsiFeedbackStatsByPurchaserDto;
 import com.uzproc.backend.dto.purchaserequest.PurchaseRequestInfoDto;
 import com.uzproc.backend.service.csifeedback.CsiFeedbackService;
@@ -92,22 +93,24 @@ public class CsiFeedbackController {
             @RequestParam(required = false) String sortDir,
             @RequestParam(required = false) Long purchaseRequestId,
             @RequestParam(required = false) Integer year,
-            @RequestParam(required = false) String purchaser) {
+            @RequestParam(required = false) String purchaser,
+            @RequestParam(required = false) String cfo) {
 
         Page<CsiFeedbackDto> feedbacks = csiFeedbackService.findAll(
-                page, size, sortBy, sortDir, purchaseRequestId, year, purchaser);
+                page, size, sortBy, sortDir, purchaseRequestId, year, purchaser, cfo);
 
         return ResponseEntity.ok(feedbacks);
     }
 
     /**
-     * Средние показатели оценок CSI за год (опционально по закупщику).
+     * Средние показатели оценок CSI за год (опционально по закупщику и/или ЦФО).
      */
     @GetMapping("/stats")
     public ResponseEntity<Map<String, Object>> getStats(
             @RequestParam int year,
-            @RequestParam(required = false) String purchaser) {
-        Map<String, Object> stats = csiFeedbackService.getStatsByYear(year, purchaser);
+            @RequestParam(required = false) String purchaser,
+            @RequestParam(required = false) String cfo) {
+        Map<String, Object> stats = csiFeedbackService.getStatsByYear(year, purchaser, cfo);
         return ResponseEntity.ok(stats);
     }
 
@@ -119,6 +122,17 @@ public class CsiFeedbackController {
             @RequestParam int year,
             @RequestParam(required = false) String purchaser) {
         List<CsiFeedbackStatsByPurchaserDto> list = csiFeedbackService.getStatsByPurchaserByYear(year, purchaser);
+        return ResponseEntity.ok(list);
+    }
+
+    /**
+     * Статистика оценок CSI по ЦФО за год (по убыванию средней оценки).
+     */
+    @GetMapping("/stats-by-cfo")
+    public ResponseEntity<List<CsiFeedbackStatsByCfoDto>> getStatsByCfo(
+            @RequestParam int year,
+            @RequestParam(required = false) String purchaser) {
+        List<CsiFeedbackStatsByCfoDto> list = csiFeedbackService.getStatsByCfoByYear(year, purchaser);
         return ResponseEntity.ok(list);
     }
 
