@@ -9,7 +9,10 @@ import type {
   KpiCsiSettings,
 } from '../types/kpi.types';
 import { purchaserDisplayName } from '@/utils/purchaser';
-import { calcScore, calcSlaScore } from '../utils/kpiScore';
+import { calcScore, calcSlaScore, calcBoostedScore } from '../utils/kpiScore';
+
+/** Максимальная средняя оценка CSI (по 4 критериям, каждый от 1 до 5). */
+const CSI_MAX_RATING = 5;
 
 function calcSavingsPercent(savings: number, budget: number): number | null {
   if (budget <= 0) return null;
@@ -78,7 +81,7 @@ export function KpiSummaryBlock({
 
     const c = csiByPurchaser.get(purchaser);
     const csiPct = c ? c.avgRating : null;
-    const csiScore = calcScore(csiPct, csiSettings.target, csiMax);
+    const csiScore = calcBoostedScore(csiPct, csiSettings.target, csiMax, CSI_MAX_RATING);
     const csiPoints = (csiScore / 100) * csiSettings.weight;
 
     const totalPoints = savingsPoints + slaPoints + csiPoints;

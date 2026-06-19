@@ -4,7 +4,7 @@ import { useKpiMonth } from './hooks/useKpiMonth';
 import { useKpiSavingsData } from './hooks/useKpiSavingsData';
 import { useKpiSlaData } from './hooks/useKpiSlaData';
 import { useKpiCsiData } from './hooks/useKpiCsiData';
-import { useKpiSettings, useKpiSlaSettings, useKpiCsiSettings } from './hooks/useKpiSettings';
+import { useKpiSettings } from './hooks/useKpiSettings';
 import { KpiMonthSelector } from './ui/KpiMonthSelector';
 import { KpiSummaryBlock } from './ui/KpiSummaryBlock';
 import { KpiSavingsBlock } from './ui/KpiSavingsBlock';
@@ -13,9 +13,7 @@ import { KpiCsiBlock } from './ui/KpiCsiBlock';
 
 export function KpiDashboard() {
   const { year, month, goPrev, goNext } = useKpiMonth();
-  const savingsSettings = useKpiSettings();
-  const slaSettings = useKpiSlaSettings();
-  const csiSettings = useKpiCsiSettings();
+  const { savings: savingsSettings, sla: slaSettings, csi: csiSettings } = useKpiSettings();
   const savings = useKpiSavingsData(year, month);
   const sla = useKpiSlaData(year, month);
   const csi = useKpiCsiData(year, month);

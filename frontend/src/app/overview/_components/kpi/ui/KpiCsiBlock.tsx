@@ -6,12 +6,10 @@ import type { KpiCsiByPurchaser, KpiCsiSettings } from '../types/kpi.types';
 import { purchaserDisplayName } from '@/utils/purchaser';
 import { useKpiCsiDetails } from '../hooks/useKpiCsiDetails';
 import { KpiCsiPanel } from './KpiCsiPanel';
+import { calcBoostedScore } from '../utils/kpiScore';
 
-function calcScore(actual: number | null, target: number, maxScorePercent: number): number {
-  if (actual === null) return 0;
-  if (target <= 0) return 0;
-  return Math.min(maxScorePercent, (actual / target) * 100);
-}
+/** Максимальная средняя оценка CSI (по 4 критериям, каждый от 1 до 5). */
+const CSI_MAX_RATING = 5;
 
 interface KpiCsiSettingsEditorProps {
   settings: KpiCsiSettings;
@@ -161,7 +159,7 @@ export function KpiCsiBlock({ data, settings, onSettingsChange, onSettingsReset,
               </thead>
               <tbody>
                 {data.map((row) => {
-                  const score = calcScore(row.avgRating, settings.target, maxScorePercent);
+                  const score = calcBoostedScore(row.avgRating, settings.target, maxScorePercent, CSI_MAX_RATING);
                   const barColor = score >= 100 ? 'bg-green-500' : score >= 70 ? 'bg-yellow-400' : 'bg-red-400';
                   const isSelected = selectedPurchaser === row.purchaser;
                   return (

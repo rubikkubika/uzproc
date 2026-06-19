@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { getBackendUrl } from '@/utils/api';
 import type { KpiBlockSettings } from '../types/kpi.types';
 import {
   DEFAULT_KPI_SAVINGS_SETTINGS,
@@ -8,52 +9,102 @@ import {
   DEFAULT_KPI_CSI_SETTINGS,
 } from '../types/kpi.types';
 
-const SAVINGS_STORAGE_KEY = 'kpi_savings_settings';
-const SLA_STORAGE_KEY = 'kpi_sla_settings';
-const CSI_STORAGE_KEY = 'kpi_csi_settings';
+type BlockKey = 'savings' | 'sla' | 'csi';
 
-function loadFromStorage(storageKey: string, defaults: KpiBlockSettings): KpiBlockSettings {
-  if (typeof window === 'undefined') return defaults;
-  try {
-    const raw = localStorage.getItem(storageKey);
-    if (!raw) return defaults;
-    return { ...defaults, ...JSON.parse(raw) };
-  } catch {
-    return defaults;
-  }
+interface AllKpiSettings {
+  savings: KpiBlockSettings;
+  sla: KpiBlockSettings;
+  csi: KpiBlockSettings;
 }
 
-function useKpiBlockSettings(storageKey: string, defaults: KpiBlockSettings) {
-  const [settings, setSettings] = useState<KpiBlockSettings>(() => loadFromStorage(storageKey, defaults));
+/** API одного KPI-блока — совместимо с прежними хуками настроек. */
+export interface KpiBlockSettingsApi {
+  settings: KpiBlockSettings;
+  updateSettings: (patch: Partial<KpiBlockSettings>) => void;
+  resetSettings: () => void;
+}
 
-  const updateSettings = useCallback((patch: Partial<KpiBlockSettings>) => {
-    setSettings((prev) => {
-      const next = { ...prev, ...patch };
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(storageKey, JSON.stringify(next));
+const DEFAULTS: AllKpiSettings = {
+  savings: DEFAULT_KPI_SAVINGS_SETTINGS,
+  sla: DEFAULT_KPI_SLA_SETTINGS,
+  csi: DEFAULT_KPI_CSI_SETTINGS,
+};
+
+const SETTINGS_URL = () => `${getBackendUrl()}/api/overview/kpi/settings`;
+
+/**
+ * Настройки KPI-премии. Загружаются с бэкенда (общие для всех пользователей)
+ * и сохраняются туда же при изменении (с дебаунсом, чтобы не слать запрос на каждый ввод).
+ *
+ * Возвращает по блоку («Экономия», «SLA», «CSI») объект с тем же интерфейсом,
+ * что и прежние локальные хуки: { settings, updateSettings, resetSettings }.
+ */
+export function useKpiSettings() {
+  const [all, setAll] = useState<AllKpiSettings>(DEFAULTS);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Загрузка настроек с бэкенда один раз при монтировании.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(SETTINGS_URL());
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (cancelled) return;
+        setAll({
+          savings: { ...DEFAULTS.savings, ...(data.savings ?? {}) },
+          sla: { ...DEFAULTS.sla, ...(data.sla ?? {}) },
+          csi: { ...DEFAULTS.csi, ...(data.csi ?? {}) },
+        });
+      } catch {
+        // При ошибке остаёмся на значениях по умолчанию.
       }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Сохранение всего набора настроек на бэкенд с дебаунсом.
+  const persist = useCallback((next: AllKpiSettings) => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      fetch(SETTINGS_URL(), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(next),
+      }).catch(() => {
+        // Ошибку сохранения игнорируем: локальное состояние уже обновлено.
+      });
+    }, 600);
+  }, []);
+
+  const updateBlock = useCallback((key: BlockKey, patch: Partial<KpiBlockSettings>) => {
+    setAll((prev) => {
+      const next = { ...prev, [key]: { ...prev[key], ...patch } };
+      persist(next);
       return next;
     });
-  }, [storageKey]);
+  }, [persist]);
 
-  const resetSettings = useCallback(() => {
-    setSettings(defaults);
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(storageKey);
-    }
-  }, [storageKey, defaults]);
+  const resetBlock = useCallback((key: BlockKey) => {
+    setAll((prev) => {
+      const next = { ...prev, [key]: DEFAULTS[key] };
+      persist(next);
+      return next;
+    });
+  }, [persist]);
 
-  return { settings, updateSettings, resetSettings };
-}
+  const makeBlock = (key: BlockKey): KpiBlockSettingsApi => ({
+    settings: all[key],
+    updateSettings: (patch) => updateBlock(key, patch),
+    resetSettings: () => resetBlock(key),
+  });
 
-export function useKpiSettings() {
-  return useKpiBlockSettings(SAVINGS_STORAGE_KEY, DEFAULT_KPI_SAVINGS_SETTINGS);
-}
-
-export function useKpiSlaSettings() {
-  return useKpiBlockSettings(SLA_STORAGE_KEY, DEFAULT_KPI_SLA_SETTINGS);
-}
-
-export function useKpiCsiSettings() {
-  return useKpiBlockSettings(CSI_STORAGE_KEY, DEFAULT_KPI_CSI_SETTINGS);
+  return {
+    savings: makeBlock('savings'),
+    sla: makeBlock('sla'),
+    csi: makeBlock('csi'),
+  };
 }

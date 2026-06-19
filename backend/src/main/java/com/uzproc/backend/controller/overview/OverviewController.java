@@ -7,6 +7,7 @@ import com.uzproc.backend.dto.contract.ContractRemarkDashboardEntryDto;
 import com.uzproc.backend.dto.contract.ContractRemarksDashboardResponseDto;
 import com.uzproc.backend.dto.overview.KpiCsiDetailDto;
 import com.uzproc.backend.dto.overview.KpiCsiResponseDto;
+import com.uzproc.backend.dto.overview.KpiSettingsDto;
 import com.uzproc.backend.dto.overview.KpiSlaDetailDto;
 import com.uzproc.backend.dto.overview.KpiSlaResponseDto;
 import com.uzproc.backend.dto.overview.ApprovalPresentationDto;
@@ -21,6 +22,7 @@ import com.uzproc.backend.dto.overview.OverviewTimelinesResponseDto;
 import com.uzproc.backend.service.contract.ContractApprovalService;
 import com.uzproc.backend.service.contract.ContractService;
 import com.uzproc.backend.service.overview.ApprovalPresentationService;
+import com.uzproc.backend.service.overview.KpiSettingsService;
 import com.uzproc.backend.service.overview.OverviewService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,15 +57,18 @@ public class OverviewController {
     private final ApprovalPresentationService approvalPresentationService;
     private final ContractApprovalService contractApprovalService;
     private final ContractService contractService;
+    private final KpiSettingsService kpiSettingsService;
 
     public OverviewController(OverviewService overviewService,
                               ApprovalPresentationService approvalPresentationService,
                               ContractApprovalService contractApprovalService,
-                              ContractService contractService) {
+                              ContractService contractService,
+                              KpiSettingsService kpiSettingsService) {
         this.overviewService = overviewService;
         this.approvalPresentationService = approvalPresentationService;
         this.contractApprovalService = contractApprovalService;
         this.contractService = contractService;
+        this.kpiSettingsService = kpiSettingsService;
     }
 
     /**
@@ -111,6 +116,23 @@ public class OverviewController {
         logger.debug("KPI CSI request for year={}, month={}", year, month);
         KpiCsiResponseDto data = overviewService.getKpiCsiData(year, month);
         return ResponseEntity.ok(data);
+    }
+
+    /**
+     * Настройки KPI-премии (цель, вес, буст до 130%) по блокам «Экономия», «SLA», «CSI».
+     * Общие для всех пользователей.
+     */
+    @GetMapping("/kpi/settings")
+    public ResponseEntity<KpiSettingsDto> getKpiSettings() {
+        return ResponseEntity.ok(kpiSettingsService.get());
+    }
+
+    /**
+     * Сохранить настройки KPI-премии.
+     */
+    @PutMapping("/kpi/settings")
+    public ResponseEntity<KpiSettingsDto> saveKpiSettings(@RequestBody KpiSettingsDto dto) {
+        return ResponseEntity.ok(kpiSettingsService.save(dto));
     }
 
     /**
