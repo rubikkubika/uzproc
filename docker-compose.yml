@@ -1,7 +1,16 @@
+# Общая конфигурация ротации логов для всех сервисов,
+# чтобы json-логи Docker не разрастались и не забивали диск сервера
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   postgres:
     image: postgres:15-alpine
     container_name: uzproc-postgres
+    logging: *default-logging
     environment:
       POSTGRES_DB: uzproc
       POSTGRES_USER: uzproc_user
@@ -25,6 +34,7 @@ services:
       platforms:
         - linux/amd64
     container_name: uzproc-backend
+    logging: *default-logging
     # Порт не пробрасываем наружу, доступ только через nginx
     expose:
       - "8080"
@@ -71,6 +81,7 @@ services:
       platforms:
         - linux/amd64
     container_name: uzproc-frontend
+    logging: *default-logging
     # Порт не пробрасываем наружу, доступ только через nginx
     expose:
       - "3000"
@@ -85,6 +96,7 @@ services:
   nginx:
     image: nginx:alpine
     container_name: uzproc-nginx
+    logging: *default-logging
     ports:
       - "80:80"
     volumes:
@@ -102,6 +114,7 @@ services:
         - linux/amd64
     platform: linux/amd64
     container_name: uzproc-invoice-parser
+    logging: *default-logging
     ports:
       - "8020:8020"
     restart: unless-stopped
