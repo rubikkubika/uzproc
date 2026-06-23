@@ -1,6 +1,7 @@
 package com.uzproc.backend.service.contract;
 
 import com.uzproc.backend.dto.contract.ContractApprovalDurationByMonthResponseDto;
+import com.uzproc.backend.dto.contract.ContractApprovalDurationByMonthMarketResponseDto;
 import com.uzproc.backend.dto.contract.ContractApprovalsDashboardResponseDto;
 import com.uzproc.backend.dto.contract.ContractApprovalsDashboardRowDto;
 import com.uzproc.backend.dto.contract.ContractDocumentCountByPersonMonthResponseDto;
@@ -695,6 +696,100 @@ public class ContractService {
         }
 
         return new ContractApprovalDurationByMonthResponseDto(year, months);
+    }
+
+    /**
+     * Дашборд «Средний срок согласования по месяцам» ТОЛЬКО по сегменту Маркет,
+     * с разбивкой по типу документа: «Договор + ДС» (Договор / Дополнительное соглашение)
+     * и «Спецификации» (Спецификация). Множество договоров и расчёт срока совпадают
+     * с {@link #getApprovalDurationByMonth} (договоры SIGNED, договорник, по месяцу создания).
+     */
+    public ContractApprovalDurationByMonthMarketResponseDto getApprovalDurationByMonthMarket(int year) {
+        String sql =
+            "WITH per_contract AS ( " +
+            "  SELECT c.id, " +
+            "         c.customer_organization, " +
+            "         COALESCE(cf.name, '') AS cfo_name, " +
+            "         c.document_form, " +
+            "         EXTRACT(MONTH FROM c.contract_creation_date) AS creation_month, " +
+            "         ( SELECT MIN(a.assignment_date) FROM contract_approvals a " +
+            "             WHERE a.contract_id = c.id " +
+            "               AND a.assignment_date IS NOT NULL " +
+            "               AND a.stage IS NOT NULL AND a.stage <> '' " +
+            "               AND LOWER(a.stage) NOT LIKE 'синхронизация%' " +
+            "               AND LOWER(a.stage) NOT LIKE 'принятие на хранение%' " +
+            "               AND LOWER(a.stage) NOT LIKE 'регистрация%' " +
+            "         ) AS first_assignment, " +
+            "         ( SELECT MAX(a.completion_date) FROM contract_approvals a " +
+            "             WHERE a.contract_id = c.id " +
+            "               AND a.completion_date IS NOT NULL " +
+            "               AND a.stage IS NOT NULL AND a.stage <> '' " +
+            "               AND LOWER(a.stage) NOT LIKE 'синхронизация%' " +
+            "               AND LOWER(a.stage) NOT LIKE 'принятие на хранение%' " +
+            "               AND LOWER(a.stage) NOT LIKE 'регистрация%' " +
+            "         ) AS last_completion " +
+            "  FROM contracts c " +
+            "  INNER JOIN users u ON c.prepared_by_id = u.id " +
+            "  LEFT JOIN cfo cf ON c.cfo_id = cf.id " +
+            "  WHERE c.status = 'SIGNED' " +
+            "    AND u.is_contractor = true " +
+            "    AND c.contract_creation_date IS NOT NULL " +
+            "    AND EXTRACT(YEAR FROM c.contract_creation_date) = :year " +
+            ") " +
+            "SELECT customer_organization, cfo_name, document_form, creation_month, first_assignment, last_completion " +
+            "FROM per_contract";
+
+        var query = entityManager.createNativeQuery(sql).setParameter("year", year);
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = query.getResultList();
+
+        // Группы типов документа: [0] = сумма дней, [1] = кол-во договоров с согласованиями
+        long[][] contractDs = new long[13][2];
+        long[][] spec = new long[13][2];
+
+        for (Object[] row : rows) {
+            String customerOrg = row[0] != null ? row[0].toString().trim() : "";
+            String cfoName = row[1] != null ? row[1].toString().trim() : "";
+            String documentForm = row[2] != null ? row[2].toString().trim() : "";
+            int month = row[3] != null ? ((Number) row[3]).intValue() : 0;
+            java.time.LocalDateTime firstAssignment = toLocalDateTime(row[4]);
+            java.time.LocalDateTime lastCompletion = toLocalDateTime(row[5]);
+            if (month < 1 || month > 12) continue;
+
+            // Только сегмент Маркет
+            if (!"Market".equals(resolveSegment(customerOrg, cfoName))) continue;
+
+            // Группировка по типу документа: Договор/ДС vs Спецификация; прочие — пропускаем
+            long[][] target;
+            if ("Договор".equals(documentForm) || "Дополнительное соглашение".equals(documentForm)) {
+                target = contractDs;
+            } else if ("Спецификация".equals(documentForm)) {
+                target = spec;
+            } else {
+                continue;
+            }
+
+            if (firstAssignment != null && lastCompletion != null) {
+                long days = countWorkingDaysBetween(firstAssignment, lastCompletion);
+                target[month][0] += days;
+                target[month][1] += 1;
+            }
+        }
+
+        List<ContractApprovalDurationByMonthMarketResponseDto.MonthRow> months = new ArrayList<>();
+        for (int m = 1; m <= 12; m++) {
+            ContractApprovalDurationByMonthMarketResponseDto.MonthRow mr =
+                new ContractApprovalDurationByMonthMarketResponseDto.MonthRow(m);
+            long[] cd = contractDs[m];
+            long[] sp = spec[m];
+            mr.setContractDsCount(cd[1]);
+            mr.setContractDsAvgDays(cd[1] > 0 ? (double) cd[0] / cd[1] : null);
+            mr.setSpecCount(sp[1]);
+            mr.setSpecAvgDays(sp[1] > 0 ? (double) sp[0] / sp[1] : null);
+            months.add(mr);
+        }
+
+        return new ContractApprovalDurationByMonthMarketResponseDto(year, months);
     }
 
     /** Возвращает список ФИО договорников у договоров SIGNED за выбранный год. */

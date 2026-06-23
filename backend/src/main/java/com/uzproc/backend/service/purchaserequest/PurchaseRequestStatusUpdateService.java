@@ -511,21 +511,29 @@ public class PurchaseRequestStatusUpdateService {
         int errorCount = 0;
         
         for (PurchaseRequest request : allRequests) {
+            Long idPurchaseRequest = request.getIdPurchaseRequest();
             try {
                 PurchaseRequestStatus oldStatus = request.getStatus();
                 // Обновляем статус
-                updateStatus(request.getIdPurchaseRequest());
+                updateStatus(idPurchaseRequest);
 
                 // Проверяем, изменился ли статус
-                request = purchaseRequestRepository.findByIdPurchaseRequest(request.getIdPurchaseRequest())
+                PurchaseRequest reloaded = purchaseRequestRepository.findByIdPurchaseRequest(idPurchaseRequest)
                     .orElse(null);
-                if (request != null && request.getStatus() != oldStatus) {
+                if (reloaded != null && reloaded.getStatus() != oldStatus) {
                     updatedCount++;
                 }
             } catch (Exception e) {
                 errorCount++;
                 logger.error("Error updating status for purchase request {}: {}",
-                    request.getIdPurchaseRequest(), e.getMessage(), e);
+                    idPurchaseRequest, e.getMessage(), e);
+            } finally {
+                // Очищаем persistence-context после каждой заявки, чтобы сессия Hibernate
+                // не разрасталась: updateStatus выполняет множество native-запросов, перед каждым
+                // из которых Hibernate авто-flush'ит ВСЮ сессию (dirty-checking). Без clear() это
+                // деградирует до O(n²) на тысячах заявок (запись статуса идёт через REQUIRES_NEW,
+                // поэтому в основной сессии только чтения — терять нечего).
+                entityManager.clear();
             }
         }
         

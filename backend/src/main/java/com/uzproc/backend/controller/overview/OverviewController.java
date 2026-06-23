@@ -1,6 +1,7 @@
 package com.uzproc.backend.controller.overview;
 
 import com.uzproc.backend.dto.contract.ContractApprovalDurationByMonthResponseDto;
+import com.uzproc.backend.dto.contract.ContractApprovalDurationByMonthMarketResponseDto;
 import com.uzproc.backend.dto.contract.ContractApprovalsDashboardResponseDto;
 import com.uzproc.backend.dto.contract.ContractDocumentCountByPersonMonthResponseDto;
 import com.uzproc.backend.dto.contract.ContractRemarkDashboardEntryDto;
@@ -377,6 +378,17 @@ public class OverviewController {
             @RequestParam(required = false) String preparedBy) {
         logger.debug("Overview contract-approvals-duration-by-month request (year={}, preparedBy={})", year, preparedBy);
         return ResponseEntity.ok(contractService.getApprovalDurationByMonth(year, preparedBy));
+    }
+
+    /**
+     * Дашборд «Средний срок согласования по месяцам» ТОЛЬКО по сегменту Маркет,
+     * с разбивкой по типу документа: «Договор + ДС» и «Спецификации».
+     */
+    @GetMapping("/contract-approvals-duration-by-month-market")
+    public ResponseEntity<ContractApprovalDurationByMonthMarketResponseDto> getContractApprovalDurationByMonthMarket(
+            @RequestParam int year) {
+        logger.debug("Overview contract-approvals-duration-by-month-market request (year={})", year);
+        return ResponseEntity.ok(contractService.getApprovalDurationByMonthMarket(year));
     }
 
     /**
