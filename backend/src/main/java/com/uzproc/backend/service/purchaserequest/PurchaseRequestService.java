@@ -132,66 +132,101 @@ public class PurchaseRequestService {
             Integer approvalAssignmentYear,
             Integer approvalAssignmentMonth) {
         
-        logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, month: {}, approvalAssignmentYear: {}, approvalAssignmentMonth: {}, idPurchaseRequest: {}, cfo: {}, purchaseRequestInitiator: '{}', purchaser: {}, name: '{}', costType: '{}', contractType: '{}', isPlanned: {}, hasLinkedPlanItem: {}, requiresPurchase: {}, statusGroup: {}, excludePendingStatuses: {}, budgetAmount: {}, budgetAmountOperator: '{}', excludeFromInWorkParam: {}",
-                year, month, approvalAssignmentYear, approvalAssignmentMonth, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, hasLinkedPlanItem, requiresPurchase, statusGroup, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWorkParam);
-        
+        return findEntities(page, size, year, month, sortBy, sortDir, idPurchaseRequest, cfo,
+                purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, hasLinkedPlanItem,
+                complexity, requiresPurchase, statusGroup, excludePendingStatuses, budgetAmount, budgetAmountOperator,
+                excludeFromInWorkParam, approvalAssignmentYear, approvalAssignmentMonth)
+                .map(this::toDto);
+    }
+
+    /**
+     * Возвращает СУЩНОСТИ заявок по тем же фильтрам, что и {@link #findAll}, но БЕЗ конвертации
+     * в тяжёлый PurchaseRequestDto (toDto делает ~8 запросов на строку — N+1). Дашборды/агрегаты,
+     * которым нужны только скалярные поля заявки, должны использовать этот метод вместо
+     * findAll(...).map(toDto), чтобы не подрывать БД на больших size.
+     */
+    public Page<PurchaseRequest> findEntities(
+            int page,
+            int size,
+            Integer year,
+            Integer month,
+            String sortBy,
+            String sortDir,
+            Long idPurchaseRequest,
+            List<String> cfo,
+            String purchaseRequestInitiator,
+            List<String> purchaser,
+            String name,
+            String costType,
+            String contractType,
+            Boolean isPlanned,
+            Boolean hasLinkedPlanItem,
+            String complexity,
+            Boolean requiresPurchase,
+            List<String> statusGroup,
+            Boolean excludePendingStatuses,
+            java.math.BigDecimal budgetAmount,
+            String budgetAmountOperator,
+            Boolean excludeFromInWorkParam,
+            Integer approvalAssignmentYear,
+            Integer approvalAssignmentMonth) {
+
         // Определяем логику фильтрации по excludeFromInWork:
         // 1. Если excludeFromInWorkParam = true передается как параметр запроса, то фильтруем по excludeFromInWork = true (показываем только скрытые)
         // 2. Если excludeFromInWorkParam = false передается как параметр запроса, то исключаем записи с excludeFromInWork = true (показываем только не скрытые)
         // 3. Если excludeFromInWorkParam не передан, но переданы статусы для вкладки "В работе", то исключаем записи с excludeFromInWork = true
         Boolean excludeFromInWorkFilter = null; // null = не фильтровать, true = только скрытые, false = только не скрытые
         boolean excludeFromInWork = false; // для исключения записей с excludeFromInWork = true
-        
-        logger.info("Processing excludeFromInWorkParam: {}", excludeFromInWorkParam);
-        
+
         if (excludeFromInWorkParam != null) {
             if (excludeFromInWorkParam) {
-                // Если передан параметр excludeFromInWork = true, фильтруем только скрытые заявки
                 excludeFromInWorkFilter = true;
-                logger.info("Filtering only hidden requests (excludeFromInWork = true)");
             } else {
-                // Если передан параметр excludeFromInWork = false, исключаем скрытые заявки
                 excludeFromInWorkFilter = false;
-                logger.info("Filtering only non-hidden requests (excludeFromInWork = false or null)");
             }
         } else if (statusGroup != null && !statusGroup.isEmpty()) {
             // Если параметр не передан, но переданы группы статусов для вкладки "В работе", исключаем скрытые заявки
-            // Группы статусов должны соответствовать TAB_STATUS_GROUPS['in-work'] на фронтенде
             List<String> inWorkStatusGroups = List.of(
                 "Заявка у закупщика",
                 "Спецификация в работе",
                 "Договор в работе"
             );
-            // Проверяем, все ли переданные группы статусов относятся к вкладке "В работе"
             boolean allInWorkStatusGroups = statusGroup.stream().allMatch(s -> inWorkStatusGroups.contains(s));
             if (allInWorkStatusGroups) {
                 excludeFromInWork = true;
-                logger.info("Detected 'in-work' tab status groups - will exclude records with excludeFromInWork = true");
             }
         }
-        
-        // Определяем, нужно ли включать NULL статусы
-        // Если size > 1000, это запрос сводной таблицы - не включаем NULL статусы
-        // Иначе это запрос основной таблицы - включаем NULL статусы
+
+        // Если size > 1000, это запрос сводной таблицы - не включаем NULL статусы; иначе включаем
         boolean includeNullStatuses = size <= 1000;
-        
+
         Specification<PurchaseRequest> spec = buildSpecification(
                 year, month, approvalAssignmentYear, approvalAssignmentMonth, idPurchaseRequest, cfo, purchaseRequestInitiator, purchaser, name, costType, contractType, isPlanned, hasLinkedPlanItem, complexity, requiresPurchase, statusGroup, excludePendingStatuses, budgetAmount, budgetAmountOperator, excludeFromInWork, excludeFromInWorkFilter, includeNullStatuses, null, null, null);
-        
+
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
-        
-        Page<PurchaseRequest> purchaseRequests = purchaseRequestRepository.findAll(spec, pageable);
-        
-        logger.info("Query result - Found {} purchase requests on page {} (size {}), total elements: {}",
-                purchaseRequests.getContent().size(), page, size, purchaseRequests.getTotalElements());
-        logger.info("=== END FILTER REQUEST ===\n");
-        
-        // Конвертируем entity в DTO
-        Page<PurchaseRequestDto> dtoPage = purchaseRequests.map(this::toDto);
-        
-        return dtoPage;
+
+        return purchaseRequestRepository.findAll(spec, pageable);
+    }
+
+    /**
+     * Лёгкая выборка заявок для SLA-дашборда: та же фильтрация, что в {@link #findAll},
+     * но БЕЗ конвертации в полный {@link PurchaseRequestDto} (которая на каждую заявку
+     * лениво подгружает purchases/contracts/approvals/plan_items/csi → N+1).
+     * Возвращает сущности; вызывающий код читает только скалярные поля и считает
+     * approvalAssignmentDate / purchaseCompletionDate батчем. Параметры зафиксированы
+     * под SLA-вызов (requiresPurchase=true, statusGroup, год = approvalAssignmentYear).
+     */
+    @Transactional(readOnly = true)
+    public List<PurchaseRequest> findEntitiesForSla(List<String> purchaser, String statusGroup, Integer year) {
+        // includeNullStatuses=false (как при size=2000 в findAll); excludeFromInWorkFilter=false
+        // (excludeFromInWorkParam=false в SLA-вызове). buildSpecification — единый источник логики фильтрации.
+        Specification<PurchaseRequest> spec = buildSpecification(
+                null, null, year, null, null, null, null, purchaser, null, null, null, null, null, null,
+                true, List.of(statusGroup), false, null, null, false, false, false, null, null, null);
+        // Детерминированный порядок (по id) — раньше findAll шёл без ORDER BY, и физический порядок строк «плавал».
+        Pageable pageable = PageRequest.of(0, 2000, Sort.by(Sort.Direction.ASC, "id"));
+        return purchaseRequestRepository.findAll(spec, pageable).getContent();
     }
 
     public PurchaseRequestDto findById(Long id) {

@@ -125,39 +125,43 @@ public class OverviewService {
         List<String> purchaserFilter = (purchaser != null && !purchaser.trim().isEmpty())
                 ? List.of(purchaser.trim())
                 : null;
+        // 1. Лёгкая выборка СУЩНОСТЕЙ по статус-группам (без N+1 полного PurchaseRequestDto).
         List<OverviewSlaBlockDto> blocks = new ArrayList<>();
+        Map<String, List<com.uzproc.backend.entity.purchaserequest.PurchaseRequest>> entitiesByGroup = new LinkedHashMap<>();
         List<Long> allRequestIds = new ArrayList<>();
+        List<Long> allIdPurchaseRequests = new ArrayList<>();
         for (String statusGroup : SLA_STATUS_GROUPS) {
-            // hasLinkedPlanItem=null (не фильтруем по связи с планом — иначе 2090 без позиции плана не попадёт),
-            // requiresPurchase=true — только закупки, без заказов
-            Page<PurchaseRequestDto> page = purchaseRequestService.findAll(
-                    0, 2000,
-                    null, null, null, null,
-                    null, null, null, purchaserFilter, null, null, null, null,
-                    null, null, true, List.of(statusGroup), false,
-                    null, null, false, year, null);
-            List<OverviewSlaRequestDto> requests = page.getContent().stream()
-                    .map(this::toOverviewSlaRequest)
-                    .collect(Collectors.toList());
-            requests.forEach(r -> { if (r.getId() != null) allRequestIds.add(r.getId()); });
-            blocks.add(new OverviewSlaBlockDto(statusGroup, requests));
-        }
-        Map<Long, Long> slaCounts = purchaseRequestCommentService.getSlaCommentCountByPurchaseRequestIds(allRequestIds);
-        // Bulk-загрузка PurchaseApproval для вычисления purchaseGeneralDays и purchaseResultDays
-        Map<Long, List<com.uzproc.backend.entity.purchase.PurchaseApproval>> approvalsByRequestId = Collections.emptyMap();
-        if (!allRequestIds.isEmpty()) {
-            List<Long> allIdPurchaseRequests = blocks.stream()
-                    .flatMap(b -> b.getRequests().stream())
-                    .filter(r -> r.getIdPurchaseRequest() != null)
-                    .map(OverviewSlaRequestDto::getIdPurchaseRequest)
-                    .distinct()
-                    .collect(Collectors.toList());
-            if (!allIdPurchaseRequests.isEmpty()) {
-                approvalsByRequestId = purchaseApprovalRepository.findByPurchaseRequestIdIn(allIdPurchaseRequests)
-                        .stream()
-                        .collect(Collectors.groupingBy(com.uzproc.backend.entity.purchase.PurchaseApproval::getPurchaseRequestId));
+            // requiresPurchase=true — только закупки; та же фильтрация, что в findAll, но без конвертации в DTO
+            List<com.uzproc.backend.entity.purchaserequest.PurchaseRequest> entities =
+                    purchaseRequestService.findEntitiesForSla(purchaserFilter, statusGroup, year);
+            entitiesByGroup.put(statusGroup, entities);
+            for (com.uzproc.backend.entity.purchaserequest.PurchaseRequest e : entities) {
+                if (e.getId() != null) allRequestIds.add(e.getId());
+                if (e.getIdPurchaseRequest() != null) allIdPurchaseRequests.add(e.getIdPurchaseRequest());
             }
         }
+        List<Long> distinctIdPurchaseRequests = allIdPurchaseRequests.stream().distinct().collect(Collectors.toList());
+
+        // 2. Батч-загрузка вместо N+1: согласования заявок, согласования закупок, счётчики SLA-замечаний.
+        Map<Long, Long> slaCounts = purchaseRequestCommentService.getSlaCommentCountByPurchaseRequestIds(allRequestIds);
+        Map<Long, List<com.uzproc.backend.entity.purchaserequest.PurchaseRequestApproval>> reqApprovalsByIdPR =
+                distinctIdPurchaseRequests.isEmpty() ? Collections.emptyMap()
+                        : purchaseRequestApprovalRepository.findByIdPurchaseRequestIn(distinctIdPurchaseRequests).stream()
+                            .collect(Collectors.groupingBy(com.uzproc.backend.entity.purchaserequest.PurchaseRequestApproval::getIdPurchaseRequest));
+        Map<Long, List<com.uzproc.backend.entity.purchase.PurchaseApproval>> approvalsByRequestId =
+                distinctIdPurchaseRequests.isEmpty() ? Collections.emptyMap()
+                        : purchaseApprovalRepository.findByPurchaseRequestIdIn(distinctIdPurchaseRequests).stream()
+                            .collect(Collectors.groupingBy(com.uzproc.backend.entity.purchase.PurchaseApproval::getPurchaseRequestId));
+
+        // 3. Сборка блоков из сущностей + батч-вычисленные даты (approvalAssignmentDate / purchaseCompletionDate).
+        for (String statusGroup : SLA_STATUS_GROUPS) {
+            List<OverviewSlaRequestDto> requests = entitiesByGroup.get(statusGroup).stream()
+                    .map(e -> toOverviewSlaRequest(e, reqApprovalsByIdPR, approvalsByRequestId))
+                    .collect(Collectors.toList());
+            blocks.add(new OverviewSlaBlockDto(statusGroup, requests));
+        }
+
+        // 4. slaCommentCount + purchaseGeneralDays/ResultDays (как раньше, на тех же батч-данных).
         for (OverviewSlaBlockDto block : blocks) {
             for (OverviewSlaRequestDto r : block.getRequests()) {
                 if (r.getId() != null && slaCounts.containsKey(r.getId())) {
@@ -612,6 +616,115 @@ public class OverviewService {
         return response;
     }
 
+    /**
+     * Строит OverviewSlaRequestDto напрямую из сущности заявки + батч-загруженных согласований,
+     * без обращения к БД (устранение N+1). approvalAssignmentDate и purchaseCompletionDate
+     * вычисляются по той же логике, что и в PurchaseRequestService.toDto.
+     */
+    private OverviewSlaRequestDto toOverviewSlaRequest(
+            com.uzproc.backend.entity.purchaserequest.PurchaseRequest e,
+            Map<Long, List<com.uzproc.backend.entity.purchaserequest.PurchaseRequestApproval>> reqApprovalsByIdPR,
+            Map<Long, List<com.uzproc.backend.entity.purchase.PurchaseApproval>> purchApprovalsByIdPR) {
+        OverviewSlaRequestDto r = new OverviewSlaRequestDto();
+        r.setId(e.getId());
+        r.setIdPurchaseRequest(e.getIdPurchaseRequest());
+        String name = (e.getTitle() != null && !e.getTitle().trim().isEmpty())
+                ? e.getTitle().trim()
+                : (e.getName() != null ? e.getName().trim() : "—");
+        r.setName(name);
+        r.setBudgetAmount(e.getBudgetAmount());
+        r.setPurchaser(e.getPurchaser());
+        r.setComplexity(e.getComplexity());
+        r.setPlannedSlaDays(e.getPlannedSlaDays());
+        r.setStatus(e.getStatus() != null ? e.getStatus().getDisplayName() : null);
+
+        Long idPR = e.getIdPurchaseRequest();
+
+        // approvalAssignmentDate — минимальная assignmentDate по этапам «Утверждение заявки на ЗП»
+        LocalDateTime approvalAssignmentDate = null;
+        if (idPR != null) {
+            java.util.Set<String> approvalStages = java.util.Set.of(
+                    "Утверждение заявки на ЗП", "Утверждение заявки на ЗП (НЕ требуется ЗП)");
+            approvalAssignmentDate = reqApprovalsByIdPR.getOrDefault(idPR, Collections.emptyList()).stream()
+                    .filter(a -> a.getStage() != null && approvalStages.contains(a.getStage()))
+                    .map(com.uzproc.backend.entity.purchaserequest.PurchaseRequestApproval::getAssignmentDate)
+                    .filter(Objects::nonNull)
+                    .min(LocalDateTime::compareTo)
+                    .orElse(null);
+        }
+        r.setApprovalAssignmentDate(approvalAssignmentDate != null ? approvalAssignmentDate.format(ISO_FORMAT) : null);
+
+        // purchaseCompletionDate — MAX completionDate, если ВСЕ согласования закупки завершены
+        LocalDateTime purchaseCompletionDate = null;
+        if (idPR != null) {
+            List<com.uzproc.backend.entity.purchase.PurchaseApproval> purchApprovals =
+                    purchApprovalsByIdPR.getOrDefault(idPR, Collections.emptyList());
+            if (!purchApprovals.isEmpty()
+                    && purchApprovals.stream().allMatch(a -> a.getCompletionDate() != null)) {
+                purchaseCompletionDate = purchApprovals.stream()
+                        .map(com.uzproc.backend.entity.purchase.PurchaseApproval::getCompletionDate)
+                        .max(LocalDateTime::compareTo)
+                        .orElse(null);
+            }
+        }
+        r.setPurchaseCompletionDate(purchaseCompletionDate != null ? purchaseCompletionDate.format(ISO_FORMAT) : null);
+        return r;
+    }
+
+    /**
+     * Дата завершения закупки — MAX completionDate, если ВСЕ согласования закупки завершены
+     * (нет ни одного с null). Та же логика, что в PurchaseRequestService.toDto. null если согласований нет
+     * или хотя бы одно не завершено.
+     */
+    private static LocalDateTime computePurchaseCompletionDate(
+            List<com.uzproc.backend.entity.purchase.PurchaseApproval> purchApprovals) {
+        if (purchApprovals == null || purchApprovals.isEmpty()) return null;
+        if (!purchApprovals.stream().allMatch(a -> a.getCompletionDate() != null)) return null;
+        return purchApprovals.stream()
+                .map(com.uzproc.backend.entity.purchase.PurchaseApproval::getCompletionDate)
+                .max(LocalDateTime::compareTo)
+                .orElse(null);
+    }
+
+    /**
+     * Лёгкое построение SLA-блоков (по статус-группам) из СУЩНОСТЕЙ + батч-загрузка согласований.
+     * Без N+1 полного toDto. Используется в /overview/sla, /kpi/sla и /kpi/sla/requests.
+     */
+    private List<OverviewSlaBlockDto> buildSlaBlocksFromEntities(List<String> purchaserFilter, Integer year) {
+        Map<String, List<com.uzproc.backend.entity.purchaserequest.PurchaseRequest>> entitiesByGroup = new LinkedHashMap<>();
+        List<Long> allIdPurchaseRequests = new ArrayList<>();
+        for (String statusGroup : SLA_STATUS_GROUPS) {
+            List<com.uzproc.backend.entity.purchaserequest.PurchaseRequest> entities =
+                    purchaseRequestService.findEntitiesForSla(purchaserFilter, statusGroup, year);
+            entitiesByGroup.put(statusGroup, entities);
+            for (com.uzproc.backend.entity.purchaserequest.PurchaseRequest e : entities) {
+                if (e.getIdPurchaseRequest() != null) allIdPurchaseRequests.add(e.getIdPurchaseRequest());
+            }
+        }
+        List<Long> distinctIdPR = allIdPurchaseRequests.stream().distinct().collect(Collectors.toList());
+        Map<Long, List<com.uzproc.backend.entity.purchaserequest.PurchaseRequestApproval>> reqApprovalsByIdPR =
+                distinctIdPR.isEmpty() ? Collections.emptyMap()
+                        : purchaseRequestApprovalRepository.findByIdPurchaseRequestIn(distinctIdPR).stream()
+                            .collect(Collectors.groupingBy(com.uzproc.backend.entity.purchaserequest.PurchaseRequestApproval::getIdPurchaseRequest));
+        Map<Long, List<com.uzproc.backend.entity.purchase.PurchaseApproval>> purchApprovalsByIdPR =
+                distinctIdPR.isEmpty() ? Collections.emptyMap()
+                        : purchaseApprovalRepository.findByPurchaseRequestIdIn(distinctIdPR).stream()
+                            .collect(Collectors.groupingBy(com.uzproc.backend.entity.purchase.PurchaseApproval::getPurchaseRequestId));
+        List<OverviewSlaBlockDto> blocks = new ArrayList<>();
+        for (String statusGroup : SLA_STATUS_GROUPS) {
+            List<OverviewSlaRequestDto> requests = entitiesByGroup.get(statusGroup).stream()
+                    .map(e -> toOverviewSlaRequest(e, reqApprovalsByIdPR, purchApprovalsByIdPR))
+                    .collect(Collectors.toList());
+            blocks.add(new OverviewSlaBlockDto(statusGroup, requests));
+        }
+        return blocks;
+    }
+
+    /**
+     * Старый билдер из полного DTO — оставлен для обратной совместимости (на случай иных вызовов).
+     * Основные SLA-пути переведены на лёгкий entity-builder выше.
+     */
+    @SuppressWarnings("unused")
     private OverviewSlaRequestDto toOverviewSlaRequest(PurchaseRequestDto dto) {
         OverviewSlaRequestDto r = new OverviewSlaRequestDto();
         r.setId(dto.getId());
@@ -827,20 +940,21 @@ public class OverviewService {
                 SINGLE_SOURCE_MCC_SUBSTRING, singleSourceRequestIds.size(),
                 singleSourceIdsRaw.isEmpty() ? "none" : singleSourceIdsRaw.subList(0, Math.min(5, singleSourceIdsRaw.size())));
         int pageSize = 50_000;
+        // Лёгкая выборка СУЩНОСТЕЙ (без N+1 полного toDto); cfo предзагружен через @EntityGraph в репозитории.
         // Сначала по году назначения на закупщика (assignment_date в этапе «Утверждение заявки на ЗП»)
-        Page<PurchaseRequestDto> page = purchaseRequestService.findAll(
+        Page<com.uzproc.backend.entity.purchaserequest.PurchaseRequest> page = purchaseRequestService.findEntities(
                 0, pageSize,
                 null, null, null, null,
                 null, null, null, null, null, null, null, null,
                 null, null, true, null, true,
                 null, null, false, year, null);
-        List<PurchaseRequestDto> list = page.getContent();
+        List<com.uzproc.backend.entity.purchaserequest.PurchaseRequest> list = page.getContent();
         boolean byAssignmentYear = true;
         if (list.isEmpty() && page.getTotalElements() == 0) {
             // Нет данных по году назначения (например, не загружен отчёт с этапами) — берём по году создания заявки
             logger.info("Overview EK: no data for assignment year {}, falling back to creation year", year);
             byAssignmentYear = false;
-            page = purchaseRequestService.findAll(
+            page = purchaseRequestService.findEntities(
                     0, pageSize,
                     year, null, null, null,
                     null, null, null, null, null, null, null, null,
@@ -849,9 +963,9 @@ public class OverviewService {
             list = page.getContent();
         }
         if (page.getTotalPages() > 1) {
-            List<PurchaseRequestDto> all = new ArrayList<>(list);
+            List<com.uzproc.backend.entity.purchaserequest.PurchaseRequest> all = new ArrayList<>(list);
             for (int p = 1; p < page.getTotalPages(); p++) {
-                Page<PurchaseRequestDto> next = purchaseRequestService.findAll(
+                Page<com.uzproc.backend.entity.purchaserequest.PurchaseRequest> next = purchaseRequestService.findEntities(
                         p, pageSize,
                         byAssignmentYear ? null : year, null, null, null,
                         null, null, null, null, null, null, null, null,
@@ -865,29 +979,29 @@ public class OverviewService {
         String baseCurrency = overviewEkProperties.getBaseCurrency();
         // Нужен ли перевод по курсу: есть ли заявки с валютой, отличной от базовой
         boolean needsConversion = list.stream()
-                .map(PurchaseRequestDto::getCurrency)
+                .map(com.uzproc.backend.entity.purchaserequest.PurchaseRequest::getCurrency)
                 .filter(c -> c != null && !c.isBlank())
                 .map(String::trim)
                 .anyMatch(c -> !c.equalsIgnoreCase(baseCurrency));
         boolean amountsInBaseCurrency = needsConversion;
 
-        // Группировка по ЦФО
-        Map<String, List<PurchaseRequestDto>> byCfo = list.stream()
+        // Группировка по ЦФО (имя cfo берём из предзагруженной связи)
+        Map<String, List<com.uzproc.backend.entity.purchaserequest.PurchaseRequest>> byCfo = list.stream()
                 .collect(Collectors.groupingBy(pr -> {
-                    String c = pr.getCfo();
+                    String c = pr.getCfo() != null ? pr.getCfo().getName() : null;
                     return (c != null && !c.isBlank()) ? c.trim() : "(без ЦФО)";
                 }));
 
         List<OverviewEkChartRowDto> rows = new ArrayList<>();
-        for (Map.Entry<String, List<PurchaseRequestDto>> e : byCfo.entrySet()) {
+        for (Map.Entry<String, List<com.uzproc.backend.entity.purchaserequest.PurchaseRequest>> e : byCfo.entrySet()) {
             String cfo = e.getKey();
-            List<PurchaseRequestDto> group = e.getValue();
+            List<com.uzproc.backend.entity.purchaserequest.PurchaseRequest> group = e.getValue();
             BigDecimal totalAmount = group.stream()
                     .map(pr -> overviewEkProperties.toBaseCurrency(
                             pr.getBudgetAmount() != null ? pr.getBudgetAmount() : BigDecimal.ZERO,
                             pr.getCurrency()))
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
-            List<PurchaseRequestDto> singleInGroup = group.stream()
+            List<com.uzproc.backend.entity.purchaserequest.PurchaseRequest> singleInGroup = group.stream()
                     .filter(pr -> pr.getIdPurchaseRequest() != null && singleSourceRequestIds.contains(pr.getIdPurchaseRequest()))
                     .toList();
             BigDecimal singleSupplierAmount = singleInGroup.stream()
@@ -901,7 +1015,7 @@ public class OverviewService {
                         .divide(totalAmount, 2, java.math.RoundingMode.HALF_UP);
             }
             Set<String> currenciesInGroup = group.stream()
-                    .map(PurchaseRequestDto::getCurrency)
+                    .map(com.uzproc.backend.entity.purchaserequest.PurchaseRequest::getCurrency)
                     .filter(c -> c != null && !c.isBlank())
                     .map(String::trim)
                     .collect(Collectors.toSet());
@@ -1619,19 +1733,8 @@ public class OverviewService {
      */
     public KpiSlaResponseDto getKpiSlaData(int year, int month) {
         logger.info("getKpiSlaData: year={}, month={}", year, month);
-        List<OverviewSlaBlockDto> blocks = new ArrayList<>();
-        for (String statusGroup : SLA_STATUS_GROUPS) {
-            Page<PurchaseRequestDto> page = purchaseRequestService.findAll(
-                    0, 2000,
-                    null, null, null, null,
-                    null, null, null, null, null, null, null, null,
-                    null, null, true, List.of(statusGroup), false,
-                    null, null, false, year, null);
-            List<OverviewSlaRequestDto> requests = page.getContent().stream()
-                    .map(this::toOverviewSlaRequest)
-                    .collect(Collectors.toList());
-            blocks.add(new OverviewSlaBlockDto(statusGroup, requests));
-        }
+        // Лёгкий путь (без N+1 полного toDto): сущности + батч-загрузка согласований
+        List<OverviewSlaBlockDto> blocks = buildSlaBlocksFromEntities(null, year);
         List<OverviewSlaRequestDto> allRequests = blocks.stream()
                 .flatMap(b -> (b.getRequests() != null ? b.getRequests().stream() : java.util.stream.Stream.<OverviewSlaRequestDto>empty()))
                 .collect(Collectors.toList());
@@ -1691,19 +1794,8 @@ public class OverviewService {
         if (purchaser == null || purchaser.isBlank()) return List.of();
         String purchaserKey = purchaser.trim();
 
-        List<OverviewSlaBlockDto> blocks = new ArrayList<>();
-        for (String statusGroup : SLA_STATUS_GROUPS) {
-            Page<PurchaseRequestDto> page = purchaseRequestService.findAll(
-                    0, 2000,
-                    null, null, null, null,
-                    null, null, null, List.of(purchaserKey), null, null, null, null,
-                    null, null, true, List.of(statusGroup), false,
-                    null, null, false, year, null);
-            List<OverviewSlaRequestDto> requests = page.getContent().stream()
-                    .map(this::toOverviewSlaRequest)
-                    .collect(Collectors.toList());
-            blocks.add(new OverviewSlaBlockDto(statusGroup, requests));
-        }
+        // Лёгкий путь (без N+1 полного toDto): сущности + батч-загрузка согласований
+        List<OverviewSlaBlockDto> blocks = buildSlaBlocksFromEntities(List.of(purchaserKey), year);
 
         List<KpiSlaDetailDto> result = new ArrayList<>();
         for (OverviewSlaBlockDto block : blocks) {
@@ -1930,26 +2022,42 @@ public class OverviewService {
      * Фильтр по ЦФО (опционально) и по году даты завершения закупки (опционально).
      */
     public List<OverviewPurchasesByCfoItemDto> getPurchasesByCfo(List<String> cfos, List<Integer> years) {
-        Page<PurchaseRequestDto> page = purchaseRequestService.findAll(
+        // Лёгкая выборка СУЩНОСТЕЙ (cfo предзагружен через @EntityGraph) — без N+1 полного toDto.
+        Page<com.uzproc.backend.entity.purchaserequest.PurchaseRequest> page = purchaseRequestService.findEntities(
                 0, 10000,
                 null, null, null, null,
                 null, (cfos != null && !cfos.isEmpty() ? cfos : null),
                 null, null, null, null, null, null, null, null,
                 true, null, false,
                 null, null, null, null, null);
-        List<PurchaseRequestDto> allDtos = new ArrayList<>(page.getContent());
+        List<com.uzproc.backend.entity.purchaserequest.PurchaseRequest> allEntities = new ArrayList<>(page.getContent());
+
+        // purchaseCompletionDate вычисляется из согласований закупок — батч-загрузка вместо N+1
+        List<Long> allIdPR = allEntities.stream()
+                .map(com.uzproc.backend.entity.purchaserequest.PurchaseRequest::getIdPurchaseRequest)
+                .filter(java.util.Objects::nonNull).distinct().collect(Collectors.toList());
+        Map<Long, java.time.LocalDateTime> completionByIdPR = new HashMap<>();
+        if (!allIdPR.isEmpty()) {
+            Map<Long, List<com.uzproc.backend.entity.purchase.PurchaseApproval>> byIdPR =
+                    purchaseApprovalRepository.findByPurchaseRequestIdIn(allIdPR).stream()
+                            .collect(Collectors.groupingBy(com.uzproc.backend.entity.purchase.PurchaseApproval::getPurchaseRequestId));
+            for (Long id : allIdPR) {
+                java.time.LocalDateTime d = computePurchaseCompletionDate(byIdPR.get(id));
+                if (d != null) completionByIdPR.put(id, d);
+            }
+        }
 
         Set<Integer> yearSet = (years != null && !years.isEmpty()) ? new HashSet<>(years) : null;
-        List<PurchaseRequestDto> filtered = yearSet == null ? allDtos : allDtos.stream()
-                .filter(dto -> {
-                    if (dto.getPurchaseCompletionDate() == null) return false;
-                    return yearSet.contains(dto.getPurchaseCompletionDate().getYear());
+        List<com.uzproc.backend.entity.purchaserequest.PurchaseRequest> filtered = yearSet == null ? allEntities : allEntities.stream()
+                .filter(e -> {
+                    java.time.LocalDateTime cd = e.getIdPurchaseRequest() != null ? completionByIdPR.get(e.getIdPurchaseRequest()) : null;
+                    return cd != null && yearSet.contains(cd.getYear());
                 })
                 .collect(Collectors.toList());
 
         List<Long> idPurchaseRequests = filtered.stream()
-                .filter(dto -> dto.getIdPurchaseRequest() != null)
-                .map(PurchaseRequestDto::getIdPurchaseRequest)
+                .map(com.uzproc.backend.entity.purchaserequest.PurchaseRequest::getIdPurchaseRequest)
+                .filter(java.util.Objects::nonNull)
                 .distinct()
                 .collect(Collectors.toList());
 
@@ -1961,19 +2069,19 @@ public class OverviewService {
             }
         }
 
-        return filtered.stream().map(dto -> {
+        return filtered.stream().map(e -> {
             OverviewPurchasesByCfoItemDto item = new OverviewPurchasesByCfoItemDto();
-            item.setId(dto.getId());
-            String name = (dto.getTitle() != null && !dto.getTitle().trim().isEmpty())
-                    ? dto.getTitle().trim()
-                    : (dto.getName() != null ? dto.getName().trim() : "—");
+            item.setId(e.getId());
+            String name = (e.getTitle() != null && !e.getTitle().trim().isEmpty())
+                    ? e.getTitle().trim()
+                    : (e.getName() != null ? e.getName().trim() : "—");
             item.setName(name);
-            item.setCfo(dto.getCfo());
-            item.setStatus(dto.getStatus() != null ? dto.getStatus().getDisplayName() : null);
-            item.setBudgetAmount(dto.getBudgetAmount());
-            item.setPurchaseCompletionDate(dto.getPurchaseCompletionDate() != null
-                    ? dto.getPurchaseCompletionDate().format(ISO_FORMAT) : null);
-            Contract c = (dto.getIdPurchaseRequest() != null) ? contractByPrId.get(dto.getIdPurchaseRequest()) : null;
+            item.setCfo(e.getCfo() != null ? e.getCfo().getName() : null);
+            item.setStatus(e.getStatus() != null ? e.getStatus().getDisplayName() : null);
+            item.setBudgetAmount(e.getBudgetAmount());
+            java.time.LocalDateTime cd = e.getIdPurchaseRequest() != null ? completionByIdPR.get(e.getIdPurchaseRequest()) : null;
+            item.setPurchaseCompletionDate(cd != null ? cd.format(ISO_FORMAT) : null);
+            Contract c = (e.getIdPurchaseRequest() != null) ? contractByPrId.get(e.getIdPurchaseRequest()) : null;
             if (c != null) {
                 item.setLinkedContractAmount(c.getBudgetAmount());
                 String counterparty = (c.getSuppliers() != null && !c.getSuppliers().isEmpty())

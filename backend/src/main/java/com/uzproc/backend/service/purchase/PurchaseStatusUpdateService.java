@@ -11,6 +11,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+
 import java.util.List;
 
 /**
@@ -24,6 +27,9 @@ public class PurchaseStatusUpdateService {
 
     private final PurchaseRepository purchaseRepository;
     private final PurchaseApprovalRepository purchaseApprovalRepository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public PurchaseStatusUpdateService(
             PurchaseRepository purchaseRepository,
@@ -159,21 +165,27 @@ public class PurchaseStatusUpdateService {
         int errorCount = 0;
 
         for (Purchase purchase : allPurchases) {
+            Long purchaseRequestId = purchase.getPurchaseRequestId();
             try {
                 PurchaseStatus oldStatus = purchase.getStatus();
-                if (purchase.getPurchaseRequestId() != null) {
-                    // Каждый вызов updateStatus выполняется в отдельной транзакции
-                    updateStatusInNewTransaction(purchase.getPurchaseRequestId());
+                if (purchaseRequestId != null) {
+                    updateStatusInNewTransaction(purchaseRequestId);
                     // Re-fetch to check if status actually changed
-                    Purchase updatedPurchase = purchaseRepository.findFirstByPurchaseRequestId(purchase.getPurchaseRequestId()).orElse(null);
+                    Purchase updatedPurchase = purchaseRepository.findFirstByPurchaseRequestId(purchaseRequestId).orElse(null);
                     if (updatedPurchase != null && updatedPurchase.getStatus() != oldStatus) {
                         updatedCount++;
                     }
                 }
+                entityManager.flush();
             } catch (Exception e) {
                 errorCount++;
                 logger.error("Error updating status for purchase {}: {}",
-                    purchase.getPurchaseRequestId(), e.getMessage(), e);
+                    purchaseRequestId, e.getMessage(), e);
+            } finally {
+                // Очищаем persistence-context после каждой закупки, чтобы сессия Hibernate не разрасталась
+                // (иначе авто-flush dirty-checking деградирует до O(n²) на тысячах закупок). flush() выше
+                // фиксирует запись статуса (save() идёт в текущей сессии) до очистки.
+                entityManager.clear();
             }
         }
 

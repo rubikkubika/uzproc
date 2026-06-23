@@ -20,6 +20,9 @@ public interface PurchaseRequestApprovalRepository extends JpaRepository<Purchas
     
     // Найти все согласования для заявки по id_purchase_request
     List<PurchaseRequestApproval> findByIdPurchaseRequest(Long idPurchaseRequest);
+
+    // Bulk-загрузка согласований по списку id_purchase_request (для устранения N+1, напр. в SLA-дашборде)
+    List<PurchaseRequestApproval> findByIdPurchaseRequestIn(List<Long> idPurchaseRequests);
     
     // Найти согласования по этапу
     List<PurchaseRequestApproval> findByIdPurchaseRequestAndStage(
