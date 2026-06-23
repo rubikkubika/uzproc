@@ -18,6 +18,7 @@ interface PurchasePlanItemsTableBodyProps {
   getPurchaseRequestStatusColor: (status: string | null) => string;
   // Обработчики
   onRowClick?: (item: PurchasePlanItem) => void;
+  onSuppliersClick?: (item: PurchasePlanItem) => void;
   onCellClick?: (item: PurchasePlanItem, field: string) => void;
   // Пропсы для GanttChart
   tempDates?: Record<number, { requestDate: string | null; newContractDate: string | null }>;
@@ -46,6 +47,7 @@ export default function PurchasePlanItemsTableBody({
   getCompanyLogoPath,
   getPurchaseRequestStatusColor,
   onRowClick,
+  onSuppliersClick,
   onCellClick,
   tempDates,
   animatingDates,
@@ -114,6 +116,7 @@ export default function PurchasePlanItemsTableBody({
           availableHoldings={editingStates.availableHoldings}
           formatBudget={formatBudget}
           onRowClick={onRowClick}
+          onSuppliersClick={onSuppliersClick}
           tempDates={tempDates}
           animatingDates={animatingDates}
           performGanttDateUpdate={performGanttDateUpdate}

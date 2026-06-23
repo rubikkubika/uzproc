@@ -37,6 +37,7 @@ public class PurchasePlanItemDto {
     private String purchaseRequestStatus; // Статус заявки на закупку
     private String comment;
     private Integer commentCount; // количество комментариев (для колонки «Комментарии»)
+    private Integer supplierCount; // количество привязанных контрагентов (для колонки «Контрагенты»)
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -291,6 +292,14 @@ public class PurchasePlanItemDto {
 
     public void setCommentCount(Integer commentCount) {
         this.commentCount = commentCount;
+    }
+
+    public Integer getSupplierCount() {
+        return supplierCount;
+    }
+
+    public void setSupplierCount(Integer supplierCount) {
+        this.supplierCount = supplierCount;
     }
 }
 

@@ -27,6 +27,7 @@ export interface PurchasePlanItem {
   purchaseRequestStatus: string | null; // Статус заявки на закупку
   comment: string | null;
   commentCount?: number; // количество комментариев (план + заявка при наличии)
+  supplierCount?: number; // количество привязанных контрагентов
   createdAt: string;
   updatedAt: string;
 }
@@ -87,6 +88,50 @@ export interface Version {
   createdAt: string;
   itemsCount: number;
   isCurrent: boolean;
+}
+
+export interface SupplierContact {
+  id: number;
+  supplierId?: number;
+  fullName?: string | null;   // ФИО
+  position?: string | null;   // Должность
+  telegram?: string | null;
+  email?: string | null;
+  phone?: string | null;      // Телефон
+  comment?: string | null;    // Комментарий
+}
+
+/** Черновик карточки контакта (для формы создания, без id) */
+export interface SupplierContactDraft {
+  fullName: string;
+  position: string;
+  telegram: string;
+  email: string;
+  phone: string;
+  comment: string;
+}
+
+export interface PurchasePlanItemSupplier {
+  id: number; // id связи (для удаления)
+  purchasePlanItemId?: number;
+  supplierId: number;
+  type?: string | null;
+  kpp?: string | null;
+  inn?: string | null;
+  code?: string | null;
+  name?: string | null;
+  contacts?: SupplierContact[];
+  createdAt?: string;
+}
+
+/** Поставщик из общего справочника (для поиска при добавлении) */
+export interface SupplierOption {
+  id: number;
+  type?: string | null;
+  kpp?: string | null;
+  inn?: string | null;
+  code?: string | null;
+  name?: string | null;
 }
 
 export interface PurchasePlanItemComment {

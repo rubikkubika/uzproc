@@ -9,6 +9,7 @@ import { usePurchasePlanItemsData } from './usePurchasePlanItemsData';
 import { usePurchasePlanItemsEditing } from './usePurchasePlanItemsEditing';
 import { usePurchasePlanItemsModals } from './usePurchasePlanItemsModals';
 import { usePurchasePlanItemsVersions } from './usePurchasePlanItemsVersions';
+import { usePurchasePlanItemsSuppliers } from './usePurchasePlanItemsSuppliers';
 import { useFocusRestoreAfterFetch } from '../../../purchase-requests/_components/hooks/useFocusRestoreAfterFetch';
 import { useInfiniteScroll } from '../../../purchase-requests/_components/hooks/useInfiniteScroll';
 import { useHolidayDateKeys } from '@/hooks/useHolidayDateKeys';
@@ -81,6 +82,7 @@ export const usePurchasePlanItemsTable = () => {
   const dataHook = usePurchasePlanItemsData();
   const modalsHook = usePurchasePlanItemsModals();
   const versionsHook = usePurchasePlanItemsVersions();
+  const suppliersHook = usePurchasePlanItemsSuppliers();
 
   // Ref для хранения актуальных значений фильтров (чтобы избежать пересоздания fetchData)
   const filtersRef = useRef(filtersHook);
@@ -1667,6 +1669,7 @@ export const usePurchasePlanItemsTable = () => {
     editing: editingHook,
     modals: modalsHook,
     versions: versionsHook,
+    suppliers: suppliersHook,
     holidayDateKeys,
   };
 };

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { MessageCircle } from 'lucide-react';
+import { MessageCircle, Factory } from 'lucide-react';
 import { ALL_COLUMNS } from '../constants/purchase-plan-items.constants';
 import { SortField, SortDirection } from '../types/purchase-plan-items.types';
 import SortableHeader from './SortableHeader';
@@ -213,6 +213,36 @@ export default function PurchasePlanItemsTableColumnsHeader({
             );
           }
           
+          // Для колонки suppliers создаём простой заголовок без сортировки и фильтров (значок завода)
+          if (columnKey === 'suppliers') {
+            return (
+              <th
+                key={columnKey}
+                className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative"
+                style={{ width: `${getColumnWidth(columnKey)}px` }}
+                draggable={!!columnKey}
+                onDragStart={columnKey ? (e) => handleDragStart(e, columnKey) : undefined}
+                onDragOver={columnKey ? (e) => handleDragOver(e, columnKey) : undefined}
+                onDragLeave={handleDragLeave}
+                onDrop={columnKey ? (e) => handleDrop(e, columnKey) : undefined}
+                data-column={columnKey || undefined}
+              >
+                <div className="flex items-center justify-center min-h-[20px]">
+                  <span className="min-h-[16px] flex items-center justify-center" title="Контрагенты">
+                    <Factory className="w-4 h-4 text-gray-500" aria-hidden />
+                  </span>
+                </div>
+                {columnKey && handleResizeStart && (
+                  <div
+                    className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-blue-500 bg-transparent"
+                    onMouseDown={(e) => handleResizeStart(e, columnKey)}
+                    style={{ zIndex: 10 }}
+                  />
+                )}
+              </th>
+            );
+          }
+
           // Для остальных колонок используем SortableHeader
           // Колонки с текстовыми фильтрами (текстовые/числовые поля без множественного выбора)
           const textFilterColumns = [

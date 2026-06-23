@@ -1,21 +1,14 @@
 package com.uzproc.backend.service.contract;
 
 import com.uzproc.backend.entity.Cfo;
-import com.uzproc.backend.entity.contract.Contract;
-import com.uzproc.backend.entity.contract.ContractApproval;
-import com.uzproc.backend.entity.user.User;
 import com.uzproc.backend.repository.CfoRepository;
-import com.uzproc.backend.repository.contract.ContractApprovalRepository;
 import com.uzproc.backend.repository.contract.ContractRepository;
-import com.uzproc.backend.repository.user.UserRepository;
-import com.uzproc.backend.service.user.UserImportEmailPolicy;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -32,6 +25,12 @@ import java.util.*;
  * Загружает согласования договоров из Excel (папка frontend/upload/approvals).
  * Фильтр: только строки с "Вид документа" = "Договор".
  * Связь с договором по колонке "Документ.Внутренний номер" (contract.inner_id).
+ *
+ * Производительность (важно для файла на ~33k строк):
+ *  - Excel парсится в лёгкие DTO ({@link ContractApprovalRowData}) без обращений к БД;
+ *  - справочники (contract inner_id → id, cfo name → id) предзагружаются в Map ОДНИМ запросом — нет N+1;
+ *  - запись идёт батчами в отдельных транзакциях с flush/clear через {@link ContractApprovalBatchSaver}
+ *    (вместо одной гигантской @Transactional на весь файл, которая раздувала сессию Hibernate до O(n²)).
  */
 @Service
 public class ContractApprovalExcelLoadService {
@@ -55,6 +54,8 @@ public class ContractApprovalExcelLoadService {
     private static final String COMMENT_COLUMN = "Комментарий";
     private static final String IS_WAITING_COLUMN = "Ожидание";
 
+    private static final int BATCH_SIZE = 500;
+
     private static final DateTimeFormatter[] DATE_TIME_PARSERS = {
         DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss"),
         DateTimeFormatter.ofPattern("dd.MM.yyyy H:mm:ss"),
@@ -71,28 +72,27 @@ public class ContractApprovalExcelLoadService {
         DateTimeFormatter.ofPattern("dd/MM/yyyy")
     };
 
-    private final ContractApprovalRepository contractApprovalRepository;
     private final ContractRepository contractRepository;
     private final CfoRepository cfoRepository;
-    private final UserRepository userRepository;
+    private final ContractApprovalBatchSaver batchSaver;
     private final DataFormatter dataFormatter = new DataFormatter();
 
     public ContractApprovalExcelLoadService(
-            ContractApprovalRepository contractApprovalRepository,
             ContractRepository contractRepository,
             CfoRepository cfoRepository,
-            UserRepository userRepository) {
-        this.contractApprovalRepository = contractApprovalRepository;
+            ContractApprovalBatchSaver batchSaver) {
         this.contractRepository = contractRepository;
         this.cfoRepository = cfoRepository;
-        this.userRepository = userRepository;
+        this.batchSaver = batchSaver;
     }
 
     /**
      * Загружает согласования договоров из Excel файла (папка approvals).
      * Только строки с "Вид документа" = "Договор". Связь с договором по "Документ.Внутренний номер".
+     *
+     * Без @Transactional на уровне метода: запись идёт независимыми REQUIRES_NEW-батчами,
+     * прогресс коммитится по ходу, сбой одного батча не откатывает весь импорт.
      */
-    @Transactional
     public int loadContractApprovalsFromExcel(File excelFile) throws IOException {
         Workbook workbook;
         try (FileInputStream fis = new FileInputStream(excelFile)) {
@@ -103,14 +103,16 @@ public class ContractApprovalExcelLoadService {
             }
         }
 
+        List<ContractApprovalRowData> rows;
+        int skippedNoContract;
+        int skippedNotContractType;
         try {
             Sheet sheet = workbook.getSheetAt(0);
+
+            // --- Поиск строки заголовка ---
             Row headerRow = null;
             int headerRowIndex = -1;
             Map<String, Integer> columnIndexMap = null;
-
-            // Обязательные колонки заголовка: строка считается заголовком, если в ней есть все эти колонки.
-            // Поиск в диапазоне первых строк (заголовки могут сдвигаться).
             final String[] requiredHeaderColumns = { INNER_ID_COLUMN, DOCUMENT_TYPE_COLUMN, STAGE_COLUMN, ROLE_COLUMN };
             final int headerSearchRows = 20;
 
@@ -169,14 +171,20 @@ public class ContractApprovalExcelLoadService {
                 return 0;
             }
 
+            // --- Предзагрузка справочников в память (устранение N+1) ---
+            Map<String, Long> contractIdByInnerId = loadContractCache();
+            Map<String, Long> cfoIdByName = loadCfoCache();
+            logger.info("Contract approvals: caches loaded — contracts: {}, cfo: {}", contractIdByInnerId.size(), cfoIdByName.size());
+
+            // --- Парсинг всех строк в DTO (без обращений к БД) ---
             Iterator<Row> rowIterator = sheet.iterator();
             for (int i = 0; i <= headerRowIndex && rowIterator.hasNext(); i++) {
                 rowIterator.next();
             }
 
-            int loadedCount = 0;
-            int skippedNoContract = 0;
-            int skippedNotContractType = 0;
+            rows = new ArrayList<>();
+            skippedNoContract = 0;
+            skippedNotContractType = 0;
             while (rowIterator.hasNext()) {
                 Row row = rowIterator.next();
                 if (isRowEmpty(row)) continue;
@@ -192,80 +200,216 @@ public class ContractApprovalExcelLoadService {
                     skippedNoContract++;
                     continue;
                 }
-                innerId = innerId.trim();
-
-                Optional<Contract> contractOpt = contractRepository.findByInnerId(innerId);
-                if (contractOpt.isEmpty()) {
-                    logger.debug("Contract approvals: contract not found for innerId '{}', row {}", innerId, row.getRowNum() + 1);
+                Long contractId = contractIdByInnerId.get(innerId.trim());
+                if (contractId == null) {
+                    logger.debug("Contract approvals: contract not found for innerId '{}', row {}", innerId.trim(), row.getRowNum() + 1);
                     skippedNoContract++;
                     continue;
                 }
-                Contract contract = contractOpt.get();
-                Long contractId = contract.getId();
 
-                ContractApproval approval = parseContractApprovalRow(row,
-                        innerIdColumnIndex, guidColumnIndex, cfoColumnIndex, documentFormColumnIndex,
+                ContractApprovalRowData data = parseContractApprovalRow(row, contractId, cfoIdByName,
+                        guidColumnIndex, cfoColumnIndex, documentFormColumnIndex,
                         stageColumnIndex, roleColumnIndex, executorFullNameColumnIndex, executorEmailColumnIndex,
                         assignmentDateColumnIndex, plannedCompletionDateColumnIndex, completionDateColumnIndex,
                         completionResultColumnIndex, commentColumnIndex, isWaitingColumnIndex);
-                if (approval == null) continue;
-
-                approval.setContractId(contractId);
-
-                Optional<ContractApproval> existingOpt = contractApprovalRepository.findByContractIdAndStageAndRole(contractId, approval.getStage(), approval.getRole());
-                if (existingOpt.isPresent()) {
-                    ContractApproval existing = existingOpt.get();
-                    updateContractApprovalFields(existing, approval);
-                    contractApprovalRepository.save(existing);
-                    loadedCount++;
-                } else {
-                    contractApprovalRepository.save(approval);
-                    loadedCount++;
+                if (data != null) {
+                    rows.add(data);
                 }
             }
-
-            logger.info("Loaded {} contract approvals from file {} (skipped not contract type: {}, no contract: {})",
-                    loadedCount, excelFile.getName(), skippedNotContractType, skippedNoContract);
-            return loadedCount;
         } finally {
             workbook.close();
         }
+
+        logger.info("Contract approvals: parsed {} rows from file {} (skipped not contract type: {}, no contract: {})",
+                rows.size(), excelFile.getName(), skippedNotContractType, skippedNoContract);
+
+        // --- Фаза 1: резолв/создание исполнителей батчами, проставление executorId ---
+        resolveExecutors(rows);
+
+        // --- Фаза 2: upsert согласований батчами ---
+        int loadedCount = saveApprovalsInBatches(rows);
+
+        logger.info("Loaded {} contract approvals from file {} (rows: {}, skipped not contract type: {}, no contract: {})",
+                loadedCount, excelFile.getName(), rows.size(), skippedNotContractType, skippedNoContract);
+        return loadedCount;
     }
 
-    private ContractApproval parseContractApprovalRow(Row row,
-            Integer innerIdColumnIndex, Integer guidColumnIndex, Integer cfoColumnIndex, Integer documentFormColumnIndex,
+    // ============================ Кэши справочников ============================
+
+    private Map<String, Long> loadContractCache() {
+        List<Object[]> all = contractRepository.findAllInnerIdAndId();
+        Map<String, Long> map = new HashMap<>(all.size() * 2);
+        for (Object[] r : all) {
+            String innerId = (String) r[0];
+            Long id = (Long) r[1];
+            if (innerId != null && id != null) {
+                map.put(innerId.trim(), id);
+            }
+        }
+        return map;
+    }
+
+    private Map<String, Long> loadCfoCache() {
+        List<Cfo> all = cfoRepository.findAll();
+        Map<String, Long> map = new HashMap<>(all.size() * 2);
+        for (Cfo cfo : all) {
+            if (cfo.getName() != null && cfo.getId() != null) {
+                map.put(cfo.getName().toLowerCase().trim(), cfo.getId());
+            }
+        }
+        return map;
+    }
+
+    // ============================ Фаза 1: пользователи ============================
+
+    /**
+     * Собирает уникальных исполнителей и резолвит/создаёт их батчами (REQUIRES_NEW),
+     * затем проставляет executorId в строки. Кэш наполняется только закоммиченными id,
+     * поэтому сбой батча не оставляет ссылок на несуществующих пользователей.
+     */
+    private void resolveExecutors(List<ContractApprovalRowData> rows) {
+        // Уникальные персоны: key → {key, fullName, email}
+        LinkedHashMap<String, String[]> distinct = new LinkedHashMap<>();
+        for (ContractApprovalRowData row : rows) {
+            String key = row.executorKey();
+            if (key != null && !distinct.containsKey(key)) {
+                distinct.put(key, new String[]{ key, row.executorFullName, row.executorEmail });
+            }
+        }
+        if (distinct.isEmpty()) {
+            return;
+        }
+
+        Map<String, Long> userIdCache = new HashMap<>(distinct.size() * 2);
+        List<String[]> batch = new ArrayList<>(BATCH_SIZE);
+        int resolved = 0;
+        for (String[] person : distinct.values()) {
+            batch.add(person);
+            if (batch.size() >= BATCH_SIZE) {
+                resolved += flushUserBatch(batch, userIdCache);
+            }
+        }
+        if (!batch.isEmpty()) {
+            resolved += flushUserBatch(batch, userIdCache);
+        }
+        logger.info("Contract approvals: resolved {} distinct executors", resolved);
+
+        // Проставляем executorId по кэшу
+        for (ContractApprovalRowData row : rows) {
+            String key = row.executorKey();
+            if (key != null) {
+                row.executorId = userIdCache.get(key);
+            }
+        }
+    }
+
+    /**
+     * Сохраняет батч персон; в глобальный кэш кладёт ТОЛЬКО закоммиченные id.
+     * При сбое быстрого пути — построчный fallback (теряется только плохая персона).
+     */
+    private int flushUserBatch(List<String[]> batch, Map<String, Long> userIdCache) {
+        if (batch.isEmpty()) return 0;
+        try {
+            Map<String, Long> committed = batchSaver.resolveUsersBatch(batch);
+            userIdCache.putAll(committed);
+            return committed.size();
+        } catch (Exception e) {
+            logger.warn("Contract approvals: user batch resolve failed ({}), retrying row-by-row for {} persons",
+                    e.getMessage(), batch.size());
+            int saved = 0;
+            for (String[] person : batch) {
+                try {
+                    Long id = batchSaver.resolveUserIsolated(person[1], person[2]);
+                    if (id != null) {
+                        userIdCache.put(person[0], id);
+                        saved++;
+                    }
+                } catch (Exception ex) {
+                    logger.warn("Contract approvals: skipping executor '{}': {}", person[1], ex.getMessage());
+                }
+            }
+            return saved;
+        } finally {
+            batch.clear();
+        }
+    }
+
+    // ============================ Фаза 2: согласования ============================
+
+    private int saveApprovalsInBatches(List<ContractApprovalRowData> rows) {
+        int loadedCount = 0;
+        int batchNumber = 0;
+        List<ContractApprovalRowData> batch = new ArrayList<>(BATCH_SIZE);
+        for (ContractApprovalRowData row : rows) {
+            batch.add(row);
+            if (batch.size() >= BATCH_SIZE) {
+                batchNumber++;
+                loadedCount += flushApprovalBatch(batch);
+                logger.debug("Contract approvals: batch {} saved ({} rows so far)", batchNumber, loadedCount);
+            }
+        }
+        if (!batch.isEmpty()) {
+            batchNumber++;
+            loadedCount += flushApprovalBatch(batch);
+            logger.debug("Contract approvals: final batch {} saved ({} rows total)", batchNumber, loadedCount);
+        }
+        return loadedCount;
+    }
+
+    /**
+     * Быстрый путь — {@link ContractApprovalBatchSaver#saveApprovalsBatch}; при сбое (например,
+     * одна строка испортила сессию) батч повторяется построчно через saveApprovalRowIsolated —
+     * теряется только плохая строка, а не весь батч. Список ВСЕГДА очищается в finally.
+     */
+    private int flushApprovalBatch(List<ContractApprovalRowData> batch) {
+        if (batch.isEmpty()) return 0;
+        try {
+            return batchSaver.saveApprovalsBatch(batch);
+        } catch (Exception e) {
+            logger.warn("Contract approvals: batch save failed ({}), retrying row-by-row for {} rows",
+                    e.getMessage(), batch.size());
+            int saved = 0;
+            for (ContractApprovalRowData data : batch) {
+                try {
+                    saved += batchSaver.saveApprovalRowIsolated(data);
+                } catch (Exception ex) {
+                    logger.warn("Contract approvals: skipping row {}: {}", data.excelRowNum, ex.getMessage());
+                }
+            }
+            return saved;
+        } finally {
+            batch.clear();
+        }
+    }
+
+    // ============================ Парсинг строки ============================
+
+    private ContractApprovalRowData parseContractApprovalRow(Row row, Long contractId, Map<String, Long> cfoIdByName,
+            Integer guidColumnIndex, Integer cfoColumnIndex, Integer documentFormColumnIndex,
             Integer stageColumnIndex, Integer roleColumnIndex, Integer executorFullNameColumnIndex, Integer executorEmailColumnIndex,
             Integer assignmentDateColumnIndex, Integer plannedCompletionDateColumnIndex, Integer completionDateColumnIndex,
             Integer completionResultColumnIndex, Integer commentColumnIndex, Integer isWaitingColumnIndex) {
-        ContractApproval a = new ContractApproval();
 
-        if (stageColumnIndex != null) {
-            String stage = getCellValueAsString(row.getCell(stageColumnIndex));
-            if (stage != null && !stage.trim().isEmpty()) {
-                a.setStage(stage.trim());
-            } else {
-                return null;
-            }
-        } else {
+        String stage = getCellValueAsString(row.getCell(stageColumnIndex));
+        if (stage == null || stage.trim().isEmpty()) {
+            return null;
+        }
+        String role = getCellValueAsString(row.getCell(roleColumnIndex));
+        if (role == null || role.trim().isEmpty()) {
             return null;
         }
 
-        if (roleColumnIndex != null) {
-            String role = getCellValueAsString(row.getCell(roleColumnIndex));
-            if (role != null && !role.trim().isEmpty()) {
-                a.setRole(role.trim());
-            } else {
-                return null;
-            }
-        } else {
-            return null;
-        }
+        ContractApprovalRowData a = new ContractApprovalRowData();
+        a.contractId = contractId;
+        a.stage = stage.trim();
+        a.role = role.trim();
+        a.excelRowNum = row.getRowNum() + 1;
 
         if (guidColumnIndex != null) {
             String guidStr = getCellValueAsString(row.getCell(guidColumnIndex));
             if (guidStr != null && !guidStr.trim().isEmpty()) {
                 try {
-                    a.setGuid(UUID.fromString(guidStr.trim()));
+                    a.guid = UUID.fromString(guidStr.trim());
                 } catch (IllegalArgumentException e) {
                     logger.debug("Invalid GUID in row {}: {}", row.getRowNum() + 1, guidStr);
                 }
@@ -275,184 +419,60 @@ public class ContractApprovalExcelLoadService {
         if (cfoColumnIndex != null) {
             String cfoStr = getCellValueAsString(row.getCell(cfoColumnIndex));
             if (cfoStr != null && !cfoStr.trim().isEmpty()) {
-                Optional<Cfo> cfoOpt = cfoRepository.findByNameIgnoreCase(cfoStr.trim());
-                cfoOpt.ifPresent(a::setCfo);
+                a.cfoId = cfoIdByName.get(cfoStr.toLowerCase().trim());
             }
         }
 
         if (documentFormColumnIndex != null) {
             String docForm = getCellValueAsString(row.getCell(documentFormColumnIndex));
             if (docForm != null && !docForm.trim().isEmpty()) {
-                a.setDocumentForm(docForm.trim());
+                a.documentForm = docForm.trim();
             }
         }
 
-        if (executorFullNameColumnIndex != null || executorEmailColumnIndex != null) {
-            String fullName = executorFullNameColumnIndex != null ? getCellValueAsString(row.getCell(executorFullNameColumnIndex)) : null;
-            String email = executorEmailColumnIndex != null ? getCellValueAsString(row.getCell(executorEmailColumnIndex)) : null;
+        if (executorFullNameColumnIndex != null) {
+            String fullName = getCellValueAsString(row.getCell(executorFullNameColumnIndex));
             if (fullName != null && !fullName.trim().isEmpty()) {
-                fullName = fullName.trim();
-            } else {
-                fullName = null;
+                a.executorFullName = fullName.trim();
             }
+        }
+        if (executorEmailColumnIndex != null) {
+            String email = getCellValueAsString(row.getCell(executorEmailColumnIndex));
             if (email != null && !email.trim().isEmpty()) {
-                email = email.trim();
-            } else {
-                email = null;
-            }
-            if (fullName != null || email != null) {
-                User executor = findOrCreateUserByFullNameAndEmail(fullName, email);
-                if (executor != null) {
-                    a.setExecutor(executor);
-                }
+                a.executorEmail = email.trim();
             }
         }
 
         if (assignmentDateColumnIndex != null) {
-            LocalDateTime dt = parseDateCell(row.getCell(assignmentDateColumnIndex));
-            if (dt != null) a.setAssignmentDate(dt);
+            a.assignmentDate = parseDateCell(row.getCell(assignmentDateColumnIndex));
         }
         if (plannedCompletionDateColumnIndex != null) {
-            LocalDateTime dt = parseDateCell(row.getCell(plannedCompletionDateColumnIndex));
-            if (dt != null) a.setPlannedCompletionDate(dt);
+            a.plannedCompletionDate = parseDateCell(row.getCell(plannedCompletionDateColumnIndex));
         }
         if (completionDateColumnIndex != null) {
-            LocalDateTime dt = parseDateCell(row.getCell(completionDateColumnIndex));
-            if (dt != null) a.setCompletionDate(dt);
+            a.completionDate = parseDateCell(row.getCell(completionDateColumnIndex));
         }
 
         if (completionResultColumnIndex != null) {
             String result = getCellValueAsString(row.getCell(completionResultColumnIndex));
             if (result != null && !result.trim().isEmpty()) {
-                a.setCompletionResult(result.trim().length() > 1000 ? result.trim().substring(0, 1000) : result.trim());
+                a.completionResult = result.trim().length() > 1000 ? result.trim().substring(0, 1000) : result.trim();
             }
         }
         if (commentColumnIndex != null) {
             String comment = getCellValueAsString(row.getCell(commentColumnIndex));
             if (comment != null && !comment.trim().isEmpty()) {
-                a.setCommentText(comment.trim().length() > 2000 ? comment.trim().substring(0, 2000) : comment.trim());
+                a.commentText = comment.trim().length() > 2000 ? comment.trim().substring(0, 2000) : comment.trim();
             }
         }
         if (isWaitingColumnIndex != null) {
-            Boolean waiting = parseBooleanCell(row.getCell(isWaitingColumnIndex));
-            if (waiting != null) a.setIsWaiting(waiting);
+            a.isWaiting = parseBooleanCell(row.getCell(isWaitingColumnIndex));
         }
 
         return a;
     }
 
-    /**
-     * Обновляет поля существующей записи значениями из Excel (включая null — пустые ячейки очищают поле).
-     */
-    private void updateContractApprovalFields(ContractApproval existing, ContractApproval newData) {
-        existing.setGuid(newData.getGuid());
-        existing.setCfo(newData.getCfo());
-        existing.setDocumentForm(newData.getDocumentForm());
-        existing.setExecutor(newData.getExecutor());
-        existing.setAssignmentDate(newData.getAssignmentDate());
-        existing.setPlannedCompletionDate(newData.getPlannedCompletionDate());
-        existing.setCompletionDate(newData.getCompletionDate());
-        existing.setCompletionResult(newData.getCompletionResult());
-        existing.setCommentText(newData.getCommentText());
-        existing.setIsWaiting(newData.getIsWaiting());
-    }
-
-    /**
-     * Находит пользователя по фамилии и имени из согласования, при необходимости корректирует email и сохраняет.
-     * Поиск: сначала по (surname, name), при отсутствии — по email (если несколько записей с одним email — выбирается по совпадению ФИО или берётся первый с обновлением ФИО и email).
-     * Если не найден — создаёт пользователя. После нахождения/создания пользователь сохраняется, затем связывается с согласованием.
-     */
-    private User findOrCreateUserByFullNameAndEmail(String fullName, String email) {
-        if ((fullName == null || fullName.trim().isEmpty()) && (email == null || email.trim().isEmpty())) {
-            return null;
-        }
-        try {
-            String surname = null;
-            String name = null;
-            if (fullName != null && !fullName.trim().isEmpty()) {
-                String[] parts = fullName.trim().split("\\s+", 2);
-                if (parts.length >= 1) surname = parts[0].trim();
-                if (parts.length >= 2) name = parts[1].trim();
-            }
-
-            if (UserImportEmailPolicy.shouldSkipEmailFromImport(surname, name)) {
-                email = null;
-            }
-
-            // 1. Приоритет: поиск по фамилии и имени (как в согласовании)
-            User existingUser = null;
-            if (surname != null && name != null) {
-                existingUser = userRepository.findBySurnameAndName(surname, name).orElse(null);
-                if (existingUser == null) {
-                    existingUser = userRepository.findBySurnameAndName(name, surname).orElse(null);
-                }
-            }
-
-            // 2. Если не найден по ФИО — ищем по email (может быть несколько записей)
-            if (existingUser == null && email != null && !email.isEmpty()) {
-                List<User> byEmail = userRepository.findAllByEmail(email);
-                if (!byEmail.isEmpty()) {
-                    // Среди записей с этим email предпочитаем совпадение по ФИО
-                    User matchByName = null;
-                    for (User u : byEmail) {
-                        boolean sameSurname = (surname == null && u.getSurname() == null) || (surname != null && surname.equals(u.getSurname()));
-                        boolean sameName = (name == null && u.getName() == null) || (name != null && name.equals(u.getName()));
-                        if (sameSurname && sameName) {
-                            matchByName = u;
-                            break;
-                        }
-                    }
-                    existingUser = matchByName != null ? matchByName : byEmail.get(0);
-                }
-            }
-
-            if (existingUser != null) {
-                boolean updated = false;
-                if (email != null && !email.isEmpty() && !email.equals(existingUser.getEmail())) {
-                    existingUser.setEmail(email);
-                    updated = true;
-                }
-                if (surname != null && !surname.equals(existingUser.getSurname())) {
-                    existingUser.setSurname(surname);
-                    updated = true;
-                }
-                if (name != null && !name.equals(existingUser.getName())) {
-                    existingUser.setName(name);
-                    updated = true;
-                }
-                if (updated) {
-                    existingUser = userRepository.save(existingUser);
-                }
-                return existingUser;
-            }
-
-            // 3. Создаём нового пользователя по данным из согласования
-            String username = (email != null && email.contains("@"))
-                    ? email.substring(0, email.indexOf('@')).replaceAll("[^a-zA-Z0-9_.-]", "_")
-                    : (surname != null ? surname : "") + (name != null ? "_" + name : "");
-            if (username.isEmpty() || username.equals("_")) {
-                username = "user_" + System.currentTimeMillis();
-            }
-            if (userRepository.existsByUsername(username)) {
-                username = username + "_" + System.currentTimeMillis();
-            }
-
-            User newUser = new User();
-            newUser.setUsername(username);
-            newUser.setPassword("");
-            newUser.setSurname(surname);
-            newUser.setName(name);
-            if (email != null && !email.isEmpty()) {
-                newUser.setEmail(email);
-            }
-            newUser = userRepository.save(newUser);
-            logger.debug("Created user for contract approval executor: {} {}, email: {}", surname, name, email);
-            return newUser;
-        } catch (Exception e) {
-            logger.warn("Error findOrCreateUserByFullNameAndEmail fullName='{}' email='{}': {}", fullName, email, e.getMessage());
-            return null;
-        }
-    }
+    // ============================ Утилиты парсинга ============================
 
     private Map<String, Integer> buildColumnIndexMap(Row headerRow) {
         Map<String, Integer> map = new HashMap<>();

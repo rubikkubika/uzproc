@@ -21,6 +21,7 @@ import PurchasePlanItemsSummaryTable from './ui/PurchasePlanItemsSummaryTable';
 
 // Модальные окнаф
 import PurchasePlanItemsDetailsModal from './ui/PurchasePlanItemsDetailsModal';
+import PurchasePlanItemsSuppliersModal from './ui/PurchasePlanItemsSuppliersModal';
 import PurchasePlanItemsCreateModal from './ui/PurchasePlanItemsCreateModal';
 import PurchasePlanItemsAuthModal from './ui/PurchasePlanItemsAuthModal';
 import PurchasePlanItemsErrorModal from './ui/PurchasePlanItemsErrorModal';
@@ -196,6 +197,27 @@ function PurchasePlanItemsTableContent() {
     // Загружаем комментарии плана и заявки (если есть связанная заявка)
     table.modalData.fetchComments(item.id, true, item.purchaseRequestId ?? undefined);
   }, [table.modals, table.modalData]);
+
+  // Обработчик клика по ячейке контрагентов (открытие модального окна со списком контрагентов)
+  const handleSuppliersClick = useCallback((item: any) => {
+    table.suppliers.setSuppliersModalOpen(item.id);
+    table.suppliers.fetchSuppliers(item.id);
+  }, [table.suppliers]);
+
+  // Обновление счётчика контрагентов в данных таблицы после изменений
+  const updateSupplierCount = useCallback((itemId: number, count: number) => {
+    table.setAllItems((prev: any[]) =>
+      prev.map((it: any) => (it.id === itemId ? { ...it, supplierCount: count } : it))
+    );
+    if (table.data) {
+      table.setData({
+        ...table.data,
+        content: table.data.content.map((it: any) =>
+          it.id === itemId ? { ...it, supplierCount: count } : it
+        ),
+      });
+    }
+  }, [table.setAllItems, table.setData, table.data]);
 
   // Обработчик изменения вкладки в модальном окне
   const handleTabChange = useCallback((itemId: number, tab: any) => {
@@ -813,6 +835,7 @@ function PurchasePlanItemsTableContent() {
             getCompanyLogoPath={getCompanyLogoPath}
             getPurchaseRequestStatusColor={getPurchaseRequestStatusColor}
             onRowClick={handleRowClick}
+            onSuppliersClick={handleSuppliersClick}
             columnOrder={table.columns.filteredColumnOrder}
             tempDates={table.editing.tempDates}
             animatingDates={table.editing.animatingDates}
@@ -863,6 +886,35 @@ function PurchasePlanItemsTableContent() {
             }
           }}
           loadingPurchaseRequest={currentModalItemId ? table.modalData.purchaseRequestData[currentModalItemId]?.loading || false : false}
+        />
+      )}
+
+      {/* Модальное окно контрагентов: список и добавление контрагентов позиции плана */}
+      {table.suppliers.suppliersModalOpen !== null && (
+        <PurchasePlanItemsSuppliersModal
+          isOpen={table.suppliers.suppliersModalOpen !== null}
+          itemId={table.suppliers.suppliersModalOpen}
+          suppliers={table.suppliers.suppliersData[table.suppliers.suppliersModalOpen]?.content || []}
+          loading={table.suppliers.suppliersData[table.suppliers.suppliersModalOpen]?.loading || false}
+          onClose={() => table.suppliers.setSuppliersModalOpen(null)}
+          onAddExisting={async (itemId, supplierId) => {
+            const count = await table.suppliers.addExistingSupplier(itemId, supplierId);
+            updateSupplierCount(itemId, count);
+            return count;
+          }}
+          onCreate={async (itemId, payload) => {
+            const count = await table.suppliers.createSupplier(itemId, payload);
+            updateSupplierCount(itemId, count);
+            return count;
+          }}
+          onRemove={async (itemId, linkId) => {
+            const count = await table.suppliers.removeSupplier(itemId, linkId);
+            updateSupplierCount(itemId, count);
+            return count;
+          }}
+          onSearch={table.suppliers.searchSuppliers}
+          onAddContact={table.suppliers.addContact}
+          onRemoveContact={table.suppliers.removeContact}
         />
       )}
 

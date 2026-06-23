@@ -13,6 +13,7 @@ import com.uzproc.backend.entity.purchaseplan.PurchasePlanItemStatus;
 import com.uzproc.backend.repository.CfoRepository;
 import com.uzproc.backend.repository.purchaseplan.PurchasePlanItemCommentRepository;
 import com.uzproc.backend.repository.purchaseplan.PurchasePlanItemRepository;
+import com.uzproc.backend.repository.purchaseplan.PurchasePlanItemSupplierRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
 import com.uzproc.backend.repository.user.UserRepository;
 import com.uzproc.backend.service.calendar.WorkingDayService;
@@ -47,6 +48,7 @@ public class PurchasePlanItemService {
     
     private final PurchasePlanItemRepository purchasePlanItemRepository;
     private final PurchasePlanItemCommentRepository purchasePlanItemCommentRepository;
+    private final PurchasePlanItemSupplierRepository purchasePlanItemSupplierRepository;
     private final PurchasePlanItemChangeService purchasePlanItemChangeService;
     private final PurchaseRequestRepository purchaseRequestRepository;
     private final CfoRepository cfoRepository;
@@ -61,6 +63,7 @@ public class PurchasePlanItemService {
     public PurchasePlanItemService(
             PurchasePlanItemRepository purchasePlanItemRepository,
             PurchasePlanItemCommentRepository purchasePlanItemCommentRepository,
+            PurchasePlanItemSupplierRepository purchasePlanItemSupplierRepository,
             PurchasePlanItemChangeService purchasePlanItemChangeService,
             PurchaseRequestRepository purchaseRequestRepository,
             CfoRepository cfoRepository,
@@ -70,6 +73,7 @@ public class PurchasePlanItemService {
             WorkingDayService workingDayService) {
         this.purchasePlanItemRepository = purchasePlanItemRepository;
         this.purchasePlanItemCommentRepository = purchasePlanItemCommentRepository;
+        this.purchasePlanItemSupplierRepository = purchasePlanItemSupplierRepository;
         this.purchasePlanItemChangeService = purchasePlanItemChangeService;
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.cfoRepository = cfoRepository;
@@ -283,6 +287,20 @@ public class PurchasePlanItemService {
         }
         final Map<Long, Long> finalCommentCountMap = commentCountMap;
 
+        // Подсчёт привязанных контрагентов по позициям плана (для колонки «Контрагенты»)
+        Map<Long, Long> supplierCountMap = new HashMap<>();
+        if (!planItemIdsForCommentCount.isEmpty()) {
+            List<Object[]> supplierCountRows = purchasePlanItemSupplierRepository.countByPurchasePlanItemIdIn(planItemIdsForCommentCount);
+            for (Object[] row : supplierCountRows) {
+                Long itemId = (Long) row[0];
+                Long count = (Long) row[1];
+                if (itemId != null && count != null) {
+                    supplierCountMap.put(itemId, count);
+                }
+            }
+        }
+        final Map<Long, Long> finalSupplierCountMap = supplierCountMap;
+
         // Подсчёт комментариев по заявкам (id_purchase_request -> количество комментариев заявки)
         Map<Long, Long> requestCommentCountByBusinessId = new HashMap<>();
         if (!purchaseRequestsList.isEmpty()) {
@@ -307,9 +325,10 @@ public class PurchasePlanItemService {
                     ? finalRequestCommentCountByBusinessId.getOrDefault(item.getPurchaseRequestId(), 0L)
                     : 0L;
             dto.setCommentCount((int) (planComments + requestComments));
+            dto.setSupplierCount(finalSupplierCountMap.getOrDefault(item.getId(), 0L).intValue());
             return dto;
         });
-        
+
         return dtoPage;
     }
 
@@ -346,6 +365,7 @@ public class PurchasePlanItemService {
             requestComments = requestCounts.getOrDefault(prEntityId, 0L);
         }
         dto.setCommentCount((int) (planComments + requestComments));
+        dto.setSupplierCount((int) purchasePlanItemSupplierRepository.countByPurchasePlanItemId(item.getId()));
         return dto;
     }
 

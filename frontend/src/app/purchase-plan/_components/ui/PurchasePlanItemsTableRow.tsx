@@ -13,6 +13,7 @@ interface PurchasePlanItemsTableRowProps {
   getColumnWidth: (columnKey: string) => number;
   formatBudget: (amount: number | null) => string;
   onRowClick?: (item: PurchasePlanItem) => void;
+  onSuppliersClick?: (item: PurchasePlanItem) => void;
   // Пропсы для редактирования - состояния
   editingDate: { itemId: number; field: 'requestDate' } | null;
   editingStatus: number | null;
@@ -70,6 +71,7 @@ export default function PurchasePlanItemsTableRow({
   getColumnWidth,
   formatBudget,
   onRowClick,
+  onSuppliersClick,
   editingDate,
   editingStatus,
   editingHolding,
@@ -881,7 +883,25 @@ export default function PurchasePlanItemsTableRow({
           </td>
         );
       }
-      
+
+      case 'suppliers': {
+        const supplierCount = item.supplierCount ?? 0;
+        return (
+          <td
+            key={columnKey}
+            className="px-2 py-2 border-r border-gray-300 whitespace-nowrap text-center cursor-pointer text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors"
+            style={{ width: `${width}px`, fontSize: '13.44px' }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSuppliersClick?.(item);
+            }}
+            title="Открыть список контрагентов"
+          >
+            ({supplierCount})
+          </td>
+        );
+      }
+
       default:
         // Для остальных колонок просто отображаем значение
         const value = item[columnKey as keyof PurchasePlanItem];

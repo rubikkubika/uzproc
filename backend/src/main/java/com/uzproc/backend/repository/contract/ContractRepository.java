@@ -25,6 +25,15 @@ public interface ContractRepository extends JpaRepository<Contract, Long>, JpaSp
     Optional<Contract> findByGuid(UUID guid);
     boolean existsByGuid(UUID guid);
     Optional<Contract> findByInnerId(String innerId);
+
+    /**
+     * Лёгкая projection-выборка (inner_id, id) по всем договорам с непустым inner_id.
+     * Используется для предзагрузки кэша inner_id → id при импорте согласований договоров,
+     * чтобы не дёргать findByInnerId на каждую строку Excel (устранение N+1).
+     */
+    @Query("SELECT c.innerId, c.id FROM Contract c WHERE c.innerId IS NOT NULL AND c.innerId <> ''")
+    List<Object[]> findAllInnerIdAndId();
+
     boolean existsByInnerId(String innerId);
     List<Contract> findByPurchaseRequestId(Long purchaseRequestId);
     List<Contract> findByPurchaseRequestIdIn(List<Long> purchaseRequestIds);

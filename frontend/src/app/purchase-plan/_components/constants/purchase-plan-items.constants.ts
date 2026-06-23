@@ -47,6 +47,7 @@ export const ALL_COLUMNS = [
   { key: 'purchaseRequestStatus', label: 'Статус заявки' },
   { key: 'comment', label: 'Комментарий' },
   { key: 'details', label: 'Комментарии' },
+  { key: 'suppliers', label: 'Контрагенты' },
   { key: 'createdAt', label: 'Дата создания' },
   { key: 'updatedAt', label: 'Дата обновления' },
 ] as const;
@@ -65,6 +66,7 @@ export const DEFAULT_VISIBLE_COLUMNS = [
   'newContractDate',
   'status',
   'details',
+  'suppliers',
   'ganttChart',
 ];
 
@@ -99,6 +101,7 @@ export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   purchaseRequestStatus: 200,
   comment: 192,
   details: 100,
+  suppliers: 100,
   createdAt: 128,
   updatedAt: 128,
 };
