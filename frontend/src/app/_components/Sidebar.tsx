@@ -26,6 +26,7 @@ import {
   BookOpen,
   CalendarDays,
   Star,
+  ClipboardCheck,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -64,6 +65,7 @@ const menuItems: Array<{ id: string; label: string; icon: any }> = [];
     { id: 'invoice-recognition', label: 'Распознавание', icon: ScanText },
     { id: 'training', label: 'Обучение', icon: GraduationCap },
     { id: 'csi', label: 'Форма оценки (CSI)', icon: Star, isExternal: true },
+    { id: 'specification-feedback', label: 'Оценка по спецификациям', icon: ClipboardCheck, isExternal: true },
   ];
 
   const backendItems: Array<{ id: string; label: string; icon: any }> = [];

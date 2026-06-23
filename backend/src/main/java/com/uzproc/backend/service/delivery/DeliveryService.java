@@ -137,7 +137,21 @@ public class DeliveryService {
         Page<Delivery> deliveries = deliveryRepository.findAll(spec, pageable);
         logger.info("Delivery list: page={}, size={}, totalElements={}", page, size, deliveries.getTotalElements());
 
-        return deliveries.map(this::toDto);
+        // Батч-загрузка дат регистрации/синхронизации договоров для всей страницы (вместо 2 нативных запросов на строку)
+        List<Long> contractIds = deliveries.getContent().stream()
+                .map(d -> d.getContract() != null ? d.getContract().getId() : null)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        java.util.Map<Long, LocalDate> regDates = contractIds.isEmpty() ? java.util.Collections.emptyMap()
+                : toDateMap(contractApprovalRepository.findRegistrationCompletionDatesByContractIds(contractIds));
+        java.util.Map<Long, LocalDate> syncDates = contractIds.isEmpty() ? java.util.Collections.emptyMap()
+                : toDateMap(contractApprovalRepository.findSynchronizationCompletionDatesByContractIds(contractIds));
+
+        return deliveries.map(d -> {
+            Long cid = d.getContract() != null ? d.getContract().getId() : null;
+            return toDtoCore(d, cid != null ? regDates.get(cid) : null, cid != null ? syncDates.get(cid) : null);
+        });
     }
 
     public DeliveryDto findById(Long id) {
@@ -770,6 +784,15 @@ public class DeliveryService {
     }
 
     public DeliveryDto toDto(Delivery entity) {
+        Long contractId = entity.getContract() != null ? entity.getContract().getId() : null;
+        return toDtoCore(entity, getContractRegistrationDate(contractId), getContractSynchronizationDate(contractId));
+    }
+
+    /**
+     * Ядро конвертации: даты регистрации/синхронизации договора передаются извне
+     * (для листинга считаются батчем, чтобы не делать 2 нативных запроса на каждую строку — N+1).
+     */
+    private DeliveryDto toDtoCore(Delivery entity, LocalDate contractRegistrationDate, LocalDate contractSynchronizationDate) {
         DeliveryDto dto = new DeliveryDto();
         dto.setId(entity.getId());
         dto.setInnerId(entity.getInnerId());
@@ -784,8 +807,8 @@ public class DeliveryService {
             dto.setContractPaymentScheme(entity.getContract().getPaymentScheme());
             dto.setContractPaymentTerms(entity.getContract().getPaymentTerms());
             dto.setContractDeliveryTerm(entity.getContract().getDeliveryTerm());
-            dto.setContractRegistrationDate(getContractRegistrationDate(entity.getContract().getId()));
-            dto.setContractSynchronizationDate(getContractSynchronizationDate(entity.getContract().getId()));
+            dto.setContractRegistrationDate(contractRegistrationDate);
+            dto.setContractSynchronizationDate(contractSynchronizationDate);
             dto.setContractPlannedDeliveryStartDate(entity.getContract().getPlannedDeliveryStartDate() != null
                     ? entity.getContract().getPlannedDeliveryStartDate().toLocalDate() : null);
         }
