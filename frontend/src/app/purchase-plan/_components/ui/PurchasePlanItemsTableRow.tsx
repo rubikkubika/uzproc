@@ -889,7 +889,7 @@ export default function PurchasePlanItemsTableRow({
         return (
           <td
             key={columnKey}
-            className="px-2 py-2 border-r border-gray-300 whitespace-nowrap text-center cursor-pointer text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors"
+            className="px-2 py-2 border-r border-gray-300 whitespace-nowrap text-center cursor-pointer text-red-600 hover:text-red-800 hover:bg-red-50 transition-colors"
             style={{ width: `${width}px`, fontSize: '13.44px' }}
             onClick={(e) => {
               e.stopPropagation();
