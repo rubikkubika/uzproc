@@ -83,6 +83,8 @@ interface Approval {
   completionDate: string | null;
   daysInWork: number | null;
   completionResult: string | null;
+  round: number;
+  countedInSla: boolean;
 }
 
 const SIDEBAR_COLLAPSED_KEY = 'sidebarCollapsed';
@@ -499,6 +501,20 @@ export default function PurchaseDetailPage() {
     }
   };
 
+  // Установить учитываемый в SLA круг согласования закупки (round = null → последний)
+  const setPurchaseCountedRound = async (purchaseRequestId: number, round: number | null): Promise<void> => {
+    try {
+      const url = `${getBackendUrl()}/api/purchase-approvals/by-purchase-request/${purchaseRequestId}/counted-round${round != null ? `?round=${round}` : ''}`;
+      const response = await fetch(url, { method: 'PUT' });
+      if (response.ok) {
+        const data = await response.json();
+        setPurchaseApprovals(data || []);
+      }
+    } catch (err) {
+      console.error('Error setting counted round:', err);
+    }
+  };
+
   // Функция для загрузки согласований договора по purchaseRequestId
   const fetchContractApprovals = async (purchaseRequestId: number): Promise<void> => {
     // TODO: Реализовать на бэкенде
@@ -706,17 +722,27 @@ export default function PurchaseDetailPage() {
     return approval.completionDate ? 'green' : 'yellow';
   };
 
+  // По умолчанию в карточке показываем учитываемый в SLA круг (последний или выбранный вручную)
+  const visibleApprovals = approvals.filter(a => a.countedInSla);
+  const visiblePurchaseApprovals = purchaseApprovals.filter(a => a.countedInSla);
+
+  // Доступные круги согласования (для переключателя)
+  const purchaseApprovalRounds = Array.from(new Set(purchaseApprovals.map(a => a.round))).sort((x, y) => x - y);
+  const selectedPurchaseRound = visiblePurchaseApprovals.length > 0
+    ? Math.max(...visiblePurchaseApprovals.map(a => a.round))
+    : null;
+
   // Фильтруем согласования по этапам
-  const approvalStageApprovals = approvals.filter(a => 
+  const approvalStageApprovals = visibleApprovals.filter(a =>
     a.stage === 'Согласование Заявки на ЗП'
   );
-  const managerStageApprovals = approvals.filter(a => 
+  const managerStageApprovals = visibleApprovals.filter(a =>
     a.stage === 'Руководитель закупщика'
   );
-  const finalApprovalStageApprovals = approvals.filter(a => 
+  const finalApprovalStageApprovals = visibleApprovals.filter(a =>
     a.stage === 'Утверждение заявки на ЗП'
   );
-  const finalApprovalNoZpStageApprovals = approvals.filter(a => 
+  const finalApprovalNoZpStageApprovals = visibleApprovals.filter(a =>
     a.stage === 'Утверждение заявки на ЗП (НЕ требуется ЗП)'
   );
   
@@ -727,14 +753,14 @@ export default function PurchaseDetailPage() {
     finalApprovalNoZpStageApprovals.some(a => a.completionDate !== null)) ||
     (purchaseRequest?.status === 'Утверждена');
 
-  // Фильтруем согласования закупки по этапам
-  const purchaseResultsApprovalApprovals = purchaseApprovals.filter(a => 
+  // Фильтруем согласования закупки по этапам (только учитываемый круг)
+  const purchaseResultsApprovalApprovals = visiblePurchaseApprovals.filter(a =>
     a.stage === 'Согласование результатов ЗП'
   );
-  const purchaseCommissionApprovals = purchaseApprovals.filter(a => 
+  const purchaseCommissionApprovals = visiblePurchaseApprovals.filter(a =>
     a.stage === 'Закупочная комиссия'
   );
-  const purchaseCommissionResultCheckApprovals = purchaseApprovals.filter(a => 
+  const purchaseCommissionResultCheckApprovals = visiblePurchaseApprovals.filter(a =>
     a.stage === 'Проверка результата закупочной комиссии'
   );
 
@@ -1187,6 +1213,27 @@ export default function PurchaseDetailPage() {
                           <span className="text-xs text-gray-900">{formatDate(purchase.purchaseCreationDate)}</span>
                         </div>
                       </div>
+                      {/* Переключатель учитываемого круга согласования */}
+                      {purchaseApprovalRounds.length > 1 && purchase?.purchaseRequestId && (
+                        <div className="flex items-center gap-1.5 flex-wrap bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                          <span className="text-[10px] font-semibold text-amber-800">Круг согласования:</span>
+                          {purchaseApprovalRounds.map((r) => (
+                            <button
+                              key={r}
+                              onClick={() => setPurchaseCountedRound(purchase.purchaseRequestId!, r)}
+                              className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                                selectedPurchaseRound === r
+                                  ? 'bg-amber-600 text-white border-amber-600'
+                                  : 'bg-white text-amber-800 border-amber-300 hover:bg-amber-100'
+                              }`}
+                              title={`Учитывать круг ${r} в SLA`}
+                            >
+                              Круг {r}{r === Math.max(...purchaseApprovalRounds) ? ' (последний)' : ''}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
                       {/* Этап: Согласование результатов ЗП */}
                       {purchaseResultsApprovalApprovals.length > 0 && (
                       <div className="bg-white rounded-lg shadow-md p-2">

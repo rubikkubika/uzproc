@@ -37,6 +37,18 @@ public class PurchaseApprovalController {
         List<PurchaseApprovalDto> approvals = approvalService.findByPurchaseRequestIdAndStage(purchaseRequestId, stage);
         return ResponseEntity.ok(approvals);
     }
+
+    /**
+     * Установить учитываемый в SLA круг согласования для закупки.
+     * Параметр round не задан → вернуться к последнему кругу.
+     */
+    @PutMapping("/by-purchase-request/{purchaseRequestId}/counted-round")
+    public ResponseEntity<List<PurchaseApprovalDto>> setCountedRound(
+            @PathVariable Long purchaseRequestId,
+            @RequestParam(required = false) Integer round) {
+        List<PurchaseApprovalDto> approvals = approvalService.setCountedRound(purchaseRequestId, round);
+        return ResponseEntity.ok(approvals);
+    }
 }
 
 

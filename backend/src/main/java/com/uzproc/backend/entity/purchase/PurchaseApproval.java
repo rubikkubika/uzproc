@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 @Table(name = "purchase_approvals", 
        uniqueConstraints = {
            @UniqueConstraint(
-               columnNames = {"purchase_request_id", "stage", "role"},
+               columnNames = {"purchase_request_id", "stage", "role", "round"},
                name = "unique_approval_per_purchase"
            )
        })
@@ -51,6 +51,14 @@ public class PurchaseApproval {
 
     @Column(name = "is_strategic_product")
     private Boolean isStrategicProduct;
+
+    // Номер круга согласования (1, 2, ...). Каждое переоткрытие круга в источнике = новая строка.
+    @Column(name = "round", nullable = false)
+    private Integer round = 1;
+
+    // Учитывается ли строка в SLA/аналитике. По умолчанию учитывается последний круг.
+    @Column(name = "counted_in_sla", nullable = false)
+    private Boolean countedInSla = true;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -168,6 +176,22 @@ public class PurchaseApproval {
 
     public void setIsStrategicProduct(Boolean isStrategicProduct) {
         this.isStrategicProduct = isStrategicProduct;
+    }
+
+    public Integer getRound() {
+        return round;
+    }
+
+    public void setRound(Integer round) {
+        this.round = round;
+    }
+
+    public Boolean getCountedInSla() {
+        return countedInSla;
+    }
+
+    public void setCountedInSla(Boolean countedInSla) {
+        this.countedInSla = countedInSla;
     }
 }
 

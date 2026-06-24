@@ -15,34 +15,42 @@ public interface PurchaseRequestApprovalRepository extends JpaRepository<Purchas
 
     /**
      * Найти все записи этапа «Утверждение заявки на ЗП» с указанной датой назначения (для получения списка годов).
+     * Учитываются только круги, помеченные counted_in_sla = true.
      */
-    List<PurchaseRequestApproval> findByStageInAndAssignmentDateIsNotNull(List<String> stages);
-    
-    // Найти все согласования для заявки по id_purchase_request
-    List<PurchaseRequestApproval> findByIdPurchaseRequest(Long idPurchaseRequest);
+    @Query("SELECT a FROM PurchaseRequestApproval a WHERE a.stage IN :stages AND a.assignmentDate IS NOT NULL AND a.countedInSla = true")
+    List<PurchaseRequestApproval> findByStageInAndAssignmentDateIsNotNull(@Param("stages") List<String> stages);
 
-    // Bulk-загрузка согласований по списку id_purchase_request (для устранения N+1, напр. в SLA-дашборде)
-    List<PurchaseRequestApproval> findByIdPurchaseRequestIn(List<Long> idPurchaseRequests);
-    
-    // Найти согласования по этапу
+    // Найти согласования заявки, учитываемые в SLA/аналитике (последний круг по умолчанию)
+    @Query("SELECT a FROM PurchaseRequestApproval a WHERE a.idPurchaseRequest = :idPurchaseRequest AND a.countedInSla = true")
+    List<PurchaseRequestApproval> findByIdPurchaseRequest(@Param("idPurchaseRequest") Long idPurchaseRequest);
+
+    // Найти ВСЕ согласования заявки по всем кругам (для отображения истории в карточке)
+    List<PurchaseRequestApproval> findAllByIdPurchaseRequestOrderByStageAscRoleAscRoundAsc(Long idPurchaseRequest);
+
+    // Найти все круги согласования по конкретному (этап, роль) — для логики импорта
+    List<PurchaseRequestApproval> findByIdPurchaseRequestAndStageAndRoleOrderByRoundAsc(
+        Long idPurchaseRequest,
+        String stage,
+        String role
+    );
+
+    // Bulk-загрузка согласований по списку id_purchase_request (устранение N+1, напр. в SLA-дашборде),
+    // только учитываемые в SLA круги
+    @Query("SELECT a FROM PurchaseRequestApproval a WHERE a.idPurchaseRequest IN :idPurchaseRequests AND a.countedInSla = true")
+    List<PurchaseRequestApproval> findByIdPurchaseRequestIn(@Param("idPurchaseRequests") List<Long> idPurchaseRequests);
+
+    // Найти согласования по этапу (все круги — для карточки)
     List<PurchaseRequestApproval> findByIdPurchaseRequestAndStage(
-        Long idPurchaseRequest, 
+        Long idPurchaseRequest,
         String stage
     );
-    
+
     // Найти согласования по роли
     List<PurchaseRequestApproval> findByIdPurchaseRequestAndRole(
-        Long idPurchaseRequest, 
+        Long idPurchaseRequest,
         String role
     );
-    
-    // Найти конкретное согласование
-    Optional<PurchaseRequestApproval> findByIdPurchaseRequestAndStageAndRole(
-        Long idPurchaseRequest, 
-        String stage, 
-        String role
-    );
-    
+
     // Удалить все согласования для заявки
     void deleteByIdPurchaseRequest(Long idPurchaseRequest);
 
@@ -50,7 +58,7 @@ public interface PurchaseRequestApprovalRepository extends JpaRepository<Purchas
      * Batch: (idPurchaseRequest, MIN(assignmentDate)) по этапам «Утверждение заявки на ЗП» для набора PR ID.
      * Используется для расчёта даты начала подготовки договора по заявкам без закупки.
      */
-    @Query(value = "SELECT id_purchase_request, MIN(assignment_date) FROM purchase_request_approvals WHERE id_purchase_request IN :prIds AND stage IN ('Утверждение заявки на ЗП', 'Утверждение заявки на ЗП (НЕ требуется ЗП)') GROUP BY id_purchase_request", nativeQuery = true)
+    @Query(value = "SELECT id_purchase_request, MIN(assignment_date) FROM purchase_request_approvals WHERE id_purchase_request IN :prIds AND counted_in_sla = true AND stage IN ('Утверждение заявки на ЗП', 'Утверждение заявки на ЗП (НЕ требуется ЗП)') GROUP BY id_purchase_request", nativeQuery = true)
     List<Object[]> findMinApprovalAssignmentDatesByPrIds(@Param("prIds") List<Long> prIds);
 
     /**
@@ -61,7 +69,7 @@ public interface PurchaseRequestApprovalRepository extends JpaRepository<Purchas
         SELECT t.id_purchase_request FROM (
             SELECT id_purchase_request, MIN(assignment_date) AS min_dt
             FROM purchase_request_approvals
-            WHERE stage IN ('Утверждение заявки на ЗП', 'Утверждение заявки на ЗП (НЕ требуется ЗП)') AND assignment_date IS NOT NULL
+            WHERE stage IN ('Утверждение заявки на ЗП', 'Утверждение заявки на ЗП (НЕ требуется ЗП)') AND assignment_date IS NOT NULL AND counted_in_sla = true
             GROUP BY id_purchase_request
         ) t
         WHERE CAST(t.min_dt AS date) BETWEEN :assignmentDateFrom AND :assignmentDateTo
@@ -93,26 +101,26 @@ public interface PurchaseRequestApprovalRepository extends JpaRepository<Purchas
                    MIN(assignment_date) AS min_assignment_date,
                    MAX(completion_date) AS max_completion_date
             FROM purchase_request_approvals
-            WHERE assignment_date IS NOT NULL
+            WHERE assignment_date IS NOT NULL AND counted_in_sla = true
             GROUP BY id_purchase_request
         ) sub ON sub.id_purchase_request = pr.id_purchase_request
         LEFT JOIN (
             SELECT id_purchase_request, MIN(assignment_date) AS assignment_date
             FROM purchase_request_approvals
             WHERE stage IN ('Утверждение заявки на ЗП', 'Утверждение заявки на ЗП (НЕ требуется ЗП)')
-              AND assignment_date IS NOT NULL
+              AND assignment_date IS NOT NULL AND counted_in_sla = true
             GROUP BY id_purchase_request
         ) approval_stage ON approval_stage.id_purchase_request = pr.id_purchase_request
         LEFT JOIN (
             SELECT purchase_request_id, MAX(completion_date) AS max_purchase_completion_date
             FROM purchase_approvals
-            WHERE completion_date IS NOT NULL
+            WHERE completion_date IS NOT NULL AND counted_in_sla = true
             GROUP BY purchase_request_id
         ) pa_sub ON pa_sub.purchase_request_id = pr.id_purchase_request
         LEFT JOIN (
             SELECT purchase_request_id, MIN(assignment_date) AS min_purchase_assignment_date
             FROM purchase_approvals
-            WHERE assignment_date IS NOT NULL
+            WHERE assignment_date IS NOT NULL AND counted_in_sla = true
             GROUP BY purchase_request_id
         ) pa_first_sub ON pa_first_sub.purchase_request_id = pr.id_purchase_request
         LEFT JOIN (
@@ -134,7 +142,7 @@ public interface PurchaseRequestApprovalRepository extends JpaRepository<Purchas
      * Batch: (idPurchaseRequest, MAX(completion_date)) по всем согласованиям для набора PR ID.
      * Используется как фолбэк даты начала подготовки договора когда дата назначения на утверждение отсутствует.
      */
-    @Query(value = "SELECT id_purchase_request, MAX(completion_date) FROM purchase_request_approvals WHERE id_purchase_request IN :prIds AND completion_date IS NOT NULL GROUP BY id_purchase_request", nativeQuery = true)
+    @Query(value = "SELECT id_purchase_request, MAX(completion_date) FROM purchase_request_approvals WHERE id_purchase_request IN :prIds AND completion_date IS NOT NULL AND counted_in_sla = true GROUP BY id_purchase_request", nativeQuery = true)
     List<Object[]> findMaxApprovalCompletionDatesByPrIds(@Param("prIds") List<Long> prIds);
 
     /**
@@ -147,6 +155,7 @@ public interface PurchaseRequestApprovalRepository extends JpaRepository<Purchas
         WHERE a.completion_date IS NOT NULL
           AND a.assignment_date IS NOT NULL
           AND a.role IS NOT NULL AND a.role <> ''
+          AND a.counted_in_sla = true
           AND (CAST(:year AS INTEGER) IS NULL OR EXTRACT(YEAR FROM a.assignment_date) = CAST(:year AS INTEGER))
         """, nativeQuery = true)
     List<Object[]> findRoleAndDatesForSummary(@Param("year") Integer year);

@@ -640,12 +640,47 @@ public class ReportExcelLoadService {
                     || (completionResult != null && !completionResult.trim().isEmpty());
             
             if (hasValue) {
-                PurchaseRequestApproval approval = requestApprovalRepository
-                    .findByIdPurchaseRequestAndStageAndRole(idPurchaseRequest, stage, role)
-                    .orElse(new PurchaseRequestApproval(idPurchaseRequest, stage, role));
-                
+                // Все известные круги по (этап, роль): из БД + уже добавленные в текущий batch
+                java.util.List<PurchaseRequestApproval> knownRounds = new java.util.ArrayList<>(
+                    requestApprovalRepository.findByIdPurchaseRequestAndStageAndRoleOrderByRoundAsc(idPurchaseRequest, stage, role));
+                for (PurchaseRequestApproval b : requestApprovalBatch) {
+                    if (b.getIdPurchaseRequest().equals(idPurchaseRequest)
+                            && stage.equals(b.getStage()) && role.equals(b.getRole())) {
+                        knownRounds.removeIf(k -> k.getRound() != null && k.getRound().equals(b.getRound()));
+                        knownRounds.add(b);
+                    }
+                }
+
+                // Определяем целевой круг согласования:
+                //  - та же дата назначения (или дата отсутствует) → обновляем существующий круг;
+                //  - новая дата назначения → новый круг, прежние перестают учитываться в SLA.
+                PurchaseRequestApproval sameDateRound = knownRounds.stream()
+                    .filter(k -> java.util.Objects.equals(k.getAssignmentDate(), assignmentDate))
+                    .findFirst().orElse(null);
+                PurchaseRequestApproval approval;
+                if (knownRounds.isEmpty()) {
+                    approval = new PurchaseRequestApproval(idPurchaseRequest, stage, role);
+                } else if (assignmentDate == null || sameDateRound != null) {
+                    approval = sameDateRound != null ? sameDateRound
+                        : knownRounds.stream().max(java.util.Comparator.comparingInt(PurchaseRequestApproval::getRound)).orElseThrow();
+                } else {
+                    int maxRound = knownRounds.stream().mapToInt(PurchaseRequestApproval::getRound).max().orElse(0);
+                    approval = new PurchaseRequestApproval(idPurchaseRequest, stage, role);
+                    approval.setRound(maxRound + 1);
+                    approval.setCountedInSla(true);
+                    // Прежние круги больше не учитываются в SLA (по умолчанию учитывается последний круг)
+                    for (PurchaseRequestApproval old : knownRounds) {
+                        if (Boolean.TRUE.equals(old.getCountedInSla())) {
+                            old.setCountedInSla(false);
+                            enqueueRequestApproval(old);
+                        }
+                    }
+                    logger.info("Новый круг согласования #{} для заявки {} (этап='{}', роль='{}')",
+                        maxRound + 1, idPurchaseRequest, stage, role);
+                }
+
                 boolean updated = false;
-                
+
                 if (assignmentDate != null) {
                     approval.setAssignmentDate(assignmentDate);
                     updated = true;
@@ -661,7 +696,7 @@ public class ReportExcelLoadService {
                 // Всегда обновляем результат выполнения
                 String trimmedResult = completionResult != null ? completionResult.trim() : null;
                 String currentResult = approval.getCompletionResult();
-                
+
                 // Обновляем, если значение изменилось или если ячейка существует и значение пустое (для очистки)
                 if (completionResultCell != null) {
                     // Ячейка существует - обновляем значение
@@ -694,37 +729,9 @@ public class ReportExcelLoadService {
                 // 2. ИЛИ есть обновления (updated == true) - значения изменились
                 // hasValue уже проверено в условии if выше, поэтому здесь всегда true
                 boolean isNew = approval.getId() == null;
-                boolean shouldAdd = isNew || updated;
-                
-                if (shouldAdd) {
-                    // ВАЖНО: Проверяем, нет ли уже такого согласования в batch'е, чтобы избежать дубликатов
-                    boolean alreadyInBatch = requestApprovalBatch.stream()
-                        .anyMatch(batchApproval -> 
-                            batchApproval.getIdPurchaseRequest().equals(approval.getIdPurchaseRequest()) &&
-                            batchApproval.getStage().equals(approval.getStage()) &&
-                            batchApproval.getRole().equals(approval.getRole()));
-                    
-                    if (alreadyInBatch) {
-                        logger.debug("Approval already in batch, skipping duplicate: idPurchaseRequest={}, stage={}, role={}", 
-                            approval.getIdPurchaseRequest(), approval.getStage(), approval.getRole());
-                    } else {
-                        requestApprovalBatch.add(approval);
-                        count++;
-                    }
-                    
-                    // Логирование для заявки 2075
-                    if (idPurchaseRequest == 2075L) {
-                        logger.info("=== ЗАЯВКА 2075: Создано/обновлено согласование stage={}, role={}, hasValue={}, updated={}, isNew={}, shouldAdd={} ===", 
-                            stage, role, hasValue, updated, isNew, shouldAdd);
-                    }
-                    
-                    // Сохраняем batch если он заполнен
-                    if (requestApprovalBatch.size() >= BATCH_SIZE) {
-                        flushRequestApprovalBatch();
-                    }
-                } else if (idPurchaseRequest == 2075L) {
-                    logger.warn("=== ЗАЯВКА 2075: Пропущено согласование stage={}, role={}, hasValue={}, updated={}, isNew={} ===", 
-                        stage, role, hasValue, updated, isNew);
+                if (isNew || updated) {
+                    enqueueRequestApproval(approval);
+                    count++;
                 }
             }
         }
@@ -780,10 +787,45 @@ public class ReportExcelLoadService {
                     || (completionResult != null && !completionResult.trim().isEmpty());
             
             if (hasValue) {
-                PurchaseApproval approval = purchaseApprovalRepository
-                    .findByPurchaseRequestIdAndStageAndRole(purchaseRequestId, stage, role)
-                    .orElse(new PurchaseApproval(purchaseRequestId, stage, role));
-                
+                // Все известные круги по (этап, роль): из БД + уже добавленные в текущий batch
+                java.util.List<PurchaseApproval> knownRounds = new java.util.ArrayList<>(
+                    purchaseApprovalRepository.findByPurchaseRequestIdAndStageAndRoleOrderByRoundAsc(purchaseRequestId, stage, role));
+                for (PurchaseApproval b : purchaseApprovalBatch) {
+                    if (b.getPurchaseRequestId().equals(purchaseRequestId)
+                            && stage.equals(b.getStage()) && role.equals(b.getRole())) {
+                        knownRounds.removeIf(k -> k.getRound() != null && k.getRound().equals(b.getRound()));
+                        knownRounds.add(b);
+                    }
+                }
+
+                // Определяем целевой круг согласования:
+                //  - та же дата назначения (или дата отсутствует) → обновляем существующий круг;
+                //  - новая дата назначения → новый круг, прежние перестают учитываться в SLA.
+                PurchaseApproval sameDateRound = knownRounds.stream()
+                    .filter(k -> java.util.Objects.equals(k.getAssignmentDate(), assignmentDate))
+                    .findFirst().orElse(null);
+                PurchaseApproval approval;
+                if (knownRounds.isEmpty()) {
+                    approval = new PurchaseApproval(purchaseRequestId, stage, role);
+                } else if (assignmentDate == null || sameDateRound != null) {
+                    approval = sameDateRound != null ? sameDateRound
+                        : knownRounds.stream().max(java.util.Comparator.comparingInt(PurchaseApproval::getRound)).orElseThrow();
+                } else {
+                    int maxRound = knownRounds.stream().mapToInt(PurchaseApproval::getRound).max().orElse(0);
+                    approval = new PurchaseApproval(purchaseRequestId, stage, role);
+                    approval.setRound(maxRound + 1);
+                    approval.setCountedInSla(true);
+                    // Прежние круги больше не учитываются в SLA (по умолчанию учитывается последний круг)
+                    for (PurchaseApproval old : knownRounds) {
+                        if (Boolean.TRUE.equals(old.getCountedInSla())) {
+                            old.setCountedInSla(false);
+                            enqueuePurchaseApproval(old);
+                        }
+                    }
+                    logger.info("Новый круг согласования #{} для закупки {} (этап='{}', роль='{}')",
+                        maxRound + 1, purchaseRequestId, stage, role);
+                }
+
                 boolean updated = false;
                 
                 if (assignmentDate != null) {
@@ -834,311 +876,11 @@ public class ReportExcelLoadService {
                 // 2. ИЛИ есть обновления (updated == true) - значения изменились
                 // hasValue уже проверено в условии if выше, поэтому здесь всегда true
                 boolean isNew = approval.getId() == null;
-                boolean shouldAdd = isNew || updated;
-                
-                if (shouldAdd) {
-                    // ВАЖНО: Проверяем, нет ли уже такого согласования в batch'е, чтобы избежать дубликатов
-                    boolean alreadyInBatch = purchaseApprovalBatch.stream()
-                        .anyMatch(batchApproval -> 
-                            batchApproval.getPurchaseRequestId().equals(approval.getPurchaseRequestId()) &&
-                            batchApproval.getStage().equals(approval.getStage()) &&
-                            batchApproval.getRole().equals(approval.getRole()));
-                    
-                    if (alreadyInBatch) {
-                        logger.debug("Purchase approval already in batch, skipping duplicate: purchaseRequestId={}, stage={}, role={}", 
-                            approval.getPurchaseRequestId(), approval.getStage(), approval.getRole());
-                    } else {
-                        purchaseApprovalBatch.add(approval);
-                        count++;
-                    }
-                    
-                    // Логирование для закупки 2075
-                    if (purchaseRequestId == 2075L) {
-                        logger.info("=== ЗАКУПКА 2075: Создано/обновлено согласование stage={}, role={}, hasValue={}, updated={}, isNew={}, shouldAdd={} ===", 
-                            stage, role, hasValue, updated, isNew, shouldAdd);
-                    }
-                    
-                    // Сохраняем batch если он заполнен
-                    if (purchaseApprovalBatch.size() >= BATCH_SIZE) {
-                        flushPurchaseApprovalBatch();
-                    }
-                } else if (purchaseRequestId == 2075L) {
-                    logger.warn("=== ЗАКУПКА 2075: Пропущено согласование stage={}, role={}, hasValue={}, updated={}, isNew={} ===", 
-                        stage, role, hasValue, updated, isNew);
-                }
-            } else if (purchaseRequestId == 2075L) {
-                logger.warn("=== ЗАКУПКА 2075: Не найдены колонки для stage={}, role={} ===", stage, role);
-            }
-        }
-        
-        return count;
-    }
-    
-    /**
-     * Парсит согласования для одного этапа (устаревший метод, больше не используется)
-     * @deprecated Используйте parseApprovalStageDynamic вместо этого метода
-     */
-    @Deprecated
-    private int parseApprovalStage(Row row, Long idPurchaseRequest, String stage, 
-                                   int startCol, int endCol, String[] roles) {
-        int count = 0;
-        int roleIndex = 0;
-        
-        // Для каждой роли есть 4 колонки: Дата назначения, Дата выполнения, Дней в работе, Результат выполнения
-        for (int col = startCol; col <= endCol && roleIndex < roles.length; col += 4) {
-            if (col + 3 > endCol) {
-                break;
-            }
-            
-            String role = roles[roleIndex];
-            
-            // Колонка col: Дата назначения
-            // Колонка col+1: Дата выполнения
-            // Колонка col+2: Дней в работе
-            // Колонка col+3: Результат выполнения
-            
-            Cell assignmentDateCell = row.getCell(col);
-            Cell completionDateCell = row.getCell(col + 1);
-            Cell daysInWorkCell = row.getCell(col + 2);
-            Cell completionResultCell = row.getCell(col + 3);
-            
-            LocalDateTime assignmentDate = parseDateCell(assignmentDateCell);
-            LocalDateTime completionDate = parseDateCell(completionDateCell);
-            Integer daysInWork = parseIntegerCell(daysInWorkCell);
-            String completionResult = getCellValueAsString(completionResultCell);
-            
-            // Логирование для отладки
-            logger.info("Parsing approval: stage={}, role={}, col={}, assignmentDate={}, completionDate={}, daysInWork={}, completionResultCell={}, completionResult={}", 
-                stage, role, col + 3, assignmentDate, completionDate, daysInWork, 
-                completionResultCell != null ? "exists" : "null", completionResult);
-            
-            // Детальное логирование для заявки 1944
-            if (idPurchaseRequest == 1944L) {
-                logger.info("=== ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ ДЛЯ ЗАЯВКИ 1944 ===");
-                logger.info("Роль: {}", role);
-                logger.info("Этап: {}", stage);
-                logger.info("Колонка {} (Дата назначения): cellType={}, cell={}, parsed={}", 
-                    col, assignmentDateCell != null ? assignmentDateCell.getCellType().toString() : "null",
-                    assignmentDateCell != null ? "exists" : "null", assignmentDate);
-                logger.info("Колонка {} (Дата выполнения): cellType={}, cell={}, parsed={}", 
-                    col + 1, completionDateCell != null ? completionDateCell.getCellType().toString() : "null",
-                    completionDateCell != null ? "exists" : "null", completionDate);
-                logger.info("Колонка {} (Дней в работе): cellType={}, cell={}, parsed={}", 
-                    col + 2, daysInWorkCell != null ? daysInWorkCell.getCellType().toString() : "null",
-                    daysInWorkCell != null ? "exists" : "null", daysInWork);
-                logger.info("Колонка {} (Результат выполнения): cellType={}, cell={}, parsed={}", 
-                    col + 3, completionResultCell != null ? completionResultCell.getCellType().toString() : "null",
-                    completionResultCell != null ? "exists" : "null", completionResult);
-                boolean willBeSaved = assignmentDate != null || completionDate != null || daysInWork != null 
-                    || (completionResult != null && !completionResult.trim().isEmpty());
-                logger.info("Будет сохранено в БД: {}", willBeSaved);
-                logger.info("=== КОНЕЦ ДЕТАЛЬНОГО ЛОГИРОВАНИЯ ===");
-            }
-            
-            // Сохраняем согласование только если есть хотя бы одно значение
-            if (assignmentDate != null || completionDate != null || daysInWork != null 
-                    || (completionResult != null && !completionResult.trim().isEmpty())) {
-                PurchaseRequestApproval approval = requestApprovalRepository
-                    .findByIdPurchaseRequestAndStageAndRole(idPurchaseRequest, stage, role)
-                    .orElse(new PurchaseRequestApproval(idPurchaseRequest, stage, role));
-                
-                boolean updated = false;
-                
-                if (assignmentDate != null) {
-                    approval.setAssignmentDate(assignmentDate);
-                    updated = true;
-                }
-                if (completionDate != null) {
-                    approval.setCompletionDate(completionDate);
-                    updated = true;
-                }
-                if (daysInWork != null) {
-                    approval.setDaysInWork(daysInWork);
-                    updated = true;
-                }
-                // Всегда обновляем результат выполнения
-                // Если ячейка существует, читаем значение (даже если пустое)
-                String trimmedResult = completionResult != null ? completionResult.trim() : null;
-                String currentResult = approval.getCompletionResult();
-                
-                // Обновляем, если значение изменилось или если ячейка существует и значение пустое (для очистки)
-                if (completionResultCell != null) {
-                    // Ячейка существует - обновляем значение
-                    if (trimmedResult == null || trimmedResult.isEmpty()) {
-                        if (currentResult != null) {
-                            approval.setCompletionResult(null);
-                            updated = true;
-                            logger.debug("Cleared completion result for stage={}, role={}", stage, role);
-                        }
-                    } else {
-                        if (!trimmedResult.equals(currentResult)) {
-                            approval.setCompletionResult(trimmedResult);
-                            updated = true;
-                            logger.debug("Updated completion result for stage={}, role={}: '{}'", 
-                                stage, role, trimmedResult);
-                        }
-                    }
-                } else if (trimmedResult != null && !trimmedResult.isEmpty()) {
-                    // Ячейка не существует, но значение есть (из merged cell или другого источника)
-                    if (!trimmedResult.equals(currentResult)) {
-                        approval.setCompletionResult(trimmedResult);
-                        updated = true;
-                        logger.debug("Updated completion result for stage={}, role={}: '{}'", 
-                            stage, role, trimmedResult);
-                    }
-                }
-                
-                if (updated || approval.getId() == null) {
-                    // ВАЖНО: Проверяем, нет ли уже такого согласования в batch'е, чтобы избежать дубликатов
-                    boolean alreadyInBatch = requestApprovalBatch.stream()
-                        .anyMatch(batchApproval -> 
-                            batchApproval.getIdPurchaseRequest().equals(approval.getIdPurchaseRequest()) &&
-                            batchApproval.getStage().equals(approval.getStage()) &&
-                            batchApproval.getRole().equals(approval.getRole()));
-                    
-                    if (alreadyInBatch) {
-                        logger.debug("Approval already in batch, skipping duplicate: idPurchaseRequest={}, stage={}, role={}", 
-                            approval.getIdPurchaseRequest(), approval.getStage(), approval.getRole());
-                    } else {
-                        requestApprovalBatch.add(approval);
-                        count++;
-                        
-                        // Сохраняем batch если он заполнен
-                        if (requestApprovalBatch.size() >= BATCH_SIZE) {
-                            flushRequestApprovalBatch();
-                        }
-                    }
+                if (isNew || updated) {
+                    enqueuePurchaseApproval(approval);
+                    count++;
                 }
             }
-            
-            roleIndex++;
-        }
-        
-        return count;
-    }
-    
-    /**
-     * Парсит согласования для одного этапа с учетом пропущенных колонок (устаревший метод, больше не используется)
-     * @deprecated Используйте parseApprovalStageDynamic вместо этого метода
-     */
-    @Deprecated
-    private int parseApprovalStageWithSkip(Row row, Long idPurchaseRequest, String stage, 
-                                           int startCol, int endCol, String[] roles, int skipCol) {
-        int count = 0;
-        int roleIndex = 0;
-        
-        // Для каждой роли есть 4 колонки: Дата назначения, Дата выполнения, Дней в работе, Результат выполнения
-        for (int col = startCol; col <= endCol && roleIndex < roles.length; ) {
-            // Пропускаем указанную колонку
-            if (col == skipCol) {
-                col++;
-                continue;
-            }
-            
-            if (col + 3 > endCol) {
-                break;
-            }
-            
-            String role = roles[roleIndex];
-            
-            // Колонка col: Дата назначения
-            // Колонка col+1: Дата выполнения
-            // Колонка col+2: Дней в работе
-            // Колонка col+3: Результат выполнения
-            
-            Cell assignmentDateCell = row.getCell(col);
-            Cell completionDateCell = row.getCell(col + 1);
-            Cell daysInWorkCell = row.getCell(col + 2);
-            Cell completionResultCell = row.getCell(col + 3);
-            
-            LocalDateTime assignmentDate = parseDateCell(assignmentDateCell);
-            LocalDateTime completionDate = parseDateCell(completionDateCell);
-            Integer daysInWork = parseIntegerCell(daysInWorkCell);
-            String completionResult = getCellValueAsString(completionResultCell);
-            
-            // Логирование для отладки
-            logger.info("Parsing approval: stage={}, role={}, col={}, assignmentDate={}, completionDate={}, daysInWork={}, completionResultCell={}, completionResult={}", 
-                stage, role, col + 3, assignmentDate, completionDate, daysInWork, 
-                completionResultCell != null ? "exists" : "null", completionResult);
-            
-            // Сохраняем согласование только если есть хотя бы одно значение
-            if (assignmentDate != null || completionDate != null || daysInWork != null 
-                    || (completionResult != null && !completionResult.trim().isEmpty())) {
-                PurchaseRequestApproval approval = requestApprovalRepository
-                    .findByIdPurchaseRequestAndStageAndRole(idPurchaseRequest, stage, role)
-                    .orElse(new PurchaseRequestApproval(idPurchaseRequest, stage, role));
-                
-                boolean updated = false;
-                
-                if (assignmentDate != null) {
-                    approval.setAssignmentDate(assignmentDate);
-                    updated = true;
-                }
-                if (completionDate != null) {
-                    approval.setCompletionDate(completionDate);
-                    updated = true;
-                }
-                if (daysInWork != null) {
-                    approval.setDaysInWork(daysInWork);
-                    updated = true;
-                }
-                // Всегда обновляем результат выполнения
-                // Если ячейка существует, читаем значение (даже если пустое)
-                String trimmedResult = completionResult != null ? completionResult.trim() : null;
-                String currentResult = approval.getCompletionResult();
-                
-                // Обновляем, если значение изменилось или если ячейка существует и значение пустое (для очистки)
-                if (completionResultCell != null) {
-                    // Ячейка существует - обновляем значение
-                    if (trimmedResult == null || trimmedResult.isEmpty()) {
-                        if (currentResult != null) {
-                            approval.setCompletionResult(null);
-                            updated = true;
-                            logger.debug("Cleared completion result for stage={}, role={}", stage, role);
-                        }
-                    } else {
-                        if (!trimmedResult.equals(currentResult)) {
-                            approval.setCompletionResult(trimmedResult);
-                            updated = true;
-                            logger.debug("Updated completion result for stage={}, role={}: '{}'", 
-                                stage, role, trimmedResult);
-                        }
-                    }
-                } else if (trimmedResult != null && !trimmedResult.isEmpty()) {
-                    // Ячейка не существует, но значение есть (из merged cell или другого источника)
-                    if (!trimmedResult.equals(currentResult)) {
-                        approval.setCompletionResult(trimmedResult);
-                        updated = true;
-                        logger.debug("Updated completion result for stage={}, role={}: '{}'", 
-                            stage, role, trimmedResult);
-                    }
-                }
-                
-                if (updated || approval.getId() == null) {
-                    // ВАЖНО: Проверяем, нет ли уже такого согласования в batch'е, чтобы избежать дубликатов
-                    boolean alreadyInBatch = requestApprovalBatch.stream()
-                        .anyMatch(batchApproval -> 
-                            batchApproval.getIdPurchaseRequest().equals(approval.getIdPurchaseRequest()) &&
-                            batchApproval.getStage().equals(approval.getStage()) &&
-                            batchApproval.getRole().equals(approval.getRole()));
-                    
-                    if (alreadyInBatch) {
-                        logger.debug("Approval already in batch, skipping duplicate: idPurchaseRequest={}, stage={}, role={}", 
-                            approval.getIdPurchaseRequest(), approval.getStage(), approval.getRole());
-                    } else {
-                        requestApprovalBatch.add(approval);
-                        count++;
-                        
-                        // Сохраняем batch если он заполнен
-                        if (requestApprovalBatch.size() >= BATCH_SIZE) {
-                            flushRequestApprovalBatch();
-                        }
-                    }
-                }
-            }
-            
-            roleIndex++;
-            col += 4; // Переходим к следующей роли
         }
         
         return count;
@@ -1491,6 +1233,44 @@ public class ReportExcelLoadService {
         logger.info("All approvals saved successfully");
     }
     
+    /**
+     * Добавляет согласование заявки в batch, не допуская дублей по (заявка, этап, роль, круг).
+     * При переполнении batch сбрасывает его в БД.
+     */
+    private void enqueueRequestApproval(PurchaseRequestApproval approval) {
+        boolean alreadyInBatch = requestApprovalBatch.stream().anyMatch(b ->
+            b == approval || (
+                b.getIdPurchaseRequest().equals(approval.getIdPurchaseRequest()) &&
+                java.util.Objects.equals(b.getStage(), approval.getStage()) &&
+                java.util.Objects.equals(b.getRole(), approval.getRole()) &&
+                java.util.Objects.equals(b.getRound(), approval.getRound())));
+        if (!alreadyInBatch) {
+            requestApprovalBatch.add(approval);
+        }
+        if (requestApprovalBatch.size() >= BATCH_SIZE) {
+            flushRequestApprovalBatch();
+        }
+    }
+
+    /**
+     * Добавляет согласование закупки в batch, не допуская дублей по (закупка, этап, роль, круг).
+     * При переполнении batch сбрасывает его в БД.
+     */
+    private void enqueuePurchaseApproval(PurchaseApproval approval) {
+        boolean alreadyInBatch = purchaseApprovalBatch.stream().anyMatch(b ->
+            b == approval || (
+                b.getPurchaseRequestId().equals(approval.getPurchaseRequestId()) &&
+                java.util.Objects.equals(b.getStage(), approval.getStage()) &&
+                java.util.Objects.equals(b.getRole(), approval.getRole()) &&
+                java.util.Objects.equals(b.getRound(), approval.getRound())));
+        if (!alreadyInBatch) {
+            purchaseApprovalBatch.add(approval);
+        }
+        if (purchaseApprovalBatch.size() >= BATCH_SIZE) {
+            flushPurchaseApprovalBatch();
+        }
+    }
+
     /**
      * Сохраняет накопленные согласования заявок пакетом
      * Использует save вместо saveAll для правильной обработки существующих записей

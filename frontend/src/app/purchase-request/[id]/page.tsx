@@ -98,6 +98,8 @@ interface Approval {
   completionDate: string | null;
   daysInWork: number | null;
   completionResult: string | null;
+  round: number;
+  countedInSla: boolean;
 }
 
 /** Согласование договора (contract_approvals) — для отображения в блоке Договор/Спецификация */
@@ -509,6 +511,20 @@ export default function PurchaseRequestDetailPage() {
     }
   };
 
+  // Установить учитываемый в SLA круг согласования закупки (round = null → последний)
+  const setPurchaseCountedRound = async (purchaseRequestId: number, round: number | null): Promise<void> => {
+    try {
+      const url = `${getBackendUrl()}/api/purchase-approvals/by-purchase-request/${purchaseRequestId}/counted-round${round != null ? `?round=${round}` : ''}`;
+      const response = await fetch(url, { method: 'PUT' });
+      if (response.ok) {
+        const data = await response.json();
+        setPurchaseApprovals(data || []);
+      }
+    } catch (err) {
+      console.error('Error setting counted round:', err);
+    }
+  };
+
   // Нормализация элемента согласования договора (поддержка executorName и executor_name из API)
   const normalizeContractApprovalItem = (item: Record<string, unknown>): ContractApprovalItem => ({
     id: Number(item.id),
@@ -697,7 +713,7 @@ export default function PurchaseRequestDetailPage() {
   };
 
   // Функция для определения цвета круга на основе результата выполнения
-  const getApprovalStatusColor = (approval: Approval): 'green' | 'yellow' | 'red' | 'orange' => {
+  const getApprovalStatusColor = (approval: { completionResult: string | null; completionDate: string | null; assignmentDate: string | null }): 'green' | 'yellow' | 'red' | 'orange' => {
     if (!approval.completionResult) {
       if (approval.completionDate) {
         return 'green';
@@ -725,17 +741,25 @@ export default function PurchaseRequestDetailPage() {
     return approval.completionDate ? 'green' : 'yellow';
   };
 
+  // По умолчанию показываем учитываемый в SLA круг (последний или выбранный вручную)
+  const visibleApprovals = approvals.filter(a => a.countedInSla);
+  const visiblePurchaseApprovals = purchaseApprovals.filter(a => a.countedInSla);
+  const purchaseApprovalRounds = Array.from(new Set(purchaseApprovals.map(a => a.round))).sort((x, y) => x - y);
+  const selectedPurchaseRound = visiblePurchaseApprovals.length > 0
+    ? Math.max(...visiblePurchaseApprovals.map(a => a.round))
+    : null;
+
   // Фильтруем согласования по этапам
-  const approvalStageApprovals = approvals.filter(a => 
+  const approvalStageApprovals = visibleApprovals.filter(a =>
     a.stage === 'Согласование Заявки на ЗП'
   );
-  const managerStageApprovals = approvals.filter(a => 
+  const managerStageApprovals = visibleApprovals.filter(a =>
     a.stage === 'Руководитель закупщика'
   );
-  const finalApprovalStageApprovals = approvals.filter(a => 
+  const finalApprovalStageApprovals = visibleApprovals.filter(a =>
     a.stage === 'Утверждение заявки на ЗП'
   );
-  const finalApprovalNoZpStageApprovals = approvals.filter(a => 
+  const finalApprovalNoZpStageApprovals = visibleApprovals.filter(a =>
     a.stage === 'Утверждение заявки на ЗП (НЕ требуется ЗП)'
   );
   
@@ -768,14 +792,14 @@ export default function PurchaseRequestDetailPage() {
   ) && !isPurchaseStepGreen;
   const isPurchaseStepRed = purchase && purchase.status === 'Закупка не согласована';
 
-  // Фильтруем согласования закупки по этапам
-  const purchaseResultsApprovalApprovals = purchaseApprovals.filter(a => 
+  // Фильтруем согласования закупки по этапам (только учитываемый круг)
+  const purchaseResultsApprovalApprovals = visiblePurchaseApprovals.filter(a =>
     a.stage === 'Согласование результатов ЗП'
   );
-  const purchaseCommissionApprovals = purchaseApprovals.filter(a => 
+  const purchaseCommissionApprovals = visiblePurchaseApprovals.filter(a =>
     a.stage === 'Закупочная комиссия'
   );
-  const purchaseCommissionResultCheckApprovals = purchaseApprovals.filter(a => 
+  const purchaseCommissionResultCheckApprovals = visiblePurchaseApprovals.filter(a =>
     a.stage === 'Проверка результата закупочной комиссии'
   );
 
@@ -1834,6 +1858,27 @@ export default function PurchaseRequestDetailPage() {
                           )}
                         </div>
                       )}
+                      {/* Переключатель учитываемого круга согласования */}
+                      {purchaseApprovalRounds.length > 1 && purchaseRequest?.idPurchaseRequest && (
+                        <div className="flex items-center gap-1.5 flex-wrap bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                          <span className="text-[10px] font-semibold text-amber-800">Круг согласования:</span>
+                          {purchaseApprovalRounds.map((r) => (
+                            <button
+                              key={r}
+                              onClick={() => setPurchaseCountedRound(purchaseRequest.idPurchaseRequest!, r)}
+                              className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                                selectedPurchaseRound === r
+                                  ? 'bg-amber-600 text-white border-amber-600'
+                                  : 'bg-white text-amber-800 border-amber-300 hover:bg-amber-100'
+                              }`}
+                              title={`Учитывать круг ${r} в SLA`}
+                            >
+                              Круг {r}{r === Math.max(...purchaseApprovalRounds) ? ' (последний)' : ''}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
                       {/* Этап: Согласование результатов ЗП */}
                       {purchaseResultsApprovalApprovals.length > 0 && (
                       <div className="bg-white rounded-lg shadow-md p-1.5">
@@ -2271,7 +2316,7 @@ export default function PurchaseRequestDetailPage() {
                                           <tbody>
                                             {stageItems.map((approval) => {
                                               const hasAssignment = approval.assignmentDate != null && String(approval.assignmentDate).trim() !== '';
-                                              const statusColor = getApprovalStatusColor({ ...approval, daysInWork: null, idPurchaseRequest: purchaseRequest.idPurchaseRequest ?? 0 });
+                                              const statusColor = getApprovalStatusColor(approval);
                                               const StatusIcon = !hasAssignment
                                                 ? () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-gray-300 flex items-center justify-center" title="Не назначено" />
                                                 : statusColor === 'green'
@@ -2453,7 +2498,7 @@ export default function PurchaseRequestDetailPage() {
                                         <tbody>
                                           {stageItems.map((approval) => {
                                             const hasAssignment = approval.assignmentDate != null && String(approval.assignmentDate).trim() !== '';
-                                            const statusColor = getApprovalStatusColor({ ...approval, daysInWork: null, idPurchaseRequest: purchaseRequest.idPurchaseRequest ?? 0 });
+                                            const statusColor = getApprovalStatusColor(approval);
                                             const StatusIcon = !hasAssignment ? () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-gray-300 flex items-center justify-center" title="Не назначено" /> : statusColor === 'green' ? () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-green-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано'}><Check className="w-2 h-2 text-white" /></div> : statusColor === 'orange' ? () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-orange-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано с замечаниями'}><Check className="w-2 h-2 text-white" /></div> : statusColor === 'yellow' ? () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-yellow-500 flex items-center justify-center animate-yellow-circle-pulse-fast" title={approval.completionResult || 'В процессе'}><Clock className="w-2 h-2 text-white" /></div> : () => <div className="w-3 h-3 flex-shrink-0 rounded-full bg-red-500 flex items-center justify-center" title={approval.completionResult || 'Не согласовано'}><X className="w-2 h-2 text-white" /></div>;
                                             const hasComment = approval.commentText != null && String(approval.commentText).trim() !== '';
                                             return (

@@ -11,6 +11,8 @@ public class PurchaseRequestApprovalDto {
     private LocalDateTime completionDate;
     private Integer daysInWork;
     private String completionResult;
+    private Integer round;
+    private Boolean countedInSla;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -81,6 +83,22 @@ public class PurchaseRequestApprovalDto {
 
     public void setCompletionResult(String completionResult) {
         this.completionResult = completionResult;
+    }
+
+    public Integer getRound() {
+        return round;
+    }
+
+    public void setRound(Integer round) {
+        this.round = round;
+    }
+
+    public Boolean getCountedInSla() {
+        return countedInSla;
+    }
+
+    public void setCountedInSla(Boolean countedInSla) {
+        this.countedInSla = countedInSla;
     }
 
     public LocalDateTime getCreatedAt() {
