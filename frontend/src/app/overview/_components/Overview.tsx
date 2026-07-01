@@ -29,6 +29,7 @@ import { ContractRemarksDashboardContent } from './ui/ContractRemarksDashboardCo
 import { ContractDocumentsCountDashboardContent } from './ui/ContractDocumentsCountDashboardContent';
 import { ContractApprovalsDashboardContent } from './ui/ContractApprovalsDashboardContent';
 import { PurchasesByCfoTabContent } from './ui/PurchasesByCfoTabContent';
+import { PurchaserDistributionTabContent } from './ui/PurchaserDistributionTabContent';
 import { KpiDashboard } from './kpi/KpiDashboard';
 import { useHolidayDateKeys } from '@/hooks/useHolidayDateKeys';
 
@@ -506,6 +507,11 @@ export default function Overview() {
         {activeTopTab === 'dashboards' && activeTab === 'purchases-by-cfo' && (
           <div className="w-full">
             <PurchasesByCfoTabContent enabled={activeTab === 'purchases-by-cfo'} />
+          </div>
+        )}
+        {activeTopTab === 'dashboards' && activeTab === 'purchaser-distribution' && (
+          <div className="w-full">
+            <PurchaserDistributionTabContent />
           </div>
         )}
         {activeTopTab === 'dashboards' && activeTab === 'kpi' && (

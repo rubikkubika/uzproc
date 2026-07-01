@@ -23,6 +23,7 @@ const DASHBOARD_SUB_TAB_LABELS: Record<OverviewTab, string> = {
   'contract-documents-count': 'Кол-во документов',
   'contract-approvals': 'Согласования договорных документов',
   'purchases-by-cfo': 'Закупки по ЦФО',
+  'purchaser-distribution': 'Распределение по закупщикам',
   kpi: 'KPI премии',
 };
 
