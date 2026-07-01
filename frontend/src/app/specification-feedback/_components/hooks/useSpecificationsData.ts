@@ -44,8 +44,8 @@ export function useSpecificationsData() {
         const result = await response.json();
         const content: SpecificationItem[] = result?.content ?? [];
 
-        // Отбираем по дате подписания в выбранном месяце
-        return content.filter((item) => isDateInMonth(item.contractCreationDate, year, month));
+        // Отбираем по дате синхронизации в выбранном месяце (signedTab=true уже отфильтровал договорников)
+        return content.filter((item) => isDateInMonth(item.synchronizationDate, year, month));
       } catch (err) {
         console.error('Error fetching specifications:', err);
         throw err;

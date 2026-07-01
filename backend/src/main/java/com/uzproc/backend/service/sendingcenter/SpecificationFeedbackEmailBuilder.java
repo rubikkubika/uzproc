@@ -39,10 +39,10 @@ public class SpecificationFeedbackEmailBuilder {
         StringBuilder rows = new StringBuilder();
         for (SpecificationFeedbackItem item : invitation.getItems()) {
             rows.append("<tr>")
-                .append(td(nvl(item.getInnerId())))
+                .append(td(nvl(item.getPurchaseRequestNumber())))
                 .append(td(nvl(item.getTitle())))
                 .append(td(nvl(item.getPreparedBy())))
-                .append(tdRight(formatAmount(item.getBudgetAmount()) + " " + nvl(item.getCurrency())))
+                .append(tdRight(formatAmountShort(item.getBudgetAmount()) + " " + nvl(item.getCurrency())))
                 .append(td(item.getSynchronizationDate() != null
                         ? item.getSynchronizationDate().format(DATE_FORMAT) : ""))
                 .append("</tr>");
@@ -59,6 +59,9 @@ public class SpecificationFeedbackEmailBuilder {
             <p style="color: #666666; font-size: 14px; line-height: 1.6; margin-bottom: 10px;">
                 Чтобы отдел закупок работал быстрее и удобнее для вас, нам очень важно узнать ваше мнение.
                 Пожалуйста, оцените работу закупок по этим спецификациям по ссылке:
+            </p>
+            <p style="color: #666666; font-size: 14px; line-height: 1.6; margin-bottom: 10px;">
+                Спасибо, что помогаете нам становиться лучше.
             </p>
             <p style="margin: 16px 0;">
                 <a href="%s" style="display: inline-block; background-color: #2563eb; color: #ffffff;
@@ -80,19 +83,16 @@ public class SpecificationFeedbackEmailBuilder {
                 </tbody>
             </table>
             <p style="color: #666666; font-size: 14px; line-height: 1.6; margin-top: 16px;">
-                Спасибо, что помогаете нам становиться лучше.
-            </p>
-            <p style="color: #666666; font-size: 14px; line-height: 1.6;">
                 С уважением,<br/>Ваша команда закупок
             </p>
             """.formatted(
                 period,
                 invitation.getCfoName(),
                 invitation.getSpecificationCount(),
-                formatAmount(invitation.getTotalAmount()),
+                formatAmountShort(invitation.getTotalAmount()),
                 formUrl,
                 formUrl,
-                th("№ спецификации"), th("Предмет"), th("Закупщик"), th("Сумма"), th("Дата синхронизации"),
+                th("№ заявки"), th("Предмет"), th("Исполнитель"), th("Сумма"), th("Дата подписания"),
                 rows.toString()
             );
     }
@@ -120,9 +120,31 @@ public class SpecificationFeedbackEmailBuilder {
 
     private String formatAmount(BigDecimal amount) {
         if (amount == null) {
+            return "0,00";
+        }
+        // Явное форматирование, не зависящее от локали сервера:
+        // разряды — неразрывный пробел, копейки — через запятую (две цифры).
+        java.text.DecimalFormatSymbols symbols = new java.text.DecimalFormatSymbols(java.util.Locale.ROOT);
+        symbols.setGroupingSeparator(' ');
+        symbols.setDecimalSeparator(',');
+        java.text.DecimalFormat df = new java.text.DecimalFormat("#,##0.00", symbols);
+        return df.format(amount);
+    }
+
+    /** Сокращённый формат итоговой суммы: млн/млрд (две цифры после запятой). */
+    private String formatAmountShort(BigDecimal amount) {
+        if (amount == null) {
             return "0";
         }
-        return String.format("%,.2f", amount).replace(',', ' ').replace('.', ',');
+        double v = amount.doubleValue();
+        double abs = Math.abs(v);
+        if (abs >= 1_000_000_000d) {
+            return formatAmount(java.math.BigDecimal.valueOf(v / 1_000_000_000d)) + " млрд";
+        }
+        if (abs >= 1_000_000d) {
+            return formatAmount(java.math.BigDecimal.valueOf(v / 1_000_000d)) + " млн";
+        }
+        return formatAmount(amount);
     }
 
     private String nvl(String s) {

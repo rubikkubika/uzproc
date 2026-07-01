@@ -306,6 +306,7 @@ public class SpecificationSendingService {
             item.setBudgetAmount(amount);
             item.setCurrency((String) r[5]);
             item.setSynchronizationDate(toLocalDateTime(r[6]));
+            item.setPurchaseRequestNumber(r[7] != null ? r[7].toString() : null);
             items.add(item);
             if (amount != null) {
                 total = total.add(amount);

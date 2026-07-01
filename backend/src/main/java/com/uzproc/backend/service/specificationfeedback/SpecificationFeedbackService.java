@@ -154,6 +154,7 @@ public class SpecificationFeedbackService {
             SpecificationFeedbackFormDto.Item item = new SpecificationFeedbackFormDto.Item();
             item.setContractId(src.getContractId());
             item.setInnerId(src.getInnerId());
+            item.setPurchaseRequestNumber(src.getPurchaseRequestNumber());
             item.setTitle(src.getTitle());
             item.setPreparedBy(src.getPreparedBy());
             item.setBudgetAmount(src.getBudgetAmount());

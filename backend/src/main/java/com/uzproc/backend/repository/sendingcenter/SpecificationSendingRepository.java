@@ -27,6 +27,7 @@ public interface SpecificationSendingRepository extends Repository<Contract, Lon
             "       COALESCE(SUM(c.budget_amount), 0) AS total_amount " +
             "FROM contracts c " +
             "JOIN cfo cfo ON cfo.id = c.cfo_id " +
+            "JOIN users u ON u.id = c.prepared_by_id AND u.is_contractor = true " +
             "JOIN ( " +
             "    SELECT contract_id, MAX(completion_date) AS sync_date " +
             "    FROM contract_approvals " +
@@ -48,12 +49,13 @@ public interface SpecificationSendingRepository extends Repository<Contract, Lon
      *
      * @return строки [contractId (Number), innerId (String), title (String),
      *                 preparedBy (String), budgetAmount (Number), currency (String),
-     *                 syncDate (Timestamp)]
+     *                 syncDate (Timestamp), purchaseRequestNumber (String)]
      */
     @Query(value =
             "SELECT c.id AS contract_id, c.inner_id, c.title, " +
             "       TRIM(CONCAT(COALESCE(u.surname, ''), ' ', COALESCE(u.name, ''))) AS prepared_by, " +
-            "       c.budget_amount, c.currency, sa.sync_date " +
+            "       c.budget_amount, c.currency, sa.sync_date, " +
+            "       CAST(c.purchase_request_id AS text) AS pr_number " +
             "FROM contracts c " +
             "JOIN cfo cfo ON cfo.id = c.cfo_id " +
             "JOIN ( " +
@@ -62,7 +64,7 @@ public interface SpecificationSendingRepository extends Repository<Contract, Lon
             "    WHERE LOWER(stage) LIKE 'синхронизация%' AND completion_date IS NOT NULL " +
             "    GROUP BY contract_id " +
             ") sa ON sa.contract_id = c.id " +
-            "LEFT JOIN users u ON u.id = c.prepared_by_id " +
+            "JOIN users u ON u.id = c.prepared_by_id AND u.is_contractor = true " +
             "WHERE c.document_form = 'Спецификация' " +
             "  AND c.status = 'SIGNED' " +
             "  AND LOWER(cfo.name) = LOWER(:cfoName) " +
@@ -82,6 +84,7 @@ public interface SpecificationSendingRepository extends Repository<Contract, Lon
     @Query(value =
             "SELECT to_char(sa.sync_date, 'YYYY-MM') AS ym, COUNT(*) AS spec_count " +
             "FROM contracts c " +
+            "JOIN users u ON u.id = c.prepared_by_id AND u.is_contractor = true " +
             "JOIN ( " +
             "    SELECT contract_id, MAX(completion_date) AS sync_date " +
             "    FROM contract_approvals " +

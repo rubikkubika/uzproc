@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { MONTHS } from '../constants/specification-feedback.constants';
-import { formatCurrency } from '../utils/specification-feedback.utils';
+import { formatAmountShortRu } from '@/utils/amount';
 
 interface EvaluationSummaryProps {
   cfo: string;
@@ -27,7 +27,7 @@ export default function EvaluationSummary({
   const rows: { label: string; value: string }[] = [
     { label: 'ЦФО:', value: cfo || '-' },
     { label: 'Оцениваемый период:', value: `${monthLabel} ${year}` },
-    { label: 'Сумма спецификаций:', value: formatCurrency(totalSum, currency) },
+    { label: 'Сумма спецификаций:', value: `${formatAmountShortRu(totalSum)} ${currency || 'UZS'}` },
     { label: 'Кол-во:', value: String(count) },
   ];
 

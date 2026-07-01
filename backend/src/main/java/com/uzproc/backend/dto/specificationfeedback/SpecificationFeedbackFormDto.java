@@ -31,6 +31,7 @@ public class SpecificationFeedbackFormDto {
     public static class Item {
         private Long contractId;
         private String innerId;
+        private String purchaseRequestNumber;
         private String title;
         private String preparedBy;
         private BigDecimal budgetAmount;
@@ -54,6 +55,14 @@ public class SpecificationFeedbackFormDto {
 
         public void setInnerId(String innerId) {
             this.innerId = innerId;
+        }
+
+        public String getPurchaseRequestNumber() {
+            return purchaseRequestNumber;
+        }
+
+        public void setPurchaseRequestNumber(String purchaseRequestNumber) {
+            this.purchaseRequestNumber = purchaseRequestNumber;
         }
 
         public String getTitle() {

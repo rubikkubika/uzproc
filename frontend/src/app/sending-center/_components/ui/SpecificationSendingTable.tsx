@@ -1,5 +1,6 @@
 import { Send, Check } from 'lucide-react';
 import { CfoSpecificationSending } from '@/utils/sending-center.api';
+import { formatAmountShortRu } from '@/utils/amount';
 import RecipientEditor from './RecipientEditor';
 
 interface SpecificationSendingTableProps {
@@ -10,8 +11,7 @@ interface SpecificationSendingTableProps {
 }
 
 function formatAmount(value: number | null): string {
-  if (value == null) return '0';
-  return value.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return formatAmountShortRu(value);
 }
 
 function formatSentAt(value: string | null): string {

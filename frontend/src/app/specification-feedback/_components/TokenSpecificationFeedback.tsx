@@ -73,7 +73,7 @@ export default function TokenSpecificationFeedback({ token }: TokenSpecification
                 <span className="font-semibold">
                   {monthLabel} {form.periodYear}
                 </span>
-                . Оцениваются завершённые (подписанные) спецификации, у которых дата синхронизации
+                . Оцениваются завершённые (подписанные) спецификации, у которых дата подписания
                 приходится на этот месяц.
               </p>
             </div>

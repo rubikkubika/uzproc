@@ -36,6 +36,10 @@ public class SpecificationFeedbackItem {
     @Column(name = "inner_id", length = 255)
     private String innerId;
 
+    /** Номер заявки (purchase_requests.inner_id) для этой спецификации. */
+    @Column(name = "purchase_request_number", length = 255)
+    private String purchaseRequestNumber;
+
     @Column(name = "title", length = 500)
     private String title;
 
@@ -88,6 +92,14 @@ public class SpecificationFeedbackItem {
 
     public void setInnerId(String innerId) {
         this.innerId = innerId;
+    }
+
+    public String getPurchaseRequestNumber() {
+        return purchaseRequestNumber;
+    }
+
+    public void setPurchaseRequestNumber(String purchaseRequestNumber) {
+        this.purchaseRequestNumber = purchaseRequestNumber;
     }
 
     public String getTitle() {

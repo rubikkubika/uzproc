@@ -2,7 +2,8 @@
 
 import React from 'react';
 import { SpecificationItem } from '../types/specification-feedback.types';
-import { formatCurrency, formatDate } from '../utils/specification-feedback.utils';
+import { formatDate } from '../utils/specification-feedback.utils';
+import { formatAmountShortRu } from '@/utils/amount';
 
 interface SpecificationsListProps {
   specifications: SpecificationItem[];
@@ -60,10 +61,10 @@ export default function SpecificationsList({ specifications, loading, error }: S
                     {spec.title || '-'}
                   </td>
                   <td className="px-2 py-0.5 text-xs text-gray-900 border-r border-b border-gray-200 align-top text-right whitespace-nowrap">
-                    {formatCurrency(spec.budgetAmount, spec.currency)}
+                    {formatAmountShortRu(spec.budgetAmount)} {spec.currency || 'UZS'}
                   </td>
                   <td className="px-2 py-0.5 text-xs text-gray-900 border-b border-gray-200 align-top whitespace-nowrap">
-                    {formatDate(spec.contractCreationDate)}
+                    {formatDate(spec.synchronizationDate)}
                   </td>
                 </tr>
               ))}
