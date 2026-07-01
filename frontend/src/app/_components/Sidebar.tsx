@@ -27,6 +27,7 @@ import {
   CalendarDays,
   Star,
   ClipboardCheck,
+  Send,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -436,6 +437,24 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                               <span className="ml-2 text-left">Справочник праздников</span>
                             </button>
                           </li>
+                          <li>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleTabChange('reference-cfo-leaders');
+                              }}
+                              className={`w-full flex items-center rounded-lg transition-colors relative text-sm px-2 py-1 ${
+                                activeTab === 'reference-cfo-leaders'
+                                  ? 'text-blue-600 bg-blue-50 border-l-4 border-blue-600'
+                                  : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                              }`}
+                            >
+                              <span className="flex items-center justify-center w-5 flex-shrink-0">
+                                <Users className="w-5 h-5" />
+                              </span>
+                              <span className="ml-2 text-left">Справочник рук. ЦФО</span>
+                            </button>
+                          </li>
                         </ul>
                       )}
                     </li>
@@ -458,6 +477,44 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                       </button>
                     </li>
                   )}
+                  {isCollapsed && (
+                    <li>
+                      <button
+                        type="button"
+                        onClick={() => handleTabChange('reference-cfo-leaders')}
+                        className={`w-full flex items-center rounded-lg transition-colors relative text-sm justify-center py-0.5 px-0 ${
+                          activeTab === 'reference-cfo-leaders'
+                            ? 'text-blue-600 bg-blue-50 border-l-4 border-blue-600'
+                            : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                        }`}
+                        title="Справочник рук. ЦФО"
+                      >
+                        <span className="flex items-center justify-center w-5 flex-shrink-0">
+                          <Users className="w-5 h-5" />
+                        </span>
+                      </button>
+                    </li>
+                  )}
+                  {/* Центр отправки */}
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => handleTabChange('sending-center')}
+                      className={`w-full flex items-center rounded-lg transition-colors relative text-sm ${
+                        isCollapsed ? 'justify-center py-0.5 px-0' : 'px-2 py-1'
+                      } ${
+                        activeTab === 'sending-center'
+                          ? `text-blue-600 bg-blue-50 ${isCollapsed ? '' : 'border-l-4 border-blue-600'}`
+                          : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                      }`}
+                      title={isCollapsed ? 'Центр отправки' : undefined}
+                    >
+                      <span className="flex items-center justify-center w-5 flex-shrink-0">
+                        <Send className="w-5 h-5" />
+                      </span>
+                      {!isCollapsed && <span className="ml-2">Центр отправки</span>}
+                    </button>
+                  </li>
                 {initiatorDevelopmentItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;

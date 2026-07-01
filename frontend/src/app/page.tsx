@@ -31,6 +31,8 @@ import Overview from './overview/_components/Overview';
 import InvoiceRecognition from './invoice-recognition/_components/InvoiceRecognition';
 import TrainingPage from './training/_components/TrainingPage';
 import HolidaysReferencePage from './reference-holidays/_components/HolidaysReferencePage';
+import CfoLeadersReferencePage from './reference-cfo-leaders/_components/CfoLeadersReferencePage';
+import SendingCenter from './sending-center/_components/SendingCenter';
 
 // Компонент для тестирования отправки почты
 function TestEmailForm() {
@@ -524,6 +526,25 @@ function DashboardContent() {
             <HolidaysReferencePage />
           </div>
         );
+
+      case 'reference-cfo-leaders':
+        if (userRole !== 'admin') {
+          return (
+            <div className="space-y-6">
+              <div className="bg-white p-6 rounded-lg shadow-lg">
+                <p className="text-gray-600">Доступ к справочнику руководителей ЦФО только для администратора.</p>
+              </div>
+            </div>
+          );
+        }
+        return (
+          <div className="h-full flex flex-col min-h-0">
+            <CfoLeadersReferencePage />
+          </div>
+        );
+
+      case 'sending-center':
+        return <SendingCenter />;
 
       case 'upload':
         return <UploadCSV />;

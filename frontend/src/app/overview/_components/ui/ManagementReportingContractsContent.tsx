@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import { ContractDocumentsCountDashboardContent } from './ContractDocumentsCountDashboardContent';
-import { ContractCsiMockupCard } from './ContractCsiMockupCard';
+import { ContractSpecificationCsiCard } from './ContractSpecificationCsiCard';
+import { SpecificationFeedbackGrid } from './SpecificationFeedbackGrid';
 import { ContractApprovalDurationDocTypeChart } from './ContractApprovalDurationDocTypeChart';
 import { useContractApprovalDurationByMonthMarket } from '../hooks/useContractApprovalDurationByMonthMarket';
 
@@ -48,7 +49,7 @@ export function ManagementReportingContractsContent({ enabled }: Props) {
           <ContractDocumentsCountDashboardContent enabled={enabled} />
         </div>
         <div className="min-w-0">
-          <ContractCsiMockupCard />
+          <ContractSpecificationCsiCard />
         </div>
       </div>
 
@@ -100,6 +101,12 @@ export function ManagementReportingContractsContent({ enabled }: Props) {
             />
           </div>
         </div>
+      </div>
+
+      {/* Оценки по спецификациям: карточки под графиками (группировка по месяцам, свежий сверху) */}
+      <div className="bg-white rounded shadow p-3">
+        <h3 className="text-sm font-medium text-gray-700 mb-2">Оценки работы закупок по спецификациям</h3>
+        <SpecificationFeedbackGrid year={year} />
       </div>
     </div>
   );
