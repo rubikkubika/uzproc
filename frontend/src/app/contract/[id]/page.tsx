@@ -145,32 +145,35 @@ export default function ContractDetailPage() {
         const data: ContractDetail = await response.json();
         setContract(data);
 
-        // Загрузим дочерние договоры (спецификации), если это основной договор
+        // Три зависимых запроса зависят только от data.id — грузим параллельно (было: waterfall)
+        const [childRes, payRes, approvalRes] = await Promise.allSettled([
+          fetch(`${getBackendUrl()}/api/contracts/by-parent/${data.id}`),
+          fetch(`${getBackendUrl()}/api/payments/by-contract/${data.id}`),
+          fetch(`${getBackendUrl()}/api/contract-approvals/by-contract/${data.id}`),
+        ]);
+
+        // Дочерние договоры (спецификации)
         try {
-          const childRes = await fetch(`${getBackendUrl()}/api/contracts/by-parent/${data.id}`);
-          if (childRes.ok) {
-            const children = await childRes.json();
-            setChildContracts(children);
+          if (childRes.status === 'fulfilled' && childRes.value.ok) {
+            setChildContracts(await childRes.value.json());
           }
         } catch {
           // ignore
         }
 
-        // Загрузим оплаты по contractId
+        // Оплаты по contractId
         try {
-          const payRes = await fetch(`${getBackendUrl()}/api/payments/by-contract/${data.id}`);
-          if (payRes.ok) {
-            setPayments(await payRes.json());
+          if (payRes.status === 'fulfilled' && payRes.value.ok) {
+            setPayments(await payRes.value.json());
           }
         } catch {
           // ignore
         }
 
-        // Загрузим согласования по contractId
+        // Согласования по contractId
         try {
-          const approvalRes = await fetch(`${getBackendUrl()}/api/contract-approvals/by-contract/${data.id}`);
-          if (approvalRes.ok) {
-            setContractApprovals(await approvalRes.json() || []);
+          if (approvalRes.status === 'fulfilled' && approvalRes.value.ok) {
+            setContractApprovals((await approvalRes.value.json()) || []);
           }
         } catch {
           // ignore

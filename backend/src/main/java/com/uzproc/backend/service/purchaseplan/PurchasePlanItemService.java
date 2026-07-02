@@ -18,7 +18,10 @@ import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
 import com.uzproc.backend.repository.user.UserRepository;
 import com.uzproc.backend.service.calendar.WorkingDayService;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestCommentService;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -1756,8 +1759,8 @@ public class PurchasePlanItemService {
             return predicates.isEmpty() ? cb.conjunction() : cb.and(predicates.toArray(new Predicate[0]));
         };
         
-        List<PurchasePlanItem> items = purchasePlanItemRepository.findAll(spec);
-        
+        List<LocalDate> requestDates = findRequestDates(spec);
+
         // Группируем по месяцам на основе requestDate
         Map<String, Integer> monthCounts = new HashMap<>();
         monthCounts.put("Дек (пред. год)", 0);
@@ -1765,10 +1768,9 @@ public class PurchasePlanItemService {
             String[] monthNames = {"Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"};
             monthCounts.put(monthNames[i], 0);
         }
-        
-        for (PurchasePlanItem item : items) {
-            if (item.getRequestDate() != null) {
-                LocalDate date = item.getRequestDate();
+
+        for (LocalDate date : requestDates) {
+            if (date != null) {
                 int monthIndex = date.getMonthValue() - 1; // 0-11
                 int requestYear = date.getYear();
                 
@@ -1796,6 +1798,22 @@ public class PurchasePlanItemService {
     }
 
     /**
+     * Проекция только колонки requestDate по спецификации — для месячных гистограмм.
+     * Грузит одну колонку вместо полной гидрации сущностей (~33 колонки), логика бакетинга — в Java как прежде.
+     */
+    private List<LocalDate> findRequestDates(Specification<PurchasePlanItem> spec) {
+        CriteriaBuilder cb = entityManager.getCriteriaBuilder();
+        CriteriaQuery<LocalDate> cq = cb.createQuery(LocalDate.class);
+        Root<PurchasePlanItem> root = cq.from(PurchasePlanItem.class);
+        cq.select(root.get("requestDate"));
+        Predicate p = spec.toPredicate(root, cq, cb);
+        if (p != null) {
+            cq.where(p);
+        }
+        return entityManager.createQuery(cq).getResultList();
+    }
+
+    /**
      * Возвращает распределение позиций плана закупок по месяцам для графика.
      * 14 элементов: [0] — декабрь предыдущего года, [1..12] — январь..декабрь выбранного года, [13] — без даты.
      * Используется тот же фильтр по статусу, что и в списке (в т.ч. по статусу заявки), без дополнительного исключения «Исключена».
@@ -1820,13 +1838,12 @@ public class PurchasePlanItemService {
                 year, company, purchaserCompany, cfo, purchaseSubject, purchaser, category,
                 requestMonths, requestYear, currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator);
 
-        List<PurchasePlanItem> items = purchasePlanItemRepository.findAll(spec);
+        List<LocalDate> requestDates = findRequestDates(spec);
         int displayYear = year != null ? year : java.time.Year.now().getValue();
         int prevYear = displayYear - 1;
         int[] monthCounts = new int[14];
 
-        for (PurchasePlanItem item : items) {
-            LocalDate requestDate = item.getRequestDate();
+        for (LocalDate requestDate : requestDates) {
             if (requestDate == null) {
                 monthCounts[13]++;
                 continue;

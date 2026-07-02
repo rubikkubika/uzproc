@@ -4,6 +4,7 @@ import com.uzproc.backend.entity.Cfo;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
 import com.uzproc.backend.entity.supplier.Supplier;
 import jakarta.persistence.*;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -151,6 +152,7 @@ public class Contract {
 
     /** Поставщики (контрагенты). Парсинг из колонки "Контрагенты" в Excel. */
     @ManyToMany(fetch = FetchType.LAZY)
+    @BatchSize(size = 100)
     @JoinTable(
             name = "contract_suppliers",
             joinColumns = @JoinColumn(name = "contract_id"),

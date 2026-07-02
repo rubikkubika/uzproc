@@ -139,6 +139,15 @@ public class SpecificationSendingService {
             }
         }
 
+        // Руководители ЦФО одним запросом (JOIN FETCH user) → Map по названию ЦФО.
+        // Устраняет per-CFO findByCfoNameIgnoreCase + lazy getUser в цикле ниже.
+        Map<String, CfoLeader> leaderByCfo = new LinkedHashMap<>();
+        for (CfoLeader l : cfoLeaderRepository.findAllWithUser()) {
+            if (l.getCfoName() != null) {
+                leaderByCfo.put(l.getCfoName().trim().toLowerCase(), l);
+            }
+        }
+
         List<CfoSpecificationSendingDto> result = new ArrayList<>();
         for (Object[] row : rows) {
             String cfoName = (String) row[0];
@@ -147,7 +156,7 @@ public class SpecificationSendingService {
 
             CfoSpecificationSendingDto dto = new CfoSpecificationSendingDto(cfoName, count, total, null, null, null);
             if (cfoName != null) {
-                CfoLeader leader = cfoLeaderRepository.findByCfoNameIgnoreCase(cfoName.trim()).orElse(null);
+                CfoLeader leader = leaderByCfo.get(cfoName.trim().toLowerCase());
                 if (leader != null) {
                     User user = leader.getUser();
                     if (user != null) {

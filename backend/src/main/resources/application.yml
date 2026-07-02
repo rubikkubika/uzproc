@@ -13,16 +13,26 @@ spring:
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 1800000
+      # Диагностика незакрытых соединений: WARN, если соединение занято дольше 20с
+      leak-detection-threshold: 20000
+      # Страховка от повисших full-scan запросов дашбордов (server-side statement_timeout, мс)
+      data-source-properties:
+        options: "-c statement_timeout=30000"
   
   jpa:
     hibernate:
       ddl-auto: validate
     show-sql: ${SHOW_SQL:true}
+    # Освобождать соединение на границе транзакции, не держать Hibernate-сессию до конца сериализации ответа
+    open-in-view: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
-        use_sql_comments: true
+        # Форматирование/комментарии SQL нужны только при включённом SQL-логировании (dev); в prod — off
+        format_sql: ${SQL_FORMAT:false}
+        use_sql_comments: ${SQL_COMMENTS:false}
+        # Батч-загрузка LAZY-связей и коллекций пачками — глобально гасит N+1 (грузит через IN (...))
+        default_batch_fetch_size: 100
         # Группировка INSERT/UPDATE в JDBC-батчи (ускоряет массовые импорты, напр. согласования договоров)
         jdbc:
           batch_size: 50
@@ -136,10 +146,12 @@ management:
 logging:
   level:
     root: INFO
-    com.uzproc: DEBUG
+    com.uzproc: INFO
     org.springframework.web: INFO
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    # SQL-логирование выключено в prod; включается в application-local.yml (dev).
+    # 'OFF' в кавычках — иначе YAML трактует как boolean false.
+    org.hibernate.SQL: WARN
+    org.hibernate.orm.jdbc.bind: "OFF"
   pattern:
     file: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
     console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

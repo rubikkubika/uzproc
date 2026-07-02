@@ -1121,6 +1121,34 @@ public class ContractService {
         return result;
     }
 
+    /**
+     * Счётчики вкладок договоров одним лёгким эндпойнтом: 5× count(spec) с той же buildSpecification,
+     * что и findAll, но БЕЗ обогащения дат (которое нужно только при сборке DTO). Заменяет 5 запросов
+     * /contracts?size=1 с фронтенда. currentUserId = null, как в listing-контроллере.
+     */
+    public Map<String, Long> getTabCounts(
+            Integer year, String innerId, List<String> cfo, String name, String documentForm,
+            String costType, String contractType, String purchaseRequestInnerId, Boolean isTypicalForm,
+            String customerOrganization, String preparedByName, String status, String supplier, String segment) {
+        Map<String, Long> counts = new HashMap<>();
+        counts.put("all", contractRepository.count(buildSpecification(
+                year, innerId, cfo, name, documentForm, costType, contractType, null, null, null, null,
+                purchaseRequestInnerId, isTypicalForm, null, customerOrganization, preparedByName, status, supplier, segment)));
+        counts.put("in-work", contractRepository.count(buildSpecification(
+                year, innerId, cfo, name, documentForm, costType, contractType, null, true, null, null,
+                purchaseRequestInnerId, isTypicalForm, null, customerOrganization, preparedByName, status, supplier, segment)));
+        counts.put("not-coordinated", contractRepository.count(buildSpecification(
+                year, innerId, cfo, name, documentForm, costType, contractType, null, null, null, null,
+                purchaseRequestInnerId, isTypicalForm, true, customerOrganization, preparedByName, status, supplier, segment)));
+        counts.put("signed", contractRepository.count(buildSpecification(
+                year, innerId, cfo, name, documentForm, costType, contractType, null, null, true, null,
+                purchaseRequestInnerId, isTypicalForm, null, customerOrganization, preparedByName, status, supplier, segment)));
+        counts.put("hidden", contractRepository.count(buildSpecification(
+                year, innerId, cfo, name, documentForm, costType, contractType, null, null, null, true,
+                purchaseRequestInnerId, isTypicalForm, null, customerOrganization, preparedByName, status, supplier, segment)));
+        return counts;
+    }
+
     private Specification<Contract> buildSpecification(
             Integer year,
             String innerId,

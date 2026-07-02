@@ -12,6 +12,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -72,5 +73,34 @@ public interface PurchaseRequestRepository extends JpaRepository<PurchaseRequest
 
     @Query("SELECT DISTINCT pr.contractType FROM PurchaseRequest pr WHERE pr.contractType IS NOT NULL")
     List<String> findDistinctContractType();
+
+    /** Уникальные годы создания заявок (агрегация в SQL вместо загрузки всей таблицы в память). */
+    @Query("SELECT DISTINCT CAST(EXTRACT(YEAR FROM pr.purchaseRequestCreationDate) AS integer) " +
+           "FROM PurchaseRequest pr WHERE pr.purchaseRequestCreationDate IS NOT NULL")
+    List<Integer> findDistinctCreationYears();
+
+    /** Уникальные годы создания только для закупок (requires_purchase = true). */
+    @Query("SELECT DISTINCT CAST(EXTRACT(YEAR FROM pr.purchaseRequestCreationDate) AS integer) " +
+           "FROM PurchaseRequest pr WHERE pr.purchaseRequestCreationDate IS NOT NULL AND pr.requiresPurchase = true")
+    List<Integer> findDistinctCreationYearsRequiringPurchase();
+
+    // ── Годовая статистика (getYearlyStats): 3 взаимоисключающих бакета через GROUP BY по году ──
+    // pending: статус в списке; purchase: не pending и requiresPurchase=true; order: не pending и requiresPurchase null/false.
+    // Возвращают пары [year(Integer), count(Long)].
+
+    @Query("SELECT CAST(EXTRACT(YEAR FROM pr.purchaseRequestCreationDate) AS integer), COUNT(pr) FROM PurchaseRequest pr " +
+           "WHERE pr.purchaseRequestCreationDate IS NOT NULL AND pr.status IN :pending " +
+           "GROUP BY CAST(EXTRACT(YEAR FROM pr.purchaseRequestCreationDate) AS integer)")
+    List<Object[]> countPendingByCreationYear(@org.springframework.data.repository.query.Param("pending") Collection<PurchaseRequestStatus> pending);
+
+    @Query("SELECT CAST(EXTRACT(YEAR FROM pr.purchaseRequestCreationDate) AS integer), COUNT(pr) FROM PurchaseRequest pr " +
+           "WHERE pr.purchaseRequestCreationDate IS NOT NULL AND (pr.status IS NULL OR pr.status NOT IN :pending) AND pr.requiresPurchase = true " +
+           "GROUP BY CAST(EXTRACT(YEAR FROM pr.purchaseRequestCreationDate) AS integer)")
+    List<Object[]> countPurchasesByCreationYear(@org.springframework.data.repository.query.Param("pending") Collection<PurchaseRequestStatus> pending);
+
+    @Query("SELECT CAST(EXTRACT(YEAR FROM pr.purchaseRequestCreationDate) AS integer), COUNT(pr) FROM PurchaseRequest pr " +
+           "WHERE pr.purchaseRequestCreationDate IS NOT NULL AND (pr.status IS NULL OR pr.status NOT IN :pending) AND (pr.requiresPurchase IS NULL OR pr.requiresPurchase = false) " +
+           "GROUP BY CAST(EXTRACT(YEAR FROM pr.purchaseRequestCreationDate) AS integer)")
+    List<Object[]> countOrdersByCreationYear(@org.springframework.data.repository.query.Param("pending") Collection<PurchaseRequestStatus> pending);
 }
 

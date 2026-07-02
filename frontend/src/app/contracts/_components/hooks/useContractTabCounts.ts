@@ -13,23 +13,6 @@ interface UseContractTabCountsOptions {
   statusFilter: string;
 }
 
-async function fetchCount(params: URLSearchParams, extra?: Record<string, string>): Promise<number> {
-  const p = new URLSearchParams(params);
-  p.set('page', '0');
-  p.set('size', '1');
-  if (extra) {
-    Object.entries(extra).forEach(([k, v]) => p.set(k, v));
-  }
-  try {
-    const res = await fetch(`${getBackendUrl()}/api/contracts?${p.toString()}`);
-    if (!res.ok) return 0;
-    const data = await res.json();
-    return data.totalElements ?? 0;
-  } catch {
-    return 0;
-  }
-}
-
 export function useContractTabCounts({
   selectedYear,
   filters,
@@ -71,24 +54,26 @@ export function useContractTabCounts({
     else if (isTypicalFormFilter === 'false') params.append('isTypicalForm', 'false');
     if (statusFilter && statusFilter.trim() !== '') params.append('status', statusFilter.trim());
 
-    const [inWorkCount, notCoordinatedCount, signedCount, allCount, hiddenCount] = await Promise.all([
-      fetchCount(params, { inWorkTab: 'true' }),
-      fetchCount(params, { notCoordinatedTab: 'true' }),
-      fetchCount(params, { signedTab: 'true' }),
-      fetchCount(params),
-      fetchCount(params, { hiddenTab: 'true' }),
-    ]);
-
-    setTabCounts({
-      'in-work': inWorkCount,
-      'not-coordinated': notCoordinatedCount,
-      'signed': signedCount,
-      'all': allCount,
-      'hidden': hiddenCount,
-    });
+    // Один запрос вместо 5×/contracts?size=1 (без обогащения дат на бэкенде)
+    try {
+      const res = await fetch(`${getBackendUrl()}/api/contracts/tab-counts?${params.toString()}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setTabCounts({
+        'in-work': data['in-work'] ?? 0,
+        'not-coordinated': data['not-coordinated'] ?? 0,
+        'signed': data['signed'] ?? 0,
+        'all': data['all'] ?? 0,
+        'hidden': data['hidden'] ?? 0,
+      });
+    } catch {
+      // оставляем предыдущие значения при ошибке
+    }
   }, [selectedYear, filters, cfoFilter, organizationFilter, preparedByFilter, segmentFilter, isTypicalFormFilter, statusFilter]);
 
   useEffect(() => {
+    // fetchTabCounts асинхронный: setState вызывается после await (не синхронный каскад ререндеров)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchTabCounts();
   }, [fetchTabCounts]);
 

@@ -190,7 +190,8 @@ public class CsiFeedbackService {
         logger.info("Found {} CSI feedback entries on page {} (size {}), total elements: {}",
                 feedbacks.getContent().size(), page, size, feedbacks.getTotalElements());
 
-        return feedbacks.map(this::toDto);
+        Map<String, String> nameByEmail = buildRecipientNameMap(feedbacks.getContent());
+        return feedbacks.map(f -> toDto(f, nameByEmail));
     }
 
     /**
@@ -416,8 +417,9 @@ public class CsiFeedbackService {
 
     public List<CsiFeedbackDto> findByPurchaseRequestId(Long purchaseRequestId) {
         List<CsiFeedback> feedbacks = csiFeedbackRepository.findByPurchaseRequestId(purchaseRequestId);
+        Map<String, String> nameByEmail = buildRecipientNameMap(feedbacks);
         return feedbacks.stream()
-                .map(this::toDto)
+                .map(f -> toDto(f, nameByEmail))
                 .toList();
     }
 
@@ -463,7 +465,34 @@ public class CsiFeedbackService {
         }
     }
 
+    /**
+     * Строит карту email → «Фамилия Имя» одним запросом по всем получателям списка.
+     * Устраняет per-row findFirstByEmail в toDto на листингах.
+     */
+    private Map<String, String> buildRecipientNameMap(List<CsiFeedback> feedbacks) {
+        java.util.Set<String> emails = feedbacks.stream()
+                .map(CsiFeedback::getRecipient)
+                .filter(r -> r != null && !r.isBlank())
+                .collect(java.util.stream.Collectors.toSet());
+        if (emails.isEmpty()) {
+            return java.util.Collections.emptyMap();
+        }
+        Map<String, String> nameByEmail = new java.util.HashMap<>();
+        for (User user : userRepository.findByEmailIn(emails)) {
+            String name = ((user.getSurname() != null ? user.getSurname() : "") + " " +
+                    (user.getName() != null ? user.getName() : "")).trim();
+            if (user.getEmail() != null && !name.isEmpty()) {
+                nameByEmail.putIfAbsent(user.getEmail(), name);
+            }
+        }
+        return nameByEmail;
+    }
+
     private CsiFeedbackDto toDto(CsiFeedback feedback) {
+        return toDto(feedback, null);
+    }
+
+    private CsiFeedbackDto toDto(CsiFeedback feedback, Map<String, String> nameByEmail) {
         CsiFeedbackDto dto = new CsiFeedbackDto();
         dto.setId(feedback.getId());
         dto.setPurchaseRequestId(feedback.getPurchaseRequest().getId());
@@ -491,16 +520,21 @@ public class CsiFeedbackService {
         dto.setSatisfactionRating(feedback.getSatisfactionRating());
         dto.setComment(feedback.getComment());
         dto.setRecipient(feedback.getRecipient());
-        // Резолвим имя получателя по email
+        // Резолвим имя получателя по email: из предпостроенной карты (батч) либо точечным запросом
         if (feedback.getRecipient() != null && !feedback.getRecipient().isBlank()) {
             try {
-                userRepository.findFirstByEmail(feedback.getRecipient()).ifPresent(user -> {
-                    String name = ((user.getSurname() != null ? user.getSurname() : "") + " " +
-                            (user.getName() != null ? user.getName() : "")).trim();
-                    if (!name.isEmpty()) {
-                        dto.setRecipientName(name);
-                    }
-                });
+                String name;
+                if (nameByEmail != null) {
+                    name = nameByEmail.get(feedback.getRecipient());
+                } else {
+                    name = userRepository.findFirstByEmail(feedback.getRecipient())
+                            .map(user -> ((user.getSurname() != null ? user.getSurname() : "") + " " +
+                                    (user.getName() != null ? user.getName() : "")).trim())
+                            .orElse(null);
+                }
+                if (name != null && !name.isEmpty()) {
+                    dto.setRecipientName(name);
+                }
             } catch (Exception e) {
                 logger.debug("Could not resolve recipient name for email: {}", feedback.getRecipient());
             }

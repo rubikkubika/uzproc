@@ -42,12 +42,10 @@
         <appender-ref ref="FILE"/>
     </root>
     
-    <logger name="com.uzproc" level="DEBUG"/>
-    <logger name="com.uzproc.backend.service.PurchaseStatusUpdateService" level="INFO"/>
-    <logger name="com.uzproc.backend.service.PurchaseRequestStatusUpdateService" level="DEBUG"/>
+    <!-- Уровни логирования (в т.ч. SQL/bind) задаются через logging.level в
+         application.yml (prod: WARN/OFF) и application-local.yml (dev: DEBUG/TRACE).
+         Свойства Spring Boot перекрывают уровни logback, поэтому держим их в одном месте — yml. -->
     <logger name="org.springframework.web" level="INFO"/>
-    <logger name="org.hibernate.SQL" level="DEBUG"/>
-    <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="TRACE"/>
 </configuration>
 
 

@@ -5,6 +5,7 @@ import com.uzproc.backend.entity.contract.Contract;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
 import com.uzproc.backend.entity.user.User;
 import jakarta.persistence.*;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -14,6 +15,7 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "payments")
+@BatchSize(size = 100)
 public class Payment {
 
     @Id

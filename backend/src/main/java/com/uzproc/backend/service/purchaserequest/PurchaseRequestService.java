@@ -1630,28 +1630,10 @@ public class PurchaseRequestService {
      * Получить статистику по закупщикам для закупок (requiresPurchase != false)
      */
     public List<PurchaserStatsDto> getPurchasesStatsByPurchaser(Integer year) {
-        List<PurchaseRequest> allRequests;
-        
-        if (year != null) {
-            // Фильтруем по году
-            LocalDateTime startOfYear = LocalDateTime.of(year, 1, 1, 0, 0);
-            LocalDateTime endOfYear = LocalDateTime.of(year, 12, 31, 23, 59, 59);
-            Specification<PurchaseRequest> yearSpec = (root, query, cb) -> 
-                cb.between(root.get("purchaseRequestCreationDate"), startOfYear, endOfYear);
-            allRequests = purchaseRequestRepository.findAll(yearSpec);
-            logger.debug("Filtering purchases by year {}: found {} requests", year, allRequests.size());
-        } else {
-            allRequests = purchaseRequestRepository.findAll();
-            logger.debug("Loading all purchases: found {} requests", allRequests.size());
-        }
-        
-        // Фильтруем только закупки (requiresPurchase != false)
-        List<PurchaseRequest> purchases = allRequests.stream()
-            .filter(pr -> pr.getRequiresPurchase() != null && pr.getRequiresPurchase() != false)
-            .filter(pr -> pr.getPurchaser() != null && !pr.getPurchaser().trim().isEmpty())
-            .collect(Collectors.toList());
-        
-        logger.debug("Filtered purchases (requiresPurchase != false): {} requests", purchases.size());
+        // requiresPurchase = true + непустой закупщик (+ год) — фильтры в SQL, а не в памяти
+        List<PurchaseRequest> purchases = purchaseRequestRepository.findAll(
+                statsByPurchaserSpec(year, true));
+        logger.debug("Purchases stats by purchaser (year={}): {} requests", year, purchases.size());
         return calculateStatsByPurchaser(purchases);
     }
 
@@ -1659,29 +1641,26 @@ public class PurchaseRequestService {
      * Получить статистику по закупщикам для заказов (requiresPurchase == false)
      */
     public List<PurchaserStatsDto> getOrdersStatsByPurchaser(Integer year) {
-        List<PurchaseRequest> allRequests;
-        
-        if (year != null) {
-            // Фильтруем по году
-            LocalDateTime startOfYear = LocalDateTime.of(year, 1, 1, 0, 0);
-            LocalDateTime endOfYear = LocalDateTime.of(year, 12, 31, 23, 59, 59);
-            Specification<PurchaseRequest> yearSpec = (root, query, cb) -> 
-                cb.between(root.get("purchaseRequestCreationDate"), startOfYear, endOfYear);
-            allRequests = purchaseRequestRepository.findAll(yearSpec);
-            logger.debug("Filtering orders by year {}: found {} requests", year, allRequests.size());
-        } else {
-            allRequests = purchaseRequestRepository.findAll();
-            logger.debug("Loading all orders: found {} requests", allRequests.size());
-        }
-        
-        // Фильтруем только заказы (requiresPurchase == false)
-        List<PurchaseRequest> orders = allRequests.stream()
-            .filter(pr -> pr.getRequiresPurchase() != null && pr.getRequiresPurchase() == false)
-            .filter(pr -> pr.getPurchaser() != null && !pr.getPurchaser().trim().isEmpty())
-            .collect(Collectors.toList());
-        
-        logger.debug("Filtered orders (requiresPurchase == false): {} requests", orders.size());
+        List<PurchaseRequest> orders = purchaseRequestRepository.findAll(
+                statsByPurchaserSpec(year, false));
+        logger.debug("Orders stats by purchaser (year={}): {} requests", year, orders.size());
         return calculateStatsByPurchaser(orders);
+    }
+
+    /** Спецификация статистики по закупщикам: год (если задан) + requiresPurchase + непустой purchaser. */
+    private Specification<PurchaseRequest> statsByPurchaserSpec(Integer year, boolean requiresPurchase) {
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(root.get("requiresPurchase"), requiresPurchase));
+            predicates.add(cb.isNotNull(root.get("purchaser")));
+            predicates.add(cb.notEqual(cb.trim(root.get("purchaser")), ""));
+            if (year != null) {
+                LocalDateTime startOfYear = LocalDateTime.of(year, 1, 1, 0, 0);
+                LocalDateTime endOfYear = LocalDateTime.of(year, 12, 31, 23, 59, 59);
+                predicates.add(cb.between(root.get("purchaseRequestCreationDate"), startOfYear, endOfYear));
+            }
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
     }
 
     /**
@@ -1788,11 +1767,13 @@ public class PurchaseRequestService {
                 .filter(s -> s != null && !s.isEmpty())
                 .sorted(String.CASE_INSENSITIVE_ORDER)
                 .collect(Collectors.toList());
-        List<String> statuses = purchaseRequestRepository.findDistinctStatus().stream()
+        // Один запрос distinct-статусов переиспользуем для двух списков (statuses и statusGroups)
+        List<PurchaseRequestStatus> distinctStatuses = purchaseRequestRepository.findDistinctStatus();
+        List<String> statuses = distinctStatuses.stream()
                 .map(PurchaseRequestStatus::getDisplayName)
                 .sorted(String.CASE_INSENSITIVE_ORDER)
                 .collect(Collectors.toList());
-        List<String> statusGroups = purchaseRequestRepository.findDistinctStatus().stream()
+        List<String> statusGroups = distinctStatuses.stream()
                 .map(PurchaseRequestStatus::getGroupDisplayName)
                 .distinct()
                 .sorted(String.CASE_INSENSITIVE_ORDER)
@@ -1833,22 +1814,13 @@ public class PurchaseRequestService {
      * Получить список доступных годов из purchaseRequestCreationDate
      */
     public List<Integer> getAvailableYears(Boolean requiresPurchase) {
-        Specification<PurchaseRequest> spec = (root, query, cb) -> {
-            List<Predicate> predicates = new ArrayList<>();
-            if (requiresPurchase != null && requiresPurchase) {
-                predicates.add(cb.equal(root.get("requiresPurchase"), true));
-            }
-            return predicates.isEmpty() ? cb.conjunction() : cb.and(predicates.toArray(new Predicate[0]));
-        };
-        
-        List<PurchaseRequest> requests = purchaseRequestRepository.findAll(spec);
-        return requests.stream()
-            .map(PurchaseRequest::getPurchaseRequestCreationDate)
-            .filter(date -> date != null)
-            .map(LocalDateTime::getYear)
-            .distinct()
-            .sorted((a, b) -> b.compareTo(a)) // Сортировка по убыванию
-            .collect(Collectors.toList());
+        // Уникальные годы одним DISTINCT-запросом вместо загрузки всей таблицы в память
+        List<Integer> years = (requiresPurchase != null && requiresPurchase)
+                ? purchaseRequestRepository.findDistinctCreationYearsRequiringPurchase()
+                : purchaseRequestRepository.findDistinctCreationYears();
+        return years.stream()
+                .sorted((a, b) -> b.compareTo(a)) // по убыванию
+                .collect(Collectors.toList());
     }
 
     /**
@@ -1856,39 +1828,17 @@ public class PurchaseRequestService {
      * @return Map с ключами: years (список годов), purchases (список количеств закупок), orders (список количеств заказов), pendingStatus (список количеств заявок со статусами "Не согласована", "Не утверждена", "Проект")
      */
     public Map<String, Object> getYearlyStats() {
-        List<PurchaseRequest> allRequests = purchaseRequestRepository.findAll();
-        
-        // Группируем по годам
-        Map<Integer, Long> purchasesByYear = new HashMap<>();
-        Map<Integer, Long> ordersByYear = new HashMap<>();
-        Map<Integer, Long> pendingStatusByYear = new HashMap<>();
-        
-        for (PurchaseRequest request : allRequests) {
-            if (request.getPurchaseRequestCreationDate() == null) {
-                continue;
-            }
-            
-            int year = request.getPurchaseRequestCreationDate().getYear();
-            
-            // Проверяем статусы: "Не согласована", "Не утверждена", "Проект"
-            boolean isPendingStatus = request.getStatus() != null && (
-                request.getStatus() == PurchaseRequestStatus.NOT_COORDINATED ||
-                request.getStatus() == PurchaseRequestStatus.NOT_APPROVED ||
-                request.getStatus() == PurchaseRequestStatus.PROJECT
-            );
-            
-            if (isPendingStatus) {
-                // Заявки со статусами "Не согласована", "Не утверждена", "Проект"
-                pendingStatusByYear.put(year, pendingStatusByYear.getOrDefault(year, 0L) + 1);
-            } else if (request.getRequiresPurchase() != null && request.getRequiresPurchase()) {
-                // Закупка
-                purchasesByYear.put(year, purchasesByYear.getOrDefault(year, 0L) + 1);
-            } else {
-                // Заказ
-                ordersByYear.put(year, ordersByYear.getOrDefault(year, 0L) + 1);
-            }
-        }
-        
+        // Три взаимоисключающих бакета считаем в SQL (GROUP BY по году), не грузим сущности.
+        // pending — статусы «Не согласована/Не утверждена/Проект»; иначе закупка (requiresPurchase=true) или заказ.
+        List<PurchaseRequestStatus> pendingStatuses = List.of(
+                PurchaseRequestStatus.NOT_COORDINATED,
+                PurchaseRequestStatus.NOT_APPROVED,
+                PurchaseRequestStatus.PROJECT);
+
+        Map<Integer, Long> pendingStatusByYear = toYearCountMap(purchaseRequestRepository.countPendingByCreationYear(pendingStatuses));
+        Map<Integer, Long> purchasesByYear = toYearCountMap(purchaseRequestRepository.countPurchasesByCreationYear(pendingStatuses));
+        Map<Integer, Long> ordersByYear = toYearCountMap(purchaseRequestRepository.countOrdersByCreationYear(pendingStatuses));
+
         // Получаем все годы и сортируем их
         Set<Integer> allYearsSet = new HashSet<>();
         allYearsSet.addAll(purchasesByYear.keySet());
@@ -1924,6 +1874,16 @@ public class PurchaseRequestService {
             pendingStatus.stream().mapToLong(Long::longValue).sum());
         
         return result;
+    }
+
+    /** Преобразует результат GROUP BY-запроса (пары [year, count]) в Map&lt;год, количество&gt;. */
+    private Map<Integer, Long> toYearCountMap(List<Object[]> rows) {
+        Map<Integer, Long> map = new HashMap<>();
+        for (Object[] row : rows) {
+            if (row[0] == null) continue;
+            map.put(((Number) row[0]).intValue(), ((Number) row[1]).longValue());
+        }
+        return map;
     }
 
     /**

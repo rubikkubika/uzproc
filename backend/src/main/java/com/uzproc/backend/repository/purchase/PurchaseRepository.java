@@ -1,6 +1,7 @@
 package com.uzproc.backend.repository.purchase;
 
 import com.uzproc.backend.entity.purchase.Purchase;
+import com.uzproc.backend.entity.purchase.PurchaseStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -30,6 +31,23 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long>, JpaSp
     List<Purchase> findByPurchaseRequestId(Long purchaseRequestId);
     Optional<Purchase> findFirstByPurchaseRequestId(Long purchaseRequestId);
     List<Purchase> findByPurchaseRequestIdIn(List<Long> purchaseRequestIds);
+
+    /**
+     * Количество закупок по месяцам (1..12) за период — агрегация в SQL вместо загрузки всех закупок в память.
+     * Возвращает пары [monthNumber(Integer), count(Long)].
+     */
+    @Query("SELECT EXTRACT(MONTH FROM p.purchaseCreationDate), COUNT(p) FROM Purchase p " +
+           "WHERE p.purchaseCreationDate BETWEEN :start AND :end " +
+           "GROUP BY EXTRACT(MONTH FROM p.purchaseCreationDate)")
+    List<Object[]> countByMonthForPeriod(@Param("start") LocalDateTime start, @Param("end") LocalDateTime end);
+
+    /** То же, но только по закупкам заданного статуса (напр. PROJECT). */
+    @Query("SELECT EXTRACT(MONTH FROM p.purchaseCreationDate), COUNT(p) FROM Purchase p " +
+           "WHERE p.status = :status AND p.purchaseCreationDate BETWEEN :start AND :end " +
+           "GROUP BY EXTRACT(MONTH FROM p.purchaseCreationDate)")
+    List<Object[]> countByMonthForPeriodAndStatus(@Param("status") PurchaseStatus status,
+                                                  @Param("start") LocalDateTime start,
+                                                  @Param("end") LocalDateTime end);
 }
 
 

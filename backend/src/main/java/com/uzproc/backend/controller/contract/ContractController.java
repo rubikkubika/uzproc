@@ -58,6 +58,34 @@ public class ContractController {
         return ResponseEntity.ok(contracts);
     }
 
+    /**
+     * Счётчики вкладок (all/in-work/not-coordinated/signed/hidden) одним запросом.
+     * Заменяет 5 вызовов /contracts?size=1 с фронтенда (без обогащения дат).
+     */
+    @GetMapping("/tab-counts")
+    public ResponseEntity<Map<String, Long>> getTabCounts(
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) String innerId,
+            @RequestParam(required = false) List<String> cfo,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String documentForm,
+            @RequestParam(required = false) String costType,
+            @RequestParam(required = false) String contractType,
+            @RequestParam(required = false) String purchaseRequestInnerId,
+            @RequestParam(required = false) Boolean isTypicalForm,
+            @RequestParam(required = false) String customerOrganization,
+            @RequestParam(required = false) String preparedByName,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String supplier,
+            @RequestParam(required = false, defaultValue = "") String segment) {
+
+        Map<String, Long> counts = contractService.getTabCounts(
+                year, innerId, cfo, name, documentForm, costType, contractType, purchaseRequestInnerId,
+                isTypicalForm, customerOrganization, preparedByName, status, supplier, segment);
+
+        return ResponseEntity.ok(counts);
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<ContractDto> getContractById(@PathVariable Long id) {
         ContractDto contract = contractService.findById(id);

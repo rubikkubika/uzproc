@@ -585,17 +585,10 @@ public class PurchasePlanExcelLoadService {
                         purchaserUser = userRepository.findBySurnameAndName(parts[0], parts[1]).orElse(null);
                     }
                     if (purchaserUser == null) {
-                        // Ищем по частичному совпадению фамилии или имени
-                        List<User> users = userRepository.findAll().stream()
-                            .filter(u -> {
-                                String fullName = (u.getSurname() != null ? u.getSurname() : "") + " " + 
-                                                (u.getName() != null ? u.getName() : "");
-                                return fullName.toLowerCase().contains(trimmedPurchaser.toLowerCase()) ||
-                                       (u.getSurname() != null && u.getSurname().toLowerCase().contains(trimmedPurchaser.toLowerCase())) ||
-                                       (u.getName() != null && u.getName().toLowerCase().contains(trimmedPurchaser.toLowerCase()));
-                            })
-                            .limit(1)
-                            .toList();
+                        // Нечёткий поиск по частичному совпадению ФИО — фильтрация в SQL (LIMIT 1),
+                        // вместо загрузки всей таблицы users в память на каждую строку
+                        List<User> users = userRepository.searchByFuzzyName(
+                                trimmedPurchaser, org.springframework.data.domain.PageRequest.of(0, 1));
                         if (!users.isEmpty()) {
                             purchaserUser = users.get(0);
                         }

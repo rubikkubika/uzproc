@@ -5,6 +5,7 @@ import com.uzproc.backend.entity.payment.Payment;
 import com.uzproc.backend.entity.supplier.Supplier;
 import com.uzproc.backend.entity.user.User;
 import jakarta.persistence.*;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -80,6 +81,7 @@ public class Delivery {
     private User responsible;
 
     @ManyToMany(fetch = FetchType.LAZY)
+    @BatchSize(size = 100)
     @JoinTable(
             name = "delivery_payments",
             joinColumns = @JoinColumn(name = "delivery_id"),
