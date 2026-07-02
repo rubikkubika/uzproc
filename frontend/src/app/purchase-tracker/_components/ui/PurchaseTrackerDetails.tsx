@@ -1,4 +1,5 @@
 import type { DetailView } from '../types/purchase-tracker.types';
+import KindBadge from './KindBadge';
 import PurchaseTrackerBuyerFooter from './PurchaseTrackerBuyerFooter';
 import PurchaseTrackerTimeline from './PurchaseTrackerTimeline';
 import { CalendarIcon, CheckIcon } from './icons';
@@ -20,6 +21,7 @@ export default function PurchaseTrackerDetails({ detail }: PurchaseTrackerDetail
           <span className="rounded-md bg-[#F2F4F7] px-[9px] py-1 text-[12.5px] font-bold text-[#475467]">
             № {detail.id}
           </span>
+          <KindBadge kind={detail.kind} />
           <span
             className="rounded-full px-3 py-[5px] text-[12.5px] font-semibold"
             style={{ background: detail.pillBg, color: detail.pillFg }}

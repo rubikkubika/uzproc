@@ -9,20 +9,18 @@ export default function PurchaseTrackerRoute() {
   return (
     <div className="flex min-h-screen flex-col" style={{ background: '#F4F5F9' }}>
       {/* Шапка — аналогично публичному плану закупок */}
-      <header className="flex-shrink-0 border-b border-[#ECEEF3] bg-white px-8 py-[18px]">
-        <div className="mx-auto flex max-w-[960px] items-center gap-3">
+      <header className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-3">
+        <div className="flex items-center gap-3">
           <button
             onClick={() => router.push('/')}
-            className="flex flex-none cursor-pointer items-center transition-opacity hover:opacity-80"
-            title="На главную"
+            className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
           >
-            <img src="/images/logo-small.svg" alt="uzProc Logo" className="h-8 w-8" />
+            <img src="/images/logo-small.svg" alt="uzProc Logo" className="w-8 h-8" />
+            <h1 className="text-xl font-bold text-black">uzProc</h1>
           </button>
-          <div className="flex flex-col">
-            <div className="text-[16px] font-bold text-[#101828]">uzProc · Статус закупок</div>
-            <div className="text-[12.5px] text-[#667085]">Проверьте, на каком этапе ваша заявка</div>
+          <div className="flex-1">
+            <h2 className="text-lg font-semibold text-gray-900 ml-2">Статус закупок</h2>
           </div>
-          <span className="ml-auto rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-400">Публичный просмотр</span>
         </div>
       </header>
 

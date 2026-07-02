@@ -21,6 +21,8 @@ public record ProcurementTrackerDto(
         String contractor,
         String contractSum,
         String plain,
-        List<TrackerStageDto> stages
+        List<TrackerStageDto> stages,
+        /** Тип: «Закупка» (требует закупки) или «Заказ» (прямой заказ) */
+        String kind
 ) {
 }

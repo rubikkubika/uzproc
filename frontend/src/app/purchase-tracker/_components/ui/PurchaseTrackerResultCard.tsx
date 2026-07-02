@@ -1,4 +1,5 @@
 import type { ResultView } from '../types/purchase-tracker.types';
+import KindBadge from './KindBadge';
 
 interface PurchaseTrackerResultCardProps {
   result: ResultView;
@@ -19,8 +20,11 @@ export default function PurchaseTrackerResultCard({ result, onSelect, variant = 
       style={{ border: `1.5px solid ${result.border}`, boxShadow: result.shadow }}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="rounded-md bg-[#F2F4F7] px-2 py-[3px] text-xs font-bold text-[#475467]">
-          № {result.id}
+        <span className="flex items-center gap-1.5">
+          <span className="rounded-md bg-[#F2F4F7] px-2 py-[3px] text-xs font-bold text-[#475467]">
+            № {result.id}
+          </span>
+          <KindBadge kind={result.kind} />
         </span>
         <span
           className="whitespace-nowrap rounded-full px-2.5 py-1 text-[11.5px] font-semibold"

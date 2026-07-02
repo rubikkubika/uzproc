@@ -19,11 +19,13 @@ import com.uzproc.backend.repository.purchase.PurchaseApprovalRepository;
 import com.uzproc.backend.repository.purchase.PurchaseRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestApprovalRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
+import com.uzproc.backend.service.calendar.WorkingDayService;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -32,7 +34,10 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -52,6 +57,15 @@ public class ProcurementTrackerService {
 
     private static final String[] STAGE_NAMES = {"Заявка создана", "Согласование заявки", "Выбор поставщика", "Договор"};
     private static final String[] STAGE_OFFS = {"Потребность", "Заявка", "Закупка", "Договор"};
+
+    /** Месяцы в родительном падеже для формата прогноза «к 16 июля». */
+    private static final String[] MONTHS_GENITIVE = {
+            "января", "февраля", "марта", "апреля", "мая", "июня",
+            "июля", "августа", "сентября", "октября", "ноября", "декабря"
+    };
+
+    /** Заглушка прогноза: рабочих дней от текущей даты до ожидаемого договора. */
+    private static final int FORECAST_WORKING_DAYS = 14;
 
     /** Статусы заявки, означающие «согласование пройдено» (этап 2 завершён). */
     private static final Set<PurchaseRequestStatus> REQUEST_APPROVED = EnumSet.of(
@@ -75,6 +89,7 @@ public class ProcurementTrackerService {
     private final PurchaseApprovalRepository purchaseApprovalRepository;
     private final ContractRepository contractRepository;
     private final ContractApprovalRepository contractApprovalRepository;
+    private final WorkingDayService workingDayService;
 
     public ProcurementTrackerService(
             PurchaseRequestRepository requestRepository,
@@ -82,51 +97,108 @@ public class ProcurementTrackerService {
             PurchaseRepository purchaseRepository,
             PurchaseApprovalRepository purchaseApprovalRepository,
             ContractRepository contractRepository,
-            ContractApprovalRepository contractApprovalRepository) {
+            ContractApprovalRepository contractApprovalRepository,
+            WorkingDayService workingDayService) {
         this.requestRepository = requestRepository;
         this.requestApprovalRepository = requestApprovalRepository;
         this.purchaseRepository = purchaseRepository;
         this.purchaseApprovalRepository = purchaseApprovalRepository;
         this.contractRepository = contractRepository;
         this.contractApprovalRepository = contractApprovalRepository;
+        this.workingDayService = workingDayService;
     }
 
-    /** Поиск закупок по номеру/предмету/инициатору. Пустой запрос → пустой результат (страница публичная). */
+    /**
+     * Поиск закупок по номеру/предмету/инициатору. Пустой запрос → пустой результат (страница публичная).
+     * Связанные сущности грузятся batch-запросами (без N+1 на каждую заявку).
+     */
     @Transactional(readOnly = true)
     public List<ProcurementTrackerDto> search(String query) {
         if (query == null || query.trim().isEmpty()) {
             return Collections.emptyList();
         }
-        List<PurchaseRequest> found = requestRepository.searchForTracker(
+        List<PurchaseRequest> requests = requestRepository.searchForTracker(
                 query.trim(), PageRequest.of(0, SEARCH_LIMIT));
-        return found.stream().map(this::buildDto).collect(Collectors.toList());
+        if (requests.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Long> ids = requests.stream()
+                .map(PurchaseRequest::getIdPurchaseRequest)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        Map<Long, List<PurchaseRequestApproval>> reqApprovalsByReq =
+                groupBy(requestApprovalRepository.findByIdPurchaseRequestIn(ids), PurchaseRequestApproval::getIdPurchaseRequest);
+        Map<Long, List<Purchase>> purchasesByReq =
+                groupBy(purchaseRepository.findByPurchaseRequestIdIn(ids), Purchase::getPurchaseRequestId);
+        Map<Long, List<PurchaseApproval>> purchaseApprovalsByReq =
+                groupBy(purchaseApprovalRepository.findByPurchaseRequestIdIn(ids), PurchaseApproval::getPurchaseRequestId);
+        Map<Long, List<Contract>> contractsByReq =
+                groupBy(contractRepository.findWithSuppliersByPurchaseRequestIdIn(ids), Contract::getPurchaseRequestId);
+
+        // Основной договор на заявку → batch-загрузка их согласований
+        Map<Long, Contract> primaryByReq = new java.util.HashMap<>();
+        for (Long id : ids) {
+            primaryByReq.put(id, pickPrimaryContract(contractsByReq.getOrDefault(id, Collections.emptyList())));
+        }
+        List<Long> primaryContractIds = primaryByReq.values().stream()
+                .filter(Objects::nonNull)
+                .map(Contract::getId)
+                .collect(Collectors.toList());
+        Map<Long, List<ContractApproval>> contractApprovalsByContract = primaryContractIds.isEmpty()
+                ? Collections.emptyMap()
+                : groupBy(contractApprovalRepository.findByContractIdIn(primaryContractIds), ContractApproval::getContractId);
+
+        return requests.stream().map(pr -> {
+            Long id = pr.getIdPurchaseRequest();
+            Contract primary = id == null ? null : primaryByReq.get(id);
+            return assemble(
+                    pr,
+                    id == null ? Collections.emptyList() : reqApprovalsByReq.getOrDefault(id, Collections.emptyList()),
+                    id == null ? Collections.emptyList() : purchasesByReq.getOrDefault(id, Collections.emptyList()),
+                    id == null ? Collections.emptyList() : purchaseApprovalsByReq.getOrDefault(id, Collections.emptyList()),
+                    id == null ? Collections.emptyList() : contractsByReq.getOrDefault(id, Collections.emptyList()),
+                    primary,
+                    primary == null ? Collections.emptyList()
+                            : contractApprovalsByContract.getOrDefault(primary.getId(), Collections.emptyList()));
+        }).collect(Collectors.toList());
     }
 
-    /** Детальная модель одной закупки по номеру заявки. */
+    /** Детальная модель одной закупки по номеру заявки (один запрос — N+1 не возникает). */
     @Transactional(readOnly = true)
     public ProcurementTrackerDto getByIdPurchaseRequest(Long idPurchaseRequest) {
         return requestRepository.findByIdPurchaseRequest(idPurchaseRequest)
-                .map(this::buildDto)
+                .map(pr -> {
+                    Long id = pr.getIdPurchaseRequest();
+                    List<Contract> contracts = id == null
+                            ? Collections.emptyList() : contractRepository.findByPurchaseRequestId(id);
+                    Contract primary = pickPrimaryContract(contracts);
+                    return assemble(
+                            pr,
+                            id == null ? Collections.emptyList() : requestApprovalRepository.findByIdPurchaseRequest(id),
+                            id == null ? Collections.emptyList() : purchaseRepository.findByPurchaseRequestId(id),
+                            id == null ? Collections.emptyList() : purchaseApprovalRepository.findByPurchaseRequestId(id),
+                            contracts,
+                            primary,
+                            primary == null ? Collections.emptyList()
+                                    : contractApprovalRepository.findByContractId(primary.getId()));
+                })
                 .orElse(null);
     }
 
     // ─────────────────────────────── Построение модели ───────────────────────────────
 
-    private ProcurementTrackerDto buildDto(PurchaseRequest pr) {
+    private ProcurementTrackerDto assemble(
+            PurchaseRequest pr,
+            List<PurchaseRequestApproval> reqApprovals,
+            List<Purchase> purchases,
+            List<PurchaseApproval> purchaseApprovals,
+            List<Contract> contracts,
+            Contract primaryContract,
+            List<ContractApproval> contractApprovals) {
         Long id = pr.getIdPurchaseRequest();
-
-        List<PurchaseRequestApproval> reqApprovals = id == null
-                ? Collections.emptyList() : requestApprovalRepository.findByIdPurchaseRequest(id);
-        List<Purchase> purchases = id == null
-                ? Collections.emptyList() : purchaseRepository.findByPurchaseRequestId(id);
-        List<PurchaseApproval> purchaseApprovals = id == null
-                ? Collections.emptyList() : purchaseApprovalRepository.findByPurchaseRequestId(id);
-        List<Contract> contracts = id == null
-                ? Collections.emptyList() : contractRepository.findByPurchaseRequestId(id);
-
-        Contract primaryContract = pickPrimaryContract(contracts);
-        List<ContractApproval> contractApprovals = primaryContract == null
-                ? Collections.emptyList() : contractApprovalRepository.findByContractId(primaryContract.getId());
 
         boolean hasPurchase = !purchases.isEmpty();
         boolean purchaseCompleted = purchases.stream().anyMatch(p -> p.getStatus() == PurchaseStatus.COMPLETED);
@@ -171,6 +243,13 @@ public class ProcurementTrackerService {
             contractSum = formatBudget(primaryContract.getBudgetAmount(), primaryContract.getCurrency());
         }
 
+        // Признак: заявка требует проведения закупки («Закупка») или прямой заказ («Заказ»)
+        boolean requiresPurchase = pr.getRequiresPurchase() != null && pr.getRequiresPurchase();
+        String kind = requiresPurchase ? "Закупка" : "Заказ";
+
+        // Прогноз даты договора — заглушка: +14 рабочих дней от текущей даты (только для незавершённых)
+        String forecast = allDone ? null : computeForecast();
+
         return new ProcurementTrackerDto(
                 id,
                 safe(firstNonBlank(pr.getPurchaseRequestSubject(), pr.getName(), pr.getTitle())),
@@ -181,12 +260,13 @@ public class ProcurementTrackerService {
                 pr.getPurchaseRequestCreationDate() != null ? pr.getPurchaseRequestCreationDate().format(DATE_FULL) : "",
                 stageIdx,
                 allDone,
-                null,
+                forecast,
                 signed,
                 contractor,
                 contractSum,
                 statusPhrase(allDone, stageIdx),
-                stages
+                stages,
+                kind
         );
     }
 
@@ -324,6 +404,19 @@ public class ProcurementTrackerService {
             return String.format(RU, "%.0f тыс %s", v / 1_000d, cur);
         }
         return String.format(RU, "%.0f %s", v, cur);
+    }
+
+    /** Прогноз даты договора (заглушка): +N рабочих дней от текущей даты, формат «к 16 июля». */
+    private String computeForecast() {
+        LocalDate date = workingDayService.addWorkingDaysAfterDate(LocalDate.now(), FORECAST_WORKING_DAYS);
+        return "к " + date.getDayOfMonth() + " " + MONTHS_GENITIVE[date.getMonthValue() - 1];
+    }
+
+    /** Группировка списка по ключу (null-ключи отбрасываются). */
+    private static <T> Map<Long, List<T>> groupBy(List<T> list, Function<T, Long> keyFn) {
+        return list.stream()
+                .filter(t -> keyFn.apply(t) != null)
+                .collect(Collectors.groupingBy(keyFn));
     }
 
     private static String firstNonBlank(String... values) {

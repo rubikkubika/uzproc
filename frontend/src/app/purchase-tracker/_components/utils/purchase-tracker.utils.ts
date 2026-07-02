@@ -52,6 +52,7 @@ export function buildResultView(item: Procurement, selectedId: number): ResultVi
     shadow: selected ? '0 0 0 3px rgba(124,58,237,.13)' : '0 1px 2px rgba(16,24,40,.04)',
     dots: item.stages.map((stg) => ({ bg: STATE_PALETTE[stg.state].dot })),
     selected,
+    kind: item.kind,
   };
 }
 
@@ -124,5 +125,6 @@ export function buildDetailView(item: Procurement, simpleLanguage: boolean, show
     isDone: item.done,
     signedLine,
     stages: item.stages.map((stg, i) => buildStageView(stg, i, total, simpleLanguage)),
+    kind: item.kind,
   };
 }

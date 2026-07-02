@@ -18,6 +18,9 @@ public interface ContractApprovalRepository extends JpaRepository<ContractApprov
     @Query("SELECT a FROM ContractApproval a LEFT JOIN FETCH a.executor WHERE a.contractId = :contractId")
     List<ContractApproval> findByContractId(@Param("contractId") Long contractId);
 
+    /** Batch-загрузка согласований по нескольким договорам (устранение N+1 в трекере). */
+    List<ContractApproval> findByContractIdIn(List<Long> contractIds);
+
     Optional<ContractApproval> findByContractIdAndStageAndRole(Long contractId, String stage, String role);
 
     /**

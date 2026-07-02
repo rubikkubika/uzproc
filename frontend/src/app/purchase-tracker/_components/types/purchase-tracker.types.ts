@@ -51,6 +51,8 @@ export interface Procurement {
   /** Статус одной фразой */
   plain: string;
   stages: TrackerStage[];
+  /** Тип: «Закупка» (требует закупки) или «Заказ» (прямой заказ) */
+  kind: string;
 }
 
 /** Готовая к рендеру модель шага */
@@ -105,6 +107,7 @@ export interface DetailView {
   isDone: boolean;
   signedLine: string;
   stages: StageView[];
+  kind: string;
 }
 
 /** Готовая к рендеру модель карточки результата поиска */
@@ -120,4 +123,5 @@ export interface ResultView {
   shadow: string;
   dots: { bg: string }[];
   selected: boolean;
+  kind: string;
 }
