@@ -56,6 +56,8 @@ public class SecurityConfig {
                     // public-plan: только GET позиций плана (страница read-only, disabled=true)
                     .requestMatchers(HttpMethod.GET, "/purchase-plan-items/**").permitAll()
                     .requestMatchers(HttpMethod.GET, "/cfos/names").permitAll()
+                    // Публичный трекер статуса закупок (страница инициатора): только чтение (GET)
+                    .requestMatchers(HttpMethod.GET, "/procurements/**").permitAll()
                     // Публичный курс обучения: только просмотр медиа (GET). Загрузка/удаление — auth
                     .requestMatchers(HttpMethod.GET, "/training/**").permitAll()
                     // Публичная форма CSI: загрузка формы по токену (GET) и отправка отзыва (POST).

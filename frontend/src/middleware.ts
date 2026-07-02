@@ -11,11 +11,12 @@ export async function middleware(request: NextRequest) {
   const isChangePasswordPage = request.nextUrl.pathname === '/change-password';
   const isPublicPlanPage = request.nextUrl.pathname.startsWith('/public-plan');
   const isPublicTrainingPage = request.nextUrl.pathname.startsWith('/training-public');
+  const isPurchaseTrackerPage = request.nextUrl.pathname.startsWith('/purchase-tracker');
   const isPortalPage = request.nextUrl.pathname.startsWith('/portal');
   const isCSIFeedbackPage = request.nextUrl.pathname.startsWith('/csi/feedback');
 
   // Разрешаем доступ к публичным страницам без аутентификации
-  if (isPublicPlanPage || isPublicTrainingPage || isPortalPage || isCSIFeedbackPage || isChangePasswordPage) {
+  if (isPublicPlanPage || isPublicTrainingPage || isPurchaseTrackerPage || isPortalPage || isCSIFeedbackPage || isChangePasswordPage) {
     return NextResponse.next();
   }
 

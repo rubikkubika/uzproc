@@ -35,6 +35,18 @@ public interface PurchaseRequestRepository extends JpaRepository<PurchaseRequest
     Page<PurchaseRequest> findByPurchaseRequestCreationDateBetween(LocalDateTime start, LocalDateTime end, Pageable pageable);
     Optional<PurchaseRequest> findByCsiToken(String csiToken);
 
+    /**
+     * Поиск заявок для публичного трекера статуса: по номеру заявки, предмету или ФИО инициатора.
+     * Регистронезависимо, ограничение количества через Pageable.
+     */
+    @Query("SELECT pr FROM PurchaseRequest pr WHERE " +
+           "LOWER(COALESCE(pr.purchaseRequestSubject, '')) LIKE LOWER(CONCAT('%', :q, '%')) " +
+           "OR LOWER(COALESCE(pr.name, '')) LIKE LOWER(CONCAT('%', :q, '%')) " +
+           "OR LOWER(COALESCE(pr.purchaseRequestInitiator, '')) LIKE LOWER(CONCAT('%', :q, '%')) " +
+           "OR CAST(pr.idPurchaseRequest AS string) LIKE CONCAT('%', :q, '%') " +
+           "ORDER BY pr.purchaseRequestCreationDate DESC")
+    List<PurchaseRequest> searchForTracker(@org.springframework.data.repository.query.Param("q") String q, Pageable pageable);
+
     @Query("SELECT DISTINCT pr.status FROM PurchaseRequest pr WHERE pr.idPurchaseRequest IN (SELECT p.purchaseRequestId FROM PurchasePlanItem p WHERE p.purchaseRequestId IS NOT NULL) AND pr.status IS NOT NULL")
     List<PurchaseRequestStatus> findDistinctStatusLinkedFromPlan();
 

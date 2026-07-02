@@ -28,6 +28,7 @@ import {
   Star,
   ClipboardCheck,
   Send,
+  Route,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -57,12 +58,11 @@ const menuItems: Array<{ id: string; label: string; icon: any }> = [];
   const initiatorItems = [
     { id: 'create-purchase', label: 'Создать закупку', icon: Package, disabled: true },
     { id: 'public-plan', label: 'План закупок (п)', icon: FileText, isExternal: true, route: '/public-plan' },
-    { id: 'training-public', label: 'Обучение (п)', icon: GraduationCap, isExternal: true, route: '/training-public' },
+    { id: 'purchase-tracker', label: 'Трекер закупок', icon: Route, isExternal: true, route: '/purchase-tracker' },
   ];
 
   const initiatorDevelopmentItems = [
     { id: 'test', label: 'Тест', icon: Mail },
-    { id: 'users', label: 'Пользователи', icon: Users },
     { id: 'invoice-recognition', label: 'Распознавание', icon: ScanText },
     { id: 'training', label: 'Обучение', icon: GraduationCap },
     { id: 'csi', label: 'Форма оценки (CSI)', icon: Star, isExternal: true },
@@ -76,8 +76,11 @@ const SIDEBAR_SECTIONS_KEY = 'sidebarSectionsCollapsed';
 const DEFAULT_SECTIONS_COLLAPSED = {
   purchaser: false,
   initiator: false,
-  development: false,
-  /** Подгруппа «Справочники» внутри «В разработке» */
+  /** Раздел «Управление» */
+  management: false,
+  /** Раздел «В разработке» — по умолчанию всегда свёрнут */
+  development: true,
+  /** Подгруппа «Справочники» внутри «Управление» */
   directories: true,
 };
 
@@ -95,7 +98,8 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          setSectionsCollapsed({ ...DEFAULT_SECTIONS_COLLAPSED, ...parsed });
+          // «В разработке» всегда свёрнут при загрузке, независимо от сохранённого состояния
+          setSectionsCollapsed({ ...DEFAULT_SECTIONS_COLLAPSED, ...parsed, development: true });
         } catch (e) {
           console.error('Ошибка загрузки состояния разделов:', e);
         }
@@ -380,23 +384,23 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
             ) : null}
           </div>
 
-          {/* В разработке - только для админов */}
+          {/* Управление - только для админов */}
           {userRole === 'admin' && (
             <div className="mb-2">
               {!isCollapsed && (
                 <button
-                  onClick={() => toggleSection('development')}
+                  onClick={() => toggleSection('management')}
                   className="w-full flex items-center justify-between text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2 hover:text-gray-700 transition-colors"
                 >
-                  <span>В разработке</span>
-                  {sectionsCollapsed.development ? (
+                  <span>Управление</span>
+                  {sectionsCollapsed.management ? (
                     <ChevronDown className="w-3 h-3" />
                   ) : (
                     <ChevronUp className="w-3 h-3" />
                   )}
                 </button>
               )}
-              {(!isCollapsed && !sectionsCollapsed.development) || isCollapsed ? (
+              {(!isCollapsed && !sectionsCollapsed.management) || isCollapsed ? (
                 <ul className="space-y-1">
                   {!isCollapsed && (
                     <li>
@@ -495,6 +499,26 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                       </button>
                     </li>
                   )}
+                  {/* Пользователи */}
+                  <li>
+                    <button
+                      type="button"
+                      onClick={() => handleTabChange('users')}
+                      className={`w-full flex items-center rounded-lg transition-colors relative text-sm ${
+                        isCollapsed ? 'justify-center py-0.5 px-0' : 'px-2 py-1'
+                      } ${
+                        activeTab === 'users'
+                          ? `text-blue-600 bg-blue-50 ${isCollapsed ? '' : 'border-l-4 border-blue-600'}`
+                          : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                      }`}
+                      title={isCollapsed ? 'Пользователи' : undefined}
+                    >
+                      <span className="flex items-center justify-center w-5 flex-shrink-0">
+                        <Users className="w-5 h-5" />
+                      </span>
+                      {!isCollapsed && <span className="ml-2">Пользователи</span>}
+                    </button>
+                  </li>
                   {/* Центр отправки */}
                   <li>
                     <button
@@ -515,6 +539,29 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
                       {!isCollapsed && <span className="ml-2">Центр отправки</span>}
                     </button>
                   </li>
+                </ul>
+              ) : null}
+            </div>
+          )}
+
+          {/* В разработке - только для админов */}
+          {userRole === 'admin' && (
+            <div className="mb-2">
+              {!isCollapsed && (
+                <button
+                  onClick={() => toggleSection('development')}
+                  className="w-full flex items-center justify-between text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2 hover:text-gray-700 transition-colors"
+                >
+                  <span>В разработке</span>
+                  {sectionsCollapsed.development ? (
+                    <ChevronDown className="w-3 h-3" />
+                  ) : (
+                    <ChevronUp className="w-3 h-3" />
+                  )}
+                </button>
+              )}
+              {(!isCollapsed && !sectionsCollapsed.development) || isCollapsed ? (
+                <ul className="space-y-1">
                 {initiatorDevelopmentItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
