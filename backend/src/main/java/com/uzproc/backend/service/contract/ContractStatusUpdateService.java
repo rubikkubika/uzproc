@@ -116,10 +116,16 @@ public class ContractStatusUpdateService {
             String stateTrimmed = state.trim();
             
             // Проверяем условия для статуса "Подписан"
-            // Точные совпадения (полные строки)
-            if (SIGNED_EXACT_STATES.contains(stateTrimmed)) {
+            // Точные совпадения (полные строки) ИЛИ наличие терминальных подстрок:
+            //  - "Подписать или вернуть: Подписан" (например:
+            //    "...Согласование договора - Этап 2: Согласован, Подписать или вернуть: Подписан, Орга...")
+            //  - "Принятие на хранение: Зарегистрирован" — договор принят на хранение = подписан (например:
+            //    "Согласование договора: Согласован, Проверка согласования: Утвержден, Регистрация: Зарегистрирован, Принятие на хранение: Зарегистрирован")
+            if (SIGNED_EXACT_STATES.contains(stateTrimmed)
+                    || stateTrimmed.contains("Подписать или вернуть: Подписан")
+                    || stateTrimmed.contains("Принятие на хранение: Зарегистрирован")) {
                 newStatus = ContractStatus.SIGNED;
-                logger.debug("Contract {} state matches signed condition (exact match): {}", contractId, stateTrimmed);
+                logger.debug("Contract {} state matches signed condition: {}", contractId, stateTrimmed);
             }
             // Проверяем точные совпадения для статуса "На синхронизации"
             else if (ON_SYNCHRONIZATION_EXACT_STATES.contains(stateTrimmed)) {

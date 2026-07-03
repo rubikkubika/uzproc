@@ -115,6 +115,12 @@ public class ContractController {
         return ResponseEntity.ok(contractService.getInWorkDocumentForms(segment));
     }
 
+    @GetMapping("/in-work-state-counts")
+    public ResponseEntity<List<com.uzproc.backend.dto.contract.ContractStateCountDto>> getInWorkStateCounts(
+            @RequestParam(required = false, defaultValue = "") String segment) {
+        return ResponseEntity.ok(contractService.getInWorkStateCounts(segment));
+    }
+
     @GetMapping("/signed-summary")
     public ResponseEntity<List<ContractSummaryItemDto>> getSignedSummary(
             @RequestParam(defaultValue = "0") int year,

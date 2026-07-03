@@ -373,6 +373,51 @@ public class ContractService {
             .collect(java.util.stream.Collectors.toList());
     }
 
+    /**
+     * Список состояний (поле «Состояние») договоров из вкладки «В работе» и их количество.
+     * Критерии «В работе» те же, что и в {@link #getInWorkSummary(String)}.
+     * Отсортировано по убыванию количества.
+     */
+    public List<com.uzproc.backend.dto.contract.ContractStateCountDto> getInWorkStateCounts(String segment) {
+        String segmentWhere = buildSegmentWhere(segment);
+        String sql =
+            "SELECT COALESCE(NULLIF(TRIM(c.state), ''), '(без состояния)') AS contract_state, " +
+            "COALESCE(c.status, '') AS contract_status, " +
+            "COUNT(*) AS contract_count " +
+            "FROM contracts c " +
+            "INNER JOIN users u ON c.prepared_by_id = u.id " +
+            "LEFT JOIN cfo cf ON c.cfo_id = cf.id " +
+            "WHERE u.is_contractor = true " +
+            "  AND (c.status IS NULL OR (c.status <> 'SIGNED' AND c.status <> 'NOT_COORDINATED')) " +
+            "  AND (c.exclude_from_in_work IS NULL OR c.exclude_from_in_work = false) " +
+            segmentWhere +
+            "GROUP BY contract_state, contract_status " +
+            "ORDER BY contract_count DESC, contract_state";
+
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = entityManager.createNativeQuery(sql).getResultList();
+
+        List<com.uzproc.backend.dto.contract.ContractStateCountDto> result = new ArrayList<>();
+        for (Object[] row : rows) {
+            String state = row[0] != null ? row[0].toString() : "(без состояния)";
+            String statusRaw = row[1] != null ? row[1].toString().trim() : "";
+            String status = mapContractStatusDisplayName(statusRaw);
+            long count = ((Number) row[2]).longValue();
+            result.add(new com.uzproc.backend.dto.contract.ContractStateCountDto(state, status, count));
+        }
+        return result;
+    }
+
+    /** Преобразует имя enum-статуса договора в отображаемое имя. Пустой/неизвестный статус — «(без статуса)». */
+    private String mapContractStatusDisplayName(String statusRaw) {
+        if (statusRaw == null || statusRaw.isEmpty()) return "(без статуса)";
+        try {
+            return com.uzproc.backend.entity.contract.ContractStatus.valueOf(statusRaw).getDisplayName();
+        } catch (IllegalArgumentException e) {
+            return statusRaw;
+        }
+    }
+
     public List<ContractSummaryItemDto> getSignedSummary(int year, String segment) {
         String segmentWhere = buildSegmentWhere(segment);
         String sql =
