@@ -32,7 +32,8 @@ public class ContractStatusUpdateService {
         "Принятие на хранение: Зарегистрирован",
         "Подписать или вернуть: Подписан",
         "Согласование договора: Согласован, Регистрация: Зарегистрирован, Принятие на хранение: Зарегистрирован",
-        "Согласование договора: Согласован, Согласование договора - Этап 2: Согласован, Регистрация: Зарегистрирован, Принятие на хранение: Зарегистрирован"
+        "Согласование договора: Согласован, Согласование договора - Этап 2: Согласован, Регистрация: Зарегистрирован, Принятие на хранение: Зарегистрирован",
+        "Согласование договора: Согласован, Проверка согласования: Утвержден, Согласование договора - Этап 2: Согласован, Регистрация: Зарегистрирован, Приняти"
     );
     private static final Set<String> ON_COORDINATION_EXACT_STATES = Set.of(
         "Согласование договора: На согласовании",
@@ -43,10 +44,14 @@ public class ContractStatusUpdateService {
     );
     private static final Set<String> NOT_COORDINATED_EXACT_STATES = Set.of(
         "Не согласован",
-        "не согласован"
+        "не согласован",
+        "Согласование договора: Не согласован"
     );
     private static final Set<String> ON_REGISTRATION_EXACT_STATES = Set.of(
         "Согласование договора: Согласован, Регистрация: На регистрации"
+    );
+    private static final Set<String> ON_SYNCHRONIZATION_EXACT_STATES = Set.of(
+        "Согласование договора: Согласован, Синхронизация: На исполнении"
     );
     
     private final ContractRepository contractRepository;
@@ -115,6 +120,11 @@ public class ContractStatusUpdateService {
             if (SIGNED_EXACT_STATES.contains(stateTrimmed)) {
                 newStatus = ContractStatus.SIGNED;
                 logger.debug("Contract {} state matches signed condition (exact match): {}", contractId, stateTrimmed);
+            }
+            // Проверяем точные совпадения для статуса "На синхронизации"
+            else if (ON_SYNCHRONIZATION_EXACT_STATES.contains(stateTrimmed)) {
+                newStatus = ContractStatus.ON_SYNCHRONIZATION;
+                logger.debug("Contract {} state matches on synchronization condition (exact match): {}", contractId, stateTrimmed);
             }
             // Проверяем точные совпадения для статуса "На регистрации"
             else if (ON_REGISTRATION_EXACT_STATES.contains(stateTrimmed)) {
@@ -214,8 +224,16 @@ public class ContractStatusUpdateService {
             }
         }
         
+        // Пересчитываем хранимую дату регистрации для всех договоров (MAX даты этапа «Регистрация»)
+        try {
+            int affected = contractRepository.recomputeAllRegistrationDates();
+            logger.info("Recomputed registration_date for all contracts, rows affected: {}", affected);
+        } catch (Exception e) {
+            logger.error("Error recomputing registration dates: {}", e.getMessage(), e);
+        }
+
         long processingTime = System.currentTimeMillis() - startTime;
-        logger.info("Mass status update completed: {} contracts processed, {} updated, {} errors, time: {} ms", 
+        logger.info("Mass status update completed: {} contracts processed, {} updated, {} errors, time: {} ms",
             allContracts.size(), updatedCount, errorCount, processingTime);
     }
     

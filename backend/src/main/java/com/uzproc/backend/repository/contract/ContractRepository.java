@@ -3,6 +3,7 @@ package com.uzproc.backend.repository.contract;
 import com.uzproc.backend.entity.contract.Contract;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -25,6 +26,20 @@ public interface ContractRepository extends JpaRepository<Contract, Long>, JpaSp
     Optional<Contract> findByGuid(UUID guid);
     boolean existsByGuid(UUID guid);
     Optional<Contract> findByInnerId(String innerId);
+
+    /**
+     * Пересчитывает дату регистрации (registration_date) для всех договоров:
+     * MAX(completion_date) по этапам согласования «регистрация%» (без учёта регистра).
+     * Если у договора нет таких согласований — записывается NULL.
+     * Вызывается после парсинга данных для актуализации хранимого значения.
+     */
+    @Modifying
+    @org.springframework.transaction.annotation.Transactional
+    @Query(value = "UPDATE contracts c SET registration_date = (" +
+                   "SELECT MAX(a.completion_date) FROM contract_approvals a " +
+                   "WHERE a.contract_id = c.id AND LOWER(a.stage) LIKE 'регистрация%' AND a.completion_date IS NOT NULL)",
+           nativeQuery = true)
+    int recomputeAllRegistrationDates();
 
     /**
      * Лёгкая projection-выборка (inner_id, id) по всем договорам с непустым inner_id.

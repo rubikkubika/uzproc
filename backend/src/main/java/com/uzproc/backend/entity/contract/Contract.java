@@ -101,6 +101,10 @@ public class Contract {
     @Column(name = "is_strategic_product")
     private Boolean isStrategicProduct;
 
+    /** Дата регистрации договора (MAX даты выполнения согласований этапа «Регистрация»). Хранится в БД, пересчитывается при парсинге. */
+    @Column(name = "registration_date")
+    private LocalDateTime registrationDate;
+
     // Связь с пользователем (договорник), который подготовил договор
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "prepared_by_id")
@@ -376,6 +380,14 @@ public class Contract {
 
     public void setIsStrategicProduct(Boolean isStrategicProduct) {
         this.isStrategicProduct = isStrategicProduct;
+    }
+
+    public LocalDateTime getRegistrationDate() {
+        return registrationDate;
+    }
+
+    public void setRegistrationDate(LocalDateTime registrationDate) {
+        this.registrationDate = registrationDate;
     }
 
     public com.uzproc.backend.entity.user.User getPreparedBy() {

@@ -109,7 +109,13 @@ export const useContractsTable = () => {
     organizationFilter: string = '',
     preparedByFilter: string = '',
     statusFilter: string = '',
-    segmentFilter: string = ''
+    segmentFilter: string = '',
+    contractCreationMonth: string = '',
+    contractCreationYear: string = '',
+    plannedDeliveryEndMonth: string = '',
+    plannedDeliveryEndYear: string = '',
+    registrationMonth: string = '',
+    registrationYear: string = ''
   ) => {
     if (append) {
       setLoadingMore(true);
@@ -132,7 +138,13 @@ export const useContractsTable = () => {
         organizationFilter,
         preparedByFilter,
         statusFilter,
-        segmentFilter
+        segmentFilter,
+        contractCreationMonth,
+        contractCreationYear,
+        plannedDeliveryEndMonth,
+        plannedDeliveryEndYear,
+        registrationMonth,
+        registrationYear
       );
       const items = result?.content ?? [];
       if (append) {
@@ -172,7 +184,13 @@ export const useContractsTable = () => {
       filtersHook.organizationFilter,
       filtersHook.preparedByFilter,
       filtersHook.statusFilter,
-      filtersHook.segmentFilter
+      filtersHook.segmentFilter,
+      filtersHook.contractCreationMonth,
+      filtersHook.contractCreationYear,
+      filtersHook.plannedDeliveryEndMonth,
+      filtersHook.plannedDeliveryEndYear,
+      filtersHook.registrationMonth,
+      filtersHook.registrationYear
     );
   }, [
     selectedYear,
@@ -186,6 +204,12 @@ export const useContractsTable = () => {
     filtersHook.organizationFilter,
     filtersHook.preparedByFilter,
     filtersHook.segmentFilter,
+    filtersHook.contractCreationMonth,
+    filtersHook.contractCreationYear,
+    filtersHook.plannedDeliveryEndMonth,
+    filtersHook.plannedDeliveryEndYear,
+    filtersHook.registrationMonth,
+    filtersHook.registrationYear,
     fetchData,
     pageSize,
   ]);
@@ -209,10 +233,16 @@ export const useContractsTable = () => {
           filtersHook.organizationFilter,
           filtersHook.preparedByFilter,
           filtersHook.statusFilter,
-          filtersHook.segmentFilter
+          filtersHook.segmentFilter,
+          filtersHook.contractCreationMonth,
+          filtersHook.contractCreationYear,
+          filtersHook.plannedDeliveryEndMonth,
+          filtersHook.plannedDeliveryEndYear,
+          filtersHook.registrationMonth,
+          filtersHook.registrationYear
         );
       }
-    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, selectedYear, sortField, sortDirection, filtersHook.filters, filtersHook.cfoFilter, filtersHook.activeTab, filtersHook.isTypicalFormFilter, filtersHook.statusFilter, filtersHook.organizationFilter, filtersHook.preparedByFilter, filtersHook.segmentFilter, fetchData]),
+    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, selectedYear, sortField, sortDirection, filtersHook.filters, filtersHook.cfoFilter, filtersHook.activeTab, filtersHook.isTypicalFormFilter, filtersHook.statusFilter, filtersHook.organizationFilter, filtersHook.preparedByFilter, filtersHook.segmentFilter, filtersHook.contractCreationMonth, filtersHook.contractCreationYear, filtersHook.plannedDeliveryEndMonth, filtersHook.plannedDeliveryEndYear, filtersHook.registrationMonth, filtersHook.registrationYear, fetchData]),
     threshold: 0.1,
   });
 

@@ -31,7 +31,13 @@ export const useContractsData = () => {
     organizationFilter: string = '',
     preparedByFilter: string = '',
     statusFilter: string = '',
-    segmentFilter: string = ''
+    segmentFilter: string = '',
+    contractCreationMonth: string = '',
+    contractCreationYear: string = '',
+    plannedDeliveryEndMonth: string = '',
+    plannedDeliveryEndYear: string = '',
+    registrationMonth: string = '',
+    registrationYear: string = ''
   ): Promise<PageResponse | null> => {
     try {
       const params = new URLSearchParams();
@@ -98,6 +104,26 @@ export const useContractsData = () => {
 
       if (segmentFilter && segmentFilter.trim() !== '') {
         params.append('segment', segmentFilter.trim());
+      }
+
+      // Фильтры по датам (месяц/год)
+      if (contractCreationMonth && contractCreationMonth.trim() !== '') {
+        params.append('contractCreationMonth', contractCreationMonth.trim());
+      }
+      if (contractCreationYear && contractCreationYear.trim() !== '') {
+        params.append('contractCreationYear', contractCreationYear.trim());
+      }
+      if (plannedDeliveryEndMonth && plannedDeliveryEndMonth.trim() !== '') {
+        params.append('plannedDeliveryEndMonth', plannedDeliveryEndMonth.trim());
+      }
+      if (plannedDeliveryEndYear && plannedDeliveryEndYear.trim() !== '') {
+        params.append('plannedDeliveryEndYear', plannedDeliveryEndYear.trim());
+      }
+      if (registrationMonth && registrationMonth.trim() !== '') {
+        params.append('registrationMonth', registrationMonth.trim());
+      }
+      if (registrationYear && registrationYear.trim() !== '') {
+        params.append('registrationYear', registrationYear.trim());
       }
 
       if (filters.supplier && filters.supplier.trim() !== '') {

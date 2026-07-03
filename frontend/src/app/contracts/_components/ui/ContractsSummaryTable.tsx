@@ -39,12 +39,6 @@ interface ContractsSummaryTableProps {
   onSignedCellClick: (name: string, segment: string, documentForm: string) => void;
 }
 
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return name.slice(0, 2).toUpperCase();
-}
-
 const formatForm = (form: string) => form === 'Дополнительное соглашение' ? 'ДС' : form;
 
 function heatmapCellStyle(value: number, colMax: number, hue: number): CSSProperties {
@@ -58,106 +52,6 @@ function heatmapCellStyle(value: number, colMax: number, hue: number): CSSProper
   };
 }
 
-function ExecutorDrawer({
-  executor,
-  segForms,
-  signedSegForms,
-  segIndex,
-  signedIndex,
-  onClose,
-}: {
-  executor: string;
-  segForms: Record<Seg, string[]>;
-  signedSegForms: Record<Seg, string[]>;
-  segIndex: Record<Seg, Record<string, ContractSummaryItem>>;
-  signedIndex: Record<Seg, Record<string, ContractSummaryItem>>;
-  onClose: () => void;
-}) {
-  const inWorkTotal = SEGMENTS.reduce((s, seg) => s + (segIndex[seg][executor]?.count ?? 0), 0);
-  const signedTotal = SEGMENTS.reduce((s, seg) => s + (signedIndex[seg][executor]?.count ?? 0), 0);
-
-  return (
-    <div className="w-52 flex-shrink-0 border border-gray-200 rounded-lg bg-white overflow-hidden self-start">
-      <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-200">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-full bg-blue-500 flex items-center justify-center text-[9px] font-bold text-white flex-shrink-0">
-            {getInitials(executor)}
-          </div>
-          <div className="flex flex-col min-w-0">
-            <span className="text-xs font-semibold text-gray-800 leading-tight truncate">{executor}</span>
-            <span className="text-[10px] text-gray-400 leading-tight">
-              {inWorkTotal} в работе · {signedTotal} подп.
-            </span>
-          </div>
-        </div>
-        <button
-          onClick={onClose}
-          className="text-gray-400 hover:text-gray-600 w-5 h-5 flex items-center justify-center rounded hover:bg-gray-200 flex-shrink-0 ml-1"
-        >
-          ×
-        </button>
-      </div>
-
-      {(['in-work', 'signed'] as const).map(section => {
-        const index = section === 'in-work' ? segIndex : signedIndex;
-        const forms = section === 'in-work' ? segForms : signedSegForms;
-        const label = section === 'in-work' ? 'В работе' : 'Подписано';
-        const total = SEGMENTS.reduce((s, seg) => s + (index[seg][executor]?.count ?? 0), 0);
-        if (total === 0 && section === 'signed') return null;
-        return (
-          <div key={section}>
-            <div className={`px-3 py-1 text-[10px] font-semibold border-b border-gray-100 ${section === 'signed' ? 'text-emerald-600 bg-emerald-50/50' : 'text-blue-600 bg-blue-50/50'}`}>
-              {label}
-            </div>
-            {SEGMENTS.map(seg => {
-              const item = index[seg][executor];
-              const segForms2 = forms[seg];
-              if (!item && segForms2.length === 0) return null;
-              return (
-                <div key={seg} className="px-3 py-2 border-b border-gray-100">
-                  <div className="flex items-center gap-1 mb-1">
-                    <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: SEGMENT_ACCENT[seg] }} />
-                    <span className="text-[10px] font-semibold" style={{ color: SEGMENT_ACCENT[seg] }}>
-                      {SEGMENT_LABELS[seg]}
-                    </span>
-                    {item && <span className="ml-auto text-[10px] font-bold text-gray-700">{item.count}</span>}
-                  </div>
-                  {segForms2.length > 0 && (
-                    <div className="flex flex-col gap-0.5 pl-3">
-                      {segForms2.map(form => {
-                        const val = item?.countByDocumentForm?.[form] ?? 0;
-                        return (
-                          <div key={form} className="flex items-center justify-between gap-1">
-                            <span className="text-[10px] text-gray-500 truncate">{form}</span>
-                            <span className={`text-[10px] font-medium flex-shrink-0 ${val > 0 ? 'text-gray-700' : 'text-gray-300'}`}>
-                              {val > 0 ? val : '—'}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        );
-      })}
-
-      <div className="px-3 py-2 bg-gray-50 border-t border-gray-200">
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-gray-500">В работе</span>
-          <span className="text-xs font-bold text-gray-800">{inWorkTotal}</span>
-        </div>
-        <div className="flex items-center justify-between mt-0.5">
-          <span className="text-xs text-gray-500">Подписано</span>
-          <span className="text-xs font-bold text-emerald-700">{signedTotal}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function ContractsSummaryTable({
   segmentsData,
   currentYear,
@@ -168,7 +62,6 @@ export default function ContractsSummaryTable({
   onSignedPreparedByClick,
   onSignedCellClick,
 }: ContractsSummaryTableProps) {
-  const [drawerExecutor, setDrawerExecutor] = useState<string | null>(null);
 
   // В работе
   const { segRows, segForms } = useMemo(() => {
@@ -251,7 +144,6 @@ export default function ContractsSummaryTable({
   );
 
   const handleRowClick = (name: string) => {
-    setDrawerExecutor(prev => prev === name ? null : name);
     onPreparedByClick(name);
   };
 
@@ -374,18 +266,15 @@ export default function ContractsSummaryTable({
             ) : (
               allExecutors.map((name, idx) => {
                 const isSelected = selectedPreparedBy === name;
-                const isDrawer = drawerExecutor === name;
                 const inWorkTotal = SEGMENTS.reduce((s, seg) => s + (segIndex[seg][name]?.count ?? 0), 0);
                 const signedTotal = SEGMENTS.reduce((s, seg) => s + (signedIndex[seg][name]?.count ?? 0), 0);
                 return (
                   <tr
                     key={name}
                     className={`border-b border-gray-100 transition-colors cursor-pointer ${
-                      isDrawer
-                        ? 'bg-blue-50/40'
-                        : idx % 2 === 0
-                          ? 'bg-white hover:bg-gray-50/60'
-                          : 'bg-gray-50/30 hover:bg-gray-50/60'
+                      idx % 2 === 0
+                        ? 'bg-white hover:bg-gray-50/60'
+                        : 'bg-gray-50/30 hover:bg-gray-50/60'
                     }`}
                     onClick={() => handleRowClick(name)}
                   >
@@ -492,18 +381,6 @@ export default function ContractsSummaryTable({
           )}
         </table>
       </div>
-
-      {/* Drawer */}
-      {drawerExecutor && (
-        <ExecutorDrawer
-          executor={drawerExecutor}
-          segForms={segForms}
-          signedSegForms={signedSegForms}
-          segIndex={segIndex}
-          signedIndex={signedIndex}
-          onClose={() => setDrawerExecutor(null)}
-        />
-      )}
     </div>
   );
 }

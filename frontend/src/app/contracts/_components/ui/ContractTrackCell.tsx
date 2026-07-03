@@ -26,12 +26,13 @@ export default function ContractTrackCell({ contract }: Props) {
 
   // Определяем стадию согласования
   const isOnApproval = status === 'На согласовании';
+  const isOnSynchronization = status === 'На синхронизации';
   const isOnRegistration = status === 'На регистрации';
   const isSigned = status === 'Подписан';
   const isNotCoordinated = status === 'Не согласован';
 
   // Подготовка завершена если есть первое согласование ИЛИ статус уже прошёл этап согласования
-  const isPreparationDone = firstApprovalAssignmentDate != null || isOnRegistration || isSigned || isNotCoordinated;
+  const isPreparationDone = firstApprovalAssignmentDate != null || isOnSynchronization || isOnRegistration || isSigned || isNotCoordinated;
   const isPreparationStarted = preparationStartDate != null;
 
   // Tooltip для Подготовки
@@ -95,7 +96,7 @@ export default function ContractTrackCell({ contract }: Props) {
           <div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
             <X className="w-3 h-3 text-white" />
           </div>
-        ) : isSigned || isOnRegistration ? (
+        ) : isSigned || isOnRegistration || isOnSynchronization ? (
           <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
             <Check className="w-3 h-3 text-white" />
           </div>

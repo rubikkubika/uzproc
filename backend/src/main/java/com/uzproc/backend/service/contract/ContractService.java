@@ -94,14 +94,21 @@ public class ContractService {
             String preparedByName,
             String status,
             String supplier,
-            String segment) {
+            String segment,
+            Integer contractCreationMonth,
+            Integer contractCreationYear,
+            Integer plannedDeliveryEndMonth,
+            Integer plannedDeliveryEndYear,
+            Integer registrationMonth,
+            Integer registrationYear) {
 
         logger.info("=== FILTER REQUEST ===");
         logger.info("Filter parameters - year: {}, innerId: '{}', cfo: {}, name: '{}', documentForm: '{}', costType: '{}', contractType: '{}', currentUserId: {}, inWorkTab: {}, signedTab: {}, hiddenTab: {}, notCoordinatedTab: {}, purchaseRequestInnerId: '{}', isTypicalForm: {}, customerOrganization: {}, preparedByName: '{}', status: '{}', supplier: '{}', segment: '{}'",
                 year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, hiddenTab, notCoordinatedTab, purchaseRequestInnerId, isTypicalForm, customerOrganization, preparedByName, status, supplier, segment);
 
         Specification<Contract> spec = buildSpecification(
-                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, hiddenTab, purchaseRequestInnerId, isTypicalForm, notCoordinatedTab, customerOrganization, preparedByName, status, supplier, segment);
+                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, hiddenTab, purchaseRequestInnerId, isTypicalForm, notCoordinatedTab, customerOrganization, preparedByName, status, supplier, segment,
+                contractCreationMonth, contractCreationYear, plannedDeliveryEndMonth, plannedDeliveryEndYear, registrationMonth, registrationYear);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -260,7 +267,8 @@ public class ContractService {
         if (contract == null) {
             return null;
         }
-        contract.setExcludedFromStatusCalculation(Boolean.TRUE.equals(excludedFromStatusCalculation) ? true : false);
+        boolean excluded = Boolean.TRUE.equals(excludedFromStatusCalculation);
+        contract.setExcludedFromStatusCalculation(excluded);
         contract.setExclusionComment(exclusionComment != null && !exclusionComment.trim().isEmpty() ? exclusionComment.trim() : null);
         contract = contractRepository.save(contract);
         return toDto(contract);
@@ -1133,19 +1141,24 @@ public class ContractService {
         Map<String, Long> counts = new HashMap<>();
         counts.put("all", contractRepository.count(buildSpecification(
                 year, innerId, cfo, name, documentForm, costType, contractType, null, null, null, null,
-                purchaseRequestInnerId, isTypicalForm, null, customerOrganization, preparedByName, status, supplier, segment)));
+                purchaseRequestInnerId, isTypicalForm, null, customerOrganization, preparedByName, status, supplier, segment,
+                null, null, null, null, null, null)));
         counts.put("in-work", contractRepository.count(buildSpecification(
                 year, innerId, cfo, name, documentForm, costType, contractType, null, true, null, null,
-                purchaseRequestInnerId, isTypicalForm, null, customerOrganization, preparedByName, status, supplier, segment)));
+                purchaseRequestInnerId, isTypicalForm, null, customerOrganization, preparedByName, status, supplier, segment,
+                null, null, null, null, null, null)));
         counts.put("not-coordinated", contractRepository.count(buildSpecification(
                 year, innerId, cfo, name, documentForm, costType, contractType, null, null, null, null,
-                purchaseRequestInnerId, isTypicalForm, true, customerOrganization, preparedByName, status, supplier, segment)));
+                purchaseRequestInnerId, isTypicalForm, true, customerOrganization, preparedByName, status, supplier, segment,
+                null, null, null, null, null, null)));
         counts.put("signed", contractRepository.count(buildSpecification(
                 year, innerId, cfo, name, documentForm, costType, contractType, null, null, true, null,
-                purchaseRequestInnerId, isTypicalForm, null, customerOrganization, preparedByName, status, supplier, segment)));
+                purchaseRequestInnerId, isTypicalForm, null, customerOrganization, preparedByName, status, supplier, segment,
+                null, null, null, null, null, null)));
         counts.put("hidden", contractRepository.count(buildSpecification(
                 year, innerId, cfo, name, documentForm, costType, contractType, null, null, null, true,
-                purchaseRequestInnerId, isTypicalForm, null, customerOrganization, preparedByName, status, supplier, segment)));
+                purchaseRequestInnerId, isTypicalForm, null, customerOrganization, preparedByName, status, supplier, segment,
+                null, null, null, null, null, null)));
         return counts;
     }
 
@@ -1168,12 +1181,18 @@ public class ContractService {
             String preparedByName,
             String status,
             String supplier,
-            String segment) {
+            String segment,
+            Integer contractCreationMonth,
+            Integer contractCreationYear,
+            Integer plannedDeliveryEndMonth,
+            Integer plannedDeliveryEndYear,
+            Integer registrationMonth,
+            Integer registrationYear) {
 
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             int predicateCount = 0;
-            
+
             // Фильтр по году
             if (year != null) {
                 java.time.LocalDateTime startOfYear = java.time.LocalDateTime.of(year, 1, 1, 0, 0);
@@ -1397,6 +1416,54 @@ public class ContractService {
                     predicateCount++;
                     logger.info("Added segment filter: 1p");
                 }
+            }
+
+            // Фильтр по дате создания договора — месяц и/или год
+            if (contractCreationYear != null) {
+                predicates.add(cb.equal(
+                        cb.function("date_part", Double.class, cb.literal("year"), root.get("contractCreationDate")),
+                        contractCreationYear.doubleValue()));
+                predicateCount++;
+                logger.info("Added contractCreationYear filter: {}", contractCreationYear);
+            }
+            if (contractCreationMonth != null) {
+                predicates.add(cb.equal(
+                        cb.function("date_part", Double.class, cb.literal("month"), root.get("contractCreationDate")),
+                        contractCreationMonth.doubleValue()));
+                predicateCount++;
+                logger.info("Added contractCreationMonth filter: {}", contractCreationMonth);
+            }
+
+            // Фильтр по сроку поставки (план) — месяц и/или год
+            if (plannedDeliveryEndYear != null) {
+                predicates.add(cb.equal(
+                        cb.function("date_part", Double.class, cb.literal("year"), root.get("plannedDeliveryEndDate")),
+                        plannedDeliveryEndYear.doubleValue()));
+                predicateCount++;
+                logger.info("Added plannedDeliveryEndYear filter: {}", plannedDeliveryEndYear);
+            }
+            if (plannedDeliveryEndMonth != null) {
+                predicates.add(cb.equal(
+                        cb.function("date_part", Double.class, cb.literal("month"), root.get("plannedDeliveryEndDate")),
+                        plannedDeliveryEndMonth.doubleValue()));
+                predicateCount++;
+                logger.info("Added plannedDeliveryEndMonth filter: {}", plannedDeliveryEndMonth);
+            }
+
+            // Фильтр по дате регистрации (хранимая колонка registration_date) — месяц и/или год
+            if (registrationYear != null) {
+                predicates.add(cb.equal(
+                        cb.function("date_part", Double.class, cb.literal("year"), root.get("registrationDate")),
+                        registrationYear.doubleValue()));
+                predicateCount++;
+                logger.info("Added registrationYear filter: {}", registrationYear);
+            }
+            if (registrationMonth != null) {
+                predicates.add(cb.equal(
+                        cb.function("date_part", Double.class, cb.literal("month"), root.get("registrationDate")),
+                        registrationMonth.doubleValue()));
+                predicateCount++;
+                logger.info("Added registrationMonth filter: {}", registrationMonth);
             }
 
             logger.info("Total predicates: {}", predicateCount);

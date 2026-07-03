@@ -49,6 +49,14 @@ export const useContractsFilters = (setCurrentPage: (page: number) => void) => {
   // Фильтр по статусу срока действия: '' = все, 'expired' = Истёк, 'expiring' = Истекает, 'active' = Действует
   const [expiryStatusFilter, setExpiryStatusFilter] = useState<string>('');
 
+  // Фильтры по датам (месяц 1..12 / год), '' = все
+  const [contractCreationMonth, setContractCreationMonth] = useState<string>('');
+  const [contractCreationYear, setContractCreationYear] = useState<string>('');
+  const [plannedDeliveryEndMonth, setPlannedDeliveryEndMonth] = useState<string>('');
+  const [plannedDeliveryEndYear, setPlannedDeliveryEndYear] = useState<string>('');
+  const [registrationMonth, setRegistrationMonth] = useState<string>('');
+  const [registrationYear, setRegistrationYear] = useState<string>('');
+
   // Фильтр организации заказчика: '' = все, 'UZUM_MARKET', 'UZUM_OOO', 'UZUM_TEZKOR'
   const [organizationFilter, setOrganizationFilter] = useState<string>('');
 
@@ -184,6 +192,18 @@ export const useContractsFilters = (setCurrentPage: (page: number) => void) => {
     setIsTypicalFormFilter,
     expiryStatusFilter,
     setExpiryStatusFilter,
+    contractCreationMonth,
+    setContractCreationMonth,
+    contractCreationYear,
+    setContractCreationYear,
+    plannedDeliveryEndMonth,
+    setPlannedDeliveryEndMonth,
+    plannedDeliveryEndYear,
+    setPlannedDeliveryEndYear,
+    registrationMonth,
+    setRegistrationMonth,
+    registrationYear,
+    setRegistrationYear,
     statusFilter,
     setStatusFilter,
     organizationFilter,

@@ -3,13 +3,14 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
-import { ArrowUp, ArrowDown, ArrowUpDown, Search, Settings, Eye, EyeOff } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpDown, Search, Settings, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { useContractsTable } from './hooks/useContractsTable';
 import { SortField } from './types/contracts.types';
 import ContractsTableTabs from './ui/ContractsTableTabs';
 import ContractsSummaryTable from './ui/ContractsSummaryTable';
 import ContractTrackCell from './ui/ContractTrackCell';
 import RemarksPanel from './RemarksPanel';
+import { MONTH_OPTIONS } from './constants/contracts.constants';
 
 const ORGANIZATION_OPTIONS = [
   { key: '', label: 'Все' },
@@ -22,6 +23,7 @@ const STATUS_OPTIONS = [
   { key: '', label: 'Все' },
   { key: 'Проект', label: 'Проект' },
   { key: 'На согласовании', label: 'На согласовании' },
+  { key: 'На синхронизации', label: 'На синхронизации' },
   { key: 'На регистрации', label: 'На регистрации' },
   { key: 'Подписан', label: 'Подписан' },
   { key: 'Не согласован', label: 'Не согласован' },
@@ -89,7 +91,7 @@ export default function ContractsTable() {
     : allItems;
 
   const isTabWithPreparedBy = filters.activeTab === 'in-work' || filters.activeTab === 'not-coordinated' || filters.activeTab === 'signed';
-  const totalColumns = isTabWithPreparedBy ? 17 : 16;
+  const totalColumns = isTabWithPreparedBy ? 15 : 14;
 
   const handleRowClick = (contractId: number, e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
@@ -172,6 +174,48 @@ export default function ContractsTable() {
       <div className="flex items-center gap-1 pb-0.5">
         {labelSlot}
       </div>
+    </div>
+  );
+
+  /** Список лет для фильтров по датам (текущий +1 и 4 назад) */
+  const dateFilterCurrentYear = new Date().getFullYear();
+  const yearOptions: number[] = [];
+  for (let y = dateFilterCurrentYear + 1; y >= dateFilterCurrentYear - 4; y--) yearOptions.push(y);
+
+  /** Фильтр по дате: месяц + год (два select), как на реестре оплат */
+  const renderDateFilter = (
+    monthValue: string,
+    setMonth: (v: string) => void,
+    yearValue: string,
+    setYear: (v: string) => void,
+  ) => (
+    <div className="flex items-center gap-1 w-full" style={{ minWidth: 0 }}>
+      <select
+        value={monthValue}
+        onChange={(e) => { e.stopPropagation(); setMonth(e.target.value); setCurrentPage(0); }}
+        onClick={(e) => e.stopPropagation()}
+        className="flex-1 min-w-0 text-xs border border-gray-300 rounded px-0.5 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        style={{ height: '22px', boxSizing: 'border-box' }}
+        title="Месяц"
+      >
+        <option value="">Мес.</option>
+        {MONTH_OPTIONS.map((m) => (
+          <option key={m.value} value={m.value}>{m.label}</option>
+        ))}
+      </select>
+      <select
+        value={yearValue}
+        onChange={(e) => { e.stopPropagation(); setYear(e.target.value); setCurrentPage(0); }}
+        onClick={(e) => e.stopPropagation()}
+        className="text-xs border border-gray-300 rounded px-0.5 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        style={{ height: '22px', boxSizing: 'border-box', width: '52px', minWidth: '52px' }}
+        title="Год"
+      >
+        <option value="">Год</option>
+        {yearOptions.map((y) => (
+          <option key={y} value={String(y)}>{y}</option>
+        ))}
+      </select>
     </div>
   );
 
@@ -335,7 +379,7 @@ export default function ContractsTable() {
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
               {/* Глазик */}
-              <th className="px-1 text-center text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '32px', minWidth: '32px', maxWidth: '32px' }}>
+              <th className="px-1 text-center text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '46px', minWidth: '46px', maxWidth: '46px' }}>
                 {thInner(
                   <div className="w-full" />,
                   <Eye className="w-3 h-3 text-gray-400 mx-auto" />
@@ -368,13 +412,6 @@ export default function ContractsTable() {
                 {thInner(
                   renderFilterInput('purchaseRequestInnerId'),
                   <span>№ЗП</span>
-                )}
-              </th>
-              {/* Дата утверждения ЗП */}
-              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '7%' }}>
-                {thInner(
-                  <div className="w-full" />,
-                  <span>Дата утв. ЗП</span>
                 )}
               </th>
               {/* Исполнитель */}
@@ -475,24 +512,38 @@ export default function ContractsTable() {
                 )}
               </th>
               {/* Дата создания */}
-              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '7%' }}>
+              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '9%' }}>
                 {thInner(
-                  <div className="w-full" />,
+                  renderDateFilter(
+                    filters.contractCreationMonth,
+                    filters.setContractCreationMonth,
+                    filters.contractCreationYear,
+                    filters.setContractCreationYear,
+                  ),
                   <>{renderSortButton('contractCreationDate')}<span>Дата создания</span></>
                 )}
               </th>
               {/* Срок поставки (план) */}
-              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '7%' }}>
+              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '12%' }}>
                 {thInner(
-                  <select
-                    value={filters.expiryStatusFilter}
-                    onChange={(e) => { e.stopPropagation(); filters.setExpiryStatusFilter(e.target.value); }}
-                    onClick={(e) => e.stopPropagation()}
-                    className="w-full text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    style={{ height: '22px', boxSizing: 'border-box' }}
-                  >
-                    {EXPIRY_STATUS_OPTIONS.map(opt => <option key={opt.key} value={opt.key}>{opt.label}</option>)}
-                  </select>,
+                  <div className="flex items-center gap-1 w-full" style={{ minWidth: 0 }}>
+                    <select
+                      value={filters.expiryStatusFilter}
+                      onChange={(e) => { e.stopPropagation(); filters.setExpiryStatusFilter(e.target.value); }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-xs border border-gray-300 rounded px-0.5 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      style={{ height: '22px', boxSizing: 'border-box', width: '58px', minWidth: '58px' }}
+                      title="Статус срока"
+                    >
+                      {EXPIRY_STATUS_OPTIONS.map(opt => <option key={opt.key} value={opt.key}>{opt.label}</option>)}
+                    </select>
+                    {renderDateFilter(
+                      filters.plannedDeliveryEndMonth,
+                      filters.setPlannedDeliveryEndMonth,
+                      filters.plannedDeliveryEndYear,
+                      filters.setPlannedDeliveryEndYear,
+                    )}
+                  </div>,
                   <>{renderSortButton('plannedDeliveryEndDate')}<span>Срок поставки (план)</span></>
                 )}
               </th>
@@ -512,17 +563,15 @@ export default function ContractsTable() {
                 )}
               </th>
               {/* Дата регистрации */}
-              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '7%' }}>
-                {thInner(
-                  <div className="w-full" />,
-                  <span>Дата регистрации</span>
-                )}
-              </th>
-              {/* Условия оплаты */}
               <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '9%' }}>
                 {thInner(
-                  renderFilterInput('paymentTerms'),
-                  <span>Условия оплаты</span>
+                  renderDateFilter(
+                    filters.registrationMonth,
+                    filters.setRegistrationMonth,
+                    filters.registrationYear,
+                    filters.setRegistrationYear,
+                  ),
+                  <span>Дата регистрации</span>
                 )}
               </th>
               {/* Типовая форма */}
@@ -566,14 +615,24 @@ export default function ContractsTable() {
                     onClick={(e) => handleRowClick(contract.id, e)}
                     onAuxClick={(e) => handleRowAuxClick(contract.id, e)}
                   >
-                    <td className="px-1 py-2 text-center border-r border-gray-300" style={{ width: '32px', minWidth: '32px', maxWidth: '32px' }}>
-                      <button
-                        title={isHidden ? 'Показать во вкладке «В работе»' : 'Скрыть из вкладки «В работе»'}
-                        onClick={(e) => { e.stopPropagation(); updateExcludeFromInWork(contract.id, !isHidden); }}
-                        className={`flex items-center justify-center w-full h-full transition-colors ${isHidden ? 'text-gray-400 hover:text-gray-600' : 'text-gray-300 hover:text-gray-500'}`}
-                      >
-                        {isHidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                      </button>
+                    <td className="px-1 py-2 text-center border-r border-gray-300" style={{ width: '46px', minWidth: '46px', maxWidth: '46px' }}>
+                      <div className="flex items-center justify-center gap-0.5">
+                        <button
+                          title={isHidden ? 'Показать во вкладке «В работе»' : 'Скрыть из вкладки «В работе»'}
+                          onClick={(e) => { e.stopPropagation(); updateExcludeFromInWork(contract.id, !isHidden); }}
+                          className={`flex items-center justify-center transition-colors ${isHidden ? 'text-gray-400 hover:text-gray-600' : 'text-gray-300 hover:text-gray-500'}`}
+                        >
+                          {isHidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                        {contract.excludedFromStatusCalculation === true && (
+                          <span
+                            title="Договор исключён из расчёта статуса заявки"
+                            className="flex items-center justify-center flex-shrink-0"
+                          >
+                            <AlertCircle className="w-3.5 h-3.5 text-red-500" />
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 break-words">{contract.innerId || '-'}</td>
                     <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 break-words">{contract.customerOrganization || '-'}</td>
@@ -589,9 +648,6 @@ export default function ContractsTable() {
                       ) : contract.purchaseRequestInnerId != null ? (
                         <span className="text-gray-900">{contract.purchaseRequestInnerId}</span>
                       ) : '-'}
-                    </td>
-                    <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300">
-                      {contract.purchaseCompletionDate ? new Date(contract.purchaseCompletionDate).toLocaleDateString('ru-RU') : '-'}
                     </td>
                     {isTabWithPreparedBy && (
                       <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 break-words">{contract.preparedBy || '-'}</td>
@@ -626,6 +682,7 @@ export default function ContractsTable() {
                         <span className={`px-1.5 py-0.5 text-xs font-medium rounded-full ${
                           contract.status === 'Подписан' ? 'bg-green-100 text-green-800' :
                           contract.status === 'На согласовании' ? 'bg-yellow-100 text-yellow-800' :
+                          contract.status === 'На синхронизации' ? 'bg-indigo-100 text-indigo-800' :
                           contract.status === 'На регистрации' ? 'bg-blue-100 text-blue-800' :
                           contract.status === 'Не согласован' ? 'bg-red-100 text-red-800' :
                           contract.status === 'Проект' ? 'bg-gray-200 text-gray-700' :
@@ -640,7 +697,6 @@ export default function ContractsTable() {
                     <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300">
                       {contract.registrationDate ? new Date(contract.registrationDate).toLocaleDateString('ru-RU') : '-'}
                     </td>
-                    <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 break-words">{contract.paymentTerms || '-'}</td>
                     <td className="px-2 py-2 text-xs border-r border-gray-300 text-center">
                       {contract.isTypicalForm === true ? (
                         <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-green-100 text-green-800">Да</span>
