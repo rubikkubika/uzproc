@@ -32,6 +32,7 @@ public interface PurchaseRequestRepository extends JpaRepository<PurchaseRequest
     Optional<PurchaseRequest> findByInnerId(String innerId);
     boolean existsByGuid(UUID guid);
     Optional<PurchaseRequest> findByIdPurchaseRequest(Long idPurchaseRequest);
+    List<PurchaseRequest> findByIdPurchaseRequestIn(List<Long> idPurchaseRequests);
     boolean existsByIdPurchaseRequest(Long idPurchaseRequest);
     Page<PurchaseRequest> findByPurchaseRequestCreationDateBetween(LocalDateTime start, LocalDateTime end, Pageable pageable);
     Optional<PurchaseRequest> findByCsiToken(String csiToken);

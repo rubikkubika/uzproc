@@ -119,6 +119,32 @@ public class ProcurementTrackerService {
         }
         List<PurchaseRequest> requests = requestRepository.searchForTracker(
                 query.trim(), PageRequest.of(0, SEARCH_LIMIT));
+        return assembleAll(requests);
+    }
+
+    /**
+     * Детальные модели закупок по списку номеров заявок, в порядке переданных id.
+     * Batch-загрузка связанных сущностей (без N+1). Используется для «Избранного».
+     */
+    @Transactional(readOnly = true)
+    public List<ProcurementTrackerDto> getByIdPurchaseRequestIn(List<Long> idPurchaseRequests) {
+        if (idPurchaseRequests == null || idPurchaseRequests.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<PurchaseRequest> requests = requestRepository.findByIdPurchaseRequestIn(idPurchaseRequests);
+        // Сохраняем порядок переданных id (например, «свежее избранное — сверху»)
+        Map<Long, PurchaseRequest> byId = requests.stream()
+                .filter(r -> r.getIdPurchaseRequest() != null)
+                .collect(Collectors.toMap(PurchaseRequest::getIdPurchaseRequest, Function.identity(), (a, b) -> a));
+        List<PurchaseRequest> ordered = idPurchaseRequests.stream()
+                .map(byId::get)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        return assembleAll(ordered);
+    }
+
+    /** Batch-сборка DTO по готовому списку заявок (общая логика для поиска и избранного). */
+    private List<ProcurementTrackerDto> assembleAll(List<PurchaseRequest> requests) {
         if (requests.isEmpty()) {
             return Collections.emptyList();
         }

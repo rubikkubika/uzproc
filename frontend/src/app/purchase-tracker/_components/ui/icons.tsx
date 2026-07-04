@@ -25,3 +25,26 @@ export function CalendarIcon({ color = '#7C3AED' }: { color?: string }) {
     </svg>
   );
 }
+
+export function UserIcon({ size = 18, color = '#667085' }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="8" r="4" stroke={color} strokeWidth="2" />
+      <path d="M5 20c0-3.314 3.134-6 7-6s7 2.686 7 6" stroke={color} strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function StarIcon({ size = 18, color = '#667085', fill = 'none' }: { size?: number; color?: string; fill?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={fill}>
+      <path
+        d="M12 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.8L12 16.77l-5.2 2.75.99-5.8-4.21-4.1 5.82-.85L12 3.5z"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}

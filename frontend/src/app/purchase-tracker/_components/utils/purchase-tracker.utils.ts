@@ -36,6 +36,12 @@ function initials(fullName: string): string {
     .join('');
 }
 
+/** Только ФИО инициатора без должности/отдела: «ФИО (Отдел, Должность)» → «ФИО». */
+function nameOnly(initiator: string): string {
+  const paren = initiator.indexOf('(');
+  return (paren >= 0 ? initiator.slice(0, paren) : initiator).trim();
+}
+
 /** Модель карточки результата поиска */
 export function buildResultView(item: Procurement, selectedId: number): ResultView {
   const pill = getStatusPill(item);
@@ -44,13 +50,17 @@ export function buildResultView(item: Procurement, selectedId: number): ResultVi
     id: item.id,
     title: item.title,
     budget: item.budget,
-    initiator: item.initiator,
+    initiator: nameOnly(item.initiator),
     statusShort: pill.label,
     pillBg: pill.bg,
     pillFg: pill.fg,
     border: selected ? '#7C3AED' : '#E6E8F0',
     shadow: selected ? '0 0 0 3px rgba(124,58,237,.13)' : '0 1px 2px rgba(16,24,40,.04)',
-    dots: item.stages.map((stg) => ({ bg: STATE_PALETTE[stg.state].dot })),
+    dots: item.stages.map((stg) => ({
+      bg: STATE_PALETTE[stg.state].dot,
+      label: stg.name,
+      fg: stg.state === 'wait' ? '#B0B7C3' : '#667085',
+    })),
     selected,
     kind: item.kind,
   };
@@ -111,7 +121,7 @@ export function buildDetailView(item: Procurement, simpleLanguage: boolean, show
     id: item.id,
     title: item.title,
     budget: item.budget,
-    initiator: item.initiator,
+    initiator: nameOnly(item.initiator),
     created: item.created,
     buyer: item.buyer,
     phone: item.phone,

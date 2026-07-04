@@ -121,7 +121,7 @@ export interface ResultView {
   pillFg: string;
   border: string;
   shadow: string;
-  dots: { bg: string }[];
+  dots: { bg: string; label: string; fg: string }[];
   selected: boolean;
   kind: string;
 }
