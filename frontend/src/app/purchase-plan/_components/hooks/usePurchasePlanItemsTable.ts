@@ -1437,7 +1437,8 @@ export const usePurchasePlanItemsTable = () => {
     if (yearsCacheRef.current) {
       setAllYears(yearsCacheRef.current);
       if (yearsCacheRef.current.length > 0 && !selectedYear) {
-        setSelectedYear(yearsCacheRef.current[0]);
+        const currentYear = new Date().getFullYear();
+        setSelectedYear(yearsCacheRef.current.includes(currentYear) ? currentYear : yearsCacheRef.current[0]);
       }
       return;
     }
@@ -1457,7 +1458,8 @@ export const usePurchasePlanItemsTable = () => {
           yearsCacheRef.current = years;
           setAllYears(years);
           if (years.length > 0 && !selectedYear) {
-            setSelectedYear(years[0]);
+            const currentYear = new Date().getFullYear();
+            setSelectedYear(years.includes(currentYear) ? currentYear : years[0]);
           }
         }
       } catch (err) {

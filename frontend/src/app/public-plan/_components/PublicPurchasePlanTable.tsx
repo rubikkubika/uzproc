@@ -681,7 +681,8 @@ export default function PublicPurchasePlanTable() {
           const years = await response.json();
           setAllYears(years.sort((a: number, b: number) => b - a));
           if (years.length > 0 && !selectedYear) {
-            setSelectedYear(years[0]);
+            const currentYear = new Date().getFullYear();
+            setSelectedYear(years.includes(currentYear) ? currentYear : years[0]);
           }
         }
       } catch (err) {
