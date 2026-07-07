@@ -200,7 +200,7 @@ export function KpiSlaBlock({ data, settings, onSettingsChange, onSettingsReset,
                               />
                             )}
                           </div>
-                          <span className="text-[10px] text-gray-500 w-10 text-right">{score.toFixed(0)}%</span>
+                          <span className="text-[10px] text-gray-500 w-12 text-right">{score.toFixed(1)}%</span>
                         </div>
                       </td>
                       <td className="px-2 py-1.5 text-right font-bold whitespace-nowrap">

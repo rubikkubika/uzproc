@@ -6,6 +6,7 @@ import type { KpiSavingsByPurchaser, KpiSavingsSettings } from '../types/kpi.typ
 import { purchaserDisplayName } from '@/utils/purchaser';
 import { useKpiPurchaseDetails } from '../hooks/useKpiPurchaseDetails';
 import { KpiPurchasesPanel } from './KpiPurchasesPanel';
+import { calcScore, SAVINGS_SCORE_FLOOR } from '../utils/kpiScore';
 
 const USD_TO_UZS = 12000;
 
@@ -22,11 +23,6 @@ function formatAmount(value: number, currency: 'UZS' | 'USD'): string {
 function calcSavingsPercent(savings: number, budget: number): number | null {
   if (budget <= 0) return null;
   return (savings / budget) * 100;
-}
-
-function calcScore(actualPercent: number | null, targetPercent: number, maxScorePercent: number): number {
-  if (actualPercent === null) return 0;
-  return Math.min(maxScorePercent, (actualPercent / targetPercent) * 100);
 }
 
 interface KpiSavingsSettingsEditorProps {
@@ -203,7 +199,7 @@ export function KpiSavingsBlock({ data, settings, onSettingsChange, onSettingsRe
                   const maxScorePercent = settings.allowBoost ? 130 : 100;
                   return data.map((row) => {
                   const savPct = calcSavingsPercent(row.totalSavings, row.totalBudget);
-                  const score = calcScore(savPct, settings.target, maxScorePercent);
+                  const score = calcScore(savPct, settings.target, maxScorePercent, SAVINGS_SCORE_FLOOR);
                   const barColor = score >= 100 ? 'bg-green-500' : score >= 70 ? 'bg-yellow-400' : 'bg-red-400';
                   const isSelected = selectedPurchaser === row.purchaser;
                   return (
@@ -245,7 +241,7 @@ export function KpiSavingsBlock({ data, settings, onSettingsChange, onSettingsRe
                               />
                             )}
                           </div>
-                          <span className="text-[10px] text-gray-500 w-10 text-right">{score.toFixed(0)}%</span>
+                          <span className="text-[10px] text-gray-500 w-12 text-right">{score.toFixed(1)}%</span>
                         </div>
                       </td>
                       <td className="px-2 py-1.5 text-right font-bold whitespace-nowrap">

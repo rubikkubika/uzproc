@@ -9,7 +9,9 @@ import type {
   KpiCsiSettings,
 } from '../types/kpi.types';
 import { purchaserDisplayName } from '@/utils/purchaser';
-import { calcScore, calcSlaScore, calcBoostedScore } from '../utils/kpiScore';
+import { calcScore, calcSlaScore, calcBoostedScore, calcPayout, SAVINGS_SCORE_FLOOR } from '../utils/kpiScore';
+import { KpiIncomeBar } from './KpiIncomeBar';
+import { KpiIncomeLegend } from './KpiIncomeLegend';
 
 /** Максимальная средняя оценка CSI (по 4 критериям, каждый от 1 до 5). */
 const CSI_MAX_RATING = 5;
@@ -71,7 +73,7 @@ export function KpiSummaryBlock({
   const rows: SummaryRow[] = Array.from(allPurchasers).map((purchaser) => {
     const s = savingsByPurchaser.get(purchaser);
     const savingsPct = s ? calcSavingsPercent(s.totalSavings, s.totalBudget) : null;
-    const savingsScore = calcScore(savingsPct, savingsSettings.target, savingsMax);
+    const savingsScore = calcScore(savingsPct, savingsSettings.target, savingsMax, SAVINGS_SCORE_FLOOR);
     const savingsPoints = (savingsScore / 100) * savingsSettings.weight;
 
     const sl = slaByPurchaser.get(purchaser);
@@ -128,12 +130,15 @@ export function KpiSummaryBlock({
             {anyBoost && <span className="ml-1 text-blue-700 font-medium">· до 130%</span>}
           </span>
         </div>
-        <span className="text-[10px] text-gray-500">
-          Макс. база: {baseTotalWeight}
-          {anyBoost && rows.length > 0 && (
-            <span className="ml-1">· макс. с бустом: {rows[0]?.maxTotalPoints.toFixed(1)}</span>
-          )}
-        </span>
+        <div className="flex items-center gap-3">
+          <KpiIncomeLegend />
+          <span className="text-[10px] text-gray-500">
+            Макс. база: {baseTotalWeight}
+            {anyBoost && rows.length > 0 && (
+              <span className="ml-1">· макс. с бустом: {rows[0]?.maxTotalPoints.toFixed(1)}</span>
+            )}
+          </span>
+        </div>
       </div>
 
       {rows.length === 0 ? (
@@ -147,7 +152,8 @@ export function KpiSummaryBlock({
                 <th className="px-2 py-1.5 text-right font-medium text-gray-500 whitespace-nowrap">Экономия</th>
                 <th className="px-2 py-1.5 text-right font-medium text-gray-500 whitespace-nowrap">SLA</th>
                 <th className="px-2 py-1.5 text-right font-medium text-gray-500 whitespace-nowrap">CSI</th>
-                <th className="px-2 py-1.5 text-right font-medium text-gray-500 whitespace-nowrap">Итого</th>
+                <th className="px-2 py-1.5 text-right font-medium text-gray-500 whitespace-nowrap">Выплата</th>
+                <th className="px-2 py-1.5 text-left font-medium text-gray-500 whitespace-nowrap min-w-[160px]">Структура дохода</th>
               </tr>
             </thead>
             <tbody>
@@ -177,17 +183,26 @@ export function KpiSummaryBlock({
                       </span>
                     ) : '—'}
                   </td>
-                  <td className="px-2 py-1.5 text-right whitespace-nowrap tabular-nums font-bold">
-                    {(() => {
-                      const totalPct = baseTotalWeight > 0 ? (row.totalPoints / baseTotalWeight) * 100 : 0;
-                      const cls = totalPct >= 100 ? 'text-green-600' : totalPct >= 70 ? 'text-yellow-600' : 'text-red-500';
-                      return (
-                        <span className={cls} title={`${row.totalPoints.toFixed(1)} из ${baseTotalWeight} баллов`}>
-                          {totalPct.toFixed(1)}%
-                        </span>
-                      );
-                    })()}
-                  </td>
+                  {(() => {
+                    const kpe = baseTotalWeight > 0 ? (row.totalPoints / baseTotalWeight) * 100 : 0;
+                    const payout = calcPayout(kpe);
+                    const cls = payout >= 100 ? 'text-green-600' : payout >= 70 ? 'text-yellow-600' : 'text-red-500';
+                    return (
+                      <>
+                        <td className="px-2 py-1.5 text-right whitespace-nowrap tabular-nums font-bold">
+                          <span
+                            className={cls}
+                            title={`КПЭ ${kpe.toFixed(1)}% (${row.totalPoints.toFixed(1)} из ${baseTotalWeight} баллов) → выплата = MIN(MAX(70 + 0.3·КПЭ, КПЭ), 130) = ${payout.toFixed(1)}%`}
+                          >
+                            {payout.toFixed(1)}%
+                          </span>
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <KpiIncomeBar payout={payout} showLabels />
+                        </td>
+                      </>
+                    );
+                  })()}
                 </tr>
               ))}
             </tbody>
