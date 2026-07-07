@@ -14,7 +14,9 @@ services:
     environment:
       POSTGRES_DB: uzproc
       POSTGRES_USER: uzproc_user
-      POSTGRES_PASSWORD: uzproc_password
+      # Пароль БД из .env (fail-fast: compose не поднимется без DB_PASSWORD).
+      # ВАЖНО: значение должно совпадать с уже инициализированным volume postgres_data.
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required in .env}
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=ru_RU.UTF-8"
       LC_ALL: ru_RU.UTF-8
       LANG: ru_RU.UTF-8
@@ -43,7 +45,7 @@ services:
       - DB_PORT=5432
       - DB_NAME=uzproc
       - DB_USER=uzproc_user
-      - DB_PASSWORD=uzproc_password
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required in .env}
       - SHOW_SQL=false
       - FORCE_RELOAD_CSV=false
       - LC_ALL=C.UTF-8

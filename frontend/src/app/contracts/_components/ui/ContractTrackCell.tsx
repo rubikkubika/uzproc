@@ -17,11 +17,15 @@ export default function ContractTrackCell({ contract }: Props) {
     status,
     preparationWorkingDays,
     approvalWorkingDays,
+    signingWorkingDays,
     firstApprovalAssignmentDate,
     preparationStartDate,
     contractRequiresPurchase,
     purchaseCompletionDate,
     purchaseRequestId,
+    registrationDate,
+    synchronizationDate,
+    documentForm,
   } = contract;
 
   // Определяем стадию согласования
@@ -34,6 +38,37 @@ export default function ContractTrackCell({ contract }: Props) {
   // Подготовка завершена если есть первое согласование ИЛИ статус уже прошёл этап согласования
   const isPreparationDone = firstApprovalAssignmentDate != null || isOnSynchronization || isOnRegistration || isSigned || isNotCoordinated;
   const isPreparationStarted = preparationStartDate != null;
+
+  // Tooltip для Согласования
+  const approvalTooltip = (() => {
+    const parts: string[] = [`Согласование: ${status || '—'}`];
+    if (firstApprovalAssignmentDate) {
+      parts.push(`Дата первого согласования: ${formatDate(firstApprovalAssignmentDate)}`);
+    }
+    if (isOnApproval) {
+      parts.push('Согласование идёт (по текущее время)');
+    }
+    if (approvalWorkingDays != null) {
+      parts.push(`Рабочих дней согласования: ${approvalWorkingDays}`);
+    }
+    return parts.join('\n');
+  })();
+
+  // Tooltip для Подписания
+  const isSpecification = documentForm === 'Спецификация';
+  const signingEndDate = isSpecification ? synchronizationDate : registrationDate;
+  const signingTooltip = (() => {
+    const parts: string[] = [`Подписание: ${isSigned ? 'Подписан' : isOnRegistration ? 'На регистрации' : isOnSynchronization ? 'На синхронизации' : '—'}`];
+    if (signingEndDate) {
+      parts.push(`Дата ${isSpecification ? 'синхронизации' : 'регистрации'}: ${formatDate(signingEndDate)}`);
+    } else if (isOnRegistration || isOnSynchronization) {
+      parts.push('Подписание идёт (по текущее время)');
+    }
+    if (signingWorkingDays != null) {
+      parts.push(`Рабочих дней подписания: ${signingWorkingDays}`);
+    }
+    return parts.join('\n');
+  })();
 
   // Tooltip для Подготовки
   const preparationTooltip = (() => {
@@ -90,7 +125,7 @@ export default function ContractTrackCell({ contract }: Props) {
       {/* Блок: Согласование */}
       <div
         className="flex flex-col items-center gap-0.5 rounded border border-gray-300 px-1 py-0.5 min-w-[3rem]"
-        title={`Согласование: ${status || '—'}`}
+        title={approvalTooltip}
       >
         {isNotCoordinated ? (
           <div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
@@ -118,18 +153,23 @@ export default function ContractTrackCell({ contract }: Props) {
       {/* Блок: Подписание */}
       <div
         className="flex flex-col items-center gap-0.5 rounded border border-gray-300 px-1 py-0.5 min-w-[3rem]"
-        title={`Подписание: ${isSigned ? 'Подписан' : isOnRegistration ? 'На регистрации' : '—'}`}
+        title={signingTooltip}
       >
         {isSigned ? (
           <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
             <Check className="w-3 h-3 text-white" />
           </div>
-        ) : isOnRegistration ? (
+        ) : isOnRegistration || isOnSynchronization ? (
           <div className="w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center flex-shrink-0">
             <Clock className="w-3 h-3 text-white" />
           </div>
         ) : (
           <div className="w-4 h-4 rounded-full bg-gray-200 flex-shrink-0" />
+        )}
+        {signingWorkingDays != null && (
+          <span className="inline-flex items-center justify-center min-w-[1.5rem] h-4 rounded bg-gray-200 text-gray-700 text-[10px] font-bold tabular-nums px-0.5">
+            {signingWorkingDays}
+          </span>
         )}
         <span className="text-[9px] text-gray-500 whitespace-nowrap leading-none">Подписание</span>
       </div>
@@ -138,11 +178,13 @@ export default function ContractTrackCell({ contract }: Props) {
       {(() => {
         const prep = preparationWorkingDays ?? 0;
         const appr = approvalWorkingDays ?? 0;
-        const total = prep + appr;
+        const sign = signingWorkingDays ?? 0;
+        const total = prep + appr + sign;
         if (total === 0) return null;
         const parts: string[] = [];
         if (prep > 0) parts.push(`подготовка ${prep} дн.`);
         if (appr > 0) parts.push(`согласование ${appr} дн.`);
+        if (sign > 0) parts.push(`подписание ${sign} дн.`);
         return (
           <div
             className="inline-flex flex-col items-center gap-0.5 rounded border border-gray-400 px-1 py-0.5 min-w-0"

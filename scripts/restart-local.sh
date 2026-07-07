@@ -108,20 +108,33 @@ if [ -f "$ROOT/.env" ]; then
   else
     echo "✓ MAIL_PASSWORD установлен"
   fi
+  # Проверяем JWT_SECRET: backend и frontend ДОЛЖНЫ использовать один секрет,
+  # иначе фронтенд отклонит валидный токен и логин будет зацикливаться на /login.
+  if [ -z "$JWT_SECRET" ]; then
+    echo "⚠ WARNING: JWT_SECRET не установлен в .env — backend и frontend могут разойтись по секрету (сломается логин)!"
+  else
+    echo "✓ JWT_SECRET установлен (backend и frontend возьмут его из окружения)"
+  fi
 else
   echo "⚠ .env файл не найден, используем переменные окружения системы"
 fi
 
-# Запуск сервисов
-# Переменные уже экспортированы через set -a выше, они будут доступны дочерним процессам
-(cd "$ROOT/backend" && mvn spring-boot:run -Dspring-boot.run.profiles=local -q) &
-(cd "$ROOT/frontend" && npm run dev) &
+# Запуск сервисов.
+# Переменные уже экспортированы через set -a выше — они попадут в окружение дочерних процессов
+# (важно: и backend, и frontend получают один JWT_SECRET из .env).
+# nohup + disown отвязывают процессы от текущей сессии, чтобы они пережили завершение скрипта
+# (иначе при запуске скрипта в фоне сервисы убивались вместе со скриптом).
+mkdir -p "$ROOT/backend/logs"
+echo "Запуск backend (лог: backend/logs/local-run.log)..."
+(cd "$ROOT/backend" && nohup mvn spring-boot:run -Dspring-boot.run.profiles=local -q > "$ROOT/backend/logs/local-run.log" 2>&1 &)
+echo "Запуск frontend (лог: frontend/frontend-dev.log)..."
+(cd "$ROOT/frontend" && nohup npm run dev > "$ROOT/frontend/frontend-dev.log" 2>&1 &)
 
 # Ожидание готовности
-for i in {1..30}; do
+for i in {1..45}; do
   sleep 2
   BE=$(curl -s http://localhost:8080/api/health 2>/dev/null | grep -c UP)
   FE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 2>/dev/null)
   [ "$BE" = "1" ] && [ "$FE" = "307" -o "$FE" = "200" ] && echo "✓ Backend: UP | Frontend: Ready" && exit 0
 done
-echo "⚠ Таймаут"
+echo "⚠ Таймаут ожидания готовности (проверьте backend/logs/local-run.log и frontend/frontend-dev.log)"

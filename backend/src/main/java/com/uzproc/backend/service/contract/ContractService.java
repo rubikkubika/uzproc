@@ -185,9 +185,36 @@ public class ContractService {
 
             // Расчёт данных этапа «Согласование»
             LocalDateTime lastCompletionDate = lastApprovalCompletionDates.get(c.getId());
-            if (firstApprovalDate != null && lastCompletionDate != null) {
-                long approvalDays = workingDayService.countFromDayAfterThroughInclusive(firstApprovalDate, lastCompletionDate);
-                dto.setApprovalWorkingDays((int) approvalDays);
+            if (firstApprovalDate != null) {
+                // Если согласование ещё идёт (статус «На согласовании») — считаем до текущего момента,
+                // иначе (согласование завершено) — до даты последнего согласования.
+                LocalDateTime approvalEnd = c.getStatus() == ContractStatus.ON_COORDINATION
+                        ? LocalDateTime.now()
+                        : lastCompletionDate;
+                if (approvalEnd != null) {
+                    long approvalDays = workingDayService.countFromDayAfterThroughInclusive(firstApprovalDate, approvalEnd);
+                    dto.setApprovalWorkingDays((int) approvalDays);
+                }
+            }
+
+            // Расчёт данных этапа «Подписание»: старт — дата последнего согласования;
+            // конец — дата регистрации (для спецификаций — дата синхронизации), либо текущий
+            // момент, если этап ещё идёт (статус «На синхронизации»/«На регистрации»).
+            if (lastCompletionDate != null
+                    && (c.getStatus() == ContractStatus.ON_SYNCHRONIZATION
+                        || c.getStatus() == ContractStatus.ON_REGISTRATION
+                        || c.getStatus() == ContractStatus.SIGNED)) {
+                boolean isSpecification = "Спецификация".equals(c.getDocumentForm());
+                LocalDateTime signingEnd = isSpecification
+                        ? synchronizationDates.get(c.getId())
+                        : registrationDates.get(c.getId());
+                if (signingEnd == null && c.getStatus() != ContractStatus.SIGNED) {
+                    signingEnd = LocalDateTime.now();
+                }
+                if (signingEnd != null) {
+                    long signingDays = workingDayService.countFromDayAfterThroughInclusive(lastCompletionDate, signingEnd);
+                    dto.setSigningWorkingDays((int) signingDays);
+                }
             }
 
             return dto;

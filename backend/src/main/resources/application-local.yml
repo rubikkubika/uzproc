@@ -3,6 +3,11 @@
 security:
   auth:
     enabled: false
+  jwt:
+    # Дефолт JWT-секрета ТОЛЬКО для локальной разработки (в application.yml дефолта нет — fail-fast).
+    # Если задан JWT_SECRET в окружении (например, из .env через restart-local.sh) — используется он,
+    # и тогда бэкенд и фронтенд подписывают/проверяют токены одним ключом.
+    secret: ${JWT_SECRET:uzproc-jwt-secret-key-CHANGE-IN-PROD-min32ch}
 
 # Dev: подробное SQL-логирование и форматирование (в prod выключено в application.yml)
 spring:
