@@ -41,10 +41,11 @@ export default function PurchaseTrackerResultCard({
           </span>
           <KindBadge kind={result.kind} />
         </span>
-        <span className="flex flex-none items-center gap-1.5">
+        <span className="flex min-w-0 flex-1 items-center justify-end gap-1.5">
           <span
-            className="whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold"
+            className="min-w-0 truncate rounded-full px-2.5 py-1 text-[11px] font-semibold"
             style={{ color: result.pillFg, background: result.pillBg }}
+            title={result.statusShort}
           >
             {result.statusShort}
           </span>

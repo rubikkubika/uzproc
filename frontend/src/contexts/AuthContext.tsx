@@ -1,12 +1,19 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { getBackendUrl } from '@/utils/api';
 
 interface AuthContextType {
   userRole: string | null;
   userEmail: string | null;
   userId: number | null;
+  /** Полное имя пользователя «Имя Фамилия» (пусто, если не найдено) */
+  userFullName: string | null;
+  /** Инициатор в формате заявок «Фамилия Имя» — для поиска «моих» заявок в трекере */
+  userInitiator: string | null;
+  /** Пользователь — закупщик (флаг is_purchaser) */
+  isPurchaser: boolean;
+  /** Пользователь — договорник (флаг is_contractor) */
+  isContractor: boolean;
   loading: boolean;
   canEdit: boolean;
 }
@@ -21,6 +28,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userId, setUserId] = useState<number | null>(null);
+  const [userFullName, setUserFullName] = useState<string | null>(null);
+  const [userInitiator, setUserInitiator] = useState<string | null>(null);
+  const [isPurchaser, setIsPurchaser] = useState(false);
+  const [isContractor, setIsContractor] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -34,20 +45,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           if (data.email) {
             setUserEmail(data.email);
-            // Найти пользователя по email чтобы получить его ID
-            try {
-              const usersResponse = await fetch(`${getBackendUrl()}/api/users?page=0&size=1&email=${encodeURIComponent(data.email)}`);
-              if (usersResponse.ok) {
-                const usersData = await usersResponse.json();
-                const users = usersData.content || [];
-                if (users.length > 0) {
-                  setUserId(users[0].id);
-                }
-              }
-            } catch {
-              // Ошибка поиска пользователя игнорируется
-            }
           }
+          // ID/ФИО/роли-флаги берём из подписанного JWT (через /api/auth/check),
+          // а не из admin-эндпоинта /users — он закрыт для не-админов (403).
+          if (typeof data.userId === 'number') {
+            setUserId(data.userId);
+          }
+          const fullName = [data.name, data.surname].filter(Boolean).join(' ').trim();
+          setUserFullName(fullName || null);
+          // В заявках инициатор хранится как «Фамилия Имя [Отчество]» — этим и ищем «мои» заявки
+          const initiator = [data.surname, data.name].filter(Boolean).join(' ').trim();
+          setUserInitiator(initiator || null);
+          setIsPurchaser(data.isPurchaser === true);
+          setIsContractor(data.isContractor === true);
         }
       } catch (error) {
         // Ошибка проверки аутентификации игнорируется
@@ -61,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const canEdit = userRole === 'admin';
 
   return (
-    <AuthContext.Provider value={{ userRole, userEmail, userId, loading, canEdit }}>
+    <AuthContext.Provider value={{ userRole, userEmail, userId, userFullName, userInitiator, isPurchaser, isContractor, loading, canEdit }}>
       {children}
     </AuthContext.Provider>
   );

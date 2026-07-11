@@ -664,9 +664,10 @@ export default function UsersTable() {
       )}
       </div>
 
-      {/* Таблица */}
-      <div className="flex-1 min-h-0 overflow-auto relative custom-scrollbar">
-        <table className="w-full border-collapse">
+      {/* Таблица: высота ограничена вьюпортом, чтобы горизонтальный скролл был виден снизу
+          без прокрутки всей страницы к последней строке */}
+      <div className="flex-1 min-h-0 max-h-[calc(100vh-140px)] overflow-x-auto overflow-y-auto relative custom-scrollbar">
+        <table className="w-max min-w-full border-collapse">
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
               {columnOrder.map((columnKey) => {

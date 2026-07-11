@@ -1,17 +1,14 @@
 'use client';
 
+import AppShell from '../_components/AppShell';
 import PublicPurchasePlanTable from './_components/PublicPurchasePlanTable';
 
 export default function PublicPlanPage() {
   return (
-    <div className="h-screen flex flex-col">
-      <PublicPurchasePlanTable />
-    </div>
+    <AppShell activeTab="public-plan">
+      <div className="h-full flex flex-col">
+        <PublicPurchasePlanTable />
+      </div>
+    </AppShell>
   );
 }
-
-
-
-
-
-

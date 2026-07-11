@@ -12,6 +12,22 @@ import type {
   StepView,
 } from '../types/purchase-tracker.types';
 
+/** Тип «Закупка» (в отличие от «Заказ») — по названию kind */
+export function isPurchaseKind(kind: string): boolean {
+  return kind.toLowerCase().startsWith('закуп');
+}
+
+/** Этап «Выбор поставщика» относится только к закупкам — у заказов его скрываем */
+function isSupplierStage(stage: Procurement['stages'][number]): boolean {
+  return [stage.name, stage.off].some((s) => (s ?? '').toLowerCase().includes('поставщик'));
+}
+
+/** Этапы для отображения: у заказов (не закупок) убираем «Выбор поставщика» */
+function visibleStages(item: Procurement): Procurement['stages'] {
+  if (isPurchaseKind(item.kind)) return item.stages;
+  return item.stages.filter((stage) => !isSupplierStage(stage));
+}
+
 /** Статус-пилюля закупки (для карточки результата и шапки детали) */
 export function getStatusPill(item: Procurement) {
   return item.done ? DONE_PILL : STATUS_PILLS[item.stageIdx];
@@ -56,13 +72,14 @@ export function buildResultView(item: Procurement, selectedId: number): ResultVi
     pillFg: pill.fg,
     border: selected ? '#7C3AED' : '#E6E8F0',
     shadow: selected ? '0 0 0 3px rgba(124,58,237,.13)' : '0 1px 2px rgba(16,24,40,.04)',
-    dots: item.stages.map((stg) => ({
+    dots: visibleStages(item).map((stg) => ({
       bg: STATE_PALETTE[stg.state].dot,
       label: stg.name,
       fg: stg.state === 'wait' ? '#B0B7C3' : '#667085',
     })),
     selected,
     kind: item.kind,
+    done: item.done,
   };
 }
 
@@ -110,7 +127,8 @@ function buildStageView(
 /** Модель детальной карточки закупки */
 export function buildDetailView(item: Procurement, simpleLanguage: boolean, showForecast: boolean): DetailView {
   const pill = getStatusPill(item);
-  const total = item.stages.length;
+  const stages = visibleStages(item);
+  const total = stages.length;
 
   const signedLine =
     item.done && item.signed
@@ -134,7 +152,7 @@ export function buildDetailView(item: Procurement, simpleLanguage: boolean, show
     showForecast: showForecast && !item.done && !!item.forecast,
     isDone: item.done,
     signedLine,
-    stages: item.stages.map((stg, i) => buildStageView(stg, i, total, simpleLanguage)),
+    stages: stages.map((stg, i) => buildStageView(stg, i, total, simpleLanguage)),
     kind: item.kind,
   };
 }

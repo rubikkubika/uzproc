@@ -83,8 +83,12 @@ public class AuthController {
                 userRole = UserRole.USER;
             }
 
-            // Генерируем JWT-токен
-            String token = jwtService.generateToken(user.getEmail(), userRole.getCode(), user.getId());
+            // Генерируем JWT-токен (с флагами ролей и ФИО — для ролевого доступа на фронте)
+            String token = jwtService.generateToken(
+                    user.getEmail(), userRole.getCode(), user.getId(),
+                    Boolean.TRUE.equals(user.getIsPurchaser()),
+                    Boolean.TRUE.equals(user.getIsContractor()),
+                    user.getName(), user.getSurname());
 
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);

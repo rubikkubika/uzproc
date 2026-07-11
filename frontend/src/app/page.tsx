@@ -12,6 +12,7 @@ import BudgetChart from './analytics/_components/BudgetChart';
 import PerformanceChart from './analytics/_components/PerformanceChart';
 import PurchaserWorkload from './workload/_components/PurchaserWorkload';
 import PurchaseRequestsTable from './purchase-requests/_components/PurchaseRequestsTable';
+import PurchaseTracker from './purchase-tracker/_components/PurchaseTracker';
 import PurchasesTable from './purchases/_components/PurchasesTable';
 import PurchasePlanItemsTable from './purchase-plan/_components/PurchasePlanItemsTable';
 import ContractsTable from './contracts/_components/ContractsTable';
@@ -141,7 +142,10 @@ function DashboardContent() {
   const [isMounted, setIsMounted] = useState(false);
   
   // Используем глобальный контекст аутентификации вместо отдельных запросов
-  const { userEmail, userRole } = useAuth();
+  const { userEmail, userRole, isPurchaser, isContractor } = useAuth();
+  // Пользователь без роли закупщик/договорник и не админ — доступ только к трекеру и
+  // публичному плану. Внутри приложения главная показывает трекер, разделы закупщика скрыты.
+  const isPlainInitiator = userRole != null && userRole !== 'admin' && !isPurchaser && !isContractor;
   
   // Получаем email из localStorage или из контекста
   const [currentUser, setCurrentUser] = useState<string | null>(null);
@@ -282,6 +286,11 @@ function DashboardContent() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
         </div>
       );
+    }
+    // «Простой» инициатор: главная и любые внутренние вкладки показывают трекер закупок.
+    // Разделы закупщика/админа для него недоступны (в сайдбаре скрыты).
+    if (isPlainInitiator) {
+      return <PurchaseTracker simpleLanguage showForecast />;
     }
     switch (activeTab) {
       case 'overview':
@@ -472,6 +481,15 @@ function DashboardContent() {
         return <Presentation />;
 
       case 'users':
+        if (userRole !== 'admin') {
+          return (
+            <div className="space-y-6">
+              <div className="bg-white p-6 rounded-lg shadow">
+                <p className="text-gray-600">Доступ к разделу «Пользователи» только для администратора.</p>
+              </div>
+            </div>
+          );
+        }
         return (
           <div className="space-y-6 h-full flex flex-col">
             <div className="flex-shrink-0">
@@ -544,6 +562,15 @@ function DashboardContent() {
         );
 
       case 'sending-center':
+        if (userRole !== 'admin') {
+          return (
+            <div className="space-y-6">
+              <div className="bg-white p-6 rounded-lg shadow">
+                <p className="text-gray-600">Доступ к разделу «Центр отправки» только для администратора.</p>
+              </div>
+            </div>
+          );
+        }
         return <SendingCenter />;
 
       case 'upload':

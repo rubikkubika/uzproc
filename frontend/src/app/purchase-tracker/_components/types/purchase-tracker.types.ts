@@ -124,4 +124,6 @@ export interface ResultView {
   dots: { bg: string; label: string; fg: string }[];
   selected: boolean;
   kind: string;
+  /** Договор подписан — закупка завершена (для группировки «в работе»/«подписано») */
+  done: boolean;
 }

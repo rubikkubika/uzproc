@@ -300,7 +300,9 @@ export default function PublicPurchasePlanTable() {
     loading: boolean;
   }>>({});
   // Используем глобальный контекст аутентификации вместо отдельного запроса
-  const { userEmail } = useAuth();
+  const { userEmail, userRole } = useAuth();
+  // Залогинен — логотип уже есть в общем сайдбаре, в шапке таблицы его прячем
+  const isAuthenticated = !!(userRole || userEmail);
   const loadedCommentsRef = useRef<Set<number>>(new Set());
   const fetchingCommentsRef = useRef<Set<number>>(new Set());
 
@@ -1990,31 +1992,26 @@ export default function PublicPurchasePlanTable() {
   return (
     <div className="bg-gray-50 flex-1 p-4 flex flex-col min-h-0">
       <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
-        {/* Заголовок с логотипом */}
+        {/* Заголовок с логотипом. Залогиненным логотип не дублируем — он есть в сайдбаре */}
         <div className="px-6 py-4 border-b border-gray-200 flex items-center gap-4 flex-shrink-0">
-          <button
-            onClick={() => {
-              if (typeof window !== 'undefined') {
-                // Проверяем, авторизован ли пользователь
-                const authToken = document.cookie.split('; ').find(row => row.startsWith('auth-token='));
-                if (authToken) {
-                  // Если авторизован, переходим на главную страницу
-                  window.location.href = '/?tab=overview';
-                } else {
+          {!isAuthenticated && (
+            <button
+              onClick={() => {
+                if (typeof window !== 'undefined') {
                   // Если не авторизован, переходим на страницу логина с параметром
                   window.location.href = '/login?from=public-plan';
                 }
-              }
-            }}
-            className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
-          >
-            <img 
-              src="/images/logo-small.svg" 
-              alt="uzProc Logo" 
-              className="w-8 h-8"
-            />
-            <h1 className="text-xl font-bold text-black">uzProc</h1>
-          </button>
+              }}
+              className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+            >
+              <img
+                src="/images/logo-small.svg"
+                alt="uzProc Logo"
+                className="w-8 h-8"
+              />
+              <h1 className="text-xl font-bold text-black">uzProc</h1>
+            </button>
+          )}
           <div className="flex-1">
             <h2 className="text-lg font-semibold text-gray-900">
               План закупок {selectedYear ? selectedYear : ''} (текущая редакция)

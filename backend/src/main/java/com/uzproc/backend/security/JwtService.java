@@ -30,11 +30,19 @@ public class JwtService {
         return Keys.hmacShaKeyFor(keyBytes);
     }
 
-    public String generateToken(String email, String role, Long userId) {
+    public String generateToken(String email, String role, Long userId,
+                                boolean isPurchaser, boolean isContractor,
+                                String name, String surname) {
         return Jwts.builder()
                 .subject(email)
                 .claim("role", role)
                 .claim("userId", userId)
+                // Роли-флаги и ФИО кладём в токен, чтобы фронт/middleware знали их без
+                // обращения к admin-эндпоинту /users (он закрыт для не-админов).
+                .claim("isPurchaser", isPurchaser)
+                .claim("isContractor", isContractor)
+                .claim("name", name)
+                .claim("surname", surname)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + expiration * 1000L))
                 .signWith(getSigningKey())

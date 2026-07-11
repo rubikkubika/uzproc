@@ -1,4 +1,5 @@
 import type { DetailView } from '../types/purchase-tracker.types';
+import { UserIcon } from './icons';
 
 interface PurchaseTrackerBuyerFooterProps {
   detail: DetailView;
@@ -11,8 +12,8 @@ export default function PurchaseTrackerBuyerFooter({ detail }: PurchaseTrackerBu
       className="flex items-center gap-3 px-6 py-3.5"
       style={{ background: '#FAFBFC', borderTop: '1px solid #F0F2F7' }}
     >
-      <div className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-[#EDE9FE] text-[13px] font-bold text-[#6D28D9]">
-        {detail.buyerInit}
+      <div className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-[#EDE9FE]">
+        <UserIcon size={18} color="#6D28D9" />
       </div>
       <div className="flex flex-col">
         <span className="text-[13px] font-semibold text-[#101828]">{detail.buyer} — ваш закупщик</span>

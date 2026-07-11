@@ -87,7 +87,11 @@ const DEFAULT_SECTIONS_COLLAPSED = {
 export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setIsMobileMenuOpen, isCollapsed = false, setIsCollapsed }: SidebarProps) {
   const router = useRouter();
   
-  const { userEmail, userRole } = useAuth();
+  const { userEmail, userRole, isPurchaser, isContractor } = useAuth();
+
+  // Раздел «Для закупщика» доступен только админам, закупщикам и договорникам.
+  // Пользователи без этих ролей видят только раздел «Для инициатора».
+  const canSeePurchaserSection = userRole === 'admin' || isPurchaser || isContractor;
 
   const [sectionsCollapsed, setSectionsCollapsed] = useState(DEFAULT_SECTIONS_COLLAPSED);
 
@@ -265,7 +269,8 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
             </ul>
           </div>
 
-          {/* Для закупщика */}
+          {/* Для закупщика — только для админов, закупщиков и договорников */}
+          {canSeePurchaserSection && (
           <div className="mb-2">
             {!isCollapsed && (
               <button
@@ -323,6 +328,7 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
               </ul>
             ) : null}
           </div>
+          )}
 
           {/* Для инициатора */}
           <div className="mb-2">
@@ -603,22 +609,24 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
 
         {/* Кнопка загрузки и выхода */}
         <div className={`${isCollapsed ? 'px-0 py-1' : 'pl-2 pr-1.5 py-2'} border-t border-gray-200 space-y-1`}>
-          <button
-            onClick={() => handleTabChange('upload')}
-            className={`w-full flex items-center rounded-lg transition-colors relative text-sm ${
-              isCollapsed ? 'justify-center py-0.5 px-0' : 'px-2 py-1'
-            } ${
-              activeTab === 'upload'
-                ? `text-purple-600 bg-purple-50 ${isCollapsed ? '' : 'border-l-4 border-purple-600'}`
-                : 'text-purple-600 bg-purple-50/50 hover:bg-purple-100 hover:text-purple-700'
-            }`}
-            title={isCollapsed ? 'Загрузка' : undefined}
-          >
-            <span className={`flex items-center justify-center ${isCollapsed ? 'w-5' : 'w-5'} flex-shrink-0`}>
-              <Upload className="w-5 h-5" />
-            </span>
-            {!isCollapsed && <span className="ml-2">Загрузка</span>}
-          </button>
+          {canSeePurchaserSection && (
+            <button
+              onClick={() => handleTabChange('upload')}
+              className={`w-full flex items-center rounded-lg transition-colors relative text-sm ${
+                isCollapsed ? 'justify-center py-0.5 px-0' : 'px-2 py-1'
+              } ${
+                activeTab === 'upload'
+                  ? `text-purple-600 bg-purple-50 ${isCollapsed ? '' : 'border-l-4 border-purple-600'}`
+                  : 'text-purple-600 bg-purple-50/50 hover:bg-purple-100 hover:text-purple-700'
+              }`}
+              title={isCollapsed ? 'Загрузка' : undefined}
+            >
+              <span className={`flex items-center justify-center ${isCollapsed ? 'w-5' : 'w-5'} flex-shrink-0`}>
+                <Upload className="w-5 h-5" />
+              </span>
+              {!isCollapsed && <span className="ml-2">Загрузка</span>}
+            </button>
+          )}
           <button
             onClick={handleLogout}
             className={`w-full flex items-center rounded-lg text-gray-700 hover:bg-red-50 hover:text-red-600 transition-colors text-sm ${

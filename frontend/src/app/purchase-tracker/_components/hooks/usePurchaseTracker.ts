@@ -11,6 +11,8 @@ interface UsePurchaseTrackerOptions {
   showForecast?: boolean;
   /** ID текущего пользователя (null — не залогинен) */
   userId: number | null;
+  /** Инициатор текущего пользователя «Фамилия Имя» — для загрузки «моих» заявок в панель */
+  mineInitiator?: string | null;
 }
 
 interface UsePurchaseTrackerResult {
@@ -44,6 +46,17 @@ interface UsePurchaseTrackerResult {
   /** Строка отдельного поиска по избранному */
   favoritesQuery: string;
   onFavoritesQueryChange: (value: string) => void;
+  /** Выбор карточки из «моих» (очищает результаты поиска) */
+  onSelectMine: (id: number) => void;
+  /** Карточки «моих» заявок (для левого блока), отфильтрованные локальным поиском */
+  mineResults: ResultView[];
+  mineLoading: boolean;
+  mineError: string | null;
+  /** У пользователя вообще нет «своих» заявок */
+  mineEmpty: boolean;
+  /** Строка отдельного поиска по «моим» заявкам */
+  mineQuery: string;
+  onMineQueryChange: (value: string) => void;
 }
 
 /**
@@ -52,17 +65,21 @@ interface UsePurchaseTrackerResult {
  * для левого блока. Деталь открывается по выбору карточки из любого набора.
  */
 export function usePurchaseTracker(options: UsePurchaseTrackerOptions): UsePurchaseTrackerResult {
-  const { simpleLanguage = true, showForecast = true, userId } = options;
+  const { simpleLanguage = true, showForecast = true, userId, mineInitiator = null } = options;
 
   const [query, setQuery] = useState('');
   const [favoritesQuery, setFavoritesQuery] = useState('');
+  const [mineQuery, setMineQuery] = useState('');
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
   const search = usePurchaseTrackerData(query);
+  // «Мои» заявки — независимый набор карточек для левого блока (ищем по инициатору пользователя)
+  const mine = usePurchaseTrackerData(mineInitiator ?? '');
   const favorites = useProcurementFavorites(userId);
 
   const searchItems = search.items;
   const favoriteItems = favorites.favorites;
+  const mineItems = mine.items;
 
   // Отдельный локальный поиск по избранному (по номеру, предмету, инициатору)
   const filteredFavoriteItems = useMemo(() => {
@@ -76,12 +93,27 @@ export function usePurchaseTracker(options: UsePurchaseTrackerOptions): UsePurch
     );
   }, [favoriteItems, favoritesQuery]);
 
-  // Выбранная закупка ищется в обоих наборах (поиск + избранное)
+  // Отдельный локальный поиск по «моим» заявкам
+  const filteredMineItems = useMemo(() => {
+    const q = mineQuery.trim().toLowerCase();
+    if (!q) return mineItems;
+    return mineItems.filter(
+      (p) =>
+        String(p.id).includes(q) ||
+        p.title.toLowerCase().includes(q) ||
+        p.initiator.toLowerCase().includes(q),
+    );
+  }, [mineItems, mineQuery]);
+
+  // Выбранная закупка ищется во всех наборах (поиск + избранное + мои)
   const selected = useMemo(() => {
-    const inSearch = searchItems.find((item) => item.id === selectedId);
-    if (inSearch) return inSearch;
-    return favoriteItems.find((item) => item.id === selectedId) ?? null;
-  }, [searchItems, favoriteItems, selectedId]);
+    return (
+      searchItems.find((item) => item.id === selectedId) ??
+      favoriteItems.find((item) => item.id === selectedId) ??
+      mineItems.find((item) => item.id === selectedId) ??
+      null
+    );
+  }, [searchItems, favoriteItems, mineItems, selectedId]);
 
   const results = useMemo(
     () => searchItems.map((item) => buildResultView(item, selected?.id ?? -1)),
@@ -91,6 +123,11 @@ export function usePurchaseTracker(options: UsePurchaseTrackerOptions): UsePurch
   const favoritesResults = useMemo(
     () => filteredFavoriteItems.map((item) => buildResultView(item, selected?.id ?? -1)),
     [filteredFavoriteItems, selected],
+  );
+
+  const mineResults = useMemo(
+    () => filteredMineItems.map((item) => buildResultView(item, selected?.id ?? -1)),
+    [filteredMineItems, selected],
   );
 
   const detail = useMemo(
@@ -110,6 +147,11 @@ export function usePurchaseTracker(options: UsePurchaseTrackerOptions): UsePurch
   const onSelect = useCallback((id: number) => setSelectedId(id), []);
   // Выбор из избранного очищает результаты поиска (сбрасываем запрос)
   const onSelectFavorite = useCallback((id: number) => {
+    setSelectedId(id);
+    setQuery('');
+  }, []);
+  // Выбор из «моих» очищает результаты поиска (сбрасываем запрос)
+  const onSelectMine = useCallback((id: number) => {
     setSelectedId(id);
     setQuery('');
   }, []);
@@ -137,5 +179,12 @@ export function usePurchaseTracker(options: UsePurchaseTrackerOptions): UsePurch
     favoritesEmpty: !favorites.loading && !favorites.error && favoriteItems.length === 0,
     favoritesQuery,
     onFavoritesQueryChange: setFavoritesQuery,
+    onSelectMine,
+    mineResults,
+    mineLoading: mine.loading,
+    mineError: mine.error,
+    mineEmpty: !mine.loading && !mine.error && mineItems.length === 0,
+    mineQuery,
+    onMineQueryChange: setMineQuery,
   };
 }

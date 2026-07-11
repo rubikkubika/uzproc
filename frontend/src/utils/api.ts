@@ -43,9 +43,10 @@ export function getBackendUrl(): string {
     return `${window.location.protocol}//${hostname}`;
   }
   
-  // Для локальной разработки (localhost:3000) используем прямой URL бэкенда
+  // Локальная разработка (localhost:3000): same-origin ('') — запросы /api/* идут через :3000
+  // и проксируются на backend rewrite'ом из next.config (чтобы httpOnly-cookie доезжал при auth.enabled).
   if (hostname === 'localhost' && (port === '3000' || port === '')) {
-    return process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080';
+    return process.env.NEXT_PUBLIC_BACKEND_URL || '';
   }
   
   // Если порт 80 или нет порта (стандартный HTTP), значит работаем через nginx в Docker

@@ -15,6 +15,14 @@ export interface JwtPayload {
   sub?: string;
   role?: string;
   userId?: number;
+  /** Флаг «закупщик» (может отсутствовать в старых токенах) */
+  isPurchaser?: boolean;
+  /** Флаг «договорник» (может отсутствовать в старых токенах) */
+  isContractor?: boolean;
+  /** Имя пользователя */
+  name?: string;
+  /** Фамилия пользователя */
+  surname?: string;
   exp?: number;
   iat?: number;
   [key: string]: unknown;

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { StarIcon, UserIcon } from './icons';
+import PurchaseTrackerLoginForm from './PurchaseTrackerLoginForm';
 
 /** Вкладки левого блока трекера */
 export type TrackerTab = 'mine' | 'favorites';
@@ -7,6 +8,8 @@ export type TrackerTab = 'mine' | 'favorites';
 interface PurchaseTrackerSidebarProps {
   /** Email/логин текущего пользователя (null — не авторизован) */
   email: string | null;
+  /** Полное имя «Имя Фамилия» (null — не найдено) */
+  fullName?: string | null;
   /** Роль пользователя (admin, user и т.п.) */
   role: string | null;
   /** Идёт проверка авторизации */
@@ -28,9 +31,11 @@ const TABS: { key: TrackerTab; label: string; icon: (active: boolean) => ReactNo
  * Левый блок трекера закупок: информация о логине (на уровне строки поиска)
  * и вкладки «Мои» / «Избранное» под ней.
  */
-export default function PurchaseTrackerSidebar({ email, role, loading, activeTab, onTabChange, children }: PurchaseTrackerSidebarProps) {
-  const displayName = email ?? 'Гость';
-  const initial = (email ?? 'Г').trim().charAt(0).toUpperCase();
+export default function PurchaseTrackerSidebar({ email, fullName, role, loading, activeTab, onTabChange, children }: PurchaseTrackerSidebarProps) {
+  const hasName = !!fullName && fullName.trim() !== '';
+  // Основная строка — имя и фамилия (если есть), иначе email/«Гость»
+  const displayName = hasName ? (fullName as string) : email ?? 'Гость';
+  const initial = (hasName ? (fullName as string) : email ?? 'Г').trim().charAt(0).toUpperCase();
   const isGuest = !loading && !email;
 
   return (
@@ -50,6 +55,9 @@ export default function PurchaseTrackerSidebar({ email, role, loading, activeTab
           <div className="truncate text-[13.5px] font-semibold text-[#101828]" title={displayName}>
             {loading ? 'Загрузка…' : displayName}
           </div>
+          {!loading && hasName && email && (
+            <div className="truncate text-[12px] text-[#667085]" title={email}>{email}</div>
+          )}
           {!loading && role && (
             <div className="truncate text-[12px] text-[#98A2B3]">{role === 'admin' ? 'Администратор' : 'Пользователь'}</div>
           )}
@@ -57,13 +65,8 @@ export default function PurchaseTrackerSidebar({ email, role, loading, activeTab
       </div>
 
       {isGuest ? (
-        /* Просмотр без логина — предложение авторизоваться */
-        <div
-          className="rounded-2xl bg-white px-4 py-3.5 text-[13px] leading-snug text-[#667085]"
-          style={{ border: '1.5px solid #DFE3EB', boxShadow: '0 1px 2px rgba(16,24,40,.05)' }}
-        >
-          Залогиньтесь, чтобы увидеть свои закупки
-        </div>
+        /* Просмотр без логина — форма входа прямо на трекере */
+        <PurchaseTrackerLoginForm />
       ) : (
         /* Вкладки «Мои» / «Избранное» — на одном уровне */
         <div

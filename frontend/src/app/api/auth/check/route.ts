@@ -16,6 +16,11 @@ export async function GET() {
         authenticated: true,
         role: (payload.role as string) || null,
         email: (payload.sub as string) || null,
+        userId: typeof payload.userId === 'number' ? payload.userId : null,
+        isPurchaser: payload.isPurchaser === true,
+        isContractor: payload.isContractor === true,
+        name: (payload.name as string) || null,
+        surname: (payload.surname as string) || null,
       });
     }
 
