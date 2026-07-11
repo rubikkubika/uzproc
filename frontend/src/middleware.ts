@@ -37,9 +37,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Если пользователь не авторизован и пытается зайти не на страницу логина
-  if (!isAuthenticated && !isLoginPage) {
-    return NextResponse.redirect(new URL('/login', request.url));
+  // Если пользователь не авторизован — по умолчанию всегда открываем трекер закупок
+  // (у него есть своя форма входа). Заход на /login тоже ведёт на трекер.
+  if (!isAuthenticated) {
+    return NextResponse.redirect(new URL('/purchase-tracker', request.url));
   }
 
   // Если пользователь авторизован и пытается зайти на страницу логина
