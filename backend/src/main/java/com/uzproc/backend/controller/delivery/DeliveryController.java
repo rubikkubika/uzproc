@@ -41,11 +41,21 @@ public class DeliveryController {
             @RequestParam(required = false) Integer dateYear,
             @RequestParam(required = false) Boolean dateNull,
             @RequestParam(required = false) String paymentScheme,
-            @RequestParam(required = false) String shipmentStatus) {
+            @RequestParam(required = false) String shipmentStatus,
+            @RequestParam(required = false) String reportStatus,
+            @RequestParam(required = false) String paymentsStatus,
+            @RequestParam(required = false) Boolean closed,
+            @RequestParam(required = false, defaultValue = "false") boolean recheck) {
+
+        // При обновлении списка (recheck=true) — пересчёт статусов: авто-закрытие
+        // полностью оплаченных постоплат («Постоплата - 100%» + «Оплачено» + сумма совпала → «Поставлено»).
+        if (recheck) {
+            deliveryService.autoCloseFullyPaidDeliveries();
+        }
 
         Page<DeliveryDto> deliveries = deliveryService.findAll(page, size, sortBy, sortDir,
                 innerId, contractInnerId, supplierName, status, currency, comment,
-                responsibleName, dateYear, dateNull, paymentScheme, shipmentStatus);
+                responsibleName, dateYear, dateNull, paymentScheme, shipmentStatus, reportStatus, paymentsStatus, closed);
         return ResponseEntity.ok(deliveries);
     }
 
@@ -81,6 +91,18 @@ public class DeliveryController {
     @GetMapping("/payment-schemes")
     public ResponseEntity<List<DeliveryPaymentSchemeDto>> getPaymentSchemes() {
         return ResponseEntity.ok(deliveryService.listPaymentSchemes());
+    }
+
+    /** Уникальные значения «Статуса из отчёта» — для выпадающего фильтра. */
+    @GetMapping("/report-statuses")
+    public ResponseEntity<List<String>> getReportStatuses() {
+        return ResponseEntity.ok(deliveryService.listReportStatuses());
+    }
+
+    /** Уникальные значения количества нераспределённых оплат — для фильтра столбца «Оплаты». */
+    @GetMapping("/undistributed-counts")
+    public ResponseEntity<List<Integer>> getUndistributedCounts() {
+        return ResponseEntity.ok(deliveryService.listUndistributedPaymentCounts());
     }
 
     /** Поиск договоров для модального окна создания поставки: статус=Подписан, подготовил договорник. */

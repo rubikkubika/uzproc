@@ -6,6 +6,10 @@ export interface Delivery {
   deliveryDeadline: string | null;
   /** Фактическая дата поставки (Факт). Задаётся при статусе «Поставлено». */
   actualDeliveryDate: string | null;
+  /** Дата ЭСФ (электронной счёт-фактуры). Парсится из ручного отчёта. */
+  esfDate: string | null;
+  /** Статус из ручного отчёта (колонка «41», напр. «Закрыто»). */
+  reportStatus: string | null;
   /** Плановая дата начала поставки из договора (План). */
   contractPlannedDeliveryStartDate: string | null;
   /** Срок поставки в рабочих днях. */
@@ -13,6 +17,8 @@ export interface Delivery {
   contractId: number | null;
   contractInnerId: string | null;
   contractName: string | null;
+  /** Номер заявки на закупку (из договора-спецификации). */
+  contractPurchaseRequestId: number | null;
   contractPaymentScheme: string | null;
   contractPaymentTerms: string | null;
   contractDeliveryTerm: string | null;
@@ -98,6 +104,22 @@ export const STATUS_BADGE_CLASSES: Record<string, string> = {
   red: 'bg-red-100 text-red-800',
   yellow: 'bg-yellow-100 text-yellow-800',
 };
+
+/** Статус оплаты поставки (DeliveryStatus). value — name() enum на бэкенде. */
+export const DELIVERY_STATUS_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'PROJECT', label: 'Проект' },
+  { value: 'ADVANCE_PREPARED', label: 'Оплата аванса' },
+  { value: 'ADVANCE_PAID', label: 'Аванс оплачен' },
+  { value: 'NOT_PAID', label: 'Не оплачено' },
+  { value: 'PAID', label: 'Оплачено' },
+];
+
+/** Статус оплат (вычисляемый). value — код фильтра на бэкенде. */
+export const PAYMENTS_STATUS_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'none', label: 'Оплат нет' },
+  { value: 'undistributed', label: 'Не распределены (все)' },
+  { value: 'distributed', label: 'Оплаты распределены' },
+];
 
 /** Статус поставки (фактическая отгрузка), задаётся вручную. value — name() enum на бэкенде. */
 export const SHIPMENT_STATUS_OPTIONS: Array<{ value: string; label: string }> = [

@@ -142,8 +142,10 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
   const handleLogout = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
-      router.push('/login');
-      router.refresh();
+      // Жёсткий редирект (не router.push): полная перезагрузка перемонтирует
+      // AuthProvider, он перезапросит /api/auth/check и получит «не авторизован»,
+      // иначе клиентское состояние остаётся «залогинен» и сайдбар не исчезает.
+      window.location.href = '/login';
     } catch (error) {
       console.error('Ошибка выхода:', error);
     }

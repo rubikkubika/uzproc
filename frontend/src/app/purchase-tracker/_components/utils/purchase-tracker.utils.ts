@@ -1,5 +1,8 @@
 import {
+  ARCHIVE_PILL,
   DONE_PILL,
+  SPEC_DONE_PILL,
+  SPEC_IN_WORK_PILL,
   STATE_LABELS,
   STATE_PALETTE,
   STATUS_PILLS,
@@ -30,7 +33,13 @@ function visibleStages(item: Procurement): Procurement['stages'] {
 
 /** Статус-пилюля закупки (для карточки результата и шапки детали) */
 export function getStatusPill(item: Procurement) {
-  return item.done ? DONE_PILL : STATUS_PILLS[item.stageIdx];
+  // Архив — приоритетнее всего: серый бейдж «Архив» для терминальных/скрытых заявок.
+  if (item.archived) return ARCHIVE_PILL;
+  // Для заказов (прямой заказ) вместо договора оформляется спецификация.
+  const isOrder = !isPurchaseKind(item.kind);
+  if (item.done) return isOrder ? SPEC_DONE_PILL : DONE_PILL;
+  if (isOrder && item.stageIdx === 3) return SPEC_IN_WORK_PILL;
+  return STATUS_PILLS[item.stageIdx];
 }
 
 /** Совпадает ли закупка с поисковым запросом (по номеру, названию, ФИО инициатора) */
@@ -80,6 +89,7 @@ export function buildResultView(item: Procurement, selectedId: number): ResultVi
     selected,
     kind: item.kind,
     done: item.done,
+    archived: item.archived,
   };
 }
 

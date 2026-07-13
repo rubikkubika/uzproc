@@ -3,15 +3,21 @@
 import { useState } from 'react';
 import { ArrowUp, ArrowDown, ArrowUpDown, Plus, CalendarPlus, MessageCircle } from 'lucide-react';
 import { useDeliveryTable } from './hooks/useDeliveryTable';
+import { useReportStatusOptions } from './hooks/useReportStatusOptions';
 import type { Delivery, SortField } from './types/delivery.types';
 import {
   STATUS_BADGE_CLASSES,
   SHIPMENT_STATUS_OPTIONS,
+  PAYMENTS_STATUS_OPTIONS,
+  DELIVERY_STATUS_OPTIONS,
   getPaymentSchemeLabel,
   getPaymentsStatus,
 } from './types/delivery.types';
 import type { PaymentSchemeFilterValue, ShipmentStatusFilterValue } from './hooks/useDeliveryFilters';
+import { useUndistributedCounts } from './hooks/useUndistributedCounts';
+import { formatAmountShort, formatAmountFull } from './utils/amount.utils';
 import CreateDeliveryModal from './ui/CreateDeliveryModal';
+import DeliveryTableTabs from './ui/DeliveryTableTabs';
 import DeliveryDetailsModal from './ui/DeliveryDetailsModal';
 
 export default function DeliveryTable() {
@@ -33,6 +39,9 @@ export default function DeliveryTable() {
     selectedYear,
     showNoDate,
     availableYears,
+    activeTab,
+    setActiveTab,
+    tabCounts,
     handleYearChange,
     handleShowNoDate,
     handleShowAll,
@@ -40,6 +49,9 @@ export default function DeliveryTable() {
     createMayDeliveries,
     creatingMay,
   } = useDeliveryTable();
+
+  const reportStatusOptions = useReportStatusOptions();
+  const undistributedCounts = useUndistributedCounts();
 
   const handleCreateMay = async () => {
     setMayMessage(null);
@@ -105,15 +117,17 @@ export default function DeliveryTable() {
     width: string;
     hasFilter: boolean;
     hasSort: boolean;
-    filterKind?: 'text' | 'paymentScheme' | 'shipmentStatus';
+    filterKind?: 'text' | 'paymentScheme' | 'shipmentStatus' | 'reportStatus' | 'paymentsStatus' | 'deliveryStatus';
   }> = [
     { field: 'innerId', label: '№', width: '5%', hasFilter: true, hasSort: true, filterKind: 'text' },
     { field: 'deliveryDeadline', label: 'Даты поставки', width: '11%', hasFilter: false, hasSort: true },
     { field: 'shipmentStatus', label: 'Статус поставки', width: '8%', hasFilter: true, hasSort: false, filterKind: 'shipmentStatus' },
+    { field: 'reportStatus', label: 'Статус (отчёт)', width: '7%', hasFilter: true, hasSort: false, filterKind: 'reportStatus' },
     { field: 'paymentScheme', label: 'Схема оплаты', width: '8%', hasFilter: true, hasSort: false, filterKind: 'paymentScheme' },
-    { field: 'payments', label: 'Оплаты', width: '9%', hasFilter: false, hasSort: false },
-    { field: 'status', label: 'Статус оплаты', width: '8%', hasFilter: true, hasSort: false, filterKind: 'text' },
+    { field: 'payments', label: 'Оплаты', width: '9%', hasFilter: true, hasSort: false, filterKind: 'paymentsStatus' },
+    { field: 'status', label: 'Статус оплаты', width: '8%', hasFilter: true, hasSort: false, filterKind: 'deliveryStatus' },
     { field: 'contractInnerId', label: 'Договор', width: '9%', hasFilter: true, hasSort: false, filterKind: 'text' },
+    { field: 'contractPurchaseRequestId', label: 'Заявка', width: '5%', hasFilter: false, hasSort: false },
     { field: 'supplierName', label: 'Поставщик', width: '12%', hasFilter: true, hasSort: false, filterKind: 'text' },
     { field: 'amount', label: 'Сумма', width: '8%', hasFilter: false, hasSort: true },
     { field: 'currency', label: 'Валюта', width: '5%', hasFilter: true, hasSort: false, filterKind: 'text' },
@@ -161,8 +175,58 @@ export default function DeliveryTable() {
     </select>
   );
 
+  const renderPaymentsStatusFilter = () => (
+    <select
+      value={filters.filters.paymentsStatus ?? ''}
+      onChange={(e) => filters.setPaymentsStatusFilter(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 w-full"
+      style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+    >
+      <option value="">Все</option>
+      {PAYMENTS_STATUS_OPTIONS.map((o) => (
+        <option key={o.value} value={o.value}>{o.label}</option>
+      ))}
+      {undistributedCounts.map((n) => (
+        <option key={`undistributed:${n}`} value={`undistributed:${n}`}>Не распределены: {n}</option>
+      ))}
+    </select>
+  );
+
+  const renderDeliveryStatusFilter = () => (
+    <select
+      value={filters.filters.status ?? ''}
+      onChange={(e) => filters.setStatusFilter(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 w-full"
+      style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+    >
+      <option value="">Все</option>
+      {DELIVERY_STATUS_OPTIONS.map((o) => (
+        <option key={o.value} value={o.value}>{o.label}</option>
+      ))}
+    </select>
+  );
+
+  const renderReportStatusFilter = () => (
+    <select
+      value={filters.filters.reportStatus ?? ''}
+      onChange={(e) => filters.setReportStatusFilter(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 w-full"
+      style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+    >
+      <option value="">Все</option>
+      {reportStatusOptions.map((o) => (
+        <option key={o} value={o}>{o}</option>
+      ))}
+    </select>
+  );
+
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
+      {/* Вкладки: «В работе» / «Закрыто» (Закрыто = Поставлено + Оплачено) */}
+      <DeliveryTableTabs activeTab={activeTab} tabCounts={tabCounts} onTabChange={setActiveTab} />
       <div className="px-3 py-1 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
         <div className="flex items-center gap-2 flex-wrap">
           <button
@@ -254,7 +318,13 @@ export default function DeliveryTable() {
                           ? renderPaymentSchemeFilter()
                           : col.filterKind === 'shipmentStatus'
                             ? renderShipmentStatusFilter()
-                            : renderFilterInput(col.field)
+                            : col.filterKind === 'reportStatus'
+                              ? renderReportStatusFilter()
+                              : col.filterKind === 'paymentsStatus'
+                                ? renderPaymentsStatusFilter()
+                                : col.filterKind === 'deliveryStatus'
+                                  ? renderDeliveryStatusFilter()
+                                  : renderFilterInput(col.field)
                         : null}
                     </div>
                     <div className="flex items-center gap-1 min-h-[20px]">
@@ -309,6 +379,12 @@ export default function DeliveryTable() {
                           {item.actualDeliveryDate ? new Date(item.actualDeliveryDate).toLocaleDateString('ru-RU') : '—'}
                         </span>
                       </span>
+                      <span className="flex items-baseline gap-1" title="ЭСФ — дата выставления электронной счёт-фактуры">
+                        <span className="text-[10px] uppercase tracking-wide text-gray-400 w-10 flex-shrink-0">ЭСФ</span>
+                        <span className={item.esfDate ? 'text-gray-900' : 'text-gray-400'}>
+                          {item.esfDate ? new Date(item.esfDate).toLocaleDateString('ru-RU') : '—'}
+                        </span>
+                      </span>
                     </div>
                   </td>
                   <td className="px-2 py-2 text-xs border-r border-gray-300 overflow-hidden min-w-0">
@@ -322,6 +398,9 @@ export default function DeliveryTable() {
                     ) : (
                       <span className="text-gray-500">-</span>
                     )}
+                  </td>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
+                    <span className="truncate block" title={item.reportStatus ?? undefined}>{item.reportStatus ?? '-'}</span>
                   </td>
                   <td className="px-2 py-2 text-xs border-r border-gray-300 overflow-hidden min-w-0">
                     <span
@@ -362,11 +441,16 @@ export default function DeliveryTable() {
                     </span>
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
+                    <span className="truncate block" title={item.contractPurchaseRequestId != null ? String(item.contractPurchaseRequestId) : undefined}>
+                      {item.contractPurchaseRequestId ?? '-'}
+                    </span>
+                  </td>
+                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
                     <span className="truncate block" title={item.supplierName ?? undefined}>{item.supplierName ?? '-'}</span>
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
-                    <span className="truncate block" title={item.amount != null ? String(item.amount) : undefined}>
-                      {item.amount != null ? Number(item.amount).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'}
+                    <span className="truncate block" title={formatAmountFull(item.amount, item.currency)}>
+                      {item.amount != null ? formatAmountShort(item.amount) : '-'}
                     </span>
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">

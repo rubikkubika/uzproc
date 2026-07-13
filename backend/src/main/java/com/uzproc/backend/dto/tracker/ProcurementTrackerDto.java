@@ -23,6 +23,8 @@ public record ProcurementTrackerDto(
         String plain,
         List<TrackerStageDto> stages,
         /** Тип: «Закупка» (требует закупки) или «Заказ» (прямой заказ) */
-        String kind
+        String kind,
+        /** Заявка терминальна/скрыта (Проект, Не согласовано, Архив, «скрыта») — группа «Архив» в поиске. */
+        boolean archived
 ) {
 }

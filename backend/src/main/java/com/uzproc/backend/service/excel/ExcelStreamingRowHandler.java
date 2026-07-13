@@ -108,8 +108,8 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private static final String CURRENCY_COLUMN = "Валюта";
     /** Колонка графика оплаты в договоре → поле «Условия оплаты». */
     private static final String PAYMENT_SCHEDULE_COLUMN = "График оплаты (Договор)";
-    /** Колонка схемы оплаты в договоре → поле «Схема оплаты». */
-    private static final String PAYMENT_SCHEME_COLUMN = "Схема оплаты (Договор)";
+    /** Колонка «Условие оплаты» в договоре → поле «Схема оплаты» (paymentScheme). */
+    private static final String PAYMENT_SCHEME_COLUMN = "Условие оплаты";
     /** Колонка срока поставки в договоре → поле «Срок поставки». */
     private static final String DELIVERY_TERM_COLUMN = "Срок поставки (Договор)";
     private static final String MAIN_CONTRACT_COLUMN = "Основной договор";
@@ -1263,12 +1263,13 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                     // Сохраняем значение из колонки "Состояние" в поле state
                     contract.setState(trimmedStatus);
                     logger.info("Row {}: parsed state value: '{}' and saved to state field for contract {}", currentRowNum + 1, trimmedStatus, contract.getInnerId());
-                    // Если "Состояние" = "Проект" (case-insensitive), то устанавливаем статус = PROJECT
-                    if ("Проект".equalsIgnoreCase(trimmedStatus)) {
-                        contract.setStatus(ContractStatus.PROJECT);
-                        logger.info("Row {}: parsed state '{}', set status to PROJECT for contract {}", currentRowNum + 1, trimmedStatus, contract.getInnerId());
+                    // Определяем статус договора по тексту "Состояние" (набор правил, см. resolveContractStatusFromState).
+                    ContractStatus derivedStatus = resolveContractStatusFromState(trimmedStatus);
+                    if (derivedStatus != null) {
+                        contract.setStatus(derivedStatus);
+                        logger.info("Row {}: derived contract status {} from state '{}' for contract {}", currentRowNum + 1, derivedStatus, trimmedStatus, contract.getInnerId());
                     } else {
-                        logger.debug("Row {}: state value '{}' is not 'Проект' (case-insensitive), skipping status update", currentRowNum + 1, trimmedStatus);
+                        logger.debug("Row {}: no status rule matched state '{}' for contract {}", currentRowNum + 1, trimmedStatus, contract.getInnerId());
                     }
                 } else {
                     logger.debug("Row {}: status cell is empty or null", currentRowNum + 1);
@@ -1360,7 +1361,7 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 }
             }
 
-            // Схема оплаты (опционально) — парсинг из колонки "Схема оплаты (Договор)"
+            // Схема оплаты (опционально) — парсинг из колонки "Условие оплаты"
             Integer paymentSchemeCol = columnIndices.get(PAYMENT_SCHEME_COLUMN);
             if (paymentSchemeCol == null) {
                 paymentSchemeCol = findColumnIndex(PAYMENT_SCHEME_COLUMN);
@@ -1369,7 +1370,7 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 String paymentScheme = currentRowData.get(paymentSchemeCol);
                 if (paymentScheme != null && !paymentScheme.trim().isEmpty()) {
                     contract.setPaymentScheme(paymentScheme.trim());
-                    logger.debug("Row {}: parsed paymentScheme from 'Схема оплаты (Договор)' for contract {}",
+                    logger.debug("Row {}: parsed paymentScheme from 'Условие оплаты' for contract {}",
                         currentRowNum + 1, contract.getInnerId());
                 }
             }
@@ -1732,6 +1733,25 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     /**
      * Находит индекс колонки по точному или частичному совпадению
      */
+    /**
+     * Определяет статус договора (ContractStatus) по тексту поля "Состояние".
+     * Правила (по убыванию приоритета):
+     *   • содержит "Синхронизация: Исполнен" → SIGNED («Подписан»);
+     *   • содержит "На регистрации"           → ON_REGISTRATION («На регистрации»);
+     *   • равно "Проект"                       → PROJECT.
+     * Иначе — null (статус не меняем).
+     */
+    private ContractStatus resolveContractStatusFromState(String state) {
+        if (state == null) return null;
+        String s = state.trim();
+        if (s.isEmpty()) return null;
+        String lower = s.toLowerCase();
+        if (lower.contains("синхронизация: исполнен")) return ContractStatus.SIGNED;
+        if (lower.contains("на регистрации")) return ContractStatus.ON_REGISTRATION;
+        if ("проект".equals(lower)) return ContractStatus.PROJECT;
+        return null;
+    }
+
     private Integer findColumnIndex(String columnName) {
         // Сначала ищем точное совпадение
         Integer exactMatch = columnIndices.get(columnName);

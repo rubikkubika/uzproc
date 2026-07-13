@@ -14,6 +14,10 @@ public class DeliveryDto {
     private LocalDate deliveryDeadline;
     /** Фактическая дата поставки (Факт). Задаётся при статусе «Поставлено». */
     private LocalDate actualDeliveryDate;
+    /** Дата ЭСФ (электронной счёт-фактуры). Парсится из ручного отчёта. */
+    private LocalDate esfDate;
+    /** Статус из ручного отчёта (колонка «41», напр. «Закрыто»). */
+    private String reportStatus;
     /** Плановая дата начала поставки из договора (План). */
     private LocalDate contractPlannedDeliveryStartDate;
     /** Срок поставки в рабочих днях. */
@@ -21,6 +25,8 @@ public class DeliveryDto {
     private Long contractId;
     private String contractInnerId;
     private String contractName;
+    /** Номер заявки на закупку (из связанного договора-спецификации). */
+    private Long contractPurchaseRequestId;
     /** Схема оплаты из договора (Contract.paymentScheme). */
     private String contractPaymentScheme;
     /** Условия оплаты из договора (Contract.paymentTerms). */
@@ -72,6 +78,12 @@ public class DeliveryDto {
     public LocalDate getActualDeliveryDate() { return actualDeliveryDate; }
     public void setActualDeliveryDate(LocalDate actualDeliveryDate) { this.actualDeliveryDate = actualDeliveryDate; }
 
+    public LocalDate getEsfDate() { return esfDate; }
+    public void setEsfDate(LocalDate esfDate) { this.esfDate = esfDate; }
+
+    public String getReportStatus() { return reportStatus; }
+    public void setReportStatus(String reportStatus) { this.reportStatus = reportStatus; }
+
     public LocalDate getContractPlannedDeliveryStartDate() { return contractPlannedDeliveryStartDate; }
     public void setContractPlannedDeliveryStartDate(LocalDate contractPlannedDeliveryStartDate) { this.contractPlannedDeliveryStartDate = contractPlannedDeliveryStartDate; }
 
@@ -86,6 +98,9 @@ public class DeliveryDto {
 
     public String getContractName() { return contractName; }
     public void setContractName(String contractName) { this.contractName = contractName; }
+
+    public Long getContractPurchaseRequestId() { return contractPurchaseRequestId; }
+    public void setContractPurchaseRequestId(Long contractPurchaseRequestId) { this.contractPurchaseRequestId = contractPurchaseRequestId; }
 
     public String getContractPaymentScheme() { return contractPaymentScheme; }
     public void setContractPaymentScheme(String contractPaymentScheme) { this.contractPaymentScheme = contractPaymentScheme; }

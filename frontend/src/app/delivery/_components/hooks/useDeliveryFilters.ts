@@ -10,6 +10,8 @@ const INITIAL_FILTERS: Record<string, string> = {
   currency: '',
   comment: '',
   responsibleName: '',
+  reportStatus: '',
+  paymentsStatus: '',
 };
 
 export type PaymentSchemeFilterValue = '' | 'POSTPAYMENT' | 'PREPAYMENT';
@@ -29,6 +31,28 @@ export const useDeliveryFilters = (setCurrentPage: (page: number) => void) => {
 
   const setShipmentStatusFilter = useCallback((value: ShipmentStatusFilterValue) => {
     setShipmentStatusFilterState(value);
+    setCurrentPage(0);
+  }, [setCurrentPage]);
+
+  // «Статус из отчёта» — выпадающий список; применяется сразу (без debounce),
+  // поэтому пишем и в localFilters (для value), и в filters (для запроса).
+  const setReportStatusFilter = useCallback((value: string) => {
+    setLocalFilters(prev => ({ ...prev, reportStatus: value }));
+    setFilters(prev => ({ ...prev, reportStatus: value }));
+    setCurrentPage(0);
+  }, [setCurrentPage]);
+
+  // «Статус оплат» — выпадающий список, применяется сразу (без debounce).
+  const setPaymentsStatusFilter = useCallback((value: string) => {
+    setLocalFilters(prev => ({ ...prev, paymentsStatus: value }));
+    setFilters(prev => ({ ...prev, paymentsStatus: value }));
+    setCurrentPage(0);
+  }, [setCurrentPage]);
+
+  // «Статус оплаты» (DeliveryStatus) — выпадающий список, применяется сразу.
+  const setStatusFilter = useCallback((value: string) => {
+    setLocalFilters(prev => ({ ...prev, status: value }));
+    setFilters(prev => ({ ...prev, status: value }));
     setCurrentPage(0);
   }, [setCurrentPage]);
 
@@ -58,5 +82,8 @@ export const useDeliveryFilters = (setCurrentPage: (page: number) => void) => {
     setPaymentSchemeFilter,
     shipmentStatusFilter,
     setShipmentStatusFilter,
+    setReportStatusFilter,
+    setPaymentsStatusFilter,
+    setStatusFilter,
   };
 };

@@ -13,6 +13,8 @@ export const useDeliveryData = () => {
     dateNull: boolean = false,
     paymentScheme: string = '',
     shipmentStatus: string = '',
+    closed: boolean | null = null,
+    recheck: boolean = false,
   ): Promise<PageResponse | null> => {
     try {
       const params = new URLSearchParams();
@@ -26,7 +28,7 @@ export const useDeliveryData = () => {
 
       const passthroughFields: Array<keyof typeof filters> = [
         'innerId', 'contractInnerId', 'supplierName', 'status',
-        'currency', 'comment', 'responsibleName',
+        'currency', 'comment', 'responsibleName', 'reportStatus', 'paymentsStatus',
       ];
       for (const f of passthroughFields) {
         const v = filters[f];
@@ -45,6 +47,16 @@ export const useDeliveryData = () => {
 
       if (shipmentStatus && shipmentStatus.trim() !== '') {
         params.append('shipmentStatus', shipmentStatus.trim());
+      }
+
+      // Вкладка «В работе» (closed=false) / «Закрыто» (closed=true). null → без фильтра.
+      if (closed !== null) {
+        params.append('closed', String(closed));
+      }
+
+      // recheck=true — при обновлении списка бэкенд пересчитывает статусы (авто-закрытие).
+      if (recheck) {
+        params.append('recheck', 'true');
       }
 
       const url = `${getBackendUrl()}/api/deliveries?${params.toString()}`;

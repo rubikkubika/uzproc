@@ -33,13 +33,10 @@ export default function PurchaseTrackerResultCard({
       }`}
       style={{ border: `1.5px solid ${result.border}`, boxShadow: result.shadow }}
     >
-      {/* Строка 1: номер + тип слева, статус на том же уровне справа (одной строкой), звёздочка с краю */}
+      {/* Строка 1: номер слева, статус справа, звёздочка с краю */}
       <div className="flex items-center justify-between gap-2">
-        <span className="flex flex-none items-center gap-1.5">
-          <span className="whitespace-nowrap rounded-md bg-[#F2F4F7] px-2 py-[3px] text-xs font-bold text-[#475467]">
-            № {result.id}
-          </span>
-          <KindBadge kind={result.kind} />
+        <span className="whitespace-nowrap rounded-md bg-[#F2F4F7] px-2 py-[3px] text-xs font-bold text-[#475467]">
+          № {result.id}
         </span>
         <span className="flex min-w-0 flex-1 items-center justify-end gap-1.5">
           <span
@@ -78,18 +75,21 @@ export default function PurchaseTrackerResultCard({
         </span>
       </div>
 
-      <div className="min-h-[36px] overflow-hidden text-[13.5px] font-semibold leading-[1.35] text-[#101828] line-clamp-2">
-        {result.title}
+      {/* Строка 2: бейдж (тип) слева, сумма + инициатор справа */}
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <KindBadge kind={result.kind} />
+        <span className="flex min-w-0 items-center justify-end gap-2">
+          <span className="whitespace-nowrap rounded-md bg-[#F2F4F7] px-2 py-[3px] font-semibold text-[#475467]">
+            {result.budget}
+          </span>
+          <span className="min-w-0 truncate text-right text-[#667085]" title={result.initiator}>
+            {result.initiator}
+          </span>
+        </span>
       </div>
 
-      {/* Сумма — бейджик, ФИО инициатора справа (обрезается по ширине) */}
-      <div className="flex items-center justify-between gap-2 text-xs">
-        <span className="whitespace-nowrap rounded-md bg-[#F2F4F7] px-2 py-[3px] font-semibold text-[#475467]">
-          {result.budget}
-        </span>
-        <span className="min-w-0 truncate text-right text-[#667085]" title={result.initiator}>
-          {result.initiator}
-        </span>
+      <div className="min-h-[36px] overflow-hidden text-[13.5px] font-semibold leading-[1.35] text-[#101828] line-clamp-2">
+        {result.title}
       </div>
 
       {/* Полоски статуса с названиями этапов */}

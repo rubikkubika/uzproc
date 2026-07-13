@@ -25,6 +25,13 @@ export const STATUS_PILLS = [
 /** Статус-пилюля завершённой закупки */
 export const DONE_PILL = { bg: '#DCFCE7', fg: '#15803D', label: 'Договор подписан' };
 
+/** Статус-пилюли для заказов (прямой заказ → спецификация вместо договора) */
+export const SPEC_IN_WORK_PILL = { bg: '#DBEAFE', fg: '#1D4ED8', label: 'Спецификация в работе' };
+export const SPEC_DONE_PILL = { bg: '#DCFCE7', fg: '#15803D', label: 'Спецификация подписана' };
+
+/** Серая пилюля для группы «Архив» (терминальные/скрытые заявки) */
+export const ARCHIVE_PILL = { bg: '#E5E7EB', fg: '#6B7280', label: 'Архив' };
+
 /** Чипы-примеры под строкой поиска */
 export const SEARCH_CHIPS = ['2666', '2549', 'Марина Тен'];
 

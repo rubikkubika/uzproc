@@ -160,11 +160,12 @@ function ResultBlock({
 /** Тона выделенных групп */
 const TONE_IN_WORK: BlockTone = { accent: '#EE9A2E', headerFg: '#B4741B', pillBg: '#FBEBD3' };
 const TONE_SIGNED: BlockTone = { accent: '#22C55E', headerFg: '#15803D', pillBg: '#D6F3E0' };
+const TONE_ARCHIVE: BlockTone = { accent: '#9CA3AF', headerFg: '#6B7280', pillBg: '#E5E7EB' };
 
 /**
  * Сгруппированные результаты поиска трекера:
- * сверху группа «В работе», ниже — «Подписано»; в каждой группе заказы слева, закупки справа,
- * разделены тонким вертикальным hairline-разделителем.
+ * сверху группа «В работе», ниже — «Подписано», затем серая «Архив» (терминальные/скрытые);
+ * в каждой группе заказы слева, закупки справа, разделены тонким вертикальным hairline-разделителем.
  */
 export default function PurchaseTrackerGroupedResults({
   results,
@@ -177,8 +178,10 @@ export default function PurchaseTrackerGroupedResults({
 }: PurchaseTrackerGroupedResultsProps) {
   const handlers: CardHandlers = { onSelect, canFavorite, isFavorite, onToggleFavorite };
 
-  const inWork = results.filter((r) => !r.done);
-  const signed = results.filter((r) => r.done);
+  // «Архив» имеет приоритет: терминальные/скрытые заявки не попадают в «В работе»/«Подписано».
+  const archived = results.filter((r) => r.archived);
+  const inWork = results.filter((r) => !r.archived && !r.done);
+  const signed = results.filter((r) => !r.archived && r.done);
 
   if (empty) {
     return <div className="px-8 pt-4 pb-5 text-sm text-[#98A2B3]">{emptyText}</div>;
@@ -188,6 +191,7 @@ export default function PurchaseTrackerGroupedResults({
     <div className="flex flex-col gap-12 px-5 pt-4 pb-5">
       <ResultBlock title="В работе" tone={TONE_IN_WORK} items={inWork} handlers={handlers} />
       <ResultBlock title="Подписано" tone={TONE_SIGNED} items={signed} handlers={handlers} />
+      <ResultBlock title="Архив" tone={TONE_ARCHIVE} items={archived} handlers={handlers} />
     </div>
   );
 }

@@ -10,6 +10,7 @@ import {
   STATUS_BADGE_CLASSES,
 } from '../types/delivery.types';
 import type { PaymentSchemeOption } from '../types/delivery.types';
+import { formatAmountShort, formatAmountFull } from '../utils/amount.utils';
 
 interface DeliveryDetailsModalProps {
   delivery: Delivery | null;
@@ -22,6 +23,7 @@ interface ContractPayment {
   mainId: string | null;
   amount: number | null;
   paymentStatus: string | null;
+  requestStatus: string | null;
   plannedExpenseDate: string | null;
   paymentDate: string | null;
   comment: string | null;
@@ -52,9 +54,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function formatAmount(amount: number | null, currency: string | null): string {
-  if (amount == null) return '—';
-  const formatted = Number(amount).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return currency ? `${formatted} ${currency}` : formatted;
+  return formatAmountShort(amount, currency);
 }
 
 export default function DeliveryDetailsModal({ delivery, onClose, onSaved }: DeliveryDetailsModalProps) {
@@ -298,6 +298,7 @@ export default function DeliveryDetailsModal({ delivery, onClose, onSaved }: Del
               <th className="px-2 py-1.5 text-right font-medium text-gray-500">Сумма</th>
               <th className="px-2 py-1.5 text-left font-medium text-gray-500">Тип</th>
               <th className="px-2 py-1.5 text-left font-medium text-gray-500">Статус оплаты</th>
+              <th className="px-2 py-1.5 text-left font-medium text-gray-500">Статус заявки</th>
               <th className="px-2 py-1.5 text-left font-medium text-gray-500">Дата оплаты</th>
             </tr>
           </thead>
@@ -319,13 +320,12 @@ export default function DeliveryDetailsModal({ delivery, onClose, onSaved }: Del
                     />
                   </td>
                   <td className="px-2 py-1 text-gray-800">{p.mainId ?? '—'}</td>
-                  <td className="px-2 py-1 text-right text-gray-800 tabular-nums">
-                    {p.amount != null
-                      ? Number(p.amount).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                      : '—'}
+                  <td className="px-2 py-1 text-right text-gray-800 tabular-nums" title={formatAmountFull(p.amount)}>
+                    {formatAmountShort(p.amount)}
                   </td>
                   <td className="px-2 py-1 text-gray-700">{p.paymentType ?? '—'}</td>
                   <td className="px-2 py-1 text-gray-700">{p.paymentStatus ?? '—'}</td>
+                  <td className="px-2 py-1 text-gray-700">{p.requestStatus ?? '—'}</td>
                   <td className="px-2 py-1 text-gray-700">{p.paymentDate ?? '—'}</td>
                 </tr>
               );
@@ -583,6 +583,12 @@ export default function DeliveryDetailsModal({ delivery, onClose, onSaved }: Del
                       <span className="text-[11px] uppercase tracking-wide text-gray-400 w-12 flex-shrink-0">Факт</span>
                       <span className={delivery.actualDeliveryDate ? 'text-gray-900' : 'text-gray-400'}>
                         {delivery.actualDeliveryDate ? new Date(delivery.actualDeliveryDate).toLocaleDateString('ru-RU') : '—'}
+                      </span>
+                    </span>
+                    <span className="flex items-baseline gap-1">
+                      <span className="text-[11px] uppercase tracking-wide text-gray-400 w-12 flex-shrink-0">ЭСФ</span>
+                      <span className={delivery.esfDate ? 'text-gray-900' : 'text-gray-400'}>
+                        {delivery.esfDate ? new Date(delivery.esfDate).toLocaleDateString('ru-RU') : '—'}
                       </span>
                     </span>
                   </div>

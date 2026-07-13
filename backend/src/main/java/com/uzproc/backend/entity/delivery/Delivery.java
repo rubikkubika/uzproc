@@ -37,6 +37,14 @@ public class Delivery {
     @Column(name = "actual_delivery_date")
     private LocalDate actualDeliveryDate;
 
+    /** Дата ЭСФ (электронной счёт-фактуры). Парсится из ручного отчёта (колонка «Дата выставления ЭСФ»). */
+    @Column(name = "esf_date")
+    private LocalDate esfDate;
+
+    /** Статус из ручного отчёта (колонка с заголовком «41», напр. «Закрыто»). */
+    @Column(name = "report_status", length = 255)
+    private String reportStatus;
+
     /** Срок поставки в рабочих днях. По умолчанию — из договора (Contract.deliveryTerm). */
     @Column(name = "delivery_term_working_days")
     private Integer deliveryTermWorkingDays;
@@ -113,6 +121,12 @@ public class Delivery {
 
     public LocalDate getActualDeliveryDate() { return actualDeliveryDate; }
     public void setActualDeliveryDate(LocalDate actualDeliveryDate) { this.actualDeliveryDate = actualDeliveryDate; }
+
+    public LocalDate getEsfDate() { return esfDate; }
+    public void setEsfDate(LocalDate esfDate) { this.esfDate = esfDate; }
+
+    public String getReportStatus() { return reportStatus; }
+    public void setReportStatus(String reportStatus) { this.reportStatus = reportStatus; }
 
     public Integer getDeliveryTermWorkingDays() { return deliveryTermWorkingDays; }
     public void setDeliveryTermWorkingDays(Integer deliveryTermWorkingDays) { this.deliveryTermWorkingDays = deliveryTermWorkingDays; }

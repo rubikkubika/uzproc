@@ -5,6 +5,7 @@ import { X } from 'lucide-react';
 import { getBackendUrl } from '@/utils/api';
 import { parseFirstNumber } from '../types/delivery.types';
 import type { PaymentSchemeOption } from '../types/delivery.types';
+import { formatAmountShort, formatAmountFull } from '../utils/amount.utils';
 
 interface ContractSearchResult {
   id: number;
@@ -114,6 +115,46 @@ export default function CreateDeliveryModal({ open, onClose, onCreated }: Props)
     const parsed = parseFirstNumber(selectedContract?.deliveryTerm);
     setDeliveryTermDays(parsed != null ? String(parsed) : '');
   }, [selectedContract]);
+
+  // Авто-выбор схемы оплаты по «Схеме оплаты» (paymentScheme) и «Условиям оплаты» (paymentTerms) договора.
+  // Логика (как на бэкенде autoSchemeForContract):
+  //   • полная постоплата → «0/100/10 д.» (срок не важен);
+  //   • иначе: аванс % = первый процент из «Схемы оплаты», доплата = 100 − аванс,
+  //     срок = первое число из «Условий оплаты» → точный матч по (аванс, доплата, срок);
+  //   • неоднозначность 30/70/10 vs 30/30/40/10 — по числу долей.
+  //   • нет точного совпадения — не трогаем.
+  // Эффект срабатывает только при смене договора/справочника; выбор можно изменить вручную.
+  useEffect(() => {
+    if (!selectedContract || schemes.length === 0) return;
+    const s = (selectedContract.paymentScheme ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+    const termsRaw = selectedContract.paymentTerms ?? '';
+
+    let target: PaymentSchemeOption | undefined;
+    if (s.includes('постоплата') && s.includes('100') && !s.includes('аванс') && !s.includes('предоплата')) {
+      target = schemes.find((x) => x.label.trim() === '0/100/10 д.');
+    } else {
+      const pcts = Array.from(s.matchAll(/(\d+)\s*%/g)).map((m) => Number(m[1]));
+      const termMatch = termsRaw.match(/\d+/);
+      if (pcts.length > 0 && termMatch) {
+        const advance = pcts[0];
+        const balance = 100 - advance;
+        const term = Number(termMatch[0]);
+        const matches = schemes.filter(
+          (x) => x.advancePercent === advance && x.finalPercent === balance && x.termDays === term,
+        );
+        if (matches.length === 1) {
+          target = matches[0];
+        } else if (matches.length > 1) {
+          const threeStage = pcts.length >= 3;
+          target = matches.find((x) => (x.label.trim().split(' ')[0].split('/').length >= 4) === threeStage) ?? matches[0];
+        }
+      }
+    }
+    if (target) {
+      setPaymentScheme(target.paymentType);
+      setSelectedSchemeId(target.id);
+    }
+  }, [selectedContract, schemes]);
 
   useEffect(() => {
     if (!selectedContract) {
@@ -258,13 +299,8 @@ export default function CreateDeliveryModal({ open, onClose, onCreated }: Props)
                     />
                   </td>
                   <td className="px-2 py-1 text-gray-800">{p.mainId ?? '—'}</td>
-                  <td className="px-2 py-1 text-right text-gray-800 tabular-nums">
-                    {p.amount != null
-                      ? Number(p.amount).toLocaleString('ru-RU', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })
-                      : '—'}
+                  <td className="px-2 py-1 text-right text-gray-800 tabular-nums" title={formatAmountFull(p.amount)}>
+                    {formatAmountShort(p.amount)}
                   </td>
                   <td className="px-2 py-1 text-gray-700">{p.paymentType ?? '—'}</td>
                   <td className="px-2 py-1 text-gray-700">{p.paymentStatus ?? '—'}</td>

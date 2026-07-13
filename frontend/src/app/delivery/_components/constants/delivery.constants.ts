@@ -4,7 +4,6 @@ export const TEXT_FIELDS = [
   'innerId',
   'contractInnerId',
   'supplierName',
-  'status',
   'currency',
   'comment',
   'responsibleName',

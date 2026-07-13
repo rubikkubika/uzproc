@@ -23,6 +23,8 @@ export const useDeliveryTable = () => {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [showNoDate, setShowNoDate] = useState(false);
+  // Вкладки: «В работе» (по умолчанию) / «Закрыто» (Поставлено + Оплачено)
+  const [activeTab, setActiveTab] = useState<'in-work' | 'closed'>('in-work');
 
   const availableYears = useMemo(() => {
     const years: number[] = [];
@@ -64,7 +66,7 @@ export const useDeliveryTable = () => {
   const handleResetFilters = useCallback(() => {
     const empty: Record<string, string> = {
       innerId: '', contractInnerId: '', supplierName: '',
-      status: '', currency: '', comment: '', responsibleName: '',
+      status: '', currency: '', comment: '', responsibleName: '', reportStatus: '', paymentsStatus: '',
     };
     filtersHook.setFilters(empty);
     filtersHook.setLocalFilters(empty);
@@ -86,6 +88,8 @@ export const useDeliveryTable = () => {
     noDate: boolean,
     paymentScheme: string,
     shipmentStatus: string,
+    closed: boolean | null,
+    recheck: boolean = false,
   ) => {
     if (append) {
       setLoadingMore(true);
@@ -95,7 +99,7 @@ export const useDeliveryTable = () => {
     }
     setError(null);
     try {
-      const result = await dataHook.fetchData(page, size, sortF, sortDir, filters, year, noDate, paymentScheme, shipmentStatus);
+      const result = await dataHook.fetchData(page, size, sortF, sortDir, filters, year, noDate, paymentScheme, shipmentStatus, closed, recheck);
       const items = result?.content ?? [];
       if (append) {
         setAllItems(prev => [...prev, ...items]);
@@ -117,11 +121,31 @@ export const useDeliveryTable = () => {
   const filtersStr = useMemo(() => JSON.stringify(filtersHook.filters), [filtersHook.filters]);
   const paymentSchemeFilter = filtersHook.paymentSchemeFilter;
   const shipmentStatusFilter = filtersHook.shipmentStatusFilter;
+  const closedFilter = activeTab === 'closed';
 
   useEffect(() => {
     setCurrentPage(0);
-    fetchData(0, pageSize, sortField, sortDirection, filtersHook.filters, false, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter);
-  }, [sortField, sortDirection, filtersStr, fetchData, pageSize, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, reloadKey]); // eslint-disable-line react-hooks/exhaustive-deps
+    // recheck=true — основной запрос списка: бэкенд пересчитывает статусы (авто-закрытие) при обновлении.
+    fetchData(0, pageSize, sortField, sortDirection, filtersHook.filters, false, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, closedFilter, true);
+  }, [sortField, sortDirection, filtersStr, fetchData, pageSize, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, closedFilter, reloadKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Счётчики вкладок «В работе» / «Закрыто» — с учётом текущих фильтров (size=1, читаем totalElements).
+  const [tabCounts, setTabCounts] = useState<{ inWork: number | null; closed: number | null }>({ inWork: null, closed: null });
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [inW, cl] = await Promise.all([
+          dataHook.fetchData(0, 1, null, null, filtersHook.filters, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, false),
+          dataHook.fetchData(0, 1, null, null, filtersHook.filters, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, true),
+        ]);
+        if (!cancelled) setTabCounts({ inWork: inW?.totalElements ?? 0, closed: cl?.totalElements ?? 0 });
+      } catch {
+        if (!cancelled) setTabCounts({ inWork: null, closed: null });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [filtersStr, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, reloadKey, dataHook.fetchData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const reload = useCallback(() => setReloadKey((k) => k + 1), []);
 
@@ -167,9 +191,9 @@ export const useDeliveryTable = () => {
     onLoadMore: useCallback(() => {
       if (hasMore && !loadingMore && allItems.length > 0) {
         const nextPage = currentPage + 1;
-        fetchData(nextPage, pageSize, sortField, sortDirection, filtersHook.filters, true, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter);
+        fetchData(nextPage, pageSize, sortField, sortDirection, filtersHook.filters, true, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, closedFilter);
       }
-    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, sortField, sortDirection, filtersHook.filters, fetchData, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter]),
+    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, sortField, sortDirection, filtersHook.filters, fetchData, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, closedFilter]),
     threshold: 0.1,
   });
 
@@ -191,6 +215,9 @@ export const useDeliveryTable = () => {
     selectedYear,
     showNoDate,
     availableYears,
+    activeTab,
+    setActiveTab,
+    tabCounts,
     handleYearChange,
     handleShowNoDate,
     handleShowAll,

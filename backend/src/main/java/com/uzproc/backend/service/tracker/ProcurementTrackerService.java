@@ -12,6 +12,7 @@ import com.uzproc.backend.entity.purchase.PurchaseStatus;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequestApproval;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequestStatus;
+import com.uzproc.backend.entity.purchaserequest.PurchaseRequestStatusGroup;
 import com.uzproc.backend.entity.supplier.Supplier;
 import com.uzproc.backend.repository.contract.ContractApprovalRepository;
 import com.uzproc.backend.repository.contract.ContractRepository;
@@ -81,6 +82,20 @@ public class ProcurementTrackerService {
             PurchaseRequestStatus.CONTRACT_CREATED,
             PurchaseRequestStatus.CONTRACT_ON_REGISTRATION,
             PurchaseRequestStatus.CONTRACT_SIGNED
+    );
+
+    /**
+     * Терминальные/неактивные группы статусов заявки — попадают в группу «Архив» поиска трекера.
+     * «Заявка на согласовании» сюда НЕ входит (это активный этап). Скрытые заявки
+     * (excludeFromInWork = true) добавляются к этой группе отдельно.
+     */
+    private static final Set<PurchaseRequestStatusGroup> ARCHIVE_GROUPS = EnumSet.of(
+            PurchaseRequestStatusGroup.PROJECT,
+            PurchaseRequestStatusGroup.NOT_COORDINATED,
+            PurchaseRequestStatusGroup.NOT_APPROVED,
+            PurchaseRequestStatusGroup.PURCHASE_NOT_COORDINATED,
+            PurchaseRequestStatusGroup.SPECIFICATION_NOT_COORDINATED,
+            PurchaseRequestStatusGroup.SPECIFICATION_CREATED_ARCHIVE
     );
 
     private final PurchaseRequestRepository requestRepository;
@@ -249,17 +264,27 @@ public class ProcurementTrackerService {
         }
         int stageIdx = allDone ? 3 : currentIdx;
 
+        // Признак прямого заказа («Заказ», requiresPurchase = false): на 3-м этапе оформляется
+        // спецификация, а не договор — влияет на подписи этапа и итоговую фразу статуса.
+        boolean isOrder = !(pr.getRequiresPurchase() != null && pr.getRequiresPurchase());
+
+        // Заявка попадает в группу «Архив» поиска, если её статус терминальный/неактивный
+        // (Проект, Не согласовано, Архив) либо она помечена скрытой (excludeFromInWork).
+        PurchaseRequestStatusGroup statusGroup = pr.getStatus() != null ? pr.getStatus().getGroup() : null;
+        boolean hidden = pr.getExcludeFromInWork() != null && pr.getExcludeFromInWork();
+        boolean archived = hidden || (statusGroup != null && ARCHIVE_GROUPS.contains(statusGroup));
+
         List<TrackerStageDto> stages = new ArrayList<>(4);
         stages.add(buildStage(0, doneArr, currentIdx, allDone, Collections.emptyList(),
                 pr.getPurchaseRequestCreationDate(),
                 pr.getPurchaseRequestInitiator() != null ? "Инициатор: " + pr.getPurchaseRequestInitiator() : ""));
         stages.add(buildStage(1, doneArr, currentIdx, allDone, mapApprovalSteps(toApprovalRows(reqApprovals)),
-                maxCompletion(toApprovalRows(reqApprovals)), stageNote(1, doneArr[1], currentIdx == 1)));
+                maxCompletion(toApprovalRows(reqApprovals)), stageNote(1, doneArr[1], currentIdx == 1, isOrder)));
         stages.add(buildStage(2, doneArr, currentIdx, allDone, mapApprovalSteps(toPurchaseRows(purchaseApprovals)),
-                maxCompletion(toPurchaseRows(purchaseApprovals)), stageNote(2, doneArr[2], currentIdx == 2)));
+                maxCompletion(toPurchaseRows(purchaseApprovals)), stageNote(2, doneArr[2], currentIdx == 2, isOrder)));
         stages.add(buildStage(3, doneArr, currentIdx, allDone, mapApprovalSteps(toContractRows(contractApprovals)),
                 contractSigned ? contractSignedDate(primaryContract, contractApprovals) : null,
-                stageNote(3, doneArr[3], currentIdx == 3)));
+                stageNote(3, doneArr[3], currentIdx == 3, isOrder)));
 
         String signed = null, contractor = null, contractSum = null;
         if (contractSigned && primaryContract != null) {
@@ -270,8 +295,7 @@ public class ProcurementTrackerService {
         }
 
         // Признак: заявка требует проведения закупки («Закупка») или прямой заказ («Заказ»)
-        boolean requiresPurchase = pr.getRequiresPurchase() != null && pr.getRequiresPurchase();
-        String kind = requiresPurchase ? "Закупка" : "Заказ";
+        String kind = isOrder ? "Заказ" : "Закупка";
 
         // Прогноз даты договора — заглушка: +14 рабочих дней от текущей даты (только для незавершённых)
         String forecast = allDone ? null : computeForecast();
@@ -290,9 +314,10 @@ public class ProcurementTrackerService {
                 signed,
                 contractor,
                 contractSum,
-                statusPhrase(allDone, stageIdx),
+                statusPhrase(allDone, stageIdx, isOrder),
                 stages,
-                kind
+                kind,
+                archived
         );
     }
 
@@ -397,22 +422,26 @@ public class ProcurementTrackerService {
                 .collect(Collectors.joining(", "));
     }
 
-    private String stageNote(int index, boolean done, boolean current) {
+    private String stageNote(int index, boolean done, boolean current, boolean isOrder) {
+        // Для прямых заказов (requiresPurchase = false) на 3-м этапе речь идёт о спецификации,
+        // а не о договоре — поэтому подписи «Договор …» заменяются на «Спецификация …».
         return switch (index) {
             case 1 -> done ? "Согласование пройдено" : (current ? "На согласовании" : "");
             case 2 -> done ? "Поставщик выбран" : (current ? "Идёт выбор поставщика" : "Начнётся после согласования заявки");
-            case 3 -> done ? "Договор подписан" : (current ? "Договор в работе" : "Начнётся после выбора поставщика");
+            case 3 -> done
+                    ? (isOrder ? "Спецификация подписана" : "Договор подписан")
+                    : (current ? (isOrder ? "Спецификация в работе" : "Договор в работе") : "Начнётся после выбора поставщика");
             default -> "";
         };
     }
 
-    private String statusPhrase(boolean allDone, int stageIdx) {
-        if (allDone) return "Договор подписан — закупка завершена";
+    private String statusPhrase(boolean allDone, int stageIdx, boolean isOrder) {
+        if (allDone) return (isOrder ? "Спецификация подписана" : "Договор подписан") + " — закупка завершена";
         return switch (stageIdx) {
             case 0 -> "Заявка создана";
             case 1 -> "Заявка на согласовании";
             case 2 -> "Закупщик выбирает поставщика";
-            case 3 -> "Договор в работе";
+            case 3 -> isOrder ? "Спецификация в работе" : "Договор в работе";
             default -> "";
         };
     }

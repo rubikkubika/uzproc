@@ -15,6 +15,7 @@ import com.uzproc.backend.entity.delivery.DeliveryStatus;
 import com.uzproc.backend.entity.delivery.PaymentScheme;
 import com.uzproc.backend.entity.delivery.ShipmentStatus;
 import com.uzproc.backend.entity.payment.Payment;
+import com.uzproc.backend.entity.payment.PaymentStatus;
 import com.uzproc.backend.entity.payment.PaymentType;
 import com.uzproc.backend.entity.user.User;
 import com.uzproc.backend.entity.calendar.Holiday;
@@ -34,11 +35,14 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -66,6 +70,20 @@ public class DeliveryService {
         this.holidayRepository = holidayRepository;
         this.contractApprovalRepository = contractApprovalRepository;
         this.paymentSchemeRepository = paymentSchemeRepository;
+    }
+
+    /** Уникальные значения «Статуса из отчёта» — для выпадающего фильтра в таблице поставок. */
+    public List<String> listReportStatuses() {
+        return deliveryRepository.findDistinctReportStatuses();
+    }
+
+    /** Уникальные значения количества нераспределённых оплат — для выпадающего фильтра столбца «Оплаты». */
+    public List<Integer> listUndistributedPaymentCounts() {
+        return deliveryRepository.findUndistributedPaymentCounts().stream()
+                .map(Long::intValue)
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
     }
 
     /** Список активных схем оплаты (справочник) для выпадающего списка в карточке поставки. */
@@ -126,11 +144,14 @@ public class DeliveryService {
             Integer dateYear,
             Boolean dateNull,
             String paymentScheme,
-            String shipmentStatus) {
+            String shipmentStatus,
+            String reportStatus,
+            String paymentsStatus,
+            Boolean closed) {
 
         Specification<Delivery> spec = buildSpecification(
                 innerId, contractInnerId, supplierName, status, currency,
-                comment, responsibleName, dateYear, dateNull, paymentScheme, shipmentStatus);
+                comment, responsibleName, dateYear, dateNull, paymentScheme, shipmentStatus, reportStatus, paymentsStatus, closed);
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
 
@@ -234,6 +255,16 @@ public class DeliveryService {
         LocalDate monthStart = LocalDate.of(y, m, 1);
         LocalDate monthEnd = monthStart.plusMonths(1).minusDays(1);
 
+        // По требованию: перед балк-созданием полностью очищаем поставки (и связи delivery_payments),
+        // чтобы пересоздать их заново с актуальными правилами схемы оплаты.
+        // deleteAll() (а не deleteAllInBatch) — чтобы Hibernate почистил join-таблицу delivery_payments.
+        long existing = deliveryRepository.count();
+        if (existing > 0) {
+            deliveryRepository.deleteAll();
+            deliveryRepository.flush();
+            logger.info("Bulk create deliveries: deleted {} existing deliveries before recreation", existing);
+        }
+
         // Лёгкая projection-выборка id подписанных спецификаций договорников (без гидрации сущностей).
         List<Long> contractIds = contractRepository.findSignedContractorSpecificationIds(ContractStatus.SIGNED);
 
@@ -260,6 +291,9 @@ public class DeliveryService {
         Integer maxInnerId = deliveryRepository.findMaxNumericInnerId();
         int nextInnerId = (maxInnerId != null ? maxInnerId : 0);
 
+        // Справочник схем оплаты — для авто-подстановки по «Схеме оплаты» договора (один запрос).
+        List<DeliveryPaymentScheme> schemeList = paymentSchemeRepository.findByActiveTrueOrderBySortOrderAsc();
+
         int created = 0;
         int skipped = 0;
         for (Contract contract : specifications) {
@@ -268,30 +302,7 @@ public class DeliveryService {
                 continue;
             }
             nextInnerId++;
-            Delivery delivery = new Delivery();
-            delivery.setInnerId(String.valueOf(nextInnerId));
-            delivery.setContract(contract);
-            // Схема оплаты не выбрана — задаётся пользователем позже
-            delivery.setPaymentScheme(null);
-            if (contract.getCurrency() != null) delivery.setCurrency(contract.getCurrency());
-            if (contract.getBudgetAmount() != null) delivery.setAmount(contract.getBudgetAmount());
-            if (contract.getSuppliers() != null && !contract.getSuppliers().isEmpty()) {
-                delivery.setSupplier(contract.getSuppliers().iterator().next());
-            }
-            // Ответственный = тот, кто подготовил договор.
-            delivery.setResponsible(contract.getPreparedBy());
-            // Срок поставки в рабочих днях — первое число из договора.
-            delivery.setDeliveryTermWorkingDays(parseFirstNumber(contract.getDeliveryTerm()));
-            // Подтягиваем все оплаты договора. Тип (Аванс/По факту) у них ещё не задан —
-            // поэтому в колонке «Оплаты» поставка будет «Не распределены», пока пользователь не распределит типы.
-            List<Payment> contractPayments = paymentRepository.findByContractId(contract.getId());
-            if (!contractPayments.isEmpty()) {
-                delivery.setPayments(new HashSet<>(contractPayments));
-            }
-            delivery.setStatus(resolveInitialStatus(null, delivery.getPayments()));
-            applyDerivedShipmentStatus(delivery);
-            recomputeDeliveryDeadline(delivery);
-            deliveryRepository.save(delivery);
+            createDeliveryForContract(contract, schemeList, nextInnerId);
             created++;
         }
         int total = created + skipped;
@@ -300,10 +311,327 @@ public class DeliveryService {
     }
 
     /**
+     * Применяет к поставке правила из договора «по нашим правилам»: авто-подбор схемы оплаты
+     * (см. {@link #autoSchemeForContract}), сумма/валюта/поставщик/ответственный/срок/оплаты из договора,
+     * статус оплаты, статус отгрузки и «Дату поставки». НЕ сохраняет — только заполняет поля.
+     * Используется и при создании новой поставки, и при обновлении существующей из handreport.
+     */
+    private void applyContractRules(Delivery delivery, Contract contract, List<DeliveryPaymentScheme> schemeList) {
+        delivery.setContract(contract);
+        // Авто-подбор схемы оплаты по «Схеме оплаты» договора; если правило не сработало — не выбрана.
+        DeliveryPaymentScheme autoScheme = autoSchemeForContract(
+                contract.getPaymentScheme(), contract.getPaymentTerms(), schemeList);
+        if (autoScheme != null) {
+            delivery.setPaymentSchemeRef(autoScheme);
+            delivery.setPaymentScheme(PaymentScheme.valueOf(autoScheme.getPaymentType().trim().toUpperCase()));
+        } else {
+            delivery.setPaymentSchemeRef(null);
+            delivery.setPaymentScheme(null);
+        }
+        if (contract.getCurrency() != null) delivery.setCurrency(contract.getCurrency());
+        if (contract.getBudgetAmount() != null) delivery.setAmount(contract.getBudgetAmount());
+        if (contract.getSuppliers() != null && !contract.getSuppliers().isEmpty()) {
+            delivery.setSupplier(contract.getSuppliers().iterator().next());
+        }
+        delivery.setResponsible(contract.getPreparedBy());
+        delivery.setDeliveryTermWorkingDays(parseFirstNumber(contract.getDeliveryTerm()));
+        List<Payment> contractPayments = paymentRepository.findByContractId(contract.getId());
+        delivery.setPayments(contractPayments.isEmpty() ? new HashSet<>() : new HashSet<>(contractPayments));
+        // Авто-распределение типов оплат (Аванс/По факту), если оплаты сходятся по сумме со схемой.
+        autoDistributePayments(delivery);
+        delivery.setStatus(resolveInitialStatus(delivery.getPaymentScheme(), delivery.getPayments()));
+        applyDerivedShipmentStatus(delivery);
+        recomputeDeliveryDeadline(delivery);
+    }
+
+    /** Допуск на округление при сверке сумм оплат с долями схемы (копеечные расхождения). */
+    private static final BigDecimal DISTRIBUTION_TOLERANCE = new BigDecimal("1.00");
+
+    /**
+     * Авто-распределение типов оплат по схеме и сумме поставки.
+     * Условия: выбрана схема из справочника (с процентами аванс/доплата) и задана сумма поставки.
+     *   • Полная постоплата (0/100): все оплаты — «По факту».
+     *   • Полный аванс (100/0): все оплаты — «Аванс».
+     *   • Иначе распределяем, если оплаты «сходятся»: их суммарная сумма равна сумме поставки,
+     *     каждая оплата относится к ближайшей доле (аванс amount·adv% или доплата amount·fin%),
+     *     а суммы по «Авансу» и «По факту» совпадают с целевыми долями с точностью до округления
+     *     ({@link #DISTRIBUTION_TOLERANCE}).
+     * Если сходимости нет — типы не трогаем (оплаты остаются нераспределёнными).
+     */
+    private void autoDistributePayments(Delivery delivery) {
+        DeliveryPaymentScheme ref = delivery.getPaymentSchemeRef();
+        Set<Payment> payments = delivery.getPayments();
+        BigDecimal amount = delivery.getAmount();
+        if (ref == null || payments == null || payments.isEmpty()) return;
+
+        int adv = ref.getAdvancePercent() != null ? ref.getAdvancePercent() : 0;
+        int fin = ref.getFinalPercent() != null ? ref.getFinalPercent() : 0;
+
+        // Полная постоплата / полный аванс — распределяем без проверки суммы.
+        if (adv == 0 && fin > 0) { assignType(payments, PaymentType.FACT); return; }
+        if (fin == 0 && adv > 0) { assignType(payments, PaymentType.ADVANCE); return; }
+        if (adv <= 0 || fin <= 0) return;
+
+        if (amount == null || amount.signum() <= 0) return;
+
+        // Суммарная сумма оплат должна сходиться с суммой поставки.
+        BigDecimal total = payments.stream()
+                .map(Payment::getAmount).filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (total.compareTo(amount) != 0) return;
+
+        BigDecimal hundred = BigDecimal.valueOf(100);
+        BigDecimal advTarget = amount.multiply(BigDecimal.valueOf(adv)).divide(hundred, 4, java.math.RoundingMode.HALF_UP);
+        BigDecimal finTarget = amount.multiply(BigDecimal.valueOf(fin)).divide(hundred, 4, java.math.RoundingMode.HALF_UP);
+
+        // Классифицируем каждую оплату по ближайшей доле (аванс/доплата).
+        java.util.Map<Payment, PaymentType> plan = new java.util.HashMap<>();
+        BigDecimal advSum = BigDecimal.ZERO;
+        BigDecimal finSum = BigDecimal.ZERO;
+        for (Payment p : payments) {
+            BigDecimal a = p.getAmount();
+            if (a == null) return; // нет суммы — не распределяем
+            BigDecimal distAdv = a.subtract(advTarget).abs();
+            BigDecimal distFin = a.subtract(finTarget).abs();
+            if (distAdv.compareTo(distFin) <= 0) {
+                plan.put(p, PaymentType.ADVANCE);
+                advSum = advSum.add(a);
+            } else {
+                plan.put(p, PaymentType.FACT);
+                finSum = finSum.add(a);
+            }
+        }
+        // Суммы по «Авансу» и «По факту» должны сойтись с целевыми долями (с допуском на округление).
+        if (advSum.subtract(advTarget).abs().compareTo(DISTRIBUTION_TOLERANCE) > 0
+                || finSum.subtract(finTarget).abs().compareTo(DISTRIBUTION_TOLERANCE) > 0) {
+            return;
+        }
+
+        plan.forEach((p, type) -> {
+            p.setPaymentType(type);
+            paymentRepository.save(p);
+        });
+    }
+
+    /** Проставляет всем оплатам одинаковый тип и сохраняет их. */
+    private void assignType(Set<Payment> payments, PaymentType type) {
+        for (Payment p : payments) {
+            p.setPaymentType(type);
+            paymentRepository.save(p);
+        }
+    }
+
+    /**
+     * Создаёт поставку по договору «по нашим правилам» (см. {@link #applyContractRules}).
+     * Сохраняет и возвращает поставку.
+     */
+    private Delivery createDeliveryForContract(Contract contract, List<DeliveryPaymentScheme> schemeList, int innerId) {
+        Delivery delivery = new Delivery();
+        delivery.setInnerId(String.valueOf(innerId));
+        applyContractRules(delivery, contract, schemeList);
+        return deliveryRepository.save(delivery);
+    }
+
+    /**
+     * Для парсинга handreport: гарантирует наличие поставки по договору-спецификации.
+     * Если поставки нет — создаёт «по нашим правилам»; если есть — обновляет её по тем же
+     * правилам договора (авто-подбор схемы оплаты, сумма/валюта/поставщик/срок/оплаты/статусы).
+     * Поверх правил проставляет данные из отчёта: фактическую дату поставки, дату ЭСФ
+     * (колонка «Дата выставления ЭСФ»), комментарий (колонка «Примечания») и статус из отчёта (колонка «41»).
+     * Договор перезагружается по id ВНУТРИ транзакции, чтобы работали ленивые связи (suppliers).
+     * @return true, если поставка была создана.
+     */
+    @Transactional
+    public boolean upsertDeliveryForSpecification(Long contractId, LocalDate actualDeliveryDate, LocalDate esfDate,
+                                                  String comment, String reportStatus) {
+        Contract spec = contractRepository.findById(contractId).orElse(null);
+        if (spec == null) return false;
+        List<DeliveryPaymentScheme> schemeList = paymentSchemeRepository.findByActiveTrueOrderBySortOrderAsc();
+        Delivery delivery = deliveryRepository.findFirstByContractIdOrderByIdAsc(contractId).orElse(null);
+        boolean created = false;
+        if (delivery == null) {
+            Integer maxInnerId = deliveryRepository.findMaxNumericInnerId();
+            int innerId = (maxInnerId != null ? maxInnerId : 0) + 1;
+            delivery = createDeliveryForContract(spec, schemeList, innerId);
+            created = true;
+        } else {
+            // Существующую поставку обновляем по правилам договора (в т.ч. авто-подбор схемы оплаты).
+            applyContractRules(delivery, spec, schemeList);
+        }
+        // Данные из отчёта — поверх правил.
+        if (actualDeliveryDate != null) {
+            delivery.setActualDeliveryDate(actualDeliveryDate);
+            // Есть факт поставки → статус отгрузки «Поставлено».
+            delivery.setShipmentStatus(ShipmentStatus.DELIVERED);
+        }
+        if (esfDate != null) {
+            delivery.setEsfDate(esfDate);
+        }
+        if (comment != null && !comment.isBlank()) {
+            delivery.setComment(comment.trim());
+        }
+        if (reportStatus != null && !reportStatus.isBlank()) {
+            delivery.setReportStatus(reportStatus.trim());
+        }
+        deliveryRepository.save(delivery);
+        return created;
+    }
+
+    private static final Pattern PERCENT_PATTERN = Pattern.compile("(\\d+)\\s*%");
+    private static final Pattern FIRST_INT_PATTERN = Pattern.compile("\\d+");
+
+    /**
+     * Авто-подбор схемы оплаты поставки по «Схеме оплаты» (paymentScheme) и «Условиям оплаты»
+     * (paymentTerms) договора. Логика:
+     *   • «Постоплата - 100%» (без аванса/предоплаты) → «0/100/10 д.» (срок не важен);
+     *   • иначе: аванс % = первый процент из «Схемы оплаты», доплата = 100 − аванс,
+     *     срок = первое число из «Условий оплаты» → точный матч в справочнике по (аванс, доплата, срок).
+     *   • неоднозначность «30/70/10 д.» vs «30/30/40/10 д.» — по числу долей в «Схеме оплаты».
+     * Если точного совпадения нет — возвращает null (схема остаётся не выбранной, «не трогаем»).
+     */
+    private DeliveryPaymentScheme autoSchemeForContract(String contractScheme, String contractTerms,
+                                                        List<DeliveryPaymentScheme> schemes) {
+        if (schemes == null || schemes.isEmpty()) return null;
+        String s = (contractScheme == null) ? "" : contractScheme.trim().replaceAll("\\s+", " ").toLowerCase();
+
+        // Полная постоплата → «0/100/10 д.» (срок не учитываем).
+        if (s.contains("постоплата") && s.contains("100")
+                && !s.contains("аванс") && !s.contains("предоплата")) {
+            return pickSchemeByLabel(schemes, "0/100/10 д.");
+        }
+
+        List<Integer> pcts = extractPercents(s);
+        if (pcts.isEmpty()) return null;
+        int advance = pcts.get(0);
+        if (advance < 0 || advance > 100) return null;
+        int balance = 100 - advance;
+        int stages = pcts.size();
+
+        Integer term = extractFirstInt(contractTerms);
+        if (term == null) return null;
+
+        List<DeliveryPaymentScheme> matches = schemes.stream()
+                .filter(x -> eqInt(x.getAdvancePercent(), advance)
+                        && eqInt(x.getFinalPercent(), balance)
+                        && eqInt(x.getTermDays(), term))
+                .collect(Collectors.toList());
+        if (matches.isEmpty()) return null;
+        if (matches.size() == 1) return matches.get(0);
+        // Неоднозначность (напр. 30/70/10): 3 доли → «30/30/40/10 д.», иначе 2-этапная.
+        boolean threeStage = stages >= 3;
+        return matches.stream()
+                .filter(x -> isMultiStageLabel(x.getLabel()) == threeStage)
+                .findFirst().orElse(matches.get(0));
+    }
+
+    /** Все проценты из строки по порядку: «Аванс - 30% ... 70%» → [30,70]; «30% 30% 40%» → [30,30,40]. */
+    private List<Integer> extractPercents(String s) {
+        List<Integer> out = new ArrayList<>();
+        Matcher m = PERCENT_PATTERN.matcher(s);
+        while (m.find()) {
+            try {
+                out.add(Integer.parseInt(m.group(1)));
+            } catch (NumberFormatException ignored) {
+                // пропускаем некорректное число
+            }
+        }
+        return out;
+    }
+
+    /** Первое целое число из строки (срок из «Условий оплаты»). */
+    private Integer extractFirstInt(String s) {
+        if (s == null) return null;
+        Matcher m = FIRST_INT_PATTERN.matcher(s);
+        return m.find() ? Integer.valueOf(m.group()) : null;
+    }
+
+    private boolean eqInt(Integer a, int b) {
+        return a != null && a == b;
+    }
+
+    /** Многоэтапный ярлык (4 числовые доли): «30/30/40/10 д.» → true; «30/70/10 д.» → false. */
+    private boolean isMultiStageLabel(String label) {
+        if (label == null) return false;
+        String head = label.trim().split("\\s")[0];
+        return head.split("/").length >= 4;
+    }
+
+    /** Находит схему справочника по точному ярлыку. */
+    private DeliveryPaymentScheme pickSchemeByLabel(List<DeliveryPaymentScheme> schemes, String label) {
+        return schemes.stream()
+                .filter(x -> x.getLabel() != null && label.equals(x.getLabel().trim()))
+                .findFirst().orElse(null);
+    }
+
+    /**
+     * Стартовая проверка авто-закрытия поставок по факту оплаты.
+     * Условие: схема оплаты POSTPAYMENT («Постоплата - 100%»), статус оплаты PAID («Оплачено»)
+     * и сумма привязанных оплат равна сумме поставки — тогда статус отгрузки → DELIVERED («Поставлено»).
+     * Факт-дата поставки (actualDeliveryDate) НЕ заполняется (по требованию — остаётся пустой).
+     * Возвращает число обновлённых поставок.
+     */
+    /** Ярлыки схем оплаты, для которых работает авто-закрытие (100% одним платежом). */
+    private static final List<String> AUTO_CLOSE_SCHEME_LABELS = List.of("0/100/10 д.", "100/0/10 д.");
+
+    /** Ярлык постоплатной схемы («по факту»), для которой авто-простановка «Поставлено» разрешена. */
+    private static final String POSTPAY_SCHEME_LABEL = "0/100/10 д.";
+
+    /**
+     * Авто-закрытие полностью оплаченных поставок (для «по факту» и «аванс 100%»).
+     * Условие: схема оплаты — «0/100/10 д.» (по факту) или «100/0/10 д.» (аванс),
+     * и сумма фактически оплаченных платежей (статус «Оплачена»/PAID) равна сумме поставки.
+     * Тогда ставим статус оплаты PAID («Оплачено»). Статус отгрузки DELIVERED («Поставлено»)
+     * ставим ТОЛЬКО для постоплаты («0/100/10 д.») — оплата аванса не означает факт поставки.
+     * Возвращает число обновлённых поставок.
+     */
+    @Transactional
+    public int autoCloseFullyPaidDeliveries() {
+        List<Delivery> candidates = deliveryRepository.findAutoCloseCandidatesBySchemeLabels(AUTO_CLOSE_SCHEME_LABELS);
+        int updated = 0;
+        for (Delivery d : candidates) {
+            BigDecimal amount = d.getAmount();
+            if (amount == null) continue;
+            // Учитываем только фактически оплаченные платежи (статус «Оплачена»/PAID);
+            // неоплаченные (пустой статус, «К оплате» и т.п.) в сумму не входят.
+            BigDecimal paid = (d.getPayments() == null) ? BigDecimal.ZERO
+                    : d.getPayments().stream()
+                        .filter(p -> p.getPaymentStatus() == PaymentStatus.PAID)
+                        .map(Payment::getAmount)
+                        .filter(java.util.Objects::nonNull)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+            if (paid.compareTo(amount) != 0) continue;
+
+            String label = (d.getPaymentSchemeRef() != null && d.getPaymentSchemeRef().getLabel() != null)
+                    ? d.getPaymentSchemeRef().getLabel().trim() : null;
+            boolean isPostpay = POSTPAY_SCHEME_LABEL.equals(label);
+
+            boolean changed = false;
+            if (d.getStatus() != DeliveryStatus.PAID) {
+                d.setStatus(DeliveryStatus.PAID);
+                changed = true;
+            }
+            // «Поставлено» — только для постоплаты; для аванса не проставляем.
+            if (isPostpay && d.getShipmentStatus() != ShipmentStatus.DELIVERED) {
+                d.setShipmentStatus(ShipmentStatus.DELIVERED);
+                changed = true;
+            }
+            if (changed) {
+                deliveryRepository.save(d);
+                updated++;
+            }
+        }
+        if (updated > 0) {
+            logger.info("Auto-close deliveries: {} updated (PAID; DELIVERED only for postpayment)", updated);
+        }
+        return updated;
+    }
+
+    /**
      * Определяет статус оплаты поставки.
      * Схема «Аванс» (PREPAYMENT):
-     *   есть оплаченный аванс (paymentDate) ⇒ ADVANCE_PAID («Аванс оплачен», зелёный);
-     *   иначе (аванс не оплачен) ⇒ ADVANCE_PREPARED («Оплата аванса», жёлтый).
+     *   оплачены и аванс, и платёж по факту (у обоих paymentDate) ⇒ PAID («Оплачено», зелёный);
+     *   оплачен только аванс ⇒ ADVANCE_PAID («Аванс оплачен», зелёный);
+     *   аванс не оплачен ⇒ ADVANCE_PREPARED («Оплата аванса», жёлтый).
      * Схема «По факту» (POSTPAYMENT):
      *   есть оплаченный платёж (paymentDate) ⇒ PAID («Оплачено», зелёный);
      *   оплат нет / не распределены ⇒ NOT_PAID («Не оплачено»).
@@ -313,6 +641,9 @@ public class DeliveryService {
         if (scheme == PaymentScheme.PREPAYMENT) {
             boolean hasPaidAdvance = linked != null && linked.stream()
                     .anyMatch(p -> p.getPaymentType() == PaymentType.ADVANCE && p.getPaymentDate() != null);
+            boolean hasPaidFact = linked != null && linked.stream()
+                    .anyMatch(p -> p.getPaymentType() == PaymentType.FACT && p.getPaymentDate() != null);
+            if (hasPaidAdvance && hasPaidFact) return DeliveryStatus.PAID;
             return hasPaidAdvance ? DeliveryStatus.ADVANCE_PAID : DeliveryStatus.ADVANCE_PREPARED;
         }
         if (scheme == PaymentScheme.POSTPAYMENT) {
@@ -697,7 +1028,8 @@ public class DeliveryService {
     private Specification<Delivery> buildSpecification(
             String innerId, String contractInnerId, String supplierName, String status,
             String currency, String comment, String responsibleName,
-            Integer dateYear, Boolean dateNull, String paymentScheme, String shipmentStatus) {
+            Integer dateYear, Boolean dateNull, String paymentScheme, String shipmentStatus,
+            String reportStatus, String paymentsStatus, Boolean closed) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -768,6 +1100,69 @@ public class DeliveryService {
                 }
             }
 
+            if (reportStatus != null && !reportStatus.trim().isEmpty()) {
+                predicates.add(cb.like(cb.lower(root.get("reportStatus")), "%" + reportStatus.trim().toLowerCase() + "%"));
+            }
+
+            // Статус оплат (вычисляемый по коллекции payments):
+            //   none          — оплат нет;
+            //   undistributed — есть оплаты, но хотя бы у одной не указан тип (Аванс/По факту);
+            //   distributed   — есть оплаты и у всех указан тип.
+            if (paymentsStatus != null && !paymentsStatus.trim().isEmpty()) {
+                String ps = paymentsStatus.trim().toLowerCase();
+                if ("none".equals(ps)) {
+                    predicates.add(cb.isEmpty(root.get("payments")));
+                } else if (ps.startsWith("undistributed") || "distributed".equals(ps)) {
+                    // Подзапрос: количество привязанных оплат без типа у этой поставки.
+                    jakarta.persistence.criteria.Subquery<Long> sub = query.subquery(Long.class);
+                    jakarta.persistence.criteria.Root<Delivery> subRoot = sub.from(Delivery.class);
+                    var subPayments = subRoot.join("payments", jakarta.persistence.criteria.JoinType.INNER);
+                    sub.select(cb.count(subPayments));
+                    sub.where(
+                            cb.equal(subRoot.get("id"), root.get("id")),
+                            cb.isNull(subPayments.get("paymentType")));
+                    if ("distributed".equals(ps)) {
+                        // Есть оплаты и ни одной без типа.
+                        predicates.add(cb.and(cb.isNotEmpty(root.get("payments")), cb.equal(sub, 0L)));
+                    } else {
+                        // «undistributed» — любое кол-во нераспределённых; «undistributed:N» — ровно N.
+                        Integer exact = null;
+                        int colon = ps.indexOf(':');
+                        if (colon >= 0) {
+                            try {
+                                exact = Integer.valueOf(ps.substring(colon + 1).trim());
+                            } catch (NumberFormatException ignored) {
+                                // некорректное число — трактуем как «любое кол-во»
+                            }
+                        }
+                        if (exact != null) {
+                            predicates.add(cb.equal(sub, exact.longValue()));
+                        } else {
+                            predicates.add(cb.and(cb.isNotEmpty(root.get("payments")), cb.greaterThan(sub, 0L)));
+                        }
+                    }
+                }
+            }
+
+            // Вкладки «В работе» / «Закрыто».
+            // «Закрыто» = статус отгрузки DELIVERED («Поставлено») И статус оплаты PAID («Оплачено»).
+            // «В работе» = всё остальное. closed == null → без фильтра (все).
+            if (closed != null) {
+                if (closed) {
+                    predicates.add(cb.and(
+                            cb.equal(root.get("shipmentStatus"), ShipmentStatus.DELIVERED),
+                            cb.equal(root.get("status"), DeliveryStatus.PAID)));
+                } else {
+                    // Null-безопасное «НЕ закрыто»: строки с NULL-статусами тоже относятся к «В работе»
+                    // (иначе cb.not(...) на NULL даёт UNKNOWN и такие строки выпадают из выборки).
+                    predicates.add(cb.or(
+                            cb.notEqual(root.get("shipmentStatus"), ShipmentStatus.DELIVERED),
+                            cb.isNull(root.get("shipmentStatus")),
+                            cb.notEqual(root.get("status"), DeliveryStatus.PAID),
+                            cb.isNull(root.get("status"))));
+                }
+            }
+
             return cb.and(predicates.toArray(new Predicate[0]));
         };
     }
@@ -799,11 +1194,14 @@ public class DeliveryService {
         dto.setDate(entity.getDate());
         dto.setDeliveryDeadline(entity.getDeliveryDeadline());
         dto.setActualDeliveryDate(entity.getActualDeliveryDate());
+        dto.setEsfDate(entity.getEsfDate());
+        dto.setReportStatus(entity.getReportStatus());
         dto.setDeliveryTermWorkingDays(entity.getDeliveryTermWorkingDays());
         if (entity.getContract() != null) {
             dto.setContractId(entity.getContract().getId());
             dto.setContractInnerId(entity.getContract().getInnerId());
             dto.setContractName(entity.getContract().getName());
+            dto.setContractPurchaseRequestId(entity.getContract().getPurchaseRequestId());
             dto.setContractPaymentScheme(entity.getContract().getPaymentScheme());
             dto.setContractPaymentTerms(entity.getContract().getPaymentTerms());
             dto.setContractDeliveryTerm(entity.getContract().getDeliveryTerm());
