@@ -11,6 +11,7 @@ import { useHolidayDateKeys } from '@/hooks/useHolidayDateKeys';
 import { ArrowLeft, Clock, Check, X, Eye, EyeOff, Copy, Star, History, MessageSquare } from 'lucide-react';
 import Sidebar from '../../_components/Sidebar';
 import CompetitiveSheetBlock from './_components/CompetitiveSheetBlock';
+import PurchaseRequestRedesign from './_components/redesign/PurchaseRequestRedesign';
 
 interface PurchaseRequest {
   id: number;
@@ -148,6 +149,7 @@ interface PurchaseRequestChangeItem {
 
 const SIDEBAR_COLLAPSED_KEY = 'sidebarCollapsed';
 const ACTIVE_TAB_KEY = 'activeTab';
+const PR_NEW_DESIGN_KEY = 'purchaseRequestNewDesign';
 
 /** Email из cookie user-email (запасной вариант, если контекст ещё не подгрузился) */
 function getAuthEmailFromCookie(): string | null {
@@ -215,6 +217,8 @@ export default function PurchaseRequestDetailPage() {
   const [exclusionForm, setExclusionForm] = useState<{ excludedFromStatusCalculation: boolean; exclusionComment: string }>({ excludedFromStatusCalculation: false, exclusionComment: '' });
   const [isSavingExclusion, setIsSavingExclusion] = useState(false);
   const [showChanges, setShowChanges] = useState(false);
+  // Переключатель между старым и новым (редизайн) представлением страницы
+  const [useNewDesign, setUseNewDesign] = useState(false);
   const [changesList, setChangesList] = useState<PurchaseRequestChangeItem[]>([]);
   const [changesLoading, setChangesLoading] = useState(false);
   /** Данные попапа комментария (рендер в портале, чтобы не обрезался). */
@@ -257,6 +261,10 @@ export default function PurchaseRequestDetailPage() {
       if (savedTab) {
         setActiveTab(savedTab);
       }
+
+      if (localStorage.getItem(PR_NEW_DESIGN_KEY) === 'true') {
+        setUseNewDesign(true);
+      }
     } catch (err) {
       // Игнорируем ошибки
     }
@@ -288,6 +296,30 @@ export default function PurchaseRequestDetailPage() {
       console.error('Error saving active tab:', err);
     }
     setIsMobileMenuOpen(false);
+  };
+
+  const toggleDesign = () => {
+    setUseNewDesign((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(PR_NEW_DESIGN_KEY, String(next));
+      } catch {
+        // Игнорируем ошибки localStorage
+      }
+      return next;
+    });
+  };
+
+  const handleCopyCsi = async () => {
+    try {
+      const fullUrl = purchaseRequest?.csiLink || '';
+      if (!fullUrl) return;
+      await copyToClipboard(fullUrl);
+      alert('Ссылка на форму CSI скопирована в буфер обмена');
+    } catch (error) {
+      console.error('Error copying to clipboard:', error);
+      alert(error instanceof Error ? error.message : 'Не удалось скопировать ссылку');
+    }
   };
 
   const handleSavingsTypeChange = async (newSavingsType: string) => {
@@ -1052,11 +1084,59 @@ export default function PurchaseRequestDetailPage() {
           </div>
         </div>
 
-        <main className="flex-1 overflow-y-auto p-1.5 sm:p-2 lg:p-2 pt-16 sm:pt-20 lg:pt-4">
+        <main className={useNewDesign ? 'flex-1 overflow-y-auto' : 'flex-1 overflow-y-auto p-1.5 sm:p-2 lg:p-2 pt-16 sm:pt-20 lg:pt-4'}>
+          {useNewDesign ? (
+            <PurchaseRequestRedesign
+              purchaseRequest={purchaseRequest}
+              purchase={purchase}
+              csiFeedback={csiFeedback}
+              csiFeedbackLoading={csiFeedbackLoading}
+              contracts={purchaseRequest.contracts ?? []}
+              specifications={specifications}
+              contractApprovalsByContractId={contractApprovalsByContractId}
+              approvalStageApprovals={approvalStageApprovals}
+              managerStageApprovals={managerStageApprovals}
+              finalApprovalStageApprovals={finalApprovalStageApprovals}
+              finalApprovalNoZpStageApprovals={finalApprovalNoZpStageApprovals}
+              purchaseResultsApprovalApprovals={purchaseResultsApprovalApprovals}
+              purchaseCommissionApprovals={purchaseCommissionApprovals}
+              purchaseCommissionResultCheckApprovals={purchaseCommissionResultCheckApprovals}
+              isRequestStepGreen={isRequestStepGreen}
+              isOnCoordination={isOnCoordination}
+              isPurchaseStepGreen={isPurchaseStepGreen}
+              isPurchaseStepYellow={!!isPurchaseStepYellow}
+              isPurchaseStepRed={!!isPurchaseStepRed}
+              formatDate={formatDate}
+              formatDateTime={formatDateTime}
+              formatCurrency={formatCurrency}
+              getCurrencyIcon={getCurrencyIcon}
+              calculateDays={calculateDays}
+              calculateContractApprovalWorkingDays={calculateContractApprovalWorkingDays}
+              getApprovalStatusColor={getApprovalStatusColor}
+              getContractSpecStageOrder={getContractSpecStageOrder}
+              getAverageRating={getAverageRating}
+              purchaserDisplayName={purchaserDisplayName}
+              initiatorDisplayName={initiatorDisplayName}
+              goBack={goBack}
+              onSavingsTypeChange={handleSavingsTypeChange}
+              onCopyCsi={handleCopyCsi}
+              onToggleDesign={toggleDesign}
+              competitiveSheetSlot={purchase ? (
+                <CompetitiveSheetBlock
+                  purchaseId={purchase.id}
+                  competitiveSheet={purchase.competitiveSheet ?? null}
+                  competitiveSheetUploadedAt={purchase.competitiveSheetUploadedAt ?? null}
+                  onUpdate={(sheet, uploadedAt) => {
+                    setPurchase(prev => prev ? { ...prev, competitiveSheet: sheet, competitiveSheetUploadedAt: uploadedAt } : prev);
+                  }}
+                />
+              ) : undefined}
+            />
+          ) : (
           <div className="space-y-1">
             {/* Верхняя панель с кнопкой назад и трекером статусов */}
             <div className="space-y-1">
-              {/* Кнопка назад */}
+              {/* Кнопка назад + переключатель дизайна */}
               <div className="flex items-center gap-2">
                 <button
                   onClick={goBack}
@@ -1064,6 +1144,13 @@ export default function PurchaseRequestDetailPage() {
                 >
                   <ArrowLeft className="w-3.5 h-3.5" />
                   <span>Назад к списку</span>
+                </button>
+                <button
+                  onClick={toggleDesign}
+                  className="ml-auto flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 border border-blue-200 rounded px-2 py-1 transition-colors"
+                  title="Переключиться на новый дизайн"
+                >
+                  <span>Новый дизайн</span>
                 </button>
               </div>
 
@@ -2716,6 +2803,7 @@ export default function PurchaseRequestDetailPage() {
             </div>
 
           </div>
+          )}
         </main>
 
         {/* Модальное окно: исключение договора из расчёта статуса заявки */}
