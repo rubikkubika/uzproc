@@ -1,9 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowUp, ArrowDown, ArrowUpDown, Plus, CalendarPlus, MessageCircle } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowUp, ArrowDown, ArrowUpDown, Plus, CalendarPlus, MessageCircle, Check, X } from 'lucide-react';
 import { useDeliveryTable } from './hooks/useDeliveryTable';
 import { useReportStatusOptions } from './hooks/useReportStatusOptions';
+import { useResponsibleOptions } from './hooks/useResponsibleOptions';
 import type { Delivery, SortField } from './types/delivery.types';
 import {
   STATUS_BADGE_CLASSES,
@@ -51,6 +53,7 @@ export default function DeliveryTable() {
   } = useDeliveryTable();
 
   const reportStatusOptions = useReportStatusOptions();
+  const responsibleOptions = useResponsibleOptions();
   const undistributedCounts = useUndistributedCounts();
 
   const handleCreateMay = async () => {
@@ -117,7 +120,7 @@ export default function DeliveryTable() {
     width: string;
     hasFilter: boolean;
     hasSort: boolean;
-    filterKind?: 'text' | 'paymentScheme' | 'shipmentStatus' | 'reportStatus' | 'paymentsStatus' | 'deliveryStatus';
+    filterKind?: 'text' | 'paymentScheme' | 'shipmentStatus' | 'reportStatus' | 'paymentsStatus' | 'deliveryStatus' | 'responsible';
   }> = [
     { field: 'innerId', label: '№', width: '5%', hasFilter: true, hasSort: true, filterKind: 'text' },
     { field: 'deliveryDeadline', label: 'Даты поставки', width: '11%', hasFilter: false, hasSort: true },
@@ -143,7 +146,7 @@ export default function DeliveryTable() {
       hasSort: false,
       filterKind: 'text',
     },
-    { field: 'responsibleName', label: 'Ответственный', width: '7%', hasFilter: true, hasSort: false, filterKind: 'text' },
+    { field: 'responsibleName', label: 'Ответственный', width: '7%', hasFilter: true, hasSort: false, filterKind: 'responsible' },
   ];
 
   const renderPaymentSchemeFilter = () => (
@@ -218,6 +221,21 @@ export default function DeliveryTable() {
     >
       <option value="">Все</option>
       {reportStatusOptions.map((o) => (
+        <option key={o} value={o}>{o}</option>
+      ))}
+    </select>
+  );
+
+  const renderResponsibleFilter = () => (
+    <select
+      value={filters.filters.responsibleName ?? ''}
+      onChange={(e) => filters.setResponsibleNameFilter(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      className="flex-1 text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500 w-full"
+      style={{ height: '24px', minHeight: '24px', maxHeight: '24px', minWidth: 0, boxSizing: 'border-box' }}
+    >
+      <option value="">Все</option>
+      {responsibleOptions.map((o) => (
         <option key={o} value={o}>{o}</option>
       ))}
     </select>
@@ -324,7 +342,9 @@ export default function DeliveryTable() {
                                 ? renderPaymentsStatusFilter()
                                 : col.filterKind === 'deliveryStatus'
                                   ? renderDeliveryStatusFilter()
-                                  : renderFilterInput(col.field)
+                                  : col.filterKind === 'responsible'
+                                    ? renderResponsibleFilter()
+                                    : renderFilterInput(col.field)
                         : null}
                     </div>
                     <div className="flex items-center gap-1 min-h-[20px]">
@@ -388,16 +408,33 @@ export default function DeliveryTable() {
                     </div>
                   </td>
                   <td className="px-2 py-2 text-xs border-r border-gray-300 overflow-hidden min-w-0">
-                    {item.shipmentStatus ? (
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${STATUS_BADGE_CLASSES[item.shipmentStatusColor ?? 'gray'] ?? STATUS_BADGE_CLASSES.gray}`}
-                        title={item.shipmentStatus}
-                      >
-                        {item.shipmentStatus}
-                      </span>
-                    ) : (
-                      <span className="text-gray-500">-</span>
-                    )}
+                    <div className="flex flex-col items-start gap-1">
+                      {item.shipmentStatus ? (
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${STATUS_BADGE_CLASSES[item.shipmentStatusColor ?? 'gray'] ?? STATUS_BADGE_CLASSES.gray}`}
+                          title={item.shipmentStatus}
+                        >
+                          {item.shipmentStatus}
+                        </span>
+                      ) : (
+                        <span className="text-gray-500">-</span>
+                      )}
+                      {item.esfDate ? (
+                        <span
+                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap bg-green-100 text-green-800"
+                          title={`ЭСФ: ${new Date(item.esfDate).toLocaleDateString('ru-RU')}`}
+                        >
+                          ЭСФ <Check className="w-3 h-3" />
+                        </span>
+                      ) : (
+                        <span
+                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap bg-red-100 text-red-800"
+                          title="ЭСФ отсутствует"
+                        >
+                          ЭСФ <X className="w-3 h-3" />
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
                     <span className="truncate block" title={item.reportStatus ?? undefined}>{item.reportStatus ?? '-'}</span>
@@ -436,14 +473,36 @@ export default function DeliveryTable() {
                     )}
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
-                    <span className="truncate block" title={item.contractInnerId ?? undefined}>
-                      {item.contractInnerId ?? '-'}
-                    </span>
+                    {item.contractId != null && item.contractInnerId ? (
+                      <Link
+                        href={`/contract/${item.contractId}?from=${encodeURIComponent('/delivery')}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="truncate block text-blue-600 hover:text-blue-800 hover:underline"
+                        title={item.contractInnerId}
+                      >
+                        {item.contractInnerId}
+                      </Link>
+                    ) : (
+                      <span className="truncate block" title={item.contractInnerId ?? undefined}>
+                        {item.contractInnerId ?? '-'}
+                      </span>
+                    )}
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
-                    <span className="truncate block" title={item.contractPurchaseRequestId != null ? String(item.contractPurchaseRequestId) : undefined}>
-                      {item.contractPurchaseRequestId ?? '-'}
-                    </span>
+                    {item.contractPurchaseRequestSystemId != null ? (
+                      <Link
+                        href={`/purchase-request/${item.contractPurchaseRequestSystemId}?from=${encodeURIComponent('/delivery')}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="truncate block text-blue-600 hover:text-blue-800 hover:underline"
+                        title={item.contractPurchaseRequestId != null ? String(item.contractPurchaseRequestId) : undefined}
+                      >
+                        {item.contractPurchaseRequestId ?? item.contractPurchaseRequestSystemId}
+                      </Link>
+                    ) : (
+                      <span className="truncate block" title={item.contractPurchaseRequestId != null ? String(item.contractPurchaseRequestId) : undefined}>
+                        {item.contractPurchaseRequestId ?? '-'}
+                      </span>
+                    )}
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
                     <span className="truncate block" title={item.supplierName ?? undefined}>{item.supplierName ?? '-'}</span>

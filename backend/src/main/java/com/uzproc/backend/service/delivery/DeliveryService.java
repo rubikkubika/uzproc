@@ -78,6 +78,16 @@ public class DeliveryService {
         return deliveryRepository.findDistinctReportStatuses();
     }
 
+    /** Уникальные ответственные (по имеющимся поставкам) — для выпадающего фильтра в таблице поставок. */
+    public List<String> listResponsibles() {
+        return deliveryRepository.findDistinctResponsibles().stream()
+                .map(DeliveryService::formatUserDisplayName)
+                .filter(n -> n != null && !n.isBlank())
+                .distinct()
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .collect(Collectors.toList());
+    }
+
     /** Уникальные значения количества нераспределённых оплат — для выпадающего фильтра столбца «Оплаты». */
     public List<Integer> listUndistributedPaymentCounts() {
         return deliveryRepository.findUndistributedPaymentCounts().stream()
@@ -1200,9 +1210,14 @@ public class DeliveryService {
             if (responsibleName != null && !responsibleName.trim().isEmpty()) {
                 var userJoin = root.join("responsible", jakarta.persistence.criteria.JoinType.LEFT);
                 String lowerFilter = "%" + responsibleName.trim().toLowerCase() + "%";
+                // Полное отображаемое имя «Фамилия Имя» — для точного совпадения из выпадающего списка.
+                var fullName = cb.lower(cb.concat(cb.concat(
+                        cb.coalesce(userJoin.<String>get("surname"), ""), " "),
+                        cb.coalesce(userJoin.<String>get("name"), "")));
                 predicates.add(cb.or(
                         cb.like(cb.lower(userJoin.get("surname")), lowerFilter),
-                        cb.like(cb.lower(userJoin.get("name")), lowerFilter)
+                        cb.like(cb.lower(userJoin.get("name")), lowerFilter),
+                        cb.like(fullName, lowerFilter)
                 ));
             }
 
@@ -1346,6 +1361,9 @@ public class DeliveryService {
             dto.setContractInnerId(entity.getContract().getInnerId());
             dto.setContractName(entity.getContract().getName());
             dto.setContractPurchaseRequestId(entity.getContract().getPurchaseRequestId());
+            if (entity.getContract().getPurchaseRequest() != null) {
+                dto.setContractPurchaseRequestSystemId(entity.getContract().getPurchaseRequest().getId());
+            }
             dto.setContractPaymentScheme(entity.getContract().getPaymentScheme());
             dto.setContractPaymentTerms(entity.getContract().getPaymentTerms());
             dto.setContractDeliveryTerm(entity.getContract().getDeliveryTerm());

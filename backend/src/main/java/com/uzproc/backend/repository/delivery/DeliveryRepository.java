@@ -1,6 +1,7 @@
 package com.uzproc.backend.repository.delivery;
 
 import com.uzproc.backend.entity.delivery.Delivery;
+import com.uzproc.backend.entity.user.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -23,7 +24,7 @@ public interface DeliveryRepository extends JpaRepository<Delivery, Long>, JpaSp
      * намеренно НЕ включена (фетч коллекции с пагинацией → in-memory paging).
      */
     @Override
-    @EntityGraph(attributePaths = {"contract", "supplier", "paymentSchemeRef", "responsible"})
+    @EntityGraph(attributePaths = {"contract", "contract.purchaseRequest", "supplier", "paymentSchemeRef", "responsible"})
     Page<Delivery> findAll(Specification<Delivery> spec, Pageable pageable);
 
     @Query(value = "SELECT COALESCE(MAX(CAST(inner_id AS INTEGER)), 0) " +
@@ -50,6 +51,10 @@ public interface DeliveryRepository extends JpaRepository<Delivery, Long>, JpaSp
             "WHERE d.reportStatus IS NOT NULL AND TRIM(d.reportStatus) <> '' " +
             "ORDER BY d.reportStatus")
     List<String> findDistinctReportStatuses();
+
+    /** Уникальные ответственные (у которых есть поставки) — для выпадающего фильтра. */
+    @Query("SELECT DISTINCT d.responsible FROM Delivery d WHERE d.responsible IS NOT NULL")
+    List<User> findDistinctResponsibles();
 
     /**
      * Количество нераспределённых оплат (без типа) по каждой поставке, у которой такие оплаты есть.

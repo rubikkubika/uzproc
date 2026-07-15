@@ -56,6 +56,13 @@ export const useDeliveryFilters = (setCurrentPage: (page: number) => void) => {
     setCurrentPage(0);
   }, [setCurrentPage]);
 
+  // «Ответственный» — выпадающий список, применяется сразу (без debounce).
+  const setResponsibleNameFilter = useCallback((value: string) => {
+    setLocalFilters(prev => ({ ...prev, responsibleName: value }));
+    setFilters(prev => ({ ...prev, responsibleName: value }));
+    setCurrentPage(0);
+  }, [setCurrentPage]);
+
   const handleFilterChange = useCallback((field: string, value: string) => {
     setLocalFilters(prev => ({ ...prev, [field]: value }));
   }, []);
@@ -85,5 +92,6 @@ export const useDeliveryFilters = (setCurrentPage: (page: number) => void) => {
     setReportStatusFilter,
     setPaymentsStatusFilter,
     setStatusFilter,
+    setResponsibleNameFilter,
   };
 };

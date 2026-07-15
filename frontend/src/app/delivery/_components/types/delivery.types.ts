@@ -19,6 +19,8 @@ export interface Delivery {
   contractName: string | null;
   /** Номер заявки на закупку (из договора-спецификации). */
   contractPurchaseRequestId: number | null;
+  /** Системный id заявки на закупку (PK) — для ссылки на карточку заявки. */
+  contractPurchaseRequestSystemId: number | null;
   contractPaymentScheme: string | null;
   contractPaymentTerms: string | null;
   contractDeliveryTerm: string | null;

@@ -27,6 +27,8 @@ public class DeliveryDto {
     private String contractName;
     /** Номер заявки на закупку (из связанного договора-спецификации). */
     private Long contractPurchaseRequestId;
+    /** Системный id заявки на закупку (PK) — для ссылки на карточку заявки. */
+    private Long contractPurchaseRequestSystemId;
     /** Схема оплаты из договора (Contract.paymentScheme). */
     private String contractPaymentScheme;
     /** Условия оплаты из договора (Contract.paymentTerms). */
@@ -101,6 +103,9 @@ public class DeliveryDto {
 
     public Long getContractPurchaseRequestId() { return contractPurchaseRequestId; }
     public void setContractPurchaseRequestId(Long contractPurchaseRequestId) { this.contractPurchaseRequestId = contractPurchaseRequestId; }
+
+    public Long getContractPurchaseRequestSystemId() { return contractPurchaseRequestSystemId; }
+    public void setContractPurchaseRequestSystemId(Long contractPurchaseRequestSystemId) { this.contractPurchaseRequestSystemId = contractPurchaseRequestSystemId; }
 
     public String getContractPaymentScheme() { return contractPaymentScheme; }
     public void setContractPaymentScheme(String contractPaymentScheme) { this.contractPaymentScheme = contractPaymentScheme; }

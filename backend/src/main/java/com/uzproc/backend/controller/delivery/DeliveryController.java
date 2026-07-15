@@ -99,6 +99,12 @@ public class DeliveryController {
         return ResponseEntity.ok(deliveryService.listReportStatuses());
     }
 
+    /** Уникальные ответственные — для выпадающего фильтра столбца «Ответственный». */
+    @GetMapping("/responsibles")
+    public ResponseEntity<List<String>> getResponsibles() {
+        return ResponseEntity.ok(deliveryService.listResponsibles());
+    }
+
     /** Уникальные значения количества нераспределённых оплат — для фильтра столбца «Оплаты». */
     @GetMapping("/undistributed-counts")
     public ResponseEntity<List<Integer>> getUndistributedCounts() {

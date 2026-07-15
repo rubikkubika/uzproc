@@ -6,5 +6,4 @@ export const TEXT_FIELDS = [
   'supplierName',
   'currency',
   'comment',
-  'responsibleName',
 ];
