@@ -87,6 +87,20 @@ if [ -n "$BACKUP" ]; then
   docker exec -i uzproc-postgres psql -U uzproc_user -d postgres -c "CREATE DATABASE uzproc WITH ENCODING='UTF8' LC_COLLATE='ru_RU.UTF-8' LC_CTYPE='ru_RU.UTF-8' TEMPLATE=template0;" >/dev/null
   docker exec -i uzproc-postgres psql -U uzproc_user -d uzproc < "$BACKUP" >/dev/null 2>&1
   echo "✓ БД восстановлена"
+
+  # Поставки из бэкапа не используем: они пересоздаются заново по актуальным правилам
+  # (схема оплаты, распределение оплат). Вместе с поставками снимаем тип (Аванс/По факту)
+  # с оплат — иначе новые поставки подхватят распределение от удалённых.
+  echo "Удаление поставок из восстановленной БД..."
+  REMAINING=$(docker exec -i uzproc-postgres psql -U uzproc_user -d uzproc -tAc \
+    "TRUNCATE TABLE delivery_payments, deliveries RESTART IDENTITY CASCADE;
+     UPDATE payments SET payment_type = NULL WHERE payment_type IS NOT NULL;
+     SELECT COUNT(*) FROM deliveries;" 2>/dev/null | tail -1)
+  if [ "$REMAINING" = "0" ]; then
+    echo "✓ Поставки удалены, типы оплат сброшены"
+  else
+    echo "⚠ Не удалось удалить поставки"
+  fi
 else
   echo "⚠ Локальный бэкап не найден, БД не восстановлена"
 fi

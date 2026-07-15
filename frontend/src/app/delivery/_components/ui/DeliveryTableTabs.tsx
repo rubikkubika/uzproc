@@ -2,22 +2,31 @@
 
 import React from 'react';
 
-export type DeliveryTab = 'in-work' | 'closed';
+export type DeliveryTab = 'in-work' | 'closed' | 'closed-review';
 
 interface DeliveryTableTabsProps {
   activeTab: DeliveryTab;
-  tabCounts: { inWork: number | null; closed: number | null };
+  tabCounts: { inWork: number | null; closed: number | null; closedReview: number | null };
   onTabChange: (tab: DeliveryTab) => void;
 }
 
 /**
  * Вкладки таблицы поставок — по аналогии с таблицей заявок (PurchaseRequestsTableTabs).
- * «В работе» — все, кроме закрытых; «Закрыто» = «Поставлено» + «Оплачено».
+ * Вкладки не пересекаются: поставка попадает ровно в одну.
+ *   «В работе»           — все, кроме закрытых по правилам и закрытых в отчёте;
+ *   «Закрыто»            — «Поставлено» + «Оплачено» (правила системы);
+ *   «Закрыто-разобрать»  — в отчёте «Закрыто», но по правилам поставка не закрыта.
  */
 export default function DeliveryTableTabs({ activeTab, tabCounts, onTabChange }: DeliveryTableTabsProps) {
-  const tabs: Array<{ key: DeliveryTab; label: string; count: number | null }> = [
+  const tabs: Array<{ key: DeliveryTab; label: string; count: number | null; title?: string }> = [
     { key: 'in-work', label: 'В работе', count: tabCounts.inWork },
     { key: 'closed', label: 'Закрыто', count: tabCounts.closed },
+    {
+      key: 'closed-review',
+      label: 'Закрыто-разобрать',
+      count: tabCounts.closedReview,
+      title: 'В отчёте «Закрыто», но по правилам («Поставлено» + «Оплачено») поставка не закрыта',
+    },
   ];
 
   return (
@@ -26,6 +35,7 @@ export default function DeliveryTableTabs({ activeTab, tabCounts, onTabChange }:
         <button
           key={tab.key}
           onClick={() => onTabChange(tab.key)}
+          title={tab.title}
           className={`px-3 py-1 text-xs font-medium rounded-lg border transition-colors shadow-sm flex items-center gap-1 ${
             activeTab === tab.key
               ? 'bg-blue-600 text-white border-blue-600'

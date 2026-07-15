@@ -19,6 +19,8 @@ interface UsePurchaseTrackerResult {
   query: string;
   onQueryChange: (value: string) => void;
   onChipClick: (value: string) => void;
+  /** Полностью сбросить основной поиск (запрос + открытую деталь) — например, при смене вкладки */
+  clearSearch: () => void;
   onSelect: (id: number) => void;
   /** Выбор карточки из избранного (очищает результаты поиска) */
   onSelectFavorite: (id: number) => void;
@@ -144,6 +146,11 @@ export function usePurchaseTracker(options: UsePurchaseTrackerOptions): UsePurch
     setQuery(value);
     setSelectedId(null);
   }, []);
+  // Полный сброс основного поиска (запрос + деталь) — вызывается при переключении вкладок
+  const clearSearch = useCallback(() => {
+    setQuery('');
+    setSelectedId(null);
+  }, []);
   const onSelect = useCallback((id: number) => setSelectedId(id), []);
   // Выбор из избранного очищает результаты поиска (сбрасываем запрос)
   const onSelectFavorite = useCallback((id: number) => {
@@ -162,6 +169,7 @@ export function usePurchaseTracker(options: UsePurchaseTrackerOptions): UsePurch
     query,
     onQueryChange,
     onChipClick,
+    clearSearch,
     onSelect,
     onSelectFavorite,
     results,

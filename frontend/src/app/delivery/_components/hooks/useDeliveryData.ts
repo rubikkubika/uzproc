@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { getBackendUrl } from '@/utils/api';
 import { PageResponse, SortField, SortDirection } from '../types/delivery.types';
+import type { DeliveryTab } from '../ui/DeliveryTableTabs';
 
 export const useDeliveryData = () => {
   const fetchData = useCallback(async (
@@ -13,7 +14,7 @@ export const useDeliveryData = () => {
     dateNull: boolean = false,
     paymentScheme: string = '',
     shipmentStatus: string = '',
-    closed: boolean | null = null,
+    tab: DeliveryTab | null = null,
     recheck: boolean = false,
   ): Promise<PageResponse | null> => {
     try {
@@ -49,9 +50,9 @@ export const useDeliveryData = () => {
         params.append('shipmentStatus', shipmentStatus.trim());
       }
 
-      // Вкладка «В работе» (closed=false) / «Закрыто» (closed=true). null → без фильтра.
-      if (closed !== null) {
-        params.append('closed', String(closed));
+      // Вкладка: 'in-work' | 'closed' | 'closed-review'. null → без фильтра (все поставки).
+      if (tab !== null) {
+        params.append('tab', tab);
       }
 
       // recheck=true — при обновлении списка бэкенд пересчитывает статусы (авто-закрытие).

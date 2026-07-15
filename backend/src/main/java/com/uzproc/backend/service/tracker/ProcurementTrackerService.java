@@ -282,7 +282,31 @@ public class ProcurementTrackerService {
                 maxCompletion(toApprovalRows(reqApprovals)), stageNote(1, doneArr[1], currentIdx == 1, isOrder)));
         stages.add(buildStage(2, doneArr, currentIdx, allDone, mapApprovalSteps(toPurchaseRows(purchaseApprovals)),
                 maxCompletion(toPurchaseRows(purchaseApprovals)), stageNote(2, doneArr[2], currentIdx == 2, isOrder)));
-        stages.add(buildStage(3, doneArr, currentIdx, allDone, mapApprovalSteps(toContractRows(contractApprovals)),
+        // Этап «Договор»: показываем только содержательные согласования, а технические этапы
+        // (регистрация/синхронизация/принятие на хранение) сворачиваем в единый финальный подшаг
+        // «Подписание» — регистрация/синхронизация и есть подписание. «Подписание» становится
+        // текущим, как только стартует эта задача (или статус «На регистрации»/«На синхронизации»).
+        List<ApprovalRow> contractRows = toContractRows(contractApprovals);
+        List<ApprovalRow> businessRows = contractRows.stream()
+                .filter(r -> !isTechnicalContractStage(r.stage()))
+                .collect(Collectors.toList());
+        List<ApprovalRow> technicalRows = contractRows.stream()
+                .filter(r -> isTechnicalContractStage(r.stage()))
+                .collect(Collectors.toList());
+        boolean signingByStatus = primaryContract != null
+                && (primaryContract.getStatus() == ContractStatus.ON_REGISTRATION
+                    || primaryContract.getStatus() == ContractStatus.ON_SYNCHRONIZATION);
+        // Если договор/спецификация уже подписан(а) — скрываем «серые» (ещё не начатые, wait)
+        // согласования: они не имели значения для итога.
+        List<TrackerStepDto> businessSteps = mapApprovalSteps(businessRows);
+        if (contractSigned) {
+            businessSteps = businessSteps.stream()
+                    .filter(s -> !"wait".equals(s.state()))
+                    .collect(Collectors.toList());
+        }
+        List<TrackerStepDto> contractSteps = new ArrayList<>(businessSteps);
+        contractSteps.add(buildSigningStep(contractSigned, signingByStatus, technicalRows, primaryContract, contractApprovals));
+        stages.add(buildStage(3, doneArr, currentIdx, allDone, contractSteps,
                 contractSigned ? contractSignedDate(primaryContract, contractApprovals) : null,
                 stageNote(3, doneArr[3], currentIdx == 3, isOrder)));
 
@@ -377,6 +401,44 @@ public class ProcurementTrackerService {
                     return new TrackerStepDto(who, who, state, date, r.days() != null ? r.days() : 0);
                 })
                 .collect(Collectors.toList());
+    }
+
+    /** Технические этапы согласования договора/спецификации, сворачиваемые в подшаг «Подписание». */
+    private static final Set<String> TECHNICAL_CONTRACT_STAGE_PREFIXES = Set.of(
+            "синхронизация", "принятие на хранение", "регистрация");
+
+    /** Технический этап договора (регистрация/синхронизация/принятие на хранение) — по префиксу названия. */
+    private static boolean isTechnicalContractStage(String stage) {
+        if (stage == null || stage.isBlank()) return false;
+        String normalized = stage.trim().toLowerCase();
+        return TECHNICAL_CONTRACT_STAGE_PREFIXES.stream().anyMatch(normalized::startsWith);
+    }
+
+    /**
+     * Финальный подшаг этапа «Договор» — «Подписание» (сюда свёрнуты технические этапы
+     * регистрации/синхронизации). Присутствует всегда: done — договор/спецификация подписан(а);
+     * current — только когда статус договора/спецификации «На регистрации»/«На синхронизации»;
+     * wait — иначе. Дата: для current — «с DD.MM» (старт технической задачи, если известен).
+     */
+    private TrackerStepDto buildSigningStep(boolean contractSigned, boolean signingByStatus,
+                                            List<ApprovalRow> technicalRows,
+                                            Contract primaryContract, List<ContractApproval> approvals) {
+        LocalDateTime signingStart = technicalRows.stream()
+                .map(ApprovalRow::assignment)
+                .filter(Objects::nonNull)
+                .min(Comparator.naturalOrder())
+                .orElse(null);
+        String state = contractSigned ? "done" : (signingByStatus ? "current" : "wait");
+        String date;
+        if (contractSigned) {
+            LocalDateTime signedDate = contractSignedDate(primaryContract, approvals);
+            date = signedDate != null ? signedDate.format(DATE_SHORT) : "";
+        } else if ("current".equals(state) && signingStart != null) {
+            date = "с " + signingStart.format(DATE_SHORT);
+        } else {
+            date = "";
+        }
+        return new TrackerStepDto("Подписание", "Подписание", state, date, 0);
     }
 
     // ─────────────────────────────── Вспомогательные ───────────────────────────────

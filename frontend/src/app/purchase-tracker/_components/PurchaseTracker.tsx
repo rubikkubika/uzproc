@@ -30,6 +30,7 @@ export default function PurchaseTracker({ simpleLanguage = true, showForecast = 
     query,
     onQueryChange,
     onChipClick,
+    clearSearch,
     onSelect,
     onSelectFavorite,
     results,
@@ -60,6 +61,12 @@ export default function PurchaseTracker({ simpleLanguage = true, showForecast = 
     userId,
     mineInitiator: userInitiator,
   });
+
+  // Переключение вкладки очищает основной поиск (запрос + открытую деталь)
+  const handleTabChange = (tab: TrackerTab) => {
+    setActiveTab(tab);
+    clearSearch();
+  };
 
   const isFavoritesTab = activeTab === 'favorites';
   const isMineTab = activeTab === 'mine';
@@ -149,7 +156,7 @@ export default function PurchaseTracker({ simpleLanguage = true, showForecast = 
         role={userRole}
         loading={authLoading}
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
       >
         {favoritesPanel}
         {minePanel}
@@ -173,6 +180,7 @@ export default function PurchaseTracker({ simpleLanguage = true, showForecast = 
                     empty={empty}
                     onSelect={onSelect}
                     variant="list"
+                    grouped
                     canFavorite={canFavorite}
                     isFavorite={isFavorite}
                     onToggleFavorite={onToggleFavorite}

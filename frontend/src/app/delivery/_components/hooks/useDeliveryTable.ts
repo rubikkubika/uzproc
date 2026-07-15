@@ -4,6 +4,7 @@ import { PAGE_SIZE } from '../constants/delivery.constants';
 import { useDeliveryFilters } from './useDeliveryFilters';
 import { useDeliveryData } from './useDeliveryData';
 import { useInfiniteScroll } from './useInfiniteScroll';
+import type { DeliveryTab } from '../ui/DeliveryTableTabs';
 import { getBackendUrl } from '@/utils/api';
 
 export const useDeliveryTable = () => {
@@ -23,8 +24,9 @@ export const useDeliveryTable = () => {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
   const [showNoDate, setShowNoDate] = useState(false);
-  // Вкладки: «В работе» (по умолчанию) / «Закрыто» (Поставлено + Оплачено)
-  const [activeTab, setActiveTab] = useState<'in-work' | 'closed'>('in-work');
+  // Вкладки (взаимоисключающие): «В работе» (по умолчанию) / «Закрыто» (Поставлено + Оплачено)
+  // / «Закрыто-разобрать» (в отчёте «Закрыто», но по правилам не закрыта)
+  const [activeTab, setActiveTab] = useState<DeliveryTab>('in-work');
 
   const availableYears = useMemo(() => {
     const years: number[] = [];
@@ -88,7 +90,7 @@ export const useDeliveryTable = () => {
     noDate: boolean,
     paymentScheme: string,
     shipmentStatus: string,
-    closed: boolean | null,
+    tab: DeliveryTab | null,
     recheck: boolean = false,
   ) => {
     if (append) {
@@ -99,7 +101,7 @@ export const useDeliveryTable = () => {
     }
     setError(null);
     try {
-      const result = await dataHook.fetchData(page, size, sortF, sortDir, filters, year, noDate, paymentScheme, shipmentStatus, closed, recheck);
+      const result = await dataHook.fetchData(page, size, sortF, sortDir, filters, year, noDate, paymentScheme, shipmentStatus, tab, recheck);
       const items = result?.content ?? [];
       if (append) {
         setAllItems(prev => [...prev, ...items]);
@@ -121,27 +123,31 @@ export const useDeliveryTable = () => {
   const filtersStr = useMemo(() => JSON.stringify(filtersHook.filters), [filtersHook.filters]);
   const paymentSchemeFilter = filtersHook.paymentSchemeFilter;
   const shipmentStatusFilter = filtersHook.shipmentStatusFilter;
-  const closedFilter = activeTab === 'closed';
-
   useEffect(() => {
     setCurrentPage(0);
     // recheck=true — основной запрос списка: бэкенд пересчитывает статусы (авто-закрытие) при обновлении.
-    fetchData(0, pageSize, sortField, sortDirection, filtersHook.filters, false, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, closedFilter, true);
-  }, [sortField, sortDirection, filtersStr, fetchData, pageSize, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, closedFilter, reloadKey]); // eslint-disable-line react-hooks/exhaustive-deps
+    fetchData(0, pageSize, sortField, sortDirection, filtersHook.filters, false, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, activeTab, true);
+  }, [sortField, sortDirection, filtersStr, fetchData, pageSize, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, activeTab, reloadKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Счётчики вкладок «В работе» / «Закрыто» — с учётом текущих фильтров (size=1, читаем totalElements).
-  const [tabCounts, setTabCounts] = useState<{ inWork: number | null; closed: number | null }>({ inWork: null, closed: null });
+  // Счётчики вкладок — с учётом текущих фильтров (size=1, читаем totalElements).
+  const [tabCounts, setTabCounts] = useState<{ inWork: number | null; closed: number | null; closedReview: number | null }>(
+    { inWork: null, closed: null, closedReview: null }
+  );
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      const count = (tab: DeliveryTab) => dataHook.fetchData(
+        0, 1, null, null, filtersHook.filters, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, tab
+      );
       try {
-        const [inW, cl] = await Promise.all([
-          dataHook.fetchData(0, 1, null, null, filtersHook.filters, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, false),
-          dataHook.fetchData(0, 1, null, null, filtersHook.filters, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, true),
-        ]);
-        if (!cancelled) setTabCounts({ inWork: inW?.totalElements ?? 0, closed: cl?.totalElements ?? 0 });
+        const [inW, cl, clRev] = await Promise.all([count('in-work'), count('closed'), count('closed-review')]);
+        if (!cancelled) setTabCounts({
+          inWork: inW?.totalElements ?? 0,
+          closed: cl?.totalElements ?? 0,
+          closedReview: clRev?.totalElements ?? 0,
+        });
       } catch {
-        if (!cancelled) setTabCounts({ inWork: null, closed: null });
+        if (!cancelled) setTabCounts({ inWork: null, closed: null, closedReview: null });
       }
     })();
     return () => { cancelled = true; };
@@ -191,9 +197,9 @@ export const useDeliveryTable = () => {
     onLoadMore: useCallback(() => {
       if (hasMore && !loadingMore && allItems.length > 0) {
         const nextPage = currentPage + 1;
-        fetchData(nextPage, pageSize, sortField, sortDirection, filtersHook.filters, true, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, closedFilter);
+        fetchData(nextPage, pageSize, sortField, sortDirection, filtersHook.filters, true, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, activeTab);
       }
-    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, sortField, sortDirection, filtersHook.filters, fetchData, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, closedFilter]),
+    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, sortField, sortDirection, filtersHook.filters, fetchData, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, activeTab]),
     threshold: 0.1,
   });
 

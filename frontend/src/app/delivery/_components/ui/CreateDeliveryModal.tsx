@@ -5,6 +5,7 @@ import { X } from 'lucide-react';
 import { getBackendUrl } from '@/utils/api';
 import { parseFirstNumber } from '../types/delivery.types';
 import type { PaymentSchemeOption } from '../types/delivery.types';
+import type { ContractPayment, PaymentScheme } from '../types/delivery-payments.types';
 import { formatAmountShort, formatAmountFull } from '../utils/amount.utils';
 
 interface ContractSearchResult {
@@ -20,19 +21,6 @@ interface ContractSearchResult {
   paymentScheme: string | null;
   deliveryTerm: string | null;
 }
-
-interface ContractPayment {
-  id: number;
-  mainId: string | null;
-  amount: number | null;
-  paymentStatus: string | null;
-  plannedExpenseDate: string | null;
-  paymentDate: string | null;
-  comment: string | null;
-  paymentType: string | null;
-}
-
-type PaymentScheme = 'POSTPAYMENT' | 'PREPAYMENT';
 
 interface Props {
   open: boolean;

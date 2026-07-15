@@ -20,6 +20,21 @@ export function isPurchaseKind(kind: string): boolean {
   return kind.toLowerCase().startsWith('закуп');
 }
 
+/** Ключ группы результата: «Архив» (приоритетнее), затем «Подписано», иначе «В работе» */
+export type ResultGroupKey = 'inWork' | 'signed' | 'archived';
+
+/**
+ * Группировка результатов поиска по статусу: «В работе» → «Подписано» → «Архив».
+ * «Архив» имеет приоритет: терминальные/скрытые заявки не попадают в «В работе»/«Подписано».
+ */
+export function groupResultsByStatus(results: ResultView[]): Record<ResultGroupKey, ResultView[]> {
+  return {
+    inWork: results.filter((r) => !r.archived && !r.done),
+    signed: results.filter((r) => !r.archived && r.done),
+    archived: results.filter((r) => r.archived),
+  };
+}
+
 /** Этап «Выбор поставщика» относится только к закупкам — у заказов его скрываем */
 function isSupplierStage(stage: Procurement['stages'][number]): boolean {
   return [stage.name, stage.off].some((s) => (s ?? '').toLowerCase().includes('поставщик'));

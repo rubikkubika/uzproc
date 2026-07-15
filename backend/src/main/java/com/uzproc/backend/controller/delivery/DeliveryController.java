@@ -44,7 +44,7 @@ public class DeliveryController {
             @RequestParam(required = false) String shipmentStatus,
             @RequestParam(required = false) String reportStatus,
             @RequestParam(required = false) String paymentsStatus,
-            @RequestParam(required = false) Boolean closed,
+            @RequestParam(required = false) String tab,
             @RequestParam(required = false, defaultValue = "false") boolean recheck) {
 
         // При обновлении списка (recheck=true) — пересчёт статусов: авто-закрытие
@@ -55,7 +55,7 @@ public class DeliveryController {
 
         Page<DeliveryDto> deliveries = deliveryService.findAll(page, size, sortBy, sortDir,
                 innerId, contractInnerId, supplierName, status, currency, comment,
-                responsibleName, dateYear, dateNull, paymentScheme, shipmentStatus, reportStatus, paymentsStatus, closed);
+                responsibleName, dateYear, dateNull, paymentScheme, shipmentStatus, reportStatus, paymentsStatus, tab);
         return ResponseEntity.ok(deliveries);
     }
 

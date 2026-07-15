@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { EMPTY_TEXT } from '../constants/purchase-tracker.constants';
 import type { ResultView } from '../types/purchase-tracker.types';
-import { isPurchaseKind } from '../utils/purchase-tracker.utils';
+import { groupResultsByStatus, isPurchaseKind } from '../utils/purchase-tracker.utils';
 import PurchaseTrackerResultCard from './PurchaseTrackerResultCard';
 
 /** Сколько карточек показывать в колонке до нажатия «Загрузить остальное» */
@@ -37,14 +37,11 @@ function ResultColumn({
   items,
   total,
   handlers,
-  wrap = false,
 }: {
   title: string;
   items: ResultView[];
   total: number;
   handlers: CardHandlers;
-  /** true — карточки переносятся в несколько рядов (на всю ширину блока); false — один столбец */
-  wrap?: boolean;
 }) {
   return (
     <div className="min-w-0 flex-1">
@@ -60,13 +57,25 @@ function ResultColumn({
       </div>
       {total === 0 ? (
         <div className="p-0.5 text-[26px] leading-none text-[#C2C8D2]">—</div>
+      ) : items.length === 1 ? (
+        // Одна карточка — показываем в естественной ширине, не растягиваем на две колонки
+        <div className="flex">
+          <PurchaseTrackerResultCard
+            result={items[0]}
+            variant="grid"
+            onSelect={handlers.onSelect}
+            canFavorite={handlers.canFavorite}
+            isFavorite={handlers.isFavorite?.(items[0].id) ?? false}
+            onToggleFavorite={handlers.onToggleFavorite}
+          />
+        </div>
       ) : (
-        <div className={wrap ? 'flex flex-wrap gap-3' : 'flex flex-col gap-3'}>
+        <div className="grid grid-cols-2 gap-3">
           {items.map((result) => (
             <PurchaseTrackerResultCard
               key={result.id}
               result={result}
-              variant="grid"
+              variant="list"
               onSelect={handlers.onSelect}
               canFavorite={handlers.canFavorite}
               isFavorite={handlers.isFavorite?.(result.id) ?? false}
@@ -126,9 +135,9 @@ function ResultBlock({
 
         {/* Тело группы: если один из подразделов пуст — другой занимает всю ширину; иначе «Заказы» | hairline | «Закупки» */}
         {orders.length === 0 ? (
-          <ResultColumn title="Закупки" items={visiblePurchases} total={purchases.length} handlers={handlers} wrap />
+          <ResultColumn title="Закупки" items={visiblePurchases} total={purchases.length} handlers={handlers} />
         ) : purchases.length === 0 ? (
-          <ResultColumn title="Заказы" items={visibleOrders} total={orders.length} handlers={handlers} wrap />
+          <ResultColumn title="Заказы" items={visibleOrders} total={orders.length} handlers={handlers} />
         ) : (
           <div className="flex items-stretch">
             <div className="min-w-0 flex-1 pr-4">
@@ -179,9 +188,7 @@ export default function PurchaseTrackerGroupedResults({
   const handlers: CardHandlers = { onSelect, canFavorite, isFavorite, onToggleFavorite };
 
   // «Архив» имеет приоритет: терминальные/скрытые заявки не попадают в «В работе»/«Подписано».
-  const archived = results.filter((r) => r.archived);
-  const inWork = results.filter((r) => !r.archived && !r.done);
-  const signed = results.filter((r) => !r.archived && r.done);
+  const { inWork, signed, archived } = groupResultsByStatus(results);
 
   if (empty) {
     return <div className="px-8 pt-4 pb-5 text-sm text-[#98A2B3]">{emptyText}</div>;
