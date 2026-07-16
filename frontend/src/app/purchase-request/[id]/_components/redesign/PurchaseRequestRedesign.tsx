@@ -217,7 +217,7 @@ export default function PurchaseRequestRedesign(props: PurchaseRequestRedesignPr
                     <div style={defRow}><span style={defLabel}>ЦФО</span><span style={{ fontWeight: 500 }}>{purchase.cfo || '—'}</span></div>
                     <div style={defRow}><span style={defLabel}>Способ закупки</span><span style={{ fontWeight: 500 }}>{purchase.purchaseMethod || '—'}</span></div>
                     <div style={defRow}><span style={defLabel}>Экономия</span><span style={{ fontWeight: 500 }}>{purchase.savings != null ? purchase.savings.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</span></div>
-                    <div style={{ ...defRow, alignItems: 'center' }}>
+                    <div style={{ ...defRow, borderBottom: 'none', alignItems: 'center' }}>
                       <span style={defLabel}>Тип экономии</span>
                       <select
                         value={purchase.savingsType || ''}
@@ -229,12 +229,6 @@ export default function PurchaseRequestRedesign(props: PurchaseRequestRedesignPr
                         <option value="От существующего договора">От существующего договора</option>
                       </select>
                     </div>
-                    {competitiveSheetSlot && (
-                      <div style={{ ...defRow, borderBottom: 'none', alignItems: 'start' }}>
-                        <span style={defLabel}>Конкурентный лист</span>
-                        <div style={{ minWidth: 0 }}>{competitiveSheetSlot}</div>
-                      </div>
-                    )}
                   </div>
                 ) : (
                   <div style={{ fontSize: 14, color: C.textMuted, padding: '12px 0' }}>Связанная закупка не найдена</div>
@@ -282,6 +276,12 @@ export default function PurchaseRequestRedesign(props: PurchaseRequestRedesignPr
                 )}
               </div>
             </div>
+            {/* Конкурентный лист — на всю ширину карточки, чтобы таблица не обрезалась */}
+            {purchase && competitiveSheetSlot && (
+              <div style={{ padding: '0 28px 26px', minWidth: 0 }}>
+                {competitiveSheetSlot}
+              </div>
+            )}
           </section>
         )}
 
