@@ -41,8 +41,8 @@ export default function PurchaseTrackerDetails({ detail }: PurchaseTrackerDetail
           className="flex items-center gap-2.5 px-6 py-3"
           style={{ background: '#F6F2FF', borderBottom: '1px solid #EDE9FA' }}
         >
-          <CalendarIcon color="#7C3AED" />
-          <span className="text-[13.5px] text-[#5B21B6]">
+          <CalendarIcon color="#2563EB" />
+          <span className="text-[13.5px] text-[#1E40AF]">
             <b>Договор ожидается {detail.forecast}</b> — прогноз по срокам похожих закупок
           </span>
         </div>

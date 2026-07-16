@@ -23,7 +23,7 @@ export default function PurchaseTrackerLoginForm() {
           type="button"
           onClick={toggle}
           className="cursor-pointer rounded-xl px-3 py-2.5 text-center text-[14px] font-semibold text-white transition-opacity hover:opacity-90"
-          style={{ background: 'linear-gradient(135deg,#7C3AED,#6D28D9)' }}
+          style={{ background: 'linear-gradient(135deg,#2563EB,#1D4ED8)' }}
         >
           Войти
         </button>
@@ -36,7 +36,7 @@ export default function PurchaseTrackerLoginForm() {
             required
             autoFocus
             placeholder="Email или логин"
-            className="w-full rounded-lg border border-[#DFE3EB] bg-white px-3 py-2 text-[13.5px] text-[#101828] outline-none placeholder:text-[#98A2B3] focus:border-[#7C3AED] focus:ring-1 focus:ring-[#7C3AED]"
+            className="w-full rounded-lg border border-[#DFE3EB] bg-white px-3 py-2 text-[13.5px] text-[#101828] outline-none placeholder:text-[#98A2B3] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB]"
           />
           <input
             type="password"
@@ -44,7 +44,7 @@ export default function PurchaseTrackerLoginForm() {
             onChange={(e) => setPassword(e.target.value)}
             required
             placeholder="Пароль"
-            className="w-full rounded-lg border border-[#DFE3EB] bg-white px-3 py-2 text-[13.5px] text-[#101828] outline-none placeholder:text-[#98A2B3] focus:border-[#7C3AED] focus:ring-1 focus:ring-[#7C3AED]"
+            className="w-full rounded-lg border border-[#DFE3EB] bg-white px-3 py-2 text-[13.5px] text-[#101828] outline-none placeholder:text-[#98A2B3] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB]"
           />
 
           {error && <div className="text-[12px] text-[#B42318]">{error}</div>}
@@ -54,7 +54,7 @@ export default function PurchaseTrackerLoginForm() {
               type="submit"
               disabled={loading}
               className="flex-1 cursor-pointer rounded-xl px-3 py-2.5 text-center text-[14px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-              style={{ background: 'linear-gradient(135deg,#7C3AED,#6D28D9)' }}
+              style={{ background: 'linear-gradient(135deg,#2563EB,#1D4ED8)' }}
             >
               {loading ? 'Вход…' : 'Войти'}
             </button>

@@ -9,6 +9,7 @@ public enum DeliveryStatus {
     ADVANCE_PREPARED("Оплата аванса", "yellow"),
     ADVANCE_PAID("Аванс оплачен", "green"),
     NOT_PAID("Не оплачено", "gray"),
+    AWAITING_BALANCE_PAYMENT("Ожидает доплаты", "yellow"),
     PAID("Оплачено", "green");
 
     private final String displayName;

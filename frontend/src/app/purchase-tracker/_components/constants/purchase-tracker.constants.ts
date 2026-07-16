@@ -17,7 +17,7 @@ export const STATE_LABELS: Record<StageState, string> = {
 /** Статус-пилюли по индексу текущего этапа (для незавершённых закупок) */
 export const STATUS_PILLS = [
   { bg: '#F2F4F7', fg: '#475467', label: 'Заявка создана' },
-  { bg: '#EDE9FE', fg: '#6D28D9', label: 'Согласование заявки' },
+  { bg: '#DBEAFE', fg: '#1D4ED8', label: 'Согласование заявки' },
   { bg: '#FEF3C7', fg: '#B45309', label: 'Выбор поставщика' },
   { bg: '#DBEAFE', fg: '#1D4ED8', label: 'Договор в работе' },
 ];

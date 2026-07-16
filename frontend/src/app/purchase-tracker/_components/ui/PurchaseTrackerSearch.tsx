@@ -31,7 +31,7 @@ export default function PurchaseTrackerSearch({ query, onQueryChange, onChipClic
             key={chip}
             type="button"
             onClick={() => onChipClick(chip)}
-            className="cursor-pointer rounded-full border-none bg-[#F2EEFC] px-3 py-[5px] text-[12.5px] font-medium text-[#6D28D9] hover:bg-[#E9E1FB]"
+            className="cursor-pointer rounded-full border-none bg-[#EFF6FF] px-3 py-[5px] text-[12.5px] font-medium text-[#1D4ED8] hover:bg-[#DBEAFE]"
           >
             {chip}
           </button>

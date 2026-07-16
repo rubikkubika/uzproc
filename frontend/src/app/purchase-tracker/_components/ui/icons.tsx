@@ -17,7 +17,7 @@ export function CheckIcon({ size = 14, color = '#fff', width = 3 }: { size?: num
   );
 }
 
-export function CalendarIcon({ color = '#7C3AED' }: { color?: string }) {
+export function CalendarIcon({ color = '#2563EB' }: { color?: string }) {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
       <rect x="3" y="5" width="18" height="16" rx="3" stroke={color} strokeWidth="2" />

@@ -12,7 +12,8 @@ import org.springframework.core.annotation.Order;
  * Стартовая проверка авто-закрытия поставок.
  * При запуске приложения помечает «Поставлено» поставки с постоплатой (POSTPAYMENT),
  * статусом оплаты «Оплачено» (PAID) и суммой оплат, равной сумме поставки.
- * Выполняется после загрузки Excel-данных (порядок > 100).
+ * Выполняется после загрузки оплат из Excel (порядок 300) и синхронизации/авто-распределения
+ * оплат по поставкам (400), чтобы видеть актуальные привязки и типы оплат.
  */
 @Configuration
 public class DeliveryAutoCloseRunner {
@@ -20,7 +21,7 @@ public class DeliveryAutoCloseRunner {
     private static final Logger logger = LoggerFactory.getLogger(DeliveryAutoCloseRunner.class);
 
     @Bean
-    @Order(200)
+    @Order(450)
     public CommandLineRunner autoCloseFullyPaidDeliveries(DeliveryService deliveryService) {
         return args -> {
             try {

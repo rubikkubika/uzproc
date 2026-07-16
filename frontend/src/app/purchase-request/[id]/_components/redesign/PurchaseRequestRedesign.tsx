@@ -1,26 +1,13 @@
 'use client';
 
-import { useEffect } from 'react';
 import { PurchaseRequestRedesignProps } from './types';
 import { REDESIGN_COLORS, REDESIGN_FONT, REDESIGN_MONO } from './utils';
-import { CheckDot, EmptyDot, PendingDot, StarRating } from './RedesignPrimitives';
+import { CheckDot, EmptyDot, MetaChip, PendingDot, StarRating, Tile } from './RedesignPrimitives';
 import { ApprovalGroup } from './ApprovalGroup';
 import { ContractBlock } from './ContractBlock';
+import { useDesignFonts, useStickyHeaderHeight } from './hooks';
 
 const C = REDESIGN_COLORS;
-
-/** Подгружаем шрифты дизайна один раз. */
-function useDesignFonts() {
-  useEffect(() => {
-    const id = 'redesign-google-fonts';
-    if (document.getElementById(id)) return;
-    const link = document.createElement('link');
-    link.id = id;
-    link.rel = 'stylesheet';
-    link.href = 'https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap';
-    document.head.appendChild(link);
-  }, []);
-}
 
 type StepState = 'done' | 'pending' | 'empty';
 
@@ -46,16 +33,17 @@ function StatusPill({ statusGroup }: { statusGroup: string | null }) {
   let border = 'rgba(37,99,235,.35)';
   let color = '#8FB4FF';
   let dot: string = C.accent;
+  let isYellow = false;
   if (green.includes(statusGroup)) {
     bg = 'rgba(61,190,127,.16)'; border = 'rgba(61,190,127,.35)'; color = '#7FE0AE'; dot = C.success;
   } else if (red.includes(statusGroup)) {
     bg = 'rgba(229,72,77,.16)'; border = 'rgba(229,72,77,.35)'; color = '#F5A3A5'; dot = C.danger;
   } else if (yellow.includes(statusGroup)) {
-    bg = 'rgba(240,162,46,.16)'; border = 'rgba(240,162,46,.35)'; color = '#F5C97E'; dot = C.warn;
+    bg = 'rgba(240,162,46,.16)'; border = 'rgba(240,162,46,.35)'; color = '#F5C97E'; dot = C.warn; isYellow = true;
   }
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: bg, border: `1px solid ${border}`, color, fontSize: 13, fontWeight: 600, padding: '6px 14px', borderRadius: 100 }}>
-      <span style={{ width: 7, height: 7, borderRadius: '50%', background: dot }} />
+      <span className={isYellow ? 'animate-yellow-circle-pulse-fast' : undefined} style={{ width: 7, height: 7, borderRadius: '50%', background: dot }} />
       {statusGroup}
     </span>
   );
@@ -77,17 +65,9 @@ const titleStyle: React.CSSProperties = { margin: 0, fontSize: 20, fontWeight: 7
 const defRow: React.CSSProperties = { display: 'grid', gridTemplateColumns: '180px 1fr', gap: 16, padding: '13px 4px', borderBottom: `1px solid ${C.divider}`, fontSize: 14 };
 const defLabel: React.CSSProperties = { color: C.textSecondary };
 
-function Tile({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div style={{ background: C.tileBg, borderRadius: 12, padding: '14px 16px' }}>
-      <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.06em', color: C.textMuted, marginBottom: 6 }}>{label}</div>
-      <div style={{ fontSize: 15, fontWeight: 600 }}>{children}</div>
-    </div>
-  );
-}
-
 export default function PurchaseRequestRedesign(props: PurchaseRequestRedesignProps) {
   useDesignFonts();
+  const { headerRef, headerHeight } = useStickyHeaderHeight();
   const {
     purchaseRequest: pr, purchase, csiFeedback, csiFeedbackLoading, contracts, contractApprovalsByContractId,
     approvalStageApprovals, managerStageApprovals, finalApprovalStageApprovals, finalApprovalNoZpStageApprovals,
@@ -117,7 +97,8 @@ export default function PurchaseRequestRedesign(props: PurchaseRequestRedesignPr
 
   return (
     <div style={{ minHeight: '100%', background: C.bgPage, fontFamily: REDESIGN_FONT, color: C.textMain, paddingBottom: 40 }}>
-      {/* ===== Тёмная шапка ===== */}
+      {/* ===== Тёмный блок: шапка + степпер (закреплены при прокрутке) ===== */}
+      <div ref={headerRef} style={{ position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 2px 12px rgba(15,28,46,.35)' }}>
       <div style={{ background: C.headerDark, color: C.headerText, padding: '0 40px' }}>
         <div style={{ maxWidth: 1440, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 64, gap: 24, flexWrap: 'wrap', paddingTop: 8, paddingBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
@@ -147,7 +128,7 @@ export default function PurchaseRequestRedesign(props: PurchaseRequestRedesignPr
       </div>
 
       {/* ===== Степпер ===== */}
-      <div style={{ background: C.headerDark, padding: '0 40px 36px' }}>
+      <div style={{ background: C.headerDark, padding: '0 40px 20px' }}>
         <div style={{ maxWidth: 1440, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
           <StepColumn label="Потребность" state="done" />
           <StepColumn label="Заявка" state={requestState} />
@@ -164,9 +145,13 @@ export default function PurchaseRequestRedesign(props: PurchaseRequestRedesignPr
           )}
         </div>
       </div>
+      </div>
+
+      {/* Тёмная полоска под шапкой — карточки «заезжают» на неё и при прокрутке */}
+      <div style={{ position: 'sticky', top: headerHeight, zIndex: 1, background: C.headerDark, height: 16 }} />
 
       {/* ===== Секции ===== */}
-      <div style={{ maxWidth: 1440, margin: '-16px auto 0', padding: '0 40px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <div style={{ position: 'relative', zIndex: 2, maxWidth: 1440, margin: '-16px auto 0', padding: '0 40px', display: 'flex', flexDirection: 'column', gap: 24 }}>
 
         {/* --- Заявка --- */}
         <section style={cardStyle}>
@@ -174,10 +159,6 @@ export default function PurchaseRequestRedesign(props: PurchaseRequestRedesignPr
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <span style={badgeStyle}>ЭТАП 1–2</span>
               <h2 style={titleStyle}>Заявка на закупку</h2>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 18, fontSize: 13, color: C.textSecondary, flexWrap: 'wrap' }}>
-              <span>Инициатор: <strong style={{ color: C.textMain, fontWeight: 600 }}>{initiatorDisplayName(pr.purchaseRequestInitiator)}</strong></span>
-              <span>Создана: <strong style={{ color: C.textMain, fontWeight: 600 }}>{formatDate(pr.purchaseRequestCreationDate)}</strong></span>
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(380px,1fr))', gap: '20px 0', padding: '20px 28px 26px' }}>
@@ -199,6 +180,10 @@ export default function PurchaseRequestRedesign(props: PurchaseRequestRedesignPr
               </div>
             </div>
             <div style={{ borderLeft: `1px solid ${C.divider}`, paddingLeft: 28, display: 'flex', flexDirection: 'column', gap: 18 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, paddingBottom: 4 }}>
+                <MetaChip label="Инициатор" value={initiatorDisplayName(pr.purchaseRequestInitiator)} />
+                <MetaChip label="Создана" value={formatDate(pr.purchaseRequestCreationDate)} />
+              </div>
               <ApprovalGroup title="Согласование" hint="назначено · дней" approvals={approvalStageApprovals} formatDate={formatDate} calculateDays={calculateDays} getApprovalStatusColor={getApprovalStatusColor} />
               <ApprovalGroup title="Руководитель закупок" approvals={managerStageApprovals} formatDate={formatDate} calculateDays={calculateDays} getApprovalStatusColor={getApprovalStatusColor} />
               <ApprovalGroup title="Утверждение" approvals={finalApprovals} formatDate={formatDate} calculateDays={calculateDays} getApprovalStatusColor={getApprovalStatusColor} />
@@ -222,10 +207,6 @@ export default function PurchaseRequestRedesign(props: PurchaseRequestRedesignPr
                     {purchase.status}
                   </span>
                 )}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 18, fontSize: 13, color: C.textSecondary, flexWrap: 'wrap' }}>
-                {pr.purchaser && <span>Закупщик: <strong style={{ color: C.textMain, fontWeight: 600 }}>{purchaserDisplayName(pr.purchaser)}</strong></span>}
-                {purchase?.purchaseCreationDate && <span>Создана: <strong style={{ color: C.textMain, fontWeight: 600 }}>{formatDate(purchase.purchaseCreationDate)}</strong></span>}
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(380px,1fr))', gap: '20px 0', padding: '20px 28px 26px' }}>
@@ -289,6 +270,10 @@ export default function PurchaseRequestRedesign(props: PurchaseRequestRedesignPr
               </div>
 
               <div style={{ borderLeft: `1px solid ${C.divider}`, paddingLeft: 28, display: 'flex', flexDirection: 'column', gap: 18 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, paddingBottom: 4 }}>
+                  <MetaChip label="Закупщик" value={pr.purchaser ? purchaserDisplayName(pr.purchaser) : '—'} />
+                  <MetaChip label="Создана" value={purchase?.purchaseCreationDate ? formatDate(purchase.purchaseCreationDate) : '—'} />
+                </div>
                 <ApprovalGroup title="Согласование результатов ЗП" hint="назначено · дней" approvals={purchaseResultsApprovalApprovals} formatDate={formatDate} calculateDays={calculateDays} getApprovalStatusColor={getApprovalStatusColor} />
                 <ApprovalGroup title="Закупочная комиссия" approvals={purchaseCommissionApprovals} formatDate={formatDate} calculateDays={calculateDays} getApprovalStatusColor={getApprovalStatusColor} />
                 <ApprovalGroup title="Проверка результата закупочной комиссии" approvals={purchaseCommissionResultCheckApprovals} formatDate={formatDate} calculateDays={calculateDays} getApprovalStatusColor={getApprovalStatusColor} />

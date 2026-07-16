@@ -23,8 +23,8 @@ interface PurchaseTrackerSidebarProps {
 }
 
 const TABS: { key: TrackerTab; label: string; icon: (active: boolean) => ReactNode }[] = [
-  { key: 'mine', label: 'Мои', icon: (active) => <UserIcon color={active ? '#6D28D9' : '#667085'} /> },
-  { key: 'favorites', label: 'Избранное', icon: (active) => <StarIcon color={active ? '#6D28D9' : '#667085'} fill={active ? '#6D28D9' : 'none'} /> },
+  { key: 'mine', label: 'Мои', icon: (active) => <UserIcon color={active ? '#1D4ED8' : '#667085'} /> },
+  { key: 'favorites', label: 'Избранное', icon: (active) => <StarIcon color={active ? '#1D4ED8' : '#667085'} fill={active ? '#1D4ED8' : 'none'} /> },
 ];
 
 /**
@@ -47,7 +47,7 @@ export default function PurchaseTrackerSidebar({ email, fullName, role, loading,
       >
         <div
           className="flex h-9 w-9 flex-none items-center justify-center rounded-full text-[14px] font-semibold text-white"
-          style={{ background: 'linear-gradient(135deg,#7C3AED,#6D28D9)' }}
+          style={{ background: 'linear-gradient(135deg,#2563EB,#1D4ED8)' }}
         >
           {loading ? '' : initial}
         </div>
@@ -81,7 +81,7 @@ export default function PurchaseTrackerSidebar({ email, fullName, role, loading,
                 type="button"
                 onClick={() => onTabChange(tab.key)}
                 className={`flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border-none px-3 py-2.5 text-center text-[14px] font-medium transition-colors ${
-                  active ? 'bg-[#F2EEFC] text-[#6D28D9]' : 'bg-transparent text-[#475467] hover:bg-[#F4F5F9]'
+                  active ? 'bg-[#EFF6FF] text-[#1D4ED8]' : 'bg-transparent text-[#475467] hover:bg-[#F4F5F9]'
                 }`}
               >
                 {tab.icon(active)}

@@ -3,92 +3,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { getBackendUrl } from '@/utils/api';
-import { ArrowLeft, Check, Clock, X } from 'lucide-react';
 import Sidebar from '../../_components/Sidebar';
 import type { Invoice } from '../../invoice-recognition/_components/types/invoice.types';
-
-interface ContractApprovalItem {
-  id: number;
-  contractId: number;
-  documentForm?: string | null;
-  stage: string;
-  role: string;
-  executorName?: string | null;
-  assignmentDate: string | null;
-  completionDate: string | null;
-  completionResult: string | null;
-  commentText?: string | null;
-}
-
-interface ContractSupplier {
-  id: number;
-  name: string | null;
-  inn: string | null;
-  code: string | null;
-}
-
-interface ContractDetail {
-  id: number;
-  innerId: string | null;
-  guid: string;
-  contractCreationDate: string | null;
-  name: string | null;
-  title: string | null;
-  cfo: string | null;
-  purchaseMethod: string | null;
-  documentForm: string | null;
-  budgetAmount: number | null;
-  currency: string | null;
-  costType: string | null;
-  contractType: string | null;
-  contractDurationMonths: number | null;
-  status: string | null;
-  state: string | null;
-  /** Дата регистрации договора (дата выполнения согласования «Регистрация»). */
-  registrationDate: string | null;
-  /** Дата синхронизации договора (дата выполнения согласования «Синхронизация»). */
-  synchronizationDate: string | null;
-  paymentTerms: string | null;
-  paymentScheme: string | null;
-  deliveryTerm: string | null;
-  suppliers: ContractSupplier[] | null;
-  preparedBy: string | null;
-  purchaseRequestId: number | null;
-  purchaseRequestInnerId: number | null;
-  parentContractId: number | null;
-  parentContract: ContractDetail | null;
-  plannedDeliveryStartDate: string | null;
-  plannedDeliveryEndDate: string | null;
-  excludedFromStatusCalculation: boolean | null;
-  exclusionComment: string | null;
-  customerOrganization: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface ChildContract {
-  id: number;
-  innerId: string | null;
-  name: string | null;
-  title: string | null;
-  status: string | null;
-  budgetAmount: number | null;
-  currency: string | null;
-}
-
-interface PaymentItem {
-  id: number;
-  mainId: string | null;
-  amount: number | null;
-  cfo: string | null;
-  comment: string | null;
-  paymentStatus: string | null;
-  requestStatus: string | null;
-  plannedExpenseDate: string | null;
-  paymentDate: string | null;
-  executorDisplayName: string | null;
-  responsibleDisplayName: string | null;
-}
+import ContractRedesign from './_components/ContractRedesign';
+import { ChildContract, ContractApprovalItem, ContractDetail, PaymentItem } from './_components/types/contract-detail.types';
 
 
 const SIDEBAR_COLLAPSED_KEY = 'sidebarCollapsed';
@@ -201,28 +119,6 @@ export default function ContractDetailPage() {
     return currency ? `${formatted} ${currency}` : formatted;
   };
 
-  const getStatusBadge = (status: string | null) => {
-    if (!status) return <span className="px-2 py-1 text-xs font-medium bg-gray-50 text-gray-500 rounded-full">-</span>;
-    const colorClass =
-      status === 'Подписан' ? 'bg-green-100 text-green-800' :
-      status === 'На согласовании' ? 'bg-yellow-100 text-yellow-800' :
-      status === 'На регистрации' ? 'bg-blue-100 text-blue-800' :
-      status === 'Не согласован' ? 'bg-red-100 text-red-800' :
-      status === 'Проект' ? 'bg-gray-200 text-gray-700' :
-      'bg-gray-100 text-gray-800';
-    return <span className={`px-2 py-1 text-xs font-medium rounded-full ${colorClass}`}>{status}</span>;
-  };
-
-  const getPaymentStatusBadge = (status: string | null) => {
-    if (!status) return null;
-    const colorClass =
-      status === 'Оплачена' ? 'bg-green-100 text-green-800' :
-      status === 'К оплате' ? 'bg-yellow-100 text-yellow-800' :
-      status === 'Оплата возвращена' ? 'bg-red-100 text-red-800' :
-      'bg-gray-100 text-gray-800';
-    return <span className={`px-1.5 py-0.5 text-xs font-medium rounded ${colorClass}`}>{status}</span>;
-  };
-
   const isWorkingDay = (d: Date): boolean => {
     const w = d.getDay();
     return w !== 0 && w !== 6;
@@ -250,7 +146,7 @@ export default function ContractDetailPage() {
     }
   };
 
-  const getApprovalStatusColor = (approval: ContractApprovalItem): 'green' | 'yellow' | 'red' | 'orange' => {
+  const getApprovalStatusColor = (approval: { completionResult: string | null; completionDate: string | null; assignmentDate: string | null }): 'green' | 'yellow' | 'red' | 'orange' => {
     if (!approval.completionResult) {
       return approval.assignmentDate ? 'yellow' : 'yellow';
     }
@@ -262,17 +158,6 @@ export default function ContractDetailPage() {
         result.includes('не согласован') || result.includes('не утвержден') ||
         result.includes('не утверждена')) return 'red';
     return approval.completionDate ? 'green' : 'yellow';
-  };
-
-  const getRequestStatusBadge = (status: string | null) => {
-    if (!status) return null;
-    const colorClass =
-      status === 'Утвержден' ? 'bg-green-100 text-green-800' :
-      status === 'На согласовании' ? 'bg-blue-100 text-blue-800' :
-      status === 'Отклонен' ? 'bg-red-100 text-red-800' :
-      status === 'Черновик' ? 'bg-gray-100 text-gray-600' :
-      'bg-gray-100 text-gray-800';
-    return <span className={`px-1.5 py-0.5 text-xs font-medium rounded ${colorClass}`}>{status}</span>;
   };
 
   return (
@@ -290,345 +175,29 @@ export default function ContractDetailPage() {
         setIsCollapsed={handleSidebarCollapse}
       />
 
-      <div className="flex-1 flex flex-col min-h-0 overflow-auto">
-        {/* Header */}
-        <div className="bg-white shadow-sm border-b border-gray-200 px-4 py-3 flex-shrink-0">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={goBack}
-              className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Назад к списку
-            </button>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-auto p-4">
-          {loading ? (
-            <div className="text-center py-12 text-gray-500">Загрузка...</div>
-          ) : error ? (
-            <div className="text-center py-12 text-red-500">Ошибка: {error}</div>
-          ) : contract ? (
-            <div className="flex gap-4 max-w-7xl mx-auto">
-              {/* Левая колонка — информация о договоре */}
-              <div className="flex-1 min-w-0 space-y-4">
-                {/* Заголовок */}
-                <div className="bg-white rounded-lg shadow-sm p-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <h1 className="text-lg font-bold text-gray-900">
-                        Договор {contract.innerId || `#${contract.id}`}
-                      </h1>
-                      <p className="text-sm text-gray-600 mt-1">{contract.name || contract.title || '-'}</p>
-                    </div>
-                    <div>{getStatusBadge(contract.status)}</div>
-                  </div>
-                </div>
-
-                {/* Основная информация */}
-                <div className="bg-white rounded-lg shadow-sm p-4">
-                  <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Основная информация</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-3">
-                    <InfoField label="Внутренний номер" value={contract.innerId} />
-                    <InfoField label="Номер заявки" value={contract.purchaseRequestInnerId != null ? String(contract.purchaseRequestInnerId) : null} />
-                    <InfoField label="ЦФО" value={contract.cfo} />
-                    <InfoField label="Форма документа" value={contract.documentForm} />
-                    <InfoField label="Тип затрат" value={contract.costType} />
-                    <InfoField label="Тип договора" value={contract.contractType} />
-                    <InfoField label="Способ закупки" value={contract.purchaseMethod} />
-                    <InfoField label="Дата создания" value={formatDate(contract.contractCreationDate)} />
-                    <InfoField label="Дата регистрации" value={formatDate(contract.registrationDate)} />
-                    <InfoField label="Дата синхронизации" value={formatDate(contract.synchronizationDate)} />
-                    <InfoField label="Срок действия (мес.)" value={contract.contractDurationMonths != null ? String(contract.contractDurationMonths) : null} />
-                    <InfoField label="Состояние" value={contract.state} />
-                    <InfoField label="Подготовил" value={contract.preparedBy} />
-                    <InfoField label="Организация заказчика" value={contract.customerOrganization} />
-                  </div>
-                </div>
-
-                {/* Финансовая информация */}
-                <div className="bg-white rounded-lg shadow-sm p-4">
-                  <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Финансовая информация</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-3">
-                    <InfoField label="Сумма бюджета" value={formatAmount(contract.budgetAmount, contract.currency)} />
-                    <InfoField label="Валюта" value={contract.currency} />
-                  </div>
-                </div>
-
-                {/* Условия оплаты */}
-                {contract.paymentTerms && (
-                  <div className="bg-white rounded-lg shadow-sm p-4">
-                    <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Условия оплаты</h2>
-                    <p className="text-sm text-gray-900 whitespace-pre-wrap">{contract.paymentTerms}</p>
-                  </div>
-                )}
-
-                {/* Схема оплаты */}
-                {contract.paymentScheme && (
-                  <div className="bg-white rounded-lg shadow-sm p-4">
-                    <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Схема оплаты</h2>
-                    <p className="text-sm text-gray-900 whitespace-pre-wrap">{contract.paymentScheme}</p>
-                  </div>
-                )}
-
-                {/* Срок поставки */}
-                {contract.deliveryTerm && (
-                  <div className="bg-white rounded-lg shadow-sm p-4">
-                    <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Срок поставки</h2>
-                    <p className="text-sm text-gray-900 whitespace-pre-wrap">{contract.deliveryTerm}</p>
-                  </div>
-                )}
-
-                {/* Поставщики */}
-                {contract.suppliers && contract.suppliers.length > 0 && (
-                  <div className="bg-white rounded-lg shadow-sm p-4">
-                    <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Поставщики</h2>
-                    <div className="space-y-2">
-                      {contract.suppliers.map((s) => (
-                        <div key={s.id} className="flex items-center gap-2 text-sm text-gray-900">
-                          <span>{s.name || '-'}</span>
-                          {s.inn && <span className="text-gray-500">(ИНН: {s.inn})</span>}
-                          {s.code && <span className="text-gray-500">[{s.code}]</span>}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Плановые сроки поставки */}
-                {(contract.plannedDeliveryStartDate || contract.plannedDeliveryEndDate) && (
-                  <div className="bg-white rounded-lg shadow-sm p-4">
-                    <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Плановые сроки поставки</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
-                      <InfoField label="Начало поставки (план)" value={formatDate(contract.plannedDeliveryStartDate)} />
-                      <div>
-                        <dt className="text-xs text-gray-500">Срок поставки (план)</dt>
-                        <dd className="text-sm text-gray-900 mt-0.5">{formatDate(contract.plannedDeliveryEndDate)}</dd>
-                        {contract.plannedDeliveryEndDate && (() => {
-                          const endDate = new Date(contract.plannedDeliveryEndDate);
-                          const isExpired = endDate < new Date();
-                          return (
-                            <span className={`inline-block mt-1 px-2 py-0.5 text-xs font-medium rounded-full ${
-                              isExpired ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
-                            }`}>
-                              {isExpired ? 'Истёк' : 'Действует'}
-                            </span>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Основной договор (если это спецификация) */}
-                {contract.parentContract && (
-                  <div className="bg-white rounded-lg shadow-sm p-4">
-                    <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Основной договор</h2>
-                    <button
-                      onClick={() => router.push(`/contract/${contract.parentContract!.id}`)}
-                      className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
-                    >
-                      {contract.parentContract.innerId || `#${contract.parentContract.id}`} — {contract.parentContract.name || contract.parentContract.title || '-'}
-                    </button>
-                  </div>
-                )}
-
-                {/* Спецификации (дочерние договоры) */}
-                {childContracts.length > 0 && (
-                  <div className="bg-white rounded-lg shadow-sm p-4">
-                    <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Спецификации ({childContracts.length})</h2>
-                    <div className="space-y-2">
-                      {childContracts.map((child) => (
-                        <div key={child.id} className="flex items-center justify-between p-2 rounded hover:bg-gray-50">
-                          <button
-                            onClick={() => router.push(`/contract/${child.id}`)}
-                            className="text-sm text-blue-600 hover:text-blue-800 hover:underline text-left"
-                          >
-                            {child.innerId || `#${child.id}`} — {child.name || child.title || '-'}
-                          </button>
-                          <div className="flex items-center gap-2">
-                            {child.budgetAmount != null && (
-                              <span className="text-xs text-gray-500">
-                                {formatAmount(child.budgetAmount, child.currency)}
-                              </span>
-                            )}
-                            {getStatusBadge(child.status)}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Исключение из расчёта статуса */}
-                {contract.excludedFromStatusCalculation && (
-                  <div className="bg-yellow-50 rounded-lg shadow-sm p-4 border border-yellow-200">
-                    <h2 className="text-sm font-semibold text-yellow-800 mb-2">Исключён из расчёта статуса заявки</h2>
-                    {contract.exclusionComment && (
-                      <p className="text-sm text-yellow-700">{contract.exclusionComment}</p>
-                    )}
-                  </div>
-                )}
-
-                {/* Системная информация */}
-                <div className="bg-white rounded-lg shadow-sm p-4">
-                  <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Системная информация</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-3">
-                    <InfoField label="ID" value={String(contract.id)} />
-                    <InfoField label="GUID" value={contract.guid} />
-                    <InfoField label="Создано" value={formatDate(contract.createdAt)} />
-                    <InfoField label="Обновлено" value={formatDate(contract.updatedAt)} />
-                  </div>
-                </div>
-              </div>
-
-              {/* Правая колонка — Оплаты и Поступления */}
-              <div className="w-[420px] flex-shrink-0 space-y-4">
-                {/* Блок Согласований */}
-                {(approvalsLoading || contractApprovals.length > 0) && (
-                  <div className="bg-white rounded-lg shadow-sm p-4">
-                    <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">
-                      Согласования {contractApprovals.length > 0 && <span className="text-gray-400 font-normal">({contractApprovals.length})</span>}
-                    </h2>
-                    {approvalsLoading ? (
-                      <p className="text-xs text-gray-400">Загрузка...</p>
-                    ) : (
-                      <div className="space-y-3">
-                        {[...new Set(contractApprovals.map(a => a.stage || 'Без этапа'))].map(stage => {
-                          const stageItems = contractApprovals.filter(a => (a.stage || 'Без этапа') === stage);
-                          return (
-                            <div key={stage}>
-                              <div className="text-[11px] font-semibold text-gray-600 mb-1">{stage}</div>
-                              <table className="w-full border-collapse table-fixed">
-                                <colgroup>
-                                  <col style={{ width: '32%' }} />
-                                  <col style={{ width: '26%' }} />
-                                  <col style={{ width: '18%' }} />
-                                  <col style={{ width: '18%' }} />
-                                  <col style={{ width: '6%' }} />
-                                </colgroup>
-                                <thead>
-                                  <tr className="border-b border-gray-200">
-                                    <th className="py-1 pr-1 text-left text-[9px] font-semibold text-gray-500 uppercase">Роль</th>
-                                    <th className="py-1 px-1 text-left text-[9px] font-semibold text-gray-500 uppercase">ФИО</th>
-                                    <th className="py-1 px-1 text-left text-[9px] font-semibold text-gray-500 uppercase">Назначено</th>
-                                    <th className="py-1 px-1 text-left text-[9px] font-semibold text-gray-500 uppercase">Выполнено</th>
-                                    <th className="py-1 text-center text-[9px] font-semibold text-gray-500 uppercase">Дн</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {stageItems.map(approval => {
-                                    const statusColor = getApprovalStatusColor(approval);
-                                    const hasAssignment = approval.assignmentDate != null && String(approval.assignmentDate).trim() !== '';
-                                    return (
-                                      <tr key={approval.id} className="border-b border-gray-100 last:border-b-0">
-                                        <td className="py-1 pr-1 align-middle max-w-0 overflow-hidden">
-                                          <div className="flex items-center gap-1 overflow-hidden">
-                                            {!hasAssignment ? (
-                                              <div className="w-3 h-3 flex-shrink-0 rounded-full bg-gray-300" title="Не назначено" />
-                                            ) : statusColor === 'green' ? (
-                                              <div className="w-3 h-3 flex-shrink-0 rounded-full bg-green-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано'}>
-                                                <Check className="w-2 h-2 text-white" />
-                                              </div>
-                                            ) : statusColor === 'orange' ? (
-                                              <div className="w-3 h-3 flex-shrink-0 rounded-full bg-orange-500 flex items-center justify-center" title={approval.completionResult || 'Согласовано с замечаниями'}>
-                                                <Check className="w-2 h-2 text-white" />
-                                              </div>
-                                            ) : statusColor === 'red' ? (
-                                              <div className="w-3 h-3 flex-shrink-0 rounded-full bg-red-500 flex items-center justify-center" title={approval.completionResult || 'Не согласовано'}>
-                                                <X className="w-2 h-2 text-white" />
-                                              </div>
-                                            ) : (
-                                              <div className="w-3 h-3 flex-shrink-0 rounded-full bg-yellow-500 flex items-center justify-center" title={approval.completionResult || 'В процессе'}>
-                                                <Clock className="w-2 h-2 text-white" />
-                                              </div>
-                                            )}
-                                            <span className="text-[10px] text-gray-900 truncate" title={approval.role}>{approval.role || '-'}</span>
-                                          </div>
-                                        </td>
-                                        <td className="py-1 px-1 max-w-0 overflow-hidden">
-                                          <span className="block text-[10px] text-gray-900 truncate" title={approval.executorName ?? ''}>{approval.executorName || '-'}</span>
-                                        </td>
-                                        <td className="py-1 px-1 text-[10px] text-gray-900 whitespace-nowrap">{formatDate(approval.assignmentDate)}</td>
-                                        <td className="py-1 px-1 text-[10px] text-gray-900 whitespace-nowrap">{formatDate(approval.completionDate)}</td>
-                                        <td className="py-1 text-center">
-                                          <span className="inline-block w-full text-center px-0.5 py-px text-[10px] text-gray-700 rounded bg-gray-200 font-medium">
-                                            {calculateApprovalWorkingDays(approval.assignmentDate, approval.completionDate)}
-                                          </span>
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-              {/* Блок Оплаты */}
-                <div className="bg-white rounded-lg shadow-sm p-4">
-                  <h2 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">
-                    Оплаты {payments.length > 0 && <span className="text-gray-400 font-normal">({payments.length})</span>}
-                  </h2>
-                  {payments.length === 0 ? (
-                    <p className="text-sm text-gray-400">Нет оплат</p>
-                  ) : (
-                    <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                      {payments.map((p) => (
-                        <div key={p.id} className="border border-gray-200 rounded p-2.5 hover:bg-gray-50">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-medium text-gray-900">{p.mainId || `#${p.id}`}</span>
-                            <div className="flex items-center gap-1">
-                              {getRequestStatusBadge(p.requestStatus)}
-                              {getPaymentStatusBadge(p.paymentStatus)}
-                            </div>
-                          </div>
-                          {p.amount != null && (
-                            <div className="text-sm font-semibold text-gray-900">
-                              {new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(p.amount)}
-                            </div>
-                          )}
-                          <div className="mt-1 space-y-0.5">
-                            {p.paymentDate && (
-                              <div className="text-xs text-gray-500">Оплата: {formatDate(p.paymentDate)}</div>
-                            )}
-                            {p.plannedExpenseDate && (
-                              <div className="text-xs text-gray-500">План: {formatDate(p.plannedExpenseDate)}</div>
-                            )}
-                            {p.comment && (
-                              <div className="text-xs text-gray-500 truncate" title={p.comment}>{p.comment}</div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Блок Счёт-фактура */}
-                <InvoiceBlock contractId={contract.id} />
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-12 text-gray-500">Договор не найден</div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function InfoField({ label, value }: { label: string; value: string | null }) {
-  return (
-    <div>
-      <dt className="text-xs text-gray-500">{label}</dt>
-      <dd className="text-sm text-gray-900 mt-0.5">{value || '-'}</dd>
+      <main className="flex-1 overflow-y-auto">
+        {loading ? (
+          <div className="text-center py-12 text-gray-500">Загрузка...</div>
+        ) : error ? (
+          <div className="text-center py-12 text-red-500">Ошибка: {error}</div>
+        ) : contract ? (
+          <ContractRedesign
+            contract={contract}
+            childContracts={childContracts}
+            payments={payments}
+            approvals={contractApprovals}
+            goBack={goBack}
+            onOpenContract={(cid) => router.push(`/contract/${cid}`)}
+            formatDate={formatDate}
+            formatAmount={formatAmount}
+            calculateApprovalWorkingDays={calculateApprovalWorkingDays}
+            getApprovalStatusColor={getApprovalStatusColor}
+            invoiceSlot={<InvoiceBlock contractId={contract.id} />}
+          />
+        ) : (
+          <div className="text-center py-12 text-gray-500">Договор не найден</div>
+        )}
+      </main>
     </div>
   );
 }

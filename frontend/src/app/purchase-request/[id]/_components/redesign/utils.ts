@@ -30,14 +30,14 @@ export const REDESIGN_COLORS = {
 export const REDESIGN_FONT = "'Golos Text', system-ui, -apple-system, 'Segoe UI', sans-serif";
 export const REDESIGN_MONO = "'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace";
 
-/** Цвет кружка согласования по статусу. */
+/** Цвет кружка согласования по статусу. «Согласовано с замечанием» (orange) — красная галочка. */
 export function dotColor(status: ApprovalStatusColor): string {
   switch (status) {
     case 'green':
       return REDESIGN_COLORS.success;
-    case 'orange':
     case 'yellow':
       return REDESIGN_COLORS.warn;
+    case 'orange':
     case 'red':
       return REDESIGN_COLORS.danger;
     default:

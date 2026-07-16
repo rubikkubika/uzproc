@@ -113,6 +113,7 @@ export const DELIVERY_STATUS_OPTIONS: Array<{ value: string; label: string }> = 
   { value: 'ADVANCE_PREPARED', label: 'Оплата аванса' },
   { value: 'ADVANCE_PAID', label: 'Аванс оплачен' },
   { value: 'NOT_PAID', label: 'Не оплачено' },
+  { value: 'AWAITING_BALANCE_PAYMENT', label: 'Ожидает доплаты' },
   { value: 'PAID', label: 'Оплачено' },
 ];
 

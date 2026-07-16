@@ -1,6 +1,6 @@
 import { Approval, ApprovalStatusColor } from './types';
 import { REDESIGN_COLORS, REDESIGN_MONO, dotColor } from './utils';
-import { CheckDot, PendingDot } from './RedesignPrimitives';
+import { CheckDot, CrossDot, PendingDot } from './RedesignPrimitives';
 
 interface ApprovalGroupProps {
   title: string;
@@ -11,9 +11,10 @@ interface ApprovalGroupProps {
   getApprovalStatusColor: (a: { completionResult: string | null; completionDate: string | null; assignmentDate: string | null }) => ApprovalStatusColor;
 }
 
-/** Группа согласований (заголовок + строки: кружок · роль · дата · дни). */
+/** Группа согласований (заголовок + строки: кружок · роль · дата · дни). Неназначенные скрыты. */
 export function ApprovalGroup({ title, hint, approvals, formatDate, calculateDays, getApprovalStatusColor }: ApprovalGroupProps) {
-  if (approvals.length === 0) return null;
+  const assigned = approvals.filter((a) => a.assignmentDate != null && String(a.assignmentDate).trim() !== '');
+  if (assigned.length === 0) return null;
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -21,15 +22,16 @@ export function ApprovalGroup({ title, hint, approvals, formatDate, calculateDay
         {hint && <span style={{ fontSize: 11, color: REDESIGN_COLORS.textWeak }}>{hint}</span>}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column' }}>
-        {approvals.map((a) => {
+        {assigned.map((a) => {
           const status = getApprovalStatusColor(a);
           const done = status === 'green' || status === 'orange' || a.completionDate != null;
+          const dot = !done ? <PendingDot /> : status === 'red' ? <CrossDot /> : <CheckDot color={dotColor(status)} />;
           return (
             <div
               key={a.id}
               style={{ display: 'grid', gridTemplateColumns: '20px 1fr auto auto', gap: 10, alignItems: 'center', padding: '7px 0' }}
             >
-              {done ? <CheckDot color={dotColor(status)} /> : <PendingDot />}
+              {dot}
               <span style={{ fontSize: 13.5, fontWeight: 500, color: REDESIGN_COLORS.textMain }}>{a.role || '—'}</span>
               <span style={{ fontFamily: REDESIGN_MONO, fontSize: 12, color: REDESIGN_COLORS.textSecondary }}>{formatDate(a.assignmentDate)}</span>
               <span style={{ fontFamily: REDESIGN_MONO, fontSize: 12, color: REDESIGN_COLORS.textWeak, minWidth: 14, textAlign: 'right' }}>

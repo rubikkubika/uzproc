@@ -241,6 +241,7 @@ public class DeliveryService {
 
         delivery.setStatus(resolveInitialStatus(scheme, linked));
         applyDerivedShipmentStatus(delivery);
+        refinePostpayAwaitingBalance(delivery);
         recomputeDeliveryDeadline(delivery);
 
         Delivery saved = deliveryRepository.save(delivery);
@@ -359,6 +360,7 @@ public class DeliveryService {
         }
         delivery.setStatus(resolveInitialStatus(delivery.getPaymentScheme(), delivery.getPayments()));
         applyDerivedShipmentStatus(delivery);
+        refinePostpayAwaitingBalance(delivery);
         recomputeDeliveryDeadline(delivery);
     }
 
@@ -582,12 +584,19 @@ public class DeliveryService {
         if (esfDate != null) {
             delivery.setEsfDate(esfDate);
         }
+        // ЭСФ выставлена → поставка фактически состоялась, статус отгрузки «Поставлено».
+        if (delivery.getEsfDate() != null) {
+            delivery.setShipmentStatus(ShipmentStatus.DELIVERED);
+        }
         if (comment != null && !comment.isBlank()) {
             delivery.setComment(comment.trim());
         }
         if (reportStatus != null && !reportStatus.isBlank()) {
             delivery.setReportStatus(reportStatus.trim());
         }
+        // Статус отгрузки мог стать «Поставлено» (факт-дата/ЭСФ) уже после applyContractRules —
+        // уточняем статус оплаты («Не оплачено» → «Ожидает доплаты» для постоплаты).
+        refinePostpayAwaitingBalance(delivery);
         deliveryRepository.save(delivery);
         return created;
     }
@@ -742,6 +751,72 @@ public class DeliveryService {
     }
 
     /**
+     * Синхронизация привязок оплат с договорами.
+     * Оплаты грузятся из Excel позже, чем создаются/обновляются поставки из handreport,
+     * поэтому оплата, появившаяся у договора после создания поставки, остаётся не привязанной —
+     * в таблице у такой поставки отображается «Оплат нет», хотя в карточке оплата видна.
+     * Метод добавляет к каждой поставке недостающие оплаты её договора и отвязывает отклонённые.
+     * Типы уже размеченных оплат (в т.ч. вручную) не трогает. Возвращает число обновлённых поставок.
+     */
+    @Transactional
+    public int syncContractPaymentsToDeliveries() {
+        int updated = 0;
+        for (Delivery d : deliveryRepository.findAll()) {
+            if (d.getContract() == null) continue;
+            Set<Payment> current = d.getPayments() != null ? d.getPayments() : new HashSet<>();
+            boolean changed = current.removeIf(p -> !isDistributable(p));
+            Set<Long> currentIds = current.stream().map(Payment::getId).collect(Collectors.toSet());
+            for (Payment p : findDistributablePayments(d.getContract().getId())) {
+                if (currentIds.add(p.getId())) {
+                    current.add(p);
+                    changed = true;
+                }
+            }
+            if (!changed) continue;
+            d.setPayments(current);
+            d.setStatus(resolveInitialStatus(d.getPaymentScheme(), current));
+            applyDerivedShipmentStatus(d);
+            refinePostpayAwaitingBalance(d);
+            deliveryRepository.save(d);
+            updated++;
+        }
+        if (updated > 0) {
+            logger.info("Sync contract payments to deliveries: {} deliveries updated", updated);
+        }
+        return updated;
+    }
+
+    /**
+     * Финальный пересчёт статусов всех поставок (по паттерну StatusUpdateRunner для заявок).
+     * Статус оплаты и статус отгрузки каждый раз вычисляются заново по фактическому состоянию
+     * привязанных оплат (схема, типы, даты оплат). Нужен потому, что статус, посчитанный при
+     * создании поставки (handreport, порядок 150), устаревает: оплаты и их типы появляются позже
+     * (загрузка оплат 300, авто-распределение типов 400). Вручную выставленные статусы отгрузки
+     * «Поставлено»/«Просрочено» не перетираются (см. {@link #applyDerivedShipmentStatus}).
+     * Выполняется ДО авто-закрытия (450), чтобы его более специфичные правила имели приоритет.
+     * Возвращает число поставок с изменённым статусом.
+     */
+    @Transactional
+    public int recalculateAllDeliveryStatuses() {
+        int updated = 0;
+        for (Delivery d : deliveryRepository.findAll()) {
+            DeliveryStatus oldStatus = d.getStatus();
+            ShipmentStatus oldShipment = d.getShipmentStatus();
+            d.setStatus(resolveInitialStatus(d.getPaymentScheme(), d.getPayments()));
+            applyDerivedShipmentStatus(d);
+            refinePostpayAwaitingBalance(d);
+            if (d.getStatus() != oldStatus || d.getShipmentStatus() != oldShipment) {
+                deliveryRepository.save(d);
+                updated++;
+            }
+        }
+        if (updated > 0) {
+            logger.info("Recalculate delivery statuses: {} deliveries updated", updated);
+        }
+        return updated;
+    }
+
+    /**
      * Разовое авто-распределение оплат при запуске приложения.
      * Обрабатывает только поставки, у которых ни одна привязанная оплата не имеет типа:
      * уже размеченные (в т.ч. вручную) не трогаем — перераспределения не происходит.
@@ -798,6 +873,7 @@ public class DeliveryService {
 
     /**
      * Авто-расчёт статуса поставки (отгрузки) на основе статуса оплаты.
+     * Заполнена дата ЭСФ ⇒ «Поставлено» (ЭСФ выставляется по факту поставки).
      * Схема не выбрана ⇒ статус пустой (null).
      * Схема «Аванс» + статус оплаты «Оплата аванса» (аванс не оплачен)
      * ⇒ «Ожидает оплаты аванса» (жёлтый). Иначе ⇒ «Ожидает поставку».
@@ -806,6 +882,11 @@ public class DeliveryService {
     private void applyDerivedShipmentStatus(Delivery delivery) {
         ShipmentStatus current = delivery.getShipmentStatus();
         if (current == ShipmentStatus.DELIVERED || current == ShipmentStatus.OVERDUE) {
+            return;
+        }
+        // ЭСФ выставлена → поставка фактически состоялась.
+        if (delivery.getEsfDate() != null) {
+            delivery.setShipmentStatus(ShipmentStatus.DELIVERED);
             return;
         }
         if (delivery.getPaymentScheme() == null) {
@@ -817,6 +898,27 @@ public class DeliveryService {
         delivery.setShipmentStatus(awaitingAdvance
                 ? ShipmentStatus.AWAITING_ADVANCE_PAYMENT
                 : ShipmentStatus.EXPECTED);
+    }
+
+    /**
+     * Уточнение статуса оплаты после расчёта статуса отгрузки: поставка уже «Поставлено»,
+     * но окончательной оплаты нет ⇒ «Ожидает доплаты» (жёлтый). Случаи:
+     *   • схема «По факту» (POSTPAYMENT) + «Не оплачено» — оплаты по факту ещё нет;
+     *   • схема «Аванс» (PREPAYMENT) + «Аванс оплачен» — аванс оплачен, доплата ещё нет.
+     * Вызывается ПОСЛЕ resolveInitialStatus + applyDerivedShipmentStatus. Обратный переход
+     * автоматический: resolveInitialStatus никогда не возвращает «Ожидает доплаты», поэтому при
+     * пересчёте статус сначала откатывается к базовому и уточняется заново, только если
+     * поставка всё ещё «Поставлено».
+     */
+    private void refinePostpayAwaitingBalance(Delivery delivery) {
+        if (delivery.getShipmentStatus() != ShipmentStatus.DELIVERED) return;
+        boolean postpayUnpaid = delivery.getPaymentScheme() == PaymentScheme.POSTPAYMENT
+                && delivery.getStatus() == DeliveryStatus.NOT_PAID;
+        boolean advancePaidAwaitingRest = delivery.getPaymentScheme() == PaymentScheme.PREPAYMENT
+                && delivery.getStatus() == DeliveryStatus.ADVANCE_PAID;
+        if (postpayUnpaid || advancePaidAwaitingRest) {
+            delivery.setStatus(DeliveryStatus.AWAITING_BALANCE_PAYMENT);
+        }
     }
 
     /**
@@ -851,6 +953,7 @@ public class DeliveryService {
         delivery.setPayments(linked);
         delivery.setStatus(resolveInitialStatus(scheme, linked));
         applyDerivedShipmentStatus(delivery);
+        refinePostpayAwaitingBalance(delivery);
         recomputeDeliveryDeadline(delivery);
 
         Delivery saved = deliveryRepository.save(delivery);
@@ -886,6 +989,7 @@ public class DeliveryService {
         delivery.setPayments(linked);
         delivery.setStatus(resolveInitialStatus(null, linked));
         applyDerivedShipmentStatus(delivery);
+        refinePostpayAwaitingBalance(delivery);
         recomputeDeliveryDeadline(delivery);
 
         Delivery saved = deliveryRepository.save(delivery);
@@ -939,6 +1043,13 @@ public class DeliveryService {
             }
         } else {
             delivery.setActualDeliveryDate(null);
+        }
+        // Статус оплаты зависит от статуса отгрузки (постоплата + «Поставлено» без оплаты
+        // = «Ожидает доплаты») — пересчитываем его по оплатам и уточняем.
+        // Без выбранной схемы не трогаем: resolveInitialStatus вернул бы null и затёр «Проект».
+        if (delivery.getPaymentScheme() != null) {
+            delivery.setStatus(resolveInitialStatus(delivery.getPaymentScheme(), delivery.getPayments()));
+            refinePostpayAwaitingBalance(delivery);
         }
         Delivery saved = deliveryRepository.save(delivery);
         logger.info("Updated delivery id={} shipmentStatus={} actualDeliveryDate={}",

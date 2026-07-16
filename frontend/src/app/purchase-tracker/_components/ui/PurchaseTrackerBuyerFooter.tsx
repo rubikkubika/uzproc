@@ -12,8 +12,8 @@ export default function PurchaseTrackerBuyerFooter({ detail }: PurchaseTrackerBu
       className="flex items-center gap-3 px-6 py-3.5"
       style={{ background: '#FAFBFC', borderTop: '1px solid #F0F2F7' }}
     >
-      <div className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-[#EDE9FE]">
-        <UserIcon size={18} color="#6D28D9" />
+      <div className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-[#DBEAFE]">
+        <UserIcon size={18} color="#1D4ED8" />
       </div>
       <div className="flex flex-col">
         <span className="text-[13px] font-semibold text-[#101828]">{detail.buyer} — ваш закупщик</span>
@@ -26,7 +26,7 @@ export default function PurchaseTrackerBuyerFooter({ detail }: PurchaseTrackerBu
       )}
       <button
         type="button"
-        className={`${detail.phone ? '' : 'ml-auto '}cursor-pointer rounded-full border-none bg-[#7C3AED] px-4 py-2 text-[12.5px] font-semibold text-white hover:bg-[#6D28D9]`}
+        className={`${detail.phone ? '' : 'ml-auto '}cursor-pointer rounded-full border-none bg-[#2563EB] px-4 py-2 text-[12.5px] font-semibold text-white hover:bg-[#1D4ED8]`}
       >
         Задать вопрос
       </button>

@@ -94,8 +94,8 @@ export function buildResultView(item: Procurement, selectedId: number): ResultVi
     statusShort: pill.label,
     pillBg: pill.bg,
     pillFg: pill.fg,
-    border: selected ? '#7C3AED' : '#E6E8F0',
-    shadow: selected ? '0 0 0 3px rgba(124,58,237,.13)' : '0 1px 2px rgba(16,24,40,.04)',
+    border: selected ? '#2563EB' : '#E6E8F0',
+    shadow: selected ? '0 0 0 3px rgba(37,99,235,.13)' : '0 1px 2px rgba(16,24,40,.04)',
     dots: visibleStages(item).map((stg) => ({
       bg: STATE_PALETTE[stg.state].dot,
       label: stg.name,
