@@ -104,14 +104,16 @@ interface KpiSavingsBlockProps {
   error: string | null;
   year: number;
   month: number;
+  /** Квартальный режим «Премия 2»: детали грузятся только за выбранный квартал */
+  quarter?: number;
 }
 
-export function KpiSavingsBlock({ data, settings, onSettingsChange, onSettingsReset, loading, error, year, month }: KpiSavingsBlockProps) {
+export function KpiSavingsBlock({ data, settings, onSettingsChange, onSettingsReset, loading, error, year, month, quarter }: KpiSavingsBlockProps) {
   const [currency, setCurrency] = useState<'UZS' | 'USD'>('UZS');
   const [showSettings, setShowSettings] = useState(false);
   const [selectedPurchaser, setSelectedPurchaser] = useState<string | null>(null);
 
-  const details = useKpiPurchaseDetails(year, month, selectedPurchaser);
+  const details = useKpiPurchaseDetails(year, month, selectedPurchaser, quarter);
 
   const handleRowClick = (purchaser: string) => {
     setSelectedPurchaser((prev) => (prev === purchaser ? null : purchaser));
@@ -177,7 +179,7 @@ export function KpiSavingsBlock({ data, settings, onSettingsChange, onSettingsRe
           <div className="px-3 py-4 text-center text-xs text-red-500">{error}</div>
         )}
         {!loading && !error && data.length === 0 && (
-          <div className="px-3 py-4 text-center text-xs text-gray-400">Нет данных за выбранный месяц</div>
+          <div className="px-3 py-4 text-center text-xs text-gray-400">Нет данных за выбранный период</div>
         )}
         {!loading && !error && data.length > 0 && (
           <div className="overflow-x-auto">

@@ -29,6 +29,7 @@ import {
   ClipboardCheck,
   Send,
   Route,
+  ShoppingCart,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -46,6 +47,7 @@ const menuItems: Array<{ id: string; label: string; icon: any }> = [];
 
   const purchaserItems = [
     { id: 'overview', label: 'Обзор', icon: Home, disabled: false },
+    { id: 'etp', label: 'ЭТП', icon: ShoppingCart },
     { id: 'purchase-plan', label: 'План закупок', icon: Calendar },
     { id: 'purchase-requests', label: 'Заявки на закупку', icon: Package },
     { id: 'contracts', label: 'Договоры', icon: FileText },

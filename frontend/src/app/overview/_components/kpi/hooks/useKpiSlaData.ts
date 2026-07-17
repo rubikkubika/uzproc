@@ -4,16 +4,24 @@ import { useState, useEffect, useCallback } from 'react';
 import { getBackendUrl } from '@/utils/api';
 import type { KpiSlaData } from '../types/kpi.types';
 
-export function useKpiSlaData(year: number, month: number) {
+/**
+ * Данные KPI «SLA».
+ * Без quarter — месячный режим (нарастающим итогом январь–месяц, /kpi/sla).
+ * С quarter — квартальный режим «Премия 2» (только завершённые в квартале, /kpi2/sla).
+ */
+export function useKpiSlaData(year: number, month: number, quarter?: number) {
   const [data, setData] = useState<KpiSlaData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = useCallback(async (y: number, m: number) => {
+  const fetchData = useCallback(async (y: number, m: number, q?: number) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${getBackendUrl()}/api/overview/kpi/sla?year=${y}&month=${m}`);
+      const url = q != null
+        ? `${getBackendUrl()}/api/overview/kpi2/sla?year=${y}&quarter=${q}`
+        : `${getBackendUrl()}/api/overview/kpi/sla?year=${y}&month=${m}`;
+      const res = await fetch(url);
       if (!res.ok) throw new Error('Ошибка загрузки KPI SLA');
       const json = await res.json();
       setData(json);
@@ -26,8 +34,8 @@ export function useKpiSlaData(year: number, month: number) {
   }, []);
 
   useEffect(() => {
-    fetchData(year, month);
-  }, [year, month, fetchData]);
+    fetchData(year, month, quarter);
+  }, [year, month, quarter, fetchData]);
 
   return { data, loading, error };
 }

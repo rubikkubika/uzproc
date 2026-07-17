@@ -120,6 +120,75 @@ public class OverviewController {
     }
 
     /**
+     * KPI премии 2 — экономия: только закупки, завершённые в выбранном квартале (не нарастающим итогом).
+     */
+    @GetMapping("/kpi2/savings")
+    public ResponseEntity<KpiSavingsResponseDto> getKpi2SavingsData(
+            @RequestParam int year,
+            @RequestParam int quarter) {
+        logger.debug("KPI2 savings request for year={}, quarter={}", year, quarter);
+        return ResponseEntity.ok(overviewService.getKpiSavingsDataForQuarter(year, quarter));
+    }
+
+    /**
+     * KPI премии 2 — SLA: % уложившихся в плановый SLA по закупкам, завершённым в выбранном квартале.
+     */
+    @GetMapping("/kpi2/sla")
+    public ResponseEntity<KpiSlaResponseDto> getKpi2SlaData(
+            @RequestParam int year,
+            @RequestParam int quarter) {
+        logger.debug("KPI2 SLA request for year={}, quarter={}", year, quarter);
+        return ResponseEntity.ok(overviewService.getKpiSlaDataForQuarter(year, quarter));
+    }
+
+    /**
+     * KPI премии 2 — CSI: средняя оценка и количество отзывов за выбранный квартал.
+     */
+    @GetMapping("/kpi2/csi")
+    public ResponseEntity<KpiCsiResponseDto> getKpi2CsiData(
+            @RequestParam int year,
+            @RequestParam int quarter) {
+        logger.debug("KPI2 CSI request for year={}, quarter={}", year, quarter);
+        return ResponseEntity.ok(overviewService.getKpiCsiDataForQuarter(year, quarter));
+    }
+
+    /**
+     * KPI премии 2 — детали SLA для конкретного закупщика за выбранный квартал.
+     */
+    @GetMapping("/kpi2/sla/requests")
+    public ResponseEntity<List<KpiSlaDetailDto>> getKpi2SlaDetails(
+            @RequestParam int year,
+            @RequestParam int quarter,
+            @RequestParam String purchaser) {
+        logger.debug("KPI2 SLA details request for year={}, quarter={}, purchaser={}", year, quarter, purchaser);
+        return ResponseEntity.ok(overviewService.getKpiSlaDetailsForQuarter(year, quarter, purchaser));
+    }
+
+    /**
+     * KPI премии 2 — детали отзывов CSI для конкретного закупщика за выбранный квартал.
+     */
+    @GetMapping("/kpi2/csi/feedbacks")
+    public ResponseEntity<List<KpiCsiDetailDto>> getKpi2CsiDetails(
+            @RequestParam int year,
+            @RequestParam int quarter,
+            @RequestParam String purchaser) {
+        logger.debug("KPI2 CSI details request for year={}, quarter={}, purchaser={}", year, quarter, purchaser);
+        return ResponseEntity.ok(overviewService.getKpiCsiDetailsForQuarter(year, quarter, purchaser));
+    }
+
+    /**
+     * KPI премии 2 — детали закупок с экономией для конкретного закупщика за выбранный квартал.
+     */
+    @GetMapping("/kpi2/savings/purchases")
+    public ResponseEntity<List<OverviewSavingsPurchaseDetailDto>> getKpi2SavingsPurchaseDetails(
+            @RequestParam int year,
+            @RequestParam int quarter,
+            @RequestParam String purchaser) {
+        logger.debug("KPI2 savings/purchases request for year={}, quarter={}, purchaser={}", year, quarter, purchaser);
+        return ResponseEntity.ok(overviewService.getSavingsPurchaseDetailsForQuarter(year, quarter, purchaser));
+    }
+
+    /**
      * Настройки KPI-премии (цель, вес, буст до 130%) по блокам «Экономия», «SLA», «CSI».
      * Общие для всех пользователей.
      */

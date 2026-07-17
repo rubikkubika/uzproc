@@ -6,7 +6,7 @@ export type OverviewTopTab = 'dashboards' | 'management-reporting';
 
 export type OverviewDashboardCategory = 'purchases' | 'contracts' | 'other';
 
-export type OverviewTab = 'sla' | 'purchase-plan' | 'csi' | 'ek' | 'approvals' | 'timelines' | 'savings' | 'contract-remarks' | 'contract-documents-count' | 'contract-approvals' | 'purchases-by-cfo' | 'purchaser-distribution' | 'contract-states-in-work' | 'kpi';
+export type OverviewTab = 'sla' | 'purchase-plan' | 'csi' | 'ek' | 'approvals' | 'timelines' | 'savings' | 'contract-remarks' | 'contract-documents-count' | 'contract-approvals' | 'purchases-by-cfo' | 'purchaser-distribution' | 'contract-states-in-work' | 'kpi' | 'kpi2';
 
 export interface OverviewTabItem {
   id: OverviewTab;
@@ -24,7 +24,10 @@ export interface OverviewDashboardCategoryItem {
 }
 
 export const DASHBOARD_CATEGORY_TABS: Record<OverviewDashboardCategory, OverviewTab[]> = {
-  purchases: ['sla', 'purchase-plan', 'csi', 'ek', 'savings', 'kpi'],
+  purchases: ['sla', 'purchase-plan', 'csi', 'ek', 'savings', 'kpi', 'kpi2'],
   contracts: ['contract-remarks', 'contract-documents-count', 'contract-approvals'],
   other: ['approvals', 'timelines', 'purchases-by-cfo', 'purchaser-distribution', 'contract-states-in-work'],
 };
+
+/** Вкладки, доступные только пользователю с логином admin. */
+export const ADMIN_LOGIN_ONLY_TABS: OverviewTab[] = ['kpi2'];

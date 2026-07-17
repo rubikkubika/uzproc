@@ -338,14 +338,22 @@ public class CsiFeedbackService {
      * Считаем средний overall rating и количество отзывов.
      */
     public List<CsiFeedbackStatsByPurchaserDto> getKpiStatsByPurchaserCumulative(int year, int month) {
-        LocalDateTime startOfYear = LocalDateTime.of(year, 1, 1, 0, 0);
+        return getKpiStatsByPurchaserForMonthRange(year, 1, month);
+    }
+
+    /**
+     * KPI оценки CSI по закупщикам за диапазон месяцев года (startMonth–endMonth включительно).
+     * Считаем средний overall rating и количество отзывов.
+     */
+    public List<CsiFeedbackStatsByPurchaserDto> getKpiStatsByPurchaserForMonthRange(int year, int startMonth, int endMonth) {
+        LocalDateTime startOfPeriod = LocalDateTime.of(year, Math.max(1, Math.min(12, startMonth)), 1, 0, 0);
         // Конец указанного месяца включительно
-        int safeMonth = Math.max(1, Math.min(12, month));
+        int safeMonth = Math.max(1, Math.min(12, endMonth));
         java.time.LocalDate lastDayOfMonth = java.time.LocalDate.of(year, safeMonth, 1)
                 .withDayOfMonth(java.time.LocalDate.of(year, safeMonth, 1).lengthOfMonth());
         LocalDateTime endOfMonth = lastDayOfMonth.atTime(23, 59, 59, 999_999_999);
 
-        Specification<CsiFeedback> spec = (root, query, cb) -> cb.between(root.get("createdAt"), startOfYear, endOfMonth);
+        Specification<CsiFeedback> spec = (root, query, cb) -> cb.between(root.get("createdAt"), startOfPeriod, endOfMonth);
         List<CsiFeedback> all = csiFeedbackRepository.findAll(spec);
         if (all.isEmpty()) {
             return List.of();
@@ -384,16 +392,23 @@ public class CsiFeedbackService {
      * Список отзывов CSI для конкретного закупщика за период (нарастающим итогом январь–месяц).
      */
     public List<CsiFeedback> getKpiDetailsForPurchaser(int year, int month, String purchaser) {
+        return getKpiDetailsForPurchaserForMonthRange(year, 1, month, purchaser);
+    }
+
+    /**
+     * Список отзывов CSI для конкретного закупщика за диапазон месяцев года (startMonth–endMonth включительно).
+     */
+    public List<CsiFeedback> getKpiDetailsForPurchaserForMonthRange(int year, int startMonth, int endMonth, String purchaser) {
         if (purchaser == null || purchaser.isBlank()) return List.of();
-        LocalDateTime startOfYear = LocalDateTime.of(year, 1, 1, 0, 0);
-        int safeMonth = Math.max(1, Math.min(12, month));
+        LocalDateTime startOfPeriod = LocalDateTime.of(year, Math.max(1, Math.min(12, startMonth)), 1, 0, 0);
+        int safeMonth = Math.max(1, Math.min(12, endMonth));
         java.time.LocalDate lastDayOfMonth = java.time.LocalDate.of(year, safeMonth, 1)
                 .withDayOfMonth(java.time.LocalDate.of(year, safeMonth, 1).lengthOfMonth());
         LocalDateTime endOfMonth = lastDayOfMonth.atTime(23, 59, 59, 999_999_999);
         String purchaserKey = purchaser.trim();
 
         Specification<CsiFeedback> spec = (root, query, cb) -> cb.and(
-                cb.between(root.get("createdAt"), startOfYear, endOfMonth),
+                cb.between(root.get("createdAt"), startOfPeriod, endOfMonth),
                 cb.equal(root.get("purchaseRequest").get("purchaser"), purchaserKey)
         );
         List<CsiFeedback> all = csiFeedbackRepository.findAll(spec);

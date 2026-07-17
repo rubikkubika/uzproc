@@ -32,6 +32,9 @@ import { PurchasesByCfoTabContent } from './ui/PurchasesByCfoTabContent';
 import { PurchaserDistributionTabContent } from './ui/PurchaserDistributionTabContent';
 import { ContractStatesInWorkTabContent } from './ui/ContractStatesInWorkTabContent';
 import { KpiDashboard } from './kpi/KpiDashboard';
+import { KpiDashboard2 } from './kpi2/KpiDashboard2';
+import { ADMIN_LOGIN_ONLY_TABS } from './types/overview.types';
+import { useAuth } from '@/contexts/AuthContext';
 import { useHolidayDateKeys } from '@/hooks/useHolidayDateKeys';
 
 /**
@@ -40,6 +43,17 @@ import { useHolidayDateKeys } from '@/hooks/useHolidayDateKeys';
  */
 export default function Overview() {
   const { activeTopTab, setActiveTopTab, activeDashboardCategory, setActiveDashboardCategory, activeTab, setActiveTab } = useOverview();
+  // KPI премии 2 видит только пользователь с логином admin
+  const { userEmail, loading: authLoading } = useAuth();
+  const isAdminLogin = userEmail === 'admin';
+  const hiddenTabs = useMemo(() => (isAdminLogin ? [] : ADMIN_LOGIN_ONLY_TABS), [isAdminLogin]);
+  useEffect(() => {
+    // Если сохранённая вкладка недоступна текущему пользователю — переключаем на KPI премии
+    if (!authLoading && !isAdminLogin && ADMIN_LOGIN_ONLY_TABS.includes(activeTab)) {
+      setActiveTab('kpi');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, isAdminLogin, activeTab]);
   const currentYear = useMemo(() => new Date().getFullYear(), []);
   const [slaYear, setSlaYearState] = useState<number>(() => {
     if (typeof window === 'undefined') return currentYear;
@@ -345,6 +359,7 @@ export default function Overview() {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onExportPdf={handleExportPdf}
+        hiddenTabs={hiddenTabs}
       />
       
       <div className="w-full flex-1 min-h-0 flex flex-col">
@@ -523,6 +538,11 @@ export default function Overview() {
         {activeTopTab === 'dashboards' && activeTab === 'kpi' && (
           <div className="w-full">
             <KpiDashboard />
+          </div>
+        )}
+        {activeTopTab === 'dashboards' && activeTab === 'kpi2' && isAdminLogin && (
+          <div className="w-full">
+            <KpiDashboard2 />
           </div>
         )}
       </div>

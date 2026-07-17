@@ -34,6 +34,7 @@ import TrainingPage from './training/_components/TrainingPage';
 import HolidaysReferencePage from './reference-holidays/_components/HolidaysReferencePage';
 import CfoLeadersReferencePage from './reference-cfo-leaders/_components/CfoLeadersReferencePage';
 import SendingCenter from './sending-center/_components/SendingCenter';
+import EtpSection from './etp/_components/EtpSection';
 
 // Компонент для тестирования отправки почты
 function TestEmailForm() {
@@ -295,6 +296,13 @@ function DashboardContent() {
     switch (activeTab) {
       case 'overview':
         return <Overview />;
+
+      case 'etp':
+        return (
+          <div className="h-full flex flex-col min-h-0">
+            <EtpSection />
+          </div>
+        );
 
       case 'workload':
         return (

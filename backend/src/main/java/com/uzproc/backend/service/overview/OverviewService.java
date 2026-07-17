@@ -1619,11 +1619,39 @@ public class OverviewService {
         return response;
     }
 
+    /** Первый месяц квартала (1–4 → 1, 4, 7, 10). */
+    private static int quarterStartMonth(int quarter) {
+        int safeQuarter = Math.max(1, Math.min(4, quarter));
+        return (safeQuarter - 1) * 3 + 1;
+    }
+
+    /** Последний месяц квартала (1–4 → 3, 6, 9, 12). */
+    private static int quarterEndMonth(int quarter) {
+        return quarterStartMonth(quarter) + 2;
+    }
+
     /**
-     * KPI экономии: экономия и бюджет по каждому закупщику за конкретный месяц года.
+     * KPI экономии: экономия и бюджет по каждому закупщику за конкретный месяц года
+     * (нарастающим итогом: январь–месяц).
      */
     public KpiSavingsResponseDto getKpiSavingsData(int year, int month) {
-        logger.info("getKpiSavingsData: year={}, month={}", year, month);
+        return getKpiSavingsDataForMonthRange(year, 1, month);
+    }
+
+    /**
+     * KPI экономии (премия 2): только закупки, завершённые в выбранном квартале (не нарастающим итогом).
+     */
+    public KpiSavingsResponseDto getKpiSavingsDataForQuarter(int year, int quarter) {
+        logger.info("getKpiSavingsDataForQuarter: year={}, quarter={}", year, quarter);
+        return getKpiSavingsDataForMonthRange(year, quarterStartMonth(quarter), quarterEndMonth(quarter));
+    }
+
+    /**
+     * KPI экономии: экономия и бюджет по каждому закупщику за диапазон месяцев года
+     * (по дате завершения «Закупочной комиссии», startMonth–endMonth включительно).
+     */
+    public KpiSavingsResponseDto getKpiSavingsDataForMonthRange(int year, int startMonth, int endMonth) {
+        logger.info("getKpiSavingsData: year={}, months={}-{}", year, startMonth, endMonth);
 
         var spec = (org.springframework.data.jpa.domain.Specification<com.uzproc.backend.entity.purchase.Purchase>) (root, query, cb) -> {
             if (query.getResultType() == com.uzproc.backend.entity.purchase.Purchase.class) {
@@ -1666,13 +1694,14 @@ public class OverviewService {
             }
         }
 
-        // Фильтруем нарастающим итогом: год + месяц <= выбранного (январь–месяц)
+        // Фильтруем по диапазону месяцев завершения комиссии (startMonth–endMonth включительно)
         List<com.uzproc.backend.entity.purchase.Purchase> monthPurchases = allCompleted.stream()
             .filter(p -> {
                 Long prId = p.getPurchaseRequestId();
                 if (prId == null) return false;
                 LocalDateTime cd = completionDateByPrId.get(prId);
-                return cd != null && cd.getYear() == year && cd.getMonthValue() <= month;
+                return cd != null && cd.getYear() == year
+                    && cd.getMonthValue() >= startMonth && cd.getMonthValue() <= endMonth;
             })
             .toList();
 
@@ -1720,7 +1749,7 @@ public class OverviewService {
 
         KpiSavingsResponseDto response = new KpiSavingsResponseDto();
         response.setYear(year);
-        response.setMonth(month);
+        response.setMonth(endMonth);
         response.setByPurchaser(byPurchaser);
         return response;
     }
@@ -1732,7 +1761,23 @@ public class OverviewService {
      * Плановый срок SLA: 1→3, 2→7, 3→15, 4→30 рабочих дней (или явное plannedSlaDays).
      */
     public KpiSlaResponseDto getKpiSlaData(int year, int month) {
-        logger.info("getKpiSlaData: year={}, month={}", year, month);
+        return getKpiSlaDataForMonthRange(year, 1, month);
+    }
+
+    /**
+     * KPI SLA (премия 2): только закупки, завершённые в выбранном квартале (не нарастающим итогом).
+     */
+    public KpiSlaResponseDto getKpiSlaDataForQuarter(int year, int quarter) {
+        logger.info("getKpiSlaDataForQuarter: year={}, quarter={}", year, quarter);
+        return getKpiSlaDataForMonthRange(year, quarterStartMonth(quarter), quarterEndMonth(quarter));
+    }
+
+    /**
+     * KPI SLA по закупщикам за диапазон месяцев года (по месяцу завершения закупки,
+     * startMonth–endMonth включительно). Логика идентична месячному KPI.
+     */
+    public KpiSlaResponseDto getKpiSlaDataForMonthRange(int year, int startMonth, int endMonth) {
+        logger.info("getKpiSlaData: year={}, months={}-{}", year, startMonth, endMonth);
         // Лёгкий путь (без N+1 полного toDto): сущности + батч-загрузка согласований
         List<OverviewSlaBlockDto> blocks = buildSlaBlocksFromEntities(null, year);
         List<OverviewSlaRequestDto> allRequests = blocks.stream()
@@ -1747,7 +1792,7 @@ public class OverviewService {
             if (assignment == null || completion == null) continue;
             if (assignment.isBefore(SLA_ASSIGNMENT_CUTOFF)) continue;
             if (completion.getYear() != year) continue;
-            if (completion.getMonthValue() > month) continue;
+            if (completion.getMonthValue() < startMonth || completion.getMonthValue() > endMonth) continue;
             String purchaser = r.getPurchaser();
             if (purchaser == null || purchaser.trim().isEmpty()) purchaser = "Не назначен";
             else purchaser = purchaser.trim();
@@ -1780,7 +1825,7 @@ public class OverviewService {
 
         KpiSlaResponseDto response = new KpiSlaResponseDto();
         response.setYear(year);
-        response.setMonth(month);
+        response.setMonth(endMonth);
         response.setByPurchaser(byPurchaser);
         return response;
     }
@@ -1790,7 +1835,23 @@ public class OverviewService {
      * список заявок, чьи завершения попадают в этот период, с плановым и фактическим SLA.
      */
     public List<KpiSlaDetailDto> getKpiSlaDetails(int year, int month, String purchaser) {
-        logger.info("getKpiSlaDetails: year={}, month={}, purchaser={}", year, month, purchaser);
+        return getKpiSlaDetailsForMonthRange(year, 1, month, purchaser);
+    }
+
+    /**
+     * Детали KPI SLA (премия 2) для конкретного закупщика: только закупки, завершённые в выбранном квартале.
+     */
+    public List<KpiSlaDetailDto> getKpiSlaDetailsForQuarter(int year, int quarter, String purchaser) {
+        logger.info("getKpiSlaDetailsForQuarter: year={}, quarter={}, purchaser={}", year, quarter, purchaser);
+        return getKpiSlaDetailsForMonthRange(year, quarterStartMonth(quarter), quarterEndMonth(quarter), purchaser);
+    }
+
+    /**
+     * Детали KPI SLA для конкретного закупщика за диапазон месяцев года
+     * (по месяцу завершения закупки, startMonth–endMonth включительно).
+     */
+    public List<KpiSlaDetailDto> getKpiSlaDetailsForMonthRange(int year, int startMonth, int endMonth, String purchaser) {
+        logger.info("getKpiSlaDetails: year={}, months={}-{}, purchaser={}", year, startMonth, endMonth, purchaser);
         if (purchaser == null || purchaser.isBlank()) return List.of();
         String purchaserKey = purchaser.trim();
 
@@ -1806,7 +1867,7 @@ public class OverviewService {
                 if (assignment == null || completion == null) continue;
                 if (assignment.isBefore(SLA_ASSIGNMENT_CUTOFF)) continue;
                 if (completion.getYear() != year) continue;
-                if (completion.getMonthValue() > month) continue;
+                if (completion.getMonthValue() < startMonth || completion.getMonthValue() > endMonth) continue;
 
                 KpiSlaDetailDto dto = new KpiSlaDetailDto();
                 dto.setId(r.getId());
@@ -1846,8 +1907,23 @@ public class OverviewService {
      * KPI CSI по закупщикам за конкретный месяц года (нарастающим итогом: январь–месяц).
      */
     public KpiCsiResponseDto getKpiCsiData(int year, int month) {
-        logger.info("getKpiCsiData: year={}, month={}", year, month);
-        List<CsiFeedbackStatsByPurchaserDto> stats = csiFeedbackService.getKpiStatsByPurchaserCumulative(year, month);
+        return getKpiCsiDataForMonthRange(year, 1, month);
+    }
+
+    /**
+     * KPI CSI (премия 2): только отзывы, созданные в выбранном квартале (не нарастающим итогом).
+     */
+    public KpiCsiResponseDto getKpiCsiDataForQuarter(int year, int quarter) {
+        logger.info("getKpiCsiDataForQuarter: year={}, quarter={}", year, quarter);
+        return getKpiCsiDataForMonthRange(year, quarterStartMonth(quarter), quarterEndMonth(quarter));
+    }
+
+    /**
+     * KPI CSI по закупщикам за диапазон месяцев года (startMonth–endMonth включительно).
+     */
+    public KpiCsiResponseDto getKpiCsiDataForMonthRange(int year, int startMonth, int endMonth) {
+        logger.info("getKpiCsiData: year={}, months={}-{}", year, startMonth, endMonth);
+        List<CsiFeedbackStatsByPurchaserDto> stats = csiFeedbackService.getKpiStatsByPurchaserForMonthRange(year, startMonth, endMonth);
         List<KpiCsiByPurchaserDto> byPurchaser = new ArrayList<>();
         for (CsiFeedbackStatsByPurchaserDto s : stats) {
             KpiCsiByPurchaserDto dto = new KpiCsiByPurchaserDto();
@@ -1863,7 +1939,7 @@ public class OverviewService {
         });
         KpiCsiResponseDto response = new KpiCsiResponseDto();
         response.setYear(year);
-        response.setMonth(month);
+        response.setMonth(endMonth);
         response.setByPurchaser(byPurchaser);
         return response;
     }
@@ -1872,9 +1948,24 @@ public class OverviewService {
      * Детали отзывов CSI для конкретного закупщика за период (нарастающим итогом январь–месяц).
      */
     public List<KpiCsiDetailDto> getKpiCsiDetails(int year, int month, String purchaser) {
-        logger.info("getKpiCsiDetails: year={}, month={}, purchaser={}", year, month, purchaser);
+        return getKpiCsiDetailsForMonthRange(year, 1, month, purchaser);
+    }
+
+    /**
+     * Детали отзывов CSI (премия 2) для конкретного закупщика: только отзывы выбранного квартала.
+     */
+    public List<KpiCsiDetailDto> getKpiCsiDetailsForQuarter(int year, int quarter, String purchaser) {
+        logger.info("getKpiCsiDetailsForQuarter: year={}, quarter={}, purchaser={}", year, quarter, purchaser);
+        return getKpiCsiDetailsForMonthRange(year, quarterStartMonth(quarter), quarterEndMonth(quarter), purchaser);
+    }
+
+    /**
+     * Детали отзывов CSI для конкретного закупщика за диапазон месяцев года (startMonth–endMonth включительно).
+     */
+    public List<KpiCsiDetailDto> getKpiCsiDetailsForMonthRange(int year, int startMonth, int endMonth, String purchaser) {
+        logger.info("getKpiCsiDetails: year={}, months={}-{}, purchaser={}", year, startMonth, endMonth, purchaser);
         List<com.uzproc.backend.entity.csifeedback.CsiFeedback> feedbacks =
-                csiFeedbackService.getKpiDetailsForPurchaser(year, month, purchaser);
+                csiFeedbackService.getKpiDetailsForPurchaserForMonthRange(year, startMonth, endMonth, purchaser);
         List<KpiCsiDetailDto> result = new ArrayList<>();
         for (com.uzproc.backend.entity.csifeedback.CsiFeedback f : feedbacks) {
             KpiCsiDetailDto dto = new KpiCsiDetailDto();
@@ -1915,7 +2006,25 @@ public class OverviewService {
     }
 
     public List<OverviewSavingsPurchaseDetailDto> getSavingsPurchaseDetails(int year, Integer month, String purchaser) {
-        logger.info("getSavingsPurchaseDetails: year={}, month={}, purchaser={}", year, month, purchaser);
+        // Нарастающим итогом: январь–месяц (или весь год, если месяц не указан)
+        return getSavingsPurchaseDetailsForMonthRange(year, month != null ? 1 : null, month, purchaser);
+    }
+
+    /**
+     * Детали закупок с экономией (премия 2) для конкретного закупщика: только завершённые в выбранном квартале.
+     */
+    public List<OverviewSavingsPurchaseDetailDto> getSavingsPurchaseDetailsForQuarter(int year, int quarter, String purchaser) {
+        logger.info("getSavingsPurchaseDetailsForQuarter: year={}, quarter={}, purchaser={}", year, quarter, purchaser);
+        return getSavingsPurchaseDetailsForMonthRange(year, quarterStartMonth(quarter), quarterEndMonth(quarter), purchaser);
+    }
+
+    /**
+     * Детали закупок с экономией для конкретного закупщика за диапазон месяцев года
+     * (по дате завершения «Закупочной комиссии»; null-границы — без ограничения).
+     */
+    public List<OverviewSavingsPurchaseDetailDto> getSavingsPurchaseDetailsForMonthRange(
+            int year, Integer startMonth, Integer endMonth, String purchaser) {
+        logger.info("getSavingsPurchaseDetails: year={}, months={}-{}, purchaser={}", year, startMonth, endMonth, purchaser);
 
         var spec = (org.springframework.data.jpa.domain.Specification<com.uzproc.backend.entity.purchase.Purchase>) (root, query, cb) -> {
             if (query.getResultType() == com.uzproc.backend.entity.purchase.Purchase.class) {
@@ -1957,14 +2066,15 @@ public class OverviewService {
             }
         }
 
-        // Фильтруем по году (и месяцу) завершения комиссии
+        // Фильтруем по году (и диапазону месяцев) завершения комиссии
         List<com.uzproc.backend.entity.purchase.Purchase> purchases = allPurchases.stream()
             .filter(p -> {
                 Long prId = p.getPurchaseRequestId();
                 if (prId == null) return false;
                 LocalDateTime cd = completionDateByPrId.get(prId);
                 if (cd == null || cd.getYear() != year) return false;
-                return month == null || cd.getMonthValue() <= month;
+                if (startMonth != null && cd.getMonthValue() < startMonth) return false;
+                return endMonth == null || cd.getMonthValue() <= endMonth;
             })
             .toList();
 

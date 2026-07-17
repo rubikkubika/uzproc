@@ -26,6 +26,7 @@ const DASHBOARD_SUB_TAB_LABELS: Record<OverviewTab, string> = {
   'purchaser-distribution': 'Распределение по закупщикам',
   'contract-states-in-work': 'Состояния договоров (в работе)',
   kpi: 'KPI премии',
+  kpi2: 'KPI премии 2',
 };
 
 interface OverviewTabsProps {
@@ -36,6 +37,8 @@ interface OverviewTabsProps {
   activeTab: OverviewTab;
   onTabChange: (tab: OverviewTab) => void;
   onExportPdf?: () => void;
+  /** Вкладки, скрытые для текущего пользователя (например, kpi2 — только для логина admin) */
+  hiddenTabs?: OverviewTab[];
 }
 
 const topTabs: OverviewTopTabItem[] = [
@@ -57,11 +60,14 @@ export function OverviewTabs({
   activeTab,
   onTabChange,
   onExportPdf,
+  hiddenTabs = [],
 }: OverviewTabsProps) {
-  const categoryTabs: OverviewTabItem[] = DASHBOARD_CATEGORY_TABS[activeDashboardCategory].map((id) => ({
-    id,
-    label: DASHBOARD_SUB_TAB_LABELS[id],
-  }));
+  const categoryTabs: OverviewTabItem[] = DASHBOARD_CATEGORY_TABS[activeDashboardCategory]
+    .filter((id) => !hiddenTabs.includes(id))
+    .map((id) => ({
+      id,
+      label: DASHBOARD_SUB_TAB_LABELS[id],
+    }));
 
   return (
     <div className="bg-white rounded shadow">

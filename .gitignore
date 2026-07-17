@@ -115,3 +115,12 @@ build/
 
 # Presentation (local only, not in git/docker)
 /presentation/
+
+# ЭТП: служебные дампы данных b2biz (local only, not in git)
+/etp/
+
+# ЭТП: все данные (снапшот data.json + документы закупок) — not in git
+/frontend/public/etp/
+
+# Claude Code personal overrides
+.claude/settings.local.json

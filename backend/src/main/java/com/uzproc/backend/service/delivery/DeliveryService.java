@@ -421,7 +421,8 @@ public class DeliveryService {
      * Условия: выбрана схема из справочника (с процентами аванс/доплата) и задана сумма поставки.
      *   • Полная постоплата (0/100): все оплаты — «По факту».
      *   • Полный аванс (100/0): все оплаты — «Аванс».
-     *   • Иначе распределяем, если оплаты «сходятся»: их суммарная сумма равна сумме поставки
+     *   • Иначе распределяем, если оплаты «сходятся»: их суммарная сумма не превышает сумму
+     *     поставки (допускается частичная оплата — напр. проведён только аванс, доплата позже)
      *     и среди них есть группа, дающая в сумме долю аванса (amount·adv%) с точностью до
      *     округления ({@link #DISTRIBUTION_TOLERANCE}); остальные оплаты — «По факту».
      *     Группа подбирается перебором комбинаций, а не сопоставлением каждой оплаты
@@ -450,13 +451,15 @@ public class DeliveryService {
 
         if (amount == null || amount.signum() <= 0) return;
 
-        // Суммарная сумма оплат должна сходиться с суммой поставки.
+        // Сумма оплат не должна превышать сумму поставки. Частичная оплата допускается:
+        // на момент распределения может быть проведён только аванс, а доплата придёт позже —
+        // достаточно, чтобы среди оплат набиралась доля аванса (см. ниже findAdvanceGroup).
         BigDecimal total = BigDecimal.ZERO;
         for (Payment p : payments) {
             if (p.getAmount() == null) return; // нет суммы — не распределяем
             total = total.add(p.getAmount());
         }
-        if (total.compareTo(amount) != 0) return;
+        if (total.subtract(amount).compareTo(DISTRIBUTION_TOLERANCE) > 0) return;
 
         BigDecimal advTarget = amount.multiply(BigDecimal.valueOf(adv))
                 .divide(BigDecimal.valueOf(100), 4, java.math.RoundingMode.HALF_UP);
@@ -503,7 +506,10 @@ public class DeliveryService {
         int bestMask = -1;
         int bestLast = Integer.MAX_VALUE;
         int bestSize = Integer.MAX_VALUE;
-        for (int mask = 1; mask < (1 << n) - 1; mask++) { // без пустой группы и без «все в аванс»
+        // Полная группа допустима: при частичной оплате все проведённые оплаты могут быть авансом
+        // (напр. оплачен только аванс). При total==amount полная группа сумму аванса не наберёт
+        // (её сумма равна amount > advTarget), поэтому лишней разметки это не создаёт.
+        for (int mask = 1; mask < (1 << n); mask++) { // без пустой группы
             BigDecimal sum = BigDecimal.ZERO;
             int last = -1;
             int size = 0;

@@ -87,13 +87,15 @@ interface KpiSlaBlockProps {
   error: string | null;
   year: number;
   month: number;
+  /** Квартальный режим «Премия 2»: детали грузятся только за выбранный квартал */
+  quarter?: number;
 }
 
-export function KpiSlaBlock({ data, settings, onSettingsChange, onSettingsReset, loading, error, year, month }: KpiSlaBlockProps) {
+export function KpiSlaBlock({ data, settings, onSettingsChange, onSettingsReset, loading, error, year, month, quarter }: KpiSlaBlockProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [selectedPurchaser, setSelectedPurchaser] = useState<string | null>(null);
   const maxScorePercent = settings.allowBoost ? 130 : 100;
-  const details = useKpiSlaDetails(year, month, selectedPurchaser);
+  const details = useKpiSlaDetails(year, month, selectedPurchaser, quarter);
 
   const handleRowClick = (purchaser: string) => {
     setSelectedPurchaser((prev) => (prev === purchaser ? null : purchaser));
@@ -138,7 +140,7 @@ export function KpiSlaBlock({ data, settings, onSettingsChange, onSettingsReset,
           <div className="px-3 py-4 text-center text-xs text-red-500">{error}</div>
         )}
         {!loading && !error && data.length === 0 && (
-          <div className="px-3 py-4 text-center text-xs text-gray-400">Нет данных за выбранный месяц</div>
+          <div className="px-3 py-4 text-center text-xs text-gray-400">Нет данных за выбранный период</div>
         )}
         {!loading && !error && data.length > 0 && (
           <div className="overflow-x-auto">
