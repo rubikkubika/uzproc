@@ -218,7 +218,8 @@ export default function PurchaseRequestDetailPage() {
   const [isSavingExclusion, setIsSavingExclusion] = useState(false);
   const [showChanges, setShowChanges] = useState(false);
   // Переключатель между старым и новым (редизайн) представлением страницы
-  const [useNewDesign, setUseNewDesign] = useState(false);
+  // По умолчанию открываем новый дизайн
+  const [useNewDesign, setUseNewDesign] = useState(true);
   const [changesList, setChangesList] = useState<PurchaseRequestChangeItem[]>([]);
   const [changesLoading, setChangesLoading] = useState(false);
   /** Данные попапа комментария (рендер в портале, чтобы не обрезался). */
@@ -262,8 +263,9 @@ export default function PurchaseRequestDetailPage() {
         setActiveTab(savedTab);
       }
 
-      if (localStorage.getItem(PR_NEW_DESIGN_KEY) === 'true') {
-        setUseNewDesign(true);
+      // Новый дизайн по умолчанию включён; выключаем только если пользователь явно сохранил 'false'
+      if (localStorage.getItem(PR_NEW_DESIGN_KEY) === 'false') {
+        setUseNewDesign(false);
       }
     } catch (err) {
       // Игнорируем ошибки
