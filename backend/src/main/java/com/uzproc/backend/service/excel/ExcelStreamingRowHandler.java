@@ -97,6 +97,8 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private static final String PLAN_COLUMN = "План (Заявка на ЗП)";
     private static final String PREPARED_BY_COLUMN = "Подготовил";
     private static final String EMAIL_PREPARED_BY_COLUMN = "Email(Подготовил)";
+    /** Общая колонка "Email" в выгрузке — это адрес того, кто подготовил документ ("Подготовил"). */
+    private static final String EMAIL_COLUMN = "Email";
     private static final String EMAIL_PURCHASER_COLUMN = "Email(Закупщик)";
     private static final String PURCHASER_COLUMN = "Ответственный за ЗП (Закупочная процедура)";
     private static final String LINK_COLUMN = "Ссылка";
@@ -1533,9 +1535,14 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     
     private void processUserRow() {
         try {
-            // Email для пользователя из колонки "Подготовил"
+            // Email для пользователя из колонки "Подготовил".
+            // В выгрузке есть только одна общая колонка "Email" — это адрес того, кто подготовил документ.
+            // Принимаем как явную "Email(Подготовил)", так и общую "Email" (точное совпадение приоритетнее).
             String emailPreparedBy = null;
             Integer emailPreparedByCol = columnIndices.get(EMAIL_PREPARED_BY_COLUMN);
+            if (emailPreparedByCol == null) {
+                emailPreparedByCol = columnIndices.get(EMAIL_COLUMN);
+            }
             if (emailPreparedByCol == null) {
                 emailPreparedByCol = findColumnIndex(EMAIL_PREPARED_BY_COLUMN);
             }
@@ -1546,12 +1553,12 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 }
             }
 
-            // Email для пользователя из колонки "Ответственный за ЗП"
+            // Email для пользователя из колонки "Ответственный за ЗП".
+            // ВАЖНО: ищем ТОЛЬКО точную колонку "Email(Закупщик)". Никакого нечёткого поиска —
+            // иначе общая колонка "Email" (адрес "Подготовил") ошибочно приписывается закупщику
+            // и затирает его настоящий email (см. кейс Иссаковой ← t.danilova@uzum.com).
             String emailPurchaser = null;
             Integer emailPurchaserCol = columnIndices.get(EMAIL_PURCHASER_COLUMN);
-            if (emailPurchaserCol == null) {
-                emailPurchaserCol = findColumnIndex(EMAIL_PURCHASER_COLUMN);
-            }
             if (emailPurchaserCol != null) {
                 String emailVal = currentRowData.get(emailPurchaserCol);
                 if (emailVal != null && !emailVal.trim().isEmpty()) {
