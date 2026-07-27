@@ -64,6 +64,12 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     
     // Индексы колонок (определяются из заголовка)
     private Map<String, Integer> columnIndices = new HashMap<>();
+    /**
+     * Все индексы для каждого заголовка — в выгрузке встречаются одноимённые колонки ("Email",
+     * "Вид документа"). В {@link #columnIndices} остаётся только одно вхождение, здесь — все,
+     * по возрастанию индекса.
+     */
+    private final Map<String, List<Integer>> allColumnIndices = new HashMap<>();
     private boolean headerProcessed = false;
     private int currentRowNum = -1;
     private Map<Integer, String> currentRowData = new HashMap<>();
@@ -96,10 +102,13 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private static final String REQUIRES_PURCHASE_COLUMN = "Требуется Закупка";
     private static final String PLAN_COLUMN = "План (Заявка на ЗП)";
     private static final String PREPARED_BY_COLUMN = "Подготовил";
-    private static final String EMAIL_PREPARED_BY_COLUMN = "Email(Подготовил)";
-    /** Общая колонка "Email" в выгрузке — это адрес того, кто подготовил документ ("Подготовил"). */
+    /**
+     * Единственная колонка, из которой берётся email. Сопоставление строго по точному названию.
+     * В выгрузке заголовок "Email" встречается дважды: первое вхождение идёт следом за "Подготовил"
+     * (адрес подготовившего), второе — следом за "Ответственный за ЗП" (адрес закупщика).
+     * Берём строго ПЕРВОЕ вхождение: адрес закупщика из файла не читается вообще.
+     */
     private static final String EMAIL_COLUMN = "Email";
-    private static final String EMAIL_PURCHASER_COLUMN = "Email(Закупщик)";
     private static final String PURCHASER_COLUMN = "Ответственный за ЗП (Закупочная процедура)";
     private static final String LINK_COLUMN = "Ссылка";
     /** Колонка "Закупочная процедура (Договор)": формат "ЗП по заявке: ... N 1782 - ...", 1782 — номер заявки (id_purchase_request). */
@@ -280,7 +289,8 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
             if (entry.getValue() != null && !entry.getValue().trim().isEmpty()) {
                 String headerName = entry.getValue().trim();
                 columnIndices.put(headerName, entry.getKey());
-                
+                allColumnIndices.computeIfAbsent(headerName, k -> new ArrayList<>()).add(entry.getKey());
+
                 // Сохраняем названия колонок для проверки инвертированной логики
                 if (headerName.contains("Требуется") || headerName.contains("Не требуется")) {
                     requiresPurchaseColumnName = headerName;
@@ -290,6 +300,8 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 }
             }
         }
+        // currentRowData — HashMap, порядок обхода не гарантирован: упорядочиваем вхождения по индексу колонки
+        allColumnIndices.values().forEach(Collections::sort);
         headerProcessed = true;
         logger.info("Processed header row with {} columns", columnIndices.size());
         
@@ -1536,33 +1548,17 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private void processUserRow() {
         try {
             // Email для пользователя из колонки "Подготовил".
-            // В выгрузке есть только одна общая колонка "Email" — это адрес того, кто подготовил документ.
-            // Принимаем как явную "Email(Подготовил)", так и общую "Email" (точное совпадение приоритетнее).
+            // ВАЖНО: колонка определяется ТОЛЬКО по точному названию "Email" — никаких синонимов
+            // и нечёткого поиска. Заголовок в выгрузке встречается дважды: первое вхождение
+            // относится к "Подготовил", второе — к "Ответственный за ЗП". Берём строго первое,
+            // иначе адрес закупщика приписывается подготовившему документ и затирает его
+            // настоящий email (кейс: o.kireeva@uzum.com разошёлся по 20 разным сотрудникам).
             String emailPreparedBy = null;
-            Integer emailPreparedByCol = columnIndices.get(EMAIL_PREPARED_BY_COLUMN);
-            if (emailPreparedByCol == null) {
-                emailPreparedByCol = columnIndices.get(EMAIL_COLUMN);
-            }
-            if (emailPreparedByCol == null) {
-                emailPreparedByCol = findColumnIndex(EMAIL_PREPARED_BY_COLUMN);
-            }
+            Integer emailPreparedByCol = firstColumnIndex(EMAIL_COLUMN);
             if (emailPreparedByCol != null) {
                 String emailVal = currentRowData.get(emailPreparedByCol);
                 if (emailVal != null && !emailVal.trim().isEmpty()) {
                     emailPreparedBy = emailVal.trim();
-                }
-            }
-
-            // Email для пользователя из колонки "Ответственный за ЗП".
-            // ВАЖНО: ищем ТОЛЬКО точную колонку "Email(Закупщик)". Никакого нечёткого поиска —
-            // иначе общая колонка "Email" (адрес "Подготовил") ошибочно приписывается закупщику
-            // и затирает его настоящий email (см. кейс Иссаковой ← t.danilova@uzum.com).
-            String emailPurchaser = null;
-            Integer emailPurchaserCol = columnIndices.get(EMAIL_PURCHASER_COLUMN);
-            if (emailPurchaserCol != null) {
-                String emailVal = currentRowData.get(emailPurchaserCol);
-                if (emailVal != null && !emailVal.trim().isEmpty()) {
-                    emailPurchaser = emailVal.trim();
                 }
             }
 
@@ -1576,12 +1572,14 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 }
             }
 
-            // Обрабатываем пользователей из колонки "Ответственный за ЗП (Закупочная процедура)"
+            // Обрабатываем пользователей из колонки "Ответственный за ЗП (Закупочная процедура)".
+            // Email закупщика из выгрузки не читается и не обновляется: в файле нет колонки,
+            // однозначно привязанной к закупщику, а любая попытка её угадать портит чужие адреса.
             Integer purchaserCol = columnIndices.get(PURCHASER_COLUMN);
             if (purchaserCol != null) {
                 String purchaser = currentRowData.get(purchaserCol);
                 if (purchaser != null && !purchaser.trim().isEmpty()) {
-                    excelLoadService.parseAndSaveUser(purchaser.trim(), emailPurchaser);
+                    excelLoadService.parseAndSaveUser(purchaser.trim());
                     usersCount++;
                 }
             }
@@ -1757,6 +1755,16 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
         if (lower.contains("на регистрации")) return ContractStatus.ON_REGISTRATION;
         if ("проект".equals(lower)) return ContractStatus.PROJECT;
         return null;
+    }
+
+    /**
+     * Индекс ПЕРВОГО вхождения колонки с точным названием {@code columnName}.
+     * Нужен для одноимённых колонок выгрузки (например, двух колонок "Email"),
+     * где {@link #columnIndices} хранит только одно вхождение. Нечёткого поиска не делает.
+     */
+    private Integer firstColumnIndex(String columnName) {
+        List<Integer> indices = allColumnIndices.get(columnName);
+        return (indices == null || indices.isEmpty()) ? null : indices.get(0);
     }
 
     private Integer findColumnIndex(String columnName) {
