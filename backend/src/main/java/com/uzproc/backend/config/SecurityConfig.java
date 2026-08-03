@@ -64,6 +64,11 @@ public class SecurityConfig {
                     // Список/статистика/приглашения CSI — только для аутентифицированных
                     .requestMatchers(HttpMethod.GET, "/csi-feedback/form/**").permitAll()
                     .requestMatchers(HttpMethod.POST, "/csi-feedback").permitAll()
+                    // Публичная форма оценки по спецификациям: загрузка формы по токену (GET)
+                    // и отправка оценки (POST). Сводка /specification-feedback/dashboard —
+                    // только для аутентифицированных (попадает под anyRequest().authenticated())
+                    .requestMatchers(HttpMethod.GET, "/specification-feedback/form/**").permitAll()
+                    .requestMatchers(HttpMethod.POST, "/specification-feedback/form/**").permitAll()
                     // Управление пользователями — только ADMIN
                     .requestMatchers("/users/**").hasRole("ADMIN")
                     // Всё остальное (включая мутации плана, версии плана, change-password,

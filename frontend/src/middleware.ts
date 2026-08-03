@@ -17,9 +17,19 @@ export async function middleware(request: NextRequest) {
   const isPurchaseTrackerPage = path.startsWith('/purchase-tracker');
   const isPortalPage = path.startsWith('/portal');
   const isCSIFeedbackPage = path.startsWith('/csi/feedback');
+  // Публичная форма оценки по спецификациям — только страница по токену
+  // (/specification-feedback/<token>). Корневой /specification-feedback — внутренний
+  // дашборд сводки, он остаётся закрытым.
+  const isSpecificationFeedbackPage = /^\/specification-feedback\/[^/]+/.test(path);
 
   const isPublicPage =
-    isPublicPlanPage || isPublicTrainingPage || isPurchaseTrackerPage || isPortalPage || isCSIFeedbackPage || isChangePasswordPage;
+    isPublicPlanPage ||
+    isPublicTrainingPage ||
+    isPurchaseTrackerPage ||
+    isPortalPage ||
+    isCSIFeedbackPage ||
+    isSpecificationFeedbackPage ||
+    isChangePasswordPage;
 
   // «Простой» пользователь — авторизован, но без роли admin и без флагов закупщик/договорник.
   // Ему доступны ТОЛЬКО трекер и публичный план. Флаги берём из подписанного JWT.

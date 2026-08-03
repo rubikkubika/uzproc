@@ -75,7 +75,7 @@ export async function fetchSpecificationFeedbackForm(
   token: string,
   signal?: AbortSignal
 ): Promise<SpecificationFeedbackForm> {
-  const url = `${getBackendUrl()}/api/specification-feedback/${encodeURIComponent(token)}`;
+  const url = `${getBackendUrl()}/api/specification-feedback/form/${encodeURIComponent(token)}`;
   const response = await fetch(url, { signal });
   if (!response.ok) {
     if (response.status === 404 || response.status === 400 || response.status === 500) {
@@ -91,7 +91,7 @@ export async function submitSpecificationFeedback(
   token: string,
   body: SpecificationFeedbackSubmit
 ): Promise<SpecificationFeedbackForm> {
-  const url = `${getBackendUrl()}/api/specification-feedback/${encodeURIComponent(token)}`;
+  const url = `${getBackendUrl()}/api/specification-feedback/form/${encodeURIComponent(token)}`;
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

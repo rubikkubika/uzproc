@@ -31,14 +31,18 @@ public class SpecificationFeedbackController {
         return ResponseEntity.ok(specificationFeedbackService.getDashboard());
     }
 
-    /** GET /specification-feedback/{token} — данные формы (ЦФО, месяц, спецификации, статус). */
-    @GetMapping("/{token}")
+    /**
+     * GET /specification-feedback/form/{token} — данные формы (ЦФО, месяц, спецификации, статус).
+     * Публичный endpoint (по аналогии с CSI): доступен без аутентификации по токену приглашения.
+     * Префикс /form/ отделяет публичные пути от закрытых (например, /dashboard).
+     */
+    @GetMapping("/form/{token}")
     public ResponseEntity<SpecificationFeedbackFormDto> getForm(@PathVariable String token) {
         return ResponseEntity.ok(specificationFeedbackService.getByToken(token));
     }
 
-    /** POST /specification-feedback/{token} — сохранить оценку. */
-    @PostMapping("/{token}")
+    /** POST /specification-feedback/form/{token} — сохранить оценку. Публичный endpoint. */
+    @PostMapping("/form/{token}")
     public ResponseEntity<SpecificationFeedbackFormDto> submit(@PathVariable String token,
                                                                @RequestBody SpecificationFeedbackSubmitDto body) {
         return ResponseEntity.ok(specificationFeedbackService.submit(token, body));
