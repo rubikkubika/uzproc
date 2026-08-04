@@ -225,6 +225,13 @@ export default function PurchaseRequestDetailPage() {
   /** Данные попапа комментария (рендер в портале, чтобы не обрезался). */
   const [commentPopoverData, setCommentPopoverData] = useState<{ id: number; commentText: string; left: number; top: number } | null>(null);
 
+  /** Открыть/закрыть попап комментария согласования (используется и в редизайне). */
+  const showApprovalComment = (id: number, commentText: string, anchor: DOMRect) => {
+    const popoverW = 360;
+    const left = Math.max(16, Math.min(anchor.left, (typeof window !== 'undefined' ? window.innerWidth : 400) - popoverW - 16));
+    setCommentPopoverData(prev => (prev?.id === id ? null : { id, commentText, left, top: anchor.top }));
+  };
+
   // Закрытие попапа комментария при клике вне его (слушатель ставим в следующем тике)
   useEffect(() => {
     if (commentPopoverData == null) return;
@@ -341,13 +348,21 @@ export default function PurchaseRequestDetailPage() {
     }
   };
 
+  /** Открыть окно исключения договора по id (используется в редизайне). Только для admin. */
+  const openContractExclusionModal = (contractId: number) => {
+    if (userRole !== 'admin') return;
+    const contract = (purchaseRequest?.contracts ?? []).find((c) => c.id === contractId);
+    if (contract) setContractExclusionModal(contract);
+  };
+
   const handleSaveContractExclusion = async () => {
     if (!contractExclusionModal || !purchaseRequest) return;
+    if (userRole !== 'admin') return;
     setIsSavingExclusion(true);
     try {
       const res = await fetch(`${getBackendUrl()}/api/contracts/${contractExclusionModal.id}/exclusion`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-User-Role': userRole || 'user' },
         body: JSON.stringify({
           excludedFromStatusCalculation: exclusionForm.excludedFromStatusCalculation,
           exclusionComment: exclusionForm.exclusionComment.trim() || null,
@@ -1123,6 +1138,9 @@ export default function PurchaseRequestDetailPage() {
               onSavingsTypeChange={handleSavingsTypeChange}
               onCopyCsi={handleCopyCsi}
               onToggleDesign={toggleDesign}
+              onShowApprovalComment={showApprovalComment}
+              canManageContractExclusion={userRole === 'admin'}
+              onToggleContractExclusion={openContractExclusionModal}
               competitiveSheetSlot={purchase ? (
                 <CompetitiveSheetBlock
                   purchaseId={purchase.id}
@@ -2276,9 +2294,11 @@ export default function PurchaseRequestDetailPage() {
                         <div key={contract.id} className={`grid grid-cols-1 lg:grid-cols-[1fr_auto_minmax(32rem,36rem)] gap-x-1.5 gap-y-1 items-start ${contract.excludedFromStatusCalculation ? 'opacity-50' : ''}`}>
                           <div className="min-w-0">
                             <div className="relative border border-gray-200 rounded p-1.5 min-w-0">
-                              <button type="button" className="absolute top-1 right-1 p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700" onClick={() => setContractExclusionModal(contract)} title={contract.excludedFromStatusCalculation ? 'Включить в расчёт статуса заявки' : 'Исключить из расчёта статуса заявки'}>
-                                {contract.excludedFromStatusCalculation ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                              </button>
+                              {userRole === 'admin' && (
+                                <button type="button" className="absolute top-1 right-1 p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700" onClick={() => setContractExclusionModal(contract)} title={contract.excludedFromStatusCalculation ? 'Включить в расчёт статуса заявки' : 'Исключить из расчёта статуса заявки'}>
+                                  {contract.excludedFromStatusCalculation ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              )}
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-1 min-w-0">
                                 <div>
                                   <label className="block text-xs font-semibold text-gray-600 mb-0">
@@ -2488,9 +2508,11 @@ export default function PurchaseRequestDetailPage() {
                               <div className="flex items-center gap-2 pb-px mb-px border-b border-gray-200 min-w-0">
                                 <span className="text-xs font-semibold text-gray-600 flex-shrink-0">Внутренний ID:</span>
                                 <span className="text-xs text-gray-900 flex-shrink-0">{contract.innerId || '—'}</span>
-                                <button type="button" className="ml-auto p-0.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex-shrink-0" onClick={() => setContractExclusionModal(contract)} title={contract.excludedFromStatusCalculation ? 'Включить в расчёт статуса заявки' : 'Исключить из расчёта статуса заявки'}>
-                                  {contract.excludedFromStatusCalculation ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                                </button>
+                                {userRole === 'admin' && (
+                                  <button type="button" className="ml-auto p-0.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 flex-shrink-0" onClick={() => setContractExclusionModal(contract)} title={contract.excludedFromStatusCalculation ? 'Включить в расчёт статуса заявки' : 'Исключить из расчёта статуса заявки'}>
+                                    {contract.excludedFromStatusCalculation ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                  </button>
+                                )}
                               </div>
                               <div className="flex flex-col gap-0.5 mt-1">
                                 <div className="flex items-baseline gap-2 min-w-0">

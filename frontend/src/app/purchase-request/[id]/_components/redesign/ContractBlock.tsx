@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { Eye, EyeOff, MessageSquare } from 'lucide-react';
 import { Contract, ContractApprovalItem, ApprovalStatusColor } from './types';
 import { REDESIGN_COLORS, REDESIGN_MONO, dotColor } from './utils';
 import { CheckDot, CrossDot, MetaChip, PendingDot, Tile } from './RedesignPrimitives';
@@ -11,6 +12,10 @@ interface ContractBlockProps {
   getCurrencyIcon: (currency: string | null) => ReactNode;
   calculateContractApprovalWorkingDays: (assigned: string | null, completed: string | null) => string;
   getApprovalStatusColor: (a: { completionResult: string | null; completionDate: string | null; assignmentDate: string | null }) => ApprovalStatusColor;
+  onShowApprovalComment?: (id: number, commentText: string, anchor: DOMRect) => void;
+  /** Доступно только администратору: открыть окно исключения договора из расчёта статуса заявки. */
+  canManageExclusion?: boolean;
+  onToggleExclusion?: (contractId: number) => void;
 }
 
 function StatusPill({ status }: { status: string | null }) {
@@ -35,13 +40,16 @@ export function ContractBlock({
   getCurrencyIcon,
   calculateContractApprovalWorkingDays,
   getApprovalStatusColor,
+  onShowApprovalComment,
+  canManageExclusion = false,
+  onToggleExclusion,
 }: ContractBlockProps) {
   // Стиль строк — как в карточке заявки (defRow)
   const rowStyle: React.CSSProperties = {
     display: 'grid',
     gridTemplateColumns: '180px 1fr',
     gap: 16,
-    padding: '13px 4px',
+    padding: '7px 4px',
     borderBottom: `1px solid ${REDESIGN_COLORS.divider}`,
     fontSize: 14,
   };
@@ -55,13 +63,13 @@ export function ContractBlock({
       style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit,minmax(420px,1fr))',
-        gap: '20px 0',
+        gap: '14px 0',
         opacity: contract.excludedFromStatusCalculation ? 0.5 : 1,
       }}
     >
       {/* Левая колонка — реквизиты (в стиле карточки заявки) */}
-      <div style={{ paddingRight: 32, display: 'flex', flexDirection: 'column', gap: 20 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
+      <div style={{ paddingRight: 28, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10 }}>
           <Tile label="Внутренний ID"><span style={{ fontFamily: REDESIGN_MONO }}>{contract.innerId || '—'}</span></Tile>
           <Tile label="Сумма договора">
             <span style={{ fontFamily: REDESIGN_MONO, display: 'flex', alignItems: 'center' }}>
@@ -88,7 +96,25 @@ export function ContractBlock({
           </div>
           <div style={rowStyle}>
             <span style={labelStyle}>Статус</span>
-            <span><StatusPill status={contract.status} /></span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <StatusPill status={contract.status} />
+              {contract.excludedFromStatusCalculation && (
+                <span style={{ fontSize: 12, color: REDESIGN_COLORS.textMuted }} title={contract.exclusionComment ?? undefined}>
+                  исключён из расчёта статуса заявки
+                </span>
+              )}
+              {canManageExclusion && onToggleExclusion && (
+                <button
+                  type="button"
+                  onClick={() => onToggleExclusion(contract.id)}
+                  title={contract.excludedFromStatusCalculation ? 'Включить в расчёт статуса заявки' : 'Исключить из расчёта статуса заявки'}
+                  aria-label="Исключение договора из расчёта статуса заявки"
+                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 3, borderRadius: 6, border: 'none', background: 'transparent', color: REDESIGN_COLORS.textMuted, cursor: 'pointer' }}
+                >
+                  {contract.excludedFromStatusCalculation ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              )}
+            </span>
           </div>
           <div style={rowStyle}>
             <span style={labelStyle}>Дата регистрации</span>
@@ -104,8 +130,8 @@ export function ContractBlock({
       </div>
 
       {/* Правая колонка — согласования */}
-      <div style={{ borderLeft: `1px solid ${REDESIGN_COLORS.divider}`, paddingLeft: 28, display: 'flex', flexDirection: 'column', gap: 18 }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, paddingBottom: 4 }}>
+      <div style={{ borderLeft: `1px solid ${REDESIGN_COLORS.divider}`, paddingLeft: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, paddingBottom: 2 }}>
           <MetaChip label="Исполнитель" value={contract.preparedBy || '—'} />
           <MetaChip label="Создан" value={contract.contractCreationDate ? formatDate(contract.contractCreationDate) : '—'} />
         </div>
@@ -117,7 +143,7 @@ export function ContractBlock({
             if (items.length === 0) return null;
             return (
               <div key={stage}>
-                <div style={{ display: 'grid', gridTemplateColumns: '20px 1fr 150px 72px 72px 44px', gap: 10, alignItems: 'center', paddingBottom: 8, borderBottom: `1px solid ${REDESIGN_COLORS.divider}` }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '20px 1fr 150px 72px 72px 44px', gap: 10, alignItems: 'center', paddingBottom: 4, borderBottom: `1px solid ${REDESIGN_COLORS.divider}` }}>
                   <span />
                   <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: REDESIGN_COLORS.textMuted }}>{stage}</span>
                   <span style={colHead}>ФИО</span>
@@ -129,10 +155,29 @@ export function ContractBlock({
                   {items.map((a) => {
                     const status = getApprovalStatusColor(a);
                     const done = status === 'green' || status === 'orange' || a.completionDate != null;
+                    const hasComment = a.commentText != null && String(a.commentText).trim() !== '';
                     return (
-                      <div key={a.id} style={{ display: 'grid', gridTemplateColumns: '20px 1fr 150px 72px 72px 44px', gap: 10, alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${REDESIGN_COLORS.dividerRow}` }}>
+                      <div key={a.id} style={{ display: 'grid', gridTemplateColumns: '20px 1fr 150px 72px 72px 44px', gap: 10, alignItems: 'center', padding: '4px 0', borderBottom: `1px solid ${REDESIGN_COLORS.dividerRow}` }}>
                         {!done ? <PendingDot /> : status === 'red' ? <CrossDot /> : <CheckDot color={dotColor(status)} />}
-                        <span style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.35 }} title={a.role}>{a.role || '—'}</span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                          <span style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.35, minWidth: 0 }} title={a.role}>{a.role || '—'}</span>
+                          {hasComment && onShowApprovalComment && (
+                            <span style={{ display: 'inline-flex', flexShrink: 0 }} data-comment-popover>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onShowApprovalComment(a.id, a.commentText ?? '', e.currentTarget.getBoundingClientRect());
+                                }}
+                                title="Комментарий"
+                                aria-label="Показать комментарий"
+                                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 2, borderRadius: 4, border: 'none', background: 'transparent', color: REDESIGN_COLORS.textMuted, cursor: 'pointer' }}
+                              >
+                                <MessageSquare size={13} />
+                              </button>
+                            </span>
+                          )}
+                        </span>
                         <span style={{ fontSize: 12.5, color: '#3D4452' }} title={a.executorName ?? ''}>{a.executorName || '—'}</span>
                         <span style={{ fontFamily: REDESIGN_MONO, fontSize: 11.5, color: REDESIGN_COLORS.textSecondary }}>{formatDate(a.assignmentDate)}</span>
                         <span style={{ fontFamily: REDESIGN_MONO, fontSize: 11.5, color: REDESIGN_COLORS.textSecondary }}>{formatDate(a.completionDate)}</span>

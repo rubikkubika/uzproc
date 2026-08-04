@@ -50,8 +50,8 @@ export function CrossDot({ size = 16 }: { size?: number }) {
 /** Плитка «метка + значение» (как в карточке заявки). */
 export function Tile({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div style={{ background: REDESIGN_COLORS.tileBg, borderRadius: 12, padding: '14px 16px' }}>
-      <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.06em', color: REDESIGN_COLORS.textMuted, marginBottom: 6 }}>{label}</div>
+    <div style={{ background: REDESIGN_COLORS.tileBg, borderRadius: 12, padding: '8px 12px' }}>
+      <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.06em', color: REDESIGN_COLORS.textMuted, marginBottom: 3 }}>{label}</div>
       <div style={{ fontSize: 15, fontWeight: 600 }}>{children}</div>
     </div>
   );
@@ -60,7 +60,7 @@ export function Tile({ label, children }: { label: string; children: React.React
 /** Чип «метка: значение» (как «Исполнитель» в блоке договора). */
 export function MetaChip({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6, background: REDESIGN_COLORS.tileBg, padding: '5px 12px', borderRadius: 8 }}>
+    <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6, background: REDESIGN_COLORS.tileBg, padding: '4px 10px', borderRadius: 8 }}>
       <span style={{ fontSize: 12, fontWeight: 600, color: REDESIGN_COLORS.textSecondary }}>{label}:</span>
       <span style={{ fontSize: 13, color: REDESIGN_COLORS.textMain }}>{value}</span>
     </div>

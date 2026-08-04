@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { getBackendUrl } from '@/utils/api';
+import { useAuth } from '@/contexts/AuthContext';
 import type { Contract } from '../types/contracts.types';
 
 interface UseExcludeFromStatusCalculationProps {
@@ -11,12 +12,16 @@ export function useExcludeFromStatusCalculation({
   setAllItems,
   onAfterUpdate,
 }: UseExcludeFromStatusCalculationProps) {
+  // Эндпоинт исключения доступен только администратору — передаём роль в заголовке
+  const { userRole } = useAuth();
+
   const updateExcludeFromStatusCalculation = useCallback(async (contractId: number, newValue: boolean) => {
     try {
       const response = await fetch(`${getBackendUrl()}/api/contracts/${contractId}/exclusion`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
+          'X-User-Role': userRole || 'user',
         },
         body: JSON.stringify({ excludedFromStatusCalculation: newValue }),
       });
@@ -39,7 +44,7 @@ export function useExcludeFromStatusCalculation({
       console.error('Error updating excludedFromStatusCalculation:', error);
       alert('Ошибка при обновлении видимости договора');
     }
-  }, [setAllItems]);
+  }, [setAllItems, onAfterUpdate, userRole]);
 
   return { updateExcludeFromStatusCalculation };
 }

@@ -17,7 +17,7 @@ export function ApprovalGroup({ title, hint, approvals, formatDate, calculateDay
   if (assigned.length === 0) return null;
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 4 }}>
         <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: REDESIGN_COLORS.textMuted }}>{title}</span>
         {hint && <span style={{ fontSize: 11, color: REDESIGN_COLORS.textWeak }}>{hint}</span>}
       </div>
@@ -29,7 +29,7 @@ export function ApprovalGroup({ title, hint, approvals, formatDate, calculateDay
           return (
             <div
               key={a.id}
-              style={{ display: 'grid', gridTemplateColumns: '20px 1fr auto auto', gap: 10, alignItems: 'center', padding: '7px 0' }}
+              style={{ display: 'grid', gridTemplateColumns: '20px 1fr auto auto', gap: 10, alignItems: 'center', padding: '3px 0' }}
             >
               {dot}
               <span style={{ fontSize: 13.5, fontWeight: 500, color: REDESIGN_COLORS.textMain }}>{a.role || '—'}</span>

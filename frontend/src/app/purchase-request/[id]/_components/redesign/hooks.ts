@@ -22,7 +22,12 @@ export function useStickyHeaderHeight() {
   useEffect(() => {
     const el = headerRef.current;
     if (!el) return;
-    const update = () => setHeaderHeight(el.offsetHeight);
+    // getBoundingClientRect даёт дробную высоту: при масштабе 75/90% offsetHeight округляется вверх
+    // и под шапкой появляется белая щель. Округляем вниз и отнимаем 1px — полоска перекрывает стык.
+    const update = () => {
+      const h = el.getBoundingClientRect().height;
+      setHeaderHeight(Math.max(0, Math.floor(h) - 1));
+    };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);

@@ -166,13 +166,22 @@ public class ContractController {
 
     /**
      * Обновить исключение договора из расчёта статуса заявки (Договор подписан / Спецификация подписана).
+     * Доступно только администратору.
      * @param id id договора
      * @param body excludedFromStatusCalculation (boolean), exclusionComment (string, optional)
+     * @param userRole роль пользователя (заголовок X-User-Role), должна быть admin
      */
     @PatchMapping("/{id}/exclusion")
-    public ResponseEntity<ContractDto> updateContractExclusion(
+    public ResponseEntity<?> updateContractExclusion(
             @PathVariable Long id,
-            @RequestBody Map<String, Object> body) {
+            @RequestBody Map<String, Object> body,
+            @RequestHeader(value = "X-User-Role", required = false) String userRole) {
+        if (userRole == null || !"admin".equalsIgnoreCase(userRole.trim())) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.FORBIDDEN).body(Map.of(
+                    "success", false,
+                    "message", "Только администратор может исключать договор из расчёта статуса заявки"
+            ));
+        }
         Boolean excluded = body != null && body.containsKey("excludedFromStatusCalculation")
                 ? (Boolean) body.get("excludedFromStatusCalculation")
                 : null;

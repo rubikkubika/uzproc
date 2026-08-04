@@ -53,6 +53,7 @@ export interface Contract {
   registrationDate?: string | null;
   preparedBy: string | null;
   excludedFromStatusCalculation?: boolean | null;
+  exclusionComment?: string | null;
   isTypicalForm?: boolean | null;
   suppliers?: ContractSupplier[] | null;
   parentContract?: Contract | null;
@@ -144,6 +145,11 @@ export interface PurchaseRequestRedesignProps {
   onSavingsTypeChange: (v: string) => void;
   onCopyCsi: () => void;
   onToggleDesign: () => void;
+  /** Показать попап с комментарием согласования договора (как в старом дизайне). */
+  onShowApprovalComment?: (id: number, commentText: string, anchor: DOMRect) => void;
+  /** Права на исключение договора из расчёта статуса заявки (только admin). */
+  canManageContractExclusion?: boolean;
+  onToggleContractExclusion?: (contractId: number) => void;
 
   // Слот для блока конкурентного листа (переиспользуем существующий компонент)
   competitiveSheetSlot?: ReactNode;
