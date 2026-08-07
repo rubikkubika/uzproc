@@ -90,11 +90,14 @@ public class ContractService {
             String purchaseRequestInnerId,
             Boolean isTypicalForm,
             Boolean notCoordinatedTab,
+            Boolean attentionTab,
             String customerOrganization,
             String preparedByName,
             String status,
             String supplier,
+            String paymentTerms,
             String segment,
+            Boolean exclude1p,
             Integer contractCreationMonth,
             Integer contractCreationYear,
             Integer plannedDeliveryEndMonth,
@@ -102,12 +105,32 @@ public class ContractService {
             Integer registrationMonth,
             Integer registrationYear) {
 
+        // Вкладка «Требует внимания» — подмножество «В работе»: отбор идёт по расчётному отклонению
+        // от дедлайна, которого нет в БД, поэтому фильтруем и пагинируем после обогащения DTO.
+        if (Boolean.TRUE.equals(attentionTab)) {
+            Specification<Contract> attentionSpec = buildSpecification(
+                    year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, true, null, null,
+                    purchaseRequestInnerId, isTypicalForm, null, customerOrganization, preparedByName, status, supplier, paymentTerms, segment, exclude1p,
+                    contractCreationMonth, contractCreationYear, plannedDeliveryEndMonth, plannedDeliveryEndYear, registrationMonth, registrationYear);
+            Sort attentionSort = buildSort(sortBy, sortDir);
+            List<Contract> attentionContracts = contractRepository.findAll(attentionSpec, attentionSort);
+            List<ContractDto> needAttention = enrichContracts(attentionContracts).stream()
+                    .filter(ContractService::needsAttention)
+                    .collect(java.util.stream.Collectors.toList());
+            Pageable attentionPageable = PageRequest.of(page, size, attentionSort);
+            int from = Math.min(page * size, needAttention.size());
+            int to = Math.min(from + size, needAttention.size());
+            logger.info("Attention tab: {} of {} in-work contracts require attention", needAttention.size(), attentionContracts.size());
+            return new org.springframework.data.domain.PageImpl<>(
+                    needAttention.subList(from, to), attentionPageable, needAttention.size());
+        }
+
         logger.info("=== FILTER REQUEST ===");
-        logger.info("Filter parameters - year: {}, innerId: '{}', cfo: {}, name: '{}', documentForm: '{}', costType: '{}', contractType: '{}', currentUserId: {}, inWorkTab: {}, signedTab: {}, hiddenTab: {}, notCoordinatedTab: {}, purchaseRequestInnerId: '{}', isTypicalForm: {}, customerOrganization: {}, preparedByName: '{}', status: '{}', supplier: '{}', segment: '{}'",
-                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, hiddenTab, notCoordinatedTab, purchaseRequestInnerId, isTypicalForm, customerOrganization, preparedByName, status, supplier, segment);
+        logger.info("Filter parameters - year: {}, innerId: '{}', cfo: {}, name: '{}', documentForm: '{}', costType: '{}', contractType: '{}', currentUserId: {}, inWorkTab: {}, signedTab: {}, hiddenTab: {}, notCoordinatedTab: {}, purchaseRequestInnerId: '{}', isTypicalForm: {}, customerOrganization: {}, preparedByName: '{}', status: '{}', supplier: '{}', segment: '{}', exclude1p: {}",
+                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, hiddenTab, notCoordinatedTab, purchaseRequestInnerId, isTypicalForm, customerOrganization, preparedByName, status, supplier, segment, exclude1p);
 
         Specification<Contract> spec = buildSpecification(
-                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, hiddenTab, purchaseRequestInnerId, isTypicalForm, notCoordinatedTab, customerOrganization, preparedByName, status, supplier, segment,
+                year, innerId, cfo, name, documentForm, costType, contractType, currentUserId, inWorkTab, signedTab, hiddenTab, purchaseRequestInnerId, isTypicalForm, notCoordinatedTab, customerOrganization, preparedByName, status, supplier, paymentTerms, segment, exclude1p,
                 contractCreationMonth, contractCreationYear, plannedDeliveryEndMonth, plannedDeliveryEndYear, registrationMonth, registrationYear);
         
         Sort sort = buildSort(sortBy, sortDir);
@@ -119,12 +142,21 @@ public class ContractService {
                 contracts.getContent().size(), page, size, contracts.getTotalElements());
         logger.info("=== END FILTER REQUEST ===\n");
 
-        List<Long> contractIds = contracts.getContent().stream()
+        List<ContractDto> dtos = enrichContracts(contracts.getContent());
+        return new org.springframework.data.domain.PageImpl<>(dtos, pageable, contracts.getTotalElements());
+    }
+
+    /**
+     * Обогащает договоры расчётными полями трэка: даты этапов, рабочие дни подготовки/согласования/подписания
+     * и отклонение от дедлайна подготовки. Все зависимости берутся batch-запросами по переданному списку.
+     */
+    private List<ContractDto> enrichContracts(List<Contract> contractList) {
+        List<Long> contractIds = contractList.stream()
                 .map(Contract::getId)
                 .collect(java.util.stream.Collectors.toList());
 
-        // Batch-расчёт purchaseCompletionDate для всех PR ID на странице
-        List<Long> prIds = contracts.getContent().stream()
+        // Batch-расчёт purchaseCompletionDate для всех PR ID
+        List<Long> prIds = contractList.stream()
                 .map(Contract::getPurchaseRequestId)
                 .filter(java.util.Objects::nonNull)
                 .distinct()
@@ -141,7 +173,7 @@ public class ContractService {
         Map<Long, LocalDateTime> prLastApprovalCompletionDates = batchGetPrLastApprovalCompletionDates(prIds);
 
         // Конвертируем entity в DTO
-        Page<ContractDto> dtoPage = contracts.map(c -> {
+        return contractList.stream().map(c -> {
             ContractDto dto = toDto(c);
             LocalDateTime purchaseCompletionDate = c.getPurchaseRequestId() != null ? completionDates.get(c.getPurchaseRequestId()) : null;
             if (purchaseCompletionDate != null) {
@@ -179,8 +211,17 @@ public class ContractService {
 
             if (startDate != null) {
                 LocalDateTime endDate = firstApprovalDate != null ? firstApprovalDate : LocalDateTime.now();
-                long days = workingDayService.countFromDayAfterThroughInclusive(startDate, endDate);
+                // День получения задачи в работу (дата начала) не считается: отсчёт со следующего рабочего дня.
+                // Если подготовка уложилась в тот же день — 0 рабочих дней.
+                long days = workingDayService.countFromDayAfterStartThroughEndInclusive(startDate, endDate);
                 dto.setPreparationWorkingDays((int) days);
+
+                // Отклонение от дедлайна подготовки: план (по форме документа и типовости) − факт
+                Integer plannedSla = getPlannedPreparationSlaDays(c.getDocumentForm(), c.getIsTypicalForm());
+                if (plannedSla != null) {
+                    dto.setPlannedSlaDays(plannedSla);
+                    dto.setSlaDelta(plannedSla - (int) days);
+                }
             }
 
             // Расчёт данных этапа «Согласование»
@@ -218,9 +259,51 @@ public class ContractService {
             }
 
             return dto;
-        });
+        }).collect(java.util.stream.Collectors.toList());
+    }
 
-        return dtoPage;
+    /** Доля остатка от планового срока, при которой договор попадает в «Требует внимания». */
+    private static final double ATTENTION_REMAINDER_PERCENT = 30.0;
+
+    /**
+     * Договор требует внимания, если дедлайн подготовки уже просрочен (отклонение < 0)
+     * либо запаса осталось не более 30% от планового срока.
+     */
+    private static boolean needsAttention(ContractDto dto) {
+        Integer delta = dto.getSlaDelta();
+        Integer planned = dto.getPlannedSlaDays();
+        if (delta == null || planned == null || planned <= 0) {
+            return false;
+        }
+        if (delta < 0) {
+            return true;
+        }
+        return ((double) delta / planned) * 100 <= ATTENTION_REMAINDER_PERCENT;
+    }
+
+    /**
+     * Плановый SLA (рабочих дней) на подготовку и запуск документа, включая согласование с КА:
+     * <ul>
+     *   <li>Договор / Дополнительное соглашение: типовой — 2, нетиповой — 4;</li>
+     *   <li>Спецификация: типовая — 1, нетиповая — 3;</li>
+     *   <li>Импортный договор пока считается как нетиповой (4).</li>
+     * </ul>
+     * Для остальных форм документа плановый срок не задан (null) — отклонение не рассчитывается.
+     */
+    private Integer getPlannedPreparationSlaDays(String documentForm, Boolean isTypicalForm) {
+        if (documentForm == null || documentForm.trim().isEmpty()) {
+            return null;
+        }
+        boolean typical = Boolean.TRUE.equals(isTypicalForm);
+        switch (documentForm.trim()) {
+            case "Договор":
+            case "Дополнительное соглашение":
+                return typical ? 2 : 4;
+            case "Спецификация":
+                return typical ? 1 : 3;
+            default:
+                return null;
+        }
     }
 
     public ContractDto findById(Long id) {
@@ -1209,28 +1292,41 @@ public class ContractService {
     public Map<String, Long> getTabCounts(
             Integer year, String innerId, List<String> cfo, String name, String documentForm,
             String costType, String contractType, String purchaseRequestInnerId, Boolean isTypicalForm,
-            String customerOrganization, String preparedByName, String status, String supplier, String segment) {
+            String customerOrganization, String preparedByName, String status, String supplier, String paymentTerms, String segment,
+            Boolean exclude1p,
+            Integer contractCreationMonth, Integer contractCreationYear,
+            Integer plannedDeliveryEndMonth, Integer plannedDeliveryEndYear,
+            Integer registrationMonth, Integer registrationYear) {
         Map<String, Long> counts = new HashMap<>();
         counts.put("all", contractRepository.count(buildSpecification(
                 year, innerId, cfo, name, documentForm, costType, contractType, null, null, null, null,
-                purchaseRequestInnerId, isTypicalForm, null, customerOrganization, preparedByName, status, supplier, segment,
-                null, null, null, null, null, null)));
+                purchaseRequestInnerId, isTypicalForm, null, customerOrganization, preparedByName, status, supplier, paymentTerms, segment, exclude1p,
+                contractCreationMonth, contractCreationYear, plannedDeliveryEndMonth, plannedDeliveryEndYear, registrationMonth, registrationYear)));
         counts.put("in-work", contractRepository.count(buildSpecification(
                 year, innerId, cfo, name, documentForm, costType, contractType, null, true, null, null,
-                purchaseRequestInnerId, isTypicalForm, null, customerOrganization, preparedByName, status, supplier, segment,
-                null, null, null, null, null, null)));
+                purchaseRequestInnerId, isTypicalForm, null, customerOrganization, preparedByName, status, supplier, paymentTerms, segment, exclude1p,
+                contractCreationMonth, contractCreationYear, plannedDeliveryEndMonth, plannedDeliveryEndYear, registrationMonth, registrationYear)));
         counts.put("not-coordinated", contractRepository.count(buildSpecification(
                 year, innerId, cfo, name, documentForm, costType, contractType, null, null, null, null,
-                purchaseRequestInnerId, isTypicalForm, true, customerOrganization, preparedByName, status, supplier, segment,
-                null, null, null, null, null, null)));
+                purchaseRequestInnerId, isTypicalForm, true, customerOrganization, preparedByName, status, supplier, paymentTerms, segment, exclude1p,
+                contractCreationMonth, contractCreationYear, plannedDeliveryEndMonth, plannedDeliveryEndYear, registrationMonth, registrationYear)));
         counts.put("signed", contractRepository.count(buildSpecification(
                 year, innerId, cfo, name, documentForm, costType, contractType, null, null, true, null,
-                purchaseRequestInnerId, isTypicalForm, null, customerOrganization, preparedByName, status, supplier, segment,
-                null, null, null, null, null, null)));
+                purchaseRequestInnerId, isTypicalForm, null, customerOrganization, preparedByName, status, supplier, paymentTerms, segment, exclude1p,
+                contractCreationMonth, contractCreationYear, plannedDeliveryEndMonth, plannedDeliveryEndYear, registrationMonth, registrationYear)));
         counts.put("hidden", contractRepository.count(buildSpecification(
                 year, innerId, cfo, name, documentForm, costType, contractType, null, null, null, true,
-                purchaseRequestInnerId, isTypicalForm, null, customerOrganization, preparedByName, status, supplier, segment,
-                null, null, null, null, null, null)));
+                purchaseRequestInnerId, isTypicalForm, null, customerOrganization, preparedByName, status, supplier, paymentTerms, segment, exclude1p,
+                contractCreationMonth, contractCreationYear, plannedDeliveryEndMonth, plannedDeliveryEndYear, registrationMonth, registrationYear)));
+
+        // «Требует внимания» считаем через обогащение: отклонение от дедлайна — расчётное поле, его нет в БД
+        Specification<Contract> attentionSpec = buildSpecification(
+                year, innerId, cfo, name, documentForm, costType, contractType, null, true, null, null,
+                purchaseRequestInnerId, isTypicalForm, null, customerOrganization, preparedByName, status, supplier, paymentTerms, segment, exclude1p,
+                contractCreationMonth, contractCreationYear, plannedDeliveryEndMonth, plannedDeliveryEndYear, registrationMonth, registrationYear);
+        counts.put("attention", enrichContracts(contractRepository.findAll(attentionSpec)).stream()
+                .filter(ContractService::needsAttention)
+                .count());
         return counts;
     }
 
@@ -1253,7 +1349,9 @@ public class ContractService {
             String preparedByName,
             String status,
             String supplier,
+            String paymentTerms,
             String segment,
+            Boolean exclude1p,
             Integer contractCreationMonth,
             Integer contractCreationYear,
             Integer plannedDeliveryEndMonth,
@@ -1442,6 +1540,13 @@ public class ContractService {
                 }
             }
 
+            // Фильтр по условиям оплаты (LIKE)
+            if (paymentTerms != null && !paymentTerms.trim().isEmpty()) {
+                predicates.add(cb.like(cb.lower(root.get("paymentTerms")), "%" + paymentTerms.toLowerCase().trim() + "%"));
+                predicateCount++;
+                logger.info("Added paymentTerms filter: '{}'", paymentTerms);
+            }
+
             // Фильтр по поставщику (LIKE по имени, JOIN с suppliers)
             if (supplier != null && !supplier.trim().isEmpty()) {
                 jakarta.persistence.criteria.Join<Contract, Supplier> supplierJoin =
@@ -1488,6 +1593,18 @@ public class ContractService {
                     predicateCount++;
                     logger.info("Added segment filter: 1p");
                 }
+            }
+
+            // Переключатель «без 1P»: исключаем договоры с ЦФО «M - Commerce 1Р»
+            if (Boolean.TRUE.equals(exclude1p)) {
+                jakarta.persistence.criteria.Join<Contract, com.uzproc.backend.entity.Cfo> exclude1pCfoJoin =
+                    root.join("cfo", jakarta.persistence.criteria.JoinType.LEFT);
+                predicates.add(cb.or(
+                    cb.isNull(exclude1pCfoJoin.get("id")),
+                    cb.notEqual(exclude1pCfoJoin.get("name"), CFO_1P)
+                ));
+                predicateCount++;
+                logger.info("Added exclude1p filter: excluding CFO '{}'", CFO_1P);
             }
 
             // Фильтр по дате создания договора — месяц и/или год

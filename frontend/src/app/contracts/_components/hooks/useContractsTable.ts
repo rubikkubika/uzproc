@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { PageResponse, SortField, SortDirection, Contract } from '../types/contracts.types';
+import { PageResponse, SortField, SortDirection, Contract, TabType } from '../types/contracts.types';
 import { PAGE_SIZE } from '../constants/contracts.constants';
 import { useContractsFilters } from './useContractsFilters';
 import { useContractsData } from './useContractsData';
@@ -38,6 +38,13 @@ export const useContractsTable = () => {
     segmentFilter: filtersHook.segmentFilter,
     isTypicalFormFilter: filtersHook.isTypicalFormFilter,
     statusFilter: filtersHook.statusFilter,
+    exclude1p: filtersHook.exclude1p,
+    contractCreationMonth: filtersHook.contractCreationMonth,
+    contractCreationYear: filtersHook.contractCreationYear,
+    plannedDeliveryEndMonth: filtersHook.plannedDeliveryEndMonth,
+    plannedDeliveryEndYear: filtersHook.plannedDeliveryEndYear,
+    registrationMonth: filtersHook.registrationMonth,
+    registrationYear: filtersHook.registrationYear,
   });
 
   const { segmentsData, currentYear: summaryCurrentYear, loading: summaryLoading, refreshSummary } = useContractsSummary();
@@ -91,6 +98,14 @@ export const useContractsTable = () => {
     filtersHook.setOrganizationFilter('');
     filtersHook.setPreparedByFilter('');
     filtersHook.setSegmentFilter('');
+    filtersHook.setContractCreationMonth('');
+    filtersHook.setContractCreationYear('');
+    filtersHook.setPlannedDeliveryEndMonth('');
+    filtersHook.setPlannedDeliveryEndYear('');
+    filtersHook.setRegistrationMonth('');
+    filtersHook.setRegistrationYear('');
+    // «без 1P» возвращаем в состояние по умолчанию — включён
+    filtersHook.setExclude1p(true);
     setSelectedYear(currentYear);
     setCurrentPage(0);
   }, [filtersHook, currentYear]);
@@ -115,7 +130,8 @@ export const useContractsTable = () => {
     plannedDeliveryEndMonth: string = '',
     plannedDeliveryEndYear: string = '',
     registrationMonth: string = '',
-    registrationYear: string = ''
+    registrationYear: string = '',
+    exclude1p: boolean = false
   ) => {
     if (append) {
       setLoadingMore(true);
@@ -133,7 +149,7 @@ export const useContractsTable = () => {
         sortDir,
         filters,
         cfoFilter,
-        activeTab as 'all' | 'in-work' | 'not-coordinated' | 'signed' | 'hidden',
+        activeTab as TabType,
         isTypicalFormFilter,
         organizationFilter,
         preparedByFilter,
@@ -144,7 +160,8 @@ export const useContractsTable = () => {
         plannedDeliveryEndMonth,
         plannedDeliveryEndYear,
         registrationMonth,
-        registrationYear
+        registrationYear,
+        exclude1p
       );
       const items = result?.content ?? [];
       if (append) {
@@ -190,7 +207,8 @@ export const useContractsTable = () => {
       filtersHook.plannedDeliveryEndMonth,
       filtersHook.plannedDeliveryEndYear,
       filtersHook.registrationMonth,
-      filtersHook.registrationYear
+      filtersHook.registrationYear,
+      filtersHook.exclude1p
     );
   }, [
     selectedYear,
@@ -210,6 +228,7 @@ export const useContractsTable = () => {
     filtersHook.plannedDeliveryEndYear,
     filtersHook.registrationMonth,
     filtersHook.registrationYear,
+    filtersHook.exclude1p,
     fetchData,
     pageSize,
   ]);
@@ -239,10 +258,11 @@ export const useContractsTable = () => {
           filtersHook.plannedDeliveryEndMonth,
           filtersHook.plannedDeliveryEndYear,
           filtersHook.registrationMonth,
-          filtersHook.registrationYear
+          filtersHook.registrationYear,
+          filtersHook.exclude1p
         );
       }
-    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, selectedYear, sortField, sortDirection, filtersHook.filters, filtersHook.cfoFilter, filtersHook.activeTab, filtersHook.isTypicalFormFilter, filtersHook.statusFilter, filtersHook.organizationFilter, filtersHook.preparedByFilter, filtersHook.segmentFilter, filtersHook.contractCreationMonth, filtersHook.contractCreationYear, filtersHook.plannedDeliveryEndMonth, filtersHook.plannedDeliveryEndYear, filtersHook.registrationMonth, filtersHook.registrationYear, fetchData]),
+    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, selectedYear, sortField, sortDirection, filtersHook.filters, filtersHook.cfoFilter, filtersHook.activeTab, filtersHook.isTypicalFormFilter, filtersHook.statusFilter, filtersHook.organizationFilter, filtersHook.preparedByFilter, filtersHook.segmentFilter, filtersHook.contractCreationMonth, filtersHook.contractCreationYear, filtersHook.plannedDeliveryEndMonth, filtersHook.plannedDeliveryEndYear, filtersHook.registrationMonth, filtersHook.registrationYear, filtersHook.exclude1p, fetchData]),
     threshold: 0.1,
   });
 

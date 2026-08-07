@@ -2,6 +2,8 @@
 
 import { Clock, Check, X } from 'lucide-react';
 import { Contract } from '../types/contracts.types';
+import { buildSlaTooltipLines } from '../utils/contractSla.utils';
+import SlaDeltaBadge from './SlaDeltaBadge';
 
 interface Props {
   contract: Contract;
@@ -26,6 +28,8 @@ export default function ContractTrackCell({ contract }: Props) {
     registrationDate,
     synchronizationDate,
     documentForm,
+    plannedSlaDays,
+    slaDelta,
   } = contract;
 
   // Определяем стадию согласования
@@ -92,6 +96,7 @@ export default function ContractTrackCell({ contract }: Props) {
     if (preparationWorkingDays != null) {
       parts.push(`Рабочих дней подготовки: ${preparationWorkingDays}`);
     }
+    parts.push(...buildSlaTooltipLines(plannedSlaDays, preparationWorkingDays, slaDelta));
     return parts.join('\n');
   })();
 
@@ -100,7 +105,7 @@ export default function ContractTrackCell({ contract }: Props) {
 
       {/* Блок: Подготовка */}
       <div
-        className="flex flex-col items-center gap-0.5 rounded border border-gray-300 px-1 py-0.5 min-w-[3rem]"
+        className="flex flex-col items-center gap-0.5 rounded border border-gray-300 px-1 py-0.5 min-w-[4.25rem]"
         title={preparationTooltip}
       >
         {!isPreparationStarted ? (
@@ -114,11 +119,14 @@ export default function ContractTrackCell({ contract }: Props) {
             <Clock className="w-3 h-3 text-white" />
           </div>
         )}
-        {preparationWorkingDays != null && (
-          <span className="inline-flex items-center justify-center min-w-[1.5rem] h-4 rounded bg-gray-200 text-gray-700 text-[10px] font-bold tabular-nums px-0.5">
-            {preparationWorkingDays}
-          </span>
-        )}
+        <div className="flex items-center gap-0.5">
+          {preparationWorkingDays != null && (
+            <span className="inline-flex items-center justify-center min-w-[1.5rem] h-4 rounded bg-gray-200 text-gray-700 text-[10px] font-bold tabular-nums px-0.5">
+              {preparationWorkingDays}
+            </span>
+          )}
+          {slaDelta != null && <SlaDeltaBadge delta={slaDelta} planned={plannedSlaDays} />}
+        </div>
         <span className="text-[9px] text-gray-500 whitespace-nowrap leading-none">Подготовка</span>
       </div>
 

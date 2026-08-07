@@ -69,6 +69,10 @@ public class ContractDto {
 
     /** Рабочие дни подготовки договора: от даты начала (не считая) до даты первого согласования включительно. */
     private Integer preparationWorkingDays;
+    /** Плановый SLA на подготовку и запуск (рабочих дней) по форме документа и типовости. */
+    private Integer plannedSlaDays;
+    /** Отклонение от дедлайна подготовки: план − факт (плюс — запас, минус — просрочка). */
+    private Integer slaDelta;
     /** Рабочие дни согласования договора: от даты первого согласования (не считая) до завершения последнего включительно. */
     private Integer approvalWorkingDays;
     /** Рабочие дни подписания договора: от даты последнего согласования (не считая) до даты регистрации (для спецификаций — синхронизации) включительно; если этап идёт — до текущего момента. */
@@ -383,6 +387,22 @@ public class ContractDto {
 
     public void setPreparationWorkingDays(Integer preparationWorkingDays) {
         this.preparationWorkingDays = preparationWorkingDays;
+    }
+
+    public Integer getPlannedSlaDays() {
+        return plannedSlaDays;
+    }
+
+    public void setPlannedSlaDays(Integer plannedSlaDays) {
+        this.plannedSlaDays = plannedSlaDays;
+    }
+
+    public Integer getSlaDelta() {
+        return slaDelta;
+    }
+
+    public void setSlaDelta(Integer slaDelta) {
+        this.slaDelta = slaDelta;
     }
 
     public Integer getApprovalWorkingDays() {

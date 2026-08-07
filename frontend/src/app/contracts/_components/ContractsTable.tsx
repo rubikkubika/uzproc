@@ -90,7 +90,8 @@ export default function ContractsTable() {
     ? allItems.filter(c => getExpiryStatus(c.plannedDeliveryEndDate, c.status) === filters.expiryStatusFilter)
     : allItems;
 
-  const isTabWithPreparedBy = filters.activeTab === 'in-work' || filters.activeTab === 'not-coordinated' || filters.activeTab === 'signed';
+  // «Требует внимания» — подмножество «В работе», колонки те же
+  const isTabWithPreparedBy = filters.activeTab === 'attention' || filters.activeTab === 'in-work' || filters.activeTab === 'not-coordinated' || filters.activeTab === 'signed';
   const totalColumns = isTabWithPreparedBy ? 15 : 14;
 
   const handleRowClick = (contractId: number, e: React.MouseEvent) => {
@@ -341,7 +342,16 @@ export default function ContractsTable() {
           </div>
         </div>
         <div className="text-xs text-gray-700 flex-shrink-0">
-          Показано {allItems.length} из {data?.totalElements ?? 0} записей
+          {filters.expiryStatusFilter ? (
+            // «Статус срока» считается на клиенте по уже загруженным строкам, поэтому показываем
+            // отфильтрованное из загруженного, а не из общего количества на бэкенде
+            <span title="Фильтр «Статус срока» применяется к уже загруженным строкам (подгружаются при прокрутке)">
+              Показано {filteredItems.length} из {allItems.length} загруженных
+              {' '}(всего {data?.totalElements ?? 0})
+            </span>
+          ) : (
+            <>Показано {allItems.length} из {data?.totalElements ?? 0} записей</>
+          )}
         </div>
       </div>
 
@@ -361,6 +371,32 @@ export default function ContractsTable() {
             {opt.label}
           </button>
         ))}
+
+        <div className="h-4 w-px bg-gray-300 mx-1" />
+
+        <button
+          type="button"
+          onClick={() => { filters.setExclude1p(!filters.exclude1p); setCurrentPage(0); }}
+          title="Исключить договоры ЦФО «M - Commerce 1Р»"
+          className={`flex items-center gap-1.5 px-2 py-0.5 text-xs rounded-full border transition-colors whitespace-nowrap ${
+            filters.exclude1p
+              ? 'bg-blue-600 text-white border-blue-600'
+              : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+          }`}
+        >
+          <span
+            className={`relative inline-flex items-center w-6 h-3 rounded-full transition-colors ${
+              filters.exclude1p ? 'bg-white/40' : 'bg-gray-300'
+            }`}
+          >
+            <span
+              className={`absolute w-2.5 h-2.5 rounded-full bg-white shadow transition-transform ${
+                filters.exclude1p ? 'translate-x-3' : 'translate-x-0.5'
+              }`}
+            />
+          </span>
+          без 1P
+        </button>
       </div>
 
       <ContractsTableTabs
@@ -592,7 +628,7 @@ export default function ContractsTable() {
                 )}
               </th>
               {/* Трэк */}
-              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '200px', minWidth: '200px' }}>
+              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '230px', minWidth: '230px' }}>
                 {thInner(
                   <div className="w-full" />,
                   <span>Трэк</span>
@@ -704,7 +740,7 @@ export default function ContractsTable() {
                         <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-gray-100 text-gray-600">Нет</span>
                       ) : '-'}
                     </td>
-                    <td className="pl-1 pr-0 py-1 border-r border-gray-300 overflow-hidden" style={{ width: '200px', minWidth: '200px', maxWidth: '200px' }}>
+                    <td className="pl-1 pr-0 py-1 border-r border-gray-300 overflow-hidden" style={{ width: '230px', minWidth: '230px', maxWidth: '230px' }}>
                       <ContractTrackCell contract={contract} />
                     </td>
                   </tr>

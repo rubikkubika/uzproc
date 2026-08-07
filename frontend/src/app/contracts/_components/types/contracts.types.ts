@@ -33,6 +33,10 @@ export interface Contract {
   purchaseCompletionDate: string | null;
   /** Рабочие дни этапа «Подготовка» договора. */
   preparationWorkingDays: number | null;
+  /** Плановый SLA на подготовку и запуск (рабочих дней). */
+  plannedSlaDays: number | null;
+  /** Отклонение от дедлайна подготовки: план − факт. */
+  slaDelta: number | null;
   /** Рабочие дни этапа «Согласование» договора. */
   approvalWorkingDays: number | null;
   /** Рабочие дни этапа «Подписание» договора. */
@@ -75,4 +79,4 @@ export type SortField = keyof Contract | null;
 export type SortDirection = 'asc' | 'desc' | null;
 
 // Типы вкладок для таблицы договоров
-export type TabType = 'in-work' | 'not-coordinated' | 'signed' | 'all' | 'hidden';
+export type TabType = 'attention' | 'in-work' | 'not-coordinated' | 'signed' | 'all' | 'hidden';

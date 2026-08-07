@@ -44,11 +44,14 @@ public class ContractController {
             @RequestParam(required = false) Boolean hiddenTab,
             @RequestParam(required = false) Boolean isTypicalForm,
             @RequestParam(required = false) Boolean notCoordinatedTab,
+            @RequestParam(required = false) Boolean attentionTab,
             @RequestParam(required = false) String customerOrganization,
             @RequestParam(required = false) String preparedByName,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String supplier,
+            @RequestParam(required = false) String paymentTerms,
             @RequestParam(required = false, defaultValue = "") String segment,
+            @RequestParam(required = false) Boolean exclude1p,
             @RequestParam(required = false) Integer contractCreationMonth,
             @RequestParam(required = false) Integer contractCreationYear,
             @RequestParam(required = false) Integer plannedDeliveryEndMonth,
@@ -58,8 +61,8 @@ public class ContractController {
 
         Page<ContractDto> contracts = contractService.findAll(
                 page, size, year, sortBy, sortDir, innerId, cfo, name, documentForm, costType, contractType,
-                null, inWorkTab, signedTab, hiddenTab, purchaseRequestInnerId, isTypicalForm, notCoordinatedTab,
-                customerOrganization, preparedByName, status, supplier, segment,
+                null, inWorkTab, signedTab, hiddenTab, purchaseRequestInnerId, isTypicalForm, notCoordinatedTab, attentionTab,
+                customerOrganization, preparedByName, status, supplier, paymentTerms, segment, exclude1p,
                 contractCreationMonth, contractCreationYear, plannedDeliveryEndMonth, plannedDeliveryEndYear,
                 registrationMonth, registrationYear);
 
@@ -85,11 +88,21 @@ public class ContractController {
             @RequestParam(required = false) String preparedByName,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String supplier,
-            @RequestParam(required = false, defaultValue = "") String segment) {
+            @RequestParam(required = false) String paymentTerms,
+            @RequestParam(required = false, defaultValue = "") String segment,
+            @RequestParam(required = false) Boolean exclude1p,
+            @RequestParam(required = false) Integer contractCreationMonth,
+            @RequestParam(required = false) Integer contractCreationYear,
+            @RequestParam(required = false) Integer plannedDeliveryEndMonth,
+            @RequestParam(required = false) Integer plannedDeliveryEndYear,
+            @RequestParam(required = false) Integer registrationMonth,
+            @RequestParam(required = false) Integer registrationYear) {
 
         Map<String, Long> counts = contractService.getTabCounts(
                 year, innerId, cfo, name, documentForm, costType, contractType, purchaseRequestInnerId,
-                isTypicalForm, customerOrganization, preparedByName, status, supplier, segment);
+                isTypicalForm, customerOrganization, preparedByName, status, supplier, paymentTerms, segment, exclude1p,
+                contractCreationMonth, contractCreationYear, plannedDeliveryEndMonth, plannedDeliveryEndYear,
+                registrationMonth, registrationYear);
 
         return ResponseEntity.ok(counts);
     }

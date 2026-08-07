@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { MessageSquareWarning } from 'lucide-react';
+import { MessageSquareWarning, AlertTriangle } from 'lucide-react';
 import { TabType } from '../types/contracts.types';
 
 interface ContractsTableTabsProps {
@@ -23,7 +23,12 @@ export default function ContractsTableTabs({
   onRemarksToggle,
   tabCounts,
 }: ContractsTableTabsProps) {
-  const tabs: Array<{ key: TabType; label: string }> = [
+  const tabs: Array<{ key: TabType; label: string; title?: string }> = [
+    {
+      key: 'attention',
+      label: 'Требует внимания',
+      title: 'Договоры «В работе» с просрочкой дедлайна подготовки или запасом ≤30% от планового срока',
+    },
     { key: 'in-work', label: 'В работе' },
     { key: 'not-coordinated', label: 'Не согласованы' },
     { key: 'signed', label: 'Подписаны' },
@@ -35,22 +40,32 @@ export default function ContractsTableTabs({
     <div className="sticky top-0 left-0 right-0 z-30 flex items-center gap-0.5 pt-0.5 pb-0.5 bg-white shadow-sm" style={{ minHeight: '30px', width: '100%', backgroundColor: 'white' }}>
       {tabs.map((tab) => {
         const count = tabCounts?.[tab.key];
+        const isActive = !showRemarks && activeTab === tab.key;
+        // Вкладку «Требует внимания» подсвечиваем красным, пока в ней есть договоры
+        const isAlerting = tab.key === 'attention' && !!count;
+        const inactiveClasses = isAlerting
+          ? 'bg-red-50 text-red-700 border-red-300 hover:bg-red-100'
+          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50';
         return (
           <button
             key={tab.key}
             onClick={() => onTabChange(tab.key)}
+            title={tab.title}
             className={`px-3 py-1 text-xs font-medium rounded-lg border transition-colors shadow-sm flex items-center gap-1 ${
-              !showRemarks && activeTab === tab.key
-                ? 'bg-blue-600 text-white border-blue-600'
-                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              isActive
+                ? (isAlerting ? 'bg-red-600 text-white border-red-600' : 'bg-blue-600 text-white border-blue-600')
+                : inactiveClasses
             }`}
           >
+            {tab.key === 'attention' && <AlertTriangle className="w-3 h-3" />}
             {tab.label}
             {count !== null && count !== undefined && (
               <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
-                !showRemarks && activeTab === tab.key
+                isActive
                   ? 'bg-white/20 text-white'
-                  : 'bg-gray-100 text-gray-600'
+                  : isAlerting
+                    ? 'bg-red-100 text-red-700'
+                    : 'bg-gray-100 text-gray-600'
               }`}>
                 {count}
               </span>

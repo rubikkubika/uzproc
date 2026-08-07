@@ -60,6 +60,9 @@ export const useContractsFilters = (setCurrentPage: (page: number) => void) => {
   // Фильтр организации заказчика: '' = все, 'UZUM_MARKET', 'UZUM_OOO', 'UZUM_TEZKOR'
   const [organizationFilter, setOrganizationFilter] = useState<string>('');
 
+  // Переключатель «без 1P»: по умолчанию включён — договоры ЦФО «M - Commerce 1Р» исключены
+  const [exclude1p, setExclude1p] = useState<boolean>(true);
+
   // Фильтр по исполнителю (ФИО договорника): '' = все
   const [preparedByFilter, setPreparedByFilter] = useState<string>('');
 
@@ -208,6 +211,8 @@ export const useContractsFilters = (setCurrentPage: (page: number) => void) => {
     setStatusFilter,
     organizationFilter,
     setOrganizationFilter,
+    exclude1p,
+    setExclude1p,
     preparedByFilter,
     setPreparedByFilter,
     segmentFilter,

@@ -11,6 +11,13 @@ interface UseContractTabCountsOptions {
   segmentFilter: string;
   isTypicalFormFilter: string;
   statusFilter: string;
+  exclude1p: boolean;
+  contractCreationMonth: string;
+  contractCreationYear: string;
+  plannedDeliveryEndMonth: string;
+  plannedDeliveryEndYear: string;
+  registrationMonth: string;
+  registrationYear: string;
 }
 
 export function useContractTabCounts({
@@ -22,8 +29,16 @@ export function useContractTabCounts({
   segmentFilter,
   isTypicalFormFilter,
   statusFilter,
+  exclude1p,
+  contractCreationMonth,
+  contractCreationYear,
+  plannedDeliveryEndMonth,
+  plannedDeliveryEndYear,
+  registrationMonth,
+  registrationYear,
 }: UseContractTabCountsOptions) {
   const [tabCounts, setTabCounts] = useState<Record<TabType, number | null>>({
+    'attention': null,
     'in-work': null,
     'not-coordinated': null,
     'signed': null,
@@ -47,12 +62,22 @@ export function useContractTabCounts({
     if (filters.contractType?.trim()) params.append('contractType', filters.contractType.trim());
     if (filters.paymentTerms?.trim()) params.append('paymentTerms', filters.paymentTerms.trim());
     if (filters.purchaseRequestInnerId?.trim()) params.append('purchaseRequestInnerId', filters.purchaseRequestInnerId.trim());
+    if (filters.supplier?.trim()) params.append('supplier', filters.supplier.trim());
     if (organizationFilter && organizationFilter.trim() !== '') params.append('customerOrganization', organizationFilter.trim());
     if (preparedByFilter && preparedByFilter.trim() !== '') params.append('preparedByName', preparedByFilter.trim());
     if (segmentFilter && segmentFilter.trim() !== '') params.append('segment', segmentFilter.trim());
     if (isTypicalFormFilter === 'true') params.append('isTypicalForm', 'true');
     else if (isTypicalFormFilter === 'false') params.append('isTypicalForm', 'false');
     if (statusFilter && statusFilter.trim() !== '') params.append('status', statusFilter.trim());
+    if (exclude1p) params.append('exclude1p', 'true');
+
+    // Фильтры по датам — те же, что и в основном запросе таблицы, иначе счётчики расходятся с «Показано»
+    if (contractCreationMonth?.trim()) params.append('contractCreationMonth', contractCreationMonth.trim());
+    if (contractCreationYear?.trim()) params.append('contractCreationYear', contractCreationYear.trim());
+    if (plannedDeliveryEndMonth?.trim()) params.append('plannedDeliveryEndMonth', plannedDeliveryEndMonth.trim());
+    if (plannedDeliveryEndYear?.trim()) params.append('plannedDeliveryEndYear', plannedDeliveryEndYear.trim());
+    if (registrationMonth?.trim()) params.append('registrationMonth', registrationMonth.trim());
+    if (registrationYear?.trim()) params.append('registrationYear', registrationYear.trim());
 
     // Один запрос вместо 5×/contracts?size=1 (без обогащения дат на бэкенде)
     try {
@@ -60,6 +85,7 @@ export function useContractTabCounts({
       if (!res.ok) return;
       const data = await res.json();
       setTabCounts({
+        'attention': data['attention'] ?? 0,
         'in-work': data['in-work'] ?? 0,
         'not-coordinated': data['not-coordinated'] ?? 0,
         'signed': data['signed'] ?? 0,
@@ -69,7 +95,7 @@ export function useContractTabCounts({
     } catch {
       // оставляем предыдущие значения при ошибке
     }
-  }, [selectedYear, filters, cfoFilter, organizationFilter, preparedByFilter, segmentFilter, isTypicalFormFilter, statusFilter]);
+  }, [selectedYear, filters, cfoFilter, organizationFilter, preparedByFilter, segmentFilter, isTypicalFormFilter, statusFilter, exclude1p, contractCreationMonth, contractCreationYear, plannedDeliveryEndMonth, plannedDeliveryEndYear, registrationMonth, registrationYear]);
 
   useEffect(() => {
     // fetchTabCounts асинхронный: setState вызывается после await (не синхронный каскад ререндеров)

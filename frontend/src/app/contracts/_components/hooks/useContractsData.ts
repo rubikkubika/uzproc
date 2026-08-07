@@ -37,7 +37,8 @@ export const useContractsData = () => {
     plannedDeliveryEndMonth: string = '',
     plannedDeliveryEndYear: string = '',
     registrationMonth: string = '',
-    registrationYear: string = ''
+    registrationYear: string = '',
+    exclude1p: boolean = false
   ): Promise<PageResponse | null> => {
     try {
       const params = new URLSearchParams();
@@ -106,6 +107,11 @@ export const useContractsData = () => {
         params.append('segment', segmentFilter.trim());
       }
 
+      // Переключатель «без 1P» — исключаем ЦФО «M - Commerce 1Р»
+      if (exclude1p) {
+        params.append('exclude1p', 'true');
+      }
+
       // Фильтры по датам (месяц/год)
       if (contractCreationMonth && contractCreationMonth.trim() !== '') {
         params.append('contractCreationMonth', contractCreationMonth.trim());
@@ -133,6 +139,10 @@ export const useContractsData = () => {
       // Вкладка "В работе": подготовил = договорник, без Подписан и Не согласован, без скрытых
       if (activeTab === 'in-work') {
         params.append('inWorkTab', 'true');
+      }
+      // Вкладка "Требует внимания": подмножество "В работе" с просрочкой или остатком ≤30% от СЛА
+      if (activeTab === 'attention') {
+        params.append('attentionTab', 'true');
       }
       // Вкладка "Не согласованы": статус Не согласован и подготовил = договорник
       if (activeTab === 'not-coordinated') {
