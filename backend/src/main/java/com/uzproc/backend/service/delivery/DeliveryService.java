@@ -356,7 +356,7 @@ public class DeliveryService {
         // Авто-распределение типов оплат (Аванс/По факту) — только при создании поставки
         // и при стартовом прогоне; при обновлении распределение не пересчитываем.
         if (autoDistribute) {
-            autoDistributePayments(delivery);
+            autoDistributePayments(delivery, false);
         }
         delivery.setStatus(resolveInitialStatus(delivery.getPaymentScheme(), delivery.getPayments()));
         applyDerivedShipmentStatus(delivery);
@@ -408,11 +408,30 @@ public class DeliveryService {
     /** Значение «Статуса отчёта», означающее закрытую поставку (в нижнем регистре, без пробелов по краям). */
     private static final String REPORT_STATUS_CLOSED = "закрыто";
 
-    /** Допуск на округление при сверке сумм оплат с долями схемы (копеечные расхождения). */
-    private static final BigDecimal DISTRIBUTION_TOLERANCE = new BigDecimal("1.00");
+    /** Минимальный допуск на округление при сверке сумм оплат с долями схемы (копеечные расхождения). */
+    private static final BigDecimal DISTRIBUTION_MIN_TOLERANCE = new BigDecimal("1.00");
+
+    /**
+     * Доля от суммы поставки, задающая допуск на округление (0.01%). Абсолютного допуска в 1.00
+     * не хватает на больших суммах: поставщик округляет аванс до целых, и при 65 млн доля 30%
+     * расходится с фактической оплатой на единицы валюты — сверка не проходила, а оплаты
+     * оставались нераспределёнными.
+     */
+    private static final BigDecimal DISTRIBUTION_TOLERANCE_RATE = new BigDecimal("0.0001");
 
     /** Предел перебора комбинаций оплат при подборе доли аванса (2^16 масок). */
     private static final int DISTRIBUTION_MAX_COMBINATIONS = 16;
+
+    /**
+     * Допуск на округление для суммы поставки: {@link #DISTRIBUTION_TOLERANCE_RATE} от неё,
+     * но не меньше {@link #DISTRIBUTION_MIN_TOLERANCE}.
+     */
+    private static BigDecimal distributionTolerance(BigDecimal amount) {
+        if (amount == null) return DISTRIBUTION_MIN_TOLERANCE;
+        BigDecimal relative = amount.abs().multiply(DISTRIBUTION_TOLERANCE_RATE)
+                .setScale(2, java.math.RoundingMode.HALF_UP);
+        return relative.max(DISTRIBUTION_MIN_TOLERANCE);
+    }
 
     /**
      * Авто-распределение типов оплат по схеме и сумме поставки.
@@ -424,13 +443,20 @@ public class DeliveryService {
      *   • Иначе распределяем, если оплаты «сходятся»: их суммарная сумма не превышает сумму
      *     поставки (допускается частичная оплата — напр. проведён только аванс, доплата позже)
      *     и среди них есть группа, дающая в сумме долю аванса (amount·adv%) с точностью до
-     *     округления ({@link #DISTRIBUTION_TOLERANCE}); остальные оплаты — «По факту».
+     *     округления ({@link #distributionTolerance(BigDecimal)}); остальные оплаты — «По факту».
      *     Группа подбирается перебором комбинаций, а не сопоставлением каждой оплаты
      *     с «ближайшей» долей: доля может быть разбита на несколько оплат
      *     (напр. 30/30/40), а при равных долях (50/50) «ближайшая» неоднозначна.
-     * Если сходимости нет — типы не трогаем (оплаты остаются нераспределёнными).
+     * Если доля аванса не набирается, но поставка оплачена полностью, — размечаем по факту
+     * поставки (см. {@link #distributeFullyPaidByDeliveryFact}); при частичной оплате типы
+     * не трогаем (оплаты остаются нераспределёнными).
+     *
+     * @param allowFactFallback разрешена ли разметка по факту поставки. При создании поставки — false:
+     *                          дата факта/ЭСФ приходит из отчёта уже после применения правил договора
+     *                          (см. {@link #upsertDeliveryForSpecification}), и её отсутствие на этом
+     *                          шаге ещё не означает, что поставки не было.
      */
-    private void autoDistributePayments(Delivery delivery) {
+    private void autoDistributePayments(Delivery delivery, boolean allowFactFallback) {
         DeliveryPaymentScheme ref = delivery.getPaymentSchemeRef();
         BigDecimal amount = delivery.getAmount();
         if (ref == null || delivery.getPayments() == null) return;
@@ -459,7 +485,8 @@ public class DeliveryService {
             if (p.getAmount() == null) return; // нет суммы — не распределяем
             total = total.add(p.getAmount());
         }
-        if (total.subtract(amount).compareTo(DISTRIBUTION_TOLERANCE) > 0) return;
+        BigDecimal tolerance = distributionTolerance(amount);
+        if (total.subtract(amount).compareTo(tolerance) > 0) return;
 
         BigDecimal advTarget = amount.multiply(BigDecimal.valueOf(adv))
                 .divide(BigDecimal.valueOf(100), 4, java.math.RoundingMode.HALF_UP);
@@ -472,8 +499,15 @@ public class DeliveryService {
                         .thenComparing(Payment::getId, java.util.Comparator.nullsLast(java.util.Comparator.naturalOrder())))
                 .collect(Collectors.toList());
 
-        Set<Payment> advanceGroup = findAdvanceGroup(ordered, advTarget);
-        if (advanceGroup == null) return; // доля аванса не набирается — оставляем нераспределёнными
+        Set<Payment> advanceGroup = findAdvanceGroup(ordered, advTarget, tolerance);
+        if (advanceGroup == null) {
+            // Доля аванса не набирается: схема договора фактически не соблюдена
+            // (напр. вместо 30/70 прошёл один платёж на всю сумму).
+            if (allowFactFallback) {
+                distributeFullyPaidByDeliveryFact(delivery, ordered, total, amount, tolerance);
+            }
+            return;
+        }
 
         for (Payment p : ordered) {
             p.setPaymentType(advanceGroup.contains(p) ? PaymentType.ADVANCE : PaymentType.FACT);
@@ -482,25 +516,50 @@ public class DeliveryService {
     }
 
     /**
-     * Подбирает группу оплат, дающую в сумме долю аванса (с допуском {@link #DISTRIBUTION_TOLERANCE}).
+     * Запасная разметка для поставок, где схема не соблюдена, но поставка оплачена полностью:
+     * доли аванса/доплаты сопоставить не с чем (напр. один платёж на 100% при схеме 30/70),
+     * поэтому тип определяется по факту поставки — оплаты не позже него «Аванс», после — «По факту».
+     * Факт поставки: {@code actualDeliveryDate}, при отсутствии — дата ЭСФ. Если поставки ещё не было,
+     * все оплаты — «Аванс» (полная предоплата).
+     * Применяется только при полной оплате: если сумма оплат не совпадает с суммой поставки
+     * (частичная оплата — доплата ещё впереди), типы не трогаем, оплаты остаются нераспределёнными.
+     */
+    private void distributeFullyPaidByDeliveryFact(Delivery delivery, List<Payment> ordered,
+                                                   BigDecimal total, BigDecimal amount, BigDecimal tolerance) {
+        if (total.subtract(amount).abs().compareTo(tolerance) > 0) return;
+
+        LocalDate fact = delivery.getActualDeliveryDate() != null
+                ? delivery.getActualDeliveryDate()
+                : delivery.getEsfDate();
+        for (Payment p : ordered) {
+            LocalDate paid = p.getPaymentDate();
+            boolean advance = fact == null || paid == null || !paid.isAfter(fact);
+            p.setPaymentType(advance ? PaymentType.ADVANCE : PaymentType.FACT);
+            paymentRepository.save(p);
+        }
+    }
+
+    /**
+     * Подбирает группу оплат, дающую в сумме долю аванса (с допуском {@code tolerance}).
      * Предпочтение — самым ранним оплатам: из подходящих комбинаций выбирается та,
      * чья последняя по хронологии оплата стоит раньше, а при равенстве — меньшая по составу.
      * Возвращает null, если подходящей группы нет.
      *
-     * @param ordered оплаты, отсортированные по хронологии
+     * @param ordered   оплаты, отсортированные по хронологии
+     * @param tolerance допуск на округление (см. {@link #distributionTolerance(BigDecimal)})
      */
-    private Set<Payment> findAdvanceGroup(List<Payment> ordered, BigDecimal advTarget) {
+    private Set<Payment> findAdvanceGroup(List<Payment> ordered, BigDecimal advTarget, BigDecimal tolerance) {
         int n = ordered.size();
         if (n > DISTRIBUTION_MAX_COMBINATIONS) {
             // Слишком много оплат для перебора — накапливаем аванс с начала хронологии.
             Set<Payment> group = new HashSet<>();
             BigDecimal sum = BigDecimal.ZERO;
             for (Payment p : ordered) {
-                if (sum.subtract(advTarget).abs().compareTo(DISTRIBUTION_TOLERANCE) <= 0) break;
+                if (sum.subtract(advTarget).abs().compareTo(tolerance) <= 0) break;
                 group.add(p);
                 sum = sum.add(p.getAmount());
             }
-            return sum.subtract(advTarget).abs().compareTo(DISTRIBUTION_TOLERANCE) <= 0 ? group : null;
+            return sum.subtract(advTarget).abs().compareTo(tolerance) <= 0 ? group : null;
         }
 
         int bestMask = -1;
@@ -519,7 +578,7 @@ public class DeliveryService {
                 last = i;
                 size++;
             }
-            if (sum.subtract(advTarget).abs().compareTo(DISTRIBUTION_TOLERANCE) > 0) continue;
+            if (sum.subtract(advTarget).abs().compareTo(tolerance) > 0) continue;
             if (last < bestLast || (last == bestLast && size < bestSize)) {
                 bestMask = mask;
                 bestLast = last;
@@ -599,6 +658,14 @@ public class DeliveryService {
         }
         if (reportStatus != null && !reportStatus.isBlank()) {
             delivery.setReportStatus(reportStatus.trim());
+        }
+        // Даты факта/ЭСФ из отчёта проставлены выше — теперь известно, состоялась ли поставка,
+        // и оплаты нераспределённой поставки можно разметить по факту (напр. один платёж на 100%
+        // при схеме 30/70). Уже размеченные (в т.ч. вручную) не трогаем.
+        Set<Payment> deliveryPayments = delivery.getPayments();
+        if (deliveryPayments != null && !deliveryPayments.isEmpty()
+                && deliveryPayments.stream().noneMatch(p -> p.getPaymentType() != null)) {
+            autoDistributePayments(delivery, true);
         }
         // Статус отгрузки мог стать «Поставлено» (факт-дата/ЭСФ) уже после applyContractRules —
         // уточняем статус оплаты («Не оплачено» → «Ожидает доплаты» для постоплаты).
@@ -837,7 +904,7 @@ public class DeliveryService {
             // Поставка уже размечена хотя бы частично — не вмешиваемся.
             if (payments.stream().anyMatch(p -> p.getPaymentType() != null)) continue;
 
-            autoDistributePayments(d);
+            autoDistributePayments(d, true);
             if (payments.stream().anyMatch(p -> p.getPaymentType() != null)) {
                 deliveryRepository.save(d);
                 updated++;
