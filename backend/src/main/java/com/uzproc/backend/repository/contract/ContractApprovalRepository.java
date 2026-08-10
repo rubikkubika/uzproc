@@ -52,6 +52,14 @@ public interface ContractApprovalRepository extends JpaRepository<ContractApprov
     List<Object[]> findSynchronizationCompletionDatesByContractIds(@Param("contractIds") List<Long> contractIds);
 
     /**
+     * Id договоров, у которых дата подписания (MAX(completion_date) по этапам «регистрация%»/«синхронизация%»)
+     * попадает в интервал [from, to). Используется для отбора кандидатов на дашборде SLA договоров:
+     * точная дата подписания (регистрация или синхронизация — по форме документа) определяется потом.
+     */
+    @Query(value = "SELECT contract_id FROM contract_approvals WHERE (LOWER(stage) LIKE 'регистрация%' OR LOWER(stage) LIKE 'синхронизация%') AND completion_date IS NOT NULL GROUP BY contract_id HAVING MAX(completion_date) >= :from AND MAX(completion_date) < :to", nativeQuery = true)
+    List<Long> findContractIdsSignedBetween(@Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    /**
      * Для каждого договора из списка возвращает (contract_id, stop_date) — дату стоп «договор в работе».
      * Дата стоп = MAX(completion_date) по этапам «регистрация%»/«синхронизация%»;
      * если таких этапов нет → MAX(completion_date) по последнему согласованию

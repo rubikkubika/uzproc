@@ -73,10 +73,24 @@ public class ContractDto {
     private Integer plannedSlaDays;
     /** Отклонение от дедлайна подготовки: план − факт (плюс — запас, минус — просрочка). */
     private Integer slaDelta;
+    /** Этап «Подготовка» завершён (согласование уже запущено). */
+    private Boolean preparationCompleted;
     /** Рабочие дни согласования договора: от даты первого согласования (не считая) до завершения последнего включительно. */
     private Integer approvalWorkingDays;
+    /** Плановый SLA на согласование в 1С ДО (рабочих дней) по форме документа и типовости. */
+    private Integer plannedApprovalSlaDays;
+    /** Отклонение от дедлайна согласования: план − факт (плюс — запас, минус — просрочка). */
+    private Integer approvalSlaDelta;
+    /** Этап «Согласование» завершён (согласование уже не идёт и есть дата последнего согласования). */
+    private Boolean approvalCompleted;
     /** Рабочие дни подписания договора: от даты последнего согласования (не считая) до даты регистрации (для спецификаций — синхронизации) включительно; если этап идёт — до текущего момента. */
     private Integer signingWorkingDays;
+    /** Плановый SLA на подписание в 1С ДО (рабочих дней) по форме документа. */
+    private Integer plannedSigningSlaDays;
+    /** Отклонение от дедлайна подписания: план − факт (плюс — запас, минус — просрочка). */
+    private Integer signingSlaDelta;
+    /** Этап «Подписание» завершён (договор подписан). */
+    private Boolean signingCompleted;
     /** Дата первого назначения на согласование договора (MIN assignment_date по stage 'Согласование%'). */
     private LocalDateTime firstApprovalAssignmentDate;
     /** Дата начала отсчёта подготовки (contractCreationDate | approvalAssignmentDate ЗП | purchaseCompletionDate). */
@@ -405,6 +419,14 @@ public class ContractDto {
         this.slaDelta = slaDelta;
     }
 
+    public Boolean getPreparationCompleted() {
+        return preparationCompleted;
+    }
+
+    public void setPreparationCompleted(Boolean preparationCompleted) {
+        this.preparationCompleted = preparationCompleted;
+    }
+
     public Integer getApprovalWorkingDays() {
         return approvalWorkingDays;
     }
@@ -413,12 +435,60 @@ public class ContractDto {
         this.approvalWorkingDays = approvalWorkingDays;
     }
 
+    public Integer getPlannedApprovalSlaDays() {
+        return plannedApprovalSlaDays;
+    }
+
+    public void setPlannedApprovalSlaDays(Integer plannedApprovalSlaDays) {
+        this.plannedApprovalSlaDays = plannedApprovalSlaDays;
+    }
+
+    public Integer getApprovalSlaDelta() {
+        return approvalSlaDelta;
+    }
+
+    public void setApprovalSlaDelta(Integer approvalSlaDelta) {
+        this.approvalSlaDelta = approvalSlaDelta;
+    }
+
+    public Boolean getApprovalCompleted() {
+        return approvalCompleted;
+    }
+
+    public void setApprovalCompleted(Boolean approvalCompleted) {
+        this.approvalCompleted = approvalCompleted;
+    }
+
     public Integer getSigningWorkingDays() {
         return signingWorkingDays;
     }
 
     public void setSigningWorkingDays(Integer signingWorkingDays) {
         this.signingWorkingDays = signingWorkingDays;
+    }
+
+    public Integer getPlannedSigningSlaDays() {
+        return plannedSigningSlaDays;
+    }
+
+    public void setPlannedSigningSlaDays(Integer plannedSigningSlaDays) {
+        this.plannedSigningSlaDays = plannedSigningSlaDays;
+    }
+
+    public Integer getSigningSlaDelta() {
+        return signingSlaDelta;
+    }
+
+    public void setSigningSlaDelta(Integer signingSlaDelta) {
+        this.signingSlaDelta = signingSlaDelta;
+    }
+
+    public Boolean getSigningCompleted() {
+        return signingCompleted;
+    }
+
+    public void setSigningCompleted(Boolean signingCompleted) {
+        this.signingCompleted = signingCompleted;
     }
 
     public LocalDateTime getFirstApprovalAssignmentDate() {

@@ -37,10 +37,24 @@ export interface Contract {
   plannedSlaDays: number | null;
   /** Отклонение от дедлайна подготовки: план − факт. */
   slaDelta: number | null;
+  /** Этап «Подготовка» завершён (согласование запущено). */
+  preparationCompleted: boolean | null;
   /** Рабочие дни этапа «Согласование» договора. */
   approvalWorkingDays: number | null;
+  /** Плановый SLA на согласование в 1С ДО (рабочих дней). */
+  plannedApprovalSlaDays: number | null;
+  /** Отклонение от дедлайна согласования: план − факт. */
+  approvalSlaDelta: number | null;
+  /** Этап «Согласование» завершён. */
+  approvalCompleted: boolean | null;
   /** Рабочие дни этапа «Подписание» договора. */
   signingWorkingDays: number | null;
+  /** Плановый SLA на подписание в 1С ДО (рабочих дней). */
+  plannedSigningSlaDays: number | null;
+  /** Отклонение от дедлайна подписания: план − факт. */
+  signingSlaDelta: number | null;
+  /** Этап «Подписание» завершён (договор подписан). */
+  signingCompleted: boolean | null;
   /** Дата первого назначения на согласование договора. */
   firstApprovalAssignmentDate: string | null;
   /** Дата регистрации договора (дата выполнения согласования «Регистрация»). */

@@ -20,8 +20,10 @@ import com.uzproc.backend.dto.overview.OverviewPurchasePlanMonthsResponseDto;
 import com.uzproc.backend.dto.overview.OverviewPurchasesByCfoItemDto;
 import com.uzproc.backend.dto.overview.OverviewSlaResponseDto;
 import com.uzproc.backend.dto.overview.OverviewTimelinesResponseDto;
+import com.uzproc.backend.dto.contract.ContractSlaResponseDto;
 import com.uzproc.backend.service.contract.ContractApprovalService;
 import com.uzproc.backend.service.contract.ContractService;
+import com.uzproc.backend.service.contract.ContractSlaDashboardService;
 import com.uzproc.backend.service.overview.ApprovalPresentationService;
 import com.uzproc.backend.service.overview.KpiSettingsService;
 import com.uzproc.backend.service.overview.OverviewService;
@@ -58,17 +60,20 @@ public class OverviewController {
     private final ApprovalPresentationService approvalPresentationService;
     private final ContractApprovalService contractApprovalService;
     private final ContractService contractService;
+    private final ContractSlaDashboardService contractSlaDashboardService;
     private final KpiSettingsService kpiSettingsService;
 
     public OverviewController(OverviewService overviewService,
                               ApprovalPresentationService approvalPresentationService,
                               ContractApprovalService contractApprovalService,
                               ContractService contractService,
+                              ContractSlaDashboardService contractSlaDashboardService,
                               KpiSettingsService kpiSettingsService) {
         this.overviewService = overviewService;
         this.approvalPresentationService = approvalPresentationService;
         this.contractApprovalService = contractApprovalService;
         this.contractService = contractService;
+        this.contractSlaDashboardService = contractSlaDashboardService;
         this.kpiSettingsService = kpiSettingsService;
     }
 
@@ -240,6 +245,23 @@ public class OverviewController {
         logger.debug("Overview SLA request for year {}, purchaser={}", year, purchaser);
         OverviewSlaResponseDto data = overviewService.getSlaData(year, purchaser);
         return ResponseEntity.ok(data);
+    }
+
+    /**
+     * Данные для вкладки «SLA договоров»: выполнение планового SLA по подписанным за год документам
+     * и списки подписанных в текущем месяце — с нарушением SLA и без нарушения.
+     *
+     * @param year       год подписания
+     * @param preparedBy опциональный фильтр по договорному специалисту
+     * @param exclude1p  переключатель «без 1P»: исключить документы ЦФО «M - Commerce 1Р»
+     */
+    @GetMapping("/contract-sla")
+    public ResponseEntity<ContractSlaResponseDto> getContractSlaData(
+            @RequestParam int year,
+            @RequestParam(required = false) String preparedBy,
+            @RequestParam(required = false, defaultValue = "false") boolean exclude1p) {
+        logger.debug("Contract SLA dashboard request for year {}, preparedBy={}, exclude1p={}", year, preparedBy, exclude1p);
+        return ResponseEntity.ok(contractSlaDashboardService.getContractSlaData(year, preparedBy, exclude1p));
     }
 
     /**

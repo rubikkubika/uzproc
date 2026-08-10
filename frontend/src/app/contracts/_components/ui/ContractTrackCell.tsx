@@ -30,6 +30,10 @@ export default function ContractTrackCell({ contract }: Props) {
     documentForm,
     plannedSlaDays,
     slaDelta,
+    plannedApprovalSlaDays,
+    approvalSlaDelta,
+    plannedSigningSlaDays,
+    signingSlaDelta,
   } = contract;
 
   // Определяем стадию согласования
@@ -55,6 +59,7 @@ export default function ContractTrackCell({ contract }: Props) {
     if (approvalWorkingDays != null) {
       parts.push(`Рабочих дней согласования: ${approvalWorkingDays}`);
     }
+    parts.push(...buildSlaTooltipLines('согласования', plannedApprovalSlaDays, approvalWorkingDays, approvalSlaDelta));
     return parts.join('\n');
   })();
 
@@ -71,6 +76,7 @@ export default function ContractTrackCell({ contract }: Props) {
     if (signingWorkingDays != null) {
       parts.push(`Рабочих дней подписания: ${signingWorkingDays}`);
     }
+    parts.push(...buildSlaTooltipLines('подписания', plannedSigningSlaDays, signingWorkingDays, signingSlaDelta));
     return parts.join('\n');
   })();
 
@@ -96,7 +102,7 @@ export default function ContractTrackCell({ contract }: Props) {
     if (preparationWorkingDays != null) {
       parts.push(`Рабочих дней подготовки: ${preparationWorkingDays}`);
     }
-    parts.push(...buildSlaTooltipLines(plannedSlaDays, preparationWorkingDays, slaDelta));
+    parts.push(...buildSlaTooltipLines('подготовки', plannedSlaDays, preparationWorkingDays, slaDelta));
     return parts.join('\n');
   })();
 
@@ -132,7 +138,7 @@ export default function ContractTrackCell({ contract }: Props) {
 
       {/* Блок: Согласование */}
       <div
-        className="flex flex-col items-center gap-0.5 rounded border border-gray-300 px-1 py-0.5 min-w-[3rem]"
+        className="flex flex-col items-center gap-0.5 rounded border border-gray-300 px-1 py-0.5 min-w-[4.25rem]"
         title={approvalTooltip}
       >
         {isNotCoordinated ? (
@@ -150,17 +156,20 @@ export default function ContractTrackCell({ contract }: Props) {
         ) : (
           <div className="w-4 h-4 rounded-full bg-gray-200 flex-shrink-0" />
         )}
-        {approvalWorkingDays != null && (
-          <span className="inline-flex items-center justify-center min-w-[1.5rem] h-4 rounded bg-gray-200 text-gray-700 text-[10px] font-bold tabular-nums px-0.5">
-            {approvalWorkingDays}
-          </span>
-        )}
+        <div className="flex items-center gap-0.5">
+          {approvalWorkingDays != null && (
+            <span className="inline-flex items-center justify-center min-w-[1.5rem] h-4 rounded bg-gray-200 text-gray-700 text-[10px] font-bold tabular-nums px-0.5">
+              {approvalWorkingDays}
+            </span>
+          )}
+          {approvalSlaDelta != null && <SlaDeltaBadge delta={approvalSlaDelta} planned={plannedApprovalSlaDays} />}
+        </div>
         <span className="text-[9px] text-gray-500 whitespace-nowrap leading-none">Согласование</span>
       </div>
 
       {/* Блок: Подписание */}
       <div
-        className="flex flex-col items-center gap-0.5 rounded border border-gray-300 px-1 py-0.5 min-w-[3rem]"
+        className="flex flex-col items-center gap-0.5 rounded border border-gray-300 px-1 py-0.5 min-w-[4.25rem]"
         title={signingTooltip}
       >
         {isSigned ? (
@@ -174,11 +183,14 @@ export default function ContractTrackCell({ contract }: Props) {
         ) : (
           <div className="w-4 h-4 rounded-full bg-gray-200 flex-shrink-0" />
         )}
-        {signingWorkingDays != null && (
-          <span className="inline-flex items-center justify-center min-w-[1.5rem] h-4 rounded bg-gray-200 text-gray-700 text-[10px] font-bold tabular-nums px-0.5">
-            {signingWorkingDays}
-          </span>
-        )}
+        <div className="flex items-center gap-0.5">
+          {signingWorkingDays != null && (
+            <span className="inline-flex items-center justify-center min-w-[1.5rem] h-4 rounded bg-gray-200 text-gray-700 text-[10px] font-bold tabular-nums px-0.5">
+              {signingWorkingDays}
+            </span>
+          )}
+          {signingSlaDelta != null && <SlaDeltaBadge delta={signingSlaDelta} planned={plannedSigningSlaDays} />}
+        </div>
         <span className="text-[9px] text-gray-500 whitespace-nowrap leading-none">Подписание</span>
       </div>
 

@@ -124,6 +124,12 @@ app:
   frontend:
     base-url: ${FRONTEND_BASE_URL:}
     csi-link-base-url: ${CSI_LINK_BASE_URL:http://10.123.48.62}
+  # Автоматическая редакция плана закупок: последний день месяца в 23:30 (cron «L» — последний день месяца)
+  purchase-plan:
+    auto-version:
+      enabled: ${PURCHASE_PLAN_AUTO_VERSION_ENABLED:true}
+      cron: ${PURCHASE_PLAN_AUTO_VERSION_CRON:0 30 23 L * *}
+      zone: ${PURCHASE_PLAN_AUTO_VERSION_ZONE:Asia/Tashkent}
   # Вкладка ЕК (Обзор): перевод сумм в базовую валюту по курсу при разных валютах
   overview:
     ek:

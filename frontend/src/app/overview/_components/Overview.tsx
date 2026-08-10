@@ -25,6 +25,7 @@ import { useOverviewTimelinesData } from './hooks/useOverviewTimelinesData';
 import { TimelinesTabContent } from './ui/TimelinesTabContent';
 import { SavingsTabContent } from './ui/SavingsTabContent';
 import { ManagementReportingContent } from './ui/ManagementReportingContent';
+import { ContractSlaDashboardContent } from './contract-sla/ContractSlaDashboardContent';
 import { ContractRemarksDashboardContent } from './ui/ContractRemarksDashboardContent';
 import { ContractDocumentsCountDashboardContent } from './ui/ContractDocumentsCountDashboardContent';
 import { ContractApprovalsDashboardContent } from './ui/ContractApprovalsDashboardContent';
@@ -503,6 +504,11 @@ export default function Overview() {
         {activeTopTab === 'dashboards' && activeTab === 'savings' && (
           <div className="w-full">
             <SavingsTabContent />
+          </div>
+        )}
+        {activeTopTab === 'dashboards' && activeTab === 'contract-sla' && (
+          <div className="w-full">
+            <ContractSlaDashboardContent enabled={activeTab === 'contract-sla'} />
           </div>
         )}
         {activeTopTab === 'dashboards' && activeTab === 'contract-remarks' && (

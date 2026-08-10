@@ -150,7 +150,7 @@ public class ContractService {
      * Обогащает договоры расчётными полями трэка: даты этапов, рабочие дни подготовки/согласования/подписания
      * и отклонение от дедлайна подготовки. Все зависимости берутся batch-запросами по переданному списку.
      */
-    private List<ContractDto> enrichContracts(List<Contract> contractList) {
+    public List<ContractDto> enrichContracts(List<Contract> contractList) {
         List<Long> contractIds = contractList.stream()
                 .map(Contract::getId)
                 .collect(java.util.stream.Collectors.toList());
@@ -208,6 +208,7 @@ public class ContractService {
                 dto.setContractRequiresPurchase(requiresPurchase);
             }
             dto.setPreparationStartDate(startDate);
+            dto.setPreparationCompleted(firstApprovalDate != null);
 
             if (startDate != null) {
                 LocalDateTime endDate = firstApprovalDate != null ? firstApprovalDate : LocalDateTime.now();
@@ -217,7 +218,7 @@ public class ContractService {
                 dto.setPreparationWorkingDays((int) days);
 
                 // Отклонение от дедлайна подготовки: план (по форме документа и типовости) − факт
-                Integer plannedSla = getPlannedPreparationSlaDays(c.getDocumentForm(), c.getIsTypicalForm());
+                Integer plannedSla = ContractSlaPlan.preparationDays(c.getDocumentForm(), c.getIsTypicalForm());
                 if (plannedSla != null) {
                     dto.setPlannedSlaDays(plannedSla);
                     dto.setSlaDelta(plannedSla - (int) days);
@@ -229,12 +230,19 @@ public class ContractService {
             if (firstApprovalDate != null) {
                 // Если согласование ещё идёт (статус «На согласовании») — считаем до текущего момента,
                 // иначе (согласование завершено) — до даты последнего согласования.
-                LocalDateTime approvalEnd = c.getStatus() == ContractStatus.ON_COORDINATION
-                        ? LocalDateTime.now()
-                        : lastCompletionDate;
+                boolean approvalInProgress = c.getStatus() == ContractStatus.ON_COORDINATION;
+                LocalDateTime approvalEnd = approvalInProgress ? LocalDateTime.now() : lastCompletionDate;
                 if (approvalEnd != null) {
                     long approvalDays = workingDayService.countFromDayAfterThroughInclusive(firstApprovalDate, approvalEnd);
                     dto.setApprovalWorkingDays((int) approvalDays);
+                    dto.setApprovalCompleted(!approvalInProgress);
+
+                    // Отклонение от дедлайна согласования: план (по форме документа и типовости) − факт
+                    Integer plannedApprovalSla = ContractSlaPlan.approvalDays(c.getDocumentForm(), c.getIsTypicalForm());
+                    if (plannedApprovalSla != null) {
+                        dto.setPlannedApprovalSlaDays(plannedApprovalSla);
+                        dto.setApprovalSlaDelta(plannedApprovalSla - (int) approvalDays);
+                    }
                 }
             }
 
@@ -255,6 +263,14 @@ public class ContractService {
                 if (signingEnd != null) {
                     long signingDays = workingDayService.countFromDayAfterThroughInclusive(lastCompletionDate, signingEnd);
                     dto.setSigningWorkingDays((int) signingDays);
+                    dto.setSigningCompleted(c.getStatus() == ContractStatus.SIGNED);
+
+                    // Отклонение от дедлайна подписания: план (по форме документа) − факт
+                    Integer plannedSigningSla = ContractSlaPlan.signingDays(c.getDocumentForm());
+                    if (plannedSigningSla != null) {
+                        dto.setPlannedSigningSlaDays(plannedSigningSla);
+                        dto.setSigningSlaDelta(plannedSigningSla - (int) signingDays);
+                    }
                 }
             }
 
@@ -266,45 +282,34 @@ public class ContractService {
     private static final double ATTENTION_REMAINDER_PERCENT = 30.0;
 
     /**
-     * Договор требует внимания, если дедлайн подготовки уже просрочен (отклонение < 0)
-     * либо запаса осталось не более 30% от планового срока.
+     * Договор требует внимания, если внимания требует хотя бы один из этапов
+     * «Подготовка», «Согласование» и «Подписание».
      */
     private static boolean needsAttention(ContractDto dto) {
-        Integer delta = dto.getSlaDelta();
-        Integer planned = dto.getPlannedSlaDays();
+        return stageNeedsAttention(dto.getSlaDelta(), dto.getPlannedSlaDays(), dto.getPreparationCompleted())
+                || stageNeedsAttention(dto.getApprovalSlaDelta(), dto.getPlannedApprovalSlaDays(), dto.getApprovalCompleted())
+                || stageNeedsAttention(dto.getSigningSlaDelta(), dto.getPlannedSigningSlaDays(), dto.getSigningCompleted());
+    }
+
+    /**
+     * Этап требует внимания, если дедлайн уже просрочен (отклонение < 0) либо этап ещё идёт
+     * и запаса осталось не более 30% от планового срока.
+     * Завершённый в срок этап (отклонение ≥ 0) внимания не требует — он уже никуда не уедет.
+     */
+    private static boolean stageNeedsAttention(Integer delta, Integer planned, Boolean stageCompleted) {
         if (delta == null || planned == null || planned <= 0) {
             return false;
         }
         if (delta < 0) {
             return true;
         }
+        if (Boolean.TRUE.equals(stageCompleted)) {
+            return false;
+        }
         return ((double) delta / planned) * 100 <= ATTENTION_REMAINDER_PERCENT;
     }
 
-    /**
-     * Плановый SLA (рабочих дней) на подготовку и запуск документа, включая согласование с КА:
-     * <ul>
-     *   <li>Договор / Дополнительное соглашение: типовой — 2, нетиповой — 4;</li>
-     *   <li>Спецификация: типовая — 1, нетиповая — 3;</li>
-     *   <li>Импортный договор пока считается как нетиповой (4).</li>
-     * </ul>
-     * Для остальных форм документа плановый срок не задан (null) — отклонение не рассчитывается.
-     */
-    private Integer getPlannedPreparationSlaDays(String documentForm, Boolean isTypicalForm) {
-        if (documentForm == null || documentForm.trim().isEmpty()) {
-            return null;
-        }
-        boolean typical = Boolean.TRUE.equals(isTypicalForm);
-        switch (documentForm.trim()) {
-            case "Договор":
-            case "Дополнительное соглашение":
-                return typical ? 2 : 4;
-            case "Спецификация":
-                return typical ? 1 : 3;
-            default:
-                return null;
-        }
-    }
+    /** Плановые сроки этапов вынесены в {@link ContractSlaPlan} — там же матрица SLA по формам документа. */
 
     public ContractDto findById(Long id) {
         Contract contract = contractRepository.findById(id)

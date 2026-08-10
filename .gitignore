@@ -47,6 +47,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 backend/logs/
+# Логи скриптов (например, обновление снапшота ЭТП)
+logs/
 
 # Temporary files
 *.tmp

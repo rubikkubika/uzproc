@@ -19,6 +19,7 @@ const DASHBOARD_SUB_TAB_LABELS: Record<OverviewTab, string> = {
   approvals: 'Согласования',
   timelines: 'Сроки закупок',
   savings: 'Экономия',
+  'contract-sla': 'SLA договоров',
   'contract-remarks': 'Замечания по договорам',
   'contract-documents-count': 'Кол-во документов',
   'contract-approvals': 'Согласования договорных документов',

@@ -6,7 +6,7 @@ export type OverviewTopTab = 'dashboards' | 'management-reporting';
 
 export type OverviewDashboardCategory = 'purchases' | 'contracts' | 'other';
 
-export type OverviewTab = 'sla' | 'purchase-plan' | 'csi' | 'ek' | 'approvals' | 'timelines' | 'savings' | 'contract-remarks' | 'contract-documents-count' | 'contract-approvals' | 'purchases-by-cfo' | 'purchaser-distribution' | 'contract-states-in-work' | 'kpi' | 'kpi2';
+export type OverviewTab = 'sla' | 'purchase-plan' | 'csi' | 'ek' | 'approvals' | 'timelines' | 'savings' | 'contract-sla' | 'contract-remarks' | 'contract-documents-count' | 'contract-approvals' | 'purchases-by-cfo' | 'purchaser-distribution' | 'contract-states-in-work' | 'kpi' | 'kpi2';
 
 export interface OverviewTabItem {
   id: OverviewTab;
@@ -25,7 +25,7 @@ export interface OverviewDashboardCategoryItem {
 
 export const DASHBOARD_CATEGORY_TABS: Record<OverviewDashboardCategory, OverviewTab[]> = {
   purchases: ['sla', 'purchase-plan', 'csi', 'ek', 'savings', 'kpi', 'kpi2'],
-  contracts: ['contract-remarks', 'contract-documents-count', 'contract-approvals'],
+  contracts: ['contract-sla', 'contract-remarks', 'contract-documents-count', 'contract-approvals'],
   other: ['approvals', 'timelines', 'purchases-by-cfo', 'purchaser-distribution', 'contract-states-in-work'],
 };
 

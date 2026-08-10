@@ -23,6 +23,29 @@ public interface ContractRepository extends JpaRepository<Contract, Long>, JpaSp
            "WHERE c.documentForm = 'Спецификация' AND c.status = :status AND u.isContractor = true")
     List<Long> findSignedContractorSpecificationIds(@Param("status") com.uzproc.backend.entity.contract.ContractStatus status);
 
+    /**
+     * Договоры из списка id с указанным статусом, подготовленные договорником (preparedBy.isContractor = true).
+     * Та же выборка, что на вкладке «Подписаны» таблицы договоров — используется дашбордом SLA договоров.
+     */
+    @Query("SELECT c FROM Contract c JOIN c.preparedBy u " +
+           "WHERE c.id IN :ids AND c.status = :status AND u.isContractor = true")
+    List<Contract> findByIdsAndStatusPreparedByContractor(
+            @Param("ids") List<Long> ids,
+            @Param("status") com.uzproc.backend.entity.contract.ContractStatus status);
+
+    /**
+     * То же, что {@link #findByIdsAndStatusPreparedByContractor}, но с исключением ЦФО —
+     * переключатель «без 1P» на дашборде SLA договоров.
+     * Отдельный метод, а не условие «:param IS NULL»: Postgres не выводит тип у неиспользованного параметра.
+     */
+    @Query("SELECT c FROM Contract c JOIN c.preparedBy u LEFT JOIN c.cfo cf " +
+           "WHERE c.id IN :ids AND c.status = :status AND u.isContractor = true " +
+           "AND (cf.id IS NULL OR cf.name <> :excludeCfoName)")
+    List<Contract> findByIdsAndStatusPreparedByContractorExcludingCfo(
+            @Param("ids") List<Long> ids,
+            @Param("status") com.uzproc.backend.entity.contract.ContractStatus status,
+            @Param("excludeCfoName") String excludeCfoName);
+
     Optional<Contract> findByGuid(UUID guid);
     boolean existsByGuid(UUID guid);
     Optional<Contract> findByInnerId(String innerId);
