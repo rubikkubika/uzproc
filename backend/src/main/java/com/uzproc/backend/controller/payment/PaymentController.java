@@ -41,12 +41,44 @@ public class PaymentController {
             @RequestParam(required = false) Integer paymentYear,
             @RequestParam(required = false) String paymentType,
             @RequestParam(required = false) String executor,
-            @RequestParam(required = false) String responsible) {
+            @RequestParam(required = false) String responsible,
+            @RequestParam(required = false) String counterparty,
+            @RequestParam(required = false) String tab) {
 
         Page<PaymentDto> payments = paymentService.findAll(page, size, sortBy, sortDir, cfo, mainId, comment, linkedOnly,
                 paymentStatus, requestStatus, purchaseRequestNumber, contractTitle, amount, amountOperator,
-                plannedExpenseMonth, plannedExpenseYear, paymentMonth, paymentYear, paymentType, executor, responsible);
+                plannedExpenseMonth, plannedExpenseYear, paymentMonth, paymentYear, paymentType, executor, responsible,
+                counterparty, tab);
         return ResponseEntity.ok(payments);
+    }
+
+    /** Счётчики записей по вкладкам (unpaid / paid / all) с учётом текущих фильтров. */
+    @GetMapping("/tab-counts")
+    public ResponseEntity<Map<String, Long>> getTabCounts(
+            @RequestParam(required = false) List<String> cfo,
+            @RequestParam(required = false) String mainId,
+            @RequestParam(required = false) String comment,
+            @RequestParam(required = false) Boolean linkedOnly,
+            @RequestParam(required = false) List<String> paymentStatus,
+            @RequestParam(required = false) List<String> requestStatus,
+            @RequestParam(required = false) String purchaseRequestNumber,
+            @RequestParam(required = false) String contractTitle,
+            @RequestParam(required = false) java.math.BigDecimal amount,
+            @RequestParam(required = false) String amountOperator,
+            @RequestParam(required = false) Integer plannedExpenseMonth,
+            @RequestParam(required = false) Integer plannedExpenseYear,
+            @RequestParam(required = false) Integer paymentMonth,
+            @RequestParam(required = false) Integer paymentYear,
+            @RequestParam(required = false) String paymentType,
+            @RequestParam(required = false) String executor,
+            @RequestParam(required = false) String responsible,
+            @RequestParam(required = false) String counterparty) {
+
+        Map<String, Long> counts = paymentService.countByTabs(cfo, mainId, comment, linkedOnly, paymentStatus,
+                requestStatus, purchaseRequestNumber, contractTitle, amount, amountOperator,
+                plannedExpenseMonth, plannedExpenseYear, paymentMonth, paymentYear, paymentType, executor, responsible,
+                counterparty);
+        return ResponseEntity.ok(counts);
     }
 
     @GetMapping("/{id}")

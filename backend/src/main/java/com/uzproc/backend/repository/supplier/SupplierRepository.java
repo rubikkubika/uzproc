@@ -14,4 +14,7 @@ public interface SupplierRepository extends JpaRepository<Supplier, Long>, JpaSp
 
     /** Поиск первого поставщика по ИНН (для парсинга колонки "Контрагенты" в договорах). */
     Optional<Supplier> findFirstByInn(String inn);
+
+    /** Поиск первого поставщика по наименованию — запасной вариант, когда в выгрузке нет ИНН. */
+    Optional<Supplier> findFirstByNameIgnoreCase(String name);
 }

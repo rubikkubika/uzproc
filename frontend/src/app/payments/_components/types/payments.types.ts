@@ -6,6 +6,12 @@ export interface Payment {
   cfo: string | null;
   cfoId: number | null;
   comment: string | null;
+  /** Контрагент (колонка "Контрагент" в Excel) */
+  counterparty: string | null;
+  /** Контрагент из справочника поставщиков (связь по ИНН) */
+  supplierId: number | null;
+  supplierName: string | null;
+  supplierInn: string | null;
   purchaseRequestId: number | null;
   /** Номер заявки (id_purchase_request), не внутренний номер */
   purchaseRequestNumber: number | null;
@@ -38,6 +44,14 @@ export const REQUEST_STATUS_OPTIONS = ['На согласовании', 'Отк�
 
 /** Значения для столбца «Тип оплаты» */
 export const PAYMENT_TYPE_OPTIONS = ['Аванс', 'По факту'] as const;
+
+/**
+ * Вкладки таблицы оплат:
+ * - unpaid — оплаты договорников со статусом, отличным от «Оплачена»
+ * - paid — оплаты договорников со статусом «Оплачена»
+ * - all — все оплаты без ограничений
+ */
+export type TabType = 'unpaid' | 'paid' | 'all';
 
 export interface PageResponse {
   content: Payment[];

@@ -2,11 +2,14 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { getBackendUrl } from '@/utils/api';
 import { useDebouncedFiltersSync } from './useDebouncedFiltersSync';
 import { useFocusRestore } from './useFocusRestore';
+import { TabType } from '../types/payments.types';
+import { DEFAULT_TAB } from '../constants/payments.constants';
 
 export const usePaymentsFilters = (setCurrentPage: (page: number) => void) => {
   const [localFilters, setLocalFilters] = useState<Record<string, string>>({
     mainId: '',
     comment: '',
+    counterparty: '',
     purchaseRequestNumber: '',
     contractTitle: '',
     amount: '',
@@ -17,6 +20,7 @@ export const usePaymentsFilters = (setCurrentPage: (page: number) => void) => {
   const [filters, setFilters] = useState<Record<string, string>>({
     mainId: '',
     comment: '',
+    counterparty: '',
     purchaseRequestNumber: '',
     contractTitle: '',
     amount: '',
@@ -25,6 +29,7 @@ export const usePaymentsFilters = (setCurrentPage: (page: number) => void) => {
     responsible: '',
   });
   const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<TabType>(DEFAULT_TAB);
   const [cfoFilter, setCfoFilter] = useState<Set<string>>(new Set());
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('');
   const [requestStatusFilter, setRequestStatusFilter] = useState<string>('');
@@ -116,6 +121,8 @@ export const usePaymentsFilters = (setCurrentPage: (page: number) => void) => {
     setFilters,
     focusedField,
     setFocusedField,
+    activeTab,
+    setActiveTab,
     cfoFilter,
     setCfoFilter,
     paymentStatusFilter,

@@ -20,7 +20,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long>, JpaSpec
      * одним запросом — устраняет N+1 при конвертации в DTO (PaymentService.toDto читает все эти связи).
      */
     @Override
-    @EntityGraph(attributePaths = {"cfo", "purchaseRequest", "contract", "executor", "responsible"})
+    @EntityGraph(attributePaths = {"cfo", "purchaseRequest", "contract", "executor", "responsible", "supplier"})
     Page<Payment> findAll(Specification<Payment> spec, Pageable pageable);
 
     /** Поиск существующей оплаты по комментарию для обновления при повторной загрузке Excel */

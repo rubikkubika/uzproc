@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { ArrowUp, ArrowDown, ArrowUpDown, Search, Settings } from 'lucide-react';
 import { usePaymentsTable } from './hooks/usePaymentsTable';
+import PaymentsTableTabs from './ui/PaymentsTableTabs';
 import { PAYMENT_STATUS_OPTIONS, REQUEST_STATUS_OPTIONS, PAYMENT_TYPE_OPTIONS } from './types/payments.types';
 import { MONTH_OPTIONS } from './constants/payments.constants';
 
@@ -19,6 +20,9 @@ export default function PaymentsTable() {
     handleSort,
     handleResetFilters,
     filters,
+    activeTab,
+    handleTabChange,
+    tabCounts,
     loadMoreRef,
     updatePaymentType,
   } = usePaymentsTable();
@@ -161,6 +165,13 @@ export default function PaymentsTable() {
 
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
+      {/* Вкладки: Не оплачены / Оплачены / Все */}
+      <PaymentsTableTabs
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        tabCounts={tabCounts}
+      />
+
       {/* Заголовок: Сбросить фильтры и счётчик — как на странице заявок */}
       <div className="px-3 py-1 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
         <div className="flex items-center gap-2 flex-wrap">
@@ -246,6 +257,23 @@ export default function PaymentsTable() {
                     </div>
                     <div className="flex items-center gap-1 min-h-[20px]">
                       <span className="text-xs font-medium text-gray-500 tracking-wider">Договор</span>
+                    </div>
+                  </div>
+                </th>
+                <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative align-top" style={{ width: '16%' }}>
+                  <div className="flex flex-col gap-1" style={{ minWidth: 0, width: '100%' }}>
+                    <div className="h-[24px] flex items-center gap-1 flex-shrink-0" style={{ minHeight: '24px', maxHeight: '24px', minWidth: 0, width: '100%' }}>
+                      {renderTextFilter('counterparty', 'Название / ИНН')}
+                    </div>
+                    <div className="flex items-center gap-1 min-h-[20px]">
+                      <button
+                        onClick={() => handleSort('counterparty')}
+                        className="flex items-center justify-center hover:text-gray-700 transition-colors flex-shrink-0"
+                        style={{ width: '20px', height: '20px', minWidth: '20px', maxWidth: '20px', minHeight: '20px', maxHeight: '20px', padding: 0 }}
+                      >
+                        {sortField === 'counterparty' ? (sortDirection === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />) : <ArrowUpDown className="w-3 h-3 opacity-30" />}
+                      </button>
+                      <span className="text-xs font-medium text-gray-500 tracking-wider">Контрагент</span>
                     </div>
                   </div>
                 </th>
@@ -546,7 +574,7 @@ export default function PaymentsTable() {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={12} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={13} className="px-6 py-8 text-center text-gray-500">
                     Загрузка...
                   </td>
                 </tr>
@@ -581,6 +609,15 @@ export default function PaymentsTable() {
                       </Link>
                     ) : (
                       <span className="block min-w-0">{payment.contractTitle ?? '-'}</span>
+                    )}
+                  </td>
+                  <td
+                    className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 min-w-0 w-[16%]"
+                    title={[payment.supplierName ?? payment.counterparty, payment.supplierInn ? `ИНН: ${payment.supplierInn}` : null].filter(Boolean).join('\n') || undefined}
+                  >
+                    <span className="line-clamp-2 block min-w-0">{payment.supplierName ?? payment.counterparty ?? '-'}</span>
+                    {payment.supplierInn && (
+                      <span className="block text-[10px] text-gray-500">ИНН {payment.supplierInn}</span>
                     )}
                   </td>
                   <td className="px-1 py-2 text-xs border-r border-gray-300 min-w-0 w-[11%] overflow-hidden" title={payment.paymentStatus ?? undefined}>

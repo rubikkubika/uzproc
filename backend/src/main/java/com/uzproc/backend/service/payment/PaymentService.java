@@ -27,6 +27,13 @@ public class PaymentService {
 
     private static final Logger logger = LoggerFactory.getLogger(PaymentService.class);
 
+    /** Вкладка «Не оплачены»: оплаты договорников со статусом, отличным от «Оплачена» */
+    public static final String TAB_UNPAID = "unpaid";
+    /** Вкладка «Оплачены»: оплаты договорников со статусом «Оплачена» */
+    public static final String TAB_PAID = "paid";
+    /** Вкладка «Все»: без ограничений по исполнителю и статусу оплаты */
+    public static final String TAB_ALL = "all";
+
     private final PaymentRepository paymentRepository;
 
     public PaymentService(PaymentRepository paymentRepository) {
@@ -54,12 +61,14 @@ public class PaymentService {
             Integer paymentYear,
             String paymentType,
             String executor,
-            String responsible) {
+            String responsible,
+            String counterparty,
+            String tab) {
 
         Specification<Payment> spec = buildSpecification(cfo, mainId, comment, linkedOnly, paymentStatus, requestStatus,
                 purchaseRequestNumber, contractTitle, amount, amountOperator,
                 plannedExpenseMonth, plannedExpenseYear, paymentMonth, paymentYear,
-                paymentType, executor, responsible);
+                paymentType, executor, responsible, counterparty, tab);
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
 
@@ -69,6 +78,42 @@ public class PaymentService {
                 page, size, payments.getTotalElements());
 
         return payments.map(this::toDto);
+    }
+
+    /**
+     * Количество записей по каждой вкладке («Не оплачены», «Оплачены», «Все») с учётом текущих фильтров.
+     * Используется для счётчиков во вкладках таблицы оплат.
+     */
+    public java.util.Map<String, Long> countByTabs(
+            List<String> cfo,
+            String mainId,
+            String comment,
+            Boolean linkedOnly,
+            List<String> paymentStatus,
+            List<String> requestStatus,
+            String purchaseRequestNumber,
+            String contractTitle,
+            java.math.BigDecimal amount,
+            String amountOperator,
+            Integer plannedExpenseMonth,
+            Integer plannedExpenseYear,
+            Integer paymentMonth,
+            Integer paymentYear,
+            String paymentType,
+            String executor,
+            String responsible,
+            String counterparty) {
+
+        java.util.Map<String, Long> counts = new java.util.LinkedHashMap<>();
+        for (String tab : List.of(TAB_UNPAID, TAB_PAID, TAB_ALL)) {
+            Specification<Payment> spec = buildSpecification(cfo, mainId, comment, linkedOnly, paymentStatus, requestStatus,
+                    purchaseRequestNumber, contractTitle, amount, amountOperator,
+                    plannedExpenseMonth, plannedExpenseYear, paymentMonth, paymentYear,
+                    paymentType, executor, responsible, counterparty, tab);
+            counts.put(tab, paymentRepository.count(spec));
+        }
+        logger.info("Payment tab counts: {}", counts);
+        return counts;
     }
 
     public PaymentDto findById(Long id) {
@@ -111,9 +156,12 @@ public class PaymentService {
                                                       java.math.BigDecimal amount, String amountOperator,
                                                       Integer plannedExpenseMonth, Integer plannedExpenseYear,
                                                       Integer paymentMonth, Integer paymentYear,
-                                                      String paymentType, String executor, String responsible) {
+                                                      String paymentType, String executor, String responsible,
+                                                      String counterparty, String tab) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
+            // Join на исполнителя создаётся один раз и переиспользуется фильтром «Исполнитель» и вкладками
+            jakarta.persistence.criteria.Join<Object, Object> executorJoin = null;
 
             if (Boolean.TRUE.equals(linkedOnly)) {
                 predicates.add(cb.isNotNull(root.get("purchaseRequest")));
@@ -137,6 +185,16 @@ public class PaymentService {
 
             if (comment != null && !comment.trim().isEmpty()) {
                 predicates.add(cb.like(cb.lower(root.get("comment")), "%" + comment.trim().toLowerCase() + "%"));
+            }
+
+            // Контрагент — поиск по вхождению в наименование из выгрузки, в справочник и в ИНН
+            if (counterparty != null && !counterparty.trim().isEmpty()) {
+                String pattern = "%" + counterparty.trim().toLowerCase() + "%";
+                var supplierJoin = root.join("supplier", jakarta.persistence.criteria.JoinType.LEFT);
+                predicates.add(cb.or(
+                        cb.like(cb.lower(root.get("counterparty")), pattern),
+                        cb.like(cb.lower(supplierJoin.get("name")), pattern),
+                        cb.like(cb.lower(supplierJoin.get("inn")), pattern)));
             }
 
             if (paymentStatus != null && !paymentStatus.isEmpty()) {
@@ -226,12 +284,32 @@ public class PaymentService {
 
             // Исполнитель — поиск по фамилии/имени/логину
             if (executor != null && !executor.trim().isEmpty()) {
-                var executorJoin = root.join("executor", jakarta.persistence.criteria.JoinType.LEFT);
+                if (executorJoin == null) {
+                    executorJoin = root.join("executor", jakarta.persistence.criteria.JoinType.LEFT);
+                }
                 String pattern = "%" + executor.trim().toLowerCase() + "%";
                 predicates.add(cb.or(
                         cb.like(cb.lower(executorJoin.get("surname")), pattern),
                         cb.like(cb.lower(executorJoin.get("name")), pattern),
                         cb.like(cb.lower(executorJoin.get("username")), pattern)));
+            }
+
+            // Вкладки «Не оплачены» / «Оплачены»: только оплаты, запущенные пользователями с ролью «Договорник»
+            if (tab != null && !tab.trim().isEmpty()) {
+                String tabValue = tab.trim().toLowerCase();
+                if (TAB_UNPAID.equals(tabValue) || TAB_PAID.equals(tabValue)) {
+                    if (executorJoin == null) {
+                        executorJoin = root.join("executor", jakarta.persistence.criteria.JoinType.LEFT);
+                    }
+                    predicates.add(cb.isTrue(executorJoin.get("isContractor").as(Boolean.class)));
+                    if (TAB_PAID.equals(tabValue)) {
+                        predicates.add(cb.equal(root.get("paymentStatus"), PaymentStatus.PAID));
+                    } else {
+                        predicates.add(cb.or(
+                                cb.isNull(root.get("paymentStatus")),
+                                cb.notEqual(root.get("paymentStatus"), PaymentStatus.PAID)));
+                    }
+                }
             }
 
             // Ответственный — поиск по фамилии/имени/логину
@@ -267,6 +345,12 @@ public class PaymentService {
         dto.setCfo(entity.getCfo() != null ? entity.getCfo().getName() : null);
         dto.setCfoId(entity.getCfo() != null ? entity.getCfo().getId() : null);
         dto.setComment(entity.getComment());
+        dto.setCounterparty(entity.getCounterparty());
+        if (entity.getSupplier() != null) {
+            dto.setSupplierId(entity.getSupplier().getId());
+            dto.setSupplierName(entity.getSupplier().getName());
+            dto.setSupplierInn(entity.getSupplier().getInn());
+        }
         if (entity.getPurchaseRequest() != null) {
             dto.setPurchaseRequestId(entity.getPurchaseRequest().getId());
             dto.setPurchaseRequestNumber(entity.getPurchaseRequest().getIdPurchaseRequest());

@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { PageResponse, SortField, SortDirection, Payment } from '../types/payments.types';
+import { PageResponse, SortField, SortDirection, Payment, TabType } from '../types/payments.types';
 import { PAGE_SIZE } from '../constants/payments.constants';
 import { usePaymentsFilters } from './usePaymentsFilters';
 import { usePaymentsData } from './usePaymentsData';
+import { usePaymentTabCounts } from './usePaymentTabCounts';
 import { useClickOutside } from './useClickOutside';
 import { useInfiniteScroll } from './useInfiniteScroll';
 import { getBackendUrl } from '@/utils/api';
@@ -23,6 +24,18 @@ export const usePaymentsTable = () => {
   const linkedOnly = false;
   const dataHook = usePaymentsData();
 
+  const { tabCounts } = usePaymentTabCounts({
+    filters: filtersHook.filters,
+    cfoFilter: filtersHook.cfoFilter,
+    paymentStatusFilter: filtersHook.paymentStatusFilter,
+    requestStatusFilter: filtersHook.requestStatusFilter,
+    paymentTypeFilter: filtersHook.paymentTypeFilter,
+    plannedExpenseMonth: filtersHook.plannedExpenseMonth,
+    plannedExpenseYear: filtersHook.plannedExpenseYear,
+    paymentMonth: filtersHook.paymentMonth,
+    paymentYear: filtersHook.paymentYear,
+  });
+
   useClickOutside({
     isOpen: filtersHook.isCfoFilterOpen,
     ref: filtersHook.cfoFilterContainerRef,
@@ -41,7 +54,7 @@ export const usePaymentsTable = () => {
 
   const handleResetFilters = useCallback(() => {
     const empty = {
-      mainId: '', comment: '', purchaseRequestNumber: '', contractTitle: '',
+      mainId: '', comment: '', counterparty: '', purchaseRequestNumber: '', contractTitle: '',
       amount: '', amountOperator: 'gte', executor: '', responsible: '',
     };
     filtersHook.setFilters({ ...empty });
@@ -54,6 +67,12 @@ export const usePaymentsTable = () => {
     filtersHook.setPlannedExpenseYear('');
     filtersHook.setPaymentMonth('');
     filtersHook.setPaymentYear('');
+    setCurrentPage(0);
+  }, [filtersHook]);
+
+  /** Переключение вкладки: сбрасываем страницу, данные подгрузит основной эффект */
+  const handleTabChange = useCallback((tab: TabType) => {
+    filtersHook.setActiveTab(tab);
     setCurrentPage(0);
   }, [filtersHook]);
 
@@ -72,6 +91,7 @@ export const usePaymentsTable = () => {
     plannedExpenseYear: string,
     paymentMonth: string,
     paymentYear: string,
+    activeTab: TabType,
     append: boolean
   ) => {
     if (append) {
@@ -96,7 +116,8 @@ export const usePaymentsTable = () => {
         plannedExpenseMonth,
         plannedExpenseYear,
         paymentMonth,
-        paymentYear
+        paymentYear,
+        activeTab
       );
       const items = result?.content ?? [];
       if (append) {
@@ -136,6 +157,7 @@ export const usePaymentsTable = () => {
       filtersHook.plannedExpenseYear,
       filtersHook.paymentMonth,
       filtersHook.paymentYear,
+      filtersHook.activeTab,
       false
     );
   }, [
@@ -143,6 +165,7 @@ export const usePaymentsTable = () => {
     sortDirection,
     filtersStr,
     cfoFilterStr,
+    filtersHook.activeTab,
     filtersHook.paymentStatusFilter,
     filtersHook.requestStatusFilter,
     filtersHook.paymentTypeFilter,
@@ -191,10 +214,11 @@ export const usePaymentsTable = () => {
           filtersHook.plannedExpenseYear,
           filtersHook.paymentMonth,
           filtersHook.paymentYear,
+          filtersHook.activeTab,
           true
         );
       }
-    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, sortField, sortDirection, filtersHook.filters, filtersHook.cfoFilter, filtersHook.paymentStatusFilter, filtersHook.requestStatusFilter, filtersHook.paymentTypeFilter, filtersHook.plannedExpenseMonth, filtersHook.plannedExpenseYear, filtersHook.paymentMonth, filtersHook.paymentYear, linkedOnly, fetchData]),
+    }, [hasMore, loadingMore, allItems.length, currentPage, pageSize, sortField, sortDirection, filtersHook.filters, filtersHook.cfoFilter, filtersHook.paymentStatusFilter, filtersHook.requestStatusFilter, filtersHook.paymentTypeFilter, filtersHook.plannedExpenseMonth, filtersHook.plannedExpenseYear, filtersHook.paymentMonth, filtersHook.paymentYear, filtersHook.activeTab, linkedOnly, fetchData]),
     threshold: 0.1,
   });
 
@@ -212,6 +236,9 @@ export const usePaymentsTable = () => {
     handleSort,
     handleResetFilters,
     filters: filtersHook,
+    activeTab: filtersHook.activeTab,
+    handleTabChange,
+    tabCounts,
     loadMoreRef,
     updatePaymentType,
   };

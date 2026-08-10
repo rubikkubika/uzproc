@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { getBackendUrl } from '@/utils/api';
-import { PageResponse, SortField, SortDirection } from '../types/payments.types';
+import { PageResponse, SortField, SortDirection, TabType } from '../types/payments.types';
+import { DEFAULT_TAB } from '../constants/payments.constants';
 
 export const usePaymentsData = () => {
   const fetchData = useCallback(async (
@@ -17,7 +18,8 @@ export const usePaymentsData = () => {
     plannedExpenseMonth: string = '',
     plannedExpenseYear: string = '',
     paymentMonth: string = '',
-    paymentYear: string = ''
+    paymentYear: string = '',
+    activeTab: TabType = DEFAULT_TAB
   ): Promise<PageResponse | null> => {
     try {
       const params = new URLSearchParams();
@@ -35,6 +37,10 @@ export const usePaymentsData = () => {
 
       if (filters.comment && filters.comment.trim() !== '') {
         params.append('comment', filters.comment.trim());
+      }
+
+      if (filters.counterparty && filters.counterparty.trim() !== '') {
+        params.append('counterparty', filters.counterparty.trim());
       }
 
       if (cfoFilter.size > 0) {
@@ -92,6 +98,11 @@ export const usePaymentsData = () => {
 
       if (linkedOnly) {
         params.append('linkedOnly', 'true');
+      }
+
+      // Вкладка: unpaid / paid — только оплаты договорников; all — без ограничений
+      if (activeTab && activeTab !== 'all') {
+        params.append('tab', activeTab);
       }
 
       const url = `${getBackendUrl()}/api/payments?${params.toString()}`;

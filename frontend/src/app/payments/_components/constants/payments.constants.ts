@@ -1,8 +1,21 @@
+import { TabType } from '../types/payments.types';
+
 export const PAGE_SIZE = 100;
+
+/** Вкладка по умолчанию при открытии таблицы оплат */
+export const DEFAULT_TAB: TabType = 'unpaid';
+
+/** Вкладки таблицы оплат */
+export const TAB_OPTIONS: { key: TabType; label: string; title?: string }[] = [
+  { key: 'unpaid', label: 'Не оплачены', title: 'Оплаты, запущенные договорниками, со статусом отличным от «Оплачена»' },
+  { key: 'paid', label: 'Оплачены', title: 'Оплаты, запущенные договорниками, со статусом «Оплачена»' },
+  { key: 'all', label: 'Все', title: 'Все оплаты без ограничений' },
+];
 
 export const TEXT_FIELDS = [
   'mainId',
   'comment',
+  'counterparty',
   'purchaseRequestNumber',
   'contractTitle',
   'amount',

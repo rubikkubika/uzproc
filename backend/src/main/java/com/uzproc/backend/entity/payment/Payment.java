@@ -3,6 +3,7 @@ package com.uzproc.backend.entity.payment;
 import com.uzproc.backend.entity.Cfo;
 import com.uzproc.backend.entity.contract.Contract;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
+import com.uzproc.backend.entity.supplier.Supplier;
 import com.uzproc.backend.entity.user.User;
 import jakarta.persistence.*;
 import org.hibernate.annotations.BatchSize;
@@ -35,6 +36,15 @@ public class Payment {
 
     @Column(name = "comment", columnDefinition = "TEXT")
     private String comment;
+
+    /** Контрагент (колонка "Контрагент" в Excel) */
+    @Column(name = "counterparty", length = 500)
+    private String counterparty;
+
+    /** Контрагент из справочника поставщиков — сопоставление по ИНН из колонки "ИНН" */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "supplier_id")
+    private Supplier supplier;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "purchase_request_id")
@@ -119,6 +129,22 @@ public class Payment {
 
     public void setComment(String comment) {
         this.comment = comment;
+    }
+
+    public String getCounterparty() {
+        return counterparty;
+    }
+
+    public void setCounterparty(String counterparty) {
+        this.counterparty = counterparty;
+    }
+
+    public Supplier getSupplier() {
+        return supplier;
+    }
+
+    public void setSupplier(Supplier supplier) {
+        this.supplier = supplier;
     }
 
     public LocalDateTime getCreatedAt() {

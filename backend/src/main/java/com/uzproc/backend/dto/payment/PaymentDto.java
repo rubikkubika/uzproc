@@ -12,6 +12,12 @@ public class PaymentDto {
     private String cfo;
     private Long cfoId;
     private String comment;
+    /** Контрагент (колонка "Контрагент" в Excel) */
+    private String counterparty;
+    /** Контрагент из справочника поставщиков (связь по ИНН) */
+    private Long supplierId;
+    private String supplierName;
+    private String supplierInn;
     private Long purchaseRequestId;
     /** Основной номер заявки (id_purchase_request) */
     private Long purchaseRequestNumber;
@@ -82,6 +88,38 @@ public class PaymentDto {
 
     public void setComment(String comment) {
         this.comment = comment;
+    }
+
+    public String getCounterparty() {
+        return counterparty;
+    }
+
+    public void setCounterparty(String counterparty) {
+        this.counterparty = counterparty;
+    }
+
+    public Long getSupplierId() {
+        return supplierId;
+    }
+
+    public void setSupplierId(Long supplierId) {
+        this.supplierId = supplierId;
+    }
+
+    public String getSupplierName() {
+        return supplierName;
+    }
+
+    public void setSupplierName(String supplierName) {
+        this.supplierName = supplierName;
+    }
+
+    public String getSupplierInn() {
+        return supplierInn;
+    }
+
+    public void setSupplierInn(String supplierInn) {
+        this.supplierInn = supplierInn;
     }
 
     public Long getPurchaseRequestId() {

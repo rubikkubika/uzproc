@@ -5,12 +5,14 @@ import com.uzproc.backend.entity.payment.Payment;
 import com.uzproc.backend.entity.payment.PaymentRequestStatus;
 import com.uzproc.backend.entity.payment.PaymentStatus;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
+import com.uzproc.backend.entity.supplier.Supplier;
 import com.uzproc.backend.entity.user.User;
 import com.uzproc.backend.entity.contract.Contract;
 import com.uzproc.backend.repository.CfoRepository;
 import com.uzproc.backend.repository.contract.ContractRepository;
 import com.uzproc.backend.repository.payment.PaymentRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
+import com.uzproc.backend.repository.supplier.SupplierRepository;
 import com.uzproc.backend.repository.user.UserRepository;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
@@ -55,6 +57,8 @@ public class PaymentExcelLoadService {
     private static final String REQUEST_STATUS_COLUMN = "Статус заявки";
     private static final String PLANNED_EXPENSE_DATE_COLUMN = "Дата расхода (план)";
     private static final String PAYMENT_DATE_COLUMN = "Дата оплаты";
+    private static final String COUNTERPARTY_COLUMN = "Контрагент";
+    private static final String INN_COLUMN = "ИНН";
     private static final String EXECUTOR_COLUMN = "Исполнитель";
     private static final String RESPONSIBLE_COLUMN = "Ответственный";
 
@@ -80,17 +84,20 @@ public class PaymentExcelLoadService {
     private final PurchaseRequestRepository purchaseRequestRepository;
     private final ContractRepository contractRepository;
     private final UserRepository userRepository;
+    private final SupplierRepository supplierRepository;
     private final DataFormatter dataFormatter = new DataFormatter();
 
     public PaymentExcelLoadService(PaymentRepository paymentRepository, CfoRepository cfoRepository,
                                   PurchaseRequestRepository purchaseRequestRepository,
                                   ContractRepository contractRepository,
-                                  UserRepository userRepository) {
+                                  UserRepository userRepository,
+                                  SupplierRepository supplierRepository) {
         this.paymentRepository = paymentRepository;
         this.cfoRepository = cfoRepository;
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.contractRepository = contractRepository;
         this.userRepository = userRepository;
+        this.supplierRepository = supplierRepository;
     }
 
     /**
@@ -148,12 +155,14 @@ public class PaymentExcelLoadService {
             Integer requestStatusColumnIndex = findColumnIndex(columnIndexMap, REQUEST_STATUS_COLUMN);
             Integer plannedExpenseDateColumnIndex = findColumnIndex(columnIndexMap, PLANNED_EXPENSE_DATE_COLUMN);
             Integer paymentDateColumnIndex = findColumnIndex(columnIndexMap, PAYMENT_DATE_COLUMN);
+            Integer counterpartyColumnIndex = findColumnIndex(columnIndexMap, COUNTERPARTY_COLUMN);
+            Integer innColumnIndex = findColumnIndex(columnIndexMap, INN_COLUMN);
             Integer executorColumnIndex = findColumnIndex(columnIndexMap, EXECUTOR_COLUMN);
             Integer responsibleColumnIndex = findColumnIndex(columnIndexMap, RESPONSIBLE_COLUMN);
             if (numberColumnIndex == null) {
                 logger.warn("Payments: column 'Номер' not found in file {}; headers checked: {}", excelFile.getName(), columnIndexMap.keySet());
             }
-            logger.info("Payments: file {} columns -> Номер={}, Сумма={}, ЦФО={}, Комментарий={}, Статус оплаты={}, Статус заявки={}, Дата расхода (план)={}, Дата оплаты={}, Исполнитель={}, Ответственный={}", excelFile.getName(), numberColumnIndex, amountColumnIndex, cfoColumnIndex, commentColumnIndex, paymentStatusColumnIndex, requestStatusColumnIndex, plannedExpenseDateColumnIndex, paymentDateColumnIndex, executorColumnIndex, responsibleColumnIndex);
+            logger.info("Payments: file {} columns -> Номер={}, Сумма={}, ЦФО={}, Комментарий={}, Статус оплаты={}, Статус заявки={}, Дата расхода (план)={}, Дата оплаты={}, Контрагент={}, ИНН={}, Исполнитель={}, Ответственный={}", excelFile.getName(), numberColumnIndex, amountColumnIndex, cfoColumnIndex, commentColumnIndex, paymentStatusColumnIndex, requestStatusColumnIndex, plannedExpenseDateColumnIndex, paymentDateColumnIndex, counterpartyColumnIndex, innColumnIndex, executorColumnIndex, responsibleColumnIndex);
 
             if (amountColumnIndex == null && cfoColumnIndex == null) {
                 logger.warn("Payments: neither 'Сумма' nor 'ЦФО' column found in file {}", excelFile.getName());
@@ -173,7 +182,7 @@ public class PaymentExcelLoadService {
                 Row row = rowIterator.next();
                 if (isRowEmpty(row)) continue;
                 try {
-                    Payment payment = parsePaymentRow(row, numberColumnIndex, amountColumnIndex, cfoColumnIndex, commentColumnIndex, paymentStatusColumnIndex, requestStatusColumnIndex, plannedExpenseDateColumnIndex, paymentDateColumnIndex, executorColumnIndex, responsibleColumnIndex);
+                    Payment payment = parsePaymentRow(row, numberColumnIndex, amountColumnIndex, cfoColumnIndex, commentColumnIndex, paymentStatusColumnIndex, requestStatusColumnIndex, plannedExpenseDateColumnIndex, paymentDateColumnIndex, counterpartyColumnIndex, innColumnIndex, executorColumnIndex, responsibleColumnIndex);
                     // Загружаем только строки с основным номером (Номер); строки без номера — мусор, пропускаем
                     if (payment == null || payment.getMainId() == null || payment.getMainId().trim().isEmpty()) {
                         skippedNoMainId++;
@@ -220,6 +229,7 @@ public class PaymentExcelLoadService {
     private Payment parsePaymentRow(Row row, Integer numberColumnIndex, Integer amountColumnIndex, Integer cfoColumnIndex, Integer commentColumnIndex,
                                     Integer paymentStatusColumnIndex, Integer requestStatusColumnIndex,
                                     Integer plannedExpenseDateColumnIndex, Integer paymentDateColumnIndex,
+                                    Integer counterpartyColumnIndex, Integer innColumnIndex,
                                     Integer executorColumnIndex, Integer responsibleColumnIndex) {
         Payment payment = new Payment();
 
@@ -311,6 +321,23 @@ public class PaymentExcelLoadService {
             }
         }
 
+        String counterpartyName = null;
+        if (counterpartyColumnIndex != null) {
+            Cell cell = row.getCell(counterpartyColumnIndex);
+            String value = getCellValueAsString(cell);
+            if (value != null && !value.trim().isEmpty()) {
+                counterpartyName = value.trim();
+                payment.setCounterparty(counterpartyName);
+            }
+        }
+
+        // Связь с контрагентом из справочника: ищем по ИНН, при отсутствии — создаём
+        String inn = innColumnIndex != null ? normalizeInn(getCellValueAsString(row.getCell(innColumnIndex))) : null;
+        Supplier supplier = findOrCreateSupplier(inn, counterpartyName);
+        if (supplier != null) {
+            payment.setSupplier(supplier);
+        }
+
         if (executorColumnIndex != null) {
             Cell cell = row.getCell(executorColumnIndex);
             String value = getCellValueAsString(cell);
@@ -372,6 +399,23 @@ public class PaymentExcelLoadService {
                 existing.setComment(newData.getComment());
                 updated = true;
                 logger.debug("Updated comment for payment {}", existing.getId());
+            }
+        }
+
+        if (newData.getCounterparty() != null) {
+            String newCounterparty = newData.getCounterparty().trim();
+            if (!newCounterparty.isEmpty() && !newCounterparty.equals(existing.getCounterparty())) {
+                existing.setCounterparty(newCounterparty);
+                updated = true;
+                logger.debug("Updated counterparty for payment {}: {}", existing.getId(), newCounterparty);
+            }
+        }
+
+        if (newData.getSupplier() != null) {
+            if (existing.getSupplier() == null || !newData.getSupplier().getId().equals(existing.getSupplier().getId())) {
+                existing.setSupplier(newData.getSupplier());
+                updated = true;
+                logger.debug("Updated supplier for payment {}: inn={}", existing.getId(), newData.getSupplier().getInn());
             }
         }
 
@@ -445,6 +489,54 @@ public class PaymentExcelLoadService {
         }
 
         return updated;
+    }
+
+    /**
+     * Приводит ИНН из ячейки к строке цифр: убирает пробелы и хвост ".0" от числового формата Excel.
+     *
+     * @return нормализованный ИНН или null, если значения нет
+     */
+    private String normalizeInn(String rawInn) {
+        if (rawInn == null) return null;
+        String trimmed = rawInn.trim().replace(" ", "");
+        if (trimmed.isEmpty()) return null;
+        if (trimmed.matches("\\d+\\.0+")) {
+            trimmed = trimmed.replaceAll("\\.0+$", "");
+        }
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    /**
+     * Находит контрагента в справочнике поставщиков по ИНН, при отсутствии — создаёт нового
+     * (code = ИНН, как при разборе колонки "Контрагенты" в договорах).
+     * Если ИНН в выгрузке нет, пробуем найти поставщика по наименованию (новый при этом не создаём).
+     *
+     * @return найденный или созданный поставщик, либо null, если сопоставить не по чему
+     */
+    private Supplier findOrCreateSupplier(String inn, String counterpartyName) {
+        if (inn != null) {
+            Optional<Supplier> existingOpt = supplierRepository.findFirstByInn(inn);
+            if (existingOpt.isPresent()) {
+                Supplier existing = existingOpt.get();
+                // Наименование в справочнике может быть пустым — заполняем из выгрузки оплат
+                if ((existing.getName() == null || existing.getName().isBlank())
+                        && counterpartyName != null && !counterpartyName.isBlank()) {
+                    existing.setName(counterpartyName);
+                    return supplierRepository.save(existing);
+                }
+                return existing;
+            }
+            Supplier created = new Supplier();
+            created.setCode(inn);
+            created.setInn(inn);
+            created.setName(counterpartyName);
+            logger.info("Payments: creating supplier from payment row (inn={}, name={})", inn, counterpartyName);
+            return supplierRepository.save(created);
+        }
+        if (counterpartyName != null && !counterpartyName.isBlank()) {
+            return supplierRepository.findFirstByNameIgnoreCase(counterpartyName).orElse(null);
+        }
+        return null;
     }
 
     /**
