@@ -106,7 +106,7 @@ export default function PurchaseRequestRedesign(props: PurchaseRequestRedesignPr
       {/* ===== Тёмный блок: шапка + степпер (закреплены при прокрутке) ===== */}
       <div ref={headerRef} style={{ position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 2px 12px rgba(15,28,46,.35)' }}>
       <div style={{ background: C.headerDark, color: C.headerText, padding: '0 40px' }}>
-        <div style={{ maxWidth: 1440, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 52, gap: 20, flexWrap: 'wrap', paddingTop: 6, paddingBottom: 6 }}>
+        <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 52, gap: 20, flexWrap: 'wrap', paddingTop: 6, paddingBottom: 6 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
             <button onClick={goBack} style={{ display: 'flex', alignItems: 'center', gap: 8, color: C.headerTextMuted, fontFamily: REDESIGN_FONT, fontSize: 14, fontWeight: 500, background: 'transparent', border: 'none', cursor: 'pointer' }}>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -134,7 +134,7 @@ export default function PurchaseRequestRedesign(props: PurchaseRequestRedesignPr
 
       {/* ===== Степпер ===== */}
       <div style={{ background: C.headerDark, padding: '0 40px 12px' }}>
-        <div style={{ maxWidth: 1440, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
+        <div style={{ width: '100%', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
           <StepColumn label="Потребность" state="done" />
           <StepColumn label="Заявка" state={requestState} />
           {isOrder ? (
@@ -157,7 +157,7 @@ export default function PurchaseRequestRedesign(props: PurchaseRequestRedesignPr
       <div style={{ position: 'sticky', top: headerHeight, zIndex: 1, background: C.headerDark, height: 13, marginTop: -1 }} />
 
       {/* ===== Секции ===== */}
-      <div style={{ position: 'relative', zIndex: 2, maxWidth: 1440, margin: '-12px auto 0', padding: '0 40px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ position: 'relative', zIndex: 2, width: '100%', margin: '-12px 0 0', padding: '0 40px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
         {/* --- Заявка --- */}
         <section style={cardStyle}>

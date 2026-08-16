@@ -150,6 +150,18 @@ public class ContractController {
         return ResponseEntity.ok(contractService.getSignedDocumentForms(y, segment));
     }
 
+    /** Формы документа для выпадающего фильтра таблицы договоров. */
+    @GetMapping("/document-forms")
+    public ResponseEntity<List<String>> getDistinctDocumentForms() {
+        return ResponseEntity.ok(contractService.getDistinctDocumentForms());
+    }
+
+    /** ФИО исполнителей, представленных в договорах, — для выпадающего фильтра таблицы договоров. */
+    @GetMapping("/prepared-by-options")
+    public ResponseEntity<List<String>> getDistinctPreparedByNames() {
+        return ResponseEntity.ok(contractService.getDistinctPreparedByNames());
+    }
+
     @GetMapping("/years")
     public ResponseEntity<List<Integer>> getDistinctYears() {
         List<Integer> years = contractService.getDistinctYears();

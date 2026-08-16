@@ -54,20 +54,31 @@ export function ContractSlaByPreparerTable({
       ) : sortedRows.length === 0 ? (
         <p className="text-xs text-gray-500 leading-tight">Нет данных</p>
       ) : (
-        <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0 -mx-0.5">
-          <table className="w-full border-collapse text-[11px]">
+        <div className="overflow-y-auto overflow-x-hidden flex-1 min-h-0 -mx-0.5">
+          {/* table-fixed + colgroup: ФИО занимает остаток ширины и обрезается многоточием,
+              числовые колонки фиксированы — проценты всегда влезают в блок */}
+          <table className="w-full table-fixed border-collapse text-[11px]">
+            <colgroup>
+              <col />
+              <col style={{ width: '54px' }} />
+              <col style={{ width: '46px' }} />
+              <col style={{ width: '42px' }} />
+            </colgroup>
             <thead className="bg-gray-50 sticky top-0">
               <tr>
                 <th className="px-1.5 py-0.5 text-left font-medium text-gray-600 whitespace-nowrap border-b border-gray-200">
                   Специалист
                 </th>
-                <th className="px-1.5 py-0.5 text-right font-medium text-gray-600 whitespace-nowrap border-b border-gray-200 tabular-nums">
-                  Подписано
+                <th
+                  className="px-1 py-0.5 text-right font-medium text-gray-600 whitespace-nowrap border-b border-gray-200 tabular-nums"
+                  title="Подписано документов"
+                >
+                  Подп.
                 </th>
-                <th className="px-1.5 py-0.5 text-right font-medium text-gray-600 whitespace-nowrap border-b border-gray-200 tabular-nums">
+                <th className="px-1 py-0.5 text-right font-medium text-gray-600 whitespace-nowrap border-b border-gray-200 tabular-nums">
                   В срок
                 </th>
-                <th className="px-1.5 py-0.5 text-right font-medium text-gray-600 whitespace-nowrap border-b border-gray-200 tabular-nums">
+                <th className="px-1 py-0.5 text-right font-medium text-gray-600 whitespace-nowrap border-b border-gray-200 tabular-nums">
                   %
                 </th>
               </tr>
@@ -95,16 +106,21 @@ export function ContractSlaByPreparerTable({
                         : undefined
                     }
                   >
-                    <td className="px-1.5 py-0.5 text-gray-900 whitespace-nowrap border-r border-gray-100">
-                      <span className={isSelected ? 'font-medium text-blue-700' : ''}>{row.preparedBy}</span>
+                    <td className="px-1.5 py-0.5 text-gray-900 border-r border-gray-100 max-w-0">
+                      <span
+                        className={`block truncate ${isSelected ? 'font-medium text-blue-700' : ''}`}
+                        title={row.preparedBy}
+                      >
+                        {row.preparedBy}
+                      </span>
                     </td>
-                    <td className="px-1.5 py-0.5 text-right text-gray-700 tabular-nums border-r border-gray-100">
+                    <td className="px-1 py-0.5 text-right text-gray-700 tabular-nums border-r border-gray-100">
                       {row.totalSigned}
                     </td>
-                    <td className="px-1.5 py-0.5 text-right text-gray-700 tabular-nums border-r border-gray-100">
+                    <td className="px-1 py-0.5 text-right text-gray-700 tabular-nums border-r border-gray-100">
                       {row.metSla}
                     </td>
-                    <td className="px-1.5 py-0.5 text-right text-gray-900 tabular-nums font-medium">
+                    <td className="px-1 py-0.5 text-right text-gray-900 tabular-nums font-medium">
                       {row.percentage != null ? `${Math.round(row.percentage)}%` : '—'}
                     </td>
                   </tr>

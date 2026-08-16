@@ -10,12 +10,14 @@ import type { ContractSlaData } from '../types/contract-sla.types';
  * @param year       год подписания; null — запрос не выполняется
  * @param preparedBy фильтр по договорному специалисту (расчёт на бэкенде)
  * @param exclude1p  «без 1P»: исключить документы ЦФО «M - Commerce 1Р»
+ * @param month      месяц (1–12) для списков документов; null — месяц по умолчанию (текущий)
  * @param enabled    вкладка активна
  */
 export function useContractSlaData(
   year: number | null,
   preparedBy: string | null,
   exclude1p: boolean,
+  month: number | null,
   enabled: boolean
 ) {
   const [data, setData] = useState<ContractSlaData | null>(null);
@@ -33,6 +35,7 @@ export function useContractSlaData(
       const params = new URLSearchParams({ year: String(year) });
       if (preparedBy != null && preparedBy.trim() !== '') params.set('preparedBy', preparedBy.trim());
       if (exclude1p) params.set('exclude1p', 'true');
+      if (month != null) params.set('month', String(month));
       const res = await fetch(`${getBackendUrl()}/api/overview/contract-sla?${params}`);
       if (!res.ok) throw new Error('Ошибка загрузки данных SLA договоров');
       const json = (await res.json()) as ContractSlaData;
@@ -43,7 +46,7 @@ export function useContractSlaData(
     } finally {
       setLoading(false);
     }
-  }, [year, preparedBy, exclude1p, enabled]);
+  }, [year, preparedBy, exclude1p, month, enabled]);
 
   useEffect(() => {
     fetchData();

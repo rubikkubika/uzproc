@@ -65,8 +65,9 @@ public class ContractSlaDashboardService {
      * @param year       год подписания документов
      * @param preparedBy опциональный фильтр по договорному специалисту (ФИО подготовившего)
      * @param exclude1p  переключатель «без 1P»: исключить документы ЦФО «M - Commerce 1Р»
+     * @param month      месяц (1–12) для списков документов; null — текущий месяц (для прошлых лет декабрь)
      */
-    public ContractSlaResponseDto getContractSlaData(int year, String preparedBy, boolean exclude1p) {
+    public ContractSlaResponseDto getContractSlaData(int year, String preparedBy, boolean exclude1p, Integer month) {
         LocalDateTime from = LocalDateTime.of(year, 1, 1, 0, 0);
         LocalDateTime to = from.plusYears(1);
 
@@ -94,9 +95,10 @@ public class ContractSlaDashboardService {
         }
         rows.sort(Comparator.comparing(ContractSlaRowDto::signingDate).reversed());
 
-        int currentMonth = resolveCurrentMonth(year);
+        // Месяц для списков документов: выбранный на диаграмме либо текущий
+        int selectedMonth = (month != null && month >= 1 && month <= 12) ? month : resolveCurrentMonth(year);
         List<ContractSlaRowDto> currentMonthRows = rows.stream()
-                .filter(r -> r.signingDate().getMonthValue() == currentMonth)
+                .filter(r -> r.signingDate().getMonthValue() == selectedMonth)
                 .collect(Collectors.toList());
 
         int totalSigned = rows.size();
@@ -104,7 +106,7 @@ public class ContractSlaDashboardService {
 
         ContractSlaResponseDto response = new ContractSlaResponseDto(
                 year,
-                currentMonth,
+                selectedMonth,
                 buildSlaByMonth(rows),
                 buildSlaByPreparer(rows),
                 totalSigned,
@@ -114,7 +116,7 @@ public class ContractSlaDashboardService {
                 currentMonthRows.stream().filter(r -> !r.slaViolated()).collect(Collectors.toList()));
 
         logger.debug("Contract SLA dashboard for year {} (exclude1p={}): {} signed documents, {} met SLA, month {} — {} rows",
-                year, exclude1p, totalSigned, metSla, currentMonth, currentMonthRows.size());
+                year, exclude1p, totalSigned, metSla, selectedMonth, currentMonthRows.size());
         return response;
     }
 

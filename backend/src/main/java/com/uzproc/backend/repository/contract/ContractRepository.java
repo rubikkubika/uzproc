@@ -91,6 +91,30 @@ public interface ContractRepository extends JpaRepository<Contract, Long>, JpaSp
     List<Integer> findDistinctYears();
 
     /**
+     * Формы документа, реально встречающиеся в договорах — для выпадающего фильтра таблицы договоров.
+     */
+    @Query(value = """
+        SELECT DISTINCT document_form
+        FROM contracts
+        WHERE document_form IS NOT NULL AND document_form <> ''
+        ORDER BY document_form
+        """, nativeQuery = true)
+    List<String> findDistinctDocumentForms();
+
+    /**
+     * ФИО исполнителей (договорников), у которых есть договоры, — для выпадающего фильтра
+     * «Исполнитель» в таблице договоров. Отдаются только реально представленные в договорах ФИО.
+     */
+    @Query(value = """
+        SELECT DISTINCT TRIM(CONCAT(COALESCE(u.surname, ''), ' ', COALESCE(u.name, ''))) AS prepared_by_name
+        FROM contracts c
+        INNER JOIN users u ON c.prepared_by_id = u.id
+        WHERE TRIM(CONCAT(COALESCE(u.surname, ''), ' ', COALESCE(u.name, ''))) <> ''
+        ORDER BY prepared_by_name
+        """, nativeQuery = true)
+    List<String> findDistinctPreparedByNames();
+
+    /**
      * Список форм документа (Договор, Спецификация и т.д.) по договорам, связанным с заявкой на закупку.
      * Для выпадающего списка фильтра на вкладке «Согласования».
      */

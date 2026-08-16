@@ -199,7 +199,7 @@ export default function RoadmapPage() {
 
   return (
     <div className="flex h-screen bg-gray-100">
-      <div className="w-full max-w-[1920px] mx-auto flex">
+      <div className="w-full flex">
         <div suppressHydrationWarning>
           <Sidebar 
             activeTab={activeTab} 

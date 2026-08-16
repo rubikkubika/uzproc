@@ -7,7 +7,7 @@ import { ContractSlaByPreparerTable } from './ui/ContractSlaByPreparerTable';
 import { ContractSlaDocumentsBlock } from './ui/ContractSlaDocumentsBlock';
 import { ContractSlaFiltersBar } from './ui/ContractSlaFiltersBar';
 import { ContractSlaMonthChart } from './ui/ContractSlaMonthChart';
-import { MONTH_NAMES_FULL } from './utils/contractSlaDashboard.utils';
+import { MONTH_NAMES_FULL, MONTH_NAMES_NOMINATIVE } from './utils/contractSlaDashboard.utils';
 
 export interface ContractSlaDashboardContentProps {
   /** Вкладка активна — данные загружаются только тогда. */
@@ -24,10 +24,14 @@ export function ContractSlaDashboardContent({ enabled }: ContractSlaDashboardCon
     filters.year,
     filters.preparedBy,
     filters.exclude1p,
+    filters.selectedMonth,
     enabled
   );
 
+  // Месяц, документы которого показаны в блоках ниже: выбранный на диаграмме либо текущий (с бэкенда)
+  const shownMonth = data?.currentMonth ?? filters.selectedMonth;
   const monthLabel = data ? `подписанные в ${MONTH_NAMES_FULL[data.currentMonth - 1]} ${data.year} г.` : '';
+  const monthBadge = shownMonth != null ? `${MONTH_NAMES_NOMINATIVE[shownMonth - 1]} ${filters.year}` : undefined;
 
   return (
     <div className="space-y-0.5 sm:space-y-1">
@@ -63,12 +67,17 @@ export function ContractSlaDashboardContent({ enabled }: ContractSlaDashboardCon
           slaByMonth={data?.slaByMonth ?? []}
           loading={loading}
           error={error}
+          selectedMonth={filters.selectedMonth}
+          onMonthSelect={filters.toggleMonth}
         />
       </div>
 
       <ContractSlaDocumentsBlock
         title="С нарушением СЛА"
         subtitle={monthLabel}
+        monthBadge={monthBadge}
+        monthBadgeSelected={filters.selectedMonth != null}
+        onMonthBadgeClick={() => filters.setSelectedMonth(null)}
         rows={data?.documentsWithViolation ?? []}
         variant="violation"
         loading={loading}
@@ -77,6 +86,9 @@ export function ContractSlaDashboardContent({ enabled }: ContractSlaDashboardCon
       <ContractSlaDocumentsBlock
         title="Без нарушения СЛА"
         subtitle={monthLabel}
+        monthBadge={monthBadge}
+        monthBadgeSelected={filters.selectedMonth != null}
+        onMonthBadgeClick={() => filters.setSelectedMonth(null)}
         rows={data?.documentsWithoutViolation ?? []}
         variant="ok"
         loading={loading}

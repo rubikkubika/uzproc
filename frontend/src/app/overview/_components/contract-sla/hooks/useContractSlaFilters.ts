@@ -5,6 +5,7 @@ import { useCallback, useMemo, useState } from 'react';
 const YEAR_STORAGE_KEY = 'overview_contractSlaYear';
 const PREPARER_STORAGE_KEY = 'overview_contractSlaPreparer';
 const EXCLUDE_1P_STORAGE_KEY = 'overview_contractSlaExclude1p';
+const MONTH_STORAGE_KEY = 'overview_contractSlaMonth';
 
 /**
  * Фильтры дашборда «SLA договоров»: год подписания, договорной специалист и переключатель «без 1P».
@@ -31,6 +32,20 @@ export function useContractSlaFilters() {
     return saved == null ? true : saved === 'true';
   });
 
+  // Месяц, выбранный кликом по диаграмме; null — месяц по умолчанию (текущий, для прошлых лет декабрь)
+  const [selectedMonth, setSelectedMonthState] = useState<number | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const saved = sessionStorage.getItem(MONTH_STORAGE_KEY);
+    return saved ? Number(saved) : null;
+  });
+
+  const setSelectedMonth = useCallback((value: number | null) => {
+    setSelectedMonthState(value);
+    if (typeof window === 'undefined') return;
+    if (value != null) sessionStorage.setItem(MONTH_STORAGE_KEY, String(value));
+    else sessionStorage.removeItem(MONTH_STORAGE_KEY);
+  }, []);
+
   const setYear = useCallback((value: number) => {
     setYearState(value);
     if (typeof window !== 'undefined') sessionStorage.setItem(YEAR_STORAGE_KEY, String(value));
@@ -56,17 +71,29 @@ export function useContractSlaFilters() {
     [preparedBy, setPreparedBy]
   );
 
+  /** Клик по столбцу месяца на диаграмме: повторный клик по выбранному месяцу снимает выбор. */
+  const toggleMonth = useCallback(
+    (value: number) => {
+      setSelectedMonth(value === selectedMonth ? null : value);
+    },
+    [selectedMonth, setSelectedMonth]
+  );
+
   const availableYears = useMemo(() => {
     const years: number[] = [];
     for (let i = currentYear - 2; i <= currentYear + 5; i++) years.push(i);
     return years;
   }, [currentYear]);
 
-  /** Сброс: фильтр по специалисту снимается, «без 1P» возвращается в состояние по умолчанию — включён. */
+  /**
+   * Сброс: фильтр по специалисту и выбранный месяц снимаются,
+   * «без 1P» возвращается в состояние по умолчанию — включён.
+   */
   const resetFilters = useCallback(() => {
     setPreparedBy(null);
     setExclude1p(true);
-  }, [setPreparedBy, setExclude1p]);
+    setSelectedMonth(null);
+  }, [setPreparedBy, setExclude1p, setSelectedMonth]);
 
   return {
     year,
@@ -77,6 +104,9 @@ export function useContractSlaFilters() {
     togglePreparedBy,
     exclude1p,
     setExclude1p,
+    selectedMonth,
+    setSelectedMonth,
+    toggleMonth,
     resetFilters,
   };
 }

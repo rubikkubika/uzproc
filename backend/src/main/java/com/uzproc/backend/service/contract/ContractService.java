@@ -168,6 +168,7 @@ public class ContractService {
         Map<Long, LocalDateTime> lastApprovalCompletionDates = batchGetLastApprovalCompletionDates(contractIds);
         Map<Long, LocalDateTime> registrationDates = batchGetRegistrationCompletionDates(contractIds);
         Map<Long, LocalDateTime> synchronizationDates = batchGetSynchronizationCompletionDates(contractIds);
+        Map<Long, Integer> remarkCounts = batchGetRemarkCounts(contractIds);
         Map<Long, Boolean> requiresPurchaseMap = batchGetRequiresPurchase(prIds);
         Map<Long, LocalDateTime> prApprovalAssignmentDates = batchGetPrApprovalAssignmentDates(prIds);
         Map<Long, LocalDateTime> prLastApprovalCompletionDates = batchGetPrLastApprovalCompletionDates(prIds);
@@ -188,6 +189,9 @@ public class ContractService {
             dto.setRegistrationDate(registrationDates.get(c.getId()));
             // Дата синхронизации договора (дата выполнения согласования «Синхронизация»)
             dto.setSynchronizationDate(synchronizationDates.get(c.getId()));
+
+            // Количество замечаний по договору (колонка «Замечания»)
+            dto.setRemarksCount(remarkCounts.getOrDefault(c.getId(), 0));
 
             LocalDateTime startDate = null;
             if (c.getPurchaseRequestId() == null) {
@@ -1019,6 +1023,16 @@ public class ContractService {
         return contractRepository.findDistinctYears();
     }
 
+    /** Формы документа для выпадающего фильтра таблицы договоров. */
+    public List<String> getDistinctDocumentForms() {
+        return contractRepository.findDistinctDocumentForms();
+    }
+
+    /** ФИО исполнителей, представленных в договорах, — для выпадающего фильтра таблицы договоров. */
+    public List<String> getDistinctPreparedByNames() {
+        return contractRepository.findDistinctPreparedByNames();
+    }
+
     /**
      * Получить все спецификации со статусом null, связанные с заявками на закупку
      * @return список спецификаций с их состояниями
@@ -1223,6 +1237,22 @@ public class ContractService {
                         ? ((java.sql.Timestamp) row[1]).toLocalDateTime()
                         : (LocalDateTime) row[1];
                 result.put(contractId, date);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Batch-подсчёт замечаний по договорам: (contract_id → количество согласований с непустым комментарием).
+     * Используется для колонки «Замечания» в таблице договоров.
+     */
+    private Map<Long, Integer> batchGetRemarkCounts(List<Long> contractIds) {
+        if (contractIds.isEmpty()) return new HashMap<>();
+        List<Object[]> rows = contractApprovalRepository.findRemarkCountsByContractIds(contractIds);
+        Map<Long, Integer> result = new HashMap<>();
+        for (Object[] row : rows) {
+            if (row[0] != null && row[1] != null) {
+                result.put(((Number) row[0]).longValue(), ((Number) row[1]).intValue());
             }
         }
         return result;

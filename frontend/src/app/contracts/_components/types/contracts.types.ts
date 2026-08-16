@@ -73,6 +73,8 @@ export interface Contract {
   plannedDeliveryStartDate: string | null;
   /** Плановая дата окончания поставки (из колонки «Плановая дата окончания поставки (Заявка на ЗП)»). Отображается как «Срок поставки (план)». */
   plannedDeliveryEndDate: string | null;
+  /** Количество замечаний по договору (согласования с непустым комментарием). */
+  remarksCount: number | null;
   excludedFromStatusCalculation: boolean | null;
   exclusionComment: string | null;
   excludeFromInWork: boolean | null;

@@ -6,6 +6,8 @@ import { useDesignFonts, useStickyHeaderHeight } from '@/app/purchase-request/[i
 import { ContractBlock } from '@/app/purchase-request/[id]/_components/redesign/ContractBlock';
 import type { ApprovalStatusColor } from '@/app/purchase-request/[id]/_components/redesign/types';
 import { ChildContract, ContractApprovalItem, ContractDetail, PaymentItem } from './types/contract-detail.types';
+import { useApprovalCommentPopover } from './hooks/useApprovalCommentPopover';
+import ApprovalCommentPopover from './ui/ApprovalCommentPopover';
 
 const C = REDESIGN_COLORS;
 
@@ -126,6 +128,7 @@ export default function ContractRedesign({
 }: ContractRedesignProps) {
   useDesignFonts();
   const { headerRef, headerHeight } = useStickyHeaderHeight();
+  const { commentPopoverData, showApprovalComment, closeApprovalComment } = useApprovalCommentPopover();
 
   const stageOrder = [...new Set(approvals.map((a) => a.stage || 'Без этапа'))];
 
@@ -148,7 +151,7 @@ export default function ContractRedesign({
       {/* ===== Тёмная шапка (закреплена при прокрутке) ===== */}
       <div ref={headerRef} style={{ position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 2px 12px rgba(15,28,46,.35)' }}>
         <div style={{ background: C.headerDark, color: C.headerText, padding: '0 40px 20px' }}>
-          <div style={{ maxWidth: 1440, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 64, gap: 24, flexWrap: 'wrap', paddingTop: 8, paddingBottom: 8 }}>
+          <div style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 64, gap: 24, flexWrap: 'wrap', paddingTop: 8, paddingBottom: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
               <button onClick={goBack} style={{ display: 'flex', alignItems: 'center', gap: 8, color: C.headerTextMuted, fontFamily: REDESIGN_FONT, fontSize: 14, fontWeight: 500, background: 'transparent', border: 'none', cursor: 'pointer' }}>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8L10 13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -171,7 +174,7 @@ export default function ContractRedesign({
       <div style={{ position: 'sticky', top: headerHeight, zIndex: 1, background: C.headerDark, height: 16 }} />
 
       {/* ===== Секции: слева договор, справа оплаты и счёт-фактуры ===== */}
-      <div style={{ position: 'relative', zIndex: 2, maxWidth: 1440, margin: '-16px auto 0', padding: '0 40px', display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(360px,420px)', alignItems: 'start', gap: 24 }}>
+      <div style={{ position: 'relative', zIndex: 2, width: '100%', margin: '-16px 0 0', padding: '0 40px', display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(360px,420px)', alignItems: 'start', gap: 24 }}>
 
         {/* --- Левая колонка --- */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24, minWidth: 0 }}>
@@ -193,6 +196,7 @@ export default function ContractRedesign({
               getCurrencyIcon={getCurrencyIcon}
               calculateContractApprovalWorkingDays={calculateApprovalWorkingDays}
               getApprovalStatusColor={getApprovalStatusColor}
+              onShowApprovalComment={showApprovalComment}
             />
           </div>
         </section>
@@ -362,6 +366,9 @@ export default function ContractRedesign({
         {invoiceSlot}
         </div>
       </div>
+
+      {/* Попап замечания согласования */}
+      <ApprovalCommentPopover data={commentPopoverData} onClose={closeApprovalComment} />
     </div>
   );
 }

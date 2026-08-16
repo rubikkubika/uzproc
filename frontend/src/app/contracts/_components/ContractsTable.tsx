@@ -3,14 +3,19 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
-import { ArrowUp, ArrowDown, ArrowUpDown, Search, Settings, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpDown, Search, Settings, Eye, EyeOff, AlertCircle, MessageSquare } from 'lucide-react';
 import { useContractsTable } from './hooks/useContractsTable';
+import { useContractRemarksPopup } from './hooks/useContractRemarksPopup';
+import { useContractFilterOptions } from './hooks/useContractFilterOptions';
 import { SortField } from './types/contracts.types';
 import ContractsTableTabs from './ui/ContractsTableTabs';
 import ContractsSummaryTable from './ui/ContractsSummaryTable';
 import ContractTrackCell from './ui/ContractTrackCell';
+import ContractRemarksCell from './ui/ContractRemarksCell';
+import ContractRemarksPopup from './ui/ContractRemarksPopup';
+import ContractsTableColgroup from './ui/ContractsTableColgroup';
 import RemarksPanel from './RemarksPanel';
-import { MONTH_OPTIONS } from './constants/contracts.constants';
+import { CONTRACTS_COLUMN_WIDTHS, CONTRACTS_NAME_MIN_WIDTH, MONTH_OPTIONS } from './constants/contracts.constants';
 
 const ORGANIZATION_OPTIONS = [
   { key: '', label: 'Все' },
@@ -57,6 +62,8 @@ export default function ContractsTable() {
   const currentPath = usePathname();
   const [showRemarks, setShowRemarks] = useState(false);
   const [selectedDocumentForm, setSelectedDocumentForm] = useState<string>('');
+  const remarksPopup = useContractRemarksPopup();
+  const filterOptions = useContractFilterOptions();
 
   const {
     data,
@@ -92,7 +99,16 @@ export default function ContractsTable() {
 
   // «Требует внимания» — подмножество «В работе», колонки те же
   const isTabWithPreparedBy = filters.activeTab === 'attention' || filters.activeTab === 'in-work' || filters.activeTab === 'not-coordinated' || filters.activeTab === 'signed';
-  const totalColumns = isTabWithPreparedBy ? 15 : 14;
+  const totalColumns = isTabWithPreparedBy ? 16 : 15;
+
+  /**
+   * Минимальная ширина таблицы = сумма фиксированных колонок + минимум для «Наименования».
+   * Ниже неё контейнер даёт горизонтальную прокрутку, выше — «Наименование» тянется.
+   */
+  const tableMinWidth =
+    Object.entries(CONTRACTS_COLUMN_WIDTHS)
+      .filter(([key]) => key !== 'preparedBy' || isTabWithPreparedBy)
+      .reduce((sum, [, width]) => sum + width, 0) + CONTRACTS_NAME_MIN_WIDTH;
 
   const handleRowClick = (contractId: number, e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
@@ -219,6 +235,17 @@ export default function ContractsTable() {
       </select>
     </div>
   );
+
+  /**
+   * Выбор формы документа в выпадающем фильтре: применяется сразу, без debounce,
+   * поэтому обновляем и localFilters (UI), и filters (запрос).
+   */
+  const handleDocumentFormChange = (value: string) => {
+    filters.setLocalFilters(prev => ({ ...prev, documentForm: value }));
+    filters.setFilters(prev => ({ ...prev, documentForm: value }));
+    setSelectedDocumentForm(value);
+    setCurrentPage(0);
+  };
 
   const handlePreparedByClick = (name: string) => {
     if (filters.preparedByFilter === name && !selectedDocumentForm && !filters.segmentFilter) {
@@ -411,25 +438,35 @@ export default function ContractsTable() {
         <RemarksPanel />
       ) : (
       <div className="flex-1 min-w-0 overflow-auto relative custom-scrollbar">
-        <table className="w-full max-w-full border-collapse table-fixed">
+        {/* minWidth не даёт колонкам схлопнуться на узких экранах — вместо этого
+            появляется горизонтальная прокрутка контейнера; на широких таблица тянется на всю ширину */}
+        <table className="w-full border-collapse table-fixed" style={{ minWidth: `${tableMinWidth}px` }}>
+          <ContractsTableColgroup withPreparedBy={isTabWithPreparedBy} />
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
               {/* Глазик */}
-              <th className="px-1 text-center text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '46px', minWidth: '46px', maxWidth: '46px' }}>
+              <th className="px-1 text-center text-xs font-medium text-gray-500 border-r border-gray-300">
                 {thInner(
                   <div className="w-full" />,
                   <Eye className="w-3 h-3 text-gray-400 mx-auto" />
                 )}
               </th>
+              {/* Замечания */}
+              <th className="px-1 text-center text-xs font-medium text-gray-500 border-r border-gray-300">
+                {thInner(
+                  <div className="w-full" />,
+                  <MessageSquare className="w-3 h-3 text-gray-400 mx-auto" />
+                )}
+              </th>
               {/* Внутренний номер */}
-              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: isTabWithPreparedBy ? '7%' : '8%' }}>
+              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300">
                 {thInner(
                   renderFilterInput('innerId'),
                   <>{renderSortButton('innerId')}<span>Внутренний номер</span></>
                 )}
               </th>
               {/* Организация */}
-              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '8%' }}>
+              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300">
                 {thInner(
                   <select
                     value={filters.organizationFilter}
@@ -444,7 +481,7 @@ export default function ContractsTable() {
                 )}
               </th>
               {/* №ЗП */}
-              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '5%' }}>
+              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300">
                 {thInner(
                   renderFilterInput('purchaseRequestInnerId'),
                   <span>№ЗП</span>
@@ -452,23 +489,27 @@ export default function ContractsTable() {
               </th>
               {/* Исполнитель */}
               {isTabWithPreparedBy && (
-                <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '9%' }}>
+                <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300">
                   {thInner(
-                    <input
-                      type="text"
+                    <select
                       value={filters.preparedByFilter}
-                      onChange={(e) => { filters.setPreparedByFilter(e.target.value); setCurrentPage(0); }}
+                      onChange={(e) => { e.stopPropagation(); filters.setPreparedByFilter(e.target.value); setCurrentPage(0); }}
                       onClick={(e) => e.stopPropagation()}
                       className="w-full text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                      placeholder="Фильтр"
                       style={{ height: '22px', boxSizing: 'border-box' }}
-                    />,
+                      title="Исполнитель"
+                    >
+                      <option value="">Все</option>
+                      {filterOptions.preparedByOptions.map((name) => (
+                        <option key={name} value={name}>{name}</option>
+                      ))}
+                    </select>,
                     <span>Исполнитель</span>
                   )}
                 </th>
               )}
               {/* ЦФО */}
-              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '10%' }}>
+              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300">
                 {thInner(
                   <div ref={filters.cfoFilterContainerRef} className="relative cfo-filter-container w-full">
                     <button
@@ -527,28 +568,40 @@ export default function ContractsTable() {
                 )}
               </th>
               {/* Наименование */}
-              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: isTabWithPreparedBy ? '18%' : '20%' }}>
+              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300">
                 {thInner(
                   renderFilterInput('name'),
                   <>{renderSortButton('name')}<span>Наименование</span></>
                 )}
               </th>
               {/* Контрагент */}
-              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: isTabWithPreparedBy ? '8%' : '9%' }}>
+              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300">
                 {thInner(
                   renderFilterInput('supplier'),
                   <span>Контрагент</span>
                 )}
               </th>
               {/* Форма документа */}
-              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '9%' }}>
+              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300">
                 {thInner(
-                  renderFilterInput('documentForm'),
+                  <select
+                    value={filters.localFilters.documentForm ?? ''}
+                    onChange={(e) => { e.stopPropagation(); handleDocumentFormChange(e.target.value); }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full text-xs border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    style={{ height: '22px', boxSizing: 'border-box' }}
+                    title="Форма документа"
+                  >
+                    <option value="">Все</option>
+                    {filterOptions.documentForms.map((form) => (
+                      <option key={form} value={form}>{form}</option>
+                    ))}
+                  </select>,
                   <>{renderSortButton('documentForm')}<span>Форма документа</span></>
                 )}
               </th>
               {/* Дата создания */}
-              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '9%' }}>
+              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300">
                 {thInner(
                   renderDateFilter(
                     filters.contractCreationMonth,
@@ -560,7 +613,7 @@ export default function ContractsTable() {
                 )}
               </th>
               {/* Срок поставки (план) */}
-              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '12%' }}>
+              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300">
                 {thInner(
                   <div className="flex items-center gap-1 w-full" style={{ minWidth: 0 }}>
                     <select
@@ -584,7 +637,7 @@ export default function ContractsTable() {
                 )}
               </th>
               {/* Статус */}
-              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '9%' }}>
+              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300">
                 {thInner(
                   <select
                     value={filters.statusFilter}
@@ -599,7 +652,7 @@ export default function ContractsTable() {
                 )}
               </th>
               {/* Дата регистрации */}
-              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '9%' }}>
+              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300">
                 {thInner(
                   renderDateFilter(
                     filters.registrationMonth,
@@ -611,7 +664,7 @@ export default function ContractsTable() {
                 )}
               </th>
               {/* Типовая форма */}
-              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '6%' }}>
+              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300">
                 {thInner(
                   <select
                     value={filters.isTypicalFormFilter}
@@ -628,7 +681,7 @@ export default function ContractsTable() {
                 )}
               </th>
               {/* Трэк */}
-              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300" style={{ width: '230px', minWidth: '230px' }}>
+              <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300">
                 {thInner(
                   <div className="w-full" />,
                   <span>Трэк</span>
@@ -651,7 +704,7 @@ export default function ContractsTable() {
                     onClick={(e) => handleRowClick(contract.id, e)}
                     onAuxClick={(e) => handleRowAuxClick(contract.id, e)}
                   >
-                    <td className="px-1 py-2 text-center border-r border-gray-300" style={{ width: '46px', minWidth: '46px', maxWidth: '46px' }}>
+                    <td className="px-1 py-2 text-center border-r border-gray-300">
                       <div className="flex items-center justify-center gap-0.5">
                         <button
                           title={isHidden ? 'Показать во вкладке «В работе»' : 'Скрыть из вкладки «В работе»'}
@@ -669,6 +722,15 @@ export default function ContractsTable() {
                           </span>
                         )}
                       </div>
+                    </td>
+                    <td className="px-1 py-2 text-center border-r border-gray-300">
+                      <ContractRemarksCell
+                        contractId={contract.id}
+                        contractInnerId={contract.innerId}
+                        remarksCount={contract.remarksCount}
+                        isOpen={remarksPopup.popup?.contractId === contract.id}
+                        onOpen={remarksPopup.open}
+                      />
                     </td>
                     <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 break-words">{contract.innerId || '-'}</td>
                     <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 break-words">{contract.customerOrganization || '-'}</td>
@@ -740,7 +802,7 @@ export default function ContractsTable() {
                         <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-gray-100 text-gray-600">Нет</span>
                       ) : '-'}
                     </td>
-                    <td className="pl-1 pr-0 py-1 border-r border-gray-300 overflow-hidden" style={{ width: '230px', minWidth: '230px', maxWidth: '230px' }}>
+                    <td className="pl-1 pr-0 py-1 border-r border-gray-300 overflow-hidden">
                       <ContractTrackCell contract={contract} />
                     </td>
                   </tr>
@@ -761,6 +823,15 @@ export default function ContractsTable() {
         <div ref={loadMoreRef} className="h-4 flex items-center justify-center py-1" />
       </div>
       )}
+
+      {/* Попап замечаний по договору (колонка «Замечания») */}
+      <ContractRemarksPopup
+        popup={remarksPopup.popup}
+        remarks={remarksPopup.remarks}
+        loading={remarksPopup.loading}
+        error={remarksPopup.error}
+        onClose={remarksPopup.close}
+      />
     </div>
   );
 }

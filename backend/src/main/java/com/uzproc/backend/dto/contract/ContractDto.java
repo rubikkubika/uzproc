@@ -101,6 +101,8 @@ public class ContractDto {
     private LocalDateTime registrationDate;
     /** Дата синхронизации договора: дата выполнения согласования этапа «Синхронизация» (MAX completion_date по stage 'синхронизация%'). */
     private LocalDateTime synchronizationDate;
+    /** Количество замечаний по договору (согласования с непустым comment_text, без технических этапов). */
+    private Integer remarksCount;
 
     // Constructors
     public ContractDto() {
@@ -529,6 +531,14 @@ public class ContractDto {
 
     public void setSynchronizationDate(LocalDateTime synchronizationDate) {
         this.synchronizationDate = synchronizationDate;
+    }
+
+    public Integer getRemarksCount() {
+        return remarksCount;
+    }
+
+    public void setRemarksCount(Integer remarksCount) {
+        this.remarksCount = remarksCount;
     }
 }
 

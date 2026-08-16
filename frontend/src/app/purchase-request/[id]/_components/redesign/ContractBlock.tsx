@@ -143,9 +143,9 @@ export function ContractBlock({
             if (items.length === 0) return null;
             return (
               <div key={stage}>
-                <div style={{ display: 'grid', gridTemplateColumns: '20px 1fr 150px 72px 72px 44px', gap: 10, alignItems: 'center', paddingBottom: 4, borderBottom: `1px solid ${REDESIGN_COLORS.divider}` }}>
+                <div style={{ ...approvalRowGrid, paddingBottom: 4, borderBottom: `1px solid ${REDESIGN_COLORS.divider}` }}>
                   <span />
-                  <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: REDESIGN_COLORS.textMuted }}>{stage}</span>
+                  <span style={{ ...ellipsis, fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: REDESIGN_COLORS.textMuted }} title={stage}>{stage}</span>
                   <span style={colHead}>ФИО</span>
                   <span style={colHead}>Назн.</span>
                   <span style={colHead}>Вып.</span>
@@ -157,10 +157,10 @@ export function ContractBlock({
                     const done = status === 'green' || status === 'orange' || a.completionDate != null;
                     const hasComment = a.commentText != null && String(a.commentText).trim() !== '';
                     return (
-                      <div key={a.id} style={{ display: 'grid', gridTemplateColumns: '20px 1fr 150px 72px 72px 44px', gap: 10, alignItems: 'center', padding: '4px 0', borderBottom: `1px solid ${REDESIGN_COLORS.dividerRow}` }}>
+                      <div key={a.id} style={{ ...approvalRowGrid, padding: '4px 0', borderBottom: `1px solid ${REDESIGN_COLORS.dividerRow}` }}>
                         {!done ? <PendingDot /> : status === 'red' ? <CrossDot /> : <CheckDot color={dotColor(status)} />}
                         <span style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-                          <span style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.35, minWidth: 0 }} title={a.role}>{a.role || '—'}</span>
+                          <span style={{ ...ellipsis, fontSize: 13, fontWeight: 500, lineHeight: 1.35 }} title={a.role}>{a.role || '—'}</span>
                           {hasComment && onShowApprovalComment && (
                             <span style={{ display: 'inline-flex', flexShrink: 0 }} data-comment-popover>
                               <button
@@ -178,10 +178,10 @@ export function ContractBlock({
                             </span>
                           )}
                         </span>
-                        <span style={{ fontSize: 12.5, color: '#3D4452' }} title={a.executorName ?? ''}>{a.executorName || '—'}</span>
-                        <span style={{ fontFamily: REDESIGN_MONO, fontSize: 11.5, color: REDESIGN_COLORS.textSecondary }}>{formatDate(a.assignmentDate)}</span>
-                        <span style={{ fontFamily: REDESIGN_MONO, fontSize: 11.5, color: REDESIGN_COLORS.textSecondary }}>{formatDate(a.completionDate)}</span>
-                        <span style={{ fontFamily: REDESIGN_MONO, fontSize: 11.5, color: REDESIGN_COLORS.textWeak, textAlign: 'right' }}>{calculateContractApprovalWorkingDays(a.assignmentDate, a.completionDate)}</span>
+                        <span style={{ ...ellipsis, fontSize: 12.5, color: '#3D4452' }} title={a.executorName ?? ''}>{a.executorName || '—'}</span>
+                        <span style={{ ...ellipsis, fontFamily: REDESIGN_MONO, fontSize: 11.5, color: REDESIGN_COLORS.textSecondary }}>{formatDate(a.assignmentDate)}</span>
+                        <span style={{ ...ellipsis, fontFamily: REDESIGN_MONO, fontSize: 11.5, color: REDESIGN_COLORS.textSecondary }}>{formatDate(a.completionDate)}</span>
+                        <span style={{ ...ellipsis, fontFamily: REDESIGN_MONO, fontSize: 11.5, color: REDESIGN_COLORS.textWeak, textAlign: 'right' }}>{calculateContractApprovalWorkingDays(a.assignmentDate, a.completionDate)}</span>
                       </div>
                     );
                   })}
@@ -195,7 +195,28 @@ export function ContractBlock({
   );
 }
 
+/** Обрезка длинного текста многоточием — чтобы роль не наезжала на ФИО в узкой колонке. */
+const ellipsis: React.CSSProperties = {
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+};
+
+/**
+ * Сетка строки согласования. Роль и ФИО тянутся (minmax(0,…)) и обрезаются многоточием,
+ * даты и дни — фиксированной ширины. Так строка помещается по горизонтали
+ * даже в узкой колонке карточки договора.
+ */
+const approvalRowGrid: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: '18px minmax(0,1.15fr) minmax(0,1fr) 66px 66px 38px',
+  gap: 8,
+  alignItems: 'center',
+};
+
 const colHead: React.CSSProperties = {
+  ...ellipsis,
   fontSize: 11,
   fontWeight: 600,
   textTransform: 'uppercase',

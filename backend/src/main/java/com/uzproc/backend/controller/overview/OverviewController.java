@@ -249,19 +249,21 @@ public class OverviewController {
 
     /**
      * Данные для вкладки «SLA договоров»: выполнение планового SLA по подписанным за год документам
-     * и списки подписанных в текущем месяце — с нарушением SLA и без нарушения.
+     * и списки подписанных в выбранном месяце — с нарушением SLA и без нарушения.
      *
      * @param year       год подписания
      * @param preparedBy опциональный фильтр по договорному специалисту
      * @param exclude1p  переключатель «без 1P»: исключить документы ЦФО «M - Commerce 1Р»
+     * @param month      месяц (1–12) для списков документов; null — текущий месяц (для прошлых лет декабрь)
      */
     @GetMapping("/contract-sla")
     public ResponseEntity<ContractSlaResponseDto> getContractSlaData(
             @RequestParam int year,
             @RequestParam(required = false) String preparedBy,
-            @RequestParam(required = false, defaultValue = "false") boolean exclude1p) {
-        logger.debug("Contract SLA dashboard request for year {}, preparedBy={}, exclude1p={}", year, preparedBy, exclude1p);
-        return ResponseEntity.ok(contractSlaDashboardService.getContractSlaData(year, preparedBy, exclude1p));
+            @RequestParam(required = false, defaultValue = "false") boolean exclude1p,
+            @RequestParam(required = false) Integer month) {
+        logger.debug("Contract SLA dashboard request for year {}, preparedBy={}, exclude1p={}, month={}", year, preparedBy, exclude1p, month);
+        return ResponseEntity.ok(contractSlaDashboardService.getContractSlaData(year, preparedBy, exclude1p, month));
     }
 
     /**

@@ -197,6 +197,25 @@ public interface ContractApprovalRepository extends JpaRepository<ContractApprov
             @Param("documentForms") String documentForms);
 
     /**
+     * Для каждого договора из списка возвращает (contract_id, COUNT(*)) — количество замечаний
+     * (согласования с непустым comment_text). Технические этапы (синхронизация, принятие
+     * на хранение, регистрация) исключаются — как и при выдаче согласований в API.
+     * Используется для колонки «Замечания» в таблице договоров.
+     */
+    @Query(value = """
+        SELECT contract_id, COUNT(*)
+        FROM contract_approvals
+        WHERE contract_id IN :contractIds
+          AND comment_text IS NOT NULL AND comment_text <> ''
+          AND stage IS NOT NULL AND stage <> ''
+          AND LOWER(stage) NOT LIKE 'синхронизация%'
+          AND LOWER(stage) NOT LIKE 'принятие на хранение%'
+          AND LOWER(stage) NOT LIKE 'регистрация%'
+        GROUP BY contract_id
+        """, nativeQuery = true)
+    List<Object[]> findRemarkCountsByContractIds(@Param("contractIds") List<Long> contractIds);
+
+    /**
      * Все замечания (comment_text IS NOT NULL) из согласований договоров,
      * подготовленных исполнителем с isContractor = true.
      * Отсортированы по убыванию даты завершения.
