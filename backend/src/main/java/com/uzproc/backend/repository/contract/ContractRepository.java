@@ -102,14 +102,17 @@ public interface ContractRepository extends JpaRepository<Contract, Long>, JpaSp
     List<String> findDistinctDocumentForms();
 
     /**
-     * ФИО исполнителей (договорников), у которых есть договоры, — для выпадающего фильтра
-     * «Исполнитель» в таблице договоров. Отдаются только реально представленные в договорах ФИО.
+     * ФИО исполнителей, у которых есть договоры, — для выпадающего фильтра «Исполнитель»
+     * в таблице договоров. Только договорники (is_contractor = true): колонка «Исполнитель»
+     * показывается лишь на вкладках, где выборка и так ограничена договорниками,
+     * поэтому остальные ФИО давали бы пустой результат.
      */
     @Query(value = """
         SELECT DISTINCT TRIM(CONCAT(COALESCE(u.surname, ''), ' ', COALESCE(u.name, ''))) AS prepared_by_name
         FROM contracts c
         INNER JOIN users u ON c.prepared_by_id = u.id
-        WHERE TRIM(CONCAT(COALESCE(u.surname, ''), ' ', COALESCE(u.name, ''))) <> ''
+        WHERE u.is_contractor = true
+          AND TRIM(CONCAT(COALESCE(u.surname, ''), ' ', COALESCE(u.name, ''))) <> ''
         ORDER BY prepared_by_name
         """, nativeQuery = true)
     List<String> findDistinctPreparedByNames();
