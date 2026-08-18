@@ -1,9 +1,16 @@
 'use client';
 
+import { ContractSlaOrganizationFilter } from '../filters/ContractSlaOrganizationFilter';
+
 export interface ContractSlaFiltersBarProps {
   year: number;
   availableYears: number[];
   onYearChange: (year: number) => void;
+  /** Выбранные организации заказчика (имена enum CustomerOrganization). */
+  organizations: Set<string>;
+  onOrganizationToggle: (value: string) => void;
+  onOrganizationsSelectAll: () => void;
+  onOrganizationsDeselectAll: () => void;
   preparedBy: string | null;
   /** «без 1P»: исключены документы ЦФО «M - Commerce 1Р». */
   exclude1p: boolean;
@@ -11,11 +18,18 @@ export interface ContractSlaFiltersBarProps {
   onResetFilters: () => void;
 }
 
-/** Панель фильтров дашборда «SLA договоров»: год подписания, переключатель «без 1P» и сброс фильтров. */
+/**
+ * Панель фильтров дашборда «SLA договоров»: год подписания, организация заказчика,
+ * переключатель «без 1P» и сброс фильтров.
+ */
 export function ContractSlaFiltersBar({
   year,
   availableYears,
   onYearChange,
+  organizations,
+  onOrganizationToggle,
+  onOrganizationsSelectAll,
+  onOrganizationsDeselectAll,
   preparedBy,
   exclude1p,
   onExclude1pChange,
@@ -39,6 +53,15 @@ export function ContractSlaFiltersBar({
             </option>
           ))}
         </select>
+
+        <span className="text-xs font-medium text-gray-700 whitespace-nowrap">Организация:</span>
+        <ContractSlaOrganizationFilter
+          selected={organizations}
+          onToggle={onOrganizationToggle}
+          onSelectAll={onOrganizationsSelectAll}
+          onDeselectAll={onOrganizationsDeselectAll}
+        />
+
         <button
           type="button"
           onClick={() => onExclude1pChange(!exclude1p)}

@@ -7,6 +7,7 @@ import com.uzproc.backend.dto.contract.ContractSlaResponseDto;
 import com.uzproc.backend.dto.contract.ContractSlaRowDto;
 import com.uzproc.backend.entity.contract.Contract;
 import com.uzproc.backend.entity.contract.ContractStatus;
+import com.uzproc.backend.entity.contract.CustomerOrganization;
 import com.uzproc.backend.repository.contract.ContractApprovalRepository;
 import com.uzproc.backend.repository.contract.ContractRepository;
 import org.slf4j.Logger;
@@ -18,9 +19,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -66,8 +69,11 @@ public class ContractSlaDashboardService {
      * @param preparedBy опциональный фильтр по договорному специалисту (ФИО подготовившего)
      * @param exclude1p  переключатель «без 1P»: исключить документы ЦФО «M - Commerce 1Р»
      * @param month      месяц (1–12) для списков документов; null — текущий месяц (для прошлых лет декабрь)
+     * @param organizations организации заказчика (имена enum {@link CustomerOrganization}); пусто — без фильтра
      */
-    public ContractSlaResponseDto getContractSlaData(int year, String preparedBy, boolean exclude1p, Integer month) {
+    public ContractSlaResponseDto getContractSlaData(
+            int year, String preparedBy, boolean exclude1p, Integer month, List<String> organizations) {
+        Set<CustomerOrganization> organizationFilter = parseOrganizations(organizations);
         LocalDateTime from = LocalDateTime.of(year, 1, 1, 0, 0);
         LocalDateTime to = from.plusYears(1);
 
@@ -85,6 +91,13 @@ public class ContractSlaDashboardService {
                     ? contractRepository.findByIdsAndStatusPreparedByContractorExcludingCfo(
                         chunk, ContractStatus.SIGNED, excludeCfoName)
                     : contractRepository.findByIdsAndStatusPreparedByContractor(chunk, ContractStatus.SIGNED);
+            if (!organizationFilter.isEmpty()) {
+                // Фильтр по организации до обогащения: поле уже есть в сущности, лишние документы не обогащаем
+                signedChunk = signedChunk.stream()
+                        .filter(c -> c.getCustomerOrganization() != null
+                                && organizationFilter.contains(c.getCustomerOrganization()))
+                        .collect(Collectors.toList());
+            }
             if (signedChunk.isEmpty()) continue;
             contractService.enrichContracts(signedChunk).stream()
                     .map(this::toSlaRow)
@@ -115,9 +128,27 @@ public class ContractSlaDashboardService {
                 currentMonthRows.stream().filter(ContractSlaRowDto::slaViolated).collect(Collectors.toList()),
                 currentMonthRows.stream().filter(r -> !r.slaViolated()).collect(Collectors.toList()));
 
-        logger.debug("Contract SLA dashboard for year {} (exclude1p={}): {} signed documents, {} met SLA, month {} — {} rows",
-                year, exclude1p, totalSigned, metSla, selectedMonth, currentMonthRows.size());
+        logger.debug("Contract SLA dashboard for year {} (exclude1p={}, organizations={}): {} signed documents, {} met SLA, month {} — {} rows",
+                year, exclude1p, organizationFilter, totalSigned, metSla, selectedMonth, currentMonthRows.size());
         return response;
+    }
+
+    /**
+     * Разбор списка организаций заказчика из параметров запроса.
+     * Неизвестные значения игнорируются; пустой результат — фильтр по организации не применяется.
+     */
+    private static Set<CustomerOrganization> parseOrganizations(List<String> organizations) {
+        Set<CustomerOrganization> result = EnumSet.noneOf(CustomerOrganization.class);
+        if (organizations == null) return result;
+        for (String value : organizations) {
+            if (value == null || value.trim().isEmpty()) continue;
+            try {
+                result.add(CustomerOrganization.valueOf(value.trim()));
+            } catch (IllegalArgumentException e) {
+                logger.warn("Contract SLA dashboard: unknown organization value ignored: {}", value);
+            }
+        }
+        return result;
     }
 
     /** Месяц для блоков «подписаны в этом месяце»: текущий, если смотрим текущий год, иначе декабрь. */

@@ -1,14 +1,20 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
+import {
+  CONTRACT_SLA_ORGANIZATIONS,
+  DEFAULT_CONTRACT_SLA_ORGANIZATIONS,
+} from '../constants/contract-sla.constants';
 
 const YEAR_STORAGE_KEY = 'overview_contractSlaYear';
 const PREPARER_STORAGE_KEY = 'overview_contractSlaPreparer';
 const EXCLUDE_1P_STORAGE_KEY = 'overview_contractSlaExclude1p';
 const MONTH_STORAGE_KEY = 'overview_contractSlaMonth';
+const ORGANIZATIONS_STORAGE_KEY = 'overview_contractSlaOrganizations';
 
 /**
- * Фильтры дашборда «SLA договоров»: год подписания, договорной специалист и переключатель «без 1P».
+ * Фильтры дашборда «SLA договоров»: год подписания, организация заказчика,
+ * договорной специалист и переключатель «без 1P».
  * Значения сохраняются в sessionStorage, как на вкладке SLA закупок.
  */
 export function useContractSlaFilters() {
@@ -30,6 +36,19 @@ export function useContractSlaFilters() {
     if (typeof window === 'undefined') return true;
     const saved = sessionStorage.getItem(EXCLUDE_1P_STORAGE_KEY);
     return saved == null ? true : saved === 'true';
+  });
+
+  // Организация заказчика: по умолчанию выбран только «Uzum Market»; пустой выбор — без фильтра
+  const [organizations, setOrganizationsState] = useState<Set<string>>(() => {
+    if (typeof window === 'undefined') return new Set(DEFAULT_CONTRACT_SLA_ORGANIZATIONS);
+    const saved = sessionStorage.getItem(ORGANIZATIONS_STORAGE_KEY);
+    if (saved == null) return new Set(DEFAULT_CONTRACT_SLA_ORGANIZATIONS);
+    try {
+      const parsed = JSON.parse(saved) as string[];
+      return new Set(Array.isArray(parsed) ? parsed : DEFAULT_CONTRACT_SLA_ORGANIZATIONS);
+    } catch {
+      return new Set(DEFAULT_CONTRACT_SLA_ORGANIZATIONS);
+    }
   });
 
   // Месяц, выбранный кликом по диаграмме; null — месяц по умолчанию (текущий, для прошлых лет декабрь)
@@ -63,6 +82,32 @@ export function useContractSlaFilters() {
     if (typeof window !== 'undefined') sessionStorage.setItem(EXCLUDE_1P_STORAGE_KEY, String(value));
   }, []);
 
+  const setOrganizations = useCallback((value: Set<string>) => {
+    setOrganizationsState(value);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(ORGANIZATIONS_STORAGE_KEY, JSON.stringify(Array.from(value)));
+    }
+  }, []);
+
+  /** Клик по организации в выпадающем списке: снимает или добавляет её в выбор. */
+  const toggleOrganization = useCallback(
+    (value: string) => {
+      const next = new Set(organizations);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      setOrganizations(next);
+    },
+    [organizations, setOrganizations]
+  );
+
+  const selectAllOrganizations = useCallback(() => {
+    setOrganizations(new Set(CONTRACT_SLA_ORGANIZATIONS.map((o) => o.value)));
+  }, [setOrganizations]);
+
+  const deselectAllOrganizations = useCallback(() => {
+    setOrganizations(new Set());
+  }, [setOrganizations]);
+
   /** Клик по строке специалиста: повторный клик по выбранному снимает фильтр. */
   const togglePreparedBy = useCallback(
     (value: string) => {
@@ -87,13 +132,15 @@ export function useContractSlaFilters() {
 
   /**
    * Сброс: фильтр по специалисту и выбранный месяц снимаются,
-   * «без 1P» возвращается в состояние по умолчанию — включён.
+   * «без 1P» возвращается в состояние по умолчанию — включён,
+   * организация — только «Uzum Market».
    */
   const resetFilters = useCallback(() => {
     setPreparedBy(null);
     setExclude1p(true);
     setSelectedMonth(null);
-  }, [setPreparedBy, setExclude1p, setSelectedMonth]);
+    setOrganizations(new Set(DEFAULT_CONTRACT_SLA_ORGANIZATIONS));
+  }, [setPreparedBy, setExclude1p, setSelectedMonth, setOrganizations]);
 
   return {
     year,
@@ -104,6 +151,11 @@ export function useContractSlaFilters() {
     togglePreparedBy,
     exclude1p,
     setExclude1p,
+    organizations,
+    setOrganizations,
+    toggleOrganization,
+    selectAllOrganizations,
+    deselectAllOrganizations,
     selectedMonth,
     setSelectedMonth,
     toggleMonth,

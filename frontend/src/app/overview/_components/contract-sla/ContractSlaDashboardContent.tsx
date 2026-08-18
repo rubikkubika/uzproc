@@ -25,6 +25,7 @@ export function ContractSlaDashboardContent({ enabled }: ContractSlaDashboardCon
     filters.preparedBy,
     filters.exclude1p,
     filters.selectedMonth,
+    filters.organizations,
     enabled
   );
 
@@ -39,6 +40,10 @@ export function ContractSlaDashboardContent({ enabled }: ContractSlaDashboardCon
         year={filters.year}
         availableYears={filters.availableYears}
         onYearChange={filters.setYear}
+        organizations={filters.organizations}
+        onOrganizationToggle={filters.toggleOrganization}
+        onOrganizationsSelectAll={filters.selectAllOrganizations}
+        onOrganizationsDeselectAll={filters.deselectAllOrganizations}
         preparedBy={filters.preparedBy}
         exclude1p={filters.exclude1p}
         onExclude1pChange={filters.setExclude1p}

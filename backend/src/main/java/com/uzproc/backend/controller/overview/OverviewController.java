@@ -255,15 +255,19 @@ public class OverviewController {
      * @param preparedBy опциональный фильтр по договорному специалисту
      * @param exclude1p  переключатель «без 1P»: исключить документы ЦФО «M - Commerce 1Р»
      * @param month      месяц (1–12) для списков документов; null — текущий месяц (для прошлых лет декабрь)
+     * @param organizations организации заказчика (имена enum CustomerOrganization: UZUM_MARKET, UZUM_OOO, UZUM_TEZKOR);
+     *                      пусто — без фильтра по организации
      */
     @GetMapping("/contract-sla")
     public ResponseEntity<ContractSlaResponseDto> getContractSlaData(
             @RequestParam int year,
             @RequestParam(required = false) String preparedBy,
             @RequestParam(required = false, defaultValue = "false") boolean exclude1p,
-            @RequestParam(required = false) Integer month) {
-        logger.debug("Contract SLA dashboard request for year {}, preparedBy={}, exclude1p={}, month={}", year, preparedBy, exclude1p, month);
-        return ResponseEntity.ok(contractSlaDashboardService.getContractSlaData(year, preparedBy, exclude1p, month));
+            @RequestParam(required = false) Integer month,
+            @RequestParam(required = false) List<String> organizations) {
+        logger.debug("Contract SLA dashboard request for year {}, preparedBy={}, exclude1p={}, month={}, organizations={}",
+                year, preparedBy, exclude1p, month, organizations);
+        return ResponseEntity.ok(contractSlaDashboardService.getContractSlaData(year, preparedBy, exclude1p, month, organizations));
     }
 
     /**
