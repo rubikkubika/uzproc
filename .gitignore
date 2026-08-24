@@ -126,3 +126,9 @@ build/
 
 # Claude Code personal overrides
 .claude/settings.local.json
+
+# Положения и регламенты (локальные документы, not in git)
+/polozheniya/
+
+# Временные файлы Microsoft Office
+~$*
