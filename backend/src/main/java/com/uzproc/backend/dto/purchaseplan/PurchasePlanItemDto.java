@@ -38,6 +38,9 @@ public class PurchasePlanItemDto {
     private String comment;
     private Integer commentCount; // количество комментариев (для колонки «Комментарии»)
     private Integer supplierCount; // количество привязанных контрагентов (для колонки «Контрагенты»)
+    private String currentContractName; // наименование действующего договора («Текущий договор»)
+    private Boolean isDraft; // позиция драфта плана закупок
+    private Long sourceContractId; // договор-источник (для позиций драфта)
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -300,6 +303,30 @@ public class PurchasePlanItemDto {
 
     public void setSupplierCount(Integer supplierCount) {
         this.supplierCount = supplierCount;
+    }
+
+    public String getCurrentContractName() {
+        return currentContractName;
+    }
+
+    public void setCurrentContractName(String currentContractName) {
+        this.currentContractName = currentContractName;
+    }
+
+    public Boolean getIsDraft() {
+        return isDraft;
+    }
+
+    public void setIsDraft(Boolean isDraft) {
+        this.isDraft = isDraft;
+    }
+
+    public Long getSourceContractId() {
+        return sourceContractId;
+    }
+
+    public void setSourceContractId(Long sourceContractId) {
+        this.sourceContractId = sourceContractId;
     }
 }
 

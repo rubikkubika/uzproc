@@ -235,6 +235,26 @@ export default function PurchasePlanItemsTableRow({
           </td>
         );
       
+      case 'currentContractName':
+        // Наименование действующего договора — только для чтения (заполняется при формировании драфта)
+        return (
+          <td
+            key={columnKey}
+            className={`px-2 py-2 border-r border-gray-300 ${isInactive ? 'text-gray-500' : 'text-gray-900'}`}
+            style={{
+              width: `${width}px`,
+              fontSize: '13.44px',
+              whiteSpace: 'normal',
+              wordWrap: 'break-word',
+              overflowWrap: 'break-word',
+              wordBreak: 'break-word'
+            }}
+            title={item.currentContractName || ''}
+          >
+            {item.currentContractName || '-'}
+          </td>
+        );
+
       case 'budgetAmount':
         return (
           <td

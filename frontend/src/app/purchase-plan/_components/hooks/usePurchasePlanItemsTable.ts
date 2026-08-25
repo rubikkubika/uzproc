@@ -13,8 +13,11 @@ import { usePurchasePlanItemsSuppliers } from './usePurchasePlanItemsSuppliers';
 import { useFocusRestoreAfterFetch } from '../../../purchase-requests/_components/hooks/useFocusRestoreAfterFetch';
 import { useInfiniteScroll } from '../../../purchase-requests/_components/hooks/useInfiniteScroll';
 import { useHolidayDateKeys } from '@/hooks/useHolidayDateKeys';
+import { usePurchasePlanMode, appendDraftParam } from '../contexts/PurchasePlanModeContext';
 
 export const usePurchasePlanItemsTable = () => {
+  // Режим раздела: действующий план или драфт плана закупок
+  const { isDraft } = usePurchasePlanMode();
   const printRef = useRef<HTMLDivElement>(null);
   const [data, setData] = useState<PageResponse | null>(null);
   const [allItems, setAllItems] = useState<PurchasePlanItem[]>([]);
@@ -59,6 +62,13 @@ export const usePurchasePlanItemsTable = () => {
   // Отдельное состояние для сводной статистики из нового эндпоинта
   const [purchaserSummaryData, setPurchaserSummaryData] = useState<Array<{
     purchaser: string;
+    count: number;
+    totalBudget: number;
+    totalComplexity: number;
+  }>>([]);
+  // Свод по ЦФО (эндпоинт /cfo-summary)
+  const [cfoSummaryData, setCfoSummaryData] = useState<Array<{
+    cfo: string;
     count: number;
     totalBudget: number;
     totalComplexity: number;
@@ -172,6 +182,9 @@ export const usePurchasePlanItemsTable = () => {
       if (textFilters.purchaseSubject && textFilters.purchaseSubject.trim() !== '') {
         params.append('purchaseSubject', textFilters.purchaseSubject.trim());
       }
+      if (textFilters.currentContractName && textFilters.currentContractName.trim() !== '') {
+        params.append('currentContractName', textFilters.currentContractName.trim());
+      }
       if (textFilters.purchaseRequestId && textFilters.purchaseRequestId.trim() !== '') {
         params.append('purchaseRequestId', textFilters.purchaseRequestId.trim());
       }
@@ -232,6 +245,8 @@ export const usePurchasePlanItemsTable = () => {
           }
         });
       }
+
+      appendDraftParam(params, isDraft);
 
       const fetchUrl = `${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`;
       const response = await fetch(fetchUrl);
@@ -347,7 +362,7 @@ export const usePurchasePlanItemsTable = () => {
         setLoading(false);
       }
     }
-  }, [selectedMonthYear, selectedCurrency]);
+  }, [selectedMonthYear, selectedCurrency, isDraft]);
 
   // Ref для хранения всех загруженных данных версии (без фильтров)
   const versionDataRef = useRef<PurchasePlanItem[]>([]);
@@ -1162,6 +1177,8 @@ export const usePurchasePlanItemsTable = () => {
         });
       }
 
+      appendDraftParam(params, isDraft);
+
       const cacheKey = params.toString();
       if (monthDistributionCacheRef.current.has(cacheKey)) {
         setMonthCounts(monthDistributionCacheRef.current.get(cacheKey)!);
@@ -1202,7 +1219,7 @@ export const usePurchasePlanItemsTable = () => {
         clearTimeout(chartDataDebounceTimerRef.current);
       }
     };
-  }, [loading, selectedYear, filtersHook.filters, filtersHook.cfoFilter, filtersHook.companyFilter, filtersHook.purchaserCompanyFilter, filtersHook.purchaserFilter, filtersHook.categoryFilter, filtersHook.statusFilter, versionsHook.selectedVersionId, versionsHook.selectedVersionInfo, allItems.length]);
+  }, [loading, selectedYear, filtersHook.filters, filtersHook.cfoFilter, filtersHook.companyFilter, filtersHook.purchaserCompanyFilter, filtersHook.purchaserFilter, filtersHook.categoryFilter, filtersHook.statusFilter, versionsHook.selectedVersionId, versionsHook.selectedVersionInfo, allItems.length, isDraft]);
 
   // Загружаем данные для сводной таблицы закупщиков
   // ВАЖНО: Фильтр по закупщику (purchaserFilter) НЕ применяется, т.к. сводная таблица показывает статистику по ВСЕМ закупщикам
@@ -1318,6 +1335,8 @@ export const usePurchasePlanItemsTable = () => {
         });
       }
       
+      appendDraftParam(params, isDraft);
+
       const cacheKey = params.toString();
       
       // Если запрос уже выполняется с такими же параметрами, не запускаем новый
@@ -1347,9 +1366,29 @@ export const usePurchasePlanItemsTable = () => {
         } else {
           setPurchaserSummaryData([]);
         }
+
+        // Свод по ЦФО — те же фильтры, отдельный агрегирующий эндпоинт.
+        // Запрашивается только в драфте: в действующем плане этот свод не отображается
+        if (!isDraft) {
+          setCfoSummaryData([]);
+          return;
+        }
+        const cfoResponse = await fetch(`${getBackendUrl()}/api/purchase-plan-items/cfo-summary?${params.toString()}`);
+        if (cfoResponse.ok) {
+          const cfoList = await cfoResponse.json();
+          setCfoSummaryData(cfoList.map((item: any) => ({
+            cfo: item.cfo || 'Не указан',
+            count: item.count || 0,
+            totalBudget: item.totalBudget || 0,
+            totalComplexity: item.totalComplexity || 0,
+          })));
+        } else {
+          setCfoSummaryData([]);
+        }
       } catch (err) {
         console.error('Error fetching purchaser summary:', err);
         setPurchaserSummaryData([]);
+        setCfoSummaryData([]);
       } finally {
         purchasePlanItemsLoadingRef.current.delete(cacheKey);
       }
@@ -1371,7 +1410,7 @@ export const usePurchasePlanItemsTable = () => {
         clearTimeout(summaryDataDebounceTimerRef.current);
       }
     };
-  }, [loading, selectedYear, selectedMonthYear, selectedMonths, filtersHook.filters, filtersHook.cfoFilter, filtersHook.companyFilter, filtersHook.purchaserCompanyFilter, filtersHook.categoryFilter, filtersHook.statusFilter, allItems.length]);
+  }, [loading, selectedYear, selectedMonthYear, selectedMonths, filtersHook.filters, filtersHook.cfoFilter, filtersHook.companyFilter, filtersHook.purchaserCompanyFilter, filtersHook.categoryFilter, filtersHook.statusFilter, allItems.length, isDraft]);
 
   // Функция для расчёта распределения по месяцам: для текущей версии — monthCounts с API; для архивной — из versionDataRef
   const getMonthlyDistribution = useMemo(() => {
@@ -1452,14 +1491,25 @@ export const usePurchasePlanItemsTable = () => {
       yearsLoadingRef.current = true;
       yearsFetchedRef.current = true;
       try {
-        const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/years`);
+        const yearsParams = appendDraftParam(new URLSearchParams(), isDraft).toString();
+        const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/years${yearsParams ? `?${yearsParams}` : ''}`);
         if (response.ok) {
-          const years = await response.json();
-          yearsCacheRef.current = years;
-          setAllYears(years);
-          if (years.length > 0 && !selectedYear) {
+          const years: number[] = await response.json();
+          // Драфт формируется на следующий год — он доступен для выбора,
+          // даже если позиций драфта на него ещё нет
+          const planningYear = new Date().getFullYear() + 1;
+          const yearsForMode = isDraft && !years.includes(planningYear)
+            ? [planningYear, ...years].sort((a, b) => b - a)
+            : years;
+          yearsCacheRef.current = yearsForMode;
+          setAllYears(yearsForMode);
+          if (yearsForMode.length > 0 && !selectedYear) {
             const currentYear = new Date().getFullYear();
-            setSelectedYear(years.includes(currentYear) ? currentYear : years[0]);
+            // В драфте по умолчанию открываем год планирования, в плане — текущий год
+            const defaultYear = isDraft
+              ? planningYear
+              : (yearsForMode.includes(currentYear) ? currentYear : yearsForMode[0]);
+            setSelectedYear(defaultYear);
           }
         }
       } catch (err) {
@@ -1469,7 +1519,7 @@ export const usePurchasePlanItemsTable = () => {
       }
     };
     fetchYears();
-  }, []);
+  }, [isDraft]);
 
   // totalRecords берётся только из основного запроса (data.totalElements), отдельный запрос size=1 убран
 
@@ -1654,6 +1704,8 @@ export const usePurchasePlanItemsTable = () => {
     summaryData,
     setSummaryData,
     purchaserSummaryData,
+    cfoSummaryData,
+    isDraft,
     newItemData,
     setNewItemData,
     printRef,

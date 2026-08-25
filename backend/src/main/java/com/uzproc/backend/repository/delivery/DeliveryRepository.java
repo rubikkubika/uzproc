@@ -37,6 +37,28 @@ public interface DeliveryRepository extends JpaRepository<Delivery, Long>, JpaSp
     /** Первая (по id) поставка по договору — для upsert из handreport. */
     java.util.Optional<Delivery> findFirstByContractIdOrderByIdAsc(Long contractId);
 
+    /** Поставки с незаполненной «Датой» — для разового бэкфилла даты подписания спецификации. */
+    java.util.List<Delivery> findByDateIsNull();
+
+    /** Поставки без выбранной схемы оплаты — для повторного авто-подбора по договору. */
+    java.util.List<Delivery> findByPaymentSchemeRefIsNull();
+
+    /**
+     * Предстоящие поставки: плановая дата в заданном интервале, поставка ещё не выполнена.
+     * Используется письмом о предстоящих поставках в центре отправки.
+     */
+    java.util.List<Delivery> findByDeliveryDeadlineBetweenAndShipmentStatusNotOrderByDeliveryDeadlineAsc(
+            java.time.LocalDate from,
+            java.time.LocalDate to,
+            com.uzproc.backend.entity.delivery.ShipmentStatus excludedStatus);
+
+    /**
+     * Поставки, договор которых относится к другой организации-заказчику.
+     * Поставки ведутся только по спецификациям маркета — такие записи удаляются при старте.
+     */
+    java.util.List<Delivery> findByContractCustomerOrganizationNot(
+            com.uzproc.backend.entity.contract.CustomerOrganization organization);
+
     /**
      * Кандидаты на авто-закрытие: поставки со схемой оплаты из списка ярлыков
      * (напр. «0/100/10 д.» — по факту, «100/0/10 д.» — аванс 100%), с предзагрузкой оплат

@@ -2,11 +2,14 @@
 
 import React, { useRef, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { ALL_COLUMNS, DEFAULT_VISIBLE_COLUMNS } from '../constants/purchase-plan-items.constants';
 
 interface PurchasePlanItemsTableColumnsMenuProps {
   isOpen: boolean;
   position: { top: number; left: number } | null;
+  /** Колонки, доступные в текущем режиме (у драфта часть колонок недоступна) */
+  columns: readonly { key: string; label: string }[];
+  /** Колонки, видимые по умолчанию в текущем режиме — помечаются в списке */
+  defaultColumns: readonly string[];
   visibleColumns: Set<string>;
   onToggleColumn: (columnKey: string) => void;
   onReset: () => void;
@@ -20,6 +23,8 @@ interface PurchasePlanItemsTableColumnsMenuProps {
 export default function PurchasePlanItemsTableColumnsMenu({
   isOpen,
   position,
+  columns,
+  defaultColumns,
   visibleColumns,
   onToggleColumn,
   onReset,
@@ -74,9 +79,9 @@ export default function PurchasePlanItemsTableColumnsMenu({
 
       <div className="flex-1 overflow-y-auto p-2">
         <div className="space-y-1">
-          {ALL_COLUMNS.map((column) => {
+          {columns.map((column) => {
             const isVisible = visibleColumns.has(column.key);
-            const isDefault = DEFAULT_VISIBLE_COLUMNS.includes(column.key);
+            const isDefault = defaultColumns.includes(column.key);
             
             return (
               <label

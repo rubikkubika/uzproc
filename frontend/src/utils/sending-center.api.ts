@@ -92,3 +92,51 @@ export async function sendSpecifications(
   }
   return response.json();
 }
+
+/** Сводка по предстоящим поставкам для раздела «Поставки» центра отправки. */
+export interface UpcomingDeliveriesSummary {
+  days: number;
+  count: number;
+  defaultRecipient: string;
+}
+
+/** Результат отправки письма о предстоящих поставках. */
+export interface UpcomingDeliveriesSendResult {
+  sent: boolean;
+  recipient: string;
+  deliveryCount: number;
+  periodFrom: string;
+  periodTo: string;
+  subject: string;
+}
+
+/** Сколько поставок попадёт в письмо и получатель по умолчанию. */
+export async function fetchUpcomingDeliveries(
+  days: number,
+  signal?: AbortSignal
+): Promise<UpcomingDeliveriesSummary> {
+  const url = `${getBackendUrl()}/api/sending-center/deliveries/upcoming?days=${days}`;
+  const response = await fetch(url, { signal });
+  if (!response.ok) {
+    throw new Error('Не удалось загрузить предстоящие поставки');
+  }
+  return response.json();
+}
+
+/** Отправить тестовое письмо о предстоящих поставках. */
+export async function sendUpcomingDeliveriesTest(
+  recipient: string,
+  days: number
+): Promise<UpcomingDeliveriesSendResult> {
+  const url = `${getBackendUrl()}/api/sending-center/deliveries/test-send`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ recipient, days }),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || data.message || 'Не удалось отправить письмо');
+  }
+  return response.json();
+}

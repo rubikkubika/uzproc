@@ -3,6 +3,7 @@ package com.uzproc.backend.service.contract;
 import com.uzproc.backend.entity.contract.Contract;
 import com.uzproc.backend.entity.contract.ContractStatus;
 import com.uzproc.backend.repository.contract.ContractRepository;
+import com.uzproc.backend.service.delivery.DeliveryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -55,9 +56,12 @@ public class ContractStatusUpdateService {
     );
     
     private final ContractRepository contractRepository;
+    private final DeliveryService deliveryService;
 
-    public ContractStatusUpdateService(ContractRepository contractRepository) {
+    public ContractStatusUpdateService(ContractRepository contractRepository,
+                                       DeliveryService deliveryService) {
         this.contractRepository = contractRepository;
+        this.deliveryService = deliveryService;
     }
 
     /**
@@ -171,12 +175,30 @@ public class ContractStatusUpdateService {
                 contractId, 
                 currentStatus != null ? currentStatus.getDisplayName() : "null",
                 newStatus.getDisplayName());
+            // Договор стал «Подписан» — если это спецификация договорника, заводим поставку.
+            if (newStatus == ContractStatus.SIGNED) {
+                createDeliveryForSignedContract(contractId);
+            }
         } else if (newStatus == null) {
             logger.debug("No status change needed for contract {} (innerId: {}): state='{}' does not match any status condition", 
                 contractId, contract.getInnerId(), state != null ? state : "null");
         } else {
             logger.debug("Status for contract {} (innerId: {}) already set to: {} (currentStatus == newStatus)", 
                 contractId, contract.getInnerId(), newStatus.getDisplayName());
+        }
+    }
+
+    /**
+     * Заводит поставку по договору, который только что стал «Подписан».
+     * Поставка создаётся только для спецификаций договорников и только если её ещё нет —
+     * все проверки внутри {@link DeliveryService#ensureDeliveryForSignedSpecification}.
+     * Ошибка создания поставки не должна ломать обновление статуса договора, поэтому логируется.
+     */
+    private void createDeliveryForSignedContract(Long contractId) {
+        try {
+            deliveryService.ensureDeliveryForSignedSpecification(contractId);
+        } catch (Exception e) {
+            logger.error("Failed to auto-create delivery for signed contract {}: {}", contractId, e.getMessage(), e);
         }
     }
 

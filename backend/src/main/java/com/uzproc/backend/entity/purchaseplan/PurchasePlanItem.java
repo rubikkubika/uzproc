@@ -117,6 +117,18 @@ public class PurchasePlanItem {
     @Column(name = "is_strategic_product")
     private Boolean isStrategicProduct;
 
+    /** Наименование действующего договора (колонка «Текущий договор») */
+    @Column(name = "current_contract_name", length = 500)
+    private String currentContractName;
+
+    /** Признак позиции драфта плана закупок (черновик, не действующий план) */
+    @Column(name = "is_draft", nullable = false)
+    private Boolean isDraft = Boolean.FALSE;
+
+    /** Идентификатор договора-источника, из которого сгенерирована позиция драфта */
+    @Column(name = "source_contract_id")
+    private Long sourceContractId;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -392,6 +404,30 @@ public class PurchasePlanItem {
 
     public void setIsStrategicProduct(Boolean isStrategicProduct) {
         this.isStrategicProduct = isStrategicProduct;
+    }
+
+    public String getCurrentContractName() {
+        return currentContractName;
+    }
+
+    public void setCurrentContractName(String currentContractName) {
+        this.currentContractName = currentContractName;
+    }
+
+    public Boolean getIsDraft() {
+        return isDraft;
+    }
+
+    public void setIsDraft(Boolean isDraft) {
+        this.isDraft = isDraft != null ? isDraft : Boolean.FALSE;
+    }
+
+    public Long getSourceContractId() {
+        return sourceContractId;
+    }
+
+    public void setSourceContractId(Long sourceContractId) {
+        this.sourceContractId = sourceContractId;
     }
 }
 

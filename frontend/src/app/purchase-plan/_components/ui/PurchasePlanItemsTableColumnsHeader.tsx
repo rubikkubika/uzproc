@@ -250,6 +250,7 @@ export default function PurchasePlanItemsTableColumnsHeader({
             'guid',
             'year',
             'purchaseSubject',
+            'currentContractName',
             'purchaseRequestId',
             'product',
             'currentKa',

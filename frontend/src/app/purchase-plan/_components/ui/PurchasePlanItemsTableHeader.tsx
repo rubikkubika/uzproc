@@ -2,7 +2,8 @@
 
 import React from 'react';
 import { Download, Settings, Plus, X, Search } from 'lucide-react';
-import { PurchasePlanItem, SortField, SortDirection } from '../types/purchase-plan-items.types';
+import { PurchasePlanItem, SortField, SortDirection, CfoSummaryItem } from '../types/purchase-plan-items.types';
+import PurchasePlanItemsCfoSummaryTable from './PurchasePlanItemsCfoSummaryTable';
 
 interface PurchaserSummaryItem {
   purchaser: string;
@@ -34,6 +35,10 @@ interface PurchasePlanItemsTableHeaderProps {
   purchaserSummary: PurchaserSummaryItem[];
   purchaserFilter: Set<string>;
   setPurchaserFilter: (filter: Set<string>) => void;
+  /** Свод по ЦФО (отображается рядом со сводом по закупщикам) */
+  cfoSummary?: CfoSummaryItem[];
+  cfoFilter?: Set<string>;
+  setCfoFilter?: (filter: Set<string>) => void;
   setCurrentPage: (page: number) => void;
   totalRecords: number;
   allItemsCount: number;
@@ -74,6 +79,9 @@ export default function PurchasePlanItemsTableHeader({
   purchaserSummary,
   purchaserFilter,
   setPurchaserFilter,
+  cfoSummary,
+  cfoFilter,
+  setCfoFilter,
   setCurrentPage,
   totalRecords,
   allItemsCount,
@@ -88,9 +96,9 @@ export default function PurchasePlanItemsTableHeader({
       {/* Сводная таблица по закупщикам */}
       <div className="flex items-start w-full">
         <div className="bg-white rounded shadow-sm border border-gray-200 overflow-hidden flex-shrink-0">
-            <div className="overflow-x-auto">
+            <div className="overflow-auto max-h-[220px]">
               <table className="border-collapse table-auto">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
                     <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 whitespace-nowrap">
                       Закупщик
@@ -237,6 +245,18 @@ export default function PurchasePlanItemsTableHeader({
               </table>
             </div>
           </div>
+
+          {/* Свод по ЦФО */}
+          {cfoSummary && cfoFilter && setCfoFilter && (
+            <div className="ml-3 min-w-0 overflow-x-auto">
+              <PurchasePlanItemsCfoSummaryTable
+                cfoSummary={cfoSummary}
+                cfoFilter={cfoFilter}
+                setCfoFilter={setCfoFilter}
+                setCurrentPage={setCurrentPage}
+              />
+            </div>
+          )}
         </div>
     </div>
   );

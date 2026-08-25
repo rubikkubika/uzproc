@@ -8,7 +8,7 @@ import { usePurchasePlanItemsTable } from './hooks/usePurchasePlanItemsTable';
 import { getCompanyLogoPath, getPurchaseRequestStatusColor } from './utils/purchase-plan-items.utils';
 import { prepareExportData } from './utils/export.utils';
 import { getBackendUrl } from '@/utils/api';
-import { FILTERS_STORAGE_KEY, DEFAULT_STATUSES } from './constants/purchase-plan-items.constants';
+import { FILTERS_STORAGE_KEY, DRAFT_FILTERS_STORAGE_KEY, DEFAULT_STATUSES } from './constants/purchase-plan-items.constants';
 
 // UI компоненты
 import PurchasePlanItemsTableHeader from './ui/PurchasePlanItemsTableHeader';
@@ -18,6 +18,7 @@ import PurchasePlanItemsTableFilters from './ui/PurchasePlanItemsTableFilters';
 import PurchasePlanItemsTableColumnsMenu from './ui/PurchasePlanItemsTableColumnsMenu';
 import PurchasePlanItemsTableColumnsHeader from './ui/PurchasePlanItemsTableColumnsHeader';
 import PurchasePlanItemsSummaryTable from './ui/PurchasePlanItemsSummaryTable';
+import PurchasePlanDraftToolbar from './ui/PurchasePlanDraftToolbar';
 
 // Модальные окнаф
 import PurchasePlanItemsDetailsModal from './ui/PurchasePlanItemsDetailsModal';
@@ -30,6 +31,8 @@ import PurchasePlanItemsVersionsListModal from './ui/PurchasePlanItemsVersionsLi
 
 // Контекст аутентификации теперь глобальный, не нужен локальный AuthProvider
 import { useAuth } from '@/contexts/AuthContext';
+import { PurchasePlanModeProvider, usePurchasePlanMode, appendDraftParam } from './contexts/PurchasePlanModeContext';
+import { usePurchasePlanDraftActions } from './hooks/usePurchasePlanDraftActions';
 
 /**
  * Внутренний компонент таблицы, который использует хуки
@@ -37,13 +40,14 @@ import { useAuth } from '@/contexts/AuthContext';
 function PurchasePlanItemsTableContent() {
   // Используем главный хук, который композирует все остальные хуки
   const table = usePurchasePlanItemsTable();
+  const { isDraft, title } = usePurchasePlanMode();
   const { userEmail } = useAuth();
   const printRef = useRef<HTMLDivElement>(null);
 
   // Настройка ReactToPrint для экспорта в PDF
   const handlePrint = useReactToPrint({
     contentRef: printRef,
-    documentTitle: `План_закупок_${table.selectedYear || 'Все'}_${new Date().toISOString().split('T')[0]}`,
+    documentTitle: `${isDraft ? 'Драфт_плана_закупок' : 'План_закупок'}_${table.selectedYear || 'Все'}_${new Date().toISOString().split('T')[0]}`,
     pageStyle: `
       @page {
         size: A4 landscape;
@@ -109,8 +113,8 @@ function PurchasePlanItemsTableContent() {
       ];
       ws['!cols'] = colWidths;
 
-      XLSX.utils.book_append_sheet(wb, ws, 'План закупок');
-      const fileName = `План_закупок_с_фильтрами_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.utils.book_append_sheet(wb, ws, isDraft ? 'Драфт плана' : 'План закупок');
+      const fileName = `${title.replace(/\s/g, '_')}_с_фильтрами_${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
       alert('Ошибка при экспорте в Excel');
@@ -123,6 +127,7 @@ function PurchasePlanItemsTableContent() {
       const params = new URLSearchParams();
       params.append('page', '0');
       params.append('size', '100000');
+      appendDraftParam(params, isDraft);
 
       const fetchUrl = `${getBackendUrl()}/api/purchase-plan-items?${params.toString()}`;
       const response = await fetch(fetchUrl);
@@ -152,8 +157,8 @@ function PurchasePlanItemsTableContent() {
       ];
       ws['!cols'] = colWidths;
 
-      XLSX.utils.book_append_sheet(wb, ws, 'План закупок');
-      const fileName = `План_закупок_все_данные_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.utils.book_append_sheet(wb, ws, isDraft ? 'Драфт плана' : 'План закупок');
+      const fileName = `${title.replace(/\s/g, '_')}_все_данные_${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
     } catch (error) {
       alert('Ошибка при экспорте в Excel');
@@ -272,6 +277,8 @@ function PurchasePlanItemsTableContent() {
   // чтобы не вызывать лишний re-render сразу после открытия страницы
   const loadVersionsAfterPaintRef = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => {
+    // В драфте плана закупок редакции не ведутся
+    if (isDraft) return;
     if (!table.selectedYear) return;
     if (loadVersionsAfterPaintRef.current) {
       clearTimeout(loadVersionsAfterPaintRef.current);
@@ -285,7 +292,7 @@ function PurchasePlanItemsTableContent() {
         clearTimeout(loadVersionsAfterPaintRef.current);
       }
     };
-  }, [table.selectedYear, table.versions.loadVersions]);
+  }, [table.selectedYear, table.versions.loadVersions, isDraft]);
 
   // Сводная статистика по закупщикам (использует purchaserSummaryData из нового эндпоинта /purchaser-summary)
   // ВАЖНО: Должен быть вызван ДО условных возвратов, чтобы соблюдать правила хуков
@@ -303,6 +310,30 @@ function PurchasePlanItemsTableContent() {
       totalComplexity: typeof item.totalComplexity === 'number' ? item.totalComplexity : (parseFloat(String(item.totalComplexity)) || 0),
     }));
   }, [table.purchaserSummaryData]);
+
+  // Свод по ЦФО (использует cfoSummaryData из эндпоинта /cfo-summary)
+  const cfoSummary = useMemo(() => {
+    if (!table.cfoSummaryData || table.cfoSummaryData.length === 0) {
+      return [];
+    }
+    return table.cfoSummaryData.map((item) => ({
+      cfo: item.cfo || 'Не указан',
+      count: item.count || 0,
+      totalBudget: typeof item.totalBudget === 'number' ? item.totalBudget : (parseFloat(String(item.totalBudget)) || 0),
+      totalComplexity: typeof item.totalComplexity === 'number' ? item.totalComplexity : (parseFloat(String(item.totalComplexity)) || 0),
+    }));
+  }, [table.cfoSummaryData]);
+
+  // Перезагрузка таблицы после изменения драфта
+  const handleDraftRefresh = useCallback(() => {
+    table.fetchData(0, table.pageSize, table.selectedYear, table.sortField, table.sortDirection, table.filters.filters, table.selectedMonths);
+  }, [table.fetchData, table.pageSize, table.selectedYear, table.sortField, table.sortDirection, table.filters.filters, table.selectedMonths]);
+
+  // Действия над драфтом плана закупок (формирование из договоров, очистка)
+  const draftActions = usePurchasePlanDraftActions({
+    year: table.selectedYear,
+    onRefresh: handleDraftRefresh,
+  });
 
   // Функция для сброса всех фильтров (как в оригинале)
   // ВАЖНО: Должен быть вызван ДО условных возвратов, чтобы соблюдать правила хуков
@@ -334,11 +365,14 @@ function PurchasePlanItemsTableContent() {
     
     // Очищаем сохранённые фильтры в localStorage
     try {
-      localStorage.removeItem(FILTERS_STORAGE_KEY);
+      localStorage.removeItem(isDraft ? DRAFT_FILTERS_STORAGE_KEY : FILTERS_STORAGE_KEY);
     } catch { }
 
     // Устанавливаем просмотр текущей версии
-    if (table.selectedYear) {
+    if (isDraft) {
+      table.versions.setSelectedVersionId(null);
+      table.versions.setSelectedVersionInfo(null);
+    } else if (table.selectedYear) {
       table.versions.loadVersions(table.selectedYear);
     } else {
       // Если год не выбран, просто сбрасываем выбранную версию
@@ -361,6 +395,8 @@ function PurchasePlanItemsTableContent() {
 
   // Эффект для загрузки данных при изменении выбранной версии
   useEffect(() => {
+    // В драфте плана закупок редакции не ведутся
+    if (isDraft) return;
     if (!table.selectedYear) return;
 
     // Используем selectedVersionId для поиска версии в списке, если selectedVersionInfo еще не обновился
@@ -578,6 +614,19 @@ function PurchasePlanItemsTableContent() {
   
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
+      {/* Панель управления драфтом плана закупок */}
+      {isDraft && (
+        <PurchasePlanDraftToolbar
+          year={table.selectedYear}
+          isGenerating={draftActions.isGenerating}
+          isClearing={draftActions.isClearing}
+          lastResult={draftActions.lastResult}
+          errorMessage={draftActions.errorMessage}
+          onGenerate={draftActions.generateDraft}
+          onClear={draftActions.clearDraft}
+        />
+      )}
+
       {/* Заголовок таблицы: выбор года, валюты, кнопки экспорта, создания и т.д. */}
       <PurchasePlanItemsTableHeader
         selectedYear={table.selectedYear}
@@ -601,6 +650,11 @@ function PurchasePlanItemsTableContent() {
         purchaserSummary={purchaserSummary}
         purchaserFilter={table.filters.purchaserFilter}
         setPurchaserFilter={table.filters.setPurchaserFilter}
+        {...(isDraft ? {
+          cfoSummary,
+          cfoFilter: table.filters.cfoFilter,
+          setCfoFilter: table.filters.setCfoFilter,
+        } : {})}
         setCurrentPage={table.setCurrentPage}
         totalRecords={table.totalRecords}
         allItemsCount={table.allItems.length}
@@ -675,7 +729,7 @@ function PurchasePlanItemsTableContent() {
               Создать строку
             </button>
           )}
-          {true && (
+          {!isDraft && (
             <button
               onClick={handleCreateVersion}
               className="px-2 py-1 text-xs bg-blue-600 text-white rounded border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -686,14 +740,16 @@ function PurchasePlanItemsTableContent() {
               Создать редакцию
             </button>
           )}
-          <button
-            onClick={handleViewVersions}
-            className="px-2 py-1 text-xs bg-blue-600 text-white rounded border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-1"
-            title="Просмотр редакций плана закупок"
-          >
-            <Settings className="w-3 h-3" />
-            Редакции
-          </button>
+          {!isDraft && (
+            <button
+              onClick={handleViewVersions}
+              className="px-2 py-1 text-xs bg-blue-600 text-white rounded border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-1"
+              title="Просмотр редакций плана закупок"
+            >
+              <Settings className="w-3 h-3" />
+              Редакции
+            </button>
+          )}
           <button
             onClick={handleExportPDF}
             className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded border border-gray-300 hover:bg-gray-200 transition-colors flex items-center gap-1"
@@ -757,6 +813,8 @@ function PurchasePlanItemsTableContent() {
         <PurchasePlanItemsTableColumnsMenu
           isOpen={table.columns.isColumnsMenuOpen}
           position={table.columns.columnsMenuPosition}
+          columns={table.columns.availableColumns}
+          defaultColumns={table.columns.defaultVisibleColumns}
           visibleColumns={table.columns.visibleColumns}
           onToggleColumn={table.columns.toggleColumnVisibility}
           onReset={table.columns.selectDefaultColumns}
@@ -1052,8 +1110,17 @@ function PurchasePlanItemsTableContent() {
  * - PurchasePlanItemsTableColumnsMenu: меню выбора колонок
  * - Модальные окна: детали, создание, авторизация, ошибки, версии
  */
-function PurchasePlanItemsTable() {
-  return <PurchasePlanItemsTableContent />;
+interface PurchasePlanItemsTableProps {
+  /** true — раздел «Драфт плана закупок» */
+  isDraft?: boolean;
+}
+
+function PurchasePlanItemsTable({ isDraft = false }: PurchasePlanItemsTableProps) {
+  return (
+    <PurchasePlanModeProvider isDraft={isDraft}>
+      <PurchasePlanItemsTableContent />
+    </PurchasePlanModeProvider>
+  );
 }
 
 export default PurchasePlanItemsTable;

@@ -33,6 +33,8 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import SidebarMenuItemButton from './sidebar/SidebarMenuItemButton';
+import type { SidebarMenuItem } from './sidebar/sidebar.types';
 
 interface SidebarProps {
   activeTab: string;
@@ -45,10 +47,17 @@ interface SidebarProps {
 
 const menuItems: Array<{ id: string; label: string; icon: any }> = [];
 
-  const purchaserItems = [
+  const purchaserItems: SidebarMenuItem[] = [
     { id: 'overview', label: 'Обзор', icon: Home, disabled: false },
     { id: 'etp', label: 'ЭТП', icon: ShoppingCart },
-    { id: 'purchase-plan', label: 'План закупок', icon: Calendar },
+    {
+      id: 'purchase-plan',
+      label: 'План закупок',
+      icon: Calendar,
+      subItems: [
+        { id: 'purchase-plan-draft', label: 'Драфт плана закупок', icon: Calendar },
+      ],
+    },
     { id: 'purchase-requests', label: 'Заявки на закупку', icon: Package },
     { id: 'contracts', label: 'Договоры', icon: FileText },
     { id: 'payments', label: 'Оплаты', icon: Banknote },
@@ -84,6 +93,8 @@ const DEFAULT_SECTIONS_COLLAPSED = {
   development: true,
   /** Подгруппа «Справочники» внутри «Управление» */
   directories: true,
+  /** Подпункты «Плана закупок» (драфт плана) */
+  purchasePlan: false,
 };
 
 export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setIsMobileMenuOpen, isCollapsed = false, setIsCollapsed }: SidebarProps) {
@@ -125,6 +136,16 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
       ...prev,
       [section]: !prev[section],
     }));
+  };
+
+  /** Клик по пункту раздела «Для закупщика»: внешние пункты — переход по роуту, остальные — смена вкладки. */
+  const handlePurchaserItemSelect = (item: SidebarMenuItem) => {
+    if (item.isExternal) {
+      router.push(item.route || '/public-plan');
+      setIsMobileMenuOpen(false);
+      return;
+    }
+    handleTabChange(item.id);
   };
 
   const handleTabChange = (tab: string) => {
@@ -291,44 +312,17 @@ export default function Sidebar({ activeTab, onTabChange, isMobileMenuOpen, setI
             )}
             {(!isCollapsed && !sectionsCollapsed.purchaser) || isCollapsed ? (
               <ul className="space-y-1">
-              {purchaserItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeTab === item.id;
-                const isDisabled = item.disabled || false;
-                const isExternal = (item as any).isExternal || false;
-                
-                return (
-                  <li key={item.id}>
-                    <button
-                      onClick={() => {
-                        if (isDisabled) return;
-                        if (isExternal) {
-                          router.push('/public-plan');
-                          setIsMobileMenuOpen(false);
-                        } else {
-                          handleTabChange(item.id);
-                        }
-                      }}
-                      disabled={isDisabled}
-                      className={`w-full flex items-center rounded-lg transition-colors relative text-sm ${
-                        isCollapsed ? 'justify-center py-0.5 px-0' : 'px-2 py-1'
-                      } ${
-                        isActive
-                          ? `text-blue-600 bg-blue-50 ${isCollapsed ? '' : 'border-l-4 border-blue-600'}`
-                          : isDisabled
-                          ? 'text-gray-400 cursor-not-allowed opacity-50'
-                          : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
-                      }`}
-                      title={isCollapsed ? item.label : undefined}
-                    >
-                      <span className={`flex items-center justify-center ${isCollapsed ? 'w-5' : 'w-5'} flex-shrink-0`}>
-                        <Icon className="w-5 h-5" />
-                      </span>
-                      {!isCollapsed && <span className="ml-2">{item.label}</span>}
-                    </button>
-                  </li>
-                );
-              })}
+              {purchaserItems.map((item) => (
+                <SidebarMenuItemButton
+                  key={item.id}
+                  item={item}
+                  activeTab={activeTab}
+                  isCollapsed={isCollapsed}
+                  isSubOpen={!sectionsCollapsed.purchasePlan}
+                  onSelect={handlePurchaserItemSelect}
+                  onToggleSub={() => toggleSection('purchasePlan')}
+                />
+              ))}
               </ul>
             ) : null}
           </div>

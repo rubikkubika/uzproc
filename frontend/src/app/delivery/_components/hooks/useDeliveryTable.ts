@@ -16,14 +16,18 @@ export const useDeliveryTable = () => {
   const [currentPage, setCurrentPage] = useState(0);
   const [reloadKey, setReloadKey] = useState(0);
   const pageSize = PAGE_SIZE;
-  const [sortField, setSortField] = useState<SortField>('id');
+  // По умолчанию — по номеру заявки на закупку, от большего к меньшему
+  const [sortField, setSortField] = useState<SortField>('contractPurchaseRequestId');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [hasMore, setHasMore] = useState(true);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const currentYear = new Date().getFullYear();
-  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+  // По умолчанию список ограничен текущим годом; «Все» и «Без даты» переключаются кнопками
+  const [selectedYear, setSelectedYear] = useState<number | null>(currentYear);
   const [showNoDate, setShowNoDate] = useState(false);
+  // Плановая дата поставки (ISO) — выбирается кликом по столбцу диаграммы над таблицей
+  const [deadlineDate, setDeadlineDate] = useState<string | null>(null);
   // Вкладки (взаимоисключающие): «В работе» (по умолчанию) / «Закрыто» (Поставлено + Оплачено)
   // / «Закрыто-разобрать» (в отчёте «Закрыто», но по правилам не закрыта)
   const [activeTab, setActiveTab] = useState<DeliveryTab>('in-work');
@@ -74,10 +78,12 @@ export const useDeliveryTable = () => {
     filtersHook.setLocalFilters(empty);
     filtersHook.setPaymentSchemeFilter('');
     filtersHook.setShipmentStatusFilter('');
-    setSelectedYear(null);
+    // Сброс возвращает фильтр дат к состоянию по умолчанию — текущему году
+    setSelectedYear(currentYear);
+    setDeadlineDate(null);
     setShowNoDate(false);
     setCurrentPage(0);
-  }, [filtersHook]);
+  }, [filtersHook, currentYear]);
 
   const fetchData = useCallback(async (
     page: number,
@@ -101,7 +107,7 @@ export const useDeliveryTable = () => {
     }
     setError(null);
     try {
-      const result = await dataHook.fetchData(page, size, sortF, sortDir, filters, year, noDate, paymentScheme, shipmentStatus, tab, recheck);
+      const result = await dataHook.fetchData(page, size, sortF, sortDir, filters, year, noDate, paymentScheme, shipmentStatus, tab, recheck, deadlineDate);
       const items = result?.content ?? [];
       if (append) {
         setAllItems(prev => [...prev, ...items]);
@@ -118,7 +124,7 @@ export const useDeliveryTable = () => {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [dataHook.fetchData]);
+  }, [dataHook.fetchData, deadlineDate]);
 
   const filtersStr = useMemo(() => JSON.stringify(filtersHook.filters), [filtersHook.filters]);
   const paymentSchemeFilter = filtersHook.paymentSchemeFilter;
@@ -127,7 +133,7 @@ export const useDeliveryTable = () => {
     setCurrentPage(0);
     // recheck=true — основной запрос списка: бэкенд пересчитывает статусы (авто-закрытие) при обновлении.
     fetchData(0, pageSize, sortField, sortDirection, filtersHook.filters, false, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, activeTab, true);
-  }, [sortField, sortDirection, filtersStr, fetchData, pageSize, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, activeTab, reloadKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sortField, sortDirection, filtersStr, fetchData, pageSize, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, activeTab, reloadKey, deadlineDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Счётчики вкладок — с учётом текущих фильтров (size=1, читаем totalElements).
   const [tabCounts, setTabCounts] = useState<{ inWork: number | null; closed: number | null; closedReview: number | null }>(
@@ -154,27 +160,6 @@ export const useDeliveryTable = () => {
   }, [filtersStr, selectedYear, showNoDate, paymentSchemeFilter, shipmentStatusFilter, reloadKey, dataHook.fetchData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const reload = useCallback(() => setReloadKey((k) => k + 1), []);
-
-  const [creatingMay, setCreatingMay] = useState(false);
-
-  const createMayDeliveries = useCallback(async (): Promise<string> => {
-    setCreatingMay(true);
-    try {
-      const res = await fetch(`${getBackendUrl()}/api/deliveries/from-specifications?month=4`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const result = await res.json() as { created: number; skipped: number; totalSpecifications: number };
-      reload();
-      return `Создано поставок: ${result.created}. Пропущено (уже есть): ${result.skipped}. Всего спецификаций: ${result.totalSpecifications}.`;
-    } catch (err) {
-      console.error('Не удалось создать поставки за апрель:', err);
-      return 'Не удалось создать поставки за апрель';
-    } finally {
-      setCreatingMay(false);
-    }
-  }, [reload]);
 
   const updateDeliveryDeadline = useCallback(async (id: number, newDate: string) => {
     const prev = allItems;
@@ -229,7 +214,7 @@ export const useDeliveryTable = () => {
     handleShowAll,
     reload,
     updateDeliveryDeadline,
-    createMayDeliveries,
-    creatingMay,
+    deadlineDate,
+    setDeadlineDate,
   };
 };

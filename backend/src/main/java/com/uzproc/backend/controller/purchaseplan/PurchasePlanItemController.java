@@ -4,6 +4,7 @@ import com.uzproc.backend.dto.purchaseplan.PurchasePlanItemChangeDto;
 import com.uzproc.backend.dto.purchaseplan.PurchasePlanItemDto;
 import com.uzproc.backend.dto.purchaseplan.UniqueFilterValuesDto;
 import com.uzproc.backend.entity.purchaseplan.PurchasePlanItemStatus;
+import com.uzproc.backend.service.purchaseplan.PurchasePlanDraftService;
 import com.uzproc.backend.service.purchaseplan.PurchasePlanItemChangeService;
 import com.uzproc.backend.service.purchaseplan.PurchasePlanItemService;
 import org.slf4j.Logger;
@@ -25,10 +26,14 @@ public class PurchasePlanItemController {
     
     private final PurchasePlanItemService purchasePlanItemService;
     private final PurchasePlanItemChangeService purchasePlanItemChangeService;
+    private final PurchasePlanDraftService purchasePlanDraftService;
 
-    public PurchasePlanItemController(PurchasePlanItemService purchasePlanItemService, PurchasePlanItemChangeService purchasePlanItemChangeService) {
+    public PurchasePlanItemController(PurchasePlanItemService purchasePlanItemService,
+                                      PurchasePlanItemChangeService purchasePlanItemChangeService,
+                                      PurchasePlanDraftService purchasePlanDraftService) {
         this.purchasePlanItemService = purchasePlanItemService;
         this.purchasePlanItemChangeService = purchasePlanItemChangeService;
+        this.purchasePlanDraftService = purchasePlanDraftService;
     }
 
     @GetMapping
@@ -50,10 +55,12 @@ public class PurchasePlanItemController {
             @RequestParam(required = false) List<String> status,
             @RequestParam(required = false) String purchaseRequestId,
             @RequestParam(required = false) Double budgetAmount,
-            @RequestParam(required = false) String budgetAmountOperator) {
+            @RequestParam(required = false) String budgetAmountOperator,
+            @RequestParam(required = false) String currentContractName,
+            @RequestParam(required = false, defaultValue = "false") boolean draft) {
         
         Page<PurchasePlanItemDto> items = purchasePlanItemService.findAll(
-                page, size, year, sortBy, sortDir, company, purchaserCompany, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear, currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator);
+                page, size, year, sortBy, sortDir, company, purchaserCompany, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear, currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator, currentContractName, draft);
         
         return ResponseEntity.ok(items);
     }
@@ -94,8 +101,9 @@ public class PurchasePlanItemController {
     }
 
     @GetMapping("/years")
-    public ResponseEntity<List<Integer>> getYears() {
-        List<Integer> years = purchasePlanItemService.findDistinctYears();
+    public ResponseEntity<List<Integer>> getYears(
+            @RequestParam(required = false, defaultValue = "false") boolean draft) {
+        List<Integer> years = purchasePlanItemService.findDistinctYears(draft);
         return ResponseEntity.ok(years);
     }
 
@@ -107,8 +115,9 @@ public class PurchasePlanItemController {
     @GetMapping("/monthly-stats")
     public ResponseEntity<Map<String, Object>> getMonthlyStats(
             @RequestParam(required = false) Integer year,
-            @RequestParam(required = false) List<String> company) {
-        Map<String, Object> stats = purchasePlanItemService.getMonthlyStats(year, company);
+            @RequestParam(required = false) List<String> company,
+            @RequestParam(required = false, defaultValue = "false") boolean draft) {
+        Map<String, Object> stats = purchasePlanItemService.getMonthlyStats(year, company, draft);
         return ResponseEntity.ok(stats);
     }
 
@@ -126,13 +135,70 @@ public class PurchasePlanItemController {
             @RequestParam(required = false) List<String> status,
             @RequestParam(required = false) String purchaseRequestId,
             @RequestParam(required = false) Double budgetAmount,
-            @RequestParam(required = false) String budgetAmountOperator) {
+            @RequestParam(required = false) String budgetAmountOperator,
+            @RequestParam(required = false) String currentContractName,
+            @RequestParam(required = false, defaultValue = "false") boolean draft) {
         List<com.uzproc.backend.dto.purchaseplan.PurchaserSummaryDto> summary = purchasePlanItemService.getPurchaserSummary(
             year, company, purchaserCompany, cfo, purchaseSubject, category, 
             requestMonth, requestYear, currentContractEndDate, status, 
-            purchaseRequestId, budgetAmount, budgetAmountOperator
+            purchaseRequestId, budgetAmount, budgetAmountOperator, currentContractName, draft
         );
         return ResponseEntity.ok(summary);
+    }
+
+    /**
+     * Свод по ЦФО (для плана закупок и для драфта плана закупок).
+     */
+    @GetMapping("/cfo-summary")
+    public ResponseEntity<List<com.uzproc.backend.dto.purchaseplan.CfoSummaryDto>> getCfoSummary(
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) List<String> company,
+            @RequestParam(required = false) List<String> purchaserCompany,
+            @RequestParam(required = false) String purchaseSubject,
+            @RequestParam(required = false) List<String> purchaser,
+            @RequestParam(required = false) List<String> category,
+            @RequestParam(required = false) List<Integer> requestMonth,
+            @RequestParam(required = false) Integer requestYear,
+            @RequestParam(required = false) String currentContractEndDate,
+            @RequestParam(required = false) List<String> status,
+            @RequestParam(required = false) String purchaseRequestId,
+            @RequestParam(required = false) Double budgetAmount,
+            @RequestParam(required = false) String budgetAmountOperator,
+            @RequestParam(required = false) String currentContractName,
+            @RequestParam(required = false, defaultValue = "false") boolean draft) {
+        List<com.uzproc.backend.dto.purchaseplan.CfoSummaryDto> summary = purchasePlanItemService.getCfoSummary(
+            year, company, purchaserCompany, purchaseSubject, purchaser, category,
+            requestMonth, requestYear, currentContractEndDate, status,
+            purchaseRequestId, budgetAmount, budgetAmountOperator, currentContractName, draft
+        );
+        return ResponseEntity.ok(summary);
+    }
+
+    /**
+     * Формирование драфта плана закупок из действующих договоров Uzum Market.
+     */
+    @PostMapping("/draft/generate")
+    public ResponseEntity<?> generateDraft(@RequestParam(required = false) Integer year) {
+        try {
+            return ResponseEntity.ok(purchasePlanDraftService.generateDraft(year));
+        } catch (Exception e) {
+            logger.error("Ошибка формирования драфта плана закупок: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage() != null ? e.getMessage() : "Неизвестная ошибка"));
+        }
+    }
+
+    /**
+     * Очистка драфта плана закупок за год (полная перегенерация).
+     */
+    @DeleteMapping("/draft")
+    public ResponseEntity<?> clearDraft(@RequestParam(required = false) Integer year) {
+        try {
+            int deleted = purchasePlanDraftService.clearDraft(year);
+            return ResponseEntity.ok(Map.of("deleted", deleted));
+        } catch (Exception e) {
+            logger.error("Ошибка очистки драфта плана закупок: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage() != null ? e.getMessage() : "Неизвестная ошибка"));
+        }
     }
 
     @GetMapping("/monthly-distribution")
@@ -150,11 +216,13 @@ public class PurchasePlanItemController {
             @RequestParam(required = false) List<String> status,
             @RequestParam(required = false) String purchaseRequestId,
             @RequestParam(required = false) Double budgetAmount,
-            @RequestParam(required = false) String budgetAmountOperator) {
+            @RequestParam(required = false) String budgetAmountOperator,
+            @RequestParam(required = false) String currentContractName,
+            @RequestParam(required = false, defaultValue = "false") boolean draft) {
         List<Integer> monthCounts = purchasePlanItemService.getMonthlyDistribution(
             year, company, purchaserCompany, cfo, purchaseSubject, purchaser, category,
             requestMonth, requestYear, currentContractEndDate, status,
-            purchaseRequestId, budgetAmount, budgetAmountOperator
+            purchaseRequestId, budgetAmount, budgetAmountOperator, currentContractName, draft
         );
         return ResponseEntity.ok(monthCounts);
     }

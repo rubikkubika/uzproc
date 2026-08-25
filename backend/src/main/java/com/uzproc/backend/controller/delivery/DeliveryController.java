@@ -3,6 +3,7 @@ package com.uzproc.backend.controller.delivery;
 import com.uzproc.backend.dto.delivery.BulkCreateDeliveriesResultDto;
 import com.uzproc.backend.dto.delivery.CreateDeliveryRequestDto;
 import com.uzproc.backend.dto.delivery.DeliveryContractSearchResultDto;
+import com.uzproc.backend.dto.delivery.DeliveryDeadlineHistogramDto;
 import com.uzproc.backend.dto.delivery.DeliveryDto;
 import com.uzproc.backend.dto.delivery.DeliveryPaymentSchemeDto;
 import com.uzproc.backend.dto.delivery.UpdateDeliveryPaymentsRequestDto;
@@ -45,6 +46,7 @@ public class DeliveryController {
             @RequestParam(required = false) String reportStatus,
             @RequestParam(required = false) String paymentsStatus,
             @RequestParam(required = false) String tab,
+            @RequestParam(required = false) String deliveryDeadline,
             @RequestParam(required = false, defaultValue = "false") boolean recheck) {
 
         // При обновлении списка (recheck=true) — пересчёт статусов: авто-закрытие
@@ -55,8 +57,39 @@ public class DeliveryController {
 
         Page<DeliveryDto> deliveries = deliveryService.findAll(page, size, sortBy, sortDir,
                 innerId, contractInnerId, supplierName, status, currency, comment,
-                responsibleName, dateYear, dateNull, paymentScheme, shipmentStatus, reportStatus, paymentsStatus, tab);
+                responsibleName, dateYear, dateNull, paymentScheme, shipmentStatus, reportStatus, paymentsStatus,
+                tab, deliveryDeadline);
         return ResponseEntity.ok(deliveries);
+    }
+
+    /**
+     * Распределение поставок по дням месяца (по плановой дате поставки) — для столбчатой
+     * диаграммы над таблицей. Принимает те же фильтры, что и список, чтобы диаграмма
+     * показывала ровно видимые в таблице записи.
+     */
+    @GetMapping("/deadline-histogram")
+    public ResponseEntity<DeliveryDeadlineHistogramDto> getDeadlineHistogram(
+            @RequestParam int year,
+            @RequestParam int month,
+            @RequestParam(required = false) String innerId,
+            @RequestParam(required = false) String contractInnerId,
+            @RequestParam(required = false) String supplierName,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String currency,
+            @RequestParam(required = false) String comment,
+            @RequestParam(required = false) String responsibleName,
+            @RequestParam(required = false) Integer dateYear,
+            @RequestParam(required = false) Boolean dateNull,
+            @RequestParam(required = false) String paymentScheme,
+            @RequestParam(required = false) String shipmentStatus,
+            @RequestParam(required = false) String reportStatus,
+            @RequestParam(required = false) String paymentsStatus,
+            @RequestParam(required = false) String tab) {
+
+        return ResponseEntity.ok(deliveryService.getDeadlineHistogram(
+                year, month, innerId, contractInnerId, supplierName, status, currency,
+                comment, responsibleName, dateYear, dateNull, paymentScheme, shipmentStatus,
+                reportStatus, paymentsStatus, tab));
     }
 
     @GetMapping("/{id}")
@@ -85,6 +118,17 @@ public class DeliveryController {
             @RequestParam(required = false) Integer year,
             @RequestParam(required = false, defaultValue = "4") Integer month) {
         return ResponseEntity.ok(deliveryService.createDeliveriesFromSignedSpecifications(year, month));
+    }
+
+    /**
+     * Досоздаёт поставки для подписанных спецификаций договорников, у которых поставки ещё нет.
+     * Та же сверка, что выполняется при старте приложения — для ручного запуска без перезапуска.
+     * Существующие поставки не трогает.
+     */
+    @PostMapping("/sync-signed-specifications")
+    public ResponseEntity<Map<String, Object>> syncSignedSpecifications() {
+        int created = deliveryService.createMissingDeliveriesForSignedSpecifications();
+        return ResponseEntity.ok(Map.of("created", created));
     }
 
     /** Справочник схем оплаты поставок (для выпадающего списка в карточке поставки). */

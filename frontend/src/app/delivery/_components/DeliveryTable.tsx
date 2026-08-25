@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowUp, ArrowDown, ArrowUpDown, Plus, CalendarPlus, MessageCircle, Check, X } from 'lucide-react';
+import { ArrowUp, ArrowDown, ArrowUpDown, Plus, MessageCircle, Check, X } from 'lucide-react';
 import { useDeliveryTable } from './hooks/useDeliveryTable';
 import { useReportStatusOptions } from './hooks/useReportStatusOptions';
 import { useResponsibleOptions } from './hooks/useResponsibleOptions';
@@ -21,11 +21,12 @@ import { formatAmountShort, formatAmountFull } from './utils/amount.utils';
 import CreateDeliveryModal from './ui/CreateDeliveryModal';
 import DeliveryTableTabs from './ui/DeliveryTableTabs';
 import DeliveryDetailsModal from './ui/DeliveryDetailsModal';
+import DeliveryDeadlineChart from './ui/DeliveryDeadlineChart';
+import { useDeliveryDeadlineChart } from './hooks/useDeliveryDeadlineChart';
 
 export default function DeliveryTable() {
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null);
-  const [mayMessage, setMayMessage] = useState<string | null>(null);
   const {
     data,
     allItems,
@@ -48,19 +49,23 @@ export default function DeliveryTable() {
     handleShowNoDate,
     handleShowAll,
     reload,
-    createMayDeliveries,
-    creatingMay,
+    setDeadlineDate,
   } = useDeliveryTable();
+
+  // Диаграмма распределения поставок по дням месяца — по плановой дате поставки
+  const deadlineChart = useDeliveryDeadlineChart({
+    filters: filters.filters,
+    paymentSchemeFilter: filters.paymentSchemeFilter,
+    shipmentStatusFilter: filters.shipmentStatusFilter,
+    dateYear: showNoDate ? null : selectedYear,
+    showNoDate,
+    tab: activeTab,
+    onSelectedDateChange: setDeadlineDate,
+  });
 
   const reportStatusOptions = useReportStatusOptions();
   const responsibleOptions = useResponsibleOptions();
   const undistributedCounts = useUndistributedCounts();
-
-  const handleCreateMay = async () => {
-    setMayMessage(null);
-    const message = await createMayDeliveries();
-    setMayMessage(message);
-  };
 
   if (error) {
     return (
@@ -130,7 +135,7 @@ export default function DeliveryTable() {
     { field: 'payments', label: 'Оплаты', width: '9%', hasFilter: true, hasSort: false, filterKind: 'paymentsStatus' },
     { field: 'status', label: 'Статус оплаты', width: '8%', hasFilter: true, hasSort: false, filterKind: 'deliveryStatus' },
     { field: 'contractInnerId', label: 'Договор', width: '9%', hasFilter: true, hasSort: false, filterKind: 'text' },
-    { field: 'contractPurchaseRequestId', label: 'Заявка', width: '5%', hasFilter: false, hasSort: false },
+    { field: 'contractPurchaseRequestId', label: 'Заявка', width: '5%', hasFilter: false, hasSort: true },
     { field: 'supplierName', label: 'Поставщик', width: '12%', hasFilter: true, hasSort: false, filterKind: 'text' },
     { field: 'amount', label: 'Сумма', width: '8%', hasFilter: false, hasSort: true },
     { field: 'currency', label: 'Валюта', width: '5%', hasFilter: true, hasSort: false, filterKind: 'text' },
@@ -298,26 +303,24 @@ export default function DeliveryTable() {
             </button>
           </div>
 
-          <button
-            onClick={handleCreateMay}
-            disabled={creatingMay}
-            className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium bg-emerald-600 text-white rounded-lg border border-emerald-600 hover:bg-emerald-700 transition-colors whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
-            title="Создать поставки по подписанным спецификациям договорников с датой регистрации (подписания) в апреле текущего года"
-          >
-            <CalendarPlus className="w-3.5 h-3.5" />
-            {creatingMay ? 'Создание...' : 'Создать поставки за апрель'}
-          </button>
-
-          {mayMessage && (
-            <span className="text-xs text-gray-700 bg-gray-100 border border-gray-200 rounded px-2 py-0.5">
-              {mayMessage}
-            </span>
-          )}
         </div>
         <div className="text-xs text-gray-700 flex-shrink-0">
           Показано {allItems.length} из {data?.totalElements ?? 0} записей
         </div>
       </div>
+
+      <DeliveryDeadlineChart
+        year={deadlineChart.year}
+        month={deadlineChart.month}
+        histogram={deadlineChart.histogram}
+        maxCount={deadlineChart.maxCount}
+        loading={deadlineChart.loading}
+        selectedDay={deadlineChart.selectedDay}
+        onToggleDay={deadlineChart.toggleDay}
+        onPrevMonth={deadlineChart.goToPrevMonth}
+        onNextMonth={deadlineChart.goToNextMonth}
+        onSelectMonth={deadlineChart.selectMonth}
+      />
 
       <div className="flex-1 min-w-0 overflow-auto relative">
         <table className="w-full max-w-full border-collapse table-fixed">

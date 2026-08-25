@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { getBackendUrl } from '@/utils/api';
 import { PurchasePlanItem, PageResponse } from '../types/purchase-plan-items.types';
+import { usePurchasePlanMode } from '../contexts/PurchasePlanModeContext';
 import { calculateNewContractDate } from '../utils/date.utils';
 
 export const usePurchasePlanItemsEditing = (
@@ -35,6 +36,8 @@ export const usePurchasePlanItemsEditing = (
   selectedMonths?: Set<number>,
   holidayDateKeys?: Set<string>
 ) => {
+  // Режим раздела: действующий план или драфт плана закупок
+  const { isDraft } = usePurchasePlanMode();
   const [tempDates, setTempDates] = useState<Record<number, { requestDate: string | null; newContractDate: string | null }>>({});
   const [animatingDates, setAnimatingDates] = useState<Record<number, boolean>>({});
   
@@ -825,6 +828,8 @@ export const usePurchasePlanItemsEditing = (
         purchaser: newItemData.purchaser || null,
         complexity: newItemData.complexity || null,
         status: newItemData.status || 'Проект',
+        // Позиция создаётся в том же разделе, где открыта таблица (план или драфт)
+        isDraft,
       };
 
       const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items`, {

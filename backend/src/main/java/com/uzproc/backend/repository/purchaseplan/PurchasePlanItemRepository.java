@@ -20,19 +20,21 @@ public interface PurchasePlanItemRepository extends JpaRepository<PurchasePlanIt
     boolean existsByGuid(UUID guid);
     
     // Поиск по purchase_subject без учета регистра (для соответствия уникальному индексу)
-    @org.springframework.data.jpa.repository.Query("SELECT p FROM PurchasePlanItem p WHERE LOWER(p.purchaseSubject) = LOWER(:purchaseSubject)")
+    // Драфт исключён: загрузка Excel обновляет только позиции действующего плана
+    @org.springframework.data.jpa.repository.Query("SELECT p FROM PurchasePlanItem p WHERE LOWER(p.purchaseSubject) = LOWER(:purchaseSubject) AND p.isDraft = false")
     Optional<PurchasePlanItem> findByPurchaseSubjectIgnoreCase(@org.springframework.data.repository.query.Param("purchaseSubject") String purchaseSubject);
     
     // Поиск всех записей по году
     List<PurchasePlanItem> findByYear(Integer year);
     
     // Поиск всех записей по году с загрузкой purchaser (для создания версий)
-    @org.springframework.data.jpa.repository.Query("SELECT p FROM PurchasePlanItem p LEFT JOIN FETCH p.purchaser WHERE p.year = :year")
+    // Версии создаются только по действующему плану, позиции драфта не версионируются
+    @org.springframework.data.jpa.repository.Query("SELECT p FROM PurchasePlanItem p LEFT JOIN FETCH p.purchaser WHERE p.year = :year AND p.isDraft = false")
     List<PurchasePlanItem> findByYearWithPurchaser(@org.springframework.data.repository.query.Param("year") Integer year);
     
-    // Поиск всех уникальных годов
-    @org.springframework.data.jpa.repository.Query("SELECT DISTINCT p.year FROM PurchasePlanItem p WHERE p.year IS NOT NULL ORDER BY p.year DESC")
-    List<Integer> findDistinctYears();
+    // Поиск всех уникальных годов (раздельно для действующего плана и драфта)
+    @org.springframework.data.jpa.repository.Query("SELECT DISTINCT p.year FROM PurchasePlanItem p WHERE p.year IS NOT NULL AND p.isDraft = :isDraft ORDER BY p.year DESC")
+    List<Integer> findDistinctYears(@org.springframework.data.repository.query.Param("isDraft") boolean isDraft);
     
     // Поиск позиций плана по purchaseRequestId (номер заявки на закупку)
     List<PurchasePlanItem> findByPurchaseRequestId(Long purchaseRequestId);
@@ -55,6 +57,10 @@ public interface PurchasePlanItemRepository extends JpaRepository<PurchasePlanIt
     @org.springframework.data.jpa.repository.Modifying
     @org.springframework.data.jpa.repository.Query(value = "UPDATE purchase_plan_items SET purchaser_id = NULL WHERE id = :id AND purchaser_id IS NOT NULL", nativeQuery = true)
     int clearPurchaserIdById(@org.springframework.data.repository.query.Param("id") Long id);
+
+    // Позиции драфта за год (для генерации из договоров без дублей)
+    @Query("SELECT p FROM PurchasePlanItem p WHERE p.isDraft = true AND p.year = :year")
+    List<PurchasePlanItem> findDraftItemsByYear(@org.springframework.data.repository.query.Param("year") Integer year);
 
     @Query("SELECT DISTINCT p.company FROM PurchasePlanItem p WHERE p.company IS NOT NULL ORDER BY p.company")
     List<Company> findDistinctCompany();

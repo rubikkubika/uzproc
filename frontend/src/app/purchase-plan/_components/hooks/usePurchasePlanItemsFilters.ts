@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
-import { FILTERS_STORAGE_KEY, DEFAULT_STATUSES, ALL_STATUSES } from '../constants/purchase-plan-items.constants';
+import { FILTERS_STORAGE_KEY, DRAFT_FILTERS_STORAGE_KEY, DEFAULT_STATUSES, ALL_STATUSES } from '../constants/purchase-plan-items.constants';
+import { usePurchasePlanMode } from '../contexts/PurchasePlanModeContext';
 import { PurchasePlanItem } from '../types/purchase-plan-items.types';
 import { getBackendUrl } from '@/utils/api';
 
@@ -11,9 +12,14 @@ export const usePurchasePlanItemsFilters = (
   sortDirection: any,
   pageSize: number
 ) => {
+  // У плана и драфта отдельные сохранённые фильтры
+  const { isDraft } = usePurchasePlanMode();
+  const storageKey = isDraft ? DRAFT_FILTERS_STORAGE_KEY : FILTERS_STORAGE_KEY;
+
   const [filters, setFilters] = useState<Record<string, string>>({
     id: '',
     purchaseSubject: '',
+    currentContractName: '',
     currentContractEndDate: '',
     purchaseRequestId: '',
     budgetAmount: '',
@@ -23,6 +29,7 @@ export const usePurchasePlanItemsFilters = (
   const [localFilters, setLocalFilters] = useState<Record<string, string>>({
     id: '',
     purchaseSubject: '',
+    currentContractName: '',
     currentContractEndDate: '',
     purchaseRequestId: '',
     budgetAmount: '',
@@ -40,7 +47,7 @@ export const usePurchasePlanItemsFilters = (
   const [purchaserFilter, setPurchaserFilter] = useState<Set<string>>(() => {
     if (typeof window === 'undefined') return new Set<string>();
     try {
-      const saved = localStorage.getItem(FILTERS_STORAGE_KEY);
+      const saved = localStorage.getItem(isDraft ? DRAFT_FILTERS_STORAGE_KEY : FILTERS_STORAGE_KEY);
       if (saved) {
         const savedFilters = JSON.parse(saved);
         if (Array.isArray(savedFilters?.purchaserFilter)) {
@@ -194,7 +201,7 @@ export const usePurchasePlanItemsFilters = (
           sortField,
           sortDirection,
         };
-        localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filtersToSave));
+        localStorage.setItem(storageKey, JSON.stringify(filtersToSave));
       } catch { }
 
       return newSet;
@@ -218,7 +225,7 @@ export const usePurchasePlanItemsFilters = (
         sortField,
         sortDirection,
       };
-      localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filtersToSave));
+      localStorage.setItem(storageKey, JSON.stringify(filtersToSave));
     } catch { }
   }, [selectedYear, selectedMonths, filters, cfoFilter, categoryFilter, sortField, sortDirection, getUniqueValues, setCurrentPage]);
 
@@ -238,7 +245,7 @@ export const usePurchasePlanItemsFilters = (
         sortField,
         sortDirection,
       };
-      localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filtersToSave));
+      localStorage.setItem(storageKey, JSON.stringify(filtersToSave));
     } catch { }
   }, [selectedYear, selectedMonths, filters, cfoFilter, categoryFilter, sortField, sortDirection, setCurrentPage]);
 
@@ -317,7 +324,7 @@ export const usePurchasePlanItemsFilters = (
 
   // Debounce текстовых фильтров
   useEffect(() => {
-    const textFields = ['id','purchaseSubject','currentContractEndDate','purchaseRequestId','budgetAmount'];
+    const textFields = ['id','purchaseSubject','currentContractName','currentContractEndDate','purchaseRequestId','budgetAmount'];
     const hasTextChanges = textFields.some(f => localFilters[f] !== filters[f]);
     if (hasTextChanges) {
       const timer = setTimeout(() => {

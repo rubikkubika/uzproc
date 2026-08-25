@@ -6,6 +6,8 @@ export interface PurchasePlanItem {
   purchaserCompany: string | null; // Компания закупщик
   cfo: string | null;
   purchaseSubject: string | null;
+  /** Наименование действующего договора (колонка «Текущий договор») */
+  currentContractName?: string | null;
   budgetAmount: number | null;
   contractEndDate: string | null;
   requestDate: string | null;
@@ -147,4 +149,20 @@ export interface PurchasePlanItemComment {
   source?: 'plan' | 'request';
   /** Тип комментария заявки (если source === 'request') */
   type?: string;
+}
+
+/** Строка свода по закупщикам */
+export interface PurchaserSummaryItem {
+  purchaser: string;
+  count: number;
+  totalBudget: number;
+  totalComplexity: number;
+}
+
+/** Строка свода по ЦФО */
+export interface CfoSummaryItem {
+  cfo: string;
+  count: number;
+  totalBudget: number;
+  totalComplexity: number;
 }

@@ -3,6 +3,8 @@ package com.uzproc.backend.service.delivery;
 import com.uzproc.backend.dto.delivery.BulkCreateDeliveriesResultDto;
 import com.uzproc.backend.dto.delivery.CreateDeliveryRequestDto;
 import com.uzproc.backend.dto.delivery.DeliveryContractSearchResultDto;
+import com.uzproc.backend.dto.delivery.DeliveryDeadlineDayDto;
+import com.uzproc.backend.dto.delivery.DeliveryDeadlineHistogramDto;
 import com.uzproc.backend.dto.delivery.DeliveryDto;
 import com.uzproc.backend.dto.delivery.DeliveryPaymentSchemeDto;
 import com.uzproc.backend.entity.delivery.DeliveryPaymentScheme;
@@ -10,6 +12,7 @@ import com.uzproc.backend.dto.delivery.UpdateDeliveryPaymentsRequestDto;
 import com.uzproc.backend.dto.payment.PaymentDto;
 import com.uzproc.backend.entity.contract.Contract;
 import com.uzproc.backend.entity.contract.ContractStatus;
+import com.uzproc.backend.entity.contract.CustomerOrganization;
 import com.uzproc.backend.entity.delivery.Delivery;
 import com.uzproc.backend.entity.delivery.DeliveryStatus;
 import com.uzproc.backend.entity.delivery.PaymentScheme;
@@ -158,11 +161,13 @@ public class DeliveryService {
             String shipmentStatus,
             String reportStatus,
             String paymentsStatus,
-            String tab) {
+            String tab,
+            String deliveryDeadline) {
 
         Specification<Delivery> spec = buildSpecification(
                 innerId, contractInnerId, supplierName, status, currency,
-                comment, responsibleName, dateYear, dateNull, paymentScheme, shipmentStatus, reportStatus, paymentsStatus, tab);
+                comment, responsibleName, dateYear, dateNull, paymentScheme, shipmentStatus,
+                reportStatus, paymentsStatus, tab, deliveryDeadline);
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
 
@@ -184,6 +189,57 @@ public class DeliveryService {
             Long cid = d.getContract() != null ? d.getContract().getId() : null;
             return toDtoCore(d, cid != null ? regDates.get(cid) : null, cid != null ? syncDates.get(cid) : null);
         });
+    }
+
+    /**
+     * Распределение поставок по дням указанного месяца — по плановой дате поставки
+     * (deliveryDeadline). Фильтры и вкладка применяются те же, что в списке поставок,
+     * поэтому диаграмма показывает ровно те записи, которые видны в таблице.
+     * Поставки без плановой даты в распределение не попадают.
+     */
+    public DeliveryDeadlineHistogramDto getDeadlineHistogram(
+            int year,
+            int month,
+            String innerId,
+            String contractInnerId,
+            String supplierName,
+            String status,
+            String currency,
+            String comment,
+            String responsibleName,
+            Integer dateYear,
+            Boolean dateNull,
+            String paymentScheme,
+            String shipmentStatus,
+            String reportStatus,
+            String paymentsStatus,
+            String tab) {
+
+        LocalDate monthStart = LocalDate.of(year, month, 1);
+        LocalDate monthEnd = monthStart.plusMonths(1).minusDays(1);
+        int daysInMonth = monthEnd.getDayOfMonth();
+
+        Specification<Delivery> spec = buildSpecification(
+                innerId, contractInnerId, supplierName, status, currency,
+                comment, responsibleName, dateYear, dateNull, paymentScheme, shipmentStatus,
+                reportStatus, paymentsStatus, tab, null)
+                .and((root, query, cb) -> cb.between(root.get("deliveryDeadline"), monthStart, monthEnd));
+
+        int[] counts = new int[daysInMonth + 1];
+        int total = 0;
+        for (Delivery delivery : deliveryRepository.findAll(spec)) {
+            LocalDate deadline = delivery.getDeliveryDeadline();
+            if (deadline == null) continue;
+            counts[deadline.getDayOfMonth()]++;
+            total++;
+        }
+
+        List<DeliveryDeadlineDayDto> days = new ArrayList<>(daysInMonth);
+        for (int day = 1; day <= daysInMonth; day++) {
+            days.add(new DeliveryDeadlineDayDto(day, counts[day]));
+        }
+        logger.info("Delivery deadline histogram: {}-{}, {} deliveries", year, month, total);
+        return new DeliveryDeadlineHistogramDto(year, month, daysInMonth, total, days);
     }
 
     public DeliveryDto findById(Long id) {
@@ -211,6 +267,10 @@ public class DeliveryService {
 
         Contract contract = contractRepository.findById(request.getContractId())
                 .orElseThrow(() -> new IllegalArgumentException("Договор не найден: id=" + request.getContractId()));
+        if (contract.getCustomerOrganization() != DELIVERY_ORGANIZATION) {
+            throw new IllegalArgumentException("Поставки ведутся только по спецификациям "
+                    + DELIVERY_ORGANIZATION.getDisplayName());
+        }
 
         Delivery delivery = new Delivery();
         Integer maxInnerId = deliveryRepository.findMaxNumericInnerId();
@@ -226,6 +286,8 @@ public class DeliveryService {
         }
         // Ответственный = тот, кто подготовил договор.
         delivery.setResponsible(contract.getPreparedBy());
+        // Дата поставки = дата подписания спецификации (регистрация, иначе синхронизация).
+        delivery.setDate(resolveContractSigningDate(contract.getId()));
 
         // Срок поставки в рабочих днях: из запроса, иначе — первое число из договора.
         Integer term = request.getDeliveryTermWorkingDays();
@@ -257,7 +319,8 @@ public class DeliveryService {
      * подготовленным договорником (preparedBy.isContractor = true),
      * у которых дата регистрации (а при её отсутствии — дата синхронизации) договора
      * попадает в указанный месяц/год.
-     * Спецификации, по которым поставка уже существует, пропускаются.
+     * Спецификации, по которым поставка уже существует, пропускаются — существующие поставки
+     * не удаляются и не перезаписываются.
      * Схема оплаты у создаваемых поставок не задаётся (выбирается пользователем позже).
      */
     @Transactional
@@ -266,16 +329,6 @@ public class DeliveryService {
         int m = (month != null) ? month : 4; // по умолчанию — апрель
         LocalDate monthStart = LocalDate.of(y, m, 1);
         LocalDate monthEnd = monthStart.plusMonths(1).minusDays(1);
-
-        // По требованию: перед балк-созданием полностью очищаем поставки (и связи delivery_payments),
-        // чтобы пересоздать их заново с актуальными правилами схемы оплаты.
-        // deleteAll() (а не deleteAllInBatch) — чтобы Hibernate почистил join-таблицу delivery_payments.
-        long existing = deliveryRepository.count();
-        if (existing > 0) {
-            deliveryRepository.deleteAll();
-            deliveryRepository.flush();
-            logger.info("Bulk create deliveries: deleted {} existing deliveries before recreation", existing);
-        }
 
         // Лёгкая projection-выборка id подписанных спецификаций договорников (без гидрации сущностей).
         List<Long> contractIds = contractRepository.findSignedContractorSpecificationIds(ContractStatus.SIGNED);
@@ -350,6 +403,7 @@ public class DeliveryService {
             delivery.setSupplier(contract.getSuppliers().iterator().next());
         }
         delivery.setResponsible(contract.getPreparedBy());
+        delivery.setDate(resolveContractSigningDate(contract.getId()));
         delivery.setDeliveryTermWorkingDays(parseFirstNumber(contract.getDeliveryTerm()));
         List<Payment> contractPayments = findDistributablePayments(contract.getId());
         delivery.setPayments(contractPayments.isEmpty() ? new HashSet<>() : new HashSet<>(contractPayments));
@@ -594,6 +648,55 @@ public class DeliveryService {
         return group;
     }
 
+    /**
+     * Доразмечает оплаты поставки, у которых ещё нет типа, не трогая уже размеченные
+     * (в том числе проставленные вручную). Нужен, когда оплата пришла позже создания поставки:
+     * полное авто-распределение такие поставки пропускает, чтобы не перетереть разметку,
+     * и новая оплата иначе осталась бы без типа навсегда.
+     *
+     * Правила:
+     *   • полная постоплата (0/100) — всё неразмеченное «По факту»;
+     *   • полный аванс (100/0) — всё неразмеченное «Аванс»;
+     *   • схема с авансом и доплатой — если размеченные «Аванс» уже покрывают долю аванса,
+     *     остальное «По факту»; если доля ещё не набрана, типы не трогаем: там неоднозначно
+     *     (доплату можно ошибочно принять за аванс), это решает ответственный вручную.
+     *
+     * @return true, если хотя бы одной оплате проставлен тип
+     */
+    private boolean distributeRemainingPayments(Delivery delivery) {
+        DeliveryPaymentScheme ref = delivery.getPaymentSchemeRef();
+        if (ref == null || delivery.getPayments() == null) return false;
+
+        Set<Payment> pending = delivery.getPayments().stream()
+                .filter(DeliveryService::isAutoDistributable)
+                .filter(p -> p.getPaymentType() == null)
+                .collect(Collectors.toSet());
+        if (pending.isEmpty()) return false;
+
+        int adv = ref.getAdvancePercent() != null ? ref.getAdvancePercent() : 0;
+        int fin = ref.getFinalPercent() != null ? ref.getFinalPercent() : 0;
+
+        if (adv == 0 && fin > 0) { assignType(pending, PaymentType.FACT); return true; }
+        if (fin == 0 && adv > 0) { assignType(pending, PaymentType.ADVANCE); return true; }
+        if (adv <= 0 || fin <= 0) return false;
+
+        BigDecimal amount = delivery.getAmount();
+        if (amount == null || amount.signum() <= 0) return false;
+
+        BigDecimal advTarget = amount.multiply(BigDecimal.valueOf(adv))
+                .divide(BigDecimal.valueOf(100), 4, java.math.RoundingMode.HALF_UP);
+        BigDecimal advancePaid = delivery.getPayments().stream()
+                .filter(p -> p.getPaymentType() == PaymentType.ADVANCE && p.getAmount() != null)
+                .map(Payment::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // Аванс ещё не набран — доразметка неоднозначна, оставляем ответственному
+        if (advancePaid.compareTo(advTarget.subtract(distributionTolerance(amount))) < 0) return false;
+
+        assignType(pending, PaymentType.FACT);
+        return true;
+    }
+
     /** Проставляет всем оплатам одинаковый тип и сохраняет их. */
     private void assignType(Set<Payment> payments, PaymentType type) {
         for (Payment p : payments) {
@@ -613,6 +716,164 @@ public class DeliveryService {
         return deliveryRepository.save(delivery);
     }
 
+    /** Форма документа договора, по которой создаётся поставка. */
+    private static final String SPECIFICATION_FORM = "Спецификация";
+
+    /** Организация-заказчик, по спецификациям которой ведутся поставки. */
+    private static final CustomerOrganization DELIVERY_ORGANIZATION = CustomerOrganization.UZUM_MARKET;
+
+    /**
+     * Создаёт поставку по подписанной спецификации, если её ещё нет.
+     * Вызывается при переходе договора в статус «Подписан» (см. ContractStatusUpdateService)
+     * и при стартовой сверке (см. DeliverySignedSpecificationRunner).
+     * Условия — см. {@link #isDeliverableSpecification}. Поставка заполняется «по правилам договора»
+     * ({@link #applyContractRules}), как при массовом создании и при загрузке handreport.
+     *
+     * @return true, если поставка была создана
+     */
+    @Transactional
+    public boolean ensureDeliveryForSignedSpecification(Long contractId) {
+        if (contractId == null) return false;
+        Contract contract = contractRepository.findById(contractId).orElse(null);
+        if (!isDeliverableSpecification(contract)) return false;
+        if (deliveryRepository.existsByContractId(contractId)) return false;
+
+        List<DeliveryPaymentScheme> schemeList = paymentSchemeRepository.findByActiveTrueOrderBySortOrderAsc();
+        Integer maxInnerId = deliveryRepository.findMaxNumericInnerId();
+        Delivery created = createDeliveryForContract(contract, schemeList, (maxInnerId != null ? maxInnerId : 0) + 1);
+        logger.info("Auto-created delivery id={} (innerId={}) for signed specification contractId={} (innerId={})",
+                created.getId(), created.getInnerId(), contractId, contract.getInnerId());
+        return true;
+    }
+
+    /**
+     * Подставляет схему оплаты поставкам, у которых она не выбрана: правила договора
+     * применяются только при создании поставки и при загрузке handreport, поэтому после
+     * пополнения справочника схем ранее созданные поставки остались бы без схемы —
+     * а без неё оплаты не распределяются на «Аванс» и «По факту».
+     * Поставки с уже выбранной схемой (в том числе выбранной вручную) не трогаются.
+     *
+     * @return число поставок, которым подобрана схема
+     */
+    @Transactional
+    public int applyMissingPaymentSchemes() {
+        List<Delivery> withoutScheme = deliveryRepository.findByPaymentSchemeRefIsNull();
+        if (withoutScheme.isEmpty()) return 0;
+
+        List<DeliveryPaymentScheme> schemeList = paymentSchemeRepository.findByActiveTrueOrderBySortOrderAsc();
+        int updated = 0;
+        for (Delivery delivery : withoutScheme) {
+            Contract contract = delivery.getContract();
+            if (contract == null) continue;
+
+            DeliveryPaymentScheme auto = autoSchemeForContract(
+                    contract.getPaymentScheme(), contract.getPaymentTerms(), schemeList);
+            if (auto == null) continue;
+
+            delivery.setPaymentSchemeRef(auto);
+            delivery.setPaymentScheme(PaymentScheme.valueOf(auto.getPaymentType().trim().toUpperCase()));
+
+            Set<Payment> payments = delivery.getPayments();
+            if (payments != null && !payments.isEmpty()) {
+                if (payments.stream().noneMatch(p -> p.getPaymentType() != null)) {
+                    autoDistributePayments(delivery, true);
+                } else {
+                    distributeRemainingPayments(delivery);
+                }
+            }
+
+            delivery.setStatus(resolveInitialStatus(delivery.getPaymentScheme(), payments));
+            applyDerivedShipmentStatus(delivery);
+            refinePostpayAwaitingBalance(delivery);
+            recomputeDeliveryDeadline(delivery);
+            deliveryRepository.save(delivery);
+            updated++;
+        }
+        logger.info("Payment scheme auto-pick: {} deliveries without scheme, {} updated",
+                withoutScheme.size(), updated);
+        return updated;
+    }
+
+    /**
+     * Удаляет поставки, договор которых относится не к маркету: поставки ведутся только
+     * по спецификациям {@link #DELIVERY_ORGANIZATION}, а такие записи могли остаться
+     * от прежних правил. Оплатам удаляемых поставок снимается тип (Аванс / По факту) —
+     * поставка на договор одна, поэтому больше эти типы ни к чему не относятся.
+     *
+     * @return число удалённых поставок
+     */
+    @Transactional
+    public int removeNonMarketDeliveries() {
+        List<Delivery> foreign = deliveryRepository.findByContractCustomerOrganizationNot(DELIVERY_ORGANIZATION);
+        if (foreign.isEmpty()) return 0;
+
+        for (Delivery delivery : foreign) {
+            Set<Payment> payments = delivery.getPayments();
+            if (payments == null) continue;
+            for (Payment payment : payments) {
+                if (payment.getPaymentType() != null) {
+                    payment.setPaymentType(null);
+                    paymentRepository.save(payment);
+                }
+            }
+        }
+        // deleteAll(list), а не deleteAllInBatch — чтобы Hibernate почистил join-таблицу delivery_payments
+        deliveryRepository.deleteAll(foreign);
+        logger.info("Removed {} deliveries of contracts outside {}", foreign.size(), DELIVERY_ORGANIZATION);
+        return foreign.size();
+    }
+
+    /**
+     * Досоздаёт поставки для всех подписанных спецификаций договорников, у которых поставки ещё нет.
+     * Нужна, потому что статус «Подписан» может быть проставлен не через смену статуса
+     * (напр. сразу при парсинге Excel), а также чтобы подхватить спецификации,
+     * подписанные до появления авто-создания.
+     *
+     * @return число созданных поставок
+     */
+    @Transactional
+    public int createMissingDeliveriesForSignedSpecifications() {
+        List<Long> contractIds = contractRepository.findSignedContractorSpecificationIds(ContractStatus.SIGNED);
+        if (contractIds.isEmpty()) return 0;
+
+        List<Long> missing = contractIds.stream()
+                .filter(id -> !deliveryRepository.existsByContractId(id))
+                .collect(Collectors.toList());
+        if (missing.isEmpty()) {
+            logger.info("Signed specifications sync: {} signed contractor specifications, all already have deliveries",
+                    contractIds.size());
+            return 0;
+        }
+
+        List<DeliveryPaymentScheme> schemeList = paymentSchemeRepository.findByActiveTrueOrderBySortOrderAsc();
+        Integer maxInnerId = deliveryRepository.findMaxNumericInnerId();
+        int nextInnerId = (maxInnerId != null ? maxInnerId : 0);
+        int created = 0;
+        for (Contract contract : contractRepository.findAllById(missing)) {
+            nextInnerId++;
+            createDeliveryForContract(contract, schemeList, nextInnerId);
+            created++;
+        }
+        logger.info("Signed specifications sync: {} signed contractor specifications, {} deliveries created",
+                contractIds.size(), created);
+        return created;
+    }
+
+    /**
+     * Договор, по которому положена поставка: подписанная спецификация, подготовленная договорником.
+     * Тот же отбор, что в {@link #createDeliveriesFromSignedSpecifications} и {@link #searchSignedContracts}.
+     */
+    private boolean isDeliverableSpecification(Contract contract) {
+        if (contract == null) return false;
+        if (contract.getStatus() != ContractStatus.SIGNED) return false;
+        String form = contract.getDocumentForm() != null ? contract.getDocumentForm().trim() : null;
+        if (!SPECIFICATION_FORM.equalsIgnoreCase(form)) return false;
+        // Поставки ведём только по спецификациям маркета
+        if (contract.getCustomerOrganization() != DELIVERY_ORGANIZATION) return false;
+        User preparedBy = contract.getPreparedBy();
+        return preparedBy != null && Boolean.TRUE.equals(preparedBy.getIsContractor());
+    }
+
     /**
      * Для парсинга handreport: гарантирует наличие поставки по договору-спецификации.
      * Если поставки нет — создаёт «по нашим правилам»; если есть — обновляет её по тем же
@@ -627,6 +888,8 @@ public class DeliveryService {
                                                   String comment, String reportStatus) {
         Contract spec = contractRepository.findById(contractId).orElse(null);
         if (spec == null) return false;
+        // Поставки ведём только по спецификациям маркета — остальные строки отчёта пропускаем
+        if (spec.getCustomerOrganization() != DELIVERY_ORGANIZATION) return false;
         List<DeliveryPaymentScheme> schemeList = paymentSchemeRepository.findByActiveTrueOrderBySortOrderAsc();
         Delivery delivery = deliveryRepository.findFirstByContractIdOrderByIdAsc(contractId).orElse(null);
         boolean created = false;
@@ -663,9 +926,15 @@ public class DeliveryService {
         // и оплаты нераспределённой поставки можно разметить по факту (напр. один платёж на 100%
         // при схеме 30/70). Уже размеченные (в т.ч. вручную) не трогаем.
         Set<Payment> deliveryPayments = delivery.getPayments();
-        if (deliveryPayments != null && !deliveryPayments.isEmpty()
-                && deliveryPayments.stream().noneMatch(p -> p.getPaymentType() != null)) {
-            autoDistributePayments(delivery, true);
+        if (deliveryPayments != null && !deliveryPayments.isEmpty()) {
+            if (deliveryPayments.stream().noneMatch(p -> p.getPaymentType() != null)) {
+                autoDistributePayments(delivery, true);
+            } else if (deliveryPayments.stream().anyMatch(p -> p.getPaymentType() == null && isAutoDistributable(p))) {
+                // Часть оплат размечена, но пришли новые — доразмечаем только их
+                distributeRemainingPayments(delivery);
+            }
+            delivery.setStatus(resolveInitialStatus(delivery.getPaymentScheme(), deliveryPayments));
+            applyDerivedShipmentStatus(delivery);
         }
         // Статус отгрузки мог стать «Поставлено» (факт-дата/ЭСФ) уже после applyContractRules —
         // уточняем статус оплаты («Не оплачено» → «Ожидает доплаты» для постоплаты).
@@ -901,11 +1170,24 @@ public class DeliveryService {
         for (Delivery d : deliveryRepository.findAll()) {
             Set<Payment> payments = d.getPayments();
             if (payments == null || payments.isEmpty()) continue;
-            // Поставка уже размечена хотя бы частично — не вмешиваемся.
-            if (payments.stream().anyMatch(p -> p.getPaymentType() != null)) continue;
+            // Размечать нечего — все оплаты уже с типом (или это черновики)
+            boolean hasPending = payments.stream()
+                    .anyMatch(p -> p.getPaymentType() == null && isAutoDistributable(p));
+            if (!hasPending) continue;
 
-            autoDistributePayments(d, true);
+            boolean changed;
             if (payments.stream().anyMatch(p -> p.getPaymentType() != null)) {
+                // Часть оплат уже размечена (в т.ч. вручную) — доразмечаем только новые
+                changed = distributeRemainingPayments(d);
+            } else {
+                autoDistributePayments(d, true);
+                changed = payments.stream().anyMatch(p -> p.getPaymentType() != null);
+            }
+
+            if (changed) {
+                d.setStatus(resolveInitialStatus(d.getPaymentScheme(), payments));
+                applyDerivedShipmentStatus(d);
+                refinePostpayAwaitingBalance(d);
                 deliveryRepository.save(d);
                 updated++;
             }
@@ -1017,11 +1299,24 @@ public class DeliveryService {
             delivery.setDeliveryTermWorkingDays(request.getDeliveryTermWorkingDays());
         }
 
+        // К поставке привязаны все оплаты её договора — это определяется договором, а не выбором
+        // пользователя. Выбор в карточке управляет только типами (Аванс / По факту): не отмеченным
+        // оплатам тип снимается, отмеченным — проставляется. Иначе сохранение карточки без выбора
+        // оплат отвязывало их от поставки, и вернуть привязку мог только перезапуск (sync на старте).
         Contract contract = delivery.getContract();
         Set<Payment> linked = new HashSet<>();
-        if (contract != null && request != null) {
-            applyPaymentType(request.getAdvancePaymentIds(), contract, PaymentType.ADVANCE, linked);
-            applyPaymentType(request.getFactPaymentIds(), contract, PaymentType.FACT, linked);
+        if (contract != null) {
+            Set<Long> advanceIds = toIdSet(request != null ? request.getAdvancePaymentIds() : null);
+            Set<Long> factIds = toIdSet(request != null ? request.getFactPaymentIds() : null);
+            for (Payment payment : findDistributablePayments(contract.getId())) {
+                PaymentType type = advanceIds.contains(payment.getId()) ? PaymentType.ADVANCE
+                        : factIds.contains(payment.getId()) ? PaymentType.FACT : null;
+                if (payment.getPaymentType() != type) {
+                    payment.setPaymentType(type);
+                    paymentRepository.save(payment);
+                }
+                linked.add(payment);
+            }
         }
         delivery.setPayments(linked);
         delivery.setStatus(resolveInitialStatus(scheme, linked));
@@ -1133,6 +1428,11 @@ public class DeliveryService {
     /**
      * Загружает указанные оплаты, проверяет принадлежность к договору, присваивает им тип и добавляет в общий набор для привязки.
      */
+    /** Список id оплат из запроса — в набор, не падая на null. */
+    private static Set<Long> toIdSet(List<Long> ids) {
+        return ids != null ? new HashSet<>(ids) : new HashSet<>();
+    }
+
     private void applyPaymentType(List<Long> paymentIds, Contract contract, PaymentType type, Set<Payment> linkSink) {
         if (paymentIds == null || paymentIds.isEmpty()) return;
         List<Payment> payments = paymentRepository.findAllById(paymentIds);
@@ -1191,6 +1491,63 @@ public class DeliveryService {
             }
         }
         delivery.setDeliveryDeadline(base != null ? addWorkingDays(base, term) : null);
+    }
+
+    /**
+     * Дата подписания спецификации: дата регистрации договора, а при её отсутствии — дата синхронизации.
+     * Используется как «Дата» поставки — по ней работает фильтр по годам в списке поставок.
+     * Тот же приоритет дат, что при отборе месяца в {@link #createDeliveriesFromSignedSpecifications}
+     * и при расчёте дедлайна постоплаты в {@link #recomputeDeliveryDeadline}.
+     */
+    private LocalDate resolveContractSigningDate(Long contractId) {
+        if (contractId == null) return null;
+        LocalDate registration = getContractRegistrationDate(contractId);
+        return registration != null ? registration : getContractSynchronizationDate(contractId);
+    }
+
+    /** Размер пачки договоров при пакетном получении дат подписания. */
+    private static final int SIGNING_DATE_BATCH_SIZE = 500;
+
+    /**
+     * Проставляет «Дату» поставкам, у которых она пустая: дата регистрации договора,
+     * при её отсутствии — дата синхронизации. Нужна для поставок, созданных до того,
+     * как дата начала заполняться при создании. Даты берутся пакетными запросами.
+     *
+     * @return число поставок, которым проставлена дата
+     */
+    @Transactional
+    public int backfillDeliveryDates() {
+        List<Delivery> withoutDate = deliveryRepository.findByDateIsNull();
+        if (withoutDate.isEmpty()) return 0;
+
+        List<Long> contractIds = withoutDate.stream()
+                .map(d -> d.getContract() != null ? d.getContract().getId() : null)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (contractIds.isEmpty()) return 0;
+
+        java.util.Map<Long, LocalDate> registrationDates = new java.util.HashMap<>();
+        java.util.Map<Long, LocalDate> synchronizationDates = new java.util.HashMap<>();
+        for (int from = 0; from < contractIds.size(); from += SIGNING_DATE_BATCH_SIZE) {
+            List<Long> chunk = contractIds.subList(from, Math.min(from + SIGNING_DATE_BATCH_SIZE, contractIds.size()));
+            registrationDates.putAll(toDateMap(contractApprovalRepository.findRegistrationCompletionDatesByContractIds(chunk)));
+            synchronizationDates.putAll(toDateMap(contractApprovalRepository.findSynchronizationCompletionDatesByContractIds(chunk)));
+        }
+
+        int updated = 0;
+        for (Delivery delivery : withoutDate) {
+            if (delivery.getContract() == null) continue;
+            Long contractId = delivery.getContract().getId();
+            LocalDate date = registrationDates.get(contractId);
+            if (date == null) date = synchronizationDates.get(contractId);
+            if (date == null) continue;
+            delivery.setDate(date);
+            deliveryRepository.save(delivery);
+            updated++;
+        }
+        logger.info("Delivery dates backfill: {} deliveries without date, {} updated", withoutDate.size(), updated);
+        return updated;
     }
 
     /**
@@ -1279,6 +1636,7 @@ public class DeliveryService {
         org.springframework.data.jpa.domain.Specification<Contract> spec = (root, query, cb) -> {
             var preds = new ArrayList<jakarta.persistence.criteria.Predicate>();
             preds.add(cb.equal(root.get("status"), ContractStatus.SIGNED));
+            preds.add(cb.equal(root.get("customerOrganization"), DELIVERY_ORGANIZATION));
             var preparedByJoin = root.join("preparedBy", jakarta.persistence.criteria.JoinType.INNER);
             preds.add(cb.equal(preparedByJoin.get("isContractor"), true));
             if (search != null && !search.trim().isEmpty()) {
@@ -1355,7 +1713,7 @@ public class DeliveryService {
             String innerId, String contractInnerId, String supplierName, String status,
             String currency, String comment, String responsibleName,
             Integer dateYear, Boolean dateNull, String paymentScheme, String shipmentStatus,
-            String reportStatus, String paymentsStatus, String tab) {
+            String reportStatus, String paymentsStatus, String tab, String deliveryDeadline) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -1403,6 +1761,15 @@ public class DeliveryService {
                         cb.like(cb.lower(userJoin.get("name")), lowerFilter),
                         cb.like(fullName, lowerFilter)
                 ));
+            }
+
+            // Плановая дата поставки — фильтр по конкретному дню (клик по столбцу диаграммы)
+            if (deliveryDeadline != null && !deliveryDeadline.trim().isEmpty()) {
+                try {
+                    predicates.add(cb.equal(root.get("deliveryDeadline"), LocalDate.parse(deliveryDeadline.trim())));
+                } catch (Exception e) {
+                    logger.warn("Delivery list: некорректная плановая дата '{}' — фильтр пропущен", deliveryDeadline);
+                }
             }
 
             if (dateNull != null && dateNull) {
@@ -1510,10 +1877,22 @@ public class DeliveryService {
         };
     }
 
+    /**
+     * Поля сортировки, которые фронт называет иначе, чем они лежат в сущности:
+     * значение — путь для JPA (join строится автоматически).
+     */
+    private static final java.util.Map<String, String> SORT_FIELD_ALIASES = java.util.Map.of(
+            "contractPurchaseRequestId", "contract.purchaseRequestId",
+            "contractInnerId", "contract.innerId",
+            "contractName", "contract.name",
+            "supplierName", "supplier.name"
+    );
+
     private Sort buildSort(String sortBy, String sortDir) {
         if (sortBy == null || sortBy.trim().isEmpty()) {
             sortBy = "id";
         }
+        sortBy = SORT_FIELD_ALIASES.getOrDefault(sortBy.trim(), sortBy.trim());
         if (sortDir == null || !sortDir.equalsIgnoreCase("asc")) {
             sortDir = "desc";
         }

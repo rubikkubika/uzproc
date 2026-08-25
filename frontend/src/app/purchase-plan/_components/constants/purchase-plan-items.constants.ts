@@ -1,6 +1,14 @@
 // Ключи для localStorage
 export const FILTERS_STORAGE_KEY = 'purchasePlanItems_filters';
+// Фильтры драфта плана закупок хранятся отдельно от фильтров действующего плана
+export const DRAFT_FILTERS_STORAGE_KEY = 'purchasePlanItemsDraft_filters';
 export const COLUMNS_VISIBILITY_STORAGE_KEY = 'purchasePlanItems_columnsVisibility';
+export const COLUMN_ORDER_STORAGE_KEY = 'purchasePlanItemsTableColumnOrder';
+export const COLUMN_WIDTHS_STORAGE_KEY = 'purchasePlanItemsTableColumnWidths';
+// Настройки колонок драфта хранятся отдельно, чтобы не влиять на действующий план
+export const DRAFT_COLUMNS_VISIBILITY_STORAGE_KEY = 'purchasePlanItemsDraft_columnsVisibility';
+export const DRAFT_COLUMN_ORDER_STORAGE_KEY = 'purchasePlanItemsDraftTableColumnOrder';
+export const DRAFT_COLUMN_WIDTHS_STORAGE_KEY = 'purchasePlanItemsDraftTableColumnWidths';
 
 // Статусы плана закупок (без "Заявка" — у позиций с заявкой статус берётся из связанной заявки)
 export const ALL_STATUSES = [
@@ -25,6 +33,7 @@ export const ALL_COLUMNS = [
   { key: 'purchaserCompany', label: 'Исполнитель' },
   { key: 'cfo', label: 'ЦФО' },
   { key: 'purchaseSubject', label: 'Предмет закупки' },
+  { key: 'currentContractName', label: 'Текущий договор' },
   { key: 'budgetAmount', label: 'Бюджет' },
   { key: 'contractEndDate', label: 'Дата окончания договора' },
   { key: 'requestDate', label: 'Дата заявки' },
@@ -70,6 +79,23 @@ export const DEFAULT_VISIBLE_COLUMNS = [
   'ganttChart',
 ];
 
+// Колонки, недоступные в драфте плана: заявок на закупку в драфте ещё нет,
+// поэтому колонка не показывается и отсутствует в меню выбора колонок
+export const DRAFT_HIDDEN_COLUMNS: string[] = [
+  'purchaseRequestId',
+];
+
+// Колонки, доступные в драфте плана закупок
+export const DRAFT_ALL_COLUMNS = ALL_COLUMNS.filter(col => !DRAFT_HIDDEN_COLUMNS.includes(col.key));
+
+// Дефолтные видимые колонки драфта: дополнительно показываем наименование действующего договора,
+// колонки из DRAFT_HIDDEN_COLUMNS исключаются
+export const DRAFT_DEFAULT_VISIBLE_COLUMNS = [
+  ...DEFAULT_VISIBLE_COLUMNS.slice(0, DEFAULT_VISIBLE_COLUMNS.indexOf('purchaseSubject') + 1),
+  'currentContractName',
+  ...DEFAULT_VISIBLE_COLUMNS.slice(DEFAULT_VISIBLE_COLUMNS.indexOf('purchaseSubject') + 1),
+].filter(col => !DRAFT_HIDDEN_COLUMNS.includes(col));
+
 // Дефолтные ширины колонок
 export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   id: 80,
@@ -78,6 +104,7 @@ export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
   year: 64,
   cfo: 128,
   purchaseSubject: 38,
+  currentContractName: 77,
   budgetAmount: 112,
   contractEndDate: 128,
   requestDate: 112,

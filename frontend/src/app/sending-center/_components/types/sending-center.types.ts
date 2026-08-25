@@ -1,4 +1,4 @@
-export type SendingCenterTabId = 'purchases' | 'specifications';
+export type SendingCenterTabId = 'purchases' | 'specifications' | 'deliveries';
 
 export interface SendingCenterTab {
   id: SendingCenterTabId;

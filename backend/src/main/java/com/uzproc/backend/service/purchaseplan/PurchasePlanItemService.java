@@ -104,13 +104,15 @@ public class PurchasePlanItemService {
             List<String> status,
             String purchaseRequestId,
             Double budgetAmount,
-            String budgetAmountOperator) {
+            String budgetAmountOperator,
+            String currentContractName,
+            boolean isDraft) {
         
         logger.info("=== FILTER REQUEST ===");
         logger.info("Filter parameters - year: {}, company: {}, purchaserCompany: {}, cfo: {}, purchaseSubject: '{}', purchaser: {}, category: {}, requestMonths: {}, requestYear: {}, currentContractEndDate: '{}', status: {}, purchaseRequestId: '{}', budgetAmount: {}, budgetAmountOperator: '{}'",
                 year, company, purchaserCompany, cfo, purchaseSubject, purchaser, category, requestMonths, requestYear, currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator);
         
-        Specification<PurchasePlanItem> spec = buildSpecification(year, company, purchaserCompany, cfo, purchaseSubject, purchaser, category, requestMonths, requestYear, currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator);
+        Specification<PurchasePlanItem> spec = buildSpecification(year, company, purchaserCompany, cfo, purchaseSubject, purchaser, category, requestMonths, requestYear, currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator, currentContractName, isDraft);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -858,6 +860,9 @@ public class PurchasePlanItemService {
     public PurchasePlanItemDto create(PurchasePlanItemDto dto) {
         PurchasePlanItem item = new PurchasePlanItem();
         
+        // Позиция создаётся в действующем плане или в драфте
+        item.setIsDraft(Boolean.TRUE.equals(dto.getIsDraft()));
+        
         // Устанавливаем год (если не указан, используем текущий год + 1 для планирования)
         if (dto.getYear() != null) {
             item.setYear(dto.getYear());
@@ -1054,6 +1059,9 @@ public class PurchasePlanItemService {
         }
         
         dto.setComment(entity.getComment());
+        dto.setCurrentContractName(entity.getCurrentContractName());
+        dto.setIsDraft(entity.getIsDraft());
+        dto.setSourceContractId(entity.getSourceContractId());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setUpdatedAt(entity.getUpdatedAt());
         return dto;
@@ -1073,11 +1081,17 @@ public class PurchasePlanItemService {
             List<String> status,
             String purchaseRequestId,
             Double budgetAmount,
-            String budgetAmountOperator) {
+            String budgetAmountOperator,
+            String currentContractName,
+            boolean isDraft) {
         
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             int predicateCount = 0;
+            
+            // Разделение действующего плана и драфта плана закупок
+            predicates.add(cb.equal(root.get("isDraft"), isDraft));
+            predicateCount++;
             
             // Фильтр по году
             if (year != null) {
@@ -1242,6 +1256,13 @@ public class PurchasePlanItemService {
                 predicates.add(cb.like(cb.lower(root.get("purchaseSubject")), "%" + purchaseSubject.toLowerCase() + "%"));
                 predicateCount++;
                 logger.info("Added purchaseSubject filter: '{}'", purchaseSubject);
+            }
+            
+            // Фильтр по наименованию действующего договора («Текущий договор»)
+            if (currentContractName != null && !currentContractName.trim().isEmpty()) {
+                predicates.add(cb.like(cb.lower(root.get("currentContractName")), "%" + currentContractName.toLowerCase().trim() + "%"));
+                predicateCount++;
+                logger.info("Added currentContractName filter: '{}'", currentContractName);
             }
             
             // Фильтр по закупщику (поддержка множественного выбора - поиск по фамилии и имени пользователя)
@@ -1659,8 +1680,8 @@ public class PurchasePlanItemService {
      * "Дек (пред. год)" = декабрь selectedYear = декабрь (year - 1)
      * Январь-декабрь = year (selectedYear + 1)
      */
-    public List<Integer> findDistinctYears() {
-        return purchasePlanItemRepository.findDistinctYears();
+    public List<Integer> findDistinctYears(boolean isDraft) {
+        return purchasePlanItemRepository.findDistinctYears(isDraft);
     }
 
     /**
@@ -1702,11 +1723,12 @@ public class PurchasePlanItemService {
         return new UniqueFilterValuesDto(companies, purchaserCompanies, purchasers, categories, statuses);
     }
 
-    public Map<String, Object> getMonthlyStats(Integer year, List<String> company) {
+    public Map<String, Object> getMonthlyStats(Integer year, List<String> company, boolean isDraft) {
         // Загружаем данные с годом планирования = year
         // requestDate может быть в декабре (year - 1) или в year
         Specification<PurchasePlanItem> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(root.get("isDraft"), isDraft));
             if (year != null) {
                 predicates.add(cb.equal(root.get("year"), year));
             }
@@ -1832,11 +1854,13 @@ public class PurchasePlanItemService {
             List<String> status,
             String purchaseRequestId,
             Double budgetAmount,
-            String budgetAmountOperator) {
+            String budgetAmountOperator,
+            String currentContractName,
+            boolean isDraft) {
 
         Specification<PurchasePlanItem> spec = buildSpecification(
                 year, company, purchaserCompany, cfo, purchaseSubject, purchaser, category,
-                requestMonths, requestYear, currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator);
+                requestMonths, requestYear, currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator, currentContractName, isDraft);
 
         List<LocalDate> requestDates = findRequestDates(spec);
         int displayYear = year != null ? year : java.time.Year.now().getValue();
@@ -1882,14 +1906,16 @@ public class PurchasePlanItemService {
             List<String> status,
             String purchaseRequestId,
             Double budgetAmount,
-            String budgetAmountOperator) {
+            String budgetAmountOperator,
+            String currentContractName,
+            boolean isDraft) {
         
         // Строим Specification БЕЗ фильтра по purchaser (сводная таблица показывает статистику по всем закупщикам)
         Specification<PurchasePlanItem> spec = buildSpecification(
             year, company, purchaserCompany, cfo, purchaseSubject, 
             null, // purchaser = null, чтобы не применять фильтр по закупщику
             category, requestMonths, requestYear, currentContractEndDate, 
-            status, purchaseRequestId, budgetAmount, budgetAmountOperator
+            status, purchaseRequestId, budgetAmount, budgetAmountOperator, currentContractName, isDraft
         );
         
         // Добавляем фильтр для исключения позиций со статусом "Исключена"
@@ -2049,6 +2075,81 @@ public class PurchasePlanItemService {
             itemsWithPurchaser, itemsWithoutPurchaser, summaryMap.size());
         
         // Сортируем по сумме бюджета по убыванию
+        return summaryMap.values().stream()
+            .sorted((a, b) -> b.getTotalBudget().compareTo(a.getTotalBudget()))
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Свод по ЦФО: количество позиций, сумма бюджета и сумма сложности по каждому ЦФО.
+     * Фильтр по ЦФО НЕ применяется — сводная таблица показывает статистику по всем ЦФО,
+     * аналогично своду по закупщикам.
+     */
+    public List<com.uzproc.backend.dto.purchaseplan.CfoSummaryDto> getCfoSummary(
+            Integer year,
+            List<String> company,
+            List<String> purchaserCompany,
+            String purchaseSubject,
+            List<String> purchaser,
+            List<String> category,
+            List<Integer> requestMonths,
+            Integer requestYear,
+            String currentContractEndDate,
+            List<String> status,
+            String purchaseRequestId,
+            Double budgetAmount,
+            String budgetAmountOperator,
+            String currentContractName,
+            boolean isDraft) {
+
+        Specification<PurchasePlanItem> spec = buildSpecification(
+            year, company, purchaserCompany,
+            null, // cfo = null, чтобы не применять фильтр по ЦФО
+            purchaseSubject, purchaser, category, requestMonths, requestYear,
+            currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator, currentContractName, isDraft
+        );
+
+        // Исключаем позиции со статусом «Исключена» (как в своде по закупщикам)
+        spec = spec.and((root, query, cb) ->
+            cb.notEqual(root.get("status"), PurchasePlanItemStatus.NOT_ACTUAL)
+        );
+
+        List<PurchasePlanItem> items = purchasePlanItemRepository.findAll(spec);
+        if (items.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        Map<String, com.uzproc.backend.dto.purchaseplan.CfoSummaryDto> summaryMap = new HashMap<>();
+        for (PurchasePlanItem item : items) {
+            String cfoName = item.getCfo() != null && item.getCfo().getName() != null
+                    ? item.getCfo().getName().trim()
+                    : "Не указан";
+            if (cfoName.isEmpty()) {
+                cfoName = "Не указан";
+            }
+            final String normalizedCfoName = cfoName;
+
+            com.uzproc.backend.dto.purchaseplan.CfoSummaryDto summary = summaryMap.computeIfAbsent(
+                normalizedCfoName,
+                k -> new com.uzproc.backend.dto.purchaseplan.CfoSummaryDto(
+                    normalizedCfoName, 0L, BigDecimal.ZERO, BigDecimal.ZERO
+                )
+            );
+
+            summary.setCount(summary.getCount() + 1);
+            if (item.getBudgetAmount() != null) {
+                summary.setTotalBudget(summary.getTotalBudget().add(item.getBudgetAmount()));
+            }
+            if (item.getComplexity() != null && !item.getComplexity().trim().isEmpty()) {
+                try {
+                    String complexityStr = item.getComplexity().replace(",", ".").replaceAll("\\s", "");
+                    summary.setTotalComplexity(summary.getTotalComplexity().add(new BigDecimal(complexityStr)));
+                } catch (NumberFormatException e) {
+                    // Игнорируем некорректные значения сложности
+                }
+            }
+        }
+
         return summaryMap.values().stream()
             .sorted((a, b) -> b.getTotalBudget().compareTo(a.getTotalBudget()))
             .collect(Collectors.toList());

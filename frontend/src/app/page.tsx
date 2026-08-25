@@ -423,7 +423,15 @@ function DashboardContent() {
       case 'purchase-plan':
         return (
           <div className="space-y-6 h-full flex flex-col">
-            <PurchasePlanItemsTable />
+            {/* key разделяет состояние плана и драфта: без него React переиспользует один инстанс */}
+            <PurchasePlanItemsTable key="purchase-plan" />
+          </div>
+        );
+
+      case 'purchase-plan-draft':
+        return (
+          <div className="space-y-6 h-full flex flex-col">
+            <PurchasePlanItemsTable key="purchase-plan-draft" isDraft />
           </div>
         );
 

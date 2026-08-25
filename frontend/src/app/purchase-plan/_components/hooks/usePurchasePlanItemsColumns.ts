@@ -1,26 +1,49 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   DEFAULT_VISIBLE_COLUMNS,
+  DRAFT_DEFAULT_VISIBLE_COLUMNS,
   ALL_COLUMNS,
+  DRAFT_ALL_COLUMNS,
   COLUMNS_VISIBILITY_STORAGE_KEY,
+  COLUMN_ORDER_STORAGE_KEY,
+  COLUMN_WIDTHS_STORAGE_KEY,
+  DRAFT_COLUMNS_VISIBILITY_STORAGE_KEY,
+  DRAFT_COLUMN_ORDER_STORAGE_KEY,
+  DRAFT_COLUMN_WIDTHS_STORAGE_KEY,
   DEFAULT_COLUMN_WIDTHS,
   MAX_COLUMN_WIDTH,
 } from '../constants/purchase-plan-items.constants';
+import { usePurchasePlanMode } from '../contexts/PurchasePlanModeContext';
 import { getDefaultColumnWidth } from '../utils/purchase-plan-items.utils';
 import { PurchasePlanItem } from '../types/purchase-plan-items.types';
 
 /* -------------------------
    Фиксируем порядок колонок
 ------------------------- */
-const fixColumnOrder = (order: string[]): string[] => {
-  const validKeys = new Set(ALL_COLUMNS.map(c => c.key));
-  const valid = order.filter(col => validKeys.has(col as any));
+const fixColumnOrder = (
+  order: string[],
+  defaultColumns: readonly string[],
+  availableKeys: Set<string>,
+): string[] => {
+  const valid = order.filter(col => availableKeys.has(col));
   const finalOrder = [...valid];
-  DEFAULT_VISIBLE_COLUMNS.forEach((col, index) => {
+  defaultColumns.forEach((col, index) => {
     if (!finalOrder.includes(col)) finalOrder.splice(index, 0, col);
   });
   return finalOrder;
 };
+
+/* -------------------------
+   Колонки с длинным текстом: расчётная ширина берётся долей от ширины содержимого
+   (половина, затем ещё −30%), текст в них переносится по строкам
+------------------------- */
+const WIDTH_SCALE: Record<string, number> = {
+  purchaseSubject: 0.35,
+  currentContractName: 0.35,
+};
+
+/** Минимальная ширина сжимаемых колонок (текст в них переносится по строкам) */
+const MIN_SCALED_COLUMN_WIDTH = 80;
 
 /* -------------------------
    Измерение текста через canvas
@@ -38,19 +61,38 @@ const getTextWidth = (text: string, font = '14px Arial') => {
    Хук
 ------------------------- */
 export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) => {
+  // У плана и драфта отдельные настройки колонок: видимость, порядок и ширины не пересекаются
+  const { isDraft } = usePurchasePlanMode();
+  const defaultVisibleColumns = isDraft ? DRAFT_DEFAULT_VISIBLE_COLUMNS : DEFAULT_VISIBLE_COLUMNS;
+  const visibilityKey = isDraft ? DRAFT_COLUMNS_VISIBILITY_STORAGE_KEY : COLUMNS_VISIBILITY_STORAGE_KEY;
+  const orderKey = isDraft ? DRAFT_COLUMN_ORDER_STORAGE_KEY : COLUMN_ORDER_STORAGE_KEY;
+  const widthsKey = isDraft ? DRAFT_COLUMN_WIDTHS_STORAGE_KEY : COLUMN_WIDTHS_STORAGE_KEY;
+  // Набор колонок, доступных в текущем режиме: в драфте часть колонок недоступна (DRAFT_HIDDEN_COLUMNS)
+  const availableColumns = useMemo(() => (isDraft ? DRAFT_ALL_COLUMNS : ALL_COLUMNS), [isDraft]);
+  const availableColumnKeys = useMemo(
+    () => new Set<string>(availableColumns.map(c => c.key)),
+    [availableColumns]
+  );
+  const orderColumns = useCallback(
+    (order: string[]) => fixColumnOrder(order, defaultVisibleColumns, availableColumnKeys),
+    [defaultVisibleColumns, availableColumnKeys]
+  );
+
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => {
-    if (typeof window === 'undefined') return new Set(DEFAULT_VISIBLE_COLUMNS);
+    if (typeof window === 'undefined') return new Set(defaultVisibleColumns);
     try {
-      const saved = localStorage.getItem(COLUMNS_VISIBILITY_STORAGE_KEY);
+      const saved = localStorage.getItem(isDraft ? DRAFT_COLUMNS_VISIBILITY_STORAGE_KEY : COLUMNS_VISIBILITY_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          const savedSet = new Set(parsed.filter(col => typeof col === 'string'));
+          const savedSet = new Set(
+            parsed.filter(col => typeof col === 'string' && availableColumnKeys.has(col))
+          );
           // Миграция: добавляем недостающие дефолтные колонки к сохранённым настройкам
           // Это нужно для корректного отображения новых обязательных колонок у пользователей
           // со старыми настройками localStorage
           let migrated = false;
-          DEFAULT_VISIBLE_COLUMNS.forEach(col => {
+          defaultVisibleColumns.forEach(col => {
             if (!savedSet.has(col)) {
               savedSet.add(col);
               migrated = true;
@@ -58,33 +100,33 @@ export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) =
           });
           // Если были добавлены новые колонки, сохраняем обновлённый набор
           if (migrated) {
-            localStorage.setItem(COLUMNS_VISIBILITY_STORAGE_KEY, JSON.stringify(Array.from(savedSet)));
+            localStorage.setItem(isDraft ? DRAFT_COLUMNS_VISIBILITY_STORAGE_KEY : COLUMNS_VISIBILITY_STORAGE_KEY, JSON.stringify(Array.from(savedSet)));
           }
           return savedSet;
         }
       }
     } catch {}
-    return new Set(DEFAULT_VISIBLE_COLUMNS);
+    return new Set(defaultVisibleColumns);
   });
 
   const [columnOrder, setColumnOrder] = useState<string[]>(() => {
-    if (typeof window === 'undefined') return [...DEFAULT_VISIBLE_COLUMNS];
+    if (typeof window === 'undefined') return [...defaultVisibleColumns];
     try {
-      const saved = localStorage.getItem('purchasePlanItemsTableColumnOrder');
+      const saved = localStorage.getItem(isDraft ? DRAFT_COLUMN_ORDER_STORAGE_KEY : COLUMN_ORDER_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return fixColumnOrder(parsed);
+        if (Array.isArray(parsed)) return orderColumns(parsed);
       }
     } catch {}
-    return [...DEFAULT_VISIBLE_COLUMNS];
+    return [...defaultVisibleColumns];
   });
 
   const saveColumnOrder = useCallback((order: string[]) => {
     if (typeof window === 'undefined') return;
     try {
-      localStorage.setItem('purchasePlanItemsTableColumnOrder', JSON.stringify(order));
+      localStorage.setItem(orderKey, JSON.stringify(order));
     } catch {}
-  }, []);
+  }, [orderKey]);
 
   useEffect(() => {
     setColumnOrder(prev => {
@@ -94,31 +136,31 @@ export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) =
       const newColumns = Array.from(visibleColumns).filter(col => !prev.includes(col));
       // Объединяем: сначала существующий порядок, потом новые колонки
       const withNewColumns = [...filtered, ...newColumns];
-      // Применяем fixColumnOrder для правильного порядка дефолтных колонок
-      // fixColumnOrder переупорядочит только дефолтные колонки, новые останутся в конце
-      const next = fixColumnOrder(withNewColumns);
+      // Применяем orderColumns для правильного порядка дефолтных колонок
+      // orderColumns переупорядочит только дефолтные колонки, новые останутся в конце
+      const next = orderColumns(withNewColumns);
       if (JSON.stringify(prev) !== JSON.stringify(next)) {
         saveColumnOrder(next);
         return next;
       }
       return prev;
     });
-  }, [visibleColumns, saveColumnOrder]);
+  }, [visibleColumns, saveColumnOrder, orderColumns]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
       localStorage.setItem(
-        COLUMNS_VISIBILITY_STORAGE_KEY,
+        visibilityKey,
         JSON.stringify(Array.from(visibleColumns))
       );
     } catch {}
-  }, [visibleColumns]);
+  }, [visibleColumns, visibilityKey]);
 
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
     if (typeof window === 'undefined') return {};
     try {
-      const saved = localStorage.getItem('purchasePlanItemsTableColumnWidths');
+      const saved = localStorage.getItem(isDraft ? DRAFT_COLUMN_WIDTHS_STORAGE_KEY : COLUMN_WIDTHS_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         return parsed;
@@ -135,9 +177,9 @@ export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) =
   const saveColumnWidths = useCallback((widths: Record<string, number>) => {
     if (typeof window === 'undefined') return;
     try {
-      localStorage.setItem('purchasePlanItemsTableColumnWidths', JSON.stringify(widths));
+      localStorage.setItem(widthsKey, JSON.stringify(widths));
     } catch {}
-  }, []);
+  }, [widthsKey]);
 
   const handleResizeStart = useCallback((e: React.MouseEvent, columnKey: string) => {
     e.preventDefault();
@@ -192,7 +234,12 @@ export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) =
         0,
         ...allItems.map(item => getTextWidth(String(item[key as keyof PurchasePlanItem] ?? '')))
       );
-      result[key] = Math.max(headerWidth, maxContentWidth) + 24; // padding
+      const fullWidth = Math.max(headerWidth, maxContentWidth) + 24; // padding
+      // Для длиннотекстовых колонок берём половину расчётной ширины (минимум — ширина заголовка)
+      const scale = WIDTH_SCALE[key] ?? 1;
+      result[key] = scale === 1
+        ? fullWidth
+        : Math.max(MIN_SCALED_COLUMN_WIDTH, Math.round(fullWidth * scale));
     });
     return result;
   }, [allItems]);
@@ -290,18 +337,18 @@ export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) =
     });
   };
 
-  const selectAllColumns = () => setVisibleColumns(new Set(ALL_COLUMNS.map(c => c.key)));
+  const selectAllColumns = () => setVisibleColumns(new Set(availableColumns.map(c => c.key)));
 
   const selectDefaultColumns = () => {
-    localStorage.removeItem('purchasePlanItemsTableColumnOrder');
-    localStorage.removeItem('purchasePlanItemsTableColumnWidths');
+    localStorage.removeItem(orderKey);
+    localStorage.removeItem(widthsKey);
 
-    setVisibleColumns(new Set(DEFAULT_VISIBLE_COLUMNS));
-    setColumnOrder([...DEFAULT_VISIBLE_COLUMNS]);
-    saveColumnOrder(DEFAULT_VISIBLE_COLUMNS);
+    setVisibleColumns(new Set(defaultVisibleColumns));
+    setColumnOrder([...defaultVisibleColumns]);
+    saveColumnOrder(defaultVisibleColumns);
 
     const widths: Record<string, number> = {};
-    DEFAULT_VISIBLE_COLUMNS.forEach(c => {
+    defaultVisibleColumns.forEach(c => {
       const calculatedWidth = dynamicWidths[c] ?? DEFAULT_COLUMN_WIDTHS[c] ?? 100;
       // Применяем ограничение MAX_COLUMN_WIDTH только при сбросе к значениям по умолчанию
       widths[c] = Math.min(calculatedWidth, MAX_COLUMN_WIDTH);
@@ -312,10 +359,12 @@ export const usePurchasePlanItemsColumns = (allItems: PurchasePlanItem[] = []) =
 
   const filteredColumnOrder = useMemo(() => {
     const visibleOrdered = columnOrder.filter(col => visibleColumns.has(col));
-    return fixColumnOrder(visibleOrdered);
-  }, [columnOrder, visibleColumns]);
+    return orderColumns(visibleOrdered);
+  }, [columnOrder, visibleColumns, orderColumns]);
 
   return {
+    availableColumns,
+    defaultVisibleColumns,
     visibleColumns,
     setVisibleColumns,
     columnOrder,

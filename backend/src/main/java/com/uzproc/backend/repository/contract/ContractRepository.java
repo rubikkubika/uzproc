@@ -16,11 +16,13 @@ import java.util.UUID;
 public interface ContractRepository extends JpaRepository<Contract, Long>, JpaSpecificationExecutor<Contract> {
 
     /**
-     * id подписанных спецификаций, подготовленных договорником (preparedBy.isContractor = true).
-     * Лёгкая projection-выборка (без гидрации сущностей) — для массового создания поставок.
+     * id подписанных спецификаций маркета (customerOrganization = UZUM_MARKET),
+     * подготовленных договорником (preparedBy.isContractor = true).
+     * Лёгкая projection-выборка (без гидрации сущностей) — для создания поставок.
      */
     @Query("SELECT c.id FROM Contract c JOIN c.preparedBy u " +
-           "WHERE c.documentForm = 'Спецификация' AND c.status = :status AND u.isContractor = true")
+           "WHERE c.documentForm = 'Спецификация' AND c.status = :status AND u.isContractor = true " +
+           "AND c.customerOrganization = com.uzproc.backend.entity.contract.CustomerOrganization.UZUM_MARKET")
     List<Long> findSignedContractorSpecificationIds(@Param("status") com.uzproc.backend.entity.contract.ContractStatus status);
 
     /**

@@ -16,6 +16,8 @@ export const useDeliveryData = () => {
     shipmentStatus: string = '',
     tab: DeliveryTab | null = null,
     recheck: boolean = false,
+    /** Плановая дата поставки (ISO) — фильтр по дню, выбранному на диаграмме */
+    deliveryDeadline: string | null = null,
   ): Promise<PageResponse | null> => {
     try {
       const params = new URLSearchParams();
@@ -53,6 +55,10 @@ export const useDeliveryData = () => {
       // Вкладка: 'in-work' | 'closed' | 'closed-review'. null → без фильтра (все поставки).
       if (tab !== null) {
         params.append('tab', tab);
+      }
+
+      if (deliveryDeadline) {
+        params.append('deliveryDeadline', deliveryDeadline);
       }
 
       // recheck=true — при обновлении списка бэкенд пересчитывает статусы (авто-закрытие).
