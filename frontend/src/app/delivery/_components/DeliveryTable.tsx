@@ -23,6 +23,9 @@ import DeliveryTableTabs from './ui/DeliveryTableTabs';
 import DeliveryDetailsModal from './ui/DeliveryDetailsModal';
 import DeliveryDeadlineChart from './ui/DeliveryDeadlineChart';
 import { useDeliveryDeadlineChart } from './hooks/useDeliveryDeadlineChart';
+import DeliveryTour from './ui/tour/DeliveryTour';
+import TourButton from './ui/tour/TourButton';
+import { useDeliveryTour } from './hooks/useDeliveryTour';
 
 export default function DeliveryTable() {
   const [createOpen, setCreateOpen] = useState(false);
@@ -62,6 +65,8 @@ export default function DeliveryTable() {
     tab: activeTab,
     onSelectedDateChange: setDeadlineDate,
   });
+
+  const tour = useDeliveryTour();
 
   const reportStatusOptions = useReportStatusOptions();
   const responsibleOptions = useResponsibleOptions();
@@ -249,10 +254,16 @@ export default function DeliveryTable() {
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden flex flex-col flex-1 min-h-0">
       {/* Вкладки: «В работе» / «Закрыто» (Закрыто = Поставлено + Оплачено) */}
-      <DeliveryTableTabs activeTab={activeTab} tabCounts={tabCounts} onTabChange={setActiveTab} />
+      <DeliveryTableTabs
+        activeTab={activeTab}
+        tabCounts={tabCounts}
+        onTabChange={setActiveTab}
+        actions={<TourButton onClick={tour.start} />}
+      />
       <div className="px-3 py-1 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
         <div className="flex items-center gap-2 flex-wrap">
           <button
+            data-tour="create-delivery"
             onClick={() => setCreateOpen(true)}
             className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium bg-blue-600 text-white rounded-lg border border-blue-600 hover:bg-blue-700 transition-colors whitespace-nowrap"
           >
@@ -260,13 +271,14 @@ export default function DeliveryTable() {
             Создать поставку
           </button>
           <button
+            data-tour="reset-filters"
             onClick={handleResetFilters}
             className="px-3 py-1 text-xs font-medium bg-red-50 text-red-700 rounded-lg border border-red-300 hover:bg-red-100 hover:border-red-400 transition-colors whitespace-nowrap"
           >
             Сбросить фильтры
           </button>
 
-          <div className="flex items-center gap-1">
+          <div data-tour="date-filter" className="flex items-center gap-1">
             <span className="text-xs text-gray-500 mr-1">Дата:</span>
             <button
               onClick={handleShowAll}
@@ -304,7 +316,7 @@ export default function DeliveryTable() {
           </div>
 
         </div>
-        <div className="text-xs text-gray-700 flex-shrink-0">
+        <div data-tour="records-counter" className="text-xs text-gray-700 flex-shrink-0">
           Показано {allItems.length} из {data?.totalElements ?? 0} записей
         </div>
       </div>
@@ -324,11 +336,12 @@ export default function DeliveryTable() {
 
       <div className="flex-1 min-w-0 overflow-auto relative">
         <table className="w-full max-w-full border-collapse table-fixed">
-          <thead className="bg-gray-50 sticky top-0 z-10">
+          <thead data-tour="table-head" className="bg-gray-50 sticky top-0 z-10">
             <tr>
               {columns.map((col) => (
                 <th
                   key={col.field}
+                  data-tour={`col-${col.field}`}
                   className="px-2 py-2 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative"
                   style={{ width: col.width }}
                 >
@@ -376,6 +389,7 @@ export default function DeliveryTable() {
               allItems.map((item, index) => (
                 <tr
                   key={`${item.id}-${index}`}
+                  data-tour={index === 0 ? 'first-row' : undefined}
                   className="hover:bg-gray-50 cursor-pointer"
                   onClick={() => setSelectedDelivery(item)}
                 >
@@ -547,6 +561,20 @@ export default function DeliveryTable() {
         delivery={selectedDelivery}
         onClose={() => setSelectedDelivery(null)}
         onSaved={reload}
+      />
+
+      <DeliveryTour
+        active={tour.active}
+        steps={tour.steps}
+        step={tour.step}
+        stepIndex={tour.stepIndex}
+        totalSteps={tour.totalSteps}
+        isFirst={tour.isFirst}
+        isLast={tour.isLast}
+        onNext={tour.next}
+        onPrev={tour.prev}
+        onClose={tour.stop}
+        onGoTo={tour.goTo}
       />
     </div>
   );

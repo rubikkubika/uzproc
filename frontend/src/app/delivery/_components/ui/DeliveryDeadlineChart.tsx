@@ -48,7 +48,7 @@ export default function DeliveryDeadlineChart({
   const hasSelection = selectedDay !== null;
 
   return (
-    <div className="border-b border-gray-200 px-4 py-2 bg-white">
+    <div data-tour="deadline-chart" className="border-b border-gray-200 px-4 py-2 bg-white">
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         <span className="text-xs font-medium text-gray-700">Поставки по плановой дате</span>
 
