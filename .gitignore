@@ -82,8 +82,8 @@ frontend/upload/arrivals/*
 frontend/upload/handreport/*
 !frontend/upload/handreport/.gitkeep
 
-# Integration docs (internal, not for VCS)
-docs/1c-integration-purchase-requests.md
+# Документация, положения и презентация (локальные документы, not in git/docker)
+/docs/
 
 # Data files
 frontend/images/*.csv
@@ -115,9 +115,6 @@ build/
 !**/src/test/**/build/
 .playwright-mcp/
 
-# Presentation (local only, not in git/docker)
-/presentation/
-
 # ЭТП: служебные дампы данных b2biz (local only, not in git)
 /etp/
 
@@ -126,9 +123,6 @@ build/
 
 # Claude Code personal overrides
 .claude/settings.local.json
-
-# Положения и регламенты (локальные документы, not in git)
-/polozheniya/
 
 # Временные файлы Microsoft Office
 ~$*

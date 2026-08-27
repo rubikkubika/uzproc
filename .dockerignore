@@ -31,5 +31,5 @@ backend/uploads
 
 .playwright-mcp/
 
-# Presentation folder
-presentation
+# Документация, положения, презентация — не включать в образ
+docs
