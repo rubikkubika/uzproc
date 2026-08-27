@@ -37,7 +37,12 @@ public class HandReportExcelLoadService {
 
     private static final Logger logger = LoggerFactory.getLogger(HandReportExcelLoadService.class);
 
-    private static final String REQUEST_COLUMN = "ЗП/заявка";
+    /**
+     * Возможные заголовки колонки с номером заявки — источник периодически переименовывает её
+     * (напр. «ЗП/заявка» → «№ заявки на ЗП»), поэтому проверяем все варианты по порядку.
+     */
+    private static final List<String> REQUEST_COLUMN_ALIASES = List.of(
+            "ЗП/заявка", "№ заявки на ЗП", "№ заявки на ЗП/заявка", "№ заявки");
     private static final String FACT_DATE_COLUMN = "Дата отгрузки (факт)";
     private static final String ESF_DATE_COLUMN = "Дата выставления ЭСФ";
     private static final String NOTE_COLUMN = "Примечания";
@@ -74,7 +79,7 @@ public class HandReportExcelLoadService {
                     Row row = candidate.getRow(i);
                     if (row == null) continue;
                     Map<String, Integer> map = buildColumnIndexMap(row);
-                    if (findColumnIndex(map, REQUEST_COLUMN) != null) {
+                    if (findRequestColumnIndex(map) != null) {
                         sheet = candidate;
                         columns = map;
                         headerRowIndex = i;
@@ -83,16 +88,16 @@ public class HandReportExcelLoadService {
                 }
             }
             if (columns == null) {
-                logger.warn("HandReport: header with column '{}' not found in file {}", REQUEST_COLUMN, excelFile.getName());
+                logger.warn("HandReport: header with any of columns {} not found in file {}", REQUEST_COLUMN_ALIASES, excelFile.getName());
                 return 0;
             }
 
-            Integer requestIdx = findColumnIndex(columns, REQUEST_COLUMN);
+            Integer requestIdx = findRequestColumnIndex(columns);
             Integer factDateIdx = findColumnIndex(columns, FACT_DATE_COLUMN);
             Integer esfDateIdx = findColumnIndex(columns, ESF_DATE_COLUMN);
             Integer noteIdx = findColumnIndex(columns, NOTE_COLUMN);
             Integer reportStatusIdx = columns.get(REPORT_STATUS_COLUMN); // только точное совпадение заголовка «41»
-            logger.info("HandReport: file {} sheet '{}' headerRow={} -> ЗП/заявка={}, Дата отгрузки (факт)={}, Дата выставления ЭСФ={}, Примечание={}, Статус(41)={}",
+            logger.info("HandReport: file {} sheet '{}' headerRow={} -> заявка={}, Дата отгрузки (факт)={}, Дата выставления ЭСФ={}, Примечание={}, Статус(41)={}",
                     excelFile.getName(), sheet.getSheetName(), headerRowIndex + 1, requestIdx, factDateIdx, esfDateIdx, noteIdx, reportStatusIdx);
 
             Iterator<Row> it = sheet.iterator();
@@ -197,6 +202,15 @@ public class HandReportExcelLoadService {
             }
         }
         return map;
+    }
+
+    /** Индекс колонки с номером заявки — по первому подошедшему заголовку из {@link #REQUEST_COLUMN_ALIASES}. */
+    private Integer findRequestColumnIndex(Map<String, Integer> columns) {
+        for (String alias : REQUEST_COLUMN_ALIASES) {
+            Integer idx = findColumnIndex(columns, alias);
+            if (idx != null) return idx;
+        }
+        return null;
     }
 
     private Integer findColumnIndex(Map<String, Integer> columns, String columnName) {
