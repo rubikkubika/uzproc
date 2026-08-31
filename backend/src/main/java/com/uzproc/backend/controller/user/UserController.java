@@ -1,5 +1,6 @@
 package com.uzproc.backend.controller.user;
 
+import com.uzproc.backend.dto.user.PurchaserOptionDto;
 import com.uzproc.backend.dto.user.UserDTO;
 import com.uzproc.backend.entity.user.User;
 import com.uzproc.backend.service.user.UserService;
@@ -9,7 +10,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/users")
@@ -47,6 +50,19 @@ public class UserController {
 
         Page<User> users = userService.findAll(page, size, sortBy, sortDir, username, email, surname, name, department, position);
         return ResponseEntity.ok(users.map(UserDTO::new));
+    }
+
+    /**
+     * Список закупщиков для выбора в плане закупок и его драфте — только пользователи
+     * с признаком «Закупщик». Доступен любому аутентифицированному пользователю,
+     * поэтому отдаёт лишь идентификатор и ФИО.
+     */
+    @GetMapping("/purchasers")
+    public ResponseEntity<List<PurchaserOptionDto>> getPurchasers() {
+        List<PurchaserOptionDto> purchasers = userService.findPurchasers().stream()
+                .map(PurchaserOptionDto::new)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(purchasers);
     }
 
     /**

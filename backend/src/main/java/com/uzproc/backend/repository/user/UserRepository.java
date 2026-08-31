@@ -33,5 +33,8 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
            "OR LOWER(COALESCE(u.surname, '')) LIKE LOWER(CONCAT('%', :q, '%')) " +
            "OR LOWER(COALESCE(u.name, '')) LIKE LOWER(CONCAT('%', :q, '%'))")
     List<User> searchByFuzzyName(@Param("q") String q, Pageable pageable);
+
+    /** Закупщики — пользователи с признаком «Закупщик», отсортированные по ФИО. */
+    List<User> findByIsPurchaserTrueOrderBySurnameAscNameAsc();
 }
 

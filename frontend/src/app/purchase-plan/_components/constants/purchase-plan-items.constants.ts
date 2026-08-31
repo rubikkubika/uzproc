@@ -80,21 +80,21 @@ export const DEFAULT_VISIBLE_COLUMNS = [
 ];
 
 // Колонки, недоступные в драфте плана: заявок на закупку в драфте ещё нет,
-// поэтому колонка не показывается и отсутствует в меню выбора колонок
+// а исполнитель всегда Uzum Market — эти колонки не показываются
+// и отсутствуют в меню выбора колонок
 export const DRAFT_HIDDEN_COLUMNS: string[] = [
   'purchaseRequestId',
+  'purchaserCompany',
 ];
 
 // Колонки, доступные в драфте плана закупок
 export const DRAFT_ALL_COLUMNS = ALL_COLUMNS.filter(col => !DRAFT_HIDDEN_COLUMNS.includes(col.key));
 
-// Дефолтные видимые колонки драфта: дополнительно показываем наименование действующего договора,
-// колонки из DRAFT_HIDDEN_COLUMNS исключаются
-export const DRAFT_DEFAULT_VISIBLE_COLUMNS = [
-  ...DEFAULT_VISIBLE_COLUMNS.slice(0, DEFAULT_VISIBLE_COLUMNS.indexOf('purchaseSubject') + 1),
-  'currentContractName',
-  ...DEFAULT_VISIBLE_COLUMNS.slice(DEFAULT_VISIBLE_COLUMNS.indexOf('purchaseSubject') + 1),
-].filter(col => !DRAFT_HIDDEN_COLUMNS.includes(col));
+// Дефолтные видимые колонки драфта: после предмета закупки дополнительно показываем
+// наименование действующего договора и сложность, колонки из DRAFT_HIDDEN_COLUMNS исключаются
+export const DRAFT_DEFAULT_VISIBLE_COLUMNS = DEFAULT_VISIBLE_COLUMNS
+  .flatMap(col => (col === 'purchaseSubject' ? [col, 'currentContractName', 'complexity'] : [col]))
+  .filter(col => !DRAFT_HIDDEN_COLUMNS.includes(col));
 
 // Дефолтные ширины колонок
 export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {

@@ -39,6 +39,15 @@ public class UserService {
         this.passwordEncoder = passwordEncoder;
     }
 
+    /**
+     * Список закупщиков — пользователи с установленным признаком «Закупщик».
+     * Используется для выбора закупщика в плане закупок и его драфте.
+     */
+    @Transactional(readOnly = true)
+    public List<User> findPurchasers() {
+        return userRepository.findByIsPurchaserTrueOrderBySurnameAscNameAsc();
+    }
+
     public Page<User> findAll(
             int page,
             int size,

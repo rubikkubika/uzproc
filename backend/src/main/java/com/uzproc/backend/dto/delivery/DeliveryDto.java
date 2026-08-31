@@ -12,6 +12,10 @@ public class DeliveryDto {
     private LocalDate date;
     /** Дата поставки. Вычисляется автоматически (read-only). */
     private LocalDate deliveryDeadline;
+    /** Плановая дата поставки. По умолчанию = дедлайн, может быть изменена вручную. */
+    private LocalDate plannedDeliveryDate;
+    /** true — плановую дату задали вручную (автопересчёт её не меняет). */
+    private boolean plannedDeliveryDateManual;
     /** Фактическая дата поставки (Факт). Задаётся при статусе «Поставлено». */
     private LocalDate actualDeliveryDate;
     /** Дата ЭСФ (электронной счёт-фактуры). Парсится из ручного отчёта. */
@@ -76,6 +80,12 @@ public class DeliveryDto {
 
     public LocalDate getDeliveryDeadline() { return deliveryDeadline; }
     public void setDeliveryDeadline(LocalDate deliveryDeadline) { this.deliveryDeadline = deliveryDeadline; }
+
+    public LocalDate getPlannedDeliveryDate() { return plannedDeliveryDate; }
+    public void setPlannedDeliveryDate(LocalDate plannedDeliveryDate) { this.plannedDeliveryDate = plannedDeliveryDate; }
+
+    public boolean isPlannedDeliveryDateManual() { return plannedDeliveryDateManual; }
+    public void setPlannedDeliveryDateManual(boolean plannedDeliveryDateManual) { this.plannedDeliveryDateManual = plannedDeliveryDateManual; }
 
     public LocalDate getActualDeliveryDate() { return actualDeliveryDate; }
     public void setActualDeliveryDate(LocalDate actualDeliveryDate) { this.actualDeliveryDate = actualDeliveryDate; }

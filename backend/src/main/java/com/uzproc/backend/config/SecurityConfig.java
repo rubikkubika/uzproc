@@ -69,6 +69,9 @@ public class SecurityConfig {
                     // только для аутентифицированных (попадает под anyRequest().authenticated())
                     .requestMatchers(HttpMethod.GET, "/specification-feedback/form/**").permitAll()
                     .requestMatchers(HttpMethod.POST, "/specification-feedback/form/**").permitAll()
+                    // Список закупщиков для выбора в плане закупок — любому аутентифицированному
+                    // (отдаёт только id и ФИО, см. PurchaserOptionDto)
+                    .requestMatchers(HttpMethod.GET, "/users/purchasers").authenticated()
                     // Управление пользователями — только ADMIN
                     .requestMatchers("/users/**").hasRole("ADMIN")
                     // Всё остальное (включая мутации плана, версии плана, change-password,

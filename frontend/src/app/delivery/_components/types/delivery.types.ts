@@ -4,6 +4,10 @@ export interface Delivery {
   date: string | null;
   /** Дедлайн поставки — вычисляется автоматически (read-only). */
   deliveryDeadline: string | null;
+  /** Плановая дата поставки. По умолчанию = дедлайн, может быть изменена вручную. */
+  plannedDeliveryDate: string | null;
+  /** true — плановую дату задали вручную: автопересчёты её больше не меняют. */
+  plannedDeliveryDateManual: boolean;
   /** Фактическая дата поставки (Факт). Задаётся при статусе «Поставлено». */
   actualDeliveryDate: string | null;
   /** Дата ЭСФ (электронной счёт-фактуры). Парсится из ручного отчёта. */

@@ -14,4 +14,7 @@ export const MONTH_FULL_LABELS = [
 export const CHART_HEIGHT = 96;
 
 /** Минимальная высота столбца с ненулевым значением, px — подпись выводится внутри столбца */
-export const MIN_BAR_HEIGHT = 16;
+export const MIN_BAR_HEIGHT = 18;
+
+/** Высота строки с галочками над столбцами (поставленные по фактической дате), px */
+export const DELIVERED_MARK_HEIGHT = 16;

@@ -4,10 +4,12 @@ import com.uzproc.backend.dto.delivery.BulkCreateDeliveriesResultDto;
 import com.uzproc.backend.dto.delivery.CreateDeliveryRequestDto;
 import com.uzproc.backend.dto.delivery.DeliveryContractSearchResultDto;
 import com.uzproc.backend.dto.delivery.DeliveryDeadlineHistogramDto;
+import com.uzproc.backend.dto.delivery.DeliveryResponsibleSummaryDto;
 import com.uzproc.backend.dto.delivery.DeliveryDto;
 import com.uzproc.backend.dto.delivery.DeliveryPaymentSchemeDto;
 import com.uzproc.backend.dto.delivery.UpdateDeliveryPaymentsRequestDto;
 import com.uzproc.backend.dto.payment.PaymentDto;
+import com.uzproc.backend.service.delivery.DeliveryResponsibleSummaryService;
 import com.uzproc.backend.service.delivery.DeliveryService;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
@@ -21,9 +23,22 @@ import java.util.Map;
 public class DeliveryController {
 
     private final DeliveryService deliveryService;
+    private final DeliveryResponsibleSummaryService responsibleSummaryService;
 
-    public DeliveryController(DeliveryService deliveryService) {
+    public DeliveryController(DeliveryService deliveryService,
+                              DeliveryResponsibleSummaryService responsibleSummaryService) {
         this.deliveryService = deliveryService;
+        this.responsibleSummaryService = responsibleSummaryService;
+    }
+
+    /**
+     * Сводка поставок по ответственным: строки — ФИО, колонки — статусы поставки «В работе»,
+     * плюс «Просрочено» и «Поставлено» за год. Фильтры таблицы на сводку не влияют.
+     */
+    @GetMapping("/responsible-summary")
+    public ResponseEntity<DeliveryResponsibleSummaryDto> getResponsibleSummary(
+            @RequestParam(required = false) Integer year) {
+        return ResponseEntity.ok(responsibleSummaryService.getResponsibleSummary(year));
     }
 
     @GetMapping
@@ -34,6 +49,7 @@ public class DeliveryController {
             @RequestParam(required = false) String sortDir,
             @RequestParam(required = false) String innerId,
             @RequestParam(required = false) String contractInnerId,
+            @RequestParam(required = false) String contractPurchaseRequestId,
             @RequestParam(required = false) String supplierName,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String currency,
@@ -46,7 +62,9 @@ public class DeliveryController {
             @RequestParam(required = false) String reportStatus,
             @RequestParam(required = false) String paymentsStatus,
             @RequestParam(required = false) String tab,
-            @RequestParam(required = false) String deliveryDeadline,
+            @RequestParam(required = false) String plannedDeliveryDate,
+            @RequestParam(required = false) Boolean overdue,
+            @RequestParam(required = false) Integer deliveredYear,
             @RequestParam(required = false, defaultValue = "false") boolean recheck) {
 
         // При обновлении списка (recheck=true) — пересчёт статусов: авто-закрытие
@@ -56,16 +74,17 @@ public class DeliveryController {
         }
 
         Page<DeliveryDto> deliveries = deliveryService.findAll(page, size, sortBy, sortDir,
-                innerId, contractInnerId, supplierName, status, currency, comment,
+                innerId, contractInnerId, contractPurchaseRequestId, supplierName, status, currency, comment,
                 responsibleName, dateYear, dateNull, paymentScheme, shipmentStatus, reportStatus, paymentsStatus,
-                tab, deliveryDeadline);
+                tab, plannedDeliveryDate, overdue, deliveredYear);
         return ResponseEntity.ok(deliveries);
     }
 
     /**
-     * Распределение поставок по дням месяца (по плановой дате поставки) — для столбчатой
-     * диаграммы над таблицей. Принимает те же фильтры, что и список, чтобы диаграмма
-     * показывала ровно видимые в таблице записи.
+     * Распределение поставок по дням месяца для столбчатой диаграммы над таблицей:
+     * столбцы — непоставленные поставки по плановой дате, галочки — поставленные
+     * по фактической дате поставки. Принимает те же фильтры, что и список, чтобы
+     * диаграмма показывала ровно видимые в таблице записи.
      */
     @GetMapping("/deadline-histogram")
     public ResponseEntity<DeliveryDeadlineHistogramDto> getDeadlineHistogram(
@@ -73,6 +92,7 @@ public class DeliveryController {
             @RequestParam int month,
             @RequestParam(required = false) String innerId,
             @RequestParam(required = false) String contractInnerId,
+            @RequestParam(required = false) String contractPurchaseRequestId,
             @RequestParam(required = false) String supplierName,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String currency,
@@ -87,7 +107,7 @@ public class DeliveryController {
             @RequestParam(required = false) String tab) {
 
         return ResponseEntity.ok(deliveryService.getDeadlineHistogram(
-                year, month, innerId, contractInnerId, supplierName, status, currency,
+                year, month, innerId, contractInnerId, contractPurchaseRequestId, supplierName, status, currency,
                 comment, responsibleName, dateYear, dateNull, paymentScheme, shipmentStatus,
                 reportStatus, paymentsStatus, tab));
     }
@@ -188,6 +208,18 @@ public class DeliveryController {
                                                               @RequestBody Map<String, String> body) {
         String date = body != null ? body.get("deliveryDeadline") : null;
         return ResponseEntity.ok(deliveryService.updateDeliveryDeadline(id, date));
+    }
+
+    /**
+     * Inline-обновление плановой даты поставки (ISO date). Пустое значение возвращает дату
+     * в автоматический режим (снова равна дедлайну), непустое — фиксирует её как ручную:
+     * автопересчёты, включая стартовую сверку, такую дату не меняют.
+     */
+    @PatchMapping("/{id}/planned-delivery-date")
+    public ResponseEntity<DeliveryDto> updatePlannedDeliveryDate(@PathVariable Long id,
+                                                                 @RequestBody Map<String, String> body) {
+        String date = body != null ? body.get("plannedDeliveryDate") : null;
+        return ResponseEntity.ok(deliveryService.updatePlannedDeliveryDate(id, date));
     }
 
     /** Inline-обновление статуса поставки (Ожидает поставку / Поставлено / Просрочено).

@@ -16,7 +16,6 @@ import com.uzproc.backend.repository.purchaseplan.PurchasePlanItemRepository;
 import com.uzproc.backend.repository.purchaseplan.PurchasePlanItemSupplierRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
 import com.uzproc.backend.repository.user.UserRepository;
-import com.uzproc.backend.service.calendar.WorkingDayService;
 import com.uzproc.backend.service.purchaserequest.PurchaseRequestCommentService;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import jakarta.persistence.criteria.CriteriaQuery;
@@ -58,7 +57,7 @@ public class PurchasePlanItemService {
     private final UserRepository userRepository;
     private final PurchasePlanPurchaserSyncService purchaserSyncService;
     private final PurchaseRequestCommentService purchaseRequestCommentService;
-    private final WorkingDayService workingDayService;
+    private final ProcurementLeadTimeService procurementLeadTimeService;
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -73,7 +72,7 @@ public class PurchasePlanItemService {
             UserRepository userRepository,
             PurchasePlanPurchaserSyncService purchaserSyncService,
             PurchaseRequestCommentService purchaseRequestCommentService,
-            WorkingDayService workingDayService) {
+            ProcurementLeadTimeService procurementLeadTimeService) {
         this.purchasePlanItemRepository = purchasePlanItemRepository;
         this.purchasePlanItemCommentRepository = purchasePlanItemCommentRepository;
         this.purchasePlanItemSupplierRepository = purchasePlanItemSupplierRepository;
@@ -83,7 +82,7 @@ public class PurchasePlanItemService {
         this.userRepository = userRepository;
         this.purchaserSyncService = purchaserSyncService;
         this.purchaseRequestCommentService = purchaseRequestCommentService;
-        this.workingDayService = workingDayService;
+        this.procurementLeadTimeService = procurementLeadTimeService;
     }
 
     public Page<PurchasePlanItemDto> findAll(
@@ -375,40 +374,11 @@ public class PurchasePlanItemService {
     }
 
     /**
-     * Получает количество рабочих дней на основе сложности
-     */
-    private Integer getWorkingDaysByComplexity(String complexity) {
-        if (complexity == null || complexity.trim().isEmpty()) {
-            return null;
-        }
-        try {
-            int complexityNum = Integer.parseInt(complexity.trim());
-            switch (complexityNum) {
-                case 1: return 7;
-                case 2: return 14;
-                case 3: return 22;
-                case 4: return 50;
-                default: return null;
-            }
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    /**
-     * Рассчитывает дату нового договора на основе даты заявки и сложности
+     * Рассчитывает дату завершения закупки на основе даты заявки и сложности.
+     * Формула общая с генерацией драфта — см. {@link ProcurementLeadTimeService}.
      */
     private LocalDate calculateNewContractDate(LocalDate requestDate, String complexity) {
-        if (requestDate == null || complexity == null || complexity.trim().isEmpty()) {
-            return null;
-        }
-        
-        Integer workingDays = getWorkingDaysByComplexity(complexity);
-        if (workingDays == null) {
-            return null;
-        }
-        
-        return workingDayService.addWorkingDaysAfterDate(requestDate, workingDays);
+        return procurementLeadTimeService.calculateNewContractDate(requestDate, complexity);
     }
 
     @Transactional

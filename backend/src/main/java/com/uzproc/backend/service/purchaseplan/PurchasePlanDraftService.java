@@ -33,9 +33,10 @@ import java.util.stream.Collectors;
  * Генерация драфта плана закупок из действующих договоров.
  *
  * Отбираются договоры (без ДС, спецификаций и прочих форм документов) организации-заказчика
- * Uzum Market в статусе «Подписан», срок действия которых заканчивается в декабре года,
+ * Uzum Market в статусе «Подписан», срок действия которых заканчивается начиная с октября года,
  * предшествующего году планирования, либо в течение самого года планирования.
- * Для года планирования 2027 это диапазон 01.12.2026 — 31.12.2027.
+ * Для года планирования 2027 это диапазон 01.10.2026 — 31.12.2027.
+ * Осенние договоры включены потому, что перезакупка по ним приходится уже на год планирования.
  *
  * Аналитика позиции драфта заполняется из договора и (при наличии) из связанной заявки на закупку.
  */
@@ -54,20 +55,32 @@ public class PurchasePlanDraftService {
      */
     private static final List<String> EXCLUDED_CFO_NAME_PARTS = List.of("commerce", "photostudio", "b2b");
 
-    /** Сколько дней до даты нового договора создаётся заявка на закупку (стартовая раскладка Ганта) */
+    /** За сколько дней до окончания текущего договора подаётся заявка на закупку (стартовая раскладка Ганта) */
     private static final int DEFAULT_REQUEST_LEAD_DAYS = 90;
+
+    /**
+     * Месяц года, предшествующего году планирования, с которого начинается окно отбора договоров.
+     * Октябрь: договоры, истекающие осенью, перезакупаются уже в году планирования.
+     */
+    private static final int DRAFT_WINDOW_START_MONTH = 10;
+
+    /** Сложность по умолчанию, если её не удалось взять из связанной заявки на закупку */
+    private static final String DEFAULT_COMPLEXITY = "2";
 
     private final ContractRepository contractRepository;
     private final PurchasePlanItemRepository purchasePlanItemRepository;
     private final PurchaseRequestRepository purchaseRequestRepository;
+    private final ProcurementLeadTimeService procurementLeadTimeService;
 
     public PurchasePlanDraftService(
             ContractRepository contractRepository,
             PurchasePlanItemRepository purchasePlanItemRepository,
-            PurchaseRequestRepository purchaseRequestRepository) {
+            PurchaseRequestRepository purchaseRequestRepository,
+            ProcurementLeadTimeService procurementLeadTimeService) {
         this.contractRepository = contractRepository;
         this.purchasePlanItemRepository = purchasePlanItemRepository;
         this.purchaseRequestRepository = purchaseRequestRepository;
+        this.procurementLeadTimeService = procurementLeadTimeService;
     }
 
     /**
@@ -80,7 +93,7 @@ public class PurchasePlanDraftService {
     public Map<String, Object> generateDraft(Integer year) {
         int planYear = year != null ? year : LocalDate.now().getYear() + 1;
 
-        LocalDateTime from = LocalDate.of(planYear - 1, 12, 1).atStartOfDay();
+        LocalDateTime from = LocalDate.of(planYear - 1, DRAFT_WINDOW_START_MONTH, 1).atStartOfDay();
         LocalDateTime to = LocalDate.of(planYear + 1, 1, 1).atStartOfDay();
 
         List<Contract> contracts = contractRepository.findAll(buildContractSpecification(from, to));
@@ -225,21 +238,28 @@ public class PurchasePlanDraftService {
         item.setCurrentContractEndDate(currentEnd);
         item.setContractEndDate(currentEnd);
 
-        // Стартовая раскладка Ганта: новый договор — со следующего дня после окончания текущего,
-        // заявка — за DEFAULT_REQUEST_LEAD_DAYS дней до него, но не раньше января года планирования
+        // Сложность: из связанной заявки, а без заявки — средний уровень (закупщик уточнит вручную).
+        // Определяется до расчёта дат, потому что от неё зависит длительность процедуры закупки
+        String complexity = request != null ? trimToLength(request.getComplexity(), 255) : null;
+        if (!isNotBlank(complexity)) {
+            complexity = DEFAULT_COMPLEXITY;
+        }
+        item.setComplexity(complexity);
+
+        // Стартовая раскладка Ганта: заявка подаётся за DEFAULT_REQUEST_LEAD_DAYS дней до окончания
+        // текущего договора, но не раньше января года планирования; завершение закупки считается
+        // от даты заявки и сложности — той же формулой, что и при ручном изменении даты в плане
         if (currentEnd != null) {
-            LocalDate newContractDate = currentEnd.plusDays(1);
             LocalDate planYearStart = LocalDate.of(planYear, 1, 1);
-            LocalDate requestDate = newContractDate.minusDays(DEFAULT_REQUEST_LEAD_DAYS);
+            LocalDate requestDate = currentEnd.plusDays(1).minusDays(DEFAULT_REQUEST_LEAD_DAYS);
             if (requestDate.isBefore(planYearStart)) {
                 requestDate = planYearStart;
             }
-            // Договор не может быть заключён раньше заявки на закупку
-            if (newContractDate.isBefore(requestDate)) {
-                newContractDate = requestDate;
-            }
             item.setRequestDate(requestDate);
-            item.setNewContractDate(newContractDate);
+
+            LocalDate newContractDate = procurementLeadTimeService.calculateNewContractDate(requestDate, complexity);
+            // Сложность в драфте заполняется всегда, но подстрахуемся от неизвестного значения
+            item.setNewContractDate(newContractDate != null ? newContractDate : requestDate);
         }
 
         // Контрагент действующего договора
@@ -252,9 +272,8 @@ public class PurchasePlanDraftService {
                 .collect(Collectors.joining(", "));
         item.setCurrentKa(trimToLength(isNotBlank(currentKa) ? currentKa : null, 255));
 
-        // Аналитика из заявки на закупку
+        // Аналитика из заявки на закупку (сложность выставлена выше — от неё зависят даты)
         if (request != null) {
-            item.setComplexity(trimToLength(request.getComplexity(), 255));
             item.setCategory(trimToLength(request.getExpenseItem(), 255));
             item.setProduct(trimToLength(request.getCostType(), 500));
             item.setIsStrategicProduct(request.getIsStrategicProduct());

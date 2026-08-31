@@ -2,11 +2,11 @@
 
 import React from 'react';
 
-export type DeliveryTab = 'in-work' | 'closed' | 'closed-review';
+export type DeliveryTab = 'all' | 'in-work' | 'closed' | 'closed-review';
 
 interface DeliveryTableTabsProps {
   activeTab: DeliveryTab;
-  tabCounts: { inWork: number | null; closed: number | null; closedReview: number | null };
+  tabCounts: { all: number | null; inWork: number | null; closed: number | null; closedReview: number | null };
   onTabChange: (tab: DeliveryTab) => void;
   /** Действия в правом верхнем углу раздела (напр. кнопка запуска тура). */
   actions?: React.ReactNode;
@@ -15,6 +15,7 @@ interface DeliveryTableTabsProps {
 /**
  * Вкладки таблицы поставок — по аналогии с таблицей заявок (PurchaseRequestsTableTabs).
  * Вкладки не пересекаются: поставка попадает ровно в одну.
+ *   «Все»                — без фильтра по состоянию (нужна для срезов сводки, идущих через вкладки);
  *   «В работе»           — все, кроме закрытых по правилам и закрытых в отчёте;
  *   «Закрыто»            — «Поставлено» + «Оплачено» (правила системы);
  *   «Закрыто-разобрать»  — в отчёте «Закрыто», но по правилам поставка не закрыта.
@@ -29,6 +30,7 @@ export default function DeliveryTableTabs({ activeTab, tabCounts, onTabChange, a
       count: tabCounts.closedReview,
       title: 'В отчёте «Закрыто», но по правилам («Поставлено» + «Оплачено») поставка не закрыта',
     },
+    { key: 'all', label: 'Все', count: tabCounts.all, title: 'Без фильтра по состоянию поставки' },
   ];
 
   return (

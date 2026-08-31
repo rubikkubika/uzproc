@@ -79,7 +79,8 @@ export function useDeliveryDeadlineChart({
         } else if (dateYear !== null) {
           params.append('dateYear', String(dateYear));
         }
-        if (tab) params.append('tab', tab);
+        // 'all' — вкладка «Все»: фильтра по состоянию нет, параметр не отправляем
+        if (tab && tab !== 'all') params.append('tab', tab);
 
         const res = await fetch(`${getBackendUrl()}/api/deliveries/deadline-histogram?${params.toString()}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);

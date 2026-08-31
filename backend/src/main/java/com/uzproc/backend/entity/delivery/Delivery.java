@@ -33,6 +33,18 @@ public class Delivery {
     @Column(name = "delivery_deadline")
     private LocalDate deliveryDeadline;
 
+    /**
+     * Плановая дата поставки. По умолчанию равна дедлайну ({@link #deliveryDeadline}) и
+     * пересчитывается вместе с ним. Если дату изменили вручную
+     * ({@link #plannedDeliveryDateManual} = true), автоматические пересчёты её не трогают.
+     */
+    @Column(name = "planned_delivery_date")
+    private LocalDate plannedDeliveryDate;
+
+    /** true — плановую дату поставки задали вручную, автопересчёт её не меняет. */
+    @Column(name = "planned_delivery_date_manual", nullable = false)
+    private boolean plannedDeliveryDateManual = false;
+
     /** Фактическая дата поставки. Задаётся при переводе статуса поставки в «Поставлено». */
     @Column(name = "actual_delivery_date")
     private LocalDate actualDeliveryDate;
@@ -118,6 +130,12 @@ public class Delivery {
 
     public LocalDate getDeliveryDeadline() { return deliveryDeadline; }
     public void setDeliveryDeadline(LocalDate deliveryDeadline) { this.deliveryDeadline = deliveryDeadline; }
+
+    public LocalDate getPlannedDeliveryDate() { return plannedDeliveryDate; }
+    public void setPlannedDeliveryDate(LocalDate plannedDeliveryDate) { this.plannedDeliveryDate = plannedDeliveryDate; }
+
+    public boolean isPlannedDeliveryDateManual() { return plannedDeliveryDateManual; }
+    public void setPlannedDeliveryDateManual(boolean plannedDeliveryDateManual) { this.plannedDeliveryDateManual = plannedDeliveryDateManual; }
 
     public LocalDate getActualDeliveryDate() { return actualDeliveryDate; }
     public void setActualDeliveryDate(LocalDate actualDeliveryDate) { this.actualDeliveryDate = actualDeliveryDate; }

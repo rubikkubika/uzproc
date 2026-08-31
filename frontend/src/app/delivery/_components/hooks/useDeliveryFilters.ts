@@ -5,6 +5,7 @@ import { useFocusRestore } from './useFocusRestore';
 const INITIAL_FILTERS: Record<string, string> = {
   innerId: '',
   contractInnerId: '',
+  contractPurchaseRequestId: '',
   supplierName: '',
   status: '',
   currency: '',
@@ -15,7 +16,14 @@ const INITIAL_FILTERS: Record<string, string> = {
 };
 
 export type PaymentSchemeFilterValue = '' | 'POSTPAYMENT' | 'PREPAYMENT';
-export type ShipmentStatusFilterValue = '' | 'EXPECTED' | 'DELIVERED' | 'OVERDUE';
+export type ShipmentStatusFilterValue =
+  | ''
+  /** Спецзначение: статус поставки не заполнен (колонка «Без статуса» в сводке) */
+  | 'NONE'
+  | 'EXPECTED'
+  | 'AWAITING_ADVANCE_PAYMENT'
+  | 'DELIVERED'
+  | 'OVERDUE';
 
 export const useDeliveryFilters = (setCurrentPage: (page: number) => void) => {
   const [localFilters, setLocalFilters] = useState<Record<string, string>>({ ...INITIAL_FILTERS });
@@ -23,6 +31,10 @@ export const useDeliveryFilters = (setCurrentPage: (page: number) => void) => {
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [paymentSchemeFilter, setPaymentSchemeFilterState] = useState<PaymentSchemeFilterValue>('');
   const [shipmentStatusFilter, setShipmentStatusFilterState] = useState<ShipmentStatusFilterValue>('');
+  // Срезы из сводки по ответственным: «Просрочено» и «Поставлено за год».
+  // Обычными колонками таблицы не выражаются, поэтому живут отдельными флагами.
+  const [overdueFilter, setOverdueFilterState] = useState(false);
+  const [deliveredYearFilter, setDeliveredYearFilterState] = useState<number | null>(null);
 
   const setPaymentSchemeFilter = useCallback((value: PaymentSchemeFilterValue) => {
     setPaymentSchemeFilterState(value);
@@ -31,6 +43,16 @@ export const useDeliveryFilters = (setCurrentPage: (page: number) => void) => {
 
   const setShipmentStatusFilter = useCallback((value: ShipmentStatusFilterValue) => {
     setShipmentStatusFilterState(value);
+    setCurrentPage(0);
+  }, [setCurrentPage]);
+
+  const setOverdueFilter = useCallback((value: boolean) => {
+    setOverdueFilterState(value);
+    setCurrentPage(0);
+  }, [setCurrentPage]);
+
+  const setDeliveredYearFilter = useCallback((value: number | null) => {
+    setDeliveredYearFilterState(value);
     setCurrentPage(0);
   }, [setCurrentPage]);
 
@@ -89,6 +111,10 @@ export const useDeliveryFilters = (setCurrentPage: (page: number) => void) => {
     setPaymentSchemeFilter,
     shipmentStatusFilter,
     setShipmentStatusFilter,
+    overdueFilter,
+    setOverdueFilter,
+    deliveredYearFilter,
+    setDeliveredYearFilter,
     setReportStatusFilter,
     setPaymentsStatusFilter,
     setStatusFilter,

@@ -65,7 +65,7 @@ export const usePurchasePlanItemsEditing = (
   const [editingPurchaser, setEditingPurchaser] = useState<number | null>(null);
   const [availablePurchasers, setAvailablePurchasers] = useState<Array<{ id: number; name: string }>>([]);
 
-  // Загрузка пользователей по требованию (при открытии модалки создания или редактировании закупщика)
+  // Загрузка закупщиков по требованию (при открытии модалки создания или редактировании закупщика)
   const loadUsersIfNeeded = useCallback(async () => {
     if (usersCacheRef.current) {
       setAvailablePurchasers(usersCacheRef.current);
@@ -75,15 +75,10 @@ export const usePurchasePlanItemsEditing = (
     usersLoadingRef.current = true;
     usersFetchedRef.current = true;
     try {
-      const response = await fetch(`${getBackendUrl()}/api/users?page=0&size=1000`);
+      // Только пользователи с признаком «Закупщик» — бэкенд отдаёт готовые id и ФИО
+      const response = await fetch(`${getBackendUrl()}/api/users/purchasers`);
       if (response.ok) {
-        const data = await response.json();
-        const users = data.content.map((user: any) => ({
-          id: user.id,
-          name: user.surname && user.name
-            ? `${user.surname} ${user.name}`
-            : user.username || 'Пользователь'
-        }));
+        const users = await response.json();
         usersCacheRef.current = users;
         setAvailablePurchasers(users);
       }

@@ -3,7 +3,8 @@ package com.uzproc.backend.dto.delivery;
 import java.util.List;
 
 /**
- * Распределение поставок по дням месяца по плановой дате поставки (deliveryDeadline).
+ * Распределение поставок по дням месяца: столбцы — непоставленные поставки по плановой дате
+ * (plannedDeliveryDate), галочки над столбцами — поставленные по фактической дате поставки.
  * Используется столбчатой диаграммой над таблицей поставок.
  */
 public class DeliveryDeadlineHistogramDto {
@@ -14,19 +15,22 @@ public class DeliveryDeadlineHistogramDto {
     private int month;
     /** Число дней в месяце — столько столбцов рисует диаграмма */
     private int daysInMonth;
-    /** Всего поставок с плановой датой в этом месяце */
+    /** Всего непоставленных поставок с плановой датой в этом месяце */
     private int total;
+    /** Всего поставленных поставок с фактической датой поставки в этом месяце */
+    private int deliveredTotal;
     /** Количество поставок по каждому дню месяца, по одному элементу на день */
     private List<DeliveryDeadlineDayDto> days;
 
     public DeliveryDeadlineHistogramDto() {}
 
     public DeliveryDeadlineHistogramDto(int year, int month, int daysInMonth, int total,
-                                        List<DeliveryDeadlineDayDto> days) {
+                                        int deliveredTotal, List<DeliveryDeadlineDayDto> days) {
         this.year = year;
         this.month = month;
         this.daysInMonth = daysInMonth;
         this.total = total;
+        this.deliveredTotal = deliveredTotal;
         this.days = days;
     }
 
@@ -41,6 +45,9 @@ public class DeliveryDeadlineHistogramDto {
 
     public int getTotal() { return total; }
     public void setTotal(int total) { this.total = total; }
+
+    public int getDeliveredTotal() { return deliveredTotal; }
+    public void setDeliveredTotal(int deliveredTotal) { this.deliveredTotal = deliveredTotal; }
 
     public List<DeliveryDeadlineDayDto> getDays() { return days; }
     public void setDays(List<DeliveryDeadlineDayDto> days) { this.days = days; }

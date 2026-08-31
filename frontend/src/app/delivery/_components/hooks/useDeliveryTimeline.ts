@@ -43,7 +43,11 @@ export function useDeliveryTimeline({
         .map((p) => p.paymentDate)
     );
 
-    const planDate = delivery.deliveryDeadline ?? delivery.contractPlannedDeliveryStartDate;
+    // Плановая дата поставки (по умолчанию = дедлайн, может быть изменена вручную),
+    // при её отсутствии — дедлайн, затем плановая дата начала поставки из договора
+    const planDate = delivery.plannedDeliveryDate
+      ?? delivery.deliveryDeadline
+      ?? delivery.contractPlannedDeliveryStartDate;
     const factDate = delivery.actualDeliveryDate ?? delivery.esfDate;
 
     const planState: TimelineStepState = factDate ? 'done' : planDate ? 'current' : 'pending';

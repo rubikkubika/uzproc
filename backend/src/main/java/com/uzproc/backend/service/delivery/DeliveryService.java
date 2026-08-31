@@ -150,6 +150,7 @@ public class DeliveryService {
             String sortDir,
             String innerId,
             String contractInnerId,
+            String contractPurchaseRequestId,
             String supplierName,
             String status,
             String currency,
@@ -162,12 +163,14 @@ public class DeliveryService {
             String reportStatus,
             String paymentsStatus,
             String tab,
-            String deliveryDeadline) {
+            String plannedDeliveryDate,
+            Boolean overdue,
+            Integer deliveredYear) {
 
         Specification<Delivery> spec = buildSpecification(
-                innerId, contractInnerId, supplierName, status, currency,
+                innerId, contractInnerId, contractPurchaseRequestId, supplierName, status, currency,
                 comment, responsibleName, dateYear, dateNull, paymentScheme, shipmentStatus,
-                reportStatus, paymentsStatus, tab, deliveryDeadline);
+                reportStatus, paymentsStatus, tab, plannedDeliveryDate, overdue, deliveredYear);
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
 
@@ -192,16 +195,21 @@ public class DeliveryService {
     }
 
     /**
-     * Распределение поставок по дням указанного месяца — по плановой дате поставки
-     * (deliveryDeadline). Фильтры и вкладка применяются те же, что в списке поставок,
-     * поэтому диаграмма показывает ровно те записи, которые видны в таблице.
-     * Поставки без плановой даты в распределение не попадают.
+     * Распределение поставок по дням указанного месяца для диаграммы над таблицей.
+     * Столбцы — только ещё не поставленные поставки (статус поставки не «Поставлено»)
+     * по плановой дате поставки (plannedDeliveryDate).
+     * Отдельно считаются поставленные поставки по фактической дате поставки
+     * (actualDeliveryDate) — они выводятся галочками над столбцами.
+     * Фильтры и вкладка применяются те же, что в списке поставок, поэтому диаграмма
+     * показывает ровно те записи, которые видны в таблице.
+     * Поставки без соответствующей даты в распределение не попадают.
      */
     public DeliveryDeadlineHistogramDto getDeadlineHistogram(
             int year,
             int month,
             String innerId,
             String contractInnerId,
+            String contractPurchaseRequestId,
             String supplierName,
             String status,
             String currency,
@@ -219,27 +227,46 @@ public class DeliveryService {
         LocalDate monthEnd = monthStart.plusMonths(1).minusDays(1);
         int daysInMonth = monthEnd.getDayOfMonth();
 
-        Specification<Delivery> spec = buildSpecification(
-                innerId, contractInnerId, supplierName, status, currency,
+        Specification<Delivery> baseSpec = buildSpecification(
+                innerId, contractInnerId, contractPurchaseRequestId, supplierName, status, currency,
                 comment, responsibleName, dateYear, dateNull, paymentScheme, shipmentStatus,
-                reportStatus, paymentsStatus, tab, null)
-                .and((root, query, cb) -> cb.between(root.get("deliveryDeadline"), monthStart, monthEnd));
+                reportStatus, paymentsStatus, tab, null, null, null);
+
+        // Столбцы: непоставленные поставки по плановой дате поставки
+        Specification<Delivery> plannedSpec = baseSpec.and((root, query, cb) -> cb.and(
+                cb.notEqual(root.get("shipmentStatus"), ShipmentStatus.DELIVERED),
+                cb.between(root.get("plannedDeliveryDate"), monthStart, monthEnd)));
 
         int[] counts = new int[daysInMonth + 1];
         int total = 0;
-        for (Delivery delivery : deliveryRepository.findAll(spec)) {
-            LocalDate deadline = delivery.getDeliveryDeadline();
-            if (deadline == null) continue;
-            counts[deadline.getDayOfMonth()]++;
+        for (Delivery delivery : deliveryRepository.findAll(plannedSpec)) {
+            LocalDate planned = delivery.getPlannedDeliveryDate();
+            if (planned == null) continue;
+            counts[planned.getDayOfMonth()]++;
             total++;
+        }
+
+        // Галочки над столбцами: поставленные поставки по фактической дате поставки
+        Specification<Delivery> deliveredSpec = baseSpec.and((root, query, cb) -> cb.and(
+                cb.equal(root.get("shipmentStatus"), ShipmentStatus.DELIVERED),
+                cb.between(root.get("actualDeliveryDate"), monthStart, monthEnd)));
+
+        int[] deliveredCounts = new int[daysInMonth + 1];
+        int deliveredTotal = 0;
+        for (Delivery delivery : deliveryRepository.findAll(deliveredSpec)) {
+            LocalDate actual = delivery.getActualDeliveryDate();
+            if (actual == null) continue;
+            deliveredCounts[actual.getDayOfMonth()]++;
+            deliveredTotal++;
         }
 
         List<DeliveryDeadlineDayDto> days = new ArrayList<>(daysInMonth);
         for (int day = 1; day <= daysInMonth; day++) {
-            days.add(new DeliveryDeadlineDayDto(day, counts[day]));
+            days.add(new DeliveryDeadlineDayDto(day, counts[day], deliveredCounts[day]));
         }
-        logger.info("Delivery deadline histogram: {}-{}, {} deliveries", year, month, total);
-        return new DeliveryDeadlineHistogramDto(year, month, daysInMonth, total, days);
+        logger.info("Delivery deadline histogram: {}-{}, {} planned (not delivered), {} delivered",
+                year, month, total, deliveredTotal);
+        return new DeliveryDeadlineHistogramDto(year, month, daysInMonth, total, deliveredTotal, days);
     }
 
     public DeliveryDto findById(Long id) {
@@ -455,6 +482,12 @@ public class DeliveryService {
     }
 
     /** Вкладки списка поставок. */
+    /** Спецзначение фильтров статуса поставки и статуса оплаты: статус не заполнен (колонка «Без статуса» в сводке). */
+    public static final String SHIPMENT_STATUS_NONE = "NONE";
+
+    /** Вкладка «Все»: фильтра по состоянию поставки нет. */
+    public static final String TAB_ALL = "all";
+
     public static final String TAB_IN_WORK = "in-work";
     public static final String TAB_CLOSED = "closed";
     public static final String TAB_CLOSED_REVIEW = "closed-review";
@@ -1381,8 +1414,35 @@ public class DeliveryService {
                 throw new IllegalArgumentException("Некорректная дата: " + isoDate);
             }
         }
+        syncPlannedDeliveryDate(delivery);
         Delivery saved = deliveryRepository.save(delivery);
         logger.info("Updated delivery id={} deliveryDeadline={}", saved.getId(), saved.getDeliveryDeadline());
+        return toDto(saved);
+    }
+
+    /**
+     * Inline-обновление плановой даты поставки. Непустая дата считается заданной вручную —
+     * с этого момента автоматические пересчёты (в том числе при старте приложения) её не меняют.
+     * Пустое значение возвращает дату в автоматический режим: она снова равна дедлайну поставки.
+     */
+    @Transactional
+    public DeliveryDto updatePlannedDeliveryDate(Long id, String isoDate) {
+        Delivery delivery = deliveryRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Поставка не найдена: id=" + id));
+        if (isoDate == null || isoDate.trim().isEmpty()) {
+            delivery.setPlannedDeliveryDateManual(false);
+            delivery.setPlannedDeliveryDate(delivery.getDeliveryDeadline());
+        } else {
+            try {
+                delivery.setPlannedDeliveryDate(LocalDate.parse(isoDate.trim()));
+            } catch (Exception ex) {
+                throw new IllegalArgumentException("Некорректная дата: " + isoDate);
+            }
+            delivery.setPlannedDeliveryDateManual(true);
+        }
+        Delivery saved = deliveryRepository.save(delivery);
+        logger.info("Updated delivery id={} plannedDeliveryDate={} manual={}",
+                saved.getId(), saved.getPlannedDeliveryDate(), saved.isPlannedDeliveryDateManual());
         return toDto(saved);
     }
 
@@ -1491,6 +1551,17 @@ public class DeliveryService {
             }
         }
         delivery.setDeliveryDeadline(base != null ? addWorkingDays(base, term) : null);
+        syncPlannedDeliveryDate(delivery);
+    }
+
+    /**
+     * Подтягивает плановую дату поставки к дедлайну. Плановая дата по умолчанию равна дедлайну,
+     * но если её задали вручную (plannedDeliveryDateManual), автоматические пересчёты —
+     * в том числе стартовая сверка — её не меняют.
+     */
+    private void syncPlannedDeliveryDate(Delivery delivery) {
+        if (delivery.isPlannedDeliveryDateManual()) return;
+        delivery.setPlannedDeliveryDate(delivery.getDeliveryDeadline());
     }
 
     /**
@@ -1710,10 +1781,12 @@ public class DeliveryService {
     }
 
     private Specification<Delivery> buildSpecification(
-            String innerId, String contractInnerId, String supplierName, String status,
+            String innerId, String contractInnerId, String contractPurchaseRequestId,
+            String supplierName, String status,
             String currency, String comment, String responsibleName,
             Integer dateYear, Boolean dateNull, String paymentScheme, String shipmentStatus,
-            String reportStatus, String paymentsStatus, String tab, String deliveryDeadline) {
+            String reportStatus, String paymentsStatus, String tab, String plannedDeliveryDate,
+            Boolean overdue, Integer deliveredYear) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -1726,18 +1799,32 @@ public class DeliveryService {
                 predicates.add(cb.like(cb.lower(contractJoin.get("innerId")), "%" + contractInnerId.trim().toLowerCase() + "%"));
             }
 
+            // Номер заявки на закупку берётся из связанного договора-спецификации.
+            // Фильтр текстовый (поиск по вхождению), поэтому число приводится к строке.
+            if (contractPurchaseRequestId != null && !contractPurchaseRequestId.trim().isEmpty()) {
+                var contractJoin = root.join("contract", jakarta.persistence.criteria.JoinType.LEFT);
+                predicates.add(cb.like(
+                        contractJoin.get("purchaseRequestId").as(String.class),
+                        "%" + contractPurchaseRequestId.trim() + "%"));
+            }
+
             if (supplierName != null && !supplierName.trim().isEmpty()) {
                 var supplierJoin = root.join("supplier", jakarta.persistence.criteria.JoinType.LEFT);
                 predicates.add(cb.like(cb.lower(supplierJoin.get("name")), "%" + supplierName.trim().toLowerCase() + "%"));
             }
 
             if (status != null && !status.trim().isEmpty()) {
-                DeliveryStatus parsed = DeliveryStatus.fromDisplayName(status.trim());
-                if (parsed != null) {
-                    predicates.add(cb.equal(root.get("status"), parsed));
+                // Спецзначение из сводки по ответственным: поставки с незаполненным статусом оплаты
+                if (SHIPMENT_STATUS_NONE.equalsIgnoreCase(status.trim())) {
+                    predicates.add(cb.isNull(root.get("status")));
                 } else {
-                    // нет совпадения по displayName/name — гарантированно пустой результат
-                    predicates.add(cb.disjunction());
+                    DeliveryStatus parsed = DeliveryStatus.fromDisplayName(status.trim());
+                    if (parsed != null) {
+                        predicates.add(cb.equal(root.get("status"), parsed));
+                    } else {
+                        // нет совпадения по displayName/name — гарантированно пустой результат
+                        predicates.add(cb.disjunction());
+                    }
                 }
             }
 
@@ -1763,12 +1850,20 @@ public class DeliveryService {
                 ));
             }
 
-            // Плановая дата поставки — фильтр по конкретному дню (клик по столбцу диаграммы)
-            if (deliveryDeadline != null && !deliveryDeadline.trim().isEmpty()) {
+            // Фильтр по конкретному дню (клик по столбцу диаграммы). Столбец объединяет два среза:
+            // непоставленные поставки с плановой датой в этот день и поставленные с фактической
+            // датой поставки в этот день — таблица показывает и то, и другое.
+            if (plannedDeliveryDate != null && !plannedDeliveryDate.trim().isEmpty()) {
                 try {
-                    predicates.add(cb.equal(root.get("deliveryDeadline"), LocalDate.parse(deliveryDeadline.trim())));
+                    LocalDate day = LocalDate.parse(plannedDeliveryDate.trim());
+                    predicates.add(cb.or(
+                            cb.and(cb.notEqual(root.get("shipmentStatus"), ShipmentStatus.DELIVERED),
+                                    cb.equal(root.get("plannedDeliveryDate"), day)),
+                            cb.and(cb.equal(root.get("shipmentStatus"), ShipmentStatus.DELIVERED),
+                                    cb.equal(root.get("actualDeliveryDate"), day))
+                    ));
                 } catch (Exception e) {
-                    logger.warn("Delivery list: некорректная плановая дата '{}' — фильтр пропущен", deliveryDeadline);
+                    logger.warn("Delivery list: некорректная плановая дата '{}' — фильтр пропущен", plannedDeliveryDate);
                 }
             }
 
@@ -1790,12 +1885,35 @@ public class DeliveryService {
             }
 
             if (shipmentStatus != null && !shipmentStatus.trim().isEmpty()) {
-                ShipmentStatus parsed = ShipmentStatus.fromDisplayName(shipmentStatus.trim());
-                if (parsed != null) {
-                    predicates.add(cb.equal(root.get("shipmentStatus"), parsed));
+                // Спецзначение из сводки по ответственным: поставки с незаполненным статусом
+                if (SHIPMENT_STATUS_NONE.equalsIgnoreCase(shipmentStatus.trim())) {
+                    predicates.add(cb.isNull(root.get("shipmentStatus")));
                 } else {
-                    predicates.add(cb.disjunction());
+                    ShipmentStatus parsed = ShipmentStatus.fromDisplayName(shipmentStatus.trim());
+                    if (parsed != null) {
+                        predicates.add(cb.equal(root.get("shipmentStatus"), parsed));
+                    } else {
+                        predicates.add(cb.disjunction());
+                    }
                 }
+            }
+
+            // «Просрочено» из сводки: ещё не поставлено, а плановая дата поставки уже прошла
+            if (Boolean.TRUE.equals(overdue)) {
+                predicates.add(cb.and(
+                        cb.or(cb.notEqual(root.get("shipmentStatus"), ShipmentStatus.DELIVERED),
+                                cb.isNull(root.get("shipmentStatus"))),
+                        cb.isNotNull(root.get("plannedDeliveryDate")),
+                        cb.lessThan(root.get("plannedDeliveryDate"), LocalDate.now())));
+            }
+
+            // «Поставлено за год» из сводки: статус «Поставлено» и фактическая дата поставки в этом году
+            if (deliveredYear != null) {
+                predicates.add(cb.and(
+                        cb.equal(root.get("shipmentStatus"), ShipmentStatus.DELIVERED),
+                        cb.between(root.get("actualDeliveryDate"),
+                                LocalDate.of(deliveredYear, 1, 1),
+                                LocalDate.of(deliveredYear, 12, 31))));
             }
 
             if (reportStatus != null && !reportStatus.trim().isEmpty()) {
@@ -1869,7 +1987,11 @@ public class DeliveryService {
                     case TAB_CLOSED -> predicates.add(closedByRules);
                     case TAB_CLOSED_REVIEW -> predicates.add(cb.and(closedInReport, notClosedByRules));
                     case TAB_IN_WORK -> predicates.add(cb.and(notClosedByRules, notClosedInReport));
-                    default -> throw new IllegalArgumentException("Неизвестная вкладка: " + tab);
+                    // «Все» и любое неизвестное значение — без фильтра по состоянию.
+                    // Исключение здесь роняло бы запрос, а при stateless-JWT ошибка контроллера
+                    // возвращается клиенту как 403 и выглядит как проблема доступа.
+                    case TAB_ALL -> { }
+                    default -> logger.warn("Delivery list: неизвестная вкладка '{}' — фильтр по вкладке пропущен", tab);
                 }
             }
 
@@ -1915,6 +2037,8 @@ public class DeliveryService {
         dto.setInnerId(entity.getInnerId());
         dto.setDate(entity.getDate());
         dto.setDeliveryDeadline(entity.getDeliveryDeadline());
+        dto.setPlannedDeliveryDate(entity.getPlannedDeliveryDate());
+        dto.setPlannedDeliveryDateManual(entity.isPlannedDeliveryDateManual());
         dto.setActualDeliveryDate(entity.getActualDeliveryDate());
         dto.setEsfDate(entity.getEsfDate());
         dto.setReportStatus(entity.getReportStatus());

@@ -22,6 +22,10 @@ import CreateDeliveryModal from './ui/CreateDeliveryModal';
 import DeliveryTableTabs from './ui/DeliveryTableTabs';
 import DeliveryDetailsModal from './ui/DeliveryDetailsModal';
 import DeliveryDeadlineChart from './ui/DeliveryDeadlineChart';
+import DeliveryDatesCell from './ui/DeliveryDatesCell';
+import DeliveryResponsibleSummaryTable from './ui/summary/DeliveryResponsibleSummaryTable';
+import { useDeliveryResponsibleSummary } from './hooks/useDeliveryResponsibleSummary';
+import { useDeliverySummarySelection } from './hooks/useDeliverySummarySelection';
 import { useDeliveryDeadlineChart } from './hooks/useDeliveryDeadlineChart';
 import DeliveryTour from './ui/tour/DeliveryTour';
 import TourButton from './ui/tour/TourButton';
@@ -51,8 +55,10 @@ export default function DeliveryTable() {
     handleYearChange,
     handleShowNoDate,
     handleShowAll,
+    currentYear,
     reload,
-    setDeadlineDate,
+    setPlannedDate,
+    updatePlannedDeliveryDate,
   } = useDeliveryTable();
 
   // Диаграмма распределения поставок по дням месяца — по плановой дате поставки
@@ -63,7 +69,20 @@ export default function DeliveryTable() {
     dateYear: showNoDate ? null : selectedYear,
     showNoDate,
     tab: activeTab,
-    onSelectedDateChange: setDeadlineDate,
+    onSelectedDateChange: setPlannedDate,
+  });
+
+  // Сводка по ответственным — не зависит от фильтров таблицы (как в заявках и договорах),
+  // в том числе от фильтра дат: колонка «Поставлено» всегда за текущий год и подписана им.
+  const summaryYear = currentYear;
+  const { summary, loading: summaryLoading } = useDeliveryResponsibleSummary(summaryYear);
+
+  // Клики по ячейкам сводки: ставят таблице ровно те фильтры, по которым посчитана ячейка
+  const summarySelection = useDeliverySummarySelection({
+    setActiveTab,
+    showAllDates: handleShowAll,
+    summaryYear,
+    filters,
   });
 
   const tour = useDeliveryTour();
@@ -130,20 +149,21 @@ export default function DeliveryTable() {
     width: string;
     hasFilter: boolean;
     hasSort: boolean;
-    filterKind?: 'text' | 'paymentScheme' | 'shipmentStatus' | 'reportStatus' | 'paymentsStatus' | 'deliveryStatus' | 'responsible';
+    filterKind?: 'text' | 'currency' | 'paymentScheme' | 'shipmentStatus' | 'reportStatus' | 'paymentsStatus' | 'deliveryStatus' | 'responsible';
   }> = [
     { field: 'innerId', label: '№', width: '5%', hasFilter: true, hasSort: true, filterKind: 'text' },
-    { field: 'deliveryDeadline', label: 'Даты поставки', width: '11%', hasFilter: false, hasSort: true },
+    { field: 'plannedDeliveryDate', label: 'Даты поставки', width: '13%', hasFilter: false, hasSort: true },
     { field: 'shipmentStatus', label: 'Статус поставки', width: '8%', hasFilter: true, hasSort: false, filterKind: 'shipmentStatus' },
     { field: 'reportStatus', label: 'Статус (отчёт)', width: '7%', hasFilter: true, hasSort: false, filterKind: 'reportStatus' },
     { field: 'paymentScheme', label: 'Схема оплаты', width: '8%', hasFilter: true, hasSort: false, filterKind: 'paymentScheme' },
     { field: 'payments', label: 'Оплаты', width: '9%', hasFilter: true, hasSort: false, filterKind: 'paymentsStatus' },
     { field: 'status', label: 'Статус оплаты', width: '8%', hasFilter: true, hasSort: false, filterKind: 'deliveryStatus' },
     { field: 'contractInnerId', label: 'Договор', width: '9%', hasFilter: true, hasSort: false, filterKind: 'text' },
-    { field: 'contractPurchaseRequestId', label: 'Заявка', width: '5%', hasFilter: false, hasSort: true },
+    { field: 'contractPurchaseRequestId', label: 'Заявка', width: '6%', hasFilter: true, hasSort: true, filterKind: 'text' },
     { field: 'supplierName', label: 'Поставщик', width: '12%', hasFilter: true, hasSort: false, filterKind: 'text' },
-    { field: 'amount', label: 'Сумма', width: '8%', hasFilter: false, hasSort: true },
-    { field: 'currency', label: 'Валюта', width: '5%', hasFilter: true, hasSort: false, filterKind: 'text' },
+    // Сумма и валюта объединены в одну колонку (как «Бюджет» в заявках): валюта показывается
+    // символом рядом с суммой, а фильтр колонки ищет по валюте
+    { field: 'amount', label: 'Сумма', width: '9%', hasFilter: true, hasSort: true, filterKind: 'currency' },
     {
       field: 'comment',
       label: (
@@ -260,6 +280,20 @@ export default function DeliveryTable() {
         onTabChange={setActiveTab}
         actions={<TourButton onClick={tour.start} />}
       />
+      {/* Сводка по ответственным — над панелью управления, как сводки в заявках и договорах */}
+      <div data-tour="responsible-summary" className="px-3 py-2 border-b border-gray-200 bg-white flex-shrink-0">
+        <DeliveryResponsibleSummaryTable
+          summary={summary}
+          loading={summaryLoading}
+          selectedResponsible={filters.localFilters.responsibleName ?? ''}
+          onResponsibleClick={summarySelection.onResponsibleClick}
+          onShipmentStatusClick={summarySelection.onShipmentStatusClick}
+          onPaymentStatusClick={summarySelection.onPaymentStatusClick}
+          onOverdueClick={summarySelection.onOverdueClick}
+          onDeliveredClick={summarySelection.onDeliveredClick}
+        />
+      </div>
+
       <div className="px-3 py-1 border-b border-gray-200 flex items-center justify-between bg-gray-50 flex-shrink-0">
         <div className="flex items-center gap-2 flex-wrap">
           <button
@@ -360,7 +394,10 @@ export default function DeliveryTable() {
                                   ? renderDeliveryStatusFilter()
                                   : col.filterKind === 'responsible'
                                     ? renderResponsibleFilter()
-                                    : renderFilterInput(col.field)
+                                    // Колонка «Сумма» объединена с валютой — фильтр ищет по валюте
+                                    : col.filterKind === 'currency'
+                                      ? renderFilterInput('currency', 'Валюта')
+                                      : renderFilterInput(col.field)
                         : null}
                     </div>
                     <div className="flex items-center gap-1 min-h-[20px]">
@@ -397,32 +434,7 @@ export default function DeliveryTable() {
                     <span className="truncate block" title={item.innerId ?? undefined}>{item.innerId ?? '-'}</span>
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
-                    <div className="flex flex-col gap-0.5 leading-tight">
-                      <span className="flex items-baseline gap-1" title="Дедлайн (вычисляется автоматически)">
-                        <span className="text-[10px] uppercase tracking-wide text-gray-400 w-10 flex-shrink-0">Дедл.</span>
-                        <span className={item.deliveryDeadline ? 'text-gray-900' : 'text-gray-400'}>
-                          {item.deliveryDeadline ? new Date(item.deliveryDeadline).toLocaleDateString('ru-RU') : '—'}
-                        </span>
-                      </span>
-                      <span className="flex items-baseline gap-1" title="План — начало поставки из договора">
-                        <span className="text-[10px] uppercase tracking-wide text-gray-400 w-10 flex-shrink-0">План</span>
-                        <span className={item.contractPlannedDeliveryStartDate ? 'text-gray-900' : 'text-gray-400'}>
-                          {item.contractPlannedDeliveryStartDate ? new Date(item.contractPlannedDeliveryStartDate).toLocaleDateString('ru-RU') : '—'}
-                        </span>
-                      </span>
-                      <span className="flex items-baseline gap-1" title="Факт — фактическая дата поставки">
-                        <span className="text-[10px] uppercase tracking-wide text-gray-400 w-10 flex-shrink-0">Факт</span>
-                        <span className={item.actualDeliveryDate ? 'text-gray-900' : 'text-gray-400'}>
-                          {item.actualDeliveryDate ? new Date(item.actualDeliveryDate).toLocaleDateString('ru-RU') : '—'}
-                        </span>
-                      </span>
-                      <span className="flex items-baseline gap-1" title="ЭСФ — дата выставления электронной счёт-фактуры">
-                        <span className="text-[10px] uppercase tracking-wide text-gray-400 w-10 flex-shrink-0">ЭСФ</span>
-                        <span className={item.esfDate ? 'text-gray-900' : 'text-gray-400'}>
-                          {item.esfDate ? new Date(item.esfDate).toLocaleDateString('ru-RU') : '—'}
-                        </span>
-                      </span>
-                    </div>
+                    <DeliveryDatesCell delivery={item} onChangePlannedDate={updatePlannedDeliveryDate} />
                   </td>
                   <td className="px-2 py-2 text-xs border-r border-gray-300 overflow-hidden min-w-0">
                     <div className="flex flex-col items-start gap-1">
@@ -526,11 +538,8 @@ export default function DeliveryTable() {
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
                     <span className="truncate block" title={formatAmountFull(item.amount, item.currency)}>
-                      {item.amount != null ? formatAmountShort(item.amount) : '-'}
+                      {item.amount != null ? formatAmountShort(item.amount, item.currency) : '-'}
                     </span>
-                  </td>
-                  <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
-                    <span className="truncate block">{item.currency ?? '-'}</span>
                   </td>
                   <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 overflow-hidden min-w-0">
                     <span className="line-clamp-2 block min-w-0" title={item.comment ?? undefined}>{item.comment ?? '-'}</span>

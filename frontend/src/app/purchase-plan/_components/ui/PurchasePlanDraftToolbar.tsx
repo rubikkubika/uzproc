@@ -39,7 +39,7 @@ export default function PurchasePlanDraftToolbar({
           onClick={onGenerate}
           disabled={isBusy}
           className="px-2 py-1 text-xs bg-blue-600 text-white rounded border border-blue-600 hover:bg-blue-700 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Сформировать позиции драфта из действующих договоров Uzum Market, которые заканчиваются в декабре предыдущего года и в течение года планирования"
+          title="Сформировать позиции драфта из действующих договоров Uzum Market, которые заканчиваются начиная с октября предыдущего года и в течение года планирования"
         >
           <RefreshCw className={`w-3 h-3 ${isGenerating ? 'animate-spin' : ''}`} />
           {isGenerating ? 'Формирование…' : 'Сформировать из договоров'}

@@ -17,7 +17,11 @@ export const useDeliveryData = () => {
     tab: DeliveryTab | null = null,
     recheck: boolean = false,
     /** Плановая дата поставки (ISO) — фильтр по дню, выбранному на диаграмме */
-    deliveryDeadline: string | null = null,
+    plannedDeliveryDate: string | null = null,
+    /** «Просрочено» из сводки: не поставлено, плановая дата прошла */
+    overdue: boolean = false,
+    /** «Поставлено за год» из сводки: статус «Поставлено» + фактическая дата в этом году */
+    deliveredYear: number | null = null,
   ): Promise<PageResponse | null> => {
     try {
       const params = new URLSearchParams();
@@ -30,7 +34,7 @@ export const useDeliveryData = () => {
       }
 
       const passthroughFields: Array<keyof typeof filters> = [
-        'innerId', 'contractInnerId', 'supplierName', 'status',
+        'innerId', 'contractInnerId', 'contractPurchaseRequestId', 'supplierName', 'status',
         'currency', 'comment', 'responsibleName', 'reportStatus', 'paymentsStatus',
       ];
       for (const f of passthroughFields) {
@@ -52,13 +56,21 @@ export const useDeliveryData = () => {
         params.append('shipmentStatus', shipmentStatus.trim());
       }
 
-      // Вкладка: 'in-work' | 'closed' | 'closed-review'. null → без фильтра (все поставки).
-      if (tab !== null) {
+      // Вкладка: 'in-work' | 'closed' | 'closed-review'. null и 'all' → без фильтра (все поставки).
+      if (tab !== null && tab !== 'all') {
         params.append('tab', tab);
       }
 
-      if (deliveryDeadline) {
-        params.append('deliveryDeadline', deliveryDeadline);
+      if (plannedDeliveryDate) {
+        params.append('plannedDeliveryDate', plannedDeliveryDate);
+      }
+
+      if (overdue) {
+        params.append('overdue', 'true');
+      }
+
+      if (deliveredYear !== null) {
+        params.append('deliveredYear', String(deliveredYear));
       }
 
       // recheck=true — при обновлении списка бэкенд пересчитывает статусы (авто-закрытие).
