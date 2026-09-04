@@ -66,10 +66,10 @@ export function csiAverage(f: {
 }
 
 /**
- * Отчётный месяц данных — месяц перед месяцем выпуска отчёта:
- * презентация «УО сентябрь 2026» содержит отчёт за август 2026.
+ * Предыдущий месяц: отчёт готовят за прошедший месяц, поэтому он подставляется
+ * в выбор периода по умолчанию.
  */
-export function reportedPeriod(year: number, month: number): { year: number; month: number } {
+export function previousPeriod(year: number, month: number): { year: number; month: number } {
   return month <= 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
 }
 

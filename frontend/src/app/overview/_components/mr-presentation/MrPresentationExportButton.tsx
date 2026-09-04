@@ -5,6 +5,7 @@ import { FileDown, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMrPresentationExport } from './hooks/useMrPresentationExport';
 import { MONTH_FULL } from './constants/mr-presentation.constants';
+import { previousPeriod } from './utils/mrPresentationFormat';
 import type { MrSlaInput } from './types/mr-presentation.types';
 
 interface MrPresentationExportButtonProps {
@@ -20,8 +21,10 @@ export function MrPresentationExportButton({ sla }: MrPresentationExportButtonPr
   const { userEmail } = useAuth();
   const isAdminLogin = userEmail === 'admin';
   const now = useMemo(() => new Date(), []);
-  const [month, setMonth] = useState<number>(now.getMonth() + 1);
-  const [year, setYear] = useState<number>(now.getFullYear());
+  // По умолчанию — прошлый месяц: отчёт готовят за завершившийся период.
+  const defaultPeriod = useMemo(() => previousPeriod(now.getFullYear(), now.getMonth() + 1), [now]);
+  const [month, setMonth] = useState<number>(defaultPeriod.month);
+  const [year, setYear] = useState<number>(defaultPeriod.year);
 
   const { busy, phase, error, progress, start } = useMrPresentationExport({ sla });
 

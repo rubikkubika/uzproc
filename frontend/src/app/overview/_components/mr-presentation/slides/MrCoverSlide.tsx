@@ -3,19 +3,17 @@
 import { MrSlideFrame } from '../ui/MrSlideFrame';
 import { MrUzumLogo } from '../ui/MrUzumLogo';
 import { BRAND, COMPANY_TITLE, DEPARTMENT_TITLE } from '../constants/mr-presentation.constants';
-import { monthName, monthNameCapitalized, reportedPeriod } from '../utils/mrPresentationFormat';
+import { monthName, monthNameCapitalized } from '../utils/mrPresentationFormat';
 
 interface MrCoverSlideProps {
-  /** Год выпуска отчёта. */
+  /** Год отчётного периода. */
   year: number;
-  /** Месяц выпуска отчёта. */
+  /** Месяц отчётного периода. */
   month: number;
 }
 
-/** Титульный слайд: заголовок — отчётный месяц (месяц перед месяцем выпуска). */
+/** Титульный слайд. */
 export function MrCoverSlide({ year, month }: MrCoverSlideProps) {
-  const reported = reportedPeriod(year, month);
-
   return (
     <MrSlideFrame background={BRAND} color="#ffffff" padding="96px 120px" style={{ justifyContent: 'space-between' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -30,7 +28,7 @@ export function MrCoverSlide({ year, month }: MrCoverSlideProps) {
           Закупки и договора {COMPANY_TITLE}
         </div>
         <div style={{ fontSize: 40, fontWeight: 500, marginTop: 28, opacity: 0.85 }}>
-          Отчет за {monthName(reported.month)} {reported.year}
+          Отчет за {monthName(month)} {year}
         </div>
       </div>
 
