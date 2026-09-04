@@ -8,6 +8,7 @@ import { ManagementReportingFeedbackGrid } from './ManagementReportingFeedbackGr
 import { ManagementReportingContractsContent } from './ManagementReportingContractsContent';
 import { useOverviewSavingsData } from '../hooks/useOverviewSavingsData';
 import { useManagementReportingPdf } from '../hooks/useManagementReportingPdf';
+import { MrPresentationExportButton } from '../mr-presentation/MrPresentationExportButton';
 import type { OverviewSlaPercentageByMonth } from '../hooks/useOverviewSlaData';
 
 type ManagementReportingTab = 'purchases' | 'contracts';
@@ -194,6 +195,18 @@ export function ManagementReportingContent({
         >
           Договора
         </button>
+
+        {/* Выгрузка презентации управленческой отчётности (PDF 16:9) */}
+        <div className="ml-auto pb-1">
+          <MrPresentationExportButton
+            sla={{
+              year: slaYear,
+              averagePercentage: averageSlaPercentage,
+              completedByMonth: slaCompletedByMonth,
+              percentageByMonth: slaPercentageByMonth,
+            }}
+          />
+        </div>
       </div>
 
       {innerTab === 'contracts' && (

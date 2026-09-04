@@ -1,6 +1,5 @@
 'use client';
 
-import { Printer } from 'lucide-react';
 import {
   OverviewTab,
   OverviewTabItem,
@@ -37,7 +36,6 @@ interface OverviewTabsProps {
   onDashboardCategoryChange: (category: OverviewDashboardCategory) => void;
   activeTab: OverviewTab;
   onTabChange: (tab: OverviewTab) => void;
-  onExportPdf?: () => void;
   /** Вкладки, скрытые для текущего пользователя (например, kpi2 — только для логина admin) */
   hiddenTabs?: OverviewTab[];
 }
@@ -60,7 +58,6 @@ export function OverviewTabs({
   onDashboardCategoryChange,
   activeTab,
   onTabChange,
-  onExportPdf,
   hiddenTabs = [],
 }: OverviewTabsProps) {
   const categoryTabs: OverviewTabItem[] = DASHBOARD_CATEGORY_TABS[activeDashboardCategory]
@@ -87,15 +84,6 @@ export function OverviewTabs({
             {tab.label}
           </button>
         ))}
-        {activeTopTab === 'management-reporting' && onExportPdf && (
-          <button
-            onClick={onExportPdf}
-            className="ml-auto flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm print:hidden"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            Сохранить PDF
-          </button>
-        )}
       </div>
       {/* Категории дэшбордов */}
       {activeTopTab === 'dashboards' && (
