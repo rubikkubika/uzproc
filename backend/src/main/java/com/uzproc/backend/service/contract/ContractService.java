@@ -874,7 +874,10 @@ public class ContractService {
      * Дашборд «Средний срок согласования по месяцам» ТОЛЬКО по сегменту Маркет,
      * с разбивкой по типу документа: «Договор + ДС» (Договор / Дополнительное соглашение)
      * и «Спецификации» (Спецификация). Множество договоров и расчёт срока совпадают
-     * с {@link #getApprovalDurationByMonth} (договоры SIGNED, договорник, по месяцу создания).
+     * с {@link #getApprovalDurationByMonth} (договоры SIGNED, договорник), но месяц и год
+     * берутся по дате завершения документооборота, а не по дате создания:
+     * «Договор + ДС» — по дате регистрации (registration_date, этап «Регистрация»),
+     * «Спецификации» — по дате синхронизации (этап «Синхронизация»).
      */
     public ContractApprovalDurationByMonthMarketResponseDto getApprovalDurationByMonthMarket(int year) {
         String sql =
@@ -883,7 +886,15 @@ public class ContractService {
             "         c.customer_organization, " +
             "         COALESCE(cf.name, '') AS cfo_name, " +
             "         c.document_form, " +
-            "         EXTRACT(MONTH FROM c.contract_creation_date) AS creation_month, " +
+            // Период документа: договор и ДС — дата регистрации, спецификация — дата синхронизации.
+            "         CASE " +
+            "           WHEN c.document_form IN ('Договор', 'Дополнительное соглашение') THEN c.registration_date " +
+            "           WHEN c.document_form = 'Спецификация' THEN " +
+            "             ( SELECT MAX(a.completion_date) FROM contract_approvals a " +
+            "                 WHERE a.contract_id = c.id " +
+            "                   AND a.completion_date IS NOT NULL " +
+            "                   AND LOWER(a.stage) LIKE 'синхронизация%' ) " +
+            "         END AS period_date, " +
             "         ( SELECT MIN(a.assignment_date) FROM contract_approvals a " +
             "             WHERE a.contract_id = c.id " +
             "               AND a.assignment_date IS NOT NULL " +
@@ -905,11 +916,12 @@ public class ContractService {
             "  LEFT JOIN cfo cf ON c.cfo_id = cf.id " +
             "  WHERE c.status = 'SIGNED' " +
             "    AND u.is_contractor = true " +
-            "    AND c.contract_creation_date IS NOT NULL " +
-            "    AND EXTRACT(YEAR FROM c.contract_creation_date) = :year " +
             ") " +
-            "SELECT customer_organization, cfo_name, document_form, creation_month, first_assignment, last_completion " +
-            "FROM per_contract";
+            "SELECT customer_organization, cfo_name, document_form, " +
+            "       EXTRACT(MONTH FROM period_date) AS period_month, first_assignment, last_completion " +
+            "FROM per_contract " +
+            "WHERE period_date IS NOT NULL " +
+            "  AND EXTRACT(YEAR FROM period_date) = :year";
 
         var query = entityManager.createNativeQuery(sql).setParameter("year", year);
         @SuppressWarnings("unchecked")
