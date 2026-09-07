@@ -875,9 +875,8 @@ public class ContractService {
      * с разбивкой по типу документа: «Договор + ДС» (Договор / Дополнительное соглашение)
      * и «Спецификации» (Спецификация). Множество договоров и расчёт срока совпадают
      * с {@link #getApprovalDurationByMonth} (договоры SIGNED, договорник), но месяц и год
-     * берутся по дате завершения документооборота, а не по дате создания:
-     * «Договор + ДС» — по дате регистрации (registration_date, этап «Регистрация»),
-     * «Спецификации» — по дате синхронизации (этап «Синхронизация»).
+     * берутся по дате завершения согласования (последнее содержательное согласование
+     * документа), а не по дате его создания.
      */
     public ContractApprovalDurationByMonthMarketResponseDto getApprovalDurationByMonthMarket(int year) {
         String sql =
@@ -886,15 +885,6 @@ public class ContractService {
             "         c.customer_organization, " +
             "         COALESCE(cf.name, '') AS cfo_name, " +
             "         c.document_form, " +
-            // Период документа: договор и ДС — дата регистрации, спецификация — дата синхронизации.
-            "         CASE " +
-            "           WHEN c.document_form IN ('Договор', 'Дополнительное соглашение') THEN c.registration_date " +
-            "           WHEN c.document_form = 'Спецификация' THEN " +
-            "             ( SELECT MAX(a.completion_date) FROM contract_approvals a " +
-            "                 WHERE a.contract_id = c.id " +
-            "                   AND a.completion_date IS NOT NULL " +
-            "                   AND LOWER(a.stage) LIKE 'синхронизация%' ) " +
-            "         END AS period_date, " +
             "         ( SELECT MIN(a.assignment_date) FROM contract_approvals a " +
             "             WHERE a.contract_id = c.id " +
             "               AND a.assignment_date IS NOT NULL " +
@@ -917,11 +907,12 @@ public class ContractService {
             "  WHERE c.status = 'SIGNED' " +
             "    AND u.is_contractor = true " +
             ") " +
+            // Месяц графика — месяц последнего согласования документа.
             "SELECT customer_organization, cfo_name, document_form, " +
-            "       EXTRACT(MONTH FROM period_date) AS period_month, first_assignment, last_completion " +
+            "       EXTRACT(MONTH FROM last_completion) AS period_month, first_assignment, last_completion " +
             "FROM per_contract " +
-            "WHERE period_date IS NOT NULL " +
-            "  AND EXTRACT(YEAR FROM period_date) = :year";
+            "WHERE last_completion IS NOT NULL " +
+            "  AND EXTRACT(YEAR FROM last_completion) = :year";
 
         var query = entityManager.createNativeQuery(sql).setParameter("year", year);
         @SuppressWarnings("unchecked")
