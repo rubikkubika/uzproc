@@ -248,7 +248,6 @@ export default function PurchasePlanItemsTableColumnsHeader({
           const textFilterColumns = [
             'id',
             'guid',
-            'year',
             'purchaseSubject',
             'currentContractName',
             'purchaseRequestId',

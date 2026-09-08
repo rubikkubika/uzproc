@@ -15,6 +15,21 @@ import { useInfiniteScroll } from '../../../purchase-requests/_components/hooks/
 import { useHolidayDateKeys } from '@/hooks/useHolidayDateKeys';
 import { usePurchasePlanMode, appendDraftParam } from '../contexts/PurchasePlanModeContext';
 
+/** Колонки с текстовым фильтром «содержит», которые бэкенд принимает одноимённым параметром */
+const SIMPLE_TEXT_FILTER_PARAMS = [
+  'guid',
+  'product',
+  'currentKa',
+  'complexity',
+  'requestDate',
+  'newContractDate',
+  'currentAmount',
+  'currentContractAmount',
+  'currentContractBalance',
+  'createdAt',
+  'updatedAt',
+];
+
 export const usePurchasePlanItemsTable = () => {
   // Режим раздела: действующий план или драфт плана закупок
   const { isDraft } = usePurchasePlanMode();
@@ -188,6 +203,13 @@ export const usePurchasePlanItemsTable = () => {
       if (textFilters.purchaseRequestId && textFilters.purchaseRequestId.trim() !== '') {
         params.append('purchaseRequestId', textFilters.purchaseRequestId.trim());
       }
+      // Текстовые фильтры остальных колонок (бэкенд ищет вхождение подстроки)
+      SIMPLE_TEXT_FILTER_PARAMS.forEach(field => {
+        const value = textFilters[field];
+        if (value && value.trim() !== '') {
+          params.append(field, value.trim());
+        }
+      });
       // Фильтр бюджета
       const budgetOperator = textFilters.budgetAmountOperator;
       const budgetAmount = textFilters.budgetAmount;
@@ -1163,6 +1185,16 @@ export const usePurchasePlanItemsTable = () => {
         const v = filtersHook.filters.currentContractEndDate.trim();
         params.append('currentContractEndDate', v === '-' ? 'null' : v);
       }
+      if (filtersHook.filters.currentContractName?.trim()) {
+        params.append('currentContractName', filtersHook.filters.currentContractName.trim());
+      }
+      // Текстовые фильтры остальных колонок — своды считаются по той же выборке, что и таблица
+      SIMPLE_TEXT_FILTER_PARAMS.forEach(field => {
+        const value = filtersHook.filters[field];
+        if (value && value.trim() !== '') {
+          params.append(field, value.trim());
+        }
+      });
       if (filtersHook.purchaserFilter.size > 0) {
         filtersHook.purchaserFilter.forEach(p => {
           params.append('purchaser', p === 'Не назначен' ? '__NULL__' : p);

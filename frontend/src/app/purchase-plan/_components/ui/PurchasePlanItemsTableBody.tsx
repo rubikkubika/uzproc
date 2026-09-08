@@ -6,6 +6,8 @@ import PurchasePlanItemsTableRow from './PurchasePlanItemsTableRow';
 
 interface PurchasePlanItemsTableBodyProps {
   allItems: PurchasePlanItem[];
+  /** URL возврата для ссылок на договор в строках */
+  backUrl: string;
   visibleColumns: string[];
   columnOrder: string[];
   getColumnWidth: (columnKey: string) => number;
@@ -38,6 +40,7 @@ interface PurchasePlanItemsTableBodyProps {
  */
 export default function PurchasePlanItemsTableBody({
   allItems,
+  backUrl,
   visibleColumns,
   columnOrder,
   getColumnWidth,
@@ -80,6 +83,7 @@ export default function PurchasePlanItemsTableBody({
         <PurchasePlanItemsTableRow
           key={`${item.id}-${index}`}
           item={item}
+          backUrl={backUrl}
           visibleColumns={visibleColumnsSet}
           columnOrder={columnOrder}
           getColumnWidth={getColumnWidth}
@@ -90,6 +94,8 @@ export default function PurchasePlanItemsTableBody({
           editingCfo={editingStates.editingCfo}
           editingPurchaseRequestId={editingStates.editingPurchaseRequestId}
           editingPurchaseSubject={editingStates.editingPurchaseSubject}
+          editingBudgetAmount={editingStates.editingBudgetAmount}
+          editingComplexity={editingStates.editingComplexity}
           editingPurchaser={editingStates.editingPurchaser}
           creatingNewCfo={editingStates.creatingNewCfo}
           cfoInputValue={editingStates.cfoInputValue}
@@ -100,6 +106,10 @@ export default function PurchasePlanItemsTableBody({
           onCfoUpdate={editingHandlers.onCfoUpdate}
           onPurchaseRequestIdUpdate={editingHandlers.onPurchaseRequestIdUpdate}
           onPurchaseSubjectUpdate={editingHandlers.onPurchaseSubjectUpdate}
+          onBudgetAmountUpdate={editingHandlers.onBudgetAmountUpdate}
+          onComplexityUpdate={editingHandlers.onComplexityUpdate}
+          setEditingBudgetAmount={editingHandlers.setEditingBudgetAmount}
+          setEditingComplexity={editingHandlers.setEditingComplexity}
           onPurchaserUpdate={editingHandlers.onPurchaserUpdate}
           setEditingDate={editingHandlers.setEditingDate}
           setEditingStatus={editingHandlers.setEditingStatus}

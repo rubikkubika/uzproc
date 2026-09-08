@@ -146,3 +146,14 @@ export const DEFAULT_NEW_ITEM = {
 
 // Максимальная ширина любой колонки (в пикселях)
 export const MAX_COLUMN_WIDTH = 100;
+
+/**
+ * Уровни сложности закупки и срок процедуры в рабочих днях — соответствуют
+ * ProcurementLeadTimeService на бэкенде (от сложности зависит дата завершения закупки).
+ */
+export const COMPLEXITY_OPTIONS = [
+  { value: '1', label: '1 — 7 р.д.' },
+  { value: '2', label: '2 — 14 р.д.' },
+  { value: '3', label: '3 — 22 р.д.' },
+  { value: '4', label: '4 — 50 р.д.' },
+];

@@ -105,13 +105,14 @@ public class PurchasePlanItemService {
             Double budgetAmount,
             String budgetAmountOperator,
             String currentContractName,
+            com.uzproc.backend.dto.purchaseplan.PurchasePlanItemTextFiltersDto textFilters,
             boolean isDraft) {
         
         logger.info("=== FILTER REQUEST ===");
         logger.info("Filter parameters - year: {}, company: {}, purchaserCompany: {}, cfo: {}, purchaseSubject: '{}', purchaser: {}, category: {}, requestMonths: {}, requestYear: {}, currentContractEndDate: '{}', status: {}, purchaseRequestId: '{}', budgetAmount: {}, budgetAmountOperator: '{}'",
                 year, company, purchaserCompany, cfo, purchaseSubject, purchaser, category, requestMonths, requestYear, currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator);
         
-        Specification<PurchasePlanItem> spec = buildSpecification(year, company, purchaserCompany, cfo, purchaseSubject, purchaser, category, requestMonths, requestYear, currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator, currentContractName, isDraft);
+        Specification<PurchasePlanItem> spec = buildSpecification(year, company, purchaserCompany, cfo, purchaseSubject, purchaser, category, requestMonths, requestYear, currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator, currentContractName, textFilters, isDraft);
         
         Sort sort = buildSort(sortBy, sortDir);
         Pageable pageable = PageRequest.of(page, size, sort);
@@ -712,6 +713,101 @@ public class PurchasePlanItemService {
                 .orElse(null);
     }
 
+    /**
+     * Бюджет позиции драфта плана закупок.
+     * Доступно только для строк драфта: в действующем плане бюджет приходит из источника.
+     *
+     * @return обновлённая позиция или null, если позиция не найдена
+     * @throws IllegalStateException если позиция не является строкой драфта
+     */
+    @Transactional
+    public PurchasePlanItemDto updateBudgetAmount(Long id, java.math.BigDecimal budgetAmount) {
+        return purchasePlanItemRepository.findById(id)
+                .map(item -> {
+                    requireDraftItem(item, "бюджет");
+
+                    java.math.BigDecimal oldBudgetAmount = item.getBudgetAmount();
+                    if (oldBudgetAmount == null ? budgetAmount != null : oldBudgetAmount.compareTo(budgetAmount) != 0) {
+                        purchasePlanItemChangeService.logChange(
+                            item.getId(),
+                            item.getGuid(),
+                            "budgetAmount",
+                            oldBudgetAmount,
+                            budgetAmount
+                        );
+                    }
+
+                    item.setBudgetAmount(budgetAmount);
+                    PurchasePlanItem saved = purchasePlanItemRepository.save(item);
+                    logger.info("Updated budgetAmount for draft plan item {}: budgetAmount={}", id, budgetAmount);
+                    return toDto(saved);
+                })
+                .orElse(null);
+    }
+
+    /**
+     * Сложность позиции драфта плана закупок. От сложности зависит длительность процедуры,
+     * поэтому дата завершения закупки пересчитывается от даты заявки той же формулой,
+     * что и при ручном изменении даты.
+     * Доступно только для строк драфта: в действующем плане сложность приходит из заявки.
+     *
+     * @return обновлённая позиция или null, если позиция не найдена
+     * @throws IllegalStateException если позиция не является строкой драфта
+     */
+    @Transactional
+    public PurchasePlanItemDto updateComplexity(Long id, String complexity) {
+        return purchasePlanItemRepository.findById(id)
+                .map(item -> {
+                    requireDraftItem(item, "сложность");
+
+                    String oldComplexity = item.getComplexity();
+                    String trimmedComplexity = complexity != null && !complexity.trim().isEmpty()
+                            ? complexity.trim()
+                            : null;
+
+                    if (oldComplexity == null ? trimmedComplexity != null : !oldComplexity.equals(trimmedComplexity)) {
+                        purchasePlanItemChangeService.logChange(
+                            item.getId(),
+                            item.getGuid(),
+                            "complexity",
+                            oldComplexity,
+                            trimmedComplexity
+                        );
+                    }
+
+                    item.setComplexity(trimmedComplexity);
+
+                    // Дата завершения закупки зависит от сложности — пересчитываем от даты заявки
+                    if (item.getRequestDate() != null && trimmedComplexity != null) {
+                        LocalDate recalculated = calculateNewContractDate(item.getRequestDate(), trimmedComplexity);
+                        if (recalculated != null && !recalculated.equals(item.getNewContractDate())) {
+                            purchasePlanItemChangeService.logChange(
+                                item.getId(),
+                                item.getGuid(),
+                                "newContractDate",
+                                item.getNewContractDate(),
+                                recalculated
+                            );
+                            item.setNewContractDate(recalculated);
+                        }
+                    }
+
+                    PurchasePlanItem saved = purchasePlanItemRepository.save(item);
+                    logger.info("Updated complexity for draft plan item {}: complexity={}, newContractDate={}",
+                            id, trimmedComplexity, saved.getNewContractDate());
+                    return toDto(saved);
+                })
+                .orElse(null);
+    }
+
+    /** Проверяет, что позиция относится к драфту: поля драфта в действующем плане не редактируются. */
+    private void requireDraftItem(PurchasePlanItem item, String fieldTitle) {
+        if (!Boolean.TRUE.equals(item.getIsDraft())) {
+            throw new IllegalStateException(
+                "Изменить " + fieldTitle + " можно только у позиции драфта плана закупок");
+        }
+    }
+
     @Transactional
     public PurchasePlanItemDto updatePurchaseSubject(Long id, String purchaseSubject) {
         return purchasePlanItemRepository.findById(id)
@@ -1053,6 +1149,7 @@ public class PurchasePlanItemService {
             Double budgetAmount,
             String budgetAmountOperator,
             String currentContractName,
+            com.uzproc.backend.dto.purchaseplan.PurchasePlanItemTextFiltersDto textFilters,
             boolean isDraft) {
         
         return (root, query, cb) -> {
@@ -1226,6 +1323,12 @@ public class PurchasePlanItemService {
                 predicates.add(cb.like(cb.lower(root.get("purchaseSubject")), "%" + purchaseSubject.toLowerCase() + "%"));
                 predicateCount++;
                 logger.info("Added purchaseSubject filter: '{}'", purchaseSubject);
+            }
+            
+            // Текстовые фильтры остальных колонок: поиск подстроки по строковому
+            // представлению значения, «-» — записи с пустым значением
+            if (textFilters != null) {
+                predicateCount += applyTextFilters(root, cb, predicates, textFilters);
             }
             
             // Фильтр по наименованию действующего договора («Текущий договор»)
@@ -1632,6 +1735,61 @@ public class PurchasePlanItemService {
         };
     }
 
+    /**
+     * Текстовые фильтры колонок плана: ищут вхождение подстроки в строковом представлении
+     * поля (числа, даты и UUID приводятся к тексту), «-» или «null» — записи с пустым значением.
+     *
+     * @return количество добавленных предикатов
+     */
+    private int applyTextFilters(
+            jakarta.persistence.criteria.Root<PurchasePlanItem> root,
+            jakarta.persistence.criteria.CriteriaBuilder cb,
+            List<Predicate> predicates,
+            com.uzproc.backend.dto.purchaseplan.PurchasePlanItemTextFiltersDto filters) {
+
+        int added = 0;
+        added += addTextPredicate(root, cb, predicates, "id", filters.getId());
+        added += addTextPredicate(root, cb, predicates, "guid", filters.getGuid());
+        added += addTextPredicate(root, cb, predicates, "product", filters.getProduct());
+        added += addTextPredicate(root, cb, predicates, "currentKa", filters.getCurrentKa());
+        added += addTextPredicate(root, cb, predicates, "complexity", filters.getComplexity());
+        added += addTextPredicate(root, cb, predicates, "requestDate", filters.getRequestDate());
+        added += addTextPredicate(root, cb, predicates, "newContractDate", filters.getNewContractDate());
+        added += addTextPredicate(root, cb, predicates, "currentAmount", filters.getCurrentAmount());
+        added += addTextPredicate(root, cb, predicates, "currentContractAmount", filters.getCurrentContractAmount());
+        added += addTextPredicate(root, cb, predicates, "currentContractBalance", filters.getCurrentContractBalance());
+        added += addTextPredicate(root, cb, predicates, "createdAt", filters.getCreatedAt());
+        added += addTextPredicate(root, cb, predicates, "updatedAt", filters.getUpdatedAt());
+        return added;
+    }
+
+    /**
+     * Предикат текстового фильтра по одному полю: пустое значение фильтр не добавляет,
+     * «-»/«null» отбирает записи без значения, иначе — LIKE по приведённому к тексту полю.
+     *
+     * @return 1, если предикат добавлен, иначе 0
+     */
+    private int addTextPredicate(
+            jakarta.persistence.criteria.Root<PurchasePlanItem> root,
+            jakarta.persistence.criteria.CriteriaBuilder cb,
+            List<Predicate> predicates,
+            String field,
+            String rawValue) {
+
+        if (rawValue == null || rawValue.trim().isEmpty()) {
+            return 0;
+        }
+        String value = rawValue.trim();
+        if ("-".equals(value) || "null".equalsIgnoreCase(value)) {
+            predicates.add(cb.isNull(root.get(field)));
+            logger.info("Added {} filter: без значения (null)", field);
+            return 1;
+        }
+        predicates.add(cb.like(cb.lower(root.get(field).as(String.class)), "%" + value.toLowerCase() + "%"));
+        logger.info("Added {} filter: '{}'", field, value);
+        return 1;
+    }
+
     private Sort buildSort(String sortBy, String sortDir) {
         if (sortBy != null && !sortBy.trim().isEmpty()) {
             Sort.Direction direction = (sortDir != null && sortDir.equalsIgnoreCase("desc")) 
@@ -1826,11 +1984,12 @@ public class PurchasePlanItemService {
             Double budgetAmount,
             String budgetAmountOperator,
             String currentContractName,
+            com.uzproc.backend.dto.purchaseplan.PurchasePlanItemTextFiltersDto textFilters,
             boolean isDraft) {
 
         Specification<PurchasePlanItem> spec = buildSpecification(
                 year, company, purchaserCompany, cfo, purchaseSubject, purchaser, category,
-                requestMonths, requestYear, currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator, currentContractName, isDraft);
+                requestMonths, requestYear, currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator, currentContractName, textFilters, isDraft);
 
         List<LocalDate> requestDates = findRequestDates(spec);
         int displayYear = year != null ? year : java.time.Year.now().getValue();
@@ -1878,6 +2037,7 @@ public class PurchasePlanItemService {
             Double budgetAmount,
             String budgetAmountOperator,
             String currentContractName,
+            com.uzproc.backend.dto.purchaseplan.PurchasePlanItemTextFiltersDto textFilters,
             boolean isDraft) {
         
         // Строим Specification БЕЗ фильтра по purchaser (сводная таблица показывает статистику по всем закупщикам)
@@ -1885,7 +2045,7 @@ public class PurchasePlanItemService {
             year, company, purchaserCompany, cfo, purchaseSubject, 
             null, // purchaser = null, чтобы не применять фильтр по закупщику
             category, requestMonths, requestYear, currentContractEndDate, 
-            status, purchaseRequestId, budgetAmount, budgetAmountOperator, currentContractName, isDraft
+            status, purchaseRequestId, budgetAmount, budgetAmountOperator, currentContractName, textFilters, isDraft
         );
         
         // Добавляем фильтр для исключения позиций со статусом "Исключена"
@@ -2070,13 +2230,14 @@ public class PurchasePlanItemService {
             Double budgetAmount,
             String budgetAmountOperator,
             String currentContractName,
+            com.uzproc.backend.dto.purchaseplan.PurchasePlanItemTextFiltersDto textFilters,
             boolean isDraft) {
 
         Specification<PurchasePlanItem> spec = buildSpecification(
             year, company, purchaserCompany,
             null, // cfo = null, чтобы не применять фильтр по ЦФО
             purchaseSubject, purchaser, category, requestMonths, requestYear,
-            currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator, currentContractName, isDraft
+            currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator, currentContractName, textFilters, isDraft
         );
 
         // Исключаем позиции со статусом «Исключена» (как в своде по закупщикам)

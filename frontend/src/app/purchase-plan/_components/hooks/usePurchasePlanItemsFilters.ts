@@ -4,6 +4,27 @@ import { usePurchasePlanMode } from '../contexts/PurchasePlanModeContext';
 import { PurchasePlanItem } from '../types/purchase-plan-items.types';
 import { getBackendUrl } from '@/utils/api';
 
+/** Текстовые фильтры колонок: применяются к запросу через debounce */
+const TEXT_FILTER_FIELDS = [
+  'id',
+  'guid',
+  'purchaseSubject',
+  'currentContractName',
+  'currentContractEndDate',
+  'purchaseRequestId',
+  'product',
+  'currentKa',
+  'complexity',
+  'requestDate',
+  'newContractDate',
+  'currentAmount',
+  'currentContractAmount',
+  'currentContractBalance',
+  'createdAt',
+  'updatedAt',
+  'budgetAmount',
+];
+
 export const usePurchasePlanItemsFilters = (
   setCurrentPage: (page: number) => void,
   selectedYear: number | null,
@@ -18,20 +39,42 @@ export const usePurchasePlanItemsFilters = (
 
   const [filters, setFilters] = useState<Record<string, string>>({
     id: '',
+    guid: '',
     purchaseSubject: '',
     currentContractName: '',
     currentContractEndDate: '',
     purchaseRequestId: '',
+    product: '',
+    currentKa: '',
+    complexity: '',
+    requestDate: '',
+    newContractDate: '',
+    currentAmount: '',
+    currentContractAmount: '',
+    currentContractBalance: '',
+    createdAt: '',
+    updatedAt: '',
     budgetAmount: '',
     budgetAmountOperator: 'gte',
   });
 
   const [localFilters, setLocalFilters] = useState<Record<string, string>>({
     id: '',
+    guid: '',
     purchaseSubject: '',
     currentContractName: '',
     currentContractEndDate: '',
     purchaseRequestId: '',
+    product: '',
+    currentKa: '',
+    complexity: '',
+    requestDate: '',
+    newContractDate: '',
+    currentAmount: '',
+    currentContractAmount: '',
+    currentContractBalance: '',
+    createdAt: '',
+    updatedAt: '',
     budgetAmount: '',
     budgetAmountOperator: 'gte',
   });
@@ -324,7 +367,7 @@ export const usePurchasePlanItemsFilters = (
 
   // Debounce текстовых фильтров
   useEffect(() => {
-    const textFields = ['id','purchaseSubject','currentContractName','currentContractEndDate','purchaseRequestId','budgetAmount'];
+    const textFields = TEXT_FILTER_FIELDS;
     const hasTextChanges = textFields.some(f => localFilters[f] !== filters[f]);
     if (hasTextChanges) {
       const timer = setTimeout(() => {

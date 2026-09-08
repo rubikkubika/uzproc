@@ -57,10 +57,11 @@ public class PurchasePlanItemController {
             @RequestParam(required = false) Double budgetAmount,
             @RequestParam(required = false) String budgetAmountOperator,
             @RequestParam(required = false) String currentContractName,
+            @ModelAttribute com.uzproc.backend.dto.purchaseplan.PurchasePlanItemTextFiltersDto textFilters,
             @RequestParam(required = false, defaultValue = "false") boolean draft) {
         
         Page<PurchasePlanItemDto> items = purchasePlanItemService.findAll(
-                page, size, year, sortBy, sortDir, company, purchaserCompany, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear, currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator, currentContractName, draft);
+                page, size, year, sortBy, sortDir, company, purchaserCompany, cfo, purchaseSubject, purchaser, category, requestMonth, requestYear, currentContractEndDate, status, purchaseRequestId, budgetAmount, budgetAmountOperator, currentContractName, textFilters, draft);
         
         return ResponseEntity.ok(items);
     }
@@ -137,11 +138,12 @@ public class PurchasePlanItemController {
             @RequestParam(required = false) Double budgetAmount,
             @RequestParam(required = false) String budgetAmountOperator,
             @RequestParam(required = false) String currentContractName,
+            @ModelAttribute com.uzproc.backend.dto.purchaseplan.PurchasePlanItemTextFiltersDto textFilters,
             @RequestParam(required = false, defaultValue = "false") boolean draft) {
         List<com.uzproc.backend.dto.purchaseplan.PurchaserSummaryDto> summary = purchasePlanItemService.getPurchaserSummary(
             year, company, purchaserCompany, cfo, purchaseSubject, category, 
             requestMonth, requestYear, currentContractEndDate, status, 
-            purchaseRequestId, budgetAmount, budgetAmountOperator, currentContractName, draft
+            purchaseRequestId, budgetAmount, budgetAmountOperator, currentContractName, textFilters, draft
         );
         return ResponseEntity.ok(summary);
     }
@@ -165,11 +167,12 @@ public class PurchasePlanItemController {
             @RequestParam(required = false) Double budgetAmount,
             @RequestParam(required = false) String budgetAmountOperator,
             @RequestParam(required = false) String currentContractName,
+            @ModelAttribute com.uzproc.backend.dto.purchaseplan.PurchasePlanItemTextFiltersDto textFilters,
             @RequestParam(required = false, defaultValue = "false") boolean draft) {
         List<com.uzproc.backend.dto.purchaseplan.CfoSummaryDto> summary = purchasePlanItemService.getCfoSummary(
             year, company, purchaserCompany, purchaseSubject, purchaser, category,
             requestMonth, requestYear, currentContractEndDate, status,
-            purchaseRequestId, budgetAmount, budgetAmountOperator, currentContractName, draft
+            purchaseRequestId, budgetAmount, budgetAmountOperator, currentContractName, textFilters, draft
         );
         return ResponseEntity.ok(summary);
     }
@@ -218,11 +221,12 @@ public class PurchasePlanItemController {
             @RequestParam(required = false) Double budgetAmount,
             @RequestParam(required = false) String budgetAmountOperator,
             @RequestParam(required = false) String currentContractName,
+            @ModelAttribute com.uzproc.backend.dto.purchaseplan.PurchasePlanItemTextFiltersDto textFilters,
             @RequestParam(required = false, defaultValue = "false") boolean draft) {
         List<Integer> monthCounts = purchasePlanItemService.getMonthlyDistribution(
             year, company, purchaserCompany, cfo, purchaseSubject, purchaser, category,
             requestMonth, requestYear, currentContractEndDate, status,
-            purchaseRequestId, budgetAmount, budgetAmountOperator, currentContractName, draft
+            purchaseRequestId, budgetAmount, budgetAmountOperator, currentContractName, textFilters, draft
         );
         return ResponseEntity.ok(monthCounts);
     }
@@ -461,6 +465,50 @@ public class PurchasePlanItemController {
                 return ResponseEntity.ok(updatedItem);
             }
             return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Ошибка сервера: " + e.getMessage());
+        }
+    }
+
+    /** Бюджет позиции драфта плана закупок (в действующем плане не редактируется) */
+    @PatchMapping("/{id}/budget-amount")
+    public ResponseEntity<?> updatePurchasePlanItemBudgetAmount(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> requestBody) {
+        try {
+            Object rawValue = requestBody.get("budgetAmount");
+            java.math.BigDecimal budgetAmount = null;
+            if (rawValue != null && !rawValue.toString().trim().isEmpty()) {
+                budgetAmount = new java.math.BigDecimal(rawValue.toString().trim());
+            }
+
+            PurchasePlanItemDto updatedItem = purchasePlanItemService.updateBudgetAmount(id, budgetAmount);
+            if (updatedItem != null) {
+                return ResponseEntity.ok(updatedItem);
+            }
+            return ResponseEntity.notFound().build();
+        } catch (NumberFormatException e) {
+            return ResponseEntity.badRequest().body("Некорректная сумма бюджета");
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Ошибка сервера: " + e.getMessage());
+        }
+    }
+
+    /** Сложность позиции драфта плана закупок: пересчитывает дату завершения закупки */
+    @PatchMapping("/{id}/complexity")
+    public ResponseEntity<?> updatePurchasePlanItemComplexity(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> requestBody) {
+        try {
+            PurchasePlanItemDto updatedItem = purchasePlanItemService.updateComplexity(id, requestBody.get("complexity"));
+            if (updatedItem != null) {
+                return ResponseEntity.ok(updatedItem);
+            }
+            return ResponseEntity.notFound().build();
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.status(500).body("Ошибка сервера: " + e.getMessage());
         }

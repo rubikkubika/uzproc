@@ -4,10 +4,15 @@ import React from 'react';
 import { PurchasePlanItem } from '../types/purchase-plan-items.types';
 import { getCompanyLogoPath, getPurchaseRequestStatusColor } from '../utils/purchase-plan-items.utils';
 import GanttChart from '../GanttChart';
+import PurchasePlanDraftBudgetCell from './PurchasePlanDraftBudgetCell';
+import PurchasePlanDraftComplexityCell from './PurchasePlanDraftComplexityCell';
+import { usePurchasePlanMode } from '../contexts/PurchasePlanModeContext';
 import { calculateNewContractDate } from '../utils/date.utils';
 
 interface PurchasePlanItemsTableRowProps {
   item: PurchasePlanItem;
+  /** URL возврата для ссылки на договор (кнопка «Назад» на карточке договора) */
+  backUrl: string;
   visibleColumns: Set<string>;
   columnOrder: string[];
   getColumnWidth: (columnKey: string) => number;
@@ -57,6 +62,14 @@ interface PurchasePlanItemsTableRowProps {
   setAnimatingDates?: (updater: (prev: Record<number, boolean>) => Record<number, boolean>) => void;
   canEdit?: boolean;
   isViewingArchiveVersion?: boolean;
+  /** Строка, у которой сейчас редактируется бюджет (только драфт) */
+  editingBudgetAmount?: number | null;
+  setEditingBudgetAmount?: (id: number | null) => void;
+  onBudgetAmountUpdate?: (itemId: number, value: string) => void;
+  /** Строка, у которой сейчас редактируется сложность (только драфт) */
+  editingComplexity?: number | null;
+  setEditingComplexity?: (id: number | null) => void;
+  onComplexityUpdate?: (itemId: number, value: string) => void;
   holidayDateKeys?: Set<string>;
 }
 
@@ -66,6 +79,7 @@ interface PurchasePlanItemsTableRowProps {
  */
 export default function PurchasePlanItemsTableRow({
   item,
+  backUrl,
   visibleColumns,
   columnOrder,
   getColumnWidth,
@@ -110,6 +124,12 @@ export default function PurchasePlanItemsTableRow({
   setAnimatingDates,
   canEdit = false,
   isViewingArchiveVersion = false,
+  editingBudgetAmount = null,
+  setEditingBudgetAmount,
+  onBudgetAmountUpdate,
+  editingComplexity = null,
+  setEditingComplexity,
+  onComplexityUpdate,
   holidayDateKeys,
 }: PurchasePlanItemsTableRowProps) {
   const isInactive = item.status === 'Исключена';
@@ -117,6 +137,9 @@ export default function PurchasePlanItemsTableRow({
   // Если позиция связана с заявкой, все поля неактивны, кроме purchaseRequestId
   // purchaseRequestId всегда можно редактировать
   const isReadOnly = hasPurchaseRequest;
+  const { isDraft } = usePurchasePlanMode();
+  // Бюджет и сложность правятся, пока позиция живёт в драфте плана закупок
+  const canEditDraftFields = isDraft && canEdit && !isInactive && !isViewingArchiveVersion && !isReadOnly;
   
   const renderCell = (columnKey: string) => {
     const width = getColumnWidth(columnKey);
@@ -251,7 +274,22 @@ export default function PurchasePlanItemsTableRow({
             }}
             title={item.currentContractName || ''}
           >
-            {item.currentContractName || '-'}
+            {item.currentContractName ? (
+              item.sourceContractId ? (
+                <a
+                  href={`/contract/${item.sourceContractId}?from=${encodeURIComponent(backUrl)}`}
+                  className="text-blue-600 hover:underline"
+                  title="Перейти к договору"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {item.currentContractName}
+                </a>
+              ) : (
+                item.currentContractName
+              )
+            ) : (
+              '-'
+            )}
           </td>
         );
 
@@ -262,7 +300,33 @@ export default function PurchasePlanItemsTableRow({
             className="px-2 py-2 text-gray-900 border-r border-gray-300 whitespace-nowrap text-right"
             style={{ width: `${width}px`, fontSize: '13.44px' }}
           >
-            {formatBudget(item.budgetAmount)}
+            <PurchasePlanDraftBudgetCell
+              value={item.budgetAmount}
+              formatBudget={formatBudget}
+              isEditing={editingBudgetAmount === item.id}
+              canEdit={canEditDraftFields}
+              onStartEdit={() => setEditingBudgetAmount?.(item.id)}
+              onCancelEdit={() => setEditingBudgetAmount?.(null)}
+              onSave={(value) => onBudgetAmountUpdate?.(item.id, value)}
+            />
+          </td>
+        );
+
+      case 'complexity':
+        return (
+          <td
+            key={columnKey}
+            className="px-2 py-2 text-gray-900 border-r border-gray-300 whitespace-nowrap"
+            style={{ width: `${width}px`, fontSize: '13.44px' }}
+          >
+            <PurchasePlanDraftComplexityCell
+              value={item.complexity ?? null}
+              isEditing={editingComplexity === item.id}
+              canEdit={canEditDraftFields}
+              onStartEdit={() => setEditingComplexity?.(item.id)}
+              onCancelEdit={() => setEditingComplexity?.(null)}
+              onSave={(value) => onComplexityUpdate?.(item.id, value)}
+            />
           </td>
         );
       

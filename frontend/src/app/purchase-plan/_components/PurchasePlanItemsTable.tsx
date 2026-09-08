@@ -5,6 +5,7 @@ import { useReactToPrint } from 'react-to-print';
 import * as XLSX from 'xlsx';
 import { Settings, Download, Plus, X } from 'lucide-react';
 import { usePurchasePlanItemsTable } from './hooks/usePurchasePlanItemsTable';
+import { usePurchasePlanBackUrl } from './hooks/usePurchasePlanBackUrl';
 import { getCompanyLogoPath, getPurchaseRequestStatusColor } from './utils/purchase-plan-items.utils';
 import { prepareExportData } from './utils/export.utils';
 import { getBackendUrl } from '@/utils/api';
@@ -41,6 +42,8 @@ function PurchasePlanItemsTableContent() {
   // Используем главный хук, который композирует все остальные хуки
   const table = usePurchasePlanItemsTable();
   const { isDraft, title } = usePurchasePlanMode();
+  // Возврат из карточки договора открывает этот же раздел плана
+  const backUrl = usePurchasePlanBackUrl();
   const { userEmail } = useAuth();
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -573,6 +576,8 @@ function PurchasePlanItemsTableContent() {
     creatingNewCfo: table.editing.creatingNewCfo,
     editingPurchaseRequestId: table.editing.editingPurchaseRequestId,
     editingPurchaseSubject: table.editing.editingPurchaseSubject,
+    editingBudgetAmount: table.editing.editingBudgetAmount,
+    editingComplexity: table.editing.editingComplexity,
     editingPurchaser: table.editing.editingPurchaser,
     tempDates: table.editing.tempDates,
     animatingDates: table.editing.animatingDates,
@@ -590,6 +595,10 @@ function PurchasePlanItemsTableContent() {
     onCfoUpdate: table.editing.handleCfoUpdate,
     onPurchaserUpdate: table.editing.handlePurchaserUpdate,
     onPurchaseSubjectUpdate: table.editing.handlePurchaseSubjectUpdate,
+    onBudgetAmountUpdate: table.editing.handleBudgetAmountUpdate,
+    onComplexityUpdate: table.editing.handleComplexityUpdate,
+    setEditingBudgetAmount: table.editing.setEditingBudgetAmount,
+    setEditingComplexity: table.editing.setEditingComplexity,
     onPurchaseRequestIdUpdate: table.editing.handlePurchaseRequestIdUpdate,
     setEditingDate: table.editing.setEditingDate,
     setEditingStatus: table.editing.setEditingStatus,
@@ -885,6 +894,7 @@ function PurchasePlanItemsTableContent() {
           />
           <PurchasePlanItemsTableBody
             allItems={table.allItems}
+            backUrl={backUrl}
             visibleColumns={table.columns.filteredColumnOrder}
             getColumnWidth={table.columns.getColumnWidth}
             editingStates={editingStates}

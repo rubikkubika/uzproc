@@ -8,6 +8,8 @@ export interface PurchasePlanItem {
   purchaseSubject: string | null;
   /** Наименование действующего договора (колонка «Текущий договор») */
   currentContractName?: string | null;
+  /** ID действующего договора, из которого сформирована позиция драфта */
+  sourceContractId?: number | null;
   budgetAmount: number | null;
   contractEndDate: string | null;
   requestDate: string | null;

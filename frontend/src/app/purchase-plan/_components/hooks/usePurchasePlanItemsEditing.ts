@@ -61,6 +61,9 @@ export const usePurchasePlanItemsEditing = (
   const [editingPurchaseRequestId, setEditingPurchaseRequestId] = useState<number | null>(null);
   const purchaseRequestIdInputRef = useRef<HTMLInputElement | null>(null);
   const [editingPurchaseSubject, setEditingPurchaseSubject] = useState<number | null>(null);
+  // Бюджет и сложность редактируются только у строк драфта плана закупок
+  const [editingBudgetAmount, setEditingBudgetAmount] = useState<number | null>(null);
+  const [editingComplexity, setEditingComplexity] = useState<number | null>(null);
   const purchaseSubjectInputRef = useRef<HTMLTextAreaElement | null>(null);
   const [editingPurchaser, setEditingPurchaser] = useState<number | null>(null);
   const [availablePurchasers, setAvailablePurchasers] = useState<Array<{ id: number; name: string }>>([]);
@@ -649,6 +652,79 @@ export const usePurchasePlanItemsEditing = (
     }
   };
 
+  // Бюджет позиции драфта плана закупок
+  const handleBudgetAmountUpdate = async (itemId: number, newBudgetAmount: string) => {
+    const normalized = newBudgetAmount.replace(/\s/g, '').replace(/,/g, '.');
+    const parsed = normalized.trim() === '' ? null : Number(normalized);
+    if (parsed !== null && (isNaN(parsed) || parsed < 0)) {
+      alert('Некорректная сумма бюджета');
+      return;
+    }
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/budget-amount`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ budgetAmount: parsed }),
+      });
+
+      if (response.ok) {
+        const updatedItem = await response.json();
+        setEditingBudgetAmount(null);
+        setAllItems(prev => {
+          const updated = prev.map(item =>
+            item.id === itemId
+              ? { ...item, budgetAmount: updatedItem.budgetAmount, updatedAt: updatedItem.updatedAt }
+              : item
+          );
+          if (data) {
+            setData({ ...data, content: updated });
+          }
+          return updated;
+        });
+      } else {
+        alert('Ошибка при обновлении бюджета: ' + (await response.text()));
+      }
+    } catch {
+      alert('Ошибка при обновлении бюджета');
+    }
+  };
+
+  // Сложность позиции драфта: бэкенд пересчитывает дату завершения закупки
+  const handleComplexityUpdate = async (itemId: number, newComplexity: string) => {
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/complexity`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ complexity: newComplexity || null }),
+      });
+
+      if (response.ok) {
+        const updatedItem = await response.json();
+        setEditingComplexity(null);
+        setAllItems(prev => {
+          const updated = prev.map(item =>
+            item.id === itemId
+              ? {
+                  ...item,
+                  complexity: updatedItem.complexity,
+                  newContractDate: updatedItem.newContractDate,
+                  updatedAt: updatedItem.updatedAt,
+                }
+              : item
+          );
+          if (data) {
+            setData({ ...data, content: updated });
+          }
+          return updated;
+        });
+      } else {
+        alert('Ошибка при обновлении сложности: ' + (await response.text()));
+      }
+    } catch {
+      alert('Ошибка при обновлении сложности');
+    }
+  };
+
   // Функция для обновления предмета закупки
   const handlePurchaseSubjectUpdate = async (itemId: number, newPurchaseSubject: string) => {
     try {
@@ -888,6 +964,12 @@ export const usePurchasePlanItemsEditing = (
     setEditingPurchaseRequestId,
     purchaseRequestIdInputRef,
     editingPurchaseSubject,
+    editingBudgetAmount,
+    setEditingBudgetAmount,
+    handleBudgetAmountUpdate,
+    editingComplexity,
+    setEditingComplexity,
+    handleComplexityUpdate,
     setEditingPurchaseSubject,
     purchaseSubjectInputRef,
     editingPurchaser,
