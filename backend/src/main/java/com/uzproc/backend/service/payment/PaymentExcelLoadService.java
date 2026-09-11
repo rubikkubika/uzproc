@@ -14,31 +14,24 @@ import com.uzproc.backend.repository.payment.PaymentRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
 import com.uzproc.backend.repository.supplier.SupplierRepository;
 import com.uzproc.backend.repository.user.UserRepository;
-import org.apache.poi.hssf.usermodel.HSSFWorkbook;
-import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.util.Date;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -61,6 +54,11 @@ public class PaymentExcelLoadService {
     private static final String INN_COLUMN = "ИНН";
     private static final String EXECUTOR_COLUMN = "Исполнитель";
     private static final String RESPONSIBLE_COLUMN = "Ответственный";
+
+    /** Строка заголовков ищется среди первых строк листа */
+    private static final int HEADER_SEARCH_ROWS = 10;
+    /** Размер порции: каждая порция сохраняется в отдельной транзакции */
+    private static final int BATCH_SIZE = 500;
 
     private static final DateTimeFormatter[] DATE_PARSERS = {
             DateTimeFormatter.ofPattern("dd.MM.yyyy"),
@@ -85,278 +83,281 @@ public class PaymentExcelLoadService {
     private final ContractRepository contractRepository;
     private final UserRepository userRepository;
     private final SupplierRepository supplierRepository;
-    private final DataFormatter dataFormatter = new DataFormatter();
+    private final PaymentBatchSaver batchSaver;
 
     public PaymentExcelLoadService(PaymentRepository paymentRepository, CfoRepository cfoRepository,
                                   PurchaseRequestRepository purchaseRequestRepository,
                                   ContractRepository contractRepository,
                                   UserRepository userRepository,
-                                  SupplierRepository supplierRepository) {
+                                  SupplierRepository supplierRepository,
+                                  PaymentBatchSaver batchSaver) {
         this.paymentRepository = paymentRepository;
         this.cfoRepository = cfoRepository;
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.contractRepository = contractRepository;
         this.userRepository = userRepository;
         this.supplierRepository = supplierRepository;
+        this.batchSaver = batchSaver;
     }
 
     /**
      * Загружает оплаты из Excel файла (папка payments).
      * Колонки: Сумма, ЦФО, Комментарий (Основание).
      * Каждая строка — новая запись (связь ЦФО по имени, при отсутствии — создаётся).
+     * Файл читается построчно ({@link PaymentExcelRowReader}), лист не загружается в память целиком.
+     * Без @Transactional на уровне метода: строки сохраняются порциями по BATCH_SIZE в отдельных
+     * транзакциях через {@link PaymentBatchSaver} (как у согласований договоров и поступлений) —
+     * сессия Hibernate не разрастается на весь файл, а ошибка одной строки не откатывает весь импорт.
      */
-    @Transactional
     public int loadPaymentsFromExcel(File excelFile) throws IOException {
-        Workbook workbook;
-        try (FileInputStream fis = new FileInputStream(excelFile)) {
-            if (excelFile.getName().endsWith(".xlsx")) {
-                workbook = new XSSFWorkbook(fis);
-            } else {
-                workbook = new HSSFWorkbook(fis);
+        PaymentFileImport fileImport = new PaymentFileImport(excelFile.getName());
+        PaymentExcelRowReader.read(excelFile, fileImport::onRow);
+        fileImport.flushBatch();
+
+        if (fileImport.columns == null) {
+            logger.warn("Payments: header row not found in file {} (checked first {} rows)", excelFile.getName(), HEADER_SEARCH_ROWS);
+            return 0;
+        }
+        logger.info("Loaded {} payments from file {} in {} batches (batch size={}, skipped without mainId: {}, skipped duplicate mainId in file: {})",
+                fileImport.loadedCount, excelFile.getName(), fileImport.batchNumber, BATCH_SIZE,
+                fileImport.skippedNoMainId, fileImport.skippedDuplicateMainId);
+        return fileImport.loadedCount;
+    }
+
+    /** Индексы колонок файла оплат (null — колонки в файле нет). */
+    private record PaymentColumns(Integer number, Integer amount, Integer cfo, Integer comment,
+                                  Integer paymentStatus, Integer requestStatus,
+                                  Integer plannedExpenseDate, Integer paymentDate,
+                                  Integer counterparty, Integer inn,
+                                  Integer executor, Integer responsible) {
+    }
+
+    /** Строка файла, отобранная к сохранению: номер строки (с 0), номер оплаты и значения ячеек. */
+    private record PaymentRow(int rowNum, String mainId, Map<Integer, String> cells) {
+    }
+
+    /**
+     * Состояние загрузки одного файла: поиск строки заголовков, отбор строк с уникальным номером оплаты
+     * (без обращений к БД) и сохранение их порциями.
+     */
+    private final class PaymentFileImport {
+        private final String fileName;
+        private final Set<String> mainIdsSeenInFile = new HashSet<>();
+        private final List<PaymentRow> batch = new ArrayList<>(BATCH_SIZE);
+        private PaymentColumns columns;
+        private int loadedCount;
+        private int batchNumber;
+        private int skippedNoMainId;
+        private int skippedDuplicateMainId;
+
+        PaymentFileImport(String fileName) {
+            this.fileName = fileName;
+        }
+
+        void onRow(int rowNum, Map<Integer, String> cells) {
+            if (columns == null) {
+                if (rowNum < HEADER_SEARCH_ROWS) {
+                    columns = detectColumns(cells, fileName);
+                }
+                return;
+            }
+            if (isRowEmpty(cells)) return;
+            // Загружаем только строки с основным номером (Номер); строки без номера — мусор, пропускаем
+            String mainId = extractMainId(cells, columns);
+            if (mainId == null) {
+                skippedNoMainId++;
+                return;
+            }
+            // Повторений mainId в файле быть не должно — при повторном номере пропускаем строку
+            if (!mainIdsSeenInFile.add(mainId)) {
+                skippedDuplicateMainId++;
+                logger.warn("Payments: duplicate mainId in file at row {} (mainId={}), skipping", rowNum + 1, mainId);
+                return;
+            }
+            batch.add(new PaymentRow(rowNum, mainId, cells));
+            if (batch.size() >= BATCH_SIZE) {
+                flushBatch();
             }
         }
 
-        try {
-            Sheet sheet = workbook.getSheetAt(0);
-            Row headerRow = null;
-            int headerRowIndex = -1;
-            Map<String, Integer> columnIndexMap = null;
-
-            for (int i = 0; i < Math.min(10, sheet.getLastRowNum() + 1); i++) {
-                Row row = sheet.getRow(i);
-                if (row == null) continue;
-                Map<String, Integer> tempMap = buildColumnIndexMap(row);
-                Integer amountIdx = findColumnIndex(tempMap, AMOUNT_COLUMN);
-                Integer cfoIdx = findColumnIndex(tempMap, CFO_COLUMN);
-                if (amountIdx != null || cfoIdx != null) {
-                    headerRow = row;
-                    headerRowIndex = i;
-                    columnIndexMap = tempMap;
-                    break;
+        /**
+         * Быстрый путь — вся порция одной транзакцией; при сбое (например, одна строка испортила сессию)
+         * порция повторяется построчно — теряется только плохая строка. Список всегда очищается.
+         */
+        void flushBatch() {
+            if (batch.isEmpty()) return;
+            batchNumber++;
+            try {
+                loadedCount += batchSaver.saveBatch(batch, row -> savePaymentRow(row, columns));
+            } catch (Exception e) {
+                logger.warn("Payments: batch {} save failed ({}), retrying row-by-row for {} rows",
+                        batchNumber, e.getMessage(), batch.size());
+                for (PaymentRow row : batch) {
+                    try {
+                        loadedCount += batchSaver.saveRowIsolated(row, r -> savePaymentRow(r, columns));
+                    } catch (Exception ex) {
+                        logger.warn("Error processing payment row {}: {}", row.rowNum() + 1, ex.getMessage());
+                    }
                 }
+            } finally {
+                batch.clear();
             }
-
-            if (columnIndexMap == null) {
-                logger.warn("Payments: header row not found in file {} (checked first 10 rows)", excelFile.getName());
-                return 0;
-            }
-
-            Integer numberColumnIndex = findColumnIndex(columnIndexMap, NUMBER_COLUMN);
-            Integer amountColumnIndex = findColumnIndex(columnIndexMap, AMOUNT_COLUMN);
-            Integer cfoColumnIndex = findColumnIndex(columnIndexMap, CFO_COLUMN);
-            Integer commentColumnIndex = findColumnIndex(columnIndexMap, COMMENT_COLUMN);
-            if (commentColumnIndex == null) {
-                commentColumnIndex = findColumnIndex(columnIndexMap, COMMENT_COLUMN_ALT);
-            }
-            if (commentColumnIndex == null) {
-                commentColumnIndex = findColumnIndex(columnIndexMap, COMMENT_COLUMN_ALT2);
-            }
-            Integer paymentStatusColumnIndex = findColumnIndex(columnIndexMap, PAYMENT_STATUS_COLUMN);
-            Integer requestStatusColumnIndex = findColumnIndex(columnIndexMap, REQUEST_STATUS_COLUMN);
-            Integer plannedExpenseDateColumnIndex = findColumnIndex(columnIndexMap, PLANNED_EXPENSE_DATE_COLUMN);
-            Integer paymentDateColumnIndex = findColumnIndex(columnIndexMap, PAYMENT_DATE_COLUMN);
-            Integer counterpartyColumnIndex = findColumnIndex(columnIndexMap, COUNTERPARTY_COLUMN);
-            Integer innColumnIndex = findColumnIndex(columnIndexMap, INN_COLUMN);
-            Integer executorColumnIndex = findColumnIndex(columnIndexMap, EXECUTOR_COLUMN);
-            Integer responsibleColumnIndex = findColumnIndex(columnIndexMap, RESPONSIBLE_COLUMN);
-            if (numberColumnIndex == null) {
-                logger.warn("Payments: column 'Номер' not found in file {}; headers checked: {}", excelFile.getName(), columnIndexMap.keySet());
-            }
-            logger.info("Payments: file {} columns -> Номер={}, Сумма={}, ЦФО={}, Комментарий={}, Статус оплаты={}, Статус заявки={}, Дата расхода (план)={}, Дата оплаты={}, Контрагент={}, ИНН={}, Исполнитель={}, Ответственный={}", excelFile.getName(), numberColumnIndex, amountColumnIndex, cfoColumnIndex, commentColumnIndex, paymentStatusColumnIndex, requestStatusColumnIndex, plannedExpenseDateColumnIndex, paymentDateColumnIndex, counterpartyColumnIndex, innColumnIndex, executorColumnIndex, responsibleColumnIndex);
-
-            if (amountColumnIndex == null && cfoColumnIndex == null) {
-                logger.warn("Payments: neither 'Сумма' nor 'ЦФО' column found in file {}", excelFile.getName());
-                return 0;
-            }
-
-            Iterator<Row> rowIterator = sheet.iterator();
-            for (int i = 0; i <= headerRowIndex && rowIterator.hasNext(); i++) {
-                rowIterator.next();
-            }
-
-            int loadedCount = 0;
-            int skippedNoMainId = 0;
-            int skippedDuplicateMainId = 0;
-            Set<String> mainIdsSeenInFile = new HashSet<>();
-            while (rowIterator.hasNext()) {
-                Row row = rowIterator.next();
-                if (isRowEmpty(row)) continue;
-                try {
-                    Payment payment = parsePaymentRow(row, numberColumnIndex, amountColumnIndex, cfoColumnIndex, commentColumnIndex, paymentStatusColumnIndex, requestStatusColumnIndex, plannedExpenseDateColumnIndex, paymentDateColumnIndex, counterpartyColumnIndex, innColumnIndex, executorColumnIndex, responsibleColumnIndex);
-                    // Загружаем только строки с основным номером (Номер); строки без номера — мусор, пропускаем
-                    if (payment == null || payment.getMainId() == null || payment.getMainId().trim().isEmpty()) {
-                        skippedNoMainId++;
-                        if (payment != null && (payment.getAmount() != null || payment.getCfo() != null || (payment.getComment() != null && !payment.getComment().trim().isEmpty()))) {
-                            logger.debug("Payments: skipping row {} (no mainId): amount={}, cfo={}", row.getRowNum() + 1, payment.getAmount(), payment.getCfo() != null ? payment.getCfo().getName() : null);
-                        }
-                        continue;
-                    }
-                    String mainIdTrimmed = payment.getMainId().trim();
-                    // Повторений mainId в файле быть не должно — при повторном номере пропускаем строку
-                    if (mainIdsSeenInFile.contains(mainIdTrimmed)) {
-                        skippedDuplicateMainId++;
-                        logger.warn("Payments: duplicate mainId in file at row {} (mainId={}), skipping", row.getRowNum() + 1, mainIdTrimmed);
-                        continue;
-                    }
-                    mainIdsSeenInFile.add(mainIdTrimmed);
-                    // Сопоставление только по mainId (номер оплаты). Не ищем по комментарию:
-                    // к одной заявке может быть несколько оплат с одинаковым текстом в комментарии.
-                    Optional<Payment> existingOpt = paymentRepository.findFirstByMainId(mainIdTrimmed);
-                    if (existingOpt.isPresent()) {
-                        Payment existing = existingOpt.get();
-                        boolean updated = updatePaymentFields(existing, payment);
-                        if (updated) {
-                            paymentRepository.save(existing);
-                            loadedCount++;
-                        }
-                    } else {
-                        paymentRepository.save(payment);
-                        loadedCount++;
-                    }
-                } catch (Exception e) {
-                    logger.warn("Error processing payment row {}: {}", row.getRowNum() + 1, e.getMessage());
-                }
-            }
-
-            logger.info("Loaded {} payments from file {} (skipped without mainId: {}, skipped duplicate mainId in file: {})",
-                    loadedCount, excelFile.getName(), skippedNoMainId, skippedDuplicateMainId);
-            return loadedCount;
-        } finally {
-            workbook.close();
+            logger.debug("Payments: batch {} saved ({} payments so far)", batchNumber, loadedCount);
         }
     }
 
-    private Payment parsePaymentRow(Row row, Integer numberColumnIndex, Integer amountColumnIndex, Integer cfoColumnIndex, Integer commentColumnIndex,
-                                    Integer paymentStatusColumnIndex, Integer requestStatusColumnIndex,
-                                    Integer plannedExpenseDateColumnIndex, Integer paymentDateColumnIndex,
-                                    Integer counterpartyColumnIndex, Integer innColumnIndex,
-                                    Integer executorColumnIndex, Integer responsibleColumnIndex) {
+    /**
+     * Сохраняет одну строку внутри транзакции порции: разбор со связями и upsert по mainId.
+     * Сопоставление только по mainId (номер оплаты). Не ищем по комментарию:
+     * к одной заявке может быть несколько оплат с одинаковым текстом в комментарии.
+     *
+     * @return true — оплата создана или обновлена
+     */
+    private boolean savePaymentRow(PaymentRow row, PaymentColumns columns) {
+        Payment payment = parsePaymentRow(row.cells(), row.rowNum(), columns);
+        Optional<Payment> existingOpt = paymentRepository.findFirstByMainId(row.mainId());
+        if (existingOpt.isPresent()) {
+            Payment existing = existingOpt.get();
+            if (updatePaymentFields(existing, payment)) {
+                paymentRepository.save(existing);
+                return true;
+            }
+            return false;
+        }
+        paymentRepository.save(payment);
+        return true;
+    }
+
+    /** Номер оплаты из колонки «Номер»; null — если его нет. */
+    private static String extractMainId(Map<Integer, String> cells, PaymentColumns columns) {
+        String number = cellValue(cells, columns.number());
+        // Если в ячейке число с дробной частью (например 12345.0 из Excel), оставляем целую часть для mainId
+        if (number != null && number.matches("\\d+\\.0+")) {
+            number = number.replaceAll("\\.0+$", "");
+        }
+        return number;
+    }
+
+    /**
+     * Если строка — заголовок (есть колонка «Сумма» или «ЦФО»), возвращает индексы колонок;
+     * иначе null.
+     */
+    private PaymentColumns detectColumns(Map<Integer, String> cells, String fileName) {
+        Map<String, Integer> columnIndexMap = buildColumnIndexMap(cells);
+        Integer amountColumnIndex = findColumnIndex(columnIndexMap, AMOUNT_COLUMN);
+        Integer cfoColumnIndex = findColumnIndex(columnIndexMap, CFO_COLUMN);
+        if (amountColumnIndex == null && cfoColumnIndex == null) {
+            return null;
+        }
+
+        Integer numberColumnIndex = findColumnIndex(columnIndexMap, NUMBER_COLUMN);
+        Integer commentColumnIndex = findColumnIndex(columnIndexMap, COMMENT_COLUMN);
+        if (commentColumnIndex == null) {
+            commentColumnIndex = findColumnIndex(columnIndexMap, COMMENT_COLUMN_ALT);
+        }
+        if (commentColumnIndex == null) {
+            commentColumnIndex = findColumnIndex(columnIndexMap, COMMENT_COLUMN_ALT2);
+        }
+        Integer paymentStatusColumnIndex = findColumnIndex(columnIndexMap, PAYMENT_STATUS_COLUMN);
+        Integer requestStatusColumnIndex = findColumnIndex(columnIndexMap, REQUEST_STATUS_COLUMN);
+        Integer plannedExpenseDateColumnIndex = findColumnIndex(columnIndexMap, PLANNED_EXPENSE_DATE_COLUMN);
+        Integer paymentDateColumnIndex = findColumnIndex(columnIndexMap, PAYMENT_DATE_COLUMN);
+        Integer counterpartyColumnIndex = findColumnIndex(columnIndexMap, COUNTERPARTY_COLUMN);
+        Integer innColumnIndex = findColumnIndex(columnIndexMap, INN_COLUMN);
+        Integer executorColumnIndex = findColumnIndex(columnIndexMap, EXECUTOR_COLUMN);
+        Integer responsibleColumnIndex = findColumnIndex(columnIndexMap, RESPONSIBLE_COLUMN);
+        if (numberColumnIndex == null) {
+            logger.warn("Payments: column 'Номер' not found in file {}; headers checked: {}", fileName, columnIndexMap.keySet());
+        }
+        logger.info("Payments: file {} columns -> Номер={}, Сумма={}, ЦФО={}, Комментарий={}, Статус оплаты={}, Статус заявки={}, Дата расхода (план)={}, Дата оплаты={}, Контрагент={}, ИНН={}, Исполнитель={}, Ответственный={}", fileName, numberColumnIndex, amountColumnIndex, cfoColumnIndex, commentColumnIndex, paymentStatusColumnIndex, requestStatusColumnIndex, plannedExpenseDateColumnIndex, paymentDateColumnIndex, counterpartyColumnIndex, innColumnIndex, executorColumnIndex, responsibleColumnIndex);
+
+        return new PaymentColumns(numberColumnIndex, amountColumnIndex, cfoColumnIndex, commentColumnIndex,
+                paymentStatusColumnIndex, requestStatusColumnIndex, plannedExpenseDateColumnIndex, paymentDateColumnIndex,
+                counterpartyColumnIndex, innColumnIndex, executorColumnIndex, responsibleColumnIndex);
+    }
+
+    private Payment parsePaymentRow(Map<Integer, String> cells, int rowNum, PaymentColumns columns) {
         Payment payment = new Payment();
 
-        if (numberColumnIndex != null) {
-            Cell cell = row.getCell(numberColumnIndex);
-            String value = getCellValueAsString(cell);
-            if (value != null && !value.trim().isEmpty()) {
-                String trimmed = value.trim();
-                // Если в ячейке число с дробной частью (например 12345.0 из Excel), оставляем целую часть для mainId
-                if (trimmed.contains(".") && trimmed.matches("\\d+\\.0+")) {
-                    trimmed = trimmed.replaceAll("\\.0+$", "");
-                }
-                payment.setMainId(trimmed);
+        String mainId = extractMainId(cells, columns);
+        if (mainId != null) {
+            payment.setMainId(mainId);
+        }
+
+        BigDecimal amount = parseBigDecimal(cellValue(cells, columns.amount()));
+        if (amount != null) {
+            payment.setAmount(amount);
+        }
+
+        String cfoName = cellValue(cells, columns.cfo());
+        if (cfoName != null) {
+            Cfo cfo = cfoRepository.findByNameIgnoreCase(cfoName)
+                    .orElseGet(() -> cfoRepository.save(new Cfo(cfoName)));
+            payment.setCfo(cfo);
+        }
+
+        String comment = cellValue(cells, columns.comment());
+        if (comment != null) {
+            payment.setComment(comment);
+            linkPurchaseRequestFromComment(payment, comment);
+            linkContractFromComment(payment, comment);
+        }
+
+        String paymentStatusValue = cellValue(cells, columns.paymentStatus());
+        if (paymentStatusValue != null) {
+            PaymentStatus status = PaymentStatus.fromDisplayName(paymentStatusValue);
+            if (status != null) {
+                payment.setPaymentStatus(status);
+            } else {
+                logger.debug("Payment row {}: unknown 'Статус оплаты' value '{}', expected: К оплате, Оплата возвращена, Оплачена", rowNum + 1, paymentStatusValue);
             }
         }
 
-        if (amountColumnIndex != null) {
-            Cell cell = row.getCell(amountColumnIndex);
-            BigDecimal amount = parseBigDecimalCell(cell);
-            if (amount != null) {
-                payment.setAmount(amount);
+        String requestStatusValue = cellValue(cells, columns.requestStatus());
+        if (requestStatusValue != null) {
+            PaymentRequestStatus status = PaymentRequestStatus.fromDisplayName(requestStatusValue);
+            if (status != null) {
+                payment.setRequestStatus(status);
+            } else {
+                logger.debug("Payment row {}: unknown 'Статус заявки' value '{}', expected: На согласовании, Отклонен, Утвержден, Черновик", rowNum + 1, requestStatusValue);
             }
         }
 
-        if (cfoColumnIndex != null) {
-            Cell cell = row.getCell(cfoColumnIndex);
-            String cfoStr = getCellValueAsString(cell);
-            if (cfoStr != null && !cfoStr.trim().isEmpty()) {
-                String trimmed = cfoStr.trim();
-                Optional<Cfo> cfoOpt = cfoRepository.findByNameIgnoreCase(trimmed);
-                Cfo cfo = cfoOpt.orElseGet(() -> {
-                    Cfo newCfo = new Cfo(trimmed);
-                    return cfoRepository.save(newCfo);
-                });
-                payment.setCfo(cfo);
-            }
+        LocalDate plannedExpenseDate = parseDate(cellValue(cells, columns.plannedExpenseDate()));
+        if (plannedExpenseDate != null) {
+            payment.setPlannedExpenseDate(plannedExpenseDate);
         }
 
-        if (commentColumnIndex != null) {
-            Cell cell = row.getCell(commentColumnIndex);
-            String comment = getCellValueAsString(cell);
-            if (comment != null && !comment.trim().isEmpty()) {
-                String trimmed = comment.trim();
-                payment.setComment(trimmed);
-                linkPurchaseRequestFromComment(payment, trimmed);
-                linkContractFromComment(payment, trimmed);
-            }
+        LocalDate paymentDate = parseDate(cellValue(cells, columns.paymentDate()));
+        if (paymentDate != null) {
+            payment.setPaymentDate(paymentDate);
         }
 
-        if (paymentStatusColumnIndex != null) {
-            Cell cell = row.getCell(paymentStatusColumnIndex);
-            String value = getCellValueAsString(cell);
-            if (value != null && !value.trim().isEmpty()) {
-                PaymentStatus status = PaymentStatus.fromDisplayName(value.trim());
-                if (status != null) {
-                    payment.setPaymentStatus(status);
-                } else {
-                    logger.debug("Payment row {}: unknown 'Статус оплаты' value '{}', expected: К оплате, Оплата возвращена, Оплачена", row.getRowNum() + 1, value.trim());
-                }
-            }
-        }
-
-        if (requestStatusColumnIndex != null) {
-            Cell cell = row.getCell(requestStatusColumnIndex);
-            String value = getCellValueAsString(cell);
-            if (value != null && !value.trim().isEmpty()) {
-                PaymentRequestStatus status = PaymentRequestStatus.fromDisplayName(value.trim());
-                if (status != null) {
-                    payment.setRequestStatus(status);
-                } else {
-                    logger.debug("Payment row {}: unknown 'Статус заявки' value '{}', expected: На согласовании, Отклонен, Утвержден, Черновик", row.getRowNum() + 1, value.trim());
-                }
-            }
-        }
-
-        if (plannedExpenseDateColumnIndex != null) {
-            Cell cell = row.getCell(plannedExpenseDateColumnIndex);
-            LocalDate date = parseDateCell(cell);
-            if (date != null) {
-                payment.setPlannedExpenseDate(date);
-            }
-        }
-
-        if (paymentDateColumnIndex != null) {
-            Cell cell = row.getCell(paymentDateColumnIndex);
-            LocalDate date = parseDateCell(cell);
-            if (date != null) {
-                payment.setPaymentDate(date);
-            }
-        }
-
-        String counterpartyName = null;
-        if (counterpartyColumnIndex != null) {
-            Cell cell = row.getCell(counterpartyColumnIndex);
-            String value = getCellValueAsString(cell);
-            if (value != null && !value.trim().isEmpty()) {
-                counterpartyName = value.trim();
-                payment.setCounterparty(counterpartyName);
-            }
+        String counterpartyName = cellValue(cells, columns.counterparty());
+        if (counterpartyName != null) {
+            payment.setCounterparty(counterpartyName);
         }
 
         // Связь с контрагентом из справочника: ищем по ИНН, при отсутствии — создаём
-        String inn = innColumnIndex != null ? normalizeInn(getCellValueAsString(row.getCell(innColumnIndex))) : null;
+        String inn = normalizeInn(cellValue(cells, columns.inn()));
         Supplier supplier = findOrCreateSupplier(inn, counterpartyName);
         if (supplier != null) {
             payment.setSupplier(supplier);
         }
 
-        if (executorColumnIndex != null) {
-            Cell cell = row.getCell(executorColumnIndex);
-            String value = getCellValueAsString(cell);
-            if (value != null && !value.trim().isEmpty()) {
-                User executor = findOrCreateUser(value.trim());
-                if (executor != null) {
-                    payment.setExecutor(executor);
-                }
+        String executorValue = cellValue(cells, columns.executor());
+        if (executorValue != null) {
+            User executor = findOrCreateUser(executorValue);
+            if (executor != null) {
+                payment.setExecutor(executor);
             }
         }
 
-        if (responsibleColumnIndex != null) {
-            Cell cell = row.getCell(responsibleColumnIndex);
-            String value = getCellValueAsString(cell);
-            if (value != null && !value.trim().isEmpty()) {
-                User responsible = findOrCreateUser(value.trim());
-                if (responsible != null) {
-                    payment.setResponsible(responsible);
-                }
+        String responsibleValue = cellValue(cells, columns.responsible());
+        if (responsibleValue != null) {
+            User responsible = findOrCreateUser(responsibleValue);
+            if (responsible != null) {
+                payment.setResponsible(responsible);
             }
         }
 
@@ -510,33 +511,52 @@ public class PaymentExcelLoadService {
      * Находит контрагента в справочнике поставщиков по ИНН, при отсутствии — создаёт нового
      * (code = ИНН, как при разборе колонки "Контрагенты" в договорах).
      * Если ИНН в выгрузке нет, пробуем найти поставщика по наименованию (новый при этом не создаём).
+     * code у поставщиков уникален: если code, равный этому ИНН, уже занят поставщиком с другим ИНН
+     * (например, служебный ИНН «000000005» совпал с кодом из справочника 1С), новый не создаём,
+     * а ищем по наименованию — иначе вставка нарушит уникальность и сломает загрузку всего файла.
      *
      * @return найденный или созданный поставщик, либо null, если сопоставить не по чему
      */
     private Supplier findOrCreateSupplier(String inn, String counterpartyName) {
-        if (inn != null) {
-            Optional<Supplier> existingOpt = supplierRepository.findFirstByInn(inn);
-            if (existingOpt.isPresent()) {
-                Supplier existing = existingOpt.get();
-                // Наименование в справочнике может быть пустым — заполняем из выгрузки оплат
-                if ((existing.getName() == null || existing.getName().isBlank())
-                        && counterpartyName != null && !counterpartyName.isBlank()) {
-                    existing.setName(counterpartyName);
-                    return supplierRepository.save(existing);
-                }
-                return existing;
+        if (inn == null) {
+            return findSupplierByName(counterpartyName);
+        }
+        Optional<Supplier> existingOpt = supplierRepository.findFirstByInn(inn);
+        if (existingOpt.isPresent()) {
+            Supplier existing = existingOpt.get();
+            // Наименование в справочнике может быть пустым — заполняем из выгрузки оплат
+            if ((existing.getName() == null || existing.getName().isBlank())
+                    && counterpartyName != null && !counterpartyName.isBlank()) {
+                existing.setName(counterpartyName);
+                return supplierRepository.save(existing);
             }
-            Supplier created = new Supplier();
-            created.setCode(inn);
-            created.setInn(inn);
-            created.setName(counterpartyName);
-            logger.info("Payments: creating supplier from payment row (inn={}, name={})", inn, counterpartyName);
-            return supplierRepository.save(created);
+            return existing;
         }
-        if (counterpartyName != null && !counterpartyName.isBlank()) {
-            return supplierRepository.findFirstByNameIgnoreCase(counterpartyName).orElse(null);
+        Optional<Supplier> sameCodeOpt = supplierRepository.findByCode(inn);
+        if (sameCodeOpt.isPresent()) {
+            Supplier sameCode = sameCodeOpt.get();
+            // Поставщик с code = ИНН, но без ИНН — тот же контрагент: дозаполняем ИНН
+            if (sameCode.getInn() == null || sameCode.getInn().isBlank()) {
+                sameCode.setInn(inn);
+                return supplierRepository.save(sameCode);
+            }
+            logger.warn("Payments: supplier code '{}' is taken by supplier id={} with inn={}, not creating supplier for counterparty '{}'",
+                    inn, sameCode.getId(), sameCode.getInn(), counterpartyName);
+            return findSupplierByName(counterpartyName);
         }
-        return null;
+        Supplier created = new Supplier();
+        created.setCode(inn);
+        created.setInn(inn);
+        created.setName(counterpartyName);
+        logger.info("Payments: creating supplier from payment row (inn={}, name={})", inn, counterpartyName);
+        return supplierRepository.save(created);
+    }
+
+    private Supplier findSupplierByName(String counterpartyName) {
+        if (counterpartyName == null || counterpartyName.isBlank()) {
+            return null;
+        }
+        return supplierRepository.findFirstByNameIgnoreCase(counterpartyName).orElse(null);
     }
 
     /**
@@ -616,30 +636,20 @@ public class PaymentExcelLoadService {
     }
 
     /**
-     * Парсит ячейку как дату: Excel DATE или строка в формате dd.MM.yyyy / yyyy-MM-dd.
+     * Парсит дату из значения ячейки: ячейки с форматом даты приходят как yyyy-MM-dd,
+     * текстовые — в формате dd.MM.yyyy / d.M.yyyy / yyyy-MM-dd.
      */
-    private LocalDate parseDateCell(Cell cell) {
-        if (cell == null) return null;
-        try {
-            if (cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
-                Date d = cell.getDateCellValue();
-                if (d == null) return null;
-                return Instant.ofEpochMilli(d.getTime()).atZone(ZoneId.systemDefault()).toLocalDate();
-            }
-            String raw = getCellValueAsString(cell);
-            if (raw == null || raw.trim().isEmpty() || "-".equals(raw.trim()) || "—".equals(raw.trim())) {
-                return null;
-            }
-            String trimmed = raw.trim();
-            for (DateTimeFormatter formatter : DATE_PARSERS) {
-                try {
-                    return LocalDate.parse(trimmed, formatter);
-                } catch (DateTimeParseException ignored) {
-                }
-            }
-        } catch (Exception e) {
-            logger.debug("Cannot parse date from cell: {}", getCellValueAsString(cell));
+    private LocalDate parseDate(String raw) {
+        if (raw == null || "-".equals(raw) || "—".equals(raw)) {
+            return null;
         }
+        for (DateTimeFormatter formatter : DATE_PARSERS) {
+            try {
+                return LocalDate.parse(raw, formatter);
+            } catch (DateTimeParseException ignored) {
+            }
+        }
+        logger.debug("Cannot parse date from cell: {}", raw);
         return null;
     }
 
@@ -771,15 +781,13 @@ public class PaymentExcelLoadService {
         }
     }
 
-    private Map<String, Integer> buildColumnIndexMap(Row headerRow) {
+    private Map<String, Integer> buildColumnIndexMap(Map<Integer, String> headerCells) {
         Map<String, Integer> map = new HashMap<>();
-        for (int i = 0; i < headerRow.getLastCellNum(); i++) {
-            Cell cell = headerRow.getCell(i);
-            if (cell != null) {
-                String value = getCellValueAsString(cell);
-                if (value != null && !value.trim().isEmpty()) {
-                    map.put(value.trim(), i);
-                }
+        // Слева направо: при повторяющемся заголовке остаётся самая правая колонка
+        for (Map.Entry<Integer, String> e : new TreeMap<>(headerCells).entrySet()) {
+            String value = e.getValue() != null ? e.getValue().trim() : "";
+            if (!value.isEmpty()) {
+                map.put(value, e.getKey());
             }
         }
         return map;
@@ -803,62 +811,38 @@ public class PaymentExcelLoadService {
         return str.toLowerCase().replaceAll("\\s+", "").trim();
     }
 
-    private String getCellValueAsString(Cell cell) {
-        if (cell == null) return null;
-        switch (cell.getCellType()) {
-            case STRING:
-                String s = cell.getStringCellValue();
-                return s != null && !s.trim().isEmpty() ? s.trim() : null;
-            case NUMERIC:
-                if (DateUtil.isCellDateFormatted(cell)) {
-                    return cell.getDateCellValue().toString();
-                }
-                double n = cell.getNumericCellValue();
-                return n == (long) n ? String.valueOf((long) n) : String.valueOf(n);
-            case BOOLEAN:
-                return String.valueOf(cell.getBooleanCellValue());
-            case FORMULA:
-                try {
-                    return dataFormatter.formatCellValue(cell);
-                } catch (Exception e) {
-                    return null;
-                }
-            default:
-                return null;
-        }
+    /** Значение ячейки без пробелов по краям; null — если колонки нет или ячейка пустая. */
+    private static String cellValue(Map<Integer, String> cells, Integer columnIndex) {
+        if (columnIndex == null) return null;
+        String value = cells.get(columnIndex);
+        if (value == null) return null;
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
-    private BigDecimal parseBigDecimalCell(Cell cell) {
-        if (cell == null) return null;
+    /**
+     * Парсит сумму: числовые ячейки приходят без форматирования (1234567.89);
+     * из текстовых убираются лишние символы, запятая считается десятичным разделителем.
+     */
+    private BigDecimal parseBigDecimal(String raw) {
+        if (raw == null || "-".equals(raw) || "—".equals(raw)) {
+            return null;
+        }
         try {
-            if (cell.getCellType() == CellType.NUMERIC && !DateUtil.isCellDateFormatted(cell)) {
-                double v = cell.getNumericCellValue();
-                if (!Double.isNaN(v) && !Double.isInfinite(v)) {
-                    return BigDecimal.valueOf(v);
-                }
-            }
-            String raw = dataFormatter.formatCellValue(cell);
-            if (raw == null || raw.trim().isEmpty() || "-".equals(raw.trim()) || "—".equals(raw.trim())) {
-                return null;
-            }
+            return new BigDecimal(raw);
+        } catch (NumberFormatException ignored) {
+        }
+        try {
             String cleaned = raw.replaceAll("[^0-9.,]", "").replace(",", ".");
             if (cleaned.isEmpty()) return null;
             return new BigDecimal(cleaned);
         } catch (Exception e) {
-            logger.debug("Cannot parse BigDecimal from cell: {}", getCellValueAsString(cell));
+            logger.debug("Cannot parse BigDecimal from cell: {}", raw);
             return null;
         }
     }
 
-    private boolean isRowEmpty(Row row) {
-        if (row == null) return true;
-        for (int i = 0; i < row.getLastCellNum(); i++) {
-            Cell cell = row.getCell(i);
-            if (cell != null) {
-                String v = getCellValueAsString(cell);
-                if (v != null && !v.trim().isEmpty()) return false;
-            }
-        }
-        return true;
+    private static boolean isRowEmpty(Map<Integer, String> cells) {
+        return cells.values().stream().allMatch(v -> v == null || v.trim().isEmpty());
     }
 }

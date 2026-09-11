@@ -150,6 +150,10 @@ public class Contract {
     @Column(name = "delivery_term", length = 2000)
     private String deliveryTerm;
 
+    /** Предмет договора. Парсинг из колонки "Содержание" в Excel. */
+    @Column(name = "subject", columnDefinition = "TEXT")
+    private String subject;
+
     /** Типовая форма. Парсинг из колонки "Типовая форма (Договор)" в Excel. */
     @Column(name = "is_typical_form")
     private Boolean isTypicalForm;
@@ -460,6 +464,14 @@ public class Contract {
 
     public void setDeliveryTerm(String deliveryTerm) {
         this.deliveryTerm = deliveryTerm;
+    }
+
+    public String getSubject() {
+        return subject;
+    }
+
+    public void setSubject(String subject) {
+        this.subject = subject;
     }
 
     public Set<Supplier> getSuppliers() {

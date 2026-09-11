@@ -123,6 +123,8 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
     private static final String PAYMENT_SCHEME_COLUMN = "Условие оплаты";
     /** Колонка срока поставки в договоре → поле «Срок поставки». */
     private static final String DELIVERY_TERM_COLUMN = "Срок поставки (Договор)";
+    // Колонка для предмета договора
+    private static final String SUBJECT_COLUMN = "Содержание";
     private static final String MAIN_CONTRACT_COLUMN = "Основной договор";
     private static final String SPECIFICATION_FORM = "Спецификация";
     private static final String EXPENSE_ITEM_COLUMN = "Статья бюджета (PL) (Заявка на ЗП)";
@@ -1403,6 +1405,20 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 }
             }
 
+            // Предмет договора (опционально) — парсинг из колонки "Содержание"
+            Integer subjectCol = columnIndices.get(SUBJECT_COLUMN);
+            if (subjectCol == null) {
+                subjectCol = findColumnIndex(SUBJECT_COLUMN);
+            }
+            if (subjectCol != null) {
+                String subject = currentRowData.get(subjectCol);
+                if (subject != null && !subject.trim().isEmpty()) {
+                    contract.setSubject(subject.trim());
+                    logger.debug("Row {}: parsed subject from 'Содержание' for contract {}",
+                        currentRowNum + 1, contract.getInnerId());
+                }
+            }
+
             // Подготовил (опционально) - устанавливаем связь с пользователем
             Integer preparedByCol = columnIndices.get(PREPARED_BY_COLUMN);
             if (preparedByCol == null) {
@@ -2350,6 +2366,15 @@ public class ExcelStreamingRowHandler implements XSSFSheetXMLHandler.SheetConten
                 existing.setDeliveryTerm(newData.getDeliveryTerm());
                 updated = true;
                 logger.debug("Updated deliveryTerm for contract {}", existing.getInnerId());
+            }
+        }
+
+        // Обновляем предмет договора (subject)
+        if (newData.getSubject() != null && !newData.getSubject().trim().isEmpty()) {
+            if (existing.getSubject() == null || !existing.getSubject().equals(newData.getSubject())) {
+                existing.setSubject(newData.getSubject());
+                updated = true;
+                logger.debug("Updated subject for contract {}", existing.getInnerId());
             }
         }
         

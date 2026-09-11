@@ -58,6 +58,9 @@ public class ContractDto {
     /** Срок поставки (парсинг из «Срок поставки (Договор)»). */
     private String deliveryTerm;
 
+    /** Предмет договора (парсинг из «Содержание»). */
+    private String subject;
+
     /** Поставщики (контрагенты) по договору. */
     private List<SupplierDto> suppliers;
 
@@ -371,6 +374,14 @@ public class ContractDto {
 
     public void setDeliveryTerm(String deliveryTerm) {
         this.deliveryTerm = deliveryTerm;
+    }
+
+    public String getSubject() {
+        return subject;
+    }
+
+    public void setSubject(String subject) {
+        this.subject = subject;
     }
 
     public List<SupplierDto> getSuppliers() {

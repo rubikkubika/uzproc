@@ -875,8 +875,10 @@ public class ContractService {
      * с разбивкой по типу документа: «Договор + ДС» (Договор / Дополнительное соглашение)
      * и «Спецификации» (Спецификация). Множество договоров и расчёт срока совпадают
      * с {@link #getApprovalDurationByMonth} (договоры SIGNED, договорник), но месяц и год
-     * берутся по дате завершения согласования (последнее содержательное согласование
-     * документа), а не по дате его создания.
+     * берутся по более поздней из двух дат: завершения согласования (последнее содержательное
+     * согласование документа) и подписания (договор и ДС — дата регистрации, спецификация —
+     * дата синхронизации). Например, согласован в августе, подписан в сентябре — попадает в сентябрь.
+     * Документ учитывается только после подписания, поэтому прошедшие месяцы задним числом не меняются.
      */
     public ContractApprovalDurationByMonthMarketResponseDto getApprovalDurationByMonthMarket(int year) {
         String sql =
@@ -885,6 +887,15 @@ public class ContractService {
             "         c.customer_organization, " +
             "         COALESCE(cf.name, '') AS cfo_name, " +
             "         c.document_form, " +
+            // Дата подписания: договор и ДС — дата регистрации, спецификация — дата синхронизации.
+            "         CASE " +
+            "           WHEN c.document_form IN ('Договор', 'Дополнительное соглашение') THEN c.registration_date " +
+            "           WHEN c.document_form = 'Спецификация' THEN " +
+            "             ( SELECT MAX(a.completion_date) FROM contract_approvals a " +
+            "                 WHERE a.contract_id = c.id " +
+            "                   AND a.completion_date IS NOT NULL " +
+            "                   AND LOWER(a.stage) LIKE 'синхронизация%' ) " +
+            "         END AS signing_date, " +
             "         ( SELECT MIN(a.assignment_date) FROM contract_approvals a " +
             "             WHERE a.contract_id = c.id " +
             "               AND a.assignment_date IS NOT NULL " +
@@ -906,13 +917,16 @@ public class ContractService {
             "  LEFT JOIN cfo cf ON c.cfo_id = cf.id " +
             "  WHERE c.status = 'SIGNED' " +
             "    AND u.is_contractor = true " +
+            "), per_period AS ( " +
+            // Месяц графика — более поздняя из дат согласования и подписания (GREATEST пропускает NULL).
+            "  SELECT *, GREATEST(last_completion, signing_date) AS period_date " +
+            "  FROM per_contract " +
+            "  WHERE last_completion IS NOT NULL " +
             ") " +
-            // Месяц графика — месяц последнего согласования документа.
             "SELECT customer_organization, cfo_name, document_form, " +
-            "       EXTRACT(MONTH FROM last_completion) AS period_month, first_assignment, last_completion " +
-            "FROM per_contract " +
-            "WHERE last_completion IS NOT NULL " +
-            "  AND EXTRACT(YEAR FROM last_completion) = :year";
+            "       EXTRACT(MONTH FROM period_date) AS period_month, first_assignment, last_completion " +
+            "FROM per_period " +
+            "WHERE EXTRACT(YEAR FROM period_date) = :year";
 
         var query = entityManager.createNativeQuery(sql).setParameter("year", year);
         @SuppressWarnings("unchecked")
@@ -1133,6 +1147,7 @@ public class ContractService {
         dto.setPaymentTerms(entity.getPaymentTerms());
         dto.setPaymentScheme(entity.getPaymentScheme());
         dto.setDeliveryTerm(entity.getDeliveryTerm());
+        dto.setSubject(entity.getSubject());
         dto.setIsTypicalForm(entity.getIsTypicalForm());
 
         // Поставщики (контрагенты)

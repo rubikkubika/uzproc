@@ -221,6 +221,7 @@ export default function ContractRedesign({
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(380px,1fr))', gap: '0 0', padding: '20px 28px 26px' }}>
             <div style={{ paddingRight: 32, display: 'flex', flexDirection: 'column', borderTop: `1px solid ${C.divider}` }}>
+              <InfoRow label="Предмет"><span style={{ whiteSpace: 'pre-wrap' }}>{contract.subject || '—'}</span></InfoRow>
               <InfoRow label="Номер заявки">{contract.purchaseRequestInnerId != null ? <span style={{ fontFamily: REDESIGN_MONO, fontSize: 13 }}>{contract.purchaseRequestInnerId}</span> : '—'}</InfoRow>
               <InfoRow label="Способ закупки">{contract.purchaseMethod || '—'}</InfoRow>
               <InfoRow label="Форма документа">{contract.documentForm || '—'}</InfoRow>

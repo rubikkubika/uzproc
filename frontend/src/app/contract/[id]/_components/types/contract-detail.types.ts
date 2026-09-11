@@ -42,6 +42,8 @@ export interface ContractDetail {
   paymentTerms: string | null;
   paymentScheme: string | null;
   deliveryTerm: string | null;
+  /** Предмет договора (колонка «Содержание» в Excel). */
+  subject: string | null;
   suppliers: ContractSupplier[] | null;
   preparedBy: string | null;
   purchaseRequestId: number | null;
