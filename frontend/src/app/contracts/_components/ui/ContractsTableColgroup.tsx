@@ -10,7 +10,7 @@ interface ContractsTableColgroupProps {
 const W = CONTRACTS_COLUMN_WIDTHS;
 
 /**
- * Ширины колонок таблицы договоров. «Наименование» намеренно без width —
+ * Ширины колонок таблицы договоров. «Предмет» намеренно без width —
  * при table-fixed оно забирает остаток ширины, поэтому таблица тянется на широких экранах,
  * а все остальные колонки (в том числе трэк) сохраняют заданный размер.
  */
@@ -24,7 +24,7 @@ export default function ContractsTableColgroup({ withPreparedBy }: ContractsTabl
       <col style={{ width: W.purchaseRequestInnerId }} />
       {withPreparedBy && <col style={{ width: W.preparedBy }} />}
       <col style={{ width: W.cfo }} />
-      {/* Наименование — растягивается */}
+      {/* Предмет — растягивается */}
       <col />
       <col style={{ width: W.supplier }} />
       <col style={{ width: W.documentForm }} />

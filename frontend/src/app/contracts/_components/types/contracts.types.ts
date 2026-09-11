@@ -13,6 +13,8 @@ export interface Contract {
   contractCreationDate: string | null;
   name: string | null;
   title: string | null;
+  /** Предмет договора (колонка «Содержание» в Excel); в таблице показывается вместо наименования. */
+  subject: string | null;
   cfo: string | null;
   purchaseMethod: string | null;
   documentForm: string | null;

@@ -1148,6 +1148,7 @@ public class ContractService {
         dto.setPaymentScheme(entity.getPaymentScheme());
         dto.setDeliveryTerm(entity.getDeliveryTerm());
         dto.setSubject(entity.getSubject());
+        dto.setExcludedFromPlanning(entity.getExcludedFromPlanning());
         dto.setIsTypicalForm(entity.getIsTypicalForm());
 
         // Поставщики (контрагенты)
@@ -1452,7 +1453,8 @@ public class ContractService {
             
             // Фильтр по наименованию (частичное совпадение, case-insensitive)
             if (name != null && !name.trim().isEmpty()) {
-                predicates.add(cb.like(cb.lower(root.get("name")), "%" + name.toLowerCase() + "%"));
+                // Колонка «Предмет» в таблице договоров: предмет, а если его нет — наименование
+                predicates.add(cb.like(cb.lower(root.<String>get("subjectOrName")), "%" + name.toLowerCase() + "%"));
                 predicateCount++;
                 logger.info("Added name filter: '{}'", name);
             }
@@ -1718,11 +1720,13 @@ public class ContractService {
             return Sort.by(Sort.Direction.DESC, "contractCreationDate");
         }
         
-        Sort.Direction direction = "asc".equalsIgnoreCase(sortDir) 
-            ? Sort.Direction.ASC 
+        Sort.Direction direction = "asc".equalsIgnoreCase(sortDir)
+            ? Sort.Direction.ASC
             : Sort.Direction.DESC;
-        
-        return Sort.by(direction, sortBy);
+
+        // Колонка «Предмет» (sortBy=name) показывает предмет, а если его нет — наименование: сортируем так же
+        String property = "name".equals(sortBy) ? "subjectOrName" : sortBy;
+        return Sort.by(direction, property);
     }
 }
 

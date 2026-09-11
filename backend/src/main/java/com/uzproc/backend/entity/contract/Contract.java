@@ -154,6 +154,14 @@ public class Contract {
     @Column(name = "subject", columnDefinition = "TEXT")
     private String subject;
 
+    /** Исключён из планирования: договор не попадает в драфт плана закупок */
+    @Column(name = "excluded_from_planning", nullable = false)
+    private Boolean excludedFromPlanning = Boolean.FALSE;
+
+    /** Предмет, а если его нет — наименование: значение колонки «Предмет» в таблице договоров (фильтр и сортировка) */
+    @org.hibernate.annotations.Formula("COALESCE(subject, name)")
+    private String subjectOrName;
+
     /** Типовая форма. Парсинг из колонки "Типовая форма (Договор)" в Excel. */
     @Column(name = "is_typical_form")
     private Boolean isTypicalForm;
@@ -472,6 +480,14 @@ public class Contract {
 
     public void setSubject(String subject) {
         this.subject = subject;
+    }
+
+    public Boolean getExcludedFromPlanning() {
+        return excludedFromPlanning;
+    }
+
+    public void setExcludedFromPlanning(Boolean excludedFromPlanning) {
+        this.excludedFromPlanning = excludedFromPlanning != null ? excludedFromPlanning : Boolean.FALSE;
     }
 
     public Set<Supplier> getSuppliers() {

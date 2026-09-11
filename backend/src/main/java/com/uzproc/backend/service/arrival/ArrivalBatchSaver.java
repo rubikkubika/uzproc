@@ -6,7 +6,10 @@ import com.uzproc.backend.entity.supplier.Supplier;
 import com.uzproc.backend.entity.user.User;
 import com.uzproc.backend.repository.arrival.ArrivalRepository;
 import com.uzproc.backend.repository.supplier.SupplierRepository;
-import com.uzproc.backend.repository.user.UserRepository;
+import com.uzproc.backend.service.excel.dictionary.ImportDictionaries;
+import com.uzproc.backend.service.excel.dictionary.ImportUserResolver;
+import com.uzproc.backend.service.excel.dictionary.SupplierDictionary;
+import com.uzproc.backend.service.excel.dictionary.SupplierDictionary.SupplierRef;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.slf4j.Logger;
@@ -15,12 +18,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
 
 /**
  * Сохраняет батч arrival-строк в отдельной транзакции.
  * Если батч падает — остальные батчи продолжают обрабатываться.
+ * Поставщики и ответственные ищутся по справочникам загрузки ({@link ImportDictionaries}),
+ * существующие поступления батча — одним запросом по номерам.
  */
 @Service
 public class ArrivalBatchSaver {
@@ -29,17 +35,17 @@ public class ArrivalBatchSaver {
 
     private final ArrivalRepository arrivalRepository;
     private final SupplierRepository supplierRepository;
-    private final UserRepository userRepository;
+    private final ImportUserResolver userResolver;
 
     @PersistenceContext
     private EntityManager entityManager;
 
     public ArrivalBatchSaver(ArrivalRepository arrivalRepository,
                              SupplierRepository supplierRepository,
-                             UserRepository userRepository) {
+                             ImportUserResolver userResolver) {
         this.arrivalRepository = arrivalRepository;
         this.supplierRepository = supplierRepository;
-        this.userRepository = userRepository;
+        this.userResolver = userResolver;
     }
 
     /**
@@ -51,10 +57,15 @@ public class ArrivalBatchSaver {
      * @return количество сохранённых/обновлённых записей
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public int saveBatch(List<ArrivalRowData> batch) {
+    public int saveBatch(List<ArrivalRowData> batch, ImportDictionaries dictionaries) {
+        // Существующие поступления батча — одним запросом вместо запроса на каждую строку
+        Map<String, Arrival> existingByNumber = new HashMap<>();
+        for (Arrival arrival : arrivalRepository.findByNumberIn(batch.stream().map(data -> data.number).toList())) {
+            existingByNumber.putIfAbsent(arrival.getNumber(), arrival);
+        }
         int saved = 0;
         for (ArrivalRowData data : batch) {
-            if (saveRow(data)) {
+            if (saveRow(data, existingByNumber.get(data.number), dictionaries)) {
                 saved++;
             }
         }
@@ -72,14 +83,15 @@ public class ArrivalBatchSaver {
      * @return 1 если строка сохранена/обновлена, иначе 0
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public int saveRowIsolated(ArrivalRowData data) {
-        int saved = saveRow(data) ? 1 : 0;
+    public int saveRowIsolated(ArrivalRowData data, ImportDictionaries dictionaries) {
+        Arrival existing = arrivalRepository.findFirstByNumber(data.number).orElse(null);
+        int saved = saveRow(data, existing, dictionaries) ? 1 : 0;
         entityManager.flush();
         entityManager.clear();
         return saved;
     }
 
-    private boolean saveRow(ArrivalRowData data) {
+    private boolean saveRow(ArrivalRowData data, Arrival existing, ImportDictionaries dictionaries) {
         Arrival arrival = new Arrival();
 
         if (data.date != null) arrival.setDate(data.date);
@@ -99,19 +111,17 @@ public class ArrivalBatchSaver {
 
         // Поставщик по ИНН
         if (data.inn != null && !data.inn.isEmpty()) {
-            arrival.setSupplier(findOrCreateSupplier(data.inn));
+            arrival.setSupplier(findOrCreateSupplier(data.inn, dictionaries.suppliers()));
         }
 
         // Ответственный
         if (data.responsible != null && !data.responsible.isEmpty()) {
-            User user = findOrCreateUser(data.responsible);
+            User user = userResolver.findOrCreate(data.responsible, dictionaries.users());
             if (user != null) arrival.setResponsible(user);
         }
 
         // Дедупликация по номеру
-        Optional<Arrival> existingOpt = arrivalRepository.findFirstByNumber(data.number);
-        if (existingOpt.isPresent()) {
-            Arrival existing = existingOpt.get();
+        if (existing != null) {
             boolean updated = updateArrivalFields(existing, arrival);
             if (updated) {
                 arrivalRepository.save(existing);
@@ -131,19 +141,32 @@ public class ArrivalBatchSaver {
      * Раньше поиск шёл только по {@code inn}: если поставщик с таким {@code code} уже существовал,
      * но с другим/пустым {@code inn}, вставлялся дубликат {@code code} → duplicate key,
      * что портило весь батч. Поиск по {@code code} устраняет причину в корне.
+     * Поиск идёт по справочнику; при промахе проверяется БД (поставщика мог создать другой загрузчик).
      */
-    private Supplier findOrCreateSupplier(String inn) {
-        Supplier supplier = supplierRepository.findFirstByInn(inn).orElse(null);
-        if (supplier == null) {
-            supplier = supplierRepository.findByCode(inn).orElse(null);
+    private Supplier findOrCreateSupplier(String inn, SupplierDictionary suppliers) {
+        SupplierRef ref = suppliers.byInn(inn);
+        if (ref == null) {
+            ref = suppliers.byCode(inn);
         }
-        if (supplier == null) {
-            supplier = new Supplier(inn); // code = inn
-            supplier.setInn(inn);
-            supplier.setName(inn);
-            supplier = supplierRepository.save(supplier);
-            logger.debug("Created supplier with INN/code={}", inn);
+        if (ref == null) {
+            Supplier fromDb = supplierRepository.findFirstByInn(inn).orElse(null);
+            if (fromDb == null) {
+                fromDb = supplierRepository.findByCode(inn).orElse(null);
+            }
+            if (fromDb != null) {
+                ref = SupplierRef.of(fromDb);
+                suppliers.putExisting(ref);
+            }
         }
+        if (ref != null) {
+            return entityManager.getReference(Supplier.class, ref.id());
+        }
+        Supplier supplier = new Supplier(inn); // code = inn
+        supplier.setInn(inn);
+        supplier.setName(inn);
+        supplier = supplierRepository.save(supplier);
+        suppliers.stage(SupplierRef.of(supplier));
+        logger.debug("Created supplier with INN/code={}", inn);
         return supplier;
     }
 
@@ -186,71 +209,5 @@ public class ArrivalBatchSaver {
             existing.setResponsible(newData.getResponsible()); updated = true;
         }
         return updated;
-    }
-
-    private User findOrCreateUser(String value) {
-        try {
-            String surname = null;
-            String name = null;
-            String department = null;
-            String position = null;
-
-            int openBracketIndex = value.indexOf('(');
-            int closeBracketIndex = value.indexOf(')');
-
-            if (openBracketIndex > 0 && closeBracketIndex > openBracketIndex) {
-                String namePart = value.substring(0, openBracketIndex).trim();
-                String departmentPart = value.substring(openBracketIndex + 1, closeBracketIndex).trim();
-                String[] nameParts = namePart.split("\\s+", 2);
-                if (nameParts.length >= 1) surname = nameParts[0].trim();
-                if (nameParts.length >= 2) name = nameParts[1].trim();
-                String[] deptParts = departmentPart.split(",", 2);
-                if (deptParts.length >= 1) department = deptParts[0].trim();
-                if (deptParts.length >= 2) position = deptParts[1].trim();
-            } else {
-                String[] nameParts = value.split("\\s+", 2);
-                if (nameParts.length >= 1) surname = nameParts[0].trim();
-                if (nameParts.length >= 2) name = nameParts[1].trim();
-            }
-
-            String username = (surname != null ? surname : "") + (name != null ? "_" + name : "");
-            if (username.isEmpty() || username.equals("_")) {
-                username = "user_" + System.currentTimeMillis();
-            }
-
-            User existingUser = null;
-            if (surname != null && name != null) {
-                existingUser = userRepository.findBySurnameAndName(surname, name).orElse(null);
-            }
-            if (existingUser == null) {
-                existingUser = userRepository.findByUsername(username).orElse(null);
-            }
-
-            if (existingUser != null) {
-                boolean userUpdated = false;
-                if (department != null && !department.equals(existingUser.getDepartment())) {
-                    existingUser.setDepartment(department); userUpdated = true;
-                }
-                if (position != null && !position.equals(existingUser.getPosition())) {
-                    existingUser.setPosition(position); userUpdated = true;
-                }
-                if (userUpdated) userRepository.save(existingUser);
-                return existingUser;
-            }
-
-            User newUser = new User();
-            newUser.setUsername(username);
-            newUser.setPassword("");
-            newUser.setSurname(surname);
-            newUser.setName(name);
-            newUser.setDepartment(department);
-            newUser.setPosition(position);
-            newUser = userRepository.save(newUser);
-            logger.debug("Created user for arrival responsible: {} {}", surname, name);
-            return newUser;
-        } catch (Exception e) {
-            logger.warn("Error parsing responsible '{}': {}", value, e.getMessage());
-            return null;
-        }
     }
 }

@@ -10,6 +10,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 @Repository
@@ -28,6 +29,10 @@ public interface PaymentRepository extends JpaRepository<Payment, Long>, JpaSpec
 
     /** Поиск существующей оплаты по основному номеру (main_id) для дедупликации при загрузке Excel */
     Optional<Payment> findFirstByMainId(String mainId);
+
+    /** Номера всех оплат — при загрузке Excel для новых строк не ищем оплату в БД */
+    @Query("SELECT p.mainId FROM Payment p WHERE p.mainId IS NOT NULL")
+    java.util.List<String> findAllMainIds();
 
     /** Все оплаты, привязанные к указанному договору */
     java.util.List<Payment> findByContractId(Long contractId);

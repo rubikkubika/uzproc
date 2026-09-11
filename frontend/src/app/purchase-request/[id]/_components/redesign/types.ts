@@ -45,6 +45,8 @@ export interface Contract {
   id: number;
   innerId: string | null;
   name: string | null;
+  /** Предмет договора (колонка «Содержание» в Excel) */
+  subject?: string | null;
   cfo: string | null;
   contractCreationDate: string | null;
   budgetAmount: number | null;

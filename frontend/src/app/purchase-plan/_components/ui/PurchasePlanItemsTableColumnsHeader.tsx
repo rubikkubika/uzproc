@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { MessageCircle, Factory } from 'lucide-react';
+import { MessageCircle, Factory, Eye } from 'lucide-react';
 import { ALL_COLUMNS } from '../constants/purchase-plan-items.constants';
 import { SortField, SortDirection } from '../types/purchase-plan-items.types';
 import SortableHeader from './SortableHeader';
@@ -137,6 +137,22 @@ export default function PurchasePlanItemsTableColumnsHeader({
     <thead className="bg-gray-50 sticky top-0 z-10">
       <tr>
         {filteredColumnOrder.map((columnKey) => {
+          // Колонка «глазик» (только драфт): исключение позиции и её договора из планирования
+          if (columnKey === 'excludeFromPlanning') {
+            return (
+              <th
+                key={columnKey}
+                className="px-0 py-0 text-left text-xs font-medium text-gray-500 tracking-wider border-r border-gray-300 relative"
+                style={{ width: '28px', minWidth: '28px', maxWidth: '28px' }}
+                title="Исключение из планирования"
+              >
+                <div className="flex items-center justify-center">
+                  <Eye className="w-4 h-4 text-gray-400" />
+                </div>
+              </th>
+            );
+          }
+
           const column = ALL_COLUMNS.find(col => col.key === columnKey);
           if (!column) return null;
           

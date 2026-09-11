@@ -61,6 +61,9 @@ public class ContractDto {
     /** Предмет договора (парсинг из «Содержание»). */
     private String subject;
 
+    /** Исключён из планирования: договор не попадает в драфт плана закупок. */
+    private Boolean excludedFromPlanning;
+
     /** Поставщики (контрагенты) по договору. */
     private List<SupplierDto> suppliers;
 
@@ -382,6 +385,14 @@ public class ContractDto {
 
     public void setSubject(String subject) {
         this.subject = subject;
+    }
+
+    public Boolean getExcludedFromPlanning() {
+        return excludedFromPlanning;
+    }
+
+    public void setExcludedFromPlanning(Boolean excludedFromPlanning) {
+        this.excludedFromPlanning = excludedFromPlanning;
     }
 
     public List<SupplierDto> getSuppliers() {

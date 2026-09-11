@@ -87,8 +87,8 @@ export function ContractBlock({
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', borderTop: `1px solid ${REDESIGN_COLORS.divider}` }}>
           <div style={rowStyle}>
-            <span style={labelStyle}>Наименование</span>
-            <span style={{ fontWeight: 500, lineHeight: 1.45 }}>{contract.name || '—'}</span>
+            <span style={labelStyle}>Предмет</span>
+            <span style={{ fontWeight: 500, lineHeight: 1.45 }}>{contract.subject || contract.name || '—'}</span>
           </div>
           <div style={rowStyle}>
             <span style={labelStyle}>ЦФО</span>

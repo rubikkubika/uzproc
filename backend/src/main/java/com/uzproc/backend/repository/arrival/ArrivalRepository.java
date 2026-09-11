@@ -25,6 +25,9 @@ public interface ArrivalRepository extends JpaRepository<Arrival, Long>, JpaSpec
 
     Optional<Arrival> findFirstByNumber(String number);
 
+    /** Поступления по списку номеров — при загрузке Excel одним запросом на порцию */
+    java.util.List<Arrival> findByNumberIn(java.util.Collection<String> numbers);
+
     /** Все поступления по списку поставщиков */
     java.util.List<Arrival> findBySupplierIdIn(java.util.List<Long> supplierIds);
 

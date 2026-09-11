@@ -8,6 +8,7 @@ import com.uzproc.backend.entity.purchaseplan.PurchasePlanItem;
 import com.uzproc.backend.entity.purchaseplan.PurchasePlanItemStatus;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
 import com.uzproc.backend.entity.supplier.Supplier;
+import com.uzproc.backend.dto.purchaseplan.PurchasePlanItemDto;
 import com.uzproc.backend.repository.contract.ContractRepository;
 import com.uzproc.backend.repository.purchaseplan.PurchasePlanItemRepository;
 import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
@@ -39,6 +40,10 @@ import java.util.stream.Collectors;
  * Осенние договоры включены потому, что перезакупка по ним приходится уже на год планирования.
  *
  * Аналитика позиции драфта заполняется из договора и (при наличии) из связанной заявки на закупку.
+ * Договоры с признаком «Исключён из планирования» в драфт не попадают.
+ *
+ * Позиции драфта не удаляются: очистка их скрывает, а повторное формирование возвращает позицию
+ * по тому же договору с тем же id (вместе с историей изменений и комментариями).
  */
 @Service
 public class PurchasePlanDraftService {
@@ -71,23 +76,27 @@ public class PurchasePlanDraftService {
     private final PurchasePlanItemRepository purchasePlanItemRepository;
     private final PurchaseRequestRepository purchaseRequestRepository;
     private final ProcurementLeadTimeService procurementLeadTimeService;
+    private final PurchasePlanItemService purchasePlanItemService;
 
     public PurchasePlanDraftService(
             ContractRepository contractRepository,
             PurchasePlanItemRepository purchasePlanItemRepository,
             PurchaseRequestRepository purchaseRequestRepository,
-            ProcurementLeadTimeService procurementLeadTimeService) {
+            ProcurementLeadTimeService procurementLeadTimeService,
+            PurchasePlanItemService purchasePlanItemService) {
         this.contractRepository = contractRepository;
         this.purchasePlanItemRepository = purchasePlanItemRepository;
         this.purchaseRequestRepository = purchaseRequestRepository;
         this.procurementLeadTimeService = procurementLeadTimeService;
+        this.purchasePlanItemService = purchasePlanItemService;
     }
 
     /**
      * Формирует драфт плана закупок на указанный год из действующих договоров.
      * Позиции, уже созданные из того же договора, повторно не создаются — ручные правки не теряются.
+     * Позиция, скрытая очисткой драфта, возвращается с тем же id и заполняется заново.
      *
-     * @return сводка: сколько договоров отобрано, сколько позиций создано и сколько пропущено
+     * @return сводка: сколько договоров отобрано, сколько позиций создано (включая возвращённые) и сколько пропущено
      */
     @Transactional
     public Map<String, Object> generateDraft(Integer year) {
@@ -100,56 +109,108 @@ public class PurchasePlanDraftService {
         logger.info("Draft generation for year {}: selected {} contracts (end date {} .. {})",
                 planYear, contracts.size(), from.toLocalDate(), to.toLocalDate().minusDays(1));
 
-        // Уже существующие позиции драфта этого года — чтобы не плодить дубли
-        Set<Long> existingSourceContractIds = purchasePlanItemRepository.findDraftItemsByYear(planYear).stream()
-                .map(PurchasePlanItem::getSourceContractId)
-                .filter(id -> id != null)
-                .collect(Collectors.toSet());
+        // Позиции драфта этого года по договору-источнику, включая скрытые очисткой: не плодим дубли
+        // и возвращаем позицию с тем же id
+        Map<Long, PurchasePlanItem> existingBySourceContract = new HashMap<>();
+        for (PurchasePlanItem item : purchasePlanItemRepository.findDraftItemsByYear(planYear)) {
+            if (item.getSourceContractId() != null) {
+                existingBySourceContract.putIfAbsent(item.getSourceContractId(), item);
+            }
+        }
 
         Map<Long, PurchaseRequest> purchaseRequestMap = loadPurchaseRequests(contracts);
 
         int created = 0;
+        int restored = 0;
         int skipped = 0;
         List<PurchasePlanItem> toSave = new ArrayList<>();
 
         for (Contract contract : contracts) {
-            if (contract.getId() == null || existingSourceContractIds.contains(contract.getId())) {
+            if (contract.getId() == null) {
+                skipped++;
+                continue;
+            }
+            PurchasePlanItem existing = existingBySourceContract.get(contract.getId());
+            if (existing != null && !Boolean.TRUE.equals(existing.getDraftCleared())) {
                 skipped++;
                 continue;
             }
             PurchaseRequest request = contract.getPurchaseRequestId() != null
                     ? purchaseRequestMap.get(contract.getPurchaseRequestId())
                     : null;
-            toSave.add(buildDraftItem(contract, request, planYear));
-            created++;
+            if (existing != null) {
+                // Позиция скрыта очисткой драфта — возвращаем её с тем же id и заполняем заново, как новую
+                resetForRegeneration(existing);
+                fillDraftItem(existing, contract, request, planYear);
+                toSave.add(existing);
+                restored++;
+            } else {
+                toSave.add(buildDraftItem(contract, request, planYear));
+                created++;
+            }
         }
 
         if (!toSave.isEmpty()) {
             purchasePlanItemRepository.saveAll(toSave);
         }
 
-        logger.info("Draft generation for year {}: created {}, skipped {} (already in draft)", planYear, created, skipped);
+        logger.info("Draft generation for year {}: created {}, restored {} (same id), skipped {} (already in draft)",
+                planYear, created, restored, skipped);
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("year", planYear);
         result.put("contractsSelected", contracts.size());
-        result.put("created", created);
+        result.put("created", created + restored);
+        result.put("restored", restored);
         result.put("skipped", skipped);
         return result;
     }
 
     /**
-     * Удаляет позиции драфта за указанный год (для полной перегенерации).
+     * Очищает драфт за указанный год: позиции скрываются, но не удаляются — при повторном формировании
+     * позиция по тому же договору вернётся с тем же id (история изменений и комментарии сохраняются).
      *
-     * @return количество удалённых позиций
+     * @return количество скрытых позиций
      */
     @Transactional
     public int clearDraft(Integer year) {
         int planYear = year != null ? year : LocalDate.now().getYear() + 1;
-        List<PurchasePlanItem> items = purchasePlanItemRepository.findDraftItemsByYear(planYear);
-        purchasePlanItemRepository.deleteAll(items);
-        logger.info("Draft for year {} cleared: {} items removed", planYear, items.size());
+        List<PurchasePlanItem> items = purchasePlanItemRepository.findDraftItemsByYear(planYear).stream()
+                .filter(item -> !Boolean.TRUE.equals(item.getDraftCleared()))
+                .collect(Collectors.toList());
+        items.forEach(item -> item.setDraftCleared(Boolean.TRUE));
+        purchasePlanItemRepository.saveAll(items);
+        logger.info("Draft for year {} cleared: {} items hidden (rows are kept to preserve ids)", planYear, items.size());
         return items.size();
+    }
+
+    /**
+     * «Глазик» у позиции драфта: исключает позицию из планирования (статус «Исключена») и помечает договор-источник
+     * признаком «Исключён из планирования» — в новые драфты он не попадёт. Повторное нажатие возвращает позицию
+     * в план и снимает признак с договора.
+     *
+     * @return обновлённая позиция или null, если позиция не найдена
+     * @throws IllegalStateException если позиция не относится к драфту
+     */
+    @Transactional
+    public PurchasePlanItemDto setExcludedFromPlanning(Long itemId, boolean excluded) {
+        PurchasePlanItem item = purchasePlanItemRepository.findById(itemId).orElse(null);
+        if (item == null) {
+            return null;
+        }
+        if (!Boolean.TRUE.equals(item.getIsDraft())) {
+            throw new IllegalStateException("Исключить из планирования можно только позицию драфта плана закупок");
+        }
+        if (item.getSourceContractId() != null) {
+            contractRepository.findById(item.getSourceContractId()).ifPresent(contract -> {
+                contract.setExcludedFromPlanning(excluded);
+                contractRepository.save(contract);
+            });
+        }
+        logger.info("Draft plan item {} {} planning (source contract {})",
+                itemId, excluded ? "excluded from" : "returned to", item.getSourceContractId());
+        return purchasePlanItemService.updateStatus(itemId,
+                excluded ? PurchasePlanItemStatus.NOT_ACTUAL : PurchasePlanItemStatus.ACTUAL);
     }
 
     /**
@@ -167,6 +228,8 @@ public class PurchasePlanDraftService {
             predicates.add(cb.equal(root.get("customerOrganization"), CustomerOrganization.UZUM_MARKET));
             // Только действующие (подписанные) договоры
             predicates.add(cb.equal(root.get("status"), ContractStatus.SIGNED));
+            // Договоры, исключённые из планирования («глазик» у позиции драфта), в драфт не попадают
+            predicates.add(cb.isFalse(root.<Boolean>get("excludedFromPlanning")));
             // Срок окончания попадает в интервал планирования
             predicates.add(cb.greaterThanOrEqualTo(root.get("plannedDeliveryEndDate"), from));
             predicates.add(cb.lessThan(root.get("plannedDeliveryEndDate"), to));
@@ -202,10 +265,37 @@ public class PurchasePlanDraftService {
     }
 
     /**
-     * Собирает позицию драфта из договора и связанной заявки.
+     * Собирает новую позицию драфта из договора и связанной заявки.
      */
     private PurchasePlanItem buildDraftItem(Contract contract, PurchaseRequest request, int planYear) {
         PurchasePlanItem item = new PurchasePlanItem();
+        fillDraftItem(item, contract, request, planYear);
+        return item;
+    }
+
+    /**
+     * Сбрасывает у позиции, скрытой очисткой драфта, поля, которые формирование не заполняет
+     * или заполняет не всегда, — чтобы возвращённая позиция была такой же, как новая.
+     */
+    private void resetForRegeneration(PurchasePlanItem item) {
+        item.setDraftCleared(Boolean.FALSE);
+        item.setPurchaser(null);
+        item.setPurchaseRequestId(null);
+        item.setHolding(null);
+        item.setState(null);
+        item.setAutoRenewal(null);
+        item.setCurrentContractBalance(null);
+        item.setRequestDate(null);
+        item.setNewContractDate(null);
+        item.setCategory(null);
+        item.setProduct(null);
+        item.setIsStrategicProduct(null);
+    }
+
+    /**
+     * Заполняет позицию драфта из договора и связанной заявки.
+     */
+    private void fillDraftItem(PurchasePlanItem item, Contract contract, PurchaseRequest request, int planYear) {
         item.setIsDraft(Boolean.TRUE);
         item.setSourceContractId(contract.getId());
         item.setYear(planYear);
@@ -219,11 +309,12 @@ public class PurchasePlanDraftService {
         String contractName = firstNonBlank(contract.getTitle(), contract.getName());
         item.setCurrentContractName(trimToLength(contractName, 500));
 
-        // Предмет закупки: наименование связанной заявки, а если заявки нет — наименование договора
+        // Предмет закупки: наименование связанной заявки; если заявки нет — предмет договора (колонка «Содержание»),
+        // а если и его нет — наименование договора
         String requestName = request != null
                 ? firstNonBlank(request.getName(), firstNonBlank(request.getTitle(), request.getPurchaseRequestSubject()))
                 : null;
-        String subject = isNotBlank(requestName) ? requestName : contractName;
+        String subject = isNotBlank(requestName) ? requestName : firstNonBlank(contract.getSubject(), contractName);
         item.setPurchaseSubject(trimToLength(subject, 500));
 
         // Суммы: бюджет новой закупки принимаем равным сумме действующего договора
@@ -284,7 +375,6 @@ public class PurchasePlanDraftService {
         // Закупщик в драфте не заполняется — назначается вручную
 
         item.setComment(buildComment(contract));
-        return item;
     }
 
     /**

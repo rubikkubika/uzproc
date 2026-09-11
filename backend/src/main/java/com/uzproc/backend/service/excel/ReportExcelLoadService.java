@@ -170,6 +170,14 @@ public class ReportExcelLoadService {
      * Парсит согласования для заявок на закупку
      */
     public int loadFromExcel(File excelFile) throws IOException {
+        return loadFromExcel(excelFile, true);
+    }
+
+    /**
+     * @param updateStatuses пересчитать статусы закупок, договоров и заявок после разбора. При старте приложения
+     *                       false: статусы один раз пересчитывает StatusUpdateRunner после всех загрузок
+     */
+    public int loadFromExcel(File excelFile, boolean updateStatuses) throws IOException {
         Workbook workbook;
         try (FileInputStream fis = new FileInputStream(excelFile)) {
             if (excelFile.getName().endsWith(".xlsx")) {
@@ -315,6 +323,12 @@ public class ReportExcelLoadService {
             logger.info("Processed {} requests ({} approvals), {} purchases ({} approvals), skipped {} rows from report file {}", 
                 processedRequestsCount, requestApprovalsCount, processedPurchasesCount, purchaseApprovalsCount, skippedCount, excelFile.getName());
             
+            if (!updateStatuses) {
+                // При старте приложения статусы один раз пересчитывает StatusUpdateRunner после всех загрузок
+                logger.info("Status update after parsing report file skipped: statuses are recalculated by StatusUpdateRunner");
+                return processedRequestsCount + processedPurchasesCount;
+            }
+
             // Обновляем статусы в правильном порядке в отдельных транзакциях:
             // 1. Сначала статусы закупок (так как статус заявки зависит от статуса закупки)
             // 2. Затем статусы договоров

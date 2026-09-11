@@ -87,17 +87,27 @@ export const DRAFT_HIDDEN_COLUMNS: string[] = [
   'purchaserCompany',
 ];
 
-// Колонки, доступные в драфте плана закупок
-export const DRAFT_ALL_COLUMNS = ALL_COLUMNS.filter(col => !DRAFT_HIDDEN_COLUMNS.includes(col.key));
+// Колонка только драфта: «глазик» исключения позиции (и её договора) из планирования, слева от ID
+export const EXCLUDE_FROM_PLANNING_COLUMN = { key: 'excludeFromPlanning', label: 'Исключение из планирования' } as const;
 
-// Дефолтные видимые колонки драфта: после предмета закупки дополнительно показываем
-// наименование действующего договора и сложность, колонки из DRAFT_HIDDEN_COLUMNS исключаются
-export const DRAFT_DEFAULT_VISIBLE_COLUMNS = DEFAULT_VISIBLE_COLUMNS
-  .flatMap(col => (col === 'purchaseSubject' ? [col, 'currentContractName', 'complexity'] : [col]))
-  .filter(col => !DRAFT_HIDDEN_COLUMNS.includes(col));
+// Колонки, доступные в драфте плана закупок
+export const DRAFT_ALL_COLUMNS = [
+  EXCLUDE_FROM_PLANNING_COLUMN,
+  ...ALL_COLUMNS.filter(col => !DRAFT_HIDDEN_COLUMNS.includes(col.key)),
+];
+
+// Дефолтные видимые колонки драфта: первой — «глазик» исключения из планирования, после предмета закупки
+// дополнительно показываем наименование действующего договора и сложность, колонки из DRAFT_HIDDEN_COLUMNS исключаются
+export const DRAFT_DEFAULT_VISIBLE_COLUMNS = [
+  EXCLUDE_FROM_PLANNING_COLUMN.key,
+  ...DEFAULT_VISIBLE_COLUMNS
+    .flatMap(col => (col === 'purchaseSubject' ? [col, 'currentContractName', 'complexity'] : [col]))
+    .filter(col => !DRAFT_HIDDEN_COLUMNS.includes(col)),
+];
 
 // Дефолтные ширины колонок
 export const DEFAULT_COLUMN_WIDTHS: Record<string, number> = {
+  excludeFromPlanning: 28,
   id: 80,
   company: 179,
   guid: 256,

@@ -597,6 +597,7 @@ function PurchasePlanItemsTableContent() {
     onPurchaseSubjectUpdate: table.editing.handlePurchaseSubjectUpdate,
     onBudgetAmountUpdate: table.editing.handleBudgetAmountUpdate,
     onComplexityUpdate: table.editing.handleComplexityUpdate,
+    onExcludeFromPlanningToggle: table.editing.handleExcludeFromPlanningToggle,
     setEditingBudgetAmount: table.editing.setEditingBudgetAmount,
     setEditingComplexity: table.editing.setEditingComplexity,
     onPurchaseRequestIdUpdate: table.editing.handlePurchaseRequestIdUpdate,

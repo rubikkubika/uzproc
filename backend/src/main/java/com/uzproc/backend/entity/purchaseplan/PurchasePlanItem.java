@@ -129,6 +129,10 @@ public class PurchasePlanItem {
     @Column(name = "source_contract_id")
     private Long sourceContractId;
 
+    /** Позиция драфта скрыта очисткой драфта: строка не удаляется, чтобы при повторном формировании вернуться с тем же id */
+    @Column(name = "draft_cleared", nullable = false)
+    private Boolean draftCleared = Boolean.FALSE;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -428,6 +432,14 @@ public class PurchasePlanItem {
 
     public void setSourceContractId(Long sourceContractId) {
         this.sourceContractId = sourceContractId;
+    }
+
+    public Boolean getDraftCleared() {
+        return draftCleared;
+    }
+
+    public void setDraftCleared(Boolean draftCleared) {
+        this.draftCleared = draftCleared != null ? draftCleared : Boolean.FALSE;
     }
 }
 

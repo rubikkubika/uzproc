@@ -235,6 +235,14 @@ public class EntityExcelLoadService {
      * Всегда использует потоковое чтение для .xlsx файлов
      */
     public Map<String, Integer> loadAllFromExcel(File excelFile) throws IOException {
+        return loadAllFromExcel(excelFile, true);
+    }
+
+    /**
+     * @param updateStatuses пересчитать статусы закупок, договоров и заявок после разбора. При старте приложения
+     *                       false: статусы один раз пересчитывает StatusUpdateRunner после всех загрузок
+     */
+    public Map<String, Integer> loadAllFromExcel(File excelFile, boolean updateStatuses) throws IOException {
         // Всегда используем потоковое чтение
         if (!excelFile.getName().endsWith(".xlsx")) {
             throw new IllegalArgumentException("Only .xlsx files are supported. File: " + excelFile.getName());
@@ -242,7 +250,7 @@ public class EntityExcelLoadService {
 
         try {
             logger.info("Using streaming mode for file: {}", excelFile.getName());
-            return loadAllFromExcelStreaming(excelFile);
+            return loadAllFromExcelStreaming(excelFile, updateStatuses);
                         } catch (Exception e) {
             logger.error("Streaming mode failed for file {}: {}", excelFile.getName(), e.getMessage(), e);
             throw new IOException("Failed to load Excel file using streaming mode: " + e.getMessage(), e);
@@ -259,7 +267,7 @@ public class EntityExcelLoadService {
      * Потоковое чтение больших Excel файлов через Event API
      * Не загружает весь файл в память, обрабатывает построчно
      */
-    private Map<String, Integer> loadAllFromExcelStreaming(File excelFile) throws Exception {
+    private Map<String, Integer> loadAllFromExcelStreaming(File excelFile, boolean updateStatuses) throws Exception {
         logger.info("Starting streaming read of file: {}", excelFile.getName());
         String fileName = excelFile.getName();
         
@@ -352,11 +360,17 @@ public class EntityExcelLoadService {
                 );
             }
             
+            if (!updateStatuses) {
+                // При старте приложения статусы один раз пересчитывает StatusUpdateRunner после всех загрузок
+                logger.info("Status update after parsing skipped: statuses are recalculated by StatusUpdateRunner");
+                return results;
+            }
+
             // Обновляем статусы в правильном порядке:
             // 1. Сначала статусы закупок (так как статус заявки зависит от статуса закупки)
             // 2. Затем статусы договоров
             // 3. Затем статусы заявок (которые зависят от статусов закупок и договоров)
-            
+
             if (purchaseStatusUpdateService != null) {
                 logger.info("=== Starting status update for all purchases after parsing ===");
                 try {
@@ -537,7 +551,7 @@ public class EntityExcelLoadService {
         }
         
             try {
-                Map<String, Integer> results = loadAllFromExcelStreaming(excelFile);
+                Map<String, Integer> results = loadAllFromExcelStreaming(excelFile, true);
                 return results.getOrDefault("purchaseRequests", 0);
             } catch (Exception e) {
             logger.error("Streaming mode failed for file {}: {}", excelFile.getName(), e.getMessage(), e);
@@ -1665,7 +1679,7 @@ public class EntityExcelLoadService {
         }
         
             try {
-                Map<String, Integer> results = loadAllFromExcelStreaming(excelFile);
+                Map<String, Integer> results = loadAllFromExcelStreaming(excelFile, true);
                 return results.getOrDefault("users", 0);
             } catch (Exception e) {
             logger.error("Streaming mode failed for file {}: {}", excelFile.getName(), e.getMessage(), e);
@@ -1691,7 +1705,7 @@ public class EntityExcelLoadService {
         }
         
             try {
-                Map<String, Integer> results = loadAllFromExcelStreaming(excelFile);
+                Map<String, Integer> results = loadAllFromExcelStreaming(excelFile, true);
                 return results.getOrDefault("purchases", 0);
             } catch (Exception e) {
             logger.error("Streaming mode failed for file {}: {}", excelFile.getName(), e.getMessage(), e);
@@ -1926,7 +1940,7 @@ public class EntityExcelLoadService {
         }
         
             try {
-                Map<String, Integer> results = loadAllFromExcelStreaming(excelFile);
+                Map<String, Integer> results = loadAllFromExcelStreaming(excelFile, true);
                 return results.getOrDefault("contracts", 0);
             } catch (Exception e) {
             logger.error("Streaming mode failed for file {}: {}", excelFile.getName(), e.getMessage(), e);

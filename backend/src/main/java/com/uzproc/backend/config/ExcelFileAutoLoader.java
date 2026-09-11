@@ -26,7 +26,7 @@ public class ExcelFileAutoLoader {
     private static final Logger logger = LoggerFactory.getLogger(ExcelFileAutoLoader.class);
 
     @Bean
-    @Order(0) // Запускаем первым, до StatusUpdateRunner (Order = 1000)
+    @Order(0) // Запускаем первым, до StatusUpdateRunner (Order = 120)
     public CommandLineRunner autoLoadExcelFile(EntityExcelLoadService excelLoadService) {
         return args -> {
             try {
@@ -101,8 +101,9 @@ public class ExcelFileAutoLoader {
                     String fileName = excelFile.getName();
                     try {
                         logger.info("=== START processing file: {} (alldocuments, size: {} bytes) ===", fileName, excelFile.length());
-                        // Используем оптимизированный метод, который открывает файл один раз
-                        Map<String, Integer> counts = excelLoadService.loadAllFromExcel(excelFile);
+                        // Используем оптимизированный метод, который открывает файл один раз.
+                        // Статусы не пересчитываем: при старте это один раз делает StatusUpdateRunner после всех загрузок
+                        Map<String, Integer> counts = excelLoadService.loadAllFromExcel(excelFile, false);
                         int purchaseRequestsCount = counts.getOrDefault("purchaseRequests", 0);
                         int purchasesCount = counts.getOrDefault("purchases", 0);
                         int contractsCount = counts.getOrDefault("contracts", 0);
@@ -253,7 +254,7 @@ public class ExcelFileAutoLoader {
     }
 
     @Bean
-    @Order(100) // Запускаем после загрузки основных данных, но до обновления статусов (Order = 1000)
+    @Order(100) // Запускаем после загрузки основных данных, но до обновления статусов (StatusUpdateRunner, Order = 120)
     public CommandLineRunner autoLoadReportFile(ReportExcelLoadService reportExcelLoadService) {
         return args -> {
             try {
@@ -326,7 +327,8 @@ public class ExcelFileAutoLoader {
                     String fileName = excelFile.getName();
                     try {
                         logger.info("=== START processing file: {} (report) ===", fileName);
-                        int loadedCount = reportExcelLoadService.loadFromExcel(excelFile);
+                        // Статусы не пересчитываем: при старте это один раз делает StatusUpdateRunner после всех загрузок
+                        int loadedCount = reportExcelLoadService.loadFromExcel(excelFile, false);
                         totalLoaded += loadedCount;
                         logger.info("Loaded {} records from report file {}", loadedCount, fileName);
                         logger.info("=== END processing file: {} (report), loaded {} records ===", fileName, loadedCount);
@@ -343,7 +345,7 @@ public class ExcelFileAutoLoader {
     }
 
     @Bean
-    @Order(200) // Запускаем после загрузки отчётов, но до обновления статусов (Order = 1000)
+    @Order(200) // Запускаем после загрузки отчётов; на статусы не влияет (их пересчитывает StatusUpdateRunner, Order = 120)
     public CommandLineRunner autoLoadPurchasePlanFile(PurchasePlanExcelLoadService purchasePlanExcelLoadService) {
         return args -> {
             try {
@@ -433,7 +435,7 @@ public class ExcelFileAutoLoader {
     }
 
     @Bean
-    @Order(300) // После плана закупок, до обновления статусов (Order = 1000)
+    @Order(300) // После плана закупок; на статусы не влияет (их пересчитывает StatusUpdateRunner, Order = 120)
     public CommandLineRunner autoLoadPaymentsFile(PaymentExcelLoadService paymentExcelLoadService) {
         return args -> {
             try {
@@ -501,7 +503,7 @@ public class ExcelFileAutoLoader {
     }
 
     @Bean
-    @Order(350) // После payments (300), до обновления статусов (Order = 1000)
+    @Order(350) // После payments (300); на статусы не влияет (их пересчитывает StatusUpdateRunner, Order = 120)
     public CommandLineRunner autoLoadArrivalsFile(ArrivalExcelLoadService arrivalExcelLoadService) {
         return args -> {
             try {

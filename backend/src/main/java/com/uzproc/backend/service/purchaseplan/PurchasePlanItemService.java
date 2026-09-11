@@ -1158,6 +1158,10 @@ public class PurchasePlanItemService {
             
             // Разделение действующего плана и драфта плана закупок
             predicates.add(cb.equal(root.get("isDraft"), isDraft));
+            if (isDraft) {
+                // Позиции, скрытые очисткой драфта, не показываем (строки не удаляются, чтобы сохранить id)
+                predicates.add(cb.isFalse(root.<Boolean>get("draftCleared")));
+            }
             predicateCount++;
             
             // Фильтр по году
@@ -1857,6 +1861,10 @@ public class PurchasePlanItemService {
         Specification<PurchasePlanItem> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(root.get("isDraft"), isDraft));
+            if (isDraft) {
+                // Позиции, скрытые очисткой драфта, не показываем (строки не удаляются, чтобы сохранить id)
+                predicates.add(cb.isFalse(root.<Boolean>get("draftCleared")));
+            }
             if (year != null) {
                 predicates.add(cb.equal(root.get("year"), year));
             }

@@ -108,6 +108,7 @@ export default function PurchasePlanItemsTableBody({
           onPurchaseSubjectUpdate={editingHandlers.onPurchaseSubjectUpdate}
           onBudgetAmountUpdate={editingHandlers.onBudgetAmountUpdate}
           onComplexityUpdate={editingHandlers.onComplexityUpdate}
+          onExcludeFromPlanningToggle={editingHandlers.onExcludeFromPlanningToggle}
           setEditingBudgetAmount={editingHandlers.setEditingBudgetAmount}
           setEditingComplexity={editingHandlers.setEditingComplexity}
           onPurchaserUpdate={editingHandlers.onPurchaserUpdate}

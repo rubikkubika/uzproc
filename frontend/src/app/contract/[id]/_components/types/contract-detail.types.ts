@@ -44,6 +44,8 @@ export interface ContractDetail {
   deliveryTerm: string | null;
   /** Предмет договора (колонка «Содержание» в Excel). */
   subject: string | null;
+  /** Исключён из планирования: договор не попадает в драфт плана закупок. */
+  excludedFromPlanning?: boolean | null;
   suppliers: ContractSupplier[] | null;
   preparedBy: string | null;
   purchaseRequestId: number | null;

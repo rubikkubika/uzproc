@@ -514,6 +514,31 @@ public class PurchasePlanItemController {
         }
     }
 
+    /**
+     * «Глазик» у позиции драфта: исключение из планирования (статус «Исключена» и признак
+     * «Исключён из планирования» у договора-источника — в новые драфты он не попадёт) или возврат в план.
+     */
+    @PatchMapping("/{id}/exclude-from-planning")
+    public ResponseEntity<?> updatePurchasePlanItemExcludedFromPlanning(
+            @PathVariable Long id,
+            @RequestBody Map<String, Boolean> requestBody) {
+        try {
+            Boolean excluded = requestBody.get("excludedFromPlanning");
+            if (excluded == null) {
+                return ResponseEntity.badRequest().body("Поле excludedFromPlanning обязательно");
+            }
+            PurchasePlanItemDto updatedItem = purchasePlanDraftService.setExcludedFromPlanning(id, excluded);
+            if (updatedItem != null) {
+                return ResponseEntity.ok(updatedItem);
+            }
+            return ResponseEntity.notFound().build();
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Ошибка сервера: " + e.getMessage());
+        }
+    }
+
     @PatchMapping("/{id}/cfo")
     public ResponseEntity<?> updatePurchasePlanItemCfo(
             @PathVariable Long id,

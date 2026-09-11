@@ -1,19 +1,28 @@
 package com.uzproc.backend.service.payment;
 
 import com.uzproc.backend.entity.Cfo;
+import com.uzproc.backend.entity.contract.Contract;
 import com.uzproc.backend.entity.payment.Payment;
 import com.uzproc.backend.entity.payment.PaymentRequestStatus;
 import com.uzproc.backend.entity.payment.PaymentStatus;
 import com.uzproc.backend.entity.purchaserequest.PurchaseRequest;
 import com.uzproc.backend.entity.supplier.Supplier;
 import com.uzproc.backend.entity.user.User;
-import com.uzproc.backend.entity.contract.Contract;
 import com.uzproc.backend.repository.CfoRepository;
-import com.uzproc.backend.repository.contract.ContractRepository;
 import com.uzproc.backend.repository.payment.PaymentRepository;
-import com.uzproc.backend.repository.purchaserequest.PurchaseRequestRepository;
 import com.uzproc.backend.repository.supplier.SupplierRepository;
-import com.uzproc.backend.repository.user.UserRepository;
+import com.uzproc.backend.service.excel.ImportBatchRunner;
+import com.uzproc.backend.service.excel.dictionary.CfoDictionary.CfoRef;
+import com.uzproc.backend.service.excel.dictionary.ContractDictionary;
+import com.uzproc.backend.service.excel.dictionary.ContractDictionary.ContractRef;
+import com.uzproc.backend.service.excel.dictionary.ImportDictionaries;
+import com.uzproc.backend.service.excel.dictionary.ImportDictionaryService;
+import com.uzproc.backend.service.excel.dictionary.ImportUserResolver;
+import com.uzproc.backend.service.excel.dictionary.PurchaseRequestDictionary.PurchaseRequestRef;
+import com.uzproc.backend.service.excel.dictionary.SupplierDictionary;
+import com.uzproc.backend.service.excel.dictionary.SupplierDictionary.SupplierRef;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -25,6 +34,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -60,6 +70,11 @@ public class PaymentExcelLoadService {
     /** Размер порции: каждая порция сохраняется в отдельной транзакции */
     private static final int BATCH_SIZE = 500;
 
+    /** Справочники, по которым сопоставляются строки оплат */
+    private static final Set<ImportDictionaryService.Kind> DICTIONARIES = EnumSet.of(
+            ImportDictionaryService.Kind.CONTRACTS, ImportDictionaryService.Kind.PURCHASE_REQUESTS,
+            ImportDictionaryService.Kind.SUPPLIERS, ImportDictionaryService.Kind.USERS, ImportDictionaryService.Kind.CFOS);
+
     private static final DateTimeFormatter[] DATE_PARSERS = {
             DateTimeFormatter.ofPattern("dd.MM.yyyy"),
             DateTimeFormatter.ofPattern("d.M.yyyy"),
@@ -79,25 +94,25 @@ public class PaymentExcelLoadService {
 
     private final PaymentRepository paymentRepository;
     private final CfoRepository cfoRepository;
-    private final PurchaseRequestRepository purchaseRequestRepository;
-    private final ContractRepository contractRepository;
-    private final UserRepository userRepository;
     private final SupplierRepository supplierRepository;
-    private final PaymentBatchSaver batchSaver;
+    private final ImportBatchRunner batchRunner;
+    private final ImportDictionaryService dictionaryService;
+    private final ImportUserResolver userResolver;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public PaymentExcelLoadService(PaymentRepository paymentRepository, CfoRepository cfoRepository,
-                                  PurchaseRequestRepository purchaseRequestRepository,
-                                  ContractRepository contractRepository,
-                                  UserRepository userRepository,
-                                  SupplierRepository supplierRepository,
-                                  PaymentBatchSaver batchSaver) {
+                                   SupplierRepository supplierRepository,
+                                   ImportBatchRunner batchRunner,
+                                   ImportDictionaryService dictionaryService,
+                                   ImportUserResolver userResolver) {
         this.paymentRepository = paymentRepository;
         this.cfoRepository = cfoRepository;
-        this.purchaseRequestRepository = purchaseRequestRepository;
-        this.contractRepository = contractRepository;
-        this.userRepository = userRepository;
         this.supplierRepository = supplierRepository;
-        this.batchSaver = batchSaver;
+        this.batchRunner = batchRunner;
+        this.dictionaryService = dictionaryService;
+        this.userResolver = userResolver;
     }
 
     /**
@@ -106,11 +121,16 @@ public class PaymentExcelLoadService {
      * Каждая строка — новая запись (связь ЦФО по имени, при отсутствии — создаётся).
      * Файл читается построчно ({@link PaymentExcelRowReader}), лист не загружается в память целиком.
      * Без @Transactional на уровне метода: строки сохраняются порциями по BATCH_SIZE в отдельных
-     * транзакциях через {@link PaymentBatchSaver} (как у согласований договоров и поступлений) —
+     * транзакциях через {@link ImportBatchRunner} (как у согласований договоров и поступлений) —
      * сессия Hibernate не разрастается на весь файл, а ошибка одной строки не откатывает весь импорт.
+     * Договоры, заявки, поставщики, пользователи и ЦФО сопоставляются по справочникам в памяти
+     * ({@link ImportDictionaryService}), а не запросами на каждую строку.
      */
     public int loadPaymentsFromExcel(File excelFile) throws IOException {
-        PaymentFileImport fileImport = new PaymentFileImport(excelFile.getName());
+        ImportDictionaries dictionaries = dictionaryService.load(DICTIONARIES);
+        Set<String> existingMainIds = new HashSet<>(paymentRepository.findAllMainIds());
+
+        PaymentFileImport fileImport = new PaymentFileImport(excelFile.getName(), dictionaries, existingMainIds);
         PaymentExcelRowReader.read(excelFile, fileImport::onRow);
         fileImport.flushBatch();
 
@@ -142,6 +162,9 @@ public class PaymentExcelLoadService {
      */
     private final class PaymentFileImport {
         private final String fileName;
+        private final ImportDictionaries dictionaries;
+        /** Номера оплат, которые уже есть в БД: для остальных строк оплата создаётся без поиска */
+        private final Set<String> existingMainIds;
         private final Set<String> mainIdsSeenInFile = new HashSet<>();
         private final List<PaymentRow> batch = new ArrayList<>(BATCH_SIZE);
         private PaymentColumns columns;
@@ -150,8 +173,10 @@ public class PaymentExcelLoadService {
         private int skippedNoMainId;
         private int skippedDuplicateMainId;
 
-        PaymentFileImport(String fileName) {
+        PaymentFileImport(String fileName, ImportDictionaries dictionaries, Set<String> existingMainIds) {
             this.fileName = fileName;
+            this.dictionaries = dictionaries;
+            this.existingMainIds = existingMainIds;
         }
 
         void onRow(int rowNum, Map<Integer, String> cells) {
@@ -180,25 +205,13 @@ public class PaymentExcelLoadService {
             }
         }
 
-        /**
-         * Быстрый путь — вся порция одной транзакцией; при сбое (например, одна строка испортила сессию)
-         * порция повторяется построчно — теряется только плохая строка. Список всегда очищается.
-         */
+        /** Сохраняет накопленную порцию (с построчным повтором при сбое); список всегда очищается. */
         void flushBatch() {
             if (batch.isEmpty()) return;
             batchNumber++;
             try {
-                loadedCount += batchSaver.saveBatch(batch, row -> savePaymentRow(row, columns));
-            } catch (Exception e) {
-                logger.warn("Payments: batch {} save failed ({}), retrying row-by-row for {} rows",
-                        batchNumber, e.getMessage(), batch.size());
-                for (PaymentRow row : batch) {
-                    try {
-                        loadedCount += batchSaver.saveRowIsolated(row, r -> savePaymentRow(r, columns));
-                    } catch (Exception ex) {
-                        logger.warn("Error processing payment row {}: {}", row.rowNum() + 1, ex.getMessage());
-                    }
-                }
+                loadedCount += batchRunner.save("Payments", batch, row -> savePaymentRow(row, this),
+                        dictionaries, row -> String.valueOf(row.rowNum() + 1));
             } finally {
                 batch.clear();
             }
@@ -213,16 +226,18 @@ public class PaymentExcelLoadService {
      *
      * @return true — оплата создана или обновлена
      */
-    private boolean savePaymentRow(PaymentRow row, PaymentColumns columns) {
-        Payment payment = parsePaymentRow(row.cells(), row.rowNum(), columns);
-        Optional<Payment> existingOpt = paymentRepository.findFirstByMainId(row.mainId());
-        if (existingOpt.isPresent()) {
-            Payment existing = existingOpt.get();
-            if (updatePaymentFields(existing, payment)) {
-                paymentRepository.save(existing);
-                return true;
+    private boolean savePaymentRow(PaymentRow row, PaymentFileImport fileImport) {
+        Payment payment = parsePaymentRow(row.cells(), row.rowNum(), fileImport.columns, fileImport.dictionaries);
+        if (fileImport.existingMainIds.contains(row.mainId())) {
+            Optional<Payment> existingOpt = paymentRepository.findFirstByMainId(row.mainId());
+            if (existingOpt.isPresent()) {
+                Payment existing = existingOpt.get();
+                if (updatePaymentFields(existing, payment)) {
+                    paymentRepository.save(existing);
+                    return true;
+                }
+                return false;
             }
-            return false;
         }
         paymentRepository.save(payment);
         return true;
@@ -276,7 +291,8 @@ public class PaymentExcelLoadService {
                 counterpartyColumnIndex, innColumnIndex, executorColumnIndex, responsibleColumnIndex);
     }
 
-    private Payment parsePaymentRow(Map<Integer, String> cells, int rowNum, PaymentColumns columns) {
+    private Payment parsePaymentRow(Map<Integer, String> cells, int rowNum, PaymentColumns columns,
+                                    ImportDictionaries dictionaries) {
         Payment payment = new Payment();
 
         String mainId = extractMainId(cells, columns);
@@ -291,16 +307,20 @@ public class PaymentExcelLoadService {
 
         String cfoName = cellValue(cells, columns.cfo());
         if (cfoName != null) {
-            Cfo cfo = cfoRepository.findByNameIgnoreCase(cfoName)
-                    .orElseGet(() -> cfoRepository.save(new Cfo(cfoName)));
-            payment.setCfo(cfo);
+            payment.setCfo(findOrCreateCfo(cfoName, dictionaries));
         }
 
         String comment = cellValue(cells, columns.comment());
         if (comment != null) {
             payment.setComment(comment);
-            linkPurchaseRequestFromComment(payment, comment);
-            linkContractFromComment(payment, comment);
+            PurchaseRequestRef purchaseRequest = findPurchaseRequest(comment, dictionaries);
+            if (purchaseRequest != null) {
+                payment.setPurchaseRequest(entityManager.getReference(PurchaseRequest.class, purchaseRequest.id()));
+            }
+            ContractRef contract = findContract(comment, purchaseRequest, dictionaries.contracts());
+            if (contract != null) {
+                payment.setContract(entityManager.getReference(Contract.class, contract.id()));
+            }
         }
 
         String paymentStatusValue = cellValue(cells, columns.paymentStatus());
@@ -340,14 +360,14 @@ public class PaymentExcelLoadService {
 
         // Связь с контрагентом из справочника: ищем по ИНН, при отсутствии — создаём
         String inn = normalizeInn(cellValue(cells, columns.inn()));
-        Supplier supplier = findOrCreateSupplier(inn, counterpartyName);
+        Supplier supplier = findOrCreateSupplier(inn, counterpartyName, dictionaries.suppliers());
         if (supplier != null) {
             payment.setSupplier(supplier);
         }
 
         String executorValue = cellValue(cells, columns.executor());
         if (executorValue != null) {
-            User executor = findOrCreateUser(executorValue);
+            User executor = userResolver.findOrCreate(executorValue, dictionaries.users());
             if (executor != null) {
                 payment.setExecutor(executor);
             }
@@ -355,7 +375,7 @@ public class PaymentExcelLoadService {
 
         String responsibleValue = cellValue(cells, columns.responsible());
         if (responsibleValue != null) {
-            User responsible = findOrCreateUser(responsibleValue);
+            User responsible = userResolver.findOrCreate(responsibleValue, dictionaries.users());
             if (responsible != null) {
                 payment.setResponsible(responsible);
             }
@@ -366,6 +386,7 @@ public class PaymentExcelLoadService {
 
     /**
      * Обновляет поля существующей оплаты только если они отличаются (как у заявок/закупок).
+     * Связи сравниваются по id: у ссылок из справочников (getReference) другие поля без запроса к БД недоступны.
      */
     private boolean updatePaymentFields(Payment existing, Payment newData) {
         boolean updated = false;
@@ -390,7 +411,7 @@ public class PaymentExcelLoadService {
             if (existing.getCfo() == null || !newData.getCfo().getId().equals(existing.getCfo().getId())) {
                 existing.setCfo(newData.getCfo());
                 updated = true;
-                logger.debug("Updated cfo for payment {}: {}", existing.getId(), newData.getCfo().getName());
+                logger.debug("Updated cfo for payment {}: {}", existing.getId(), newData.getCfo().getId());
             }
         }
 
@@ -416,13 +437,13 @@ public class PaymentExcelLoadService {
             if (existing.getSupplier() == null || !newData.getSupplier().getId().equals(existing.getSupplier().getId())) {
                 existing.setSupplier(newData.getSupplier());
                 updated = true;
-                logger.debug("Updated supplier for payment {}: inn={}", existing.getId(), newData.getSupplier().getInn());
+                logger.debug("Updated supplier for payment {}: {}", existing.getId(), newData.getSupplier().getId());
             }
         }
 
         if (newData.getPurchaseRequest() != null) {
-            Long newPrId = newData.getPurchaseRequest().getIdPurchaseRequest();
-            if (existing.getPurchaseRequest() == null || !existing.getPurchaseRequest().getIdPurchaseRequest().equals(newPrId)) {
+            Long newPrId = newData.getPurchaseRequest().getId();
+            if (existing.getPurchaseRequest() == null || !existing.getPurchaseRequest().getId().equals(newPrId)) {
                 existing.setPurchaseRequest(newData.getPurchaseRequest());
                 updated = true;
                 logger.debug("Updated purchaseRequest for payment {}: {}", existing.getId(), newPrId);
@@ -433,7 +454,7 @@ public class PaymentExcelLoadService {
             if (existing.getContract() == null || !existing.getContract().getId().equals(newData.getContract().getId())) {
                 existing.setContract(newData.getContract());
                 updated = true;
-                logger.debug("Updated contract for payment {}: {}", existing.getId(), newData.getContract().getTitle());
+                logger.debug("Updated contract for payment {}: {}", existing.getId(), newData.getContract().getId());
             }
         } else if (newData.getContract() == null && existing.getContract() != null) {
             existing.setContract(null);
@@ -508,131 +529,95 @@ public class PaymentExcelLoadService {
     }
 
     /**
+     * ЦФО по названию без учёта регистра; при отсутствии — создаётся.
+     * Нет в справочнике — проверяем БД (ЦФО мог создать другой загрузчик), затем создаём.
+     */
+    private Cfo findOrCreateCfo(String cfoName, ImportDictionaries dictionaries) {
+        CfoRef ref = dictionaries.cfos().byName(cfoName);
+        if (ref == null) {
+            Optional<Cfo> existing = cfoRepository.findByNameIgnoreCase(cfoName);
+            if (existing.isPresent()) {
+                ref = new CfoRef(existing.get().getId(), existing.get().getName());
+                dictionaries.cfos().putExisting(ref);
+            } else {
+                Cfo created = cfoRepository.save(new Cfo(cfoName));
+                ref = new CfoRef(created.getId(), created.getName());
+                dictionaries.cfos().stage(ref);
+            }
+        }
+        return entityManager.getReference(Cfo.class, ref.id());
+    }
+
+    /**
      * Находит контрагента в справочнике поставщиков по ИНН, при отсутствии — создаёт нового
      * (code = ИНН, как при разборе колонки "Контрагенты" в договорах).
      * Если ИНН в выгрузке нет, пробуем найти поставщика по наименованию (новый при этом не создаём).
      * code у поставщиков уникален: если code, равный этому ИНН, уже занят поставщиком с другим ИНН
      * (например, служебный ИНН «000000005» совпал с кодом из справочника 1С), новый не создаём,
      * а ищем по наименованию — иначе вставка нарушит уникальность и сломает загрузку всего файла.
+     * Поиск идёт по справочнику; при промахе по ИНН или коду проверяется БД (поставщика мог создать другой загрузчик).
      *
      * @return найденный или созданный поставщик, либо null, если сопоставить не по чему
      */
-    private Supplier findOrCreateSupplier(String inn, String counterpartyName) {
+    private Supplier findOrCreateSupplier(String inn, String counterpartyName, SupplierDictionary suppliers) {
         if (inn == null) {
-            return findSupplierByName(counterpartyName);
+            return supplierReference(findSupplierByName(counterpartyName, suppliers));
         }
-        Optional<Supplier> existingOpt = supplierRepository.findFirstByInn(inn);
-        if (existingOpt.isPresent()) {
-            Supplier existing = existingOpt.get();
+        SupplierRef byInn = suppliers.byInn(inn);
+        if (byInn == null) {
+            byInn = supplierRepository.findFirstByInn(inn).map(SupplierRef::of).orElse(null);
+            if (byInn != null) suppliers.putExisting(byInn);
+        }
+        if (byInn != null) {
             // Наименование в справочнике может быть пустым — заполняем из выгрузки оплат
-            if ((existing.getName() == null || existing.getName().isBlank())
-                    && counterpartyName != null && !counterpartyName.isBlank()) {
+            if ((byInn.name() == null || byInn.name().isBlank()) && counterpartyName != null && !counterpartyName.isBlank()) {
+                Supplier existing = supplierRepository.findById(byInn.id()).orElseThrow();
                 existing.setName(counterpartyName);
-                return supplierRepository.save(existing);
+                supplierRepository.save(existing);
+                byInn = SupplierRef.of(existing);
+                suppliers.stage(byInn);
             }
-            return existing;
+            return supplierReference(byInn);
         }
-        Optional<Supplier> sameCodeOpt = supplierRepository.findByCode(inn);
-        if (sameCodeOpt.isPresent()) {
-            Supplier sameCode = sameCodeOpt.get();
+        SupplierRef sameCode = suppliers.byCode(inn);
+        if (sameCode == null) {
+            sameCode = supplierRepository.findByCode(inn).map(SupplierRef::of).orElse(null);
+            if (sameCode != null) suppliers.putExisting(sameCode);
+        }
+        if (sameCode != null) {
             // Поставщик с code = ИНН, но без ИНН — тот же контрагент: дозаполняем ИНН
-            if (sameCode.getInn() == null || sameCode.getInn().isBlank()) {
-                sameCode.setInn(inn);
-                return supplierRepository.save(sameCode);
+            if (sameCode.inn() == null || sameCode.inn().isBlank()) {
+                Supplier existing = supplierRepository.findById(sameCode.id()).orElseThrow();
+                existing.setInn(inn);
+                supplierRepository.save(existing);
+                sameCode = SupplierRef.of(existing);
+                suppliers.stage(sameCode);
+                return supplierReference(sameCode);
             }
             logger.warn("Payments: supplier code '{}' is taken by supplier id={} with inn={}, not creating supplier for counterparty '{}'",
-                    inn, sameCode.getId(), sameCode.getInn(), counterpartyName);
-            return findSupplierByName(counterpartyName);
+                    inn, sameCode.id(), sameCode.inn(), counterpartyName);
+            return supplierReference(findSupplierByName(counterpartyName, suppliers));
         }
         Supplier created = new Supplier();
         created.setCode(inn);
         created.setInn(inn);
         created.setName(counterpartyName);
         logger.info("Payments: creating supplier from payment row (inn={}, name={})", inn, counterpartyName);
-        return supplierRepository.save(created);
+        created = supplierRepository.save(created);
+        suppliers.stage(SupplierRef.of(created));
+        return created;
     }
 
-    private Supplier findSupplierByName(String counterpartyName) {
+    /** Поставщик по наименованию без учёта регистра (как findFirstByNameIgnoreCase); новый не создаётся. */
+    private static SupplierRef findSupplierByName(String counterpartyName, SupplierDictionary suppliers) {
         if (counterpartyName == null || counterpartyName.isBlank()) {
             return null;
         }
-        return supplierRepository.findFirstByNameIgnoreCase(counterpartyName).orElse(null);
+        return suppliers.byName(counterpartyName);
     }
 
-    /**
-     * Парсит строку формата "Фамилия Имя (Отдел, Должность)" или "Фамилия Имя",
-     * находит пользователя по surname и name или создаёт нового (как в EntityExcelLoadService.parseAndSaveUser).
-     *
-     * @return User найденный или созданный пользователь, или null при ошибке парсинга
-     */
-    private User findOrCreateUser(String executorValue) {
-        try {
-            String surname = null;
-            String name = null;
-            String department = null;
-            String position = null;
-
-            int openBracketIndex = executorValue.indexOf('(');
-            int closeBracketIndex = executorValue.indexOf(')');
-
-            if (openBracketIndex > 0 && closeBracketIndex > openBracketIndex) {
-                String namePart = executorValue.substring(0, openBracketIndex).trim();
-                String departmentPart = executorValue.substring(openBracketIndex + 1, closeBracketIndex).trim();
-                String[] nameParts = namePart.split("\\s+", 2);
-                if (nameParts.length >= 1) surname = nameParts[0].trim();
-                if (nameParts.length >= 2) name = nameParts[1].trim();
-                String[] deptParts = departmentPart.split(",", 2);
-                if (deptParts.length >= 1) department = deptParts[0].trim();
-                if (deptParts.length >= 2) position = deptParts[1].trim();
-            } else {
-                String[] nameParts = executorValue.split("\\s+", 2);
-                if (nameParts.length >= 1) surname = nameParts[0].trim();
-                if (nameParts.length >= 2) name = nameParts[1].trim();
-            }
-
-            String username = (surname != null ? surname : "") + (name != null ? "_" + name : "");
-            if (username.isEmpty() || username.equals("_")) {
-                username = "user_" + System.currentTimeMillis();
-            }
-
-            User existingUser = null;
-            if (surname != null && name != null) {
-                existingUser = userRepository.findBySurnameAndName(surname, name).orElse(null);
-            }
-            if (existingUser == null) {
-                existingUser = userRepository.findByUsername(username).orElse(null);
-            }
-
-            if (existingUser != null) {
-                boolean updated = false;
-                if (department != null && !department.equals(existingUser.getDepartment())) {
-                    existingUser.setDepartment(department);
-                    updated = true;
-                }
-                if (position != null && !position.equals(existingUser.getPosition())) {
-                    existingUser.setPosition(position);
-                    updated = true;
-                }
-                if (updated) {
-                    userRepository.save(existingUser);
-                }
-                return existingUser;
-            }
-
-            User newUser = new User();
-            newUser.setUsername(username);
-            newUser.setPassword("");
-            newUser.setSurname(surname);
-            newUser.setName(name);
-            newUser.setDepartment(department);
-            newUser.setPosition(position);
-            newUser = userRepository.save(newUser);
-            logger.debug("Created user for executor: {} {}", surname, name);
-            return newUser;
-        } catch (Exception e) {
-            logger.warn("Error parsing executor '{}': {}", executorValue, e.getMessage());
-            return null;
-        }
+    private Supplier supplierReference(SupplierRef ref) {
+        return ref == null ? null : entityManager.getReference(Supplier.class, ref.id());
     }
 
     /**
@@ -662,96 +647,94 @@ public class PaymentExcelLoadService {
     }
 
     /**
-     * Из комментария извлекает заголовок договора/документа и связывает оплату с договором по полю title.
+     * Из комментария извлекает заголовок договора/документа и находит договор по полю title.
      * Формат 1: "Создана по документу 1С:Документооборот: Спецификация 86 по заявке: M - Maintenance N 2136 - ..."
      *   → заголовок = "Спецификация 86 по заявке: M - Maintenance N 2136 - ..."
      * Формат 2: "Создана по документу 1С:Документооборот: Договор 15-KZA от 15.01.2026 M-Construction 2013 \"KZA BINO\" MCHJ ( 686 от 09.02.2026)"
      *   → заголовок = "Договор 15-KZA от 15.01.2026 M-Construction 2013 \"KZA BINO\" MCHJ" (до " (")
-     * Сначала ищется точное совпадение по title, затем по нормализованному title, затем по name.
+     * Сначала ищется точное совпадение по title, затем по нормализованному title, затем по name,
+     * затем среди договоров заявки оплаты.
      */
-    private void linkContractFromComment(Payment payment, String comment) {
-        if (comment == null || !comment.startsWith(COMMENT_PREFIX_1C)) return;
+    private ContractRef findContract(String comment, PurchaseRequestRef purchaseRequest, ContractDictionary contracts) {
+        if (comment == null || !comment.startsWith(COMMENT_PREFIX_1C)) return null;
         String afterPrefix = comment.substring(COMMENT_PREFIX_1C.length()).replaceFirst("^[:\\s]+", "").trim();
-        if (afterPrefix.isEmpty()) return;
+        if (afterPrefix.isEmpty()) return null;
         Matcher parenMatcher = SERVICE_PAREN_SUFFIX.matcher(afterPrefix);
         String title = parenMatcher.find() ? afterPrefix.substring(0, parenMatcher.start()).trim() : afterPrefix;
         if (title.length() > 500) {
             title = title.substring(0, 500);
         }
         String normalizedTitle = normalizeTitleForMatch(title);
-        if (normalizedTitle.isEmpty()) return;
+        if (normalizedTitle.isEmpty()) return null;
 
-        Optional<Contract> contractOpt = contractRepository.findFirstByTitle(title);
-        if (contractOpt.isEmpty()) {
-            contractOpt = contractRepository.findFirstByNormalizedTitle(normalizedTitle);
+        ContractRef contract = contracts.byTitle(title);
+        if (contract == null) {
+            contract = contracts.byNormalizedTitle(normalizedTitle);
         }
-        if (contractOpt.isEmpty()) {
-            contractOpt = contractRepository.findByName(normalizedTitle);
+        if (contract == null) {
+            contract = contracts.byName(normalizedTitle);
         }
-        if (contractOpt.isEmpty() && !normalizedTitle.equals(title)) {
-            contractOpt = contractRepository.findByName(title);
+        if (contract == null && !normalizedTitle.equals(title)) {
+            contract = contracts.byName(title);
         }
-        if (contractOpt.isPresent()) {
-            payment.setContract(contractOpt.get());
+        if (contract != null) {
             logger.info("Payment linked to contract by title: {}", title.length() > 80 ? title.substring(0, 80) + "..." : title);
-        } else {
-            // Fallback: if payment is already linked to purchase request, try contract lookup within that request.
-            // This allows re-imports to link contracts later when direct title matching fails.
-            linkContractByPurchaseRequest(payment, normalizedTitle, title);
-            if (payment.getContract() == null) {
-                logger.debug("Payment: no contract found for title (excerpt): '{}'", title.length() > 80 ? title.substring(0, 80) + "..." : title);
-            }
+            return contract;
         }
+        // Fallback: if payment is linked to purchase request, try contract lookup within that request.
+        // This allows re-imports to link contracts later when direct title matching fails.
+        contract = findContractByPurchaseRequest(purchaseRequest, normalizedTitle, title, contracts);
+        if (contract == null) {
+            logger.debug("Payment: no contract found for title (excerpt): '{}'", title.length() > 80 ? title.substring(0, 80) + "..." : title);
+        }
+        return contract;
     }
 
-    private void linkContractByPurchaseRequest(Payment payment, String normalizedTitle, String originalTitle) {
-        if (payment.getPurchaseRequest() == null || payment.getPurchaseRequest().getIdPurchaseRequest() == null) {
-            return;
+    private ContractRef findContractByPurchaseRequest(PurchaseRequestRef purchaseRequest, String normalizedTitle,
+                                                      String originalTitle, ContractDictionary contracts) {
+        if (purchaseRequest == null || purchaseRequest.idPurchaseRequest() == null) {
+            return null;
         }
 
-        Long purchaseRequestId = payment.getPurchaseRequest().getIdPurchaseRequest();
-        List<Contract> contracts = contractRepository.findByPurchaseRequestId(purchaseRequestId);
-        if (contracts == null || contracts.isEmpty()) {
-            return;
+        Long purchaseRequestId = purchaseRequest.idPurchaseRequest();
+        List<ContractRef> requestContracts = contracts.byPurchaseRequestId(purchaseRequestId);
+        if (requestContracts.isEmpty()) {
+            return null;
         }
 
-        if (contracts.size() == 1) {
-            payment.setContract(contracts.get(0));
+        if (requestContracts.size() == 1) {
             logger.info("Payment linked to contract by purchaseRequestId={} (single contract)", purchaseRequestId);
-            return;
+            return requestContracts.get(0);
         }
 
-        for (Contract contract : contracts) {
-            if (contract.getTitle() != null &&
-                normalizeTitleForMatch(contract.getTitle()).equals(normalizedTitle)) {
-                payment.setContract(contract);
+        for (ContractRef contract : requestContracts) {
+            if (contract.title() != null && normalizeTitleForMatch(contract.title()).equals(normalizedTitle)) {
                 logger.info("Payment linked to contract by purchaseRequestId={} and normalized title", purchaseRequestId);
-                return;
+                return contract;
             }
         }
 
-        for (Contract contract : contracts) {
-            if (contract.getName() != null &&
-                normalizeTitleForMatch(contract.getName()).equals(normalizedTitle)) {
-                payment.setContract(contract);
+        for (ContractRef contract : requestContracts) {
+            if (contract.name() != null && normalizeTitleForMatch(contract.name()).equals(normalizedTitle)) {
                 logger.info("Payment linked to contract by purchaseRequestId={} and normalized name", purchaseRequestId);
-                return;
+                return contract;
             }
         }
 
         logger.debug("Payment: {} contracts found for purchaseRequestId={}, but no exact title/name match for '{}'",
-            contracts.size(),
+            requestContracts.size(),
             purchaseRequestId,
             originalTitle.length() > 80 ? originalTitle.substring(0, 80) + "..." : originalTitle);
+        return null;
     }
 
     /**
-     * Из комментария извлекает номер заявки и связывает оплату с заявкой на закупку.
+     * Из комментария извлекает номер заявки и находит заявку на закупку.
      * Формат 1: "N 2136" / "N 1898" в тексте → innerId 2136, 1898.
      * Формат 2: "Договор ... M-Construction 2013 ..." → 2013 — номер заявки (innerId или id_purchase_request).
      */
-    private void linkPurchaseRequestFromComment(Payment payment, String comment) {
-        if (comment == null || comment.isEmpty()) return;
+    private PurchaseRequestRef findPurchaseRequest(String comment, ImportDictionaries dictionaries) {
+        if (comment == null || comment.isEmpty()) return null;
         String innerId = null;
         Matcher mConstruction = REQUEST_NUMBER_M_CONSTRUCTION.matcher(comment);
         if (mConstruction.find()) {
@@ -765,20 +748,19 @@ public class PaymentExcelLoadService {
             while (matcher.find()) lastMatch = matcher.group(1);
             if (lastMatch != null) innerId = lastMatch.trim();
         }
-        if (innerId == null || innerId.isEmpty()) return;
-        Optional<PurchaseRequest> prOpt = purchaseRequestRepository.findByInnerId(innerId);
-        if (prOpt.isEmpty()) {
+        if (innerId == null || innerId.isEmpty()) return null;
+        PurchaseRequestRef purchaseRequest = dictionaries.purchaseRequests().byInnerId(innerId);
+        if (purchaseRequest == null) {
             try {
-                Long idPr = Long.parseLong(innerId);
-                prOpt = purchaseRequestRepository.findByIdPurchaseRequest(idPr);
+                purchaseRequest = dictionaries.purchaseRequests().byIdPurchaseRequest(Long.parseLong(innerId));
             } catch (NumberFormatException ignored) { }
         }
-        if (prOpt.isPresent()) {
-            payment.setPurchaseRequest(prOpt.get());
+        if (purchaseRequest != null) {
             logger.info("Payment linked to purchase request innerId={}", innerId);
         } else {
             logger.info("Payment: no purchase request found for innerId='{}' (comment excerpt: '{}')", innerId, comment.length() > 80 ? comment.substring(0, 80) + "..." : comment);
         }
+        return purchaseRequest;
     }
 
     private Map<String, Integer> buildColumnIndexMap(Map<Integer, String> headerCells) {

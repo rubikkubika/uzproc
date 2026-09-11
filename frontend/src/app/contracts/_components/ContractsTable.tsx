@@ -567,11 +567,12 @@ export default function ContractsTable() {
                   <>{renderSortButton('cfo')}<span className="uppercase">ЦФО</span></>
                 )}
               </th>
-              {/* Наименование */}
+              {/* Предмет (если у договора его нет — наименование); фильтр и сортировка по полю name
+                  на бэкенде работают по этому же значению */}
               <th className="px-2 text-left text-xs font-medium text-gray-500 border-r border-gray-300">
                 {thInner(
                   renderFilterInput('name'),
-                  <>{renderSortButton('name')}<span>Наименование</span></>
+                  <>{renderSortButton('name')}<span>Предмет</span></>
                 )}
               </th>
               {/* Контрагент */}
@@ -751,7 +752,7 @@ export default function ContractsTable() {
                       <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 break-words">{contract.preparedBy || '-'}</td>
                     )}
                     <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 break-words">{contract.cfo || '-'}</td>
-                    <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 break-words">{contract.name || contract.title || '-'}</td>
+                    <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 break-words">{contract.subject || contract.name || contract.title || '-'}</td>
                     <td className="px-2 py-2 text-xs text-gray-900 border-r border-gray-300 break-words">
                       {contract.suppliers && contract.suppliers.length > 0
                         ? contract.suppliers.map(s => s.name && s.inn ? `${s.name} (${s.inn})` : s.name || s.inn || '').join(', ')

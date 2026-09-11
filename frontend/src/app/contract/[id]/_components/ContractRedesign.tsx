@@ -229,6 +229,9 @@ export default function ContractRedesign({
               <InfoRow label="Тип договора">{contract.contractType || '—'}</InfoRow>
               <InfoRow label="Срок действия (мес.)">{contract.contractDurationMonths != null ? contract.contractDurationMonths : '—'}</InfoRow>
               <InfoRow label="Состояние">{contract.state || '—'}</InfoRow>
+              {contract.excludedFromPlanning && (
+                <InfoRow label="Планирование"><Pill text="Исключён из планирования" tone="red" /></InfoRow>
+              )}
               <InfoRow label="Организация заказчика" last>{contract.customerOrganization || '—'}</InfoRow>
             </div>
             <div style={{ borderLeft: `1px solid ${C.divider}`, paddingLeft: 28, display: 'flex', flexDirection: 'column', borderTop: `1px solid ${C.divider}` }}>

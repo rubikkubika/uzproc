@@ -10,11 +10,14 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 /**
- * Компонент для автоматического обновления статусов при запуске приложения
- * Запускается после всех парсингов Excel (если они есть) или просто при старте
+ * Компонент для автоматического обновления статусов при запуске приложения — единственный пересчёт при старте
+ * (загрузчики docs.xlsx и report.xlsx при старте статусы не пересчитывают).
+ * Запускается после загрузок, от которых зависят статусы (docs 0, approvals 25, report 100),
+ * и до тех, кто статусы использует (handreport 150, раннеры поставок 400/450, подписанные спецификации 1100).
+ * Оплаты и поступления на статусы не влияют, поэтому ждать их не нужно.
  */
 @Component
-@Order(1000) // Высокий порядок, чтобы запускаться после всех парсингов
+@Order(120)
 public class StatusUpdateRunner implements CommandLineRunner {
 
     private static final Logger logger = LoggerFactory.getLogger(StatusUpdateRunner.class);

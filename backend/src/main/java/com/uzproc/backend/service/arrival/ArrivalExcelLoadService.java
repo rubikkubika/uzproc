@@ -1,5 +1,7 @@
 package com.uzproc.backend.service.arrival;
 
+import com.uzproc.backend.service.excel.dictionary.ImportDictionaries;
+import com.uzproc.backend.service.excel.dictionary.ImportDictionaryService;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -50,11 +52,17 @@ public class ArrivalExcelLoadService {
             DateTimeFormatter.ISO_LOCAL_DATE
     };
 
+    /** Справочники, по которым сопоставляются строки поступлений */
+    private static final Set<ImportDictionaryService.Kind> DICTIONARIES =
+            EnumSet.of(ImportDictionaryService.Kind.SUPPLIERS, ImportDictionaryService.Kind.USERS);
+
     private final ArrivalBatchSaver batchSaver;
+    private final ImportDictionaryService dictionaryService;
     private final DataFormatter dataFormatter = new DataFormatter();
 
-    public ArrivalExcelLoadService(ArrivalBatchSaver batchSaver) {
+    public ArrivalExcelLoadService(ArrivalBatchSaver batchSaver, ImportDictionaryService dictionaryService) {
         this.batchSaver = batchSaver;
+        this.dictionaryService = dictionaryService;
     }
 
     /**
@@ -113,6 +121,9 @@ public class ArrivalExcelLoadService {
                     warehouseColumnIndex, operationTypeColumnIndex, departmentColumnIndex, incomingDateColumnIndex,
                     incomingNumberColumnIndex, amountColumnIndex, currencyColumnIndex, commentColumnIndex, responsibleColumnIndex);
 
+            // Поставщики и пользователи — один снимок справочников на файл вместо запросов на каждую строку
+            ImportDictionaries dictionaries = dictionaryService.load(DICTIONARIES);
+
             Iterator<Row> rowIterator = sheet.iterator();
             for (int i = 0; i <= headerRowIndex && rowIterator.hasNext(); i++) {
                 rowIterator.next();
@@ -148,7 +159,7 @@ public class ArrivalExcelLoadService {
 
                     if (batch.size() >= BATCH_SIZE) {
                         batchNumber++;
-                        loadedCount += flushBatch(batch);
+                        loadedCount += flushBatch(batch, dictionaries);
                         logger.debug("Arrivals: batch {} saved ({} rows so far)", batchNumber, loadedCount);
                     }
                 } catch (Exception e) {
@@ -159,7 +170,7 @@ public class ArrivalExcelLoadService {
             // Последний неполный батч
             if (!batch.isEmpty()) {
                 batchNumber++;
-                loadedCount += flushBatch(batch);
+                loadedCount += flushBatch(batch, dictionaries);
                 logger.debug("Arrivals: final batch {} saved ({} rows total)", batchNumber, loadedCount);
             }
 
@@ -178,18 +189,24 @@ public class ArrivalExcelLoadService {
      * одной проблемной строки, испортившей сессию), батч сохраняется построчно через
      * {@link ArrivalBatchSaver#saveRowIsolated} — теряется только плохая строка, а не весь батч.
      */
-    private int flushBatch(List<ArrivalRowData> batch) {
+    private int flushBatch(List<ArrivalRowData> batch, ImportDictionaries dictionaries) {
         if (batch.isEmpty()) return 0;
         try {
-            return batchSaver.saveBatch(batch);
+            int saved = batchSaver.saveBatch(batch, dictionaries);
+            // Батч сохранён — созданные в нём поставщики и пользователи становятся частью справочников
+            dictionaries.commit();
+            return saved;
         } catch (Exception e) {
+            dictionaries.discard();
             logger.warn("Arrivals: batch save failed ({}), retrying row-by-row for {} rows",
                     e.getMessage(), batch.size());
             int saved = 0;
             for (ArrivalRowData data : batch) {
                 try {
-                    saved += batchSaver.saveRowIsolated(data);
+                    saved += batchSaver.saveRowIsolated(data, dictionaries);
+                    dictionaries.commit();
                 } catch (Exception ex) {
+                    dictionaries.discard();
                     logger.warn("Arrivals: skipping row number={}: {}", data.number, ex.getMessage());
                 }
             }

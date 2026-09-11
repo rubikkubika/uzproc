@@ -6,6 +6,7 @@ import { getCompanyLogoPath, getPurchaseRequestStatusColor } from '../utils/purc
 import GanttChart from '../GanttChart';
 import PurchasePlanDraftBudgetCell from './PurchasePlanDraftBudgetCell';
 import PurchasePlanDraftComplexityCell from './PurchasePlanDraftComplexityCell';
+import PurchasePlanExcludeFromPlanningButton from './PurchasePlanExcludeFromPlanningButton';
 import { usePurchasePlanMode } from '../contexts/PurchasePlanModeContext';
 import { calculateNewContractDate } from '../utils/date.utils';
 
@@ -70,6 +71,8 @@ interface PurchasePlanItemsTableRowProps {
   editingComplexity?: number | null;
   setEditingComplexity?: (id: number | null) => void;
   onComplexityUpdate?: (itemId: number, value: string) => void;
+  /** «Глазик» у позиции драфта: исключить из планирования / вернуть в план */
+  onExcludeFromPlanningToggle?: (itemId: number, excluded: boolean) => void;
   holidayDateKeys?: Set<string>;
 }
 
@@ -130,6 +133,7 @@ export default function PurchasePlanItemsTableRow({
   editingComplexity = null,
   setEditingComplexity,
   onComplexityUpdate,
+  onExcludeFromPlanningToggle,
   holidayDateKeys,
 }: PurchasePlanItemsTableRowProps) {
   const isInactive = item.status === 'Исключена';
@@ -145,6 +149,24 @@ export default function PurchasePlanItemsTableRow({
     const width = getColumnWidth(columnKey);
     
     switch (columnKey) {
+      case 'excludeFromPlanning':
+        // «Глазик» (только драфт): исключить позицию и её договор из планирования / вернуть в план
+        return (
+          <td
+            key={columnKey}
+            className="px-0 py-0 border-r border-gray-300"
+            style={{ width: '28px', minWidth: '28px', maxWidth: '28px' }}
+          >
+            <div className="flex items-center justify-center">
+              <PurchasePlanExcludeFromPlanningButton
+                excluded={isInactive}
+                canEdit={isDraft && canEdit && !isViewingArchiveVersion && !!onExcludeFromPlanningToggle}
+                onToggle={() => onExcludeFromPlanningToggle?.(item.id, !isInactive)}
+              />
+            </div>
+          </td>
+        );
+
       case 'id':
         return (
           <td

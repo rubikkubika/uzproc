@@ -1,4 +1,4 @@
-package com.uzproc.backend.service.payment;
+package com.uzproc.backend.service.excel;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -10,21 +10,20 @@ import java.util.List;
 import java.util.function.Predicate;
 
 /**
- * Сохраняет порцию строк файла оплат в отдельной транзакции
- * (как {@link com.uzproc.backend.service.arrival.ArrivalBatchSaver} и ContractApprovalBatchSaver).
- * Обработка строки остаётся в {@link PaymentExcelLoadService} и передаётся сюда функцией;
- * отдельный бин нужен, чтобы REQUIRES_NEW шёл через прокси и каждая порция коммитилась независимо.
+ * Сохраняет порцию строк загрузки Excel в отдельной транзакции (REQUIRES_NEW) с flush/clear в конце —
+ * сессия Hibernate не разрастается на весь файл (как ArrivalBatchSaver и ContractApprovalBatchSaver).
+ * Обработка строки передаётся функцией; отдельный бин нужен, чтобы REQUIRES_NEW шёл через прокси
+ * и каждая порция коммитилась независимо. Порции с построчным повтором при сбое — {@link ImportBatchRunner}.
  */
 @Service
-public class PaymentBatchSaver {
+public class ImportBatchSaver {
 
     @PersistenceContext
     private EntityManager entityManager;
 
     /**
-     * Быстрый путь: вся порция в одной транзакции, в конце flush/clear — сессия Hibernate не растёт на весь файл.
-     * Построчного try/catch здесь нет: первая же ошибка портит сессию, поэтому исключение откатывает порцию,
-     * а вызывающий код повторяет её построчно через {@link #saveRowIsolated}.
+     * Быстрый путь: вся порция в одной транзакции. Построчного try/catch здесь нет: первая же ошибка
+     * портит сессию, поэтому исключение откатывает порцию, а вызывающий код повторяет её построчно.
      *
      * @return сколько строк создали или обновили запись
      */

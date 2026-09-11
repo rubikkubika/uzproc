@@ -725,6 +725,37 @@ export const usePurchasePlanItemsEditing = (
     }
   };
 
+  // «Глазик» у позиции драфта: исключение из планирования (статус «Исключена»,
+  // договор-источник не попадёт в новые драфты) или возврат в план
+  const handleExcludeFromPlanningToggle = async (itemId: number, excluded: boolean) => {
+    try {
+      const response = await fetch(`${getBackendUrl()}/api/purchase-plan-items/${itemId}/exclude-from-planning`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ excludedFromPlanning: excluded }),
+      });
+
+      if (response.ok) {
+        const updatedItem = await response.json();
+        setAllItems(prev => {
+          const updated = prev.map(item =>
+            item.id === itemId
+              ? { ...item, status: updatedItem.status, updatedAt: updatedItem.updatedAt }
+              : item
+          );
+          if (data) {
+            setData({ ...data, content: updated });
+          }
+          return updated;
+        });
+      } else {
+        alert('Ошибка при исключении из планирования: ' + (await response.text()));
+      }
+    } catch {
+      alert('Ошибка при исключении из планирования');
+    }
+  };
+
   // Функция для обновления предмета закупки
   const handlePurchaseSubjectUpdate = async (itemId: number, newPurchaseSubject: string) => {
     try {
@@ -970,6 +1001,7 @@ export const usePurchasePlanItemsEditing = (
     editingComplexity,
     setEditingComplexity,
     handleComplexityUpdate,
+    handleExcludeFromPlanningToggle,
     setEditingPurchaseSubject,
     purchaseSubjectInputRef,
     editingPurchaser,
